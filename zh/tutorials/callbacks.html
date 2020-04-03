@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>回调 &mdash; nemo 0.9.0 documentation</title>
+  <title>回调 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="复杂训练流程（ GAN 例子）" href="complex_training.html" />
+    <link rel="next" title="复杂训练流程 (GAN 例子)" href="complex_training.html" />
     <link rel="prev" title="模块间的权重共享" href="weightsharing.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,24 +86,26 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">从这里开始</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">编程模型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">例子</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">神经类型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">如何构建神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">模块配置</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">回调</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#simplelossloggercallback">SimpleLossLoggerCallback</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#checkpointcallback">CheckpointCallback</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#evaluatorcallback">EvaluatorCallback</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wandbcallback">WandbCallback</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程（ GAN 例子）</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -193,24 +195,29 @@ CheckpointCallback，和 EvaluatorCallback。
 <div class="section" id="simplelossloggercallback">
 <h2>SimpleLossLoggerCallback<a class="headerlink" href="#simplelossloggercallback" title="Permalink to this headline">¶</a></h2>
 <p>SimpleLossLoggerCallback 是用来记录训练过程中的一些指标数据比如 loss 以及打印到屏幕
-或者 tensorboard 上两个时间步的间隔。SimpleLossLoggerCallback 有一个必须的参数和两个我们建议
-重写的参数。它接受一个 list 的 NMTensors, 这些NMTensors会在训练过程中作为 print_func()，
-get_tb_values() 和 log_to_tb_func() 函数的输入。两个推荐重写的参数是 print_func() 和
+或者 tensorboard 上两个时间步的间隔。
+SimpleLossLoggerCallback 有一个必须的参数和两个我们建议重写的参数。
+它接受一个 list 的 NMTensors,
+这些NMTensors会在训练过程中作为 print_func()，
+get_tb_values() 和 log_to_tb_func() 函数的输入。
+两个推荐重写的参数是 print_func() 和
 get_tb_values() 或者 log_to_tb_func() 任选其一。</p>
-<p>print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 neural_factory.logger.info()
-来取代 print() 函数。比如，可以这么打印 loss 值：</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_print_func</span><span class="p">(</span><span class="n">tensors</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loss {tensors[0]}&quot;</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loss {tensors[0]}&quot;</span><span class="p">)</span>
+<p>print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 logging.info()
+来取代 print() 函数。
+比如，可以这么打印 loss 值：</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo</span> <span class="kn">import</span> <span class="n">logging</span>
+<span class="k">def</span> <span class="nf">my_print_func</span><span class="p">(</span><span class="n">tensors</span><span class="p">):</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Loss </span><span class="si">{tensors[0]}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>我们提供了两个方法来打印到 tensorboard: get_tb_values() 和
 log_to_tb_func()。对于记录标量的简单用例，我们推荐使用 get_tb_values()。
-对于高级用例，像是图片或者音频，我们推荐用 log_to_tb_func() 函数。</p>
-<p>get_tb_values() 用来返回需要打印到 tensorboard 的值。它应该返回一个 list，其中每个元素是一个二元组。
-二元组的第一个元素是一个字符串，表示 tensorbard 标签，第二个元素是要记录的标量值。
+对于高级用例，像是图片或者音频，
+我们推荐用 log_to_tb_func() 函数。</p>
+<p>get_tb_values() 用来返回需要打印到 tensorboard 的值。
+它应该返回一个 list，其中每个元素是一个二元组。
+二元组的第一个元素是一个字符串，表示 tensorbard 标签，
+第二个元素是要记录的标量值。
 注意我们当前只支持标量值。注意如果要用 get_tb_values()，tb_writer 也需要定义。</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_get_tb_values</span><span class="p">(</span><span class="n">tensors</span><span class="p">):</span>
     <span class="k">return</span> <span class="p">[(</span><span class="s2">&quot;Train_Loss&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
@@ -232,13 +239,13 @@ SummaryWriter类来加图片，音频和其它。比如：</p>
     <span class="c1"># 定义我们想要传给print_func和get_tb_values的张量</span>
     <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
     <span class="c1"># 传入我们想要用的打印函数</span>
-    <span class="c1"># 注意我们用 partial 来指定可以额外传入的参数</span>
-    <span class="n">print_func</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">my_print_func</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">logger</span><span class="p">),</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">my_print_func</span><span class="p">),</span>
     <span class="c1"># 传入可以返回tensorboard标签和张量的函数</span>
     <span class="n">get_tb_values</span><span class="o">=</span><span class="n">my_get_tb_values</span><span class="p">,</span>
     <span class="c1"># 我们想要回调这个函数的频次</span>
     <span class="n">step_freq</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
-    <span class="c1"># 我们想要用的 tensorboard writer, 如果 create_tb_writer 在 neural_factory</span>
+    <span class="c1"># 我们想要用的 tensorboard writer,</span>
+    <span class="c1"># 如果 create_tb_writer 在 neural_factory</span>
     <span class="c1"># 中设置为True, 那么它会自动在 neural_factory 创建的时候被创建</span>
     <span class="n">tb_writer</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">)</span>
 <span class="p">)</span>
@@ -247,8 +254,9 @@ SummaryWriter类来加图片，音频和其它。比如：</p>
 </div>
 <div class="section" id="checkpointcallback">
 <h2>CheckpointCallback<a class="headerlink" href="#checkpointcallback" title="Permalink to this headline">¶</a></h2>
-<p>CheckpointCallback 用于在训练过程中对 checkpoint 模型进行的操作，这样他们后面
-就可以重新加载来做推理或者微调。CheckpointCallback 用起来很简单:</p>
+<p>CheckpointCallback 用于在训练过程中对 checkpoint 模型进行的操作，
+这样他们后面就可以重新加载来做推理或者微调。
+CheckpointCallback 用起来很简单:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
 
 <span class="n">loggercallback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
@@ -258,7 +266,7 @@ SummaryWriter类来加图片，音频和其它。比如：</p>
     <span class="c1"># 如果是None, CheckpointCallback 在训练开始的时候回从 folder</span>
     <span class="c1"># 中加载模型</span>
     <span class="c1"># 否则的话, CheckpointCallback 会尝试从 load_from_folder 中加载</span>
-    <span class="n">load_from_folder</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+    <span class="n">load_from_folder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="c1"># Checkpointing 回调频次(步数)</span>
     <span class="n">step_freq</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
     <span class="c1"># Checkpointing 回调频次(轮数)</span>
@@ -266,7 +274,7 @@ SummaryWriter类来加图片，音频和其它。比如：</p>
     <span class="c1"># 需要保存的 checkpoint 数</span>
     <span class="n">checkpoints_to_keep</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
     <span class="c1"># 设置为 True, CheckpointCallback 会触发 error 如果加载失败</span>
-    <span class="n">force_load</span><span class="o">=</span><span class="bp">False</span>
+    <span class="n">force_load</span><span class="o">=</span><span class="kc">False</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -287,16 +295,39 @@ user_epochs_done_callback 函数。</p>
 <p>user_epochs_done_callback 是个接收 global_var_dict 为参数的函数。它的作用是
 记录要打印到屏幕的相关信息，比如像是验证集上的 loss。</p>
 <p>像是把简单的标量值打印到 tensorboard 上，user_epochs_done_callback 应该返回一个字典，
-字符串是keys,标量值是 values。这个 tag 到 value 的字典会被解析，每个元素都会被记录到
-tensorboard上 (需要 tensorboard writer 定义好)。</p>
+字符串是keys,标量值是 values。
+这个 tag 到 value 的字典会被解析
+，每个元素都会被记录到tensorboard上 (需要 tensorboard writer 定义好)。</p>
 <p>如果想使用更复杂的 tensorboard 打印记录像是图像或者音频，
-EvaluatorCallback 必须要在初始化的时候传递给 tb_writer_func 函数。这个函数必须要接收一个
+EvaluatorCallback 必须要在初始化的时候传递给 tb_writer_func 函数。
+这个函数必须要接收一个
 <a class="reference external" href="https://tensorboardx.readthedocs.io/en/latest/tensorboard.html">tensorboardX.SummaryWriter</a>
 参数，以及 user_epochs_done_callback 需要的参数和当前步。</p>
 <p>我们推荐用 user_epochs_done_callback 来简单返回 global_var_dict
-从而给到 tb_writer_func 函数来处理。用户必须在 tb_writer_func 中记录所有需要的数据，
+在给到 tb_writer_func 函数来处理。用户必须在 tb_writer_func 中记录所有需要的数据，
 包括标量。</p>
-<p>例如，可以参考 &lt;nemo_dir&gt;/examples 下面的例子。</p>
+<p>你也可以在 Weights &amp; Biases 实验追踪器中记录评估指标(evaluation metrics)。
+如果要这么做的话，请设置下面这些参数。另外，确保 wandb 已经安装，你可以运行 <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>。</p>
+<ul class="simple">
+<li><p>wandb_name: W&amp;B 实验名称</p></li>
+<li><p>wandb_project: W&amp;B 项目名称</p></li>
+</ul>
+<p>相关的例子，可以参考 &lt;nemo_dir&gt;/examples 中的脚本。</p>
+</div>
+<div class="section" id="wandbcallback">
+<h2>WandbCallback<a class="headerlink" href="#wandbcallback" title="Permalink to this headline">¶</a></h2>
+<p>WandbCallback 把损失值(loss)和评估指标记录到 <a class="reference external" href="https://docs.wandb.com/">Weights &amp; Biases</a>.
+确保 wandb 已经安装，你可以运行 <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>。</p>
+<p>这是一个轻量的回调函数，可以把 <strong>训练</strong> 时候的指标记录到 Weights &amp; Biases。
+想要记录评估时候的指标, 参考上面的Evaluator Callback。</p>
+<p>它需要下面的参数:</p>
+<ul class="simple">
+<li><p>train_tensors: 一个list的需要评估记录的张量(tensors)</p></li>
+<li><p>wandb_name: W&amp;B 实验名字</p></li>
+<li><p>wandb_project: W&amp;B 项目名字</p></li>
+<li><p>args: argparse flags - 需要记录的高参(hyper parameters)。</p></li>
+<li><p>update_freq: 记录更新的频率</p></li>
+</ul>
 </div>
 </div>
 
@@ -308,7 +339,7 @@ EvaluatorCallback 必须要在初始化的时候传递给 tb_writer_func 函数�
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="complex_training.html" class="btn btn-neutral float-right" title="复杂训练流程（ GAN 例子）" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="complex_training.html" class="btn btn-neutral float-right" title="复杂训练流程 (GAN 例子)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="weightsharing.html" class="btn btn-neutral float-left" title="模块间的权重共享" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -320,7 +351,7 @@ EvaluatorCallback 必须要在初始化的时候传递给 tb_writer_func 函数�
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

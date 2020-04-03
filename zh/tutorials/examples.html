@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>例子 &mdash; nemo 0.9.0 documentation</title>
+  <title>例子 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,7 +86,6 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">从这里开始</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">编程模型</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">例子</a><ul>
@@ -96,13 +95,15 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">神经类型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">如何构建神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">模块配置</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">回调</a></li>
-<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程（ GAN 例子）</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -206,7 +207,7 @@
 <span class="c1"># SimpleLossLoggerCallback 打印损失函数值到控制台</span>
 <span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
     <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">lss</span><span class="p">],</span>
-    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Train Loss: {str(x[0].item())}&#39;</span><span class="p">))</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Train Loss: {str(x[0].item())}&#39;</span><span class="p">))</span>
 
 <span class="c1"># 触发“训练”操作</span>
 <span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">([</span><span class="n">lss</span><span class="p">],</span> <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback</span><span class="p">],</span>
@@ -301,9 +302,9 @@
     <span class="n">source</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">source</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
     <span class="n">response</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">response</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
     <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">target</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;EOS&#39;</span> <span class="ow">and</span> <span class="n">s</span> <span class="o">!=</span> <span class="s1">&#39;PAD&#39;</span><span class="p">])</span>
-    <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Train Loss:{str(tensors[0].item())}&quot;</span><span class="p">)</span>
-    <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;SOURCE: {source} &lt;---&gt; PREDICTED RESPONSE: {response} &quot;</span>
-          <span class="n">f</span><span class="s2">&quot;&lt;---&gt; TARGET: {target}&quot;</span><span class="p">)</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Train Loss:{str(tensors[0].item())}&quot;</span><span class="p">)</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;SOURCE: </span><span class="si">{source}</span><span class="s2"> &lt;---&gt; PREDICTED RESPONSE: </span><span class="si">{response}</span><span class="s2"> &quot;</span>
+                 <span class="sa">f</span><span class="s2">&quot;&lt;---&gt; TARGET: </span><span class="si">{target}</span><span class="s2">&quot;</span><span class="p">)</span>
 
 
 <span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
@@ -346,7 +347,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

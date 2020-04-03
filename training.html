@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Fast Training &mdash; nemo 0.9.0 documentation</title>
+  <title>Fast Training &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script type="text/javascript" src="_static/jquery.js"></script>
-        <script type="text/javascript" src="_static/underscore.js"></script>
-        <script type="text/javascript" src="_static/doctools.js"></script>
-        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,15 +86,16 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Fast Training</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#mixed-precision">Mixed Precision</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#multi-gpu-training">Multi-GPU training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multi-gpu-training">Multi-GPU Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#example">Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multi-node-training">Multi-Node Training</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
@@ -181,19 +182,15 @@ To enable mixed-precision in NeMo all you need to do is to set <cite>optimizatio
 </div>
 </div>
 <div class="section" id="multi-gpu-training">
-<h2>Multi-GPU training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this headline">¶</a></h2>
+<h2>Multi-GPU Training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this headline">¶</a></h2>
 <p>For multi-GPU training:</p>
-<ol class="arabic simple">
-<li><p>Set <cite>placement</cite> to <cite>nemo.core.DeviceType.AllGpu</cite> in NeuralModuleFactory</p></li>
-<li><p>Add ‘local_rank’ argument to your script and do not set it yourself: <cite>parser.add_argument(“–local_rank”, default=None, type=int)</cite></p></li>
-</ol>
+<p>Add ‘local_rank’ argument to your script and do not set it yourself: <cite>parser.add_argument(“–local_rank”, default=os.getenv(‘LOCAL_RANK’, None), type=int)</cite></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-       <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
        <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Use <cite>torch.distributed.launch</cite> package to run your script like this (assuming 8 GPUs):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --num_gpus<span class="o">=</span><span class="m">8</span> ...
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py ...
 </pre></div>
 </div>
 </div>
@@ -202,7 +199,7 @@ To enable mixed-precision in NeMo all you need to do is to set <cite>optimizatio
 <p>Please refer to the <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> for a comprehensive example.
 It builds one train DAG and up to three validation DAGs to evaluate on different datasets.</p>
 <p>If you are working with a Volta-based DGX, you can run training like this:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_gpus<span class="o">=</span><span class="m">8</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_manifest<span class="o">=</span>/manifests/librivox-train-all.json --val_manifest1<span class="o">=</span>/manifests/librivox-dev-clean.json --val_manifest2<span class="o">=</span>/manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">8</span> &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_manifest<span class="o">=</span>/manifests/librivox-train-all.json --val_manifest1<span class="o">=</span>/manifests/librivox-dev-clean.json --val_manifest2<span class="o">=</span>/manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/jasper15x5SEP.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
 </pre></div>
 </div>
 <p>The command above should trigger 8-GPU training with mixed precision. In the command above various manifests (.json) files are various datasets. Substitute them with the ones containing your data.</p>
@@ -211,6 +208,39 @@ It builds one train DAG and up to three validation DAGs to evaluate on different
 <p>You can pass several manifests (comma-separated) to train on a combined dataset like this: <cite>–train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json</cite>.</p>
 </div>
 <p>This example would train on 3 data sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed.</p>
+</div>
+<div class="section" id="multi-node-training">
+<h2>Multi-Node Training<a class="headerlink" href="#multi-node-training" title="Permalink to this headline">¶</a></h2>
+<p>We highly recommend reading pytorch’s distributed documentation prior to trying multi-node, but here is a quick start
+guide on how to setup multi-node training using TCP initialization. Assume that we have 2 machines each with 4 gpus
+each. Let’s call machine 1 the master node. We need the IP address of the master node and a free port on the master
+node. On machine 1, we run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">4</span> --nnodes<span class="o">=</span><span class="m">2</span> --node_rank<span class="o">=</span><span class="m">0</span> --master_addr<span class="o">=</span>&lt;MASTER_IP_ADDRESS&gt; --master_port<span class="o">=</span>&lt;FREE_PORT&gt; jasper.py ...
+</pre></div>
+</div>
+<p>On machine 2, we run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="m">4</span> --nnodes<span class="o">=</span><span class="m">2</span> --node_rank<span class="o">=</span><span class="m">1</span> --master_addr<span class="o">=</span>&lt;MASTER_IP_ADDRESS&gt; --master_port<span class="o">=</span>&lt;FREE_PORT&gt; jasper.py ...
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Setting the environment variable NCCL_DEBUG to INFO can help identify setup issues</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>We recommend reading the following pytorch documentation
+<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html#launch-utility">https://pytorch.org/docs/stable/distributed.html#launch-utility</a>
+<a class="reference external" href="https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py">https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py</a></p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To help with multi-processing, neural_factory contains two attributes: <code class="docutils literal notranslate"><span class="pre">local_rank</span></code> and <code class="docutils literal notranslate"><span class="pre">global_rank</span></code>.
+<code class="docutils literal notranslate"><span class="pre">local_rank</span></code> refers to the rank on the current machine whereas <code class="docutils literal notranslate"><span class="pre">global_rank</span></code> refers to the rank across all
+machines. For example, assume you have 2 machines each with 4 gpus. global_rank 0 will have local_rank 0 and have
+the 1st gpu on machine 1, whereas global_rank 5 COULD have local_rank 0 and have the 1st gpu on machine 2. In other
+words local_rank == 0 and global_rank == 0 ensures that it has the 1st GPU on the master node, and local_rank == 0
+and global_rank != 0 ensures that it has the 1st GPU on slave nodes.</p>
+</div>
 </div>
 </div>
 
@@ -234,7 +264,7 @@ It builds one train DAG and up to three validation DAGs to evaluate on different
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

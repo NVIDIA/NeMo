@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Overview: module code &mdash; nemo 0.9.0 documentation</title>
+  <title>Overview: module code &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -84,10 +84,10 @@
             
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -161,25 +161,29 @@
 <li><a href="nemo/backends/pytorch/common/zero_data.html">nemo.backends.pytorch.common.zero_data</a></li>
 <li><a href="nemo/backends/pytorch/module_wrapper.html">nemo.backends.pytorch.module_wrapper</a></li>
 <li><a href="nemo/backends/pytorch/nm.html">nemo.backends.pytorch.nm</a></li>
+<li><a href="nemo/collections/asr/data_layer.html">nemo.collections.asr.data_layer</a></li>
+<li><a href="nemo/collections/asr/jasper.html">nemo.collections.asr.jasper</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/bert_tokenizer.html">nemo.collections.nlp.data.tokenizers.bert_tokenizer</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/char_tokenizer.html">nemo.collections.nlp.data.tokenizers.char_tokenizer</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html">nemo.collections.nlp.data.tokenizers.gpt2_tokenizer</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html">nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/tokenizer_spec.html">nemo.collections.nlp.data.tokenizers.tokenizer_spec</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/word_tokenizer.html">nemo.collections.nlp.data.tokenizers.word_tokenizer</a></li>
+<li><a href="nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html">nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/huggingface/albert_nm.html">nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/huggingface/bert_nm.html">nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/huggingface/roberta_nm.html">nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/sequence_classification_nm.html">nemo.collections.nlp.nm.trainables.common.sequence_classification_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/sequence_regression_nm.html">nemo.collections.nlp.nm.trainables.common.sequence_regression_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/token_classification_nm.html">nemo.collections.nlp.nm.trainables.common.token_classification_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/common/transformer/transformer_nm.html">nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/dialogue_state_tracking/trade_generator_nm.html">nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm</a></li>
+<li><a href="nemo/collections/nlp/nm/trainables/joint_intent_slot/joint_intent_slot_classifier_nm.html">nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm</a></li>
+<li><a href="nemo/collections/tts/data_layers.html">nemo.collections.tts.data_layers</a></li>
+<li><a href="nemo/collections/tts/tacotron2_modules.html">nemo.collections.tts.tacotron2_modules</a></li>
+<li><a href="nemo/collections/tts/waveglow_modules.html">nemo.collections.tts.waveglow_modules</a></li>
 <li><a href="nemo/core/neural_factory.html">nemo.core.neural_factory</a></li>
 <li><a href="nemo/core/neural_modules.html">nemo.core.neural_modules</a></li>
-<li><a href="nemo/core/neural_types.html">nemo.core.neural_types</a></li>
-<li><a href="nemo_asr/data_layer.html">nemo_asr.data_layer</a></li>
-<li><a href="nemo_asr/jasper.html">nemo_asr.jasper</a></li>
-<li><a href="nemo_nlp/data/tokenizers/bert_tokenizer.html">nemo_nlp.data.tokenizers.bert_tokenizer</a></li>
-<li><a href="nemo_nlp/data/tokenizers/char_tokenizer.html">nemo_nlp.data.tokenizers.char_tokenizer</a></li>
-<li><a href="nemo_nlp/data/tokenizers/gpt2_tokenizer.html">nemo_nlp.data.tokenizers.gpt2_tokenizer</a></li>
-<li><a href="nemo_nlp/data/tokenizers/spc_tokenizer.html">nemo_nlp.data.tokenizers.spc_tokenizer</a></li>
-<li><a href="nemo_nlp/data/tokenizers/tokenizer_spec.html">nemo_nlp.data.tokenizers.tokenizer_spec</a></li>
-<li><a href="nemo_nlp/data/tokenizers/word_tokenizer.html">nemo_nlp.data.tokenizers.word_tokenizer</a></li>
-<li><a href="nemo_nlp/data/tokenizers/yttm_tokenizer.html">nemo_nlp.data.tokenizers.yttm_tokenizer</a></li>
-<li><a href="nemo_nlp/huggingface/bert.html">nemo_nlp.huggingface.bert</a></li>
-<li><a href="nemo_nlp/modules/classifiers.html">nemo_nlp.modules.classifiers</a></li>
-<li><a href="nemo_nlp/modules/losses.html">nemo_nlp.modules.losses</a></li>
-<li><a href="nemo_nlp/modules/transformer_nm.html">nemo_nlp.modules.transformer_nm</a></li>
-<li><a href="nemo_tts/data_layers.html">nemo_tts.data_layers</a></li>
-<li><a href="nemo_tts/tacotron2_modules.html">nemo_tts.tacotron2_modules</a></li>
-<li><a href="nemo_tts/waveglow_modules.html">nemo_tts.waveglow_modules</a></li>
 </ul>
 
            </div>
@@ -192,7 +196,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

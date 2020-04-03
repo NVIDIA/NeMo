@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Callbacks &mdash; nemo 0.9.0 documentation</title>
+  <title>Callbacks &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,17 +86,18 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Callbacks</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#simplelossloggercallback">SimpleLossLoggerCallback</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#checkpointcallback">CheckpointCallback</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#evaluatorcallback">EvaluatorCallback</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wandbcallback">WandbCallback</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
@@ -104,6 +105,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -202,13 +204,11 @@ receive as input during
 training. The two reccomended arguments to override are print_func(), and
 either get_tb_values() or log_to_tb_func().</p>
 <p>print_func() should be used to log values to screen. We recommend using
-neural_factory.logger.info() in place
+logging.info() in place
 of print(). For example, it can be used to print the loss value:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_print_func</span><span class="p">(</span><span class="n">tensors</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">logger</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loss {tensors[0]}&quot;</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Loss {tensors[0]}&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo</span> <span class="kn">import</span> <span class="n">logging</span>
+<span class="k">def</span> <span class="nf">my_print_func</span><span class="p">(</span><span class="n">tensors</span><span class="p">):</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Loss </span><span class="si">{tensors[0]}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>We provide two methods to log to tensorboard: get_tb_values() and
@@ -240,8 +240,7 @@ SummaryWriter class to add images, audio, and more. For example:</p>
     <span class="c1"># Define tensors that we want to pass to print_func, and get_tb_values</span>
     <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
     <span class="c1"># Pass the print function that we want to use</span>
-    <span class="c1"># Note we use partial to specify additional parameters</span>
-    <span class="n">print_func</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">my_print_func</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">logger</span><span class="p">),</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="n">my_print_func</span><span class="p">,</span>
     <span class="c1"># Pass the function that returns tensorboard tags and scalars</span>
     <span class="n">get_tb_values</span><span class="o">=</span><span class="n">my_get_tb_values</span><span class="p">,</span>
     <span class="c1"># How often we want to call this callback</span>
@@ -268,7 +267,7 @@ is simple to use:</p>
     <span class="c1"># If None, CheckpointCallback will attempt to load from folder</span>
     <span class="c1"># at the beginning of training.</span>
     <span class="c1"># Else, CheckpointCallback will attempt to load from load_from_folder</span>
-    <span class="n">load_from_folder</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+    <span class="n">load_from_folder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="c1"># Checkpointing frequency in steps</span>
     <span class="n">step_freq</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
     <span class="c1"># Checkpointing frequency in epochs</span>
@@ -276,7 +275,7 @@ is simple to use:</p>
     <span class="c1"># Number of checkpoints to keep</span>
     <span class="n">checkpoints_to_keep</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
     <span class="c1"># If True, CheckpointCallback will raise an Error if restoring fails</span>
-    <span class="n">force_load</span><span class="o">=</span><span class="bp">False</span>
+    <span class="n">force_load</span><span class="o">=</span><span class="kc">False</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -309,7 +308,28 @@ We recommend for user_epochs_done_callback to simply return the global_var_dict
 for tb_writer_func to consume. The user must log all data of interest inside
 tb_writer_func including scalars that would otherwise be logged if
 tb_writer_func was not passed to EvaluatorCallback.</p>
+<p>You can also log your evaluation metrics into Weights &amp; Biases experiment trackers.
+To do so, please setup these parameters. Also make sure wandb is installed and you did <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>.</p>
+<ul class="simple">
+<li><p>wandb_name: W&amp;B experiment name</p></li>
+<li><p>wandb_project: W&amp;B project name</p></li>
+</ul>
 <p>For an example, please see the scripts inside &lt;nemo_dir&gt;/examples.</p>
+</div>
+<div class="section" id="wandbcallback">
+<h2>WandbCallback<a class="headerlink" href="#wandbcallback" title="Permalink to this headline">¶</a></h2>
+<p>WandbCallback logs losses and metrics to <a class="reference external" href="https://docs.wandb.com/">Weights &amp; Biases</a>.
+Make sure wandb is installed and you did <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>.</p>
+<p>This is a light-weight callback to log <strong>training</strong> metrics into Weights &amp; Biases.
+To log evaluation metrics, see Evaluator Callback above.</p>
+<p>It requires following arguments:</p>
+<ul class="simple">
+<li><p>train_tensors: list of tensors to evaluate and log based on training batches</p></li>
+<li><p>wandb_name: W&amp;B experiment name</p></li>
+<li><p>wandb_project: W&amp;B project name</p></li>
+<li><p>args: argparse flags - will be logged as hyper parameters for your run</p></li>
+<li><p>update_freq: frequency with which to log updates</p></li>
+</ul>
 </div>
 </div>
 
@@ -333,7 +353,7 @@ tb_writer_func was not passed to EvaluatorCallback.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

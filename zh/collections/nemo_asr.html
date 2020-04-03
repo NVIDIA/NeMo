@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo_ASR collection &mdash; nemo 0.9.0 documentation</title>
+  <title>NeMo ASR collection &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="NeMo_TTS collection" href="nemo_tts.html" />
+    <link rel="next" title="NeMo TTS collection" href="nemo_tts.html" />
     <link rel="prev" title="NeMo Common Collection" href="core.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,21 +86,21 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="core.html">NeMo Common Collection</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo_ASR collection</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#module-nemo_asr.data_layer">语音数据处理模块</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-nemo_asr.jasper">语音识别模块</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo ASR collection</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#module-nemo.collections.asr.data_layer">语音数据处理模块</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-nemo.collections.asr.jasper">语音识别模块</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html">NeMo_TTS collection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo_NLP collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_tts.html">NeMo TTS collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo NLP collection</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
@@ -151,7 +151,7 @@
         
           <li><a href="modules.html">NeMo Collections API</a> &raquo;</li>
         
-      <li>NeMo_ASR collection</li>
+      <li>NeMo ASR collection</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -171,14 +171,13 @@
            <div itemprop="articleBody">
             
   <div class="section" id="nemo-asr-collection">
-<h1>NeMo_ASR collection<a class="headerlink" href="#nemo-asr-collection" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="module-nemo_asr.data_layer">
-<span id="id1"></span><h2>语音数据处理模块<a class="headerlink" href="#module-nemo_asr.data_layer" title="Permalink to this headline">¶</a></h2>
-<p>This package contains Neural Modules responsible for ASR-related
-data layers.</p>
+<h1>NeMo ASR collection<a class="headerlink" href="#nemo-asr-collection" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="module-nemo.collections.asr.data_layer">
+<span id="id1"></span><h2>语音数据处理模块<a class="headerlink" href="#module-nemo.collections.asr.data_layer" title="Permalink to this headline">¶</a></h2>
+<p>This package contains Neural Modules responsible for ASR data layers.</p>
 <dl class="class">
-<dt id="nemo_asr.data_layer.AudioToTextDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">AudioToTextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">manifest_filepath</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">int_values=False</em>, <em class="sig-param">bos_id=None</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">pad_id=None</em>, <em class="sig-param">min_duration=0.1</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">trim_silence=False</em>, <em class="sig-param">load_audio=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#AudioToTextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.AudioToTextDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">AudioToTextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">manifest_filepath</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">int_values=False</em>, <em class="sig-param">bos_id=None</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">pad_id=None</em>, <em class="sig-param">min_duration=0.1</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">trim_silence=False</em>, <em class="sig-param">load_audio=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#AudioToTextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToTextDataLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
 <p>Data Layer for general ASR tasks.</p>
 <p>Module which reads ASR labeled data. It accepts comma-separated
@@ -205,8 +204,8 @@ Defaults to 16000.</p></li>
 <li><p><strong>int_values</strong> (<em>bool</em>) – Bool indicating whether the audio file is saved as
 int data or float data.
 Defaults to False.</p></li>
-<li><p><strong>eos_id</strong> (<em>str</em>) – Dataset parameter.
-End of string symbol used for seq2seq models.
+<li><p><strong>eos_id</strong> (<em>id</em>) – Dataset parameter.
+End of string symbol id used for seq2seq models.
 Defaults to None.</p></li>
 <li><p><strong>min_duration</strong> (<em>float</em>) – Dataset parameter.
 All training files which have a duration less than min_duration
@@ -237,36 +236,9 @@ Defaults to 0.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>Output Ports:</dt><dd><ul class="simple">
-<li><p><strong>audio_signal</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>a_sig_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>transcripts</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>transcript_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-</ul>
-</dd>
-</dl>
 <dl class="method">
-<dt id="nemo_asr.data_layer.AudioToTextDataLayer.data_iterator">
-<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.AudioToTextDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToTextDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
 <dd><p>“Iterator over the dataset. It is a good idea to return
 torch.utils.data.DataLoader here. Should implement either this or
 <cite>dataset</cite>.
@@ -274,19 +246,31 @@ If this is implemented, <cite>dataset</cite> property should return None.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="nemo_asr.data_layer.AudioToTextDataLayer.dataset">
-<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_asr.data_layer.AudioToTextDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.AudioToTextDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToTextDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Should return an instance of torch.utils.data.Dataset. Should
 implement
 either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
 should return None.</p>
 </dd></dl>
 
+<dl class="method">
+<dt id="nemo.collections.asr.data_layer.AudioToTextDataLayer.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToTextDataLayer.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+<ul class="simple">
+<li><p><em>audio_signal</em> : axes: (batch, time);  elements_type: AudioSignal</p></li>
+<li><p><em>a_sig_length</em> : axes: (batch,);  elements_type: LengthsType</p></li>
+<li><p><em>transcripts</em> : axes: (batch, time);  elements_type: LabelsType</p></li>
+<li><p><em>transcript_length</em> : axes: (batch,);  elements_type: LengthsType</p></li>
+</ul>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
-<dt id="nemo_asr.data_layer.KaldiFeatureDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">KaldiFeatureDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">kaldi_dir</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">min_duration=None</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#KaldiFeatureDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.KaldiFeatureDataLayer" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.KaldiFeatureDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">KaldiFeatureDataLayer</code><span class="sig-paren">(</span><em class="sig-param">kaldi_dir</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">min_duration=None</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#KaldiFeatureDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.KaldiFeatureDataLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
 <p>Data layer for reading generic Kaldi-formatted data.</p>
 <p>Module that reads ASR labeled data that is in a Kaldi-compatible format.
@@ -329,37 +313,9 @@ Defaults to True.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>Output Ports:</dt><dd><ul class="simple">
-<li><p><strong>processed_signal</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.SpectrogramSignalTag’&gt;:None:None</p></li>
-<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ProcessedTimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>processed_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>transcripts</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>transcript_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-</ul>
-</dd>
-</dl>
 <dl class="method">
-<dt id="nemo_asr.data_layer.KaldiFeatureDataLayer.data_iterator">
-<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_asr.data_layer.KaldiFeatureDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.KaldiFeatureDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.collections.asr.data_layer.KaldiFeatureDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
 <dd><p>“Iterator over the dataset. It is a good idea to return
 torch.utils.data.DataLoader here. Should implement either this or
 <cite>dataset</cite>.
@@ -367,19 +323,30 @@ If this is implemented, <cite>dataset</cite> property should return None.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="nemo_asr.data_layer.KaldiFeatureDataLayer.dataset">
-<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_asr.data_layer.KaldiFeatureDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.KaldiFeatureDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.collections.asr.data_layer.KaldiFeatureDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Should return an instance of torch.utils.data.Dataset. Should
 implement
 either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
 should return None.</p>
 </dd></dl>
 
+<dl class="method">
+<dt id="nemo.collections.asr.data_layer.KaldiFeatureDataLayer.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.data_layer.KaldiFeatureDataLayer.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+<ul class="simple">
+<li><p><em>processed_signal</em> : axes: (batch, dimension, time);  elements_type: SpectrogramType</p></li>
+<li><p><em>transcripts</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
+<li><p><em>transcript_length</em> : axes: (batch,);  elements_type: LengthsType</p></li>
+</ul>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
-<dt id="nemo_asr.data_layer.TranscriptDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.data_layer.</code><code class="sig-name descname">TranscriptDataLayer</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">bos_id=None</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">pad_id=None</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/data_layer.html#TranscriptDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.data_layer.TranscriptDataLayer" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.TranscriptDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">TranscriptDataLayer</code><span class="sig-paren">(</span><em class="sig-param">path</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">bos_id=None</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">pad_id=None</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">num_workers=0</em>, <em class="sig-param">shuffle=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#TranscriptDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.TranscriptDataLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
 <p>A simple Neural Module for loading textual transcript data.
 The path, labels, and eos_id arguments are dataset parameters.</p>
@@ -396,25 +363,9 @@ Defaults to 0.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>Output Ports:</dt><dd><ul class="simple">
-<li><p><strong>texts</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>texts_length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-</ul>
-</dd>
-</dl>
 <dl class="method">
-<dt id="nemo_asr.data_layer.TranscriptDataLayer.data_iterator">
-<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo_asr.data_layer.TranscriptDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.TranscriptDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.collections.asr.data_layer.TranscriptDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
 <dd><p>“Iterator over the dataset. It is a good idea to return
 torch.utils.data.DataLoader here. Should implement either this or
 <cite>dataset</cite>.
@@ -422,22 +373,123 @@ If this is implemented, <cite>dataset</cite> property should return None.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="nemo_asr.data_layer.TranscriptDataLayer.dataset">
-<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo_asr.data_layer.TranscriptDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.data_layer.TranscriptDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.collections.asr.data_layer.TranscriptDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Should return an instance of torch.utils.data.Dataset. Should
 implement
 either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
 should return None.</p>
 </dd></dl>
 
+<dl class="method">
+<dt id="nemo.collections.asr.data_layer.TranscriptDataLayer.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.data_layer.TranscriptDataLayer.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+<dl>
+<dt>texts:</dt><dd><p>0: AxisType(BatchTag)</p>
+<p>1: AxisType(TimeTag)</p>
+</dd>
+<dt>texts_length:</dt><dd><p>0: AxisType(BatchTag)</p>
+</dd>
+</dl>
+<ul class="simple">
+<li><p><em>texts</em> : axes: (batch, time);  elements_type: LabelsType</p></li>
+<li><p><em>texts_length</em> : axes: (batch,);  elements_type: LengthsType</p></li>
+</ul>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">AudioToSpeechLabelDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*, manifest_filepath: str, labels: List[str], batch_size: int, sample_rate: int = 16000, int_values: bool = False, num_workers: int = 0, shuffle: bool = True, min_duration: Optional[float] = 0.1, max_duration: Optional[float] = None, trim_silence: bool = False, drop_last: bool = False, load_audio: bool = True, augmentor: Optional[Dict[str, Dict[str, Any]]] = None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#AudioToSpeechLabelDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
+<p>Data Layer for general speech classification.</p>
+<p>Module which reads speech recognition with target label. It accepts comma-separated
+JSON manifest files describing the correspondence between wav audio files
+and their target labels. JSON files should be of the following format:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_0</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_0</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">target_label_0</span><span class="p">}</span>
+<span class="o">...</span>
+<span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_n</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_n</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">target_label_n</span><span class="p">}</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>manifest_filepath</strong> (<em>str</em>) – Dataset parameter.
+Path to JSON containing data.</p></li>
+<li><p><strong>labels</strong> (<em>list</em>) – Dataset parameter.
+List of target classes that can be output by the speech recognition model.</p></li>
+<li><p><strong>batch_size</strong> (<em>int</em>) – batch size</p></li>
+<li><p><strong>sample_rate</strong> (<em>int</em>) – Target sampling rate for data. Audio files will be
+resampled to sample_rate if it is not already.
+Defaults to 16000.</p></li>
+<li><p><strong>int_values</strong> (<em>bool</em>) – Bool indicating whether the audio file is saved as
+int data or float data.
+Defaults to False.</p></li>
+<li><p><strong>min_duration</strong> (<em>float</em>) – Dataset parameter.
+All training files which have a duration less than min_duration
+are dropped. Note: Duration is read from the manifest JSON.
+Defaults to 0.1.</p></li>
+<li><p><strong>max_duration</strong> (<em>float</em>) – Dataset parameter.
+All training files which have a duration more than max_duration
+are dropped. Note: Duration is read from the manifest JSON.
+Defaults to None.</p></li>
+<li><p><strong>trim_silence</strong> (<em>bool</em>) – Whether to use trim silence from beginning and end
+of audio signal using librosa.effects.trim().
+Defaults to False.</p></li>
+<li><p><strong>load_audio</strong> (<em>bool</em>) – Dataset parameter.
+Controls whether the dataloader loads the audio signal and
+transcript or just the transcript.
+Defaults to True.</p></li>
+<li><p><strong>drop_last</strong> (<em>bool</em>) – See PyTorch DataLoader.
+Defaults to False.</p></li>
+<li><p><strong>shuffle</strong> (<em>bool</em>) – See PyTorch DataLoader.
+Defaults to True.</p></li>
+<li><p><strong>num_workers</strong> (<em>int</em>) – See PyTorch DataLoader.
+Defaults to 0.</p></li>
+<li><p><strong>augmentor</strong> (<em>dict</em>) – Optional dictionary of str -&gt; kwargs (dict)
+which is parsed and used to initialize an AudioAugmentor.
+Note: It is crucial that each individual augmentation has
+a keyword <cite>prob</cite>, that defines a float probability in the
+the range [0, 1] of this augmentation being applied.
+If this keyword is not present, then the augmentation is
+disabled and a warning is logged.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.data_iterator">
+<em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
+<dd><p>“Iterator over the dataset. It is a good idea to return
+torch.utils.data.DataLoader here. Should implement either this or
+<cite>dataset</cite>.
+If this is implemented, <cite>dataset</cite> property should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.dataset">
+<em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Should return an instance of torch.utils.data.Dataset. Should
+implement
+either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_iterator</cite>
+should return None.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+</dd></dl>
+
 </dd></dl>
 
 </div>
-<div class="section" id="module-nemo_asr.jasper">
-<span id="id2"></span><h2>语音识别模块<a class="headerlink" href="#module-nemo_asr.jasper" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-nemo.collections.asr.jasper">
+<span id="id2"></span><h2>语音识别模块<a class="headerlink" href="#module-nemo.collections.asr.jasper" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
-<dt id="nemo_asr.jasper.JasperDecoderForCTC">
-<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.jasper.</code><code class="sig-name descname">JasperDecoderForCTC</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">feat_in</em>, <em class="sig-param">num_classes</em>, <em class="sig-param">init_mode='xavier_uniform'</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/jasper.html#JasperDecoderForCTC"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.jasper.JasperDecoderForCTC" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.jasper.JasperDecoderForCTC">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.jasper.</code><code class="sig-name descname">JasperDecoderForCTC</code><span class="sig-paren">(</span><em class="sig-param">feat_in</em>, <em class="sig-param">num_classes</em>, <em class="sig-param">init_mode='xavier_uniform'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/jasper.html#JasperDecoderForCTC"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.jasper.JasperDecoderForCTC" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
 <p>Jasper Decoder creates the final layer in Jasper that maps from the outputs
 of Jasper Encoder to the vocabulary of interest.</p>
@@ -454,33 +506,62 @@ Defaults to “xavier_uniform”.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>Input Ports:</dt><dd><ul class="simple">
-<li><p><strong>encoder_output</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.EncodedRepresentationTag’&gt;:None:None</p></li>
-<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ProcessedTimeTag’&gt;:None:None</p></li>
+<dl class="method">
+<dt id="nemo.collections.asr.jasper.JasperDecoderForCTC.input_ports">
+<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.asr.jasper.JasperDecoderForCTC.input_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module input ports.</p>
+<ul class="simple">
+<li><p><em>encoder_output</em> : axes: (batch, dimension, time);  elements_type: AcousticEncodedRepresentation</p></li>
 </ul>
-</li>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.collections.asr.jasper.JasperDecoderForCTC.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.jasper.JasperDecoderForCTC.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+<ul class="simple">
+<li><p><em>output</em> : axes: (batch, time, dimension);  elements_type: LogprobsType</p></li>
 </ul>
-</dd>
-<dt>Output Ports:</dt><dd><ul class="simple">
-<li><p><strong>output</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.TimeTag’&gt;:None:None</p></li>
-<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ChannelTag’&gt;:None:None</p></li>
-</ul>
-</li>
-</ul>
-</dd>
-</dl>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
-<dt id="nemo_asr.jasper.JasperEncoder">
-<em class="property">class </em><code class="sig-prename descclassname">nemo_asr.jasper.</code><code class="sig-name descname">JasperEncoder</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">jasper</em>, <em class="sig-param">activation</em>, <em class="sig-param">feat_in</em>, <em class="sig-param">normalization_mode='batch'</em>, <em class="sig-param">residual_mode='add'</em>, <em class="sig-param">norm_groups=-1</em>, <em class="sig-param">conv_mask=True</em>, <em class="sig-param">frame_splicing=1</em>, <em class="sig-param">init_mode='xavier_uniform'</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo_asr/jasper.html#JasperEncoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo_asr.jasper.JasperEncoder" title="Permalink to this definition">¶</a></dt>
+<dt id="nemo.collections.asr.jasper.JasperDecoderForClassification">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.jasper.</code><code class="sig-name descname">JasperDecoderForClassification</code><span class="sig-paren">(</span><em class="sig-param">*</em>, <em class="sig-param">feat_in</em>, <em class="sig-param">num_classes</em>, <em class="sig-param">init_mode='xavier_uniform'</em>, <em class="sig-param">return_logits=True</em>, <em class="sig-param">pooling_type='avg'</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/jasper.html#JasperDecoderForClassification"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.jasper.JasperDecoderForClassification" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
+<p>Jasper Decoder creates the final layer in Jasper that maps from the outputs
+of Jasper Encoder to one class label.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>feat_in</strong> (<em>int</em>) – Number of channels being input to this module</p></li>
+<li><p><strong>num_classes</strong> (<em>int</em>) – Number of characters in ASR model’s vocab/labels.
+This count should not include the CTC blank symbol.</p></li>
+<li><p><strong>init_mode</strong> (<em>str</em>) – Describes how neural network parameters are
+initialized. Options are [‘xavier_uniform’, ‘xavier_normal’,
+‘kaiming_uniform’,’kaiming_normal’].
+Defaults to “xavier_uniform”.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="nemo.collections.asr.jasper.JasperDecoderForClassification.input_ports">
+<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.asr.jasper.JasperDecoderForClassification.input_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module input ports.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="nemo.collections.asr.jasper.JasperDecoderForClassification.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.jasper.JasperDecoderForClassification.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="nemo.collections.asr.jasper.JasperEncoder">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.jasper.</code><code class="sig-name descname">JasperEncoder</code><span class="sig-paren">(</span><em class="sig-param">jasper</em>, <em class="sig-param">activation</em>, <em class="sig-param">feat_in</em>, <em class="sig-param">normalization_mode='batch'</em>, <em class="sig-param">residual_mode='add'</em>, <em class="sig-param">norm_groups=-1</em>, <em class="sig-param">conv_mask=True</em>, <em class="sig-param">frame_splicing=1</em>, <em class="sig-param">init_mode='xavier_uniform'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/jasper.html#JasperEncoder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.jasper.JasperEncoder" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
 <p>Jasper Encoder creates the pre-processing (prologue), Jasper convolution
 block, and the first 3 post-processing (epilogue) layers as described in
@@ -514,6 +595,21 @@ should contain:</p>
     <span class="s1">&#39;tied&#39;</span> <span class="p">(</span><span class="nb">bool</span><span class="p">)</span>  <span class="c1"># Whether to use the same weights for all</span>
         <span class="c1"># sub-blocks.</span>
         <span class="c1"># Defaults to False</span>
+    <span class="s1">&#39;se&#39;</span> <span class="p">(</span><span class="nb">bool</span><span class="p">)</span>  <span class="c1"># Whether to add Squeeze and Excitation</span>
+        <span class="c1"># sub-blocks.</span>
+        <span class="c1"># Defaults to False</span>
+    <span class="s1">&#39;se_reduction_ratio&#39;</span> <span class="p">(</span><span class="nb">int</span><span class="p">)</span>  <span class="c1"># The reduction ratio of the Squeeze</span>
+        <span class="c1"># sub-module.</span>
+        <span class="c1"># Must be an integer &gt; 1.</span>
+        <span class="c1"># Defaults to 16</span>
+    <span class="s1">&#39;kernel_size_factor&#39;</span> <span class="p">(</span><span class="nb">float</span><span class="p">)</span>  <span class="c1"># Conv kernel size multiplier</span>
+        <span class="c1"># Can be either an int or float</span>
+        <span class="c1"># Kernel size is recomputed as below:</span>
+        <span class="c1"># new_kernel_size = int(max(1, (kernel_size * kernel_width)))</span>
+        <span class="c1"># to prevent kernel sizes than 1.</span>
+        <span class="c1"># Note: If rescaled kernel size is an even integer,</span>
+        <span class="c1"># adds 1 to the rescaled kernel size to allow &quot;same&quot;</span>
+        <span class="c1"># padding.</span>
 <span class="p">}</span>
 </pre></div>
 </div>
@@ -541,38 +637,31 @@ Defaults to “xavier_uniform”.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>Input Ports:</dt><dd><ul class="simple">
-<li><p><strong>audio_signal</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.SpectrogramSignalTag’&gt;:None:None</p></li>
-<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ProcessedTimeTag’&gt;:None:None</p></li>
+<dl class="method">
+<dt id="nemo.collections.asr.jasper.JasperEncoder.input_ports">
+<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.asr.jasper.JasperEncoder.input_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module input ports.</p>
+<ul class="simple">
+<li><p><em>audio_signal</em> : axes: (batch, dimension, time);  elements_type: SpectrogramType</p></li>
+<li><p><em>length</em> : axes: (batch,);  elements_type: LengthsType</p></li>
 </ul>
-</li>
-<li><p><strong>length</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="nemo.collections.asr.jasper.JasperEncoder.length">
+<code class="sig-name descname">length</code><em class="property">: Optional[torch.Tensor]</em><em class="property"> = None</em><a class="headerlink" href="#nemo.collections.asr.jasper.JasperEncoder.length" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="nemo.collections.asr.jasper.JasperEncoder.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.asr.jasper.JasperEncoder.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+<ul class="simple">
+<li><p><em>outputs</em> : axes: (batch, dimension, time);  elements_type: AcousticEncodedRepresentation</p></li>
+<li><p><em>encoded_lengths</em> : axes: (batch,);  elements_type: LengthsType</p></li>
 </ul>
-</li>
-</ul>
-</dd>
-<dt>Output Ports:</dt><dd><ul class="simple">
-<li><p><strong>outputs</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-<li><p>1-&gt;&lt;class ‘nemo.core.neural_types.EncodedRepresentationTag’&gt;:None:None</p></li>
-<li><p>2-&gt;&lt;class ‘nemo.core.neural_types.ProcessedTimeTag’&gt;:None:None</p></li>
-</ul>
-</li>
-<li><p><strong>encoded_lengths</strong>:</p>
-<ul>
-<li><p>0-&gt;&lt;class ‘nemo.core.neural_types.BatchTag’&gt;:None:None</p></li>
-</ul>
-</li>
-</ul>
-</dd>
-</dl>
+</dd></dl>
+
 </dd></dl>
 
 </div>
@@ -586,7 +675,7 @@ Defaults to “xavier_uniform”.</p></li>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="nemo_tts.html" class="btn btn-neutral float-right" title="NeMo_TTS collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="nemo_tts.html" class="btn btn-neutral float-right" title="NeMo TTS collection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="core.html" class="btn btn-neutral float-left" title="NeMo Common Collection" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -598,7 +687,7 @@ Defaults to “xavier_uniform”.</p></li>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

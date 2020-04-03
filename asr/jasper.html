@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Jasper &mdash; nemo 0.9.0 documentation</title>
+  <title>Jasper &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,7 +86,6 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Recognition</a><ul class="current">
@@ -101,6 +100,7 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -176,7 +176,7 @@
             
   <div class="section" id="jasper">
 <span id="jasper-model"></span><h1>Jasper<a class="headerlink" href="#jasper" title="Permalink to this headline">¶</a></h1>
-<p>Jasper (“Just Another SPeech Recognizer”) <a class="reference internal" href="models.html#asr-models-li2019jasper" id="id1">[ASR-MODELS1]</a>  is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
+<p>Jasper (“Just Another SPeech Recognizer”) <a class="bibtex reference internal" href="models.html#asr-models-li2019jasper" id="id1">[ASR-MODELS1]</a>  is a deep time delay neural network (TDNN) comprising of blocks of 1D-convolutional layers.
 Jasper family of models are denoted as Jasper_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
 <div><img alt="japer model" class="align-center" src="../_images/jasper_vertical.png" />
@@ -238,7 +238,7 @@ Jasper family of models are denoted as Jasper_[BxR] where B is the number of blo
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

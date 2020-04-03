@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>教程 &mdash; nemo 0.9.0 documentation</title>
+  <title>教程 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,10 +86,10 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">语音合成</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">教程</a><ul>
@@ -176,7 +176,7 @@
   <div class="section" id="id1">
 <h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
 <p>请确保您已经安装了 <code class="docutils literal notranslate"><span class="pre">nemo</span></code>，<code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code>，和 <code class="docutils literal notranslate"><span class="pre">nemo_tts</span></code>
-模块。参考 <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a> 章节。</p>
+模块。参考 <a class="reference internal" href="../index.html#installation"><span class="std std-ref">开始吧</span></a> 章节。</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>本教程仅要求安装 <cite>nemo</cite>，<cite>nemo_asr</cite>，和 <cite>nemo_tts</cite> 模块</p>
@@ -237,7 +237,7 @@ NeMo/examples/tts。假设你当前已经位于 NeMo/examples/tts 目录下，
 <div class="section" id="id6">
 <h2>混合精度训练<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
 <p>启用或关闭混合精度训练可以通过一个命令行参数来控制 <code class="docutils literal notranslate"><span class="pre">--amp_opt_level</span></code> 。对于 Tacotron 2
-和 Waveglow 来说，该参数建议的默认值为 <code class="docutils literal notranslate"><span class="pre">O1</span></code> 。该参数值可以设置为以下几种：</p>
+，该参数建议的默认值为 <code class="docutils literal notranslate"><span class="pre">O0</span></code>，对于 Waveglow，该参数建议的默认值为  <code class="docutils literal notranslate"><span class="pre">O1</span></code>。该参数值可以设置为以下几种：</p>
 <ul class="simple">
 <li><p>O0: 单精度（float32）训练</p></li>
 <li><p>O1: 混合精度训练</p></li>
@@ -259,7 +259,7 @@ torch.distributed.launch 模块并指定 <code class="docutils literal notransla
 </div>
 <div class="section" id="id7">
 <span id="id8"></span><h2>合成语音<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
-<p>你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的 Tacotron 2 模型合成语音(<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech">下载链接</a>)。
+<p>你可以使用自己训练的 Tacotron 2 模型合成语音，也可以使用我们预训练好的模型(<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech">Tacotron 2 下载链接</a>)，以及(<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech">Waveglow 模型下载链接</a>)。
 下一步，请创建你想用于语音合成的文本，并将其转化为训练数据格式相同的 JSON 格式。该 JSON 文件格式如下所示：</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Talk to me!&quot;</span><span class="p">}</span>
 <span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Speech Synthensis is cool.&quot;</span><span class="p">}</span>
@@ -276,6 +276,11 @@ torch.distributed.launch 模块并指定 <code class="docutils literal notransla
 </pre></div>
 </div>
 <p>要合成普通话语音，记得将 Tacotron 2 模型配置文件更换为 tacotron2_mandarin.yaml。</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>你可以通过 <code class="docutils literal notranslate"><span class="pre">--waveglow_denoiser_strength</span></code> 和 <code class="docutils literal notranslate"><span class="pre">--waveglow_sigma</span></code> 参数来进一步控制 Waveglow 的推理过程。
+如果合成的音频中含有白噪声，我们推荐从 0 开始逐渐提高 <code class="docutils literal notranslate"><span class="pre">--waveglow_denoiser_strength</span></code> 参数的值以缓解这种情况。</p>
+</div>
 </div>
 </div>
 
@@ -299,7 +304,7 @@ torch.distributed.launch 模块并指定 <code class="docutils literal notransla
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

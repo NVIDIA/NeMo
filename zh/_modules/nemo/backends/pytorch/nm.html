@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.backends.pytorch.nm &mdash; nemo 0.9.0 documentation</title>
+  <title>nemo.backends.pytorch.nm &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../../../../_static/jquery.js"></script>
-        <script type="text/javascript" src="../../../../_static/underscore.js"></script>
-        <script type="text/javascript" src="../../../../_static/doctools.js"></script>
-        <script type="text/javascript" src="../../../../_static/language_data.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+        <script src="../../../../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
 
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -84,10 +84,10 @@
             
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">如何安装</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials/intro.html">从这里开始</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
@@ -156,15 +156,15 @@
             
   <h1>Source code for nemo.backends.pytorch.nm</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
-<span class="kn">import</span> <span class="nn">logging</span>
-<span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">abstractmethod</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span> <span class="nn">torch</span> <span class="k">as</span> <span class="nn">t</span>
 <span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
 
-<span class="kn">from</span> <span class="nn">...core</span> <span class="k">import</span> <span class="n">NeuralModule</span><span class="p">,</span> <span class="n">DeviceType</span><span class="p">,</span> <span class="n">WeightShareTransform</span>
-<span class="kn">from</span> <span class="nn">...utils.helpers</span> <span class="k">import</span> <span class="n">rgetattr</span><span class="p">,</span> <span class="n">rsetattr</span><span class="p">,</span> <span class="n">get_cuda_device</span>
+<span class="kn">from</span> <span class="nn">nemo.core</span> <span class="kn">import</span> <span class="n">DeviceType</span><span class="p">,</span> <span class="n">NeuralModule</span><span class="p">,</span> <span class="n">WeightShareTransform</span>
+<span class="kn">from</span> <span class="nn">nemo.utils.helpers</span> <span class="kn">import</span> <span class="n">get_cuda_device</span><span class="p">,</span> <span class="n">rgetattr</span><span class="p">,</span> <span class="n">rsetattr</span>
 
 
 <div class="viewcode-block" id="TrainableNM"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM">[docs]</a><span class="k">class</span> <span class="nc">TrainableNM</span><span class="p">(</span><span class="n">NeuralModule</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
@@ -178,50 +178,53 @@
 
 <span class="sd">    .. code-block:: python</span>
 
-<span class="sd">      def __init__(self, **kwargs):</span>
-<span class="sd">        TrainableNM.__init__(self, **kwargs)</span>
-<span class="sd">        self._input_ports = {..}</span>
-<span class="sd">        self._output_ports = {..}</span>
-<span class="sd">        .... # you code</span>
+<span class="sd">      def __init__(self):</span>
+<span class="sd">        super().__init__()</span>
+<span class="sd">        .... # your code</span>
 
 <span class="sd">    Then make sure that your forward(..) method accepts arguments named like</span>
 <span class="sd">    input ports.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pretrained_model_name (str): name of pretrained model to use in order</span>
+<span class="sd">            to initialize this neural module</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pretrained_model_name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
         <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># For PyTorch API</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">get_cuda_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">placement</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Store pretrained model name (to be removed/changed)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pretrained_model_name</span> <span class="o">=</span> <span class="n">pretrained_model_name</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">pt_call</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">force_pt</span>
         <span class="k">if</span> <span class="n">pt_call</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="o">.</span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-<div class="viewcode-block" id="TrainableNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.get_weights">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+<div class="viewcode-block" id="TrainableNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.get_weights">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
     <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
             <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">parameter</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">requires_grad</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span></div>
 
-<div class="viewcode-block" id="TrainableNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.set_weights">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+<div class="viewcode-block" id="TrainableNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.set_weights">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
     <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">,</span> <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">name2weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">name2weight</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">name2name_and_transform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span>
-                    <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">name2weight</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">name2weight</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
-                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">({</span><span class="n">key</span><span class="p">:</span> <span class="n">name2weight</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">name2weight</span><span class="o">.</span><span class="n">keys</span><span class="p">()})</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span>
-                    <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">name2weight</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">name2weight</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
-                <span class="p">)</span></div>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Transforms are not currently supported for set_weights&quot;</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="TrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.tie_weights_with">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
-    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">,</span>
-                         <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.tie_weights_with">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
+    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">,</span> <span class="n">name2name_and_transform</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Module to tie weights can&#39;t be None&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">weight_names</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">weight_names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -229,45 +232,34 @@
 
         <span class="k">if</span> <span class="n">name2name_and_transform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">weight_names</span><span class="p">:</span>
-                <span class="n">rsetattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+                <span class="n">rsetattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">)))</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">self_w_name</span> <span class="ow">in</span> <span class="n">weight_names</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">self_w_name</span> <span class="ow">in</span> <span class="n">name2name_and_transform</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="p">(</span>
-                            <span class="n">name2name_and_transform</span><span class="p">[</span><span class="n">self_w_name</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-                            <span class="o">==</span> <span class="n">WeightShareTransform</span><span class="o">.</span><span class="n">SAME</span>
-                    <span class="p">):</span>
+                    <span class="k">if</span> <span class="n">name2name_and_transform</span><span class="p">[</span><span class="n">self_w_name</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">WeightShareTransform</span><span class="o">.</span><span class="n">SAME</span><span class="p">:</span>
                         <span class="n">rsetattr</span><span class="p">(</span>
-                            <span class="bp">self</span><span class="p">,</span>
-                            <span class="n">self_w_name</span><span class="p">,</span>
-                            <span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span>
-                                     <span class="n">name2name_and_transform</span><span class="p">[</span><span class="n">self_w_name</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>
+                            <span class="bp">self</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name2name_and_transform</span><span class="p">[</span><span class="n">self_w_name</span><span class="p">][</span><span class="mi">0</span><span class="p">])),</span>
                         <span class="p">)</span>
-                    <span class="k">elif</span> <span class="p">(</span>
-                            <span class="n">name2name_and_transform</span><span class="p">[</span><span class="n">self_w_name</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-                            <span class="o">==</span> <span class="n">WeightShareTransform</span><span class="o">.</span><span class="n">TRANSPOSE</span>
-                    <span class="p">):</span>
-                        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-                            <span class="s2">&quot;Sorry, currently this is not implemented.&quot;</span>
-                        <span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">name2name_and_transform</span><span class="p">[</span><span class="n">self_w_name</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">WeightShareTransform</span><span class="o">.</span><span class="n">TRANSPOSE</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Sorry, currently this is not implemented.&quot;</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="n">rsetattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">,</span> <span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">))</span></div>
+                    <span class="n">rsetattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">rgetattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">self_w_name</span><span class="p">)))</span></div>
 
-<div class="viewcode-block" id="TrainableNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.save_to">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+<div class="viewcode-block" id="TrainableNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.save_to">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
     <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
         <span class="c1"># t.save(self._pt_module.state_dict(), path)</span>
         <span class="n">t</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_dict</span><span class="p">(),</span> <span class="n">path</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="TrainableNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.restore_from">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+<div class="viewcode-block" id="TrainableNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.restore_from">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
     <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">local_rank</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="c1"># self._pt_module.load_state_dict(t.load(path))</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">:</span>
-            <span class="n">load_device</span> <span class="o">=</span> <span class="n">f</span><span class="s2">&quot;cuda:</span><span class="si">{local_rank}</span><span class="s2">&quot;</span>
+            <span class="n">load_device</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;cuda:</span><span class="si">{local_rank}</span><span class="s2">&quot;</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">load_device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_device</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="n">load_device</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="TrainableNM.freeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.freeze">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+<div class="viewcode-block" id="TrainableNM.freeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.freeze">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
     <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_pt_module&quot;</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pt_module</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
@@ -278,7 +270,7 @@
                 <span class="k">if</span> <span class="n">weights</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">weights</span><span class="p">:</span>
                     <span class="n">param</span><span class="o">.</span><span class="n">requires_grad</span> <span class="o">=</span> <span class="kc">False</span></div>
 
-<div class="viewcode-block" id="TrainableNM.unfreeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.unfreeze">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span><span class="p">()</span>
+<div class="viewcode-block" id="TrainableNM.unfreeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.unfreeze">[docs]</a>    <span class="nd">@t</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
     <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_pt_module&quot;</span><span class="p">):</span>
             <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pt_module</span><span class="o">.</span><span class="n">named_parameters</span><span class="p">():</span>
@@ -295,11 +287,11 @@
 
 
 <div class="viewcode-block" id="NonTrainableNM"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM">[docs]</a><span class="k">class</span> <span class="nc">NonTrainableNM</span><span class="p">(</span><span class="n">NeuralModule</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">get_cuda_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">placement</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">pt_call</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">force_pt</span>
         <span class="k">if</span> <span class="n">pt_call</span><span class="p">:</span>
             <span class="k">with</span> <span class="n">t</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
@@ -317,14 +309,19 @@
 <div class="viewcode-block" id="NonTrainableNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.get_weights">[docs]</a>    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)]]:</span>
         <span class="kc">None</span></div>
 
-<div class="viewcode-block" id="NonTrainableNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">])],</span>
-                    <span class="n">name2name_and_transform</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span>
-                        <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="p">])]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="NonTrainableNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">])],</span>
+        <span class="n">name2name_and_transform</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="p">])]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
         <span class="k">pass</span></div>
 
-<div class="viewcode-block" id="NonTrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.tie_weights_with">[docs]</a>    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
-                         <span class="n">name2name_and_transform</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span>
-                             <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="p">])]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="NonTrainableNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.tie_weights_with">[docs]</a>    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">module</span><span class="p">,</span>
+        <span class="n">weight_names</span><span class="o">=</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">name2name_and_transform</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="p">])]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
         <span class="k">pass</span></div>
 
 <div class="viewcode-block" id="NonTrainableNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM.save_to">[docs]</a>    <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
@@ -350,61 +347,76 @@
 <span class="sd">    data_iterator property to return iterator over the dataset.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">get_cuda_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">placement</span><span class="p">)</span>
+
         <span class="c1"># if &#39;batch_size&#39; not in kwargs:</span>
         <span class="c1">#    logging.warning(&quot;No batch_size specified in the data layer. &quot;</span>
         <span class="c1">#                    &quot;Setting batch_size to 1.&quot;)</span>
         <span class="c1">#    kwargs[&#39;batch_size&#39;] = 1</span>
-        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">get_cuda_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">placement</span><span class="p">)</span>
+
+        <span class="c1"># Set default values of variables used by trained/passed to DataLoader.</span>
+        <span class="c1"># NOTE: That also means that those are parameters of DataLoader/trainer, not DataLayer.</span>
+        <span class="c1"># Thus those fields will be removed from DataLayer and moved to trainer configuration</span>
+        <span class="c1"># (when the time for that will come;))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_batch_size</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_num_workers</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>  <span class="c1"># Use all CPUs by default.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shuffle</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Don&#39;t shuffle by default.</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;DataLayer by definition does not have any input ports.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                An empty dictionary.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{}</span>
 
 <div class="viewcode-block" id="DataLayerNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.get_weights">[docs]</a>    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer does not have any weights to return. &quot;</span>
-            <span class="s2">&quot;This get_weights call returns None.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Data Layer does not have any weights to return. &quot;</span>
+        <span class="c1">#     &quot;This get_weights call returns None.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
-<div class="viewcode-block" id="DataLayerNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)],</span>
-                    <span class="n">name2name_and_transform</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer does not have any weights to set. &quot;</span>
-            <span class="s2">&quot;This set_weights call is ignored.&quot;</span>
-        <span class="p">)</span>
+<div class="viewcode-block" id="DataLayerNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)],</span> <span class="n">name2name_and_transform</span><span class="p">):</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Data Layer does not have any weights to set. &quot;</span>
+        <span class="c1">#     &quot;This set_weights call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="DataLayerNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.tie_weights_with">[docs]</a>    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer does not have any weights to tie. &quot;</span>
-            <span class="s2">&quot;This tie_weights_with call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Data Layer does not have any weights to tie. &quot;</span>
+        <span class="c1">#     &quot;This tie_weights_with call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="DataLayerNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.save_to">[docs]</a>    <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer does not have any state to save. &quot;</span>
-            <span class="s2">&quot;This save_to call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Data Layer does not have any state to save. &quot;</span>
+        <span class="c1">#     &quot;This save_to call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="DataLayerNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.restore_from">[docs]</a>    <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer could not be restored from any saved &quot;</span> <span class="s2">&quot;state.&quot;</span>
-        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Data Layer could not be restored from any saved state.&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="DataLayerNM.freeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.freeze">[docs]</a>    <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer does not have any weights to freeze. &quot;</span>
-            <span class="s2">&quot;This freeze call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Data Layer does not have any weights to freeze. &quot;</span>
+        <span class="c1">#     &quot;This freeze call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="DataLayerNM.unfreeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.unfreeze">[docs]</a>    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Data Layer does not have any weights to unfreeze. &quot;</span>
-            <span class="s2">&quot;This unfreeze call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Data Layer does not have any weights to unfreeze. &quot;</span>
+        <span class="c1">#     &quot;This unfreeze call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
     <span class="nd">@property</span>
@@ -412,7 +424,7 @@
         <span class="k">return</span> <span class="mi">0</span>
 
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Dataset size&quot;&quot;&quot;</span>
         <span class="k">pass</span>
 
@@ -432,7 +444,37 @@
 <span class="sd">        torch.utils.data.DataLoader here. Should implement either this or</span>
 <span class="sd">        `dataset`.</span>
 <span class="sd">        If this is implemented, `dataset` property should return None.</span>
-<span class="sd">        &quot;&quot;&quot;</span></div>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">batch_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Property returning the batch size. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_batch_size</span>
+
+    <span class="c1"># @batch_size.setter</span>
+    <span class="c1"># def batch_size(self, bs):</span>
+    <span class="c1">#    &quot;&quot;&quot; Property setting the batch size. &quot;&quot;&quot;</span>
+    <span class="c1">#    self._batch_size = bs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shuffle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Property returning the shuffle flag. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shuffle</span>
+
+    <span class="c1"># @shuffle.setter</span>
+    <span class="c1"># def shuffle(self, sh):</span>
+    <span class="c1">#    &quot;&quot;&quot; Property setting the shuffle flag. &quot;&quot;&quot;</span>
+    <span class="c1">#     self._shuffle = sh</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">num_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Property returning the number of workers. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_workers</span></div>
+
+    <span class="c1"># @num_workers.setter</span>
+    <span class="c1"># def num_workers(self, nw):</span>
+    <span class="c1">#    &quot;&quot;&quot; Property setting the number of workers. &quot;&quot;&quot;</span>
+    <span class="c1">#    self._num_workers = nw</span>
 
 
 <div class="viewcode-block" id="LossNM"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM">[docs]</a><span class="k">class</span> <span class="nc">LossNM</span><span class="p">(</span><span class="n">NeuralModule</span><span class="p">):</span>
@@ -440,57 +482,53 @@
 <span class="sd">    You must implement _loss_function method.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">NeuralModule</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># For NeuralModule API</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">get_cuda_device</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">placement</span><span class="p">)</span>
 
 <div class="viewcode-block" id="LossNM.get_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.get_weights">[docs]</a>    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># logging.warning(&quot;Loss function module does not have any weights to</span>
-        <span class="c1"># return. &quot;</span>
-        <span class="c1">#                &quot;This get_weights call returns None.&quot;)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Loss function module does not have any weights &quot;</span>
+        <span class="c1">#      &quot;to return. This get_weights call returns None.&quot;)</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
-<div class="viewcode-block" id="LossNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)],</span>
-                    <span class="n">name2name_and_transform</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Loss function module does not have any weights to set. &quot;</span>
-            <span class="s2">&quot;This set_weights call is ignored.&quot;</span>
-        <span class="p">)</span>
+<div class="viewcode-block" id="LossNM.set_weights"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.set_weights">[docs]</a>    <span class="k">def</span> <span class="nf">set_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name2weight</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)],</span> <span class="n">name2name_and_transform</span><span class="p">):</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Loss function module does not have any weights to set. &quot;</span>
+        <span class="c1">#     &quot;This set_weights call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="LossNM.tie_weights_with"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.tie_weights_with">[docs]</a>    <span class="k">def</span> <span class="nf">tie_weights_with</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">weight_names</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Loss function module does not have any weights to tie. &quot;</span>
-            <span class="s2">&quot;This tie_weights_with call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Loss function module does not have any weights to tie. &quot;</span>
+        <span class="c1">#     &quot;This tie_weights_with call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="LossNM.save_to"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.save_to">[docs]</a>    <span class="k">def</span> <span class="nf">save_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Loss function module does not have any state to save. &quot;</span>
-            <span class="s2">&quot;This save_to call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Loss function module does not have any state to save. &quot;</span>
+        <span class="c1">#     &quot;This save_to call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="LossNM.restore_from"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.restore_from">[docs]</a>    <span class="k">def</span> <span class="nf">restore_from</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
-            <span class="s2">&quot;Loss function module could not be restored from &quot;</span> <span class="s2">&quot;any saved &quot;</span>
-            <span class="s2">&quot;state.&quot;</span>
-        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Loss function module could not be restored from any saved state.&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="LossNM.freeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.freeze">[docs]</a>    <span class="k">def</span> <span class="nf">freeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Loss function module does not have any weights to freeze. &quot;</span>
-            <span class="s2">&quot;This freeze call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Loss function module does not have any weights to freeze. &quot;</span>
+        <span class="c1">#     &quot;This freeze call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="LossNM.unfreeze"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM.unfreeze">[docs]</a>    <span class="k">def</span> <span class="nf">unfreeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">&quot;Loss function module does not have any weights to &quot;</span>
-            <span class="s2">&quot;unfreeze. This unfreeze call is ignored.&quot;</span>
-        <span class="p">)</span>
+        <span class="c1"># logging.warning(</span>
+        <span class="c1">#     &quot;Loss function module does not have any weights to &quot;</span>
+        <span class="c1">#     &quot;unfreeze. This unfreeze call is ignored.&quot;</span>
+        <span class="c1"># )</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
     <span class="nd">@property</span>
@@ -501,7 +539,7 @@
     <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">pass</span>
 
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force_pt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="nb">input</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">force_pt</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_loss_function</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -518,7 +556,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

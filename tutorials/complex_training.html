@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Complex Training Pipelines (GAN Example) &mdash; nemo 0.9.0 documentation</title>
+  <title>Complex Training Pipelines (GAN Example) &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,12 +86,12 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Complex Training Pipelines (GAN Example)</a><ul>
@@ -103,6 +103,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -216,8 +217,8 @@ Here’s an example:</p>
 <span class="c1"># Update printing function to add both losses</span>
 <span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
     <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">l1_loss_tensor</span><span class="p">,</span> <span class="n">mse_loss_tensor</span><span class="p">],</span>
-    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span>
-        <span class="n">f</span><span class="s1">&#39;Train Loss: {str(x[0].item() + x[1].item())}&#39;</span><span class="p">)</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">&#39;Train Loss: {str(x[0].item() + x[1].item())}&#39;</span><span class="p">)</span>
 <span class="p">)</span>
 
 <span class="c1"># Invoke &quot;train&quot; action with both loss tensors</span>
@@ -254,9 +255,9 @@ loop.</p>
 <span class="c1"># SimpleLossLoggerCallback will print loss values to console.</span>
 <span class="n">callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
     <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">l1_loss_tensor</span><span class="p">,</span> <span class="n">mse_loss_tensor</span><span class="p">],</span>
-    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span>
-        <span class="n">f</span><span class="s1">&#39;L1 Loss: {str(x[0].item())}&#39;</span>
-        <span class="n">f</span><span class="s1">&#39;MSE Loss: {str(x[1].item())}&#39;</span><span class="p">)</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">&#39;L1 Loss: {str(x[0].item())}&#39;</span>
+        <span class="sa">f</span><span class="s1">&#39;MSE Loss: {str(x[1].item())}&#39;</span><span class="p">)</span>
 <span class="p">)</span>
 
 <span class="c1">### New code starts here ###</span>
@@ -364,7 +365,7 @@ Here are the highlights from examples/images/gan.py that enable such behaviour.<
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

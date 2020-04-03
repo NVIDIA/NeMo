@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Transformer Language Model &mdash; nemo 0.9.0 documentation</title>
+  <title>Tutorial &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -35,8 +35,8 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="ner.html" />
-    <link rel="prev" title="Pretraining BERT" href="bert_pretraining.html" /> 
+    <link rel="next" title="Tutorial" href="dialogue_state_tracking_trade.html" />
+    <link rel="prev" title="Tutorial" href="bert_pretraining.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,15 +86,15 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Transformer Language Model</a><ul>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#download-corpus">Download Corpus</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#create-the-tokenizer-model">Create the tokenizer model</a></li>
@@ -104,9 +104,12 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving speech recognition with BERTx2 post-processing model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -160,7 +163,7 @@
         
           <li><a href="intro.html">Natural Language Processing</a> &raquo;</li>
         
-      <li>Transformer Language Model</li>
+      <li>Tutorial</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -179,18 +182,18 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="transformer-language-model">
-<h1>Transformer Language Model<a class="headerlink" href="#transformer-language-model" title="Permalink to this headline">¶</a></h1>
-<p>In this tutorial, we will build and train a language model using the Transformer architecture <a class="reference internal" href="#nlp-lm-vaswani2017attention" id="id1">[NLP-LM4]</a>.
-Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section for more details.</p>
+  <div class="section" id="tutorial">
+<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<p>In this tutorial, we will build and train a language model using the Transformer architecture <a class="bibtex reference internal" href="#nlp-lm-vaswani2017attention" id="id1">[NLP-LM4]</a>.
+Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../index.html#installation"><span class="std std-ref">Getting started</span></a> section for more details.</p>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 <a class="reference internal" href="#nlp-lm-radford2019language" id="id2">[NLP-LM3]</a>.</p>
+<p>A good language model has a wide range of applications on downstream tasks. Examples of language models being used for downstream tasks include GPT-2 <a class="bibtex reference internal" href="#nlp-lm-radford2019language" id="id2">[NLP-LM3]</a>.</p>
 </div>
 <div class="section" id="download-corpus">
 <h2>Download Corpus<a class="headerlink" href="#download-corpus" title="Permalink to this headline">¶</a></h2>
-<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="reference internal" href="#nlp-lm-merity2016pointer" id="id3">[NLP-LM1]</a>.</p>
-<p>To download the dataset, run the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/scripts/get_wt2.sh</span></code>. After downloading and unzipping, the folder should include 3 files that look like this:</p>
+<p>For demonstration purposes, we will be using the very small WikiText-2 dataset <a class="bibtex reference internal" href="#nlp-lm-merity2016pointer" id="id3">[NLP-LM1]</a>.</p>
+<p>To download the dataset, run the script <code class="docutils literal notranslate"><span class="pre">examples/nlp/language_modeling/get_wkt2.sh</span> <span class="pre">&lt;FOLDER_FOR_DATA&gt;</span></code>. After downloading and unzipping, the folder <code class="docutils literal notranslate"><span class="pre">&lt;FOLDER_FOR_DATA&gt;</span></code> should include 3 files that look like this:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>test.txt
 train.txt
@@ -203,14 +206,16 @@ valid.txt
 <h2>Create the tokenizer model<a class="headerlink" href="#create-the-tokenizer-model" title="Permalink to this headline">¶</a></h2>
 <p><cite>LanguageModelDataDesc</cite> converts your dataset into the format compatible with <cite>LanguageModelingDataset</cite>.</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">data_desc</span> <span class="o">=</span> <span class="n">LanguageModelDataDesc</span><span class="p">(</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo.collections.nlp.data.datasets.lm_transformer_dataset</span> <span class="kn">import</span> <span class="n">LanguageModelDataDesc</span>
+<span class="n">data_desc</span> <span class="o">=</span> <span class="n">LanguageModelDataDesc</span><span class="p">(</span>
     <span class="n">args</span><span class="o">.</span><span class="n">dataset_name</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">data_dir</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">do_lower_case</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
-<p>We need to define our tokenizer. We use <cite>WordTokenizer</cite> defined in <code class="docutils literal notranslate"><span class="pre">nemo_nlp/data/tokenizers/word_tokenizer.py</span></code>:</p>
+<p>We need to define our tokenizer. We use <cite>WordTokenizer</cite> defined in <code class="docutils literal notranslate"><span class="pre">nemo/collections/nlp/data/tokenizers/word_tokenizer.py</span></code>:</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">WordTokenizer</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.tokenizer_model}&quot;</span><span class="p">)</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">nemo.collections.nlp</span> <span class="k">as</span> <span class="nn">nemo_nlp</span>
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">WordTokenizer</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{args.data_dir}</span><span class="s2">/</span><span class="si">{args.tokenizer_model}</span><span class="s2">&quot;</span><span class="p">)</span>
 <span class="n">vocab_size</span> <span class="o">=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">vocab_size</span> <span class="o">/</span> <span class="mi">8</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -230,7 +235,7 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
                                    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
-                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                   <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                                    <span class="n">files_to_copy</span><span class="o">=</span><span class="p">[</span><span class="vm">__file__</span><span class="p">])</span>
 </pre></div>
 </div>
@@ -242,47 +247,72 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
 <li><p><cite>TokenClassifier</cite> for mapping output of the decoder into probability distribution over vocabulary.</p></li>
 <li><p>Loss function (cross entropy with label smoothing regularization).</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TransformerEncoderNM</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
-<span class="n">log_softmax</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">TokenClassifier</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">PaddedSmoothedCrossEntropyLossNM</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
-</pre></div>
-</div>
-</div></blockquote>
-<p>Following <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="reference internal" href="#nlp-lm-press2016using" id="id4">[NLP-LM2]</a>, we also tie the parameters of embedding and softmax layers:</p>
-<blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">log_softmax</span><span class="o">.</span><span class="n">mlp</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">embedding_layer</span><span class="o">.</span><span class="n">token_embedding</span><span class="o">.</span><span class="n">weight</span>
-</pre></div>
-</div>
-</div></blockquote>
-<p>Next, we create datasets for training and evaluating:</p>
-<blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LanguageModelingDataset</span><span class="p">(</span>
-    <span class="n">tokenizer</span><span class="p">,</span>
-    <span class="n">dataset</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.train_dataset}&quot;</span><span class="p">,</span>
-    <span class="n">max_sequence_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_sequence_length</span><span class="p">,</span>
-    <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_sequence_length</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo.collections.nlp.nm.trainables.common</span> <span class="kn">import</span> <span class="n">TokenClassifier</span>
+<span class="kn">from</span> <span class="nn">nemo.collections.nlp.nm.losses</span> <span class="kn">import</span> <span class="n">SmoothedCrossEntropyLoss</span>
 
-<span class="n">eval_dataset</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LanguageModelingDataset</span><span class="p">(</span>
-    <span class="n">tokenizer</span><span class="p">,</span>
-    <span class="n">dataset</span><span class="o">=</span><span class="n">f</span><span class="s2">&quot;{args.data_dir}/{args.eval_datasets[0]}&quot;</span><span class="p">,</span>
-    <span class="n">max_sequence_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_sequence_length</span><span class="p">,</span>
-    <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">predict_last_k</span><span class="p">)</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">TransformerEncoderNM</span><span class="p">(</span>
+    <span class="n">d_model</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span>
+    <span class="n">d_inner</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">d_inner</span><span class="p">,</span>
+    <span class="n">num_layers</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_layers</span><span class="p">,</span>
+    <span class="n">embedding_dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">embedding_dropout</span><span class="p">,</span>
+    <span class="n">num_attn_heads</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_attn_heads</span><span class="p">,</span>
+    <span class="n">ffn_dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">ffn_dropout</span><span class="p">,</span>
+    <span class="n">vocab_size</span><span class="o">=</span><span class="n">vocab_size</span><span class="p">,</span>
+    <span class="n">mask_future</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">attn_score_dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">attn_score_dropout</span><span class="p">,</span>
+    <span class="n">attn_layer_dropout</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">attn_layer_dropout</span><span class="p">,</span>
+    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">log_softmax</span> <span class="o">=</span> <span class="n">TokenClassifier</span><span class="p">(</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">d_model</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="n">vocab_size</span><span class="p">,</span> <span class="n">num_layers</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">log_softmax</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="n">loss</span> <span class="o">=</span> <span class="n">SmoothedCrossEntropyLoss</span><span class="p">(</span><span class="n">pad_id</span><span class="o">=</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">pad_id</span><span class="p">,</span> <span class="n">label_smoothing</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">label_smoothing</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
-<p>Then, we create the pipeline gtom input to output that can be used for both training and evaluation:</p>
+<p>Following <a class="reference external" href="https://arxiv.org/abs/1608.05859">Press and Wolf, 2016</a> <a class="bibtex reference internal" href="#nlp-lm-press2016using" id="id4">[NLP-LM2]</a>, we also tie the parameters of embedding and softmax layers:</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">):</span>
-    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">LanguageModelingDataLayer</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span>
-                                                    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo.core</span> <span class="kn">import</span> <span class="n">WeightShareTransform</span>
+<span class="n">log_softmax</span><span class="o">.</span><span class="n">tie_weights_with</span><span class="p">(</span>
+    <span class="n">encoder</span><span class="p">,</span>
+    <span class="n">weight_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;mlp.layer0.weight&quot;</span><span class="p">],</span>
+    <span class="n">name2name_and_transform</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;mlp.layer0.weight&quot;</span><span class="p">:</span> <span class="p">(</span><span class="s2">&quot;embedding_layer.token_embedding.weight&quot;</span><span class="p">,</span> <span class="n">WeightShareTransform</span><span class="o">.</span><span class="n">SAME</span><span class="p">)</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>Then, we create the pipeline from input to output that can be used for both training and evaluation:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo.collections.nlp.nm.data_layers</span> <span class="kn">import</span> <span class="n">LanguageModelingDataLayer</span>
+
+<span class="k">def</span> <span class="nf">create_pipeline</span><span class="p">(</span>
+    <span class="n">dataset</span><span class="p">,</span> <span class="n">max_seq_length</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span> <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span>
+<span class="p">):</span>
+    <span class="n">data_layer</span> <span class="o">=</span> <span class="n">LanguageModelingDataLayer</span><span class="p">(</span>
+        <span class="n">dataset</span><span class="p">,</span> <span class="n">tokenizer</span><span class="p">,</span> <span class="n">max_seq_length</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">batch_step</span>
+    <span class="p">)</span>
     <span class="n">src</span><span class="p">,</span> <span class="n">src_mask</span><span class="p">,</span> <span class="n">labels</span> <span class="o">=</span> <span class="n">data_layer</span><span class="p">()</span>
     <span class="n">src_hiddens</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">src</span><span class="p">,</span> <span class="n">input_mask_src</span><span class="o">=</span><span class="n">src_mask</span><span class="p">)</span>
     <span class="n">logits</span> <span class="o">=</span> <span class="n">log_softmax</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">src_hiddens</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span> <span class="n">target_ids</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
 
 
-<span class="n">train_loss</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
-<span class="n">eval_loss</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span><span class="n">eval_dataset</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+<span class="n">train_loss</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{args.data_dir}</span><span class="s2">/</span><span class="si">{args.train_dataset}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+    <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">eval_loss</span> <span class="o">=</span> <span class="n">create_pipeline</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{args.data_dir}</span><span class="s2">/</span><span class="si">{args.eval_dataset}</span><span class="s2">&quot;</span><span class="p">,</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">max_seq_length</span><span class="p">,</span>
+    <span class="n">batch_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">predict_last_k</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">eval_batch_size</span><span class="p">,</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -292,9 +322,27 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
 <li><p><cite>EvaluatorCallback</cite>: tracking metrics during evaluation at set intervals</p></li>
 <li><p><cite>CheckpointCallback</cite>: saving model checkpoints at set intervals</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
-<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
-<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo.collections.nlp.callbacks.lm_transformer_callback</span> <span class="kn">import</span> <span class="n">eval_epochs_done_callback</span><span class="p">,</span> <span class="n">eval_iter_callback</span>
+<span class="n">train_callback</span> <span class="o">=</span> <span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="n">train_tensors</span><span class="p">,</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="mi">3</span><span class="p">))),</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+    <span class="n">get_tb_values</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]]],</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="n">eval_tensors</span><span class="p">,</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">eval_iter_callback</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">),</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">eval_epochs_done_callback</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{nf.work_dir}</span><span class="s1">/graphs&#39;</span><span class="p">),</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Create callback to save checkpoints</span>
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">CheckpointCallback</span><span class="p">(</span>
+    <span class="n">folder</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span> <span class="n">epoch_freq</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">save_epoch_freq</span><span class="p">,</span> <span class="n">step_freq</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">save_step_freq</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -302,19 +350,28 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
 </ol>
 <p>Finally, you should define your optimizer, and start training!</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">get_lr_policy</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">lr_policy</span><span class="p">,</span>
-                             <span class="n">total_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
-                             <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">lr_warmup_proportion</span><span class="p">)</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo.utils.lr_policies</span> <span class="kn">import</span> <span class="n">CosineAnnealing</span>
 
-<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
-         <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
-         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
-         <span class="n">batches_per_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">iter_per_step</span><span class="p">,</span>
-         <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
-         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
-                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
-                              <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">,</span>
-                              <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">beta1</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">beta2</span><span class="p">)})</span>
+<span class="n">lr_policy_fn</span> <span class="o">=</span> <span class="n">CosineAnnealing</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">max_steps</span><span class="p">,</span> <span class="n">warmup_steps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">warmup_steps</span><span class="p">)</span>
+<span class="n">max_num_epochs</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">interactive</span> <span class="k">else</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span>
+
+<span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span><span class="n">callback_ckpt</span><span class="p">]</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">interactive</span><span class="p">:</span>
+    <span class="n">callbacks</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">])</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+    <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy_fn</span><span class="p">,</span>
+    <span class="n">batches_per_step</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">iter_per_step</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">optimizer_kind</span><span class="p">,</span>
+    <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">,</span>
+        <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">lr</span><span class="p">,</span>
+        <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">weight_decay</span><span class="p">,</span>
+        <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">beta1</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">beta2</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -322,16 +379,16 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/transformer_language_model-0"><dl class="citation">
-<dt class="label" id="nlp-lm-merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id3">NLP-LM1</a></span></dt>
+<dt class="bibtex label" id="nlp-lm-merity2016pointer"><span class="brackets"><a class="fn-backref" href="#id3">NLP-LM1</a></span></dt>
 <dd><p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. <em>arXiv preprint arXiv:1609.07843</em>, 2016.</p>
 </dd>
-<dt class="label" id="nlp-lm-press2016using"><span class="brackets"><a class="fn-backref" href="#id4">NLP-LM2</a></span></dt>
+<dt class="bibtex label" id="nlp-lm-press2016using"><span class="brackets"><a class="fn-backref" href="#id4">NLP-LM2</a></span></dt>
 <dd><p>Ofir Press and Lior Wolf. Using the output embedding to improve language models. <em>arXiv preprint arXiv:1608.05859</em>, 2016.</p>
 </dd>
-<dt class="label" id="nlp-lm-radford2019language"><span class="brackets"><a class="fn-backref" href="#id2">NLP-LM3</a></span></dt>
+<dt class="bibtex label" id="nlp-lm-radford2019language"><span class="brackets"><a class="fn-backref" href="#id2">NLP-LM3</a></span></dt>
 <dd><p>Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models are unsupervised multitask learners. <em>OpenAI Blog</em>, 2019.</p>
 </dd>
-<dt class="label" id="nlp-lm-vaswani2017attention"><span class="brackets"><a class="fn-backref" href="#id1">NLP-LM4</a></span></dt>
+<dt class="bibtex label" id="nlp-lm-vaswani2017attention"><span class="brackets"><a class="fn-backref" href="#id1">NLP-LM4</a></span></dt>
 <dd><p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. In <em>Advances in neural information processing systems</em>, 5998–6008. 2017.</p>
 </dd>
 </dl>
@@ -347,10 +404,10 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="ner.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="dialogue_state_tracking_trade.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="bert_pretraining.html" class="btn btn-neutral float-left" title="Pretraining BERT" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="bert_pretraining.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -359,7 +416,7 @@ This tutorial assumes that you’re training on one GPU, without mixed precision
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

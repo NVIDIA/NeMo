@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Weight Sharing between Modules &mdash; nemo 0.9.0 documentation</title>
+  <title>Weight Sharing between Modules &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Callbacks" href="callbacks.html" />
-    <link rel="prev" title="How to build Neural Module" href="custommodules.html" /> 
+    <link rel="prev" title="Module Configuration" href="module_configuration.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,16 +86,16 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Weight Sharing between Modules</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#neural-module-reuse">Neural Module reuse</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#copy-weights-between-modules">Copy weights between modules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#tie-weights-between-modules">Tie weights between modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#neural-module-reuse">Neural Module Reuse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#weight-copying-between-modules">Weight Copying Between Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#weight-tying-between-modules">Weight Tying Between Modules</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
@@ -104,6 +104,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -179,14 +180,14 @@
 <h1>Weight Sharing between Modules<a class="headerlink" href="#weight-sharing-between-modules" title="Permalink to this headline">¶</a></h1>
 <p>There are several ways to share or tie weights between neural modules.</p>
 <div class="section" id="neural-module-reuse">
-<h2>Neural Module reuse<a class="headerlink" href="#neural-module-reuse" title="Permalink to this headline">¶</a></h2>
+<h2>Neural Module Reuse<a class="headerlink" href="#neural-module-reuse" title="Permalink to this headline">¶</a></h2>
 <p>The idea is to re-use neural modules between training, evaluation and inference graphs.
 For example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
 <span class="n">train_dataloader</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">TrainDataLayer</span><span class="p">(</span><span class="o">**</span><span class="n">train_config</span><span class="p">)</span>
 <span class="n">eval_dataloader</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">EvalDataLayer</span><span class="p">(</span><span class="o">**</span><span class="n">eval_config</span><span class="p">)</span>
 
-<span class="n">L</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">MaskedXEntropyLoss</span><span class="p">()</span>
+<span class="n">L</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">MaskedXEntropyLoss</span><span class="p">()</span>
 
 <span class="c1"># training model</span>
 
@@ -208,19 +209,20 @@ For example:</p>
 </pre></div>
 </div>
 </div>
-<div class="section" id="copy-weights-between-modules">
-<h2>Copy weights between modules<a class="headerlink" href="#copy-weights-between-modules" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="weight-copying-between-modules">
+<h2>Weight Copying Between Modules<a class="headerlink" href="#weight-copying-between-modules" title="Permalink to this headline">¶</a></h2>
 <p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> class provides 2 methods
 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.get_weights" title="nemo.core.neural_modules.NeuralModule.get_weights"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_weights</span></code></a> and
 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.set_weights" title="nemo.core.neural_modules.NeuralModule.set_weights"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_weights</span></code></a>
-for sharing weights.</p>
+for copying weights.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.set_weights" title="nemo.core.neural_modules.NeuralModule.set_weights"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_weights</span></code></a> method can set only part of module’s weights.</p>
 </div>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>This approach is used only to copy weights. Subsequent update of weights in one module will not affect weights in the other module.</p>
+<p>This approach is used only to copy weights. Subsequent update of weights in one module will not affect weights in the other module.
+This means that the weights will get DIFFERENT gradients on the update step.</p>
 </div>
 <p>Consider an example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tn1</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">pytorch</span><span class="o">.</span><span class="n">toys</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
@@ -243,18 +245,22 @@ for sharing weights.</p>
 </pre></div>
 </div>
 </div>
-<div class="section" id="tie-weights-between-modules">
-<h2>Tie weights between modules<a class="headerlink" href="#tie-weights-between-modules" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="weight-tying-between-modules">
+<h2>Weight Tying Between Modules<a class="headerlink" href="#weight-tying-between-modules" title="Permalink to this headline">¶</a></h2>
 <p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> class provides <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.tie_weights_with" title="nemo.core.neural_modules.NeuralModule.tie_weights_with"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tie_weights_with</span></code></a> method to tie weights between two or more modules.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>Tied weights are identical across all modules: subsequent modification of weights in one module will result in the same modification on the other.</p>
+<p>Tied weights are identical across all modules. Gradients to the weights will be the SAME.</p>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>However manually updating the weight on one module via tensor.data will NOT update the weight on the other module</p>
 </div>
 <p>In the example below we first create a simple embedding encoder which takes [batch, time] sequences of word ids from vocabulary <code class="docutils literal notranslate"><span class="pre">V</span></code>  and embeds them into some <code class="docutils literal notranslate"><span class="pre">D</span></code>-dimensional space. Effectively, this is a lookup-based projection from <code class="docutils literal notranslate"><span class="pre">V</span></code>-dimensional space to <code class="docutils literal notranslate"><span class="pre">D</span></code>-dimensional space. We then create a decoder which projects from <code class="docutils literal notranslate"><span class="pre">D</span></code>-dimensional space back to the <code class="docutils literal notranslate"><span class="pre">V</span></code>-dimensional space. We want to transpose the encoder projection matrix and reuse it for decoder.
 The code below demonstrates how this can be achieved.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The weights have different names (<code class="docutils literal notranslate"><span class="pre">embedding.weight</span></code> and <code class="docutils literal notranslate"><span class="pre">projection.weight</span></code>) but their values are the same. Changes to one will result to changes in the other. Effectively, <code class="docutils literal notranslate"><span class="pre">embedding.weight</span></code> and <code class="docutils literal notranslate"><span class="pre">projection.weight</span></code> become pointers to the same tensor.</p>
+<p>The weights have different names (<code class="docutils literal notranslate"><span class="pre">embedding.weight</span></code> and <code class="docutils literal notranslate"><span class="pre">projection.weight</span></code>) but their values and gradient updates will be the same.</p>
 </div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">V</span> <span class="o">=</span> <span class="mi">3</span>
 <span class="n">D</span> <span class="o">=</span> <span class="mi">2</span>
@@ -268,18 +274,12 @@ The code below demonstrates how this can be achieved.</p>
 
 <span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">embd</span><span class="o">.</span><span class="n">embedding</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
                                <span class="n">proj</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()))</span>
-
-<span class="n">was</span> <span class="o">=</span> <span class="n">embd</span><span class="o">.</span><span class="n">embedding</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
-
-<span class="c1"># Now, change weights on one object</span>
-<span class="n">embd</span><span class="o">.</span><span class="n">embedding</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">*</span><span class="mf">1.0</span><span class="p">)</span>
-<span class="n">after</span> <span class="o">=</span> <span class="n">embd</span><span class="o">.</span><span class="n">embedding</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
-
-<span class="c1"># Make sure that the change was reflected on another object</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">assertTrue</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">embd</span><span class="o">.</span><span class="n">embedding</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span>
-                                <span class="n">proj</span><span class="o">.</span><span class="n">projection</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()))</span>
-<span class="bp">self</span><span class="o">.</span><span class="n">assertFalse</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">was</span><span class="p">,</span> <span class="n">after</span><span class="p">))</span>
 </pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Manually setting the weight tensors to be equal to the other will likely break multi-GPU and multi-node runs. Eg,
+<code class="docutils literal notranslate"><span class="pre">embd.embedding.weight</span> <span class="pre">=</span> <span class="pre">proj.projection.weights</span></code> is not recommended. Use the <code class="docutils literal notranslate"><span class="pre">tie_weights_with()</span></code> function instead</p>
 </div>
 </div>
 </div>
@@ -295,7 +295,7 @@ The code below demonstrates how this can be achieved.</p>
         <a href="callbacks.html" class="btn btn-neutral float-right" title="Callbacks" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="custommodules.html" class="btn btn-neutral float-left" title="How to build Neural Module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="module_configuration.html" class="btn btn-neutral float-left" title="Module Configuration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -304,7 +304,7 @@ The code below demonstrates how this can be achieved.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

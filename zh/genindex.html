@@ -9,7 +9,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Index &mdash; nemo 0.9.0 documentation</title>
+  <title>Index &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -22,10 +22,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
-        <script type="text/javascript" src="_static/jquery.js"></script>
-        <script type="text/javascript" src="_static/underscore.js"></script>
-        <script type="text/javascript" src="_static/doctools.js"></script>
-        <script type="text/javascript" src="_static/language_data.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -59,7 +59,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -85,10 +85,10 @@
             
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">如何安装</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/intro.html">从这里开始</a></li>
 <li class="toctree-l1"><a class="reference internal" href="training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
@@ -189,27 +189,31 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.Actions">Actions (class in nemo.core.neural_factory)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.add_special_tokens">add_special_tokens() (nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.add_special_tokens">add_special_tokens() (nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.add_special_tokens">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.add_special_tokens">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
       </ul></li>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert">Albert (class in nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm)</a>
+</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeviceType.AllGpu">AllGpu (nemo.core.neural_factory.DeviceType attribute)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.append_to_cache">append_to_cache() (nemo.backends.pytorch.actions.PtActions method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_tts.html#nemo_tts.data_layers.AudioDataLayer">AudioDataLayer (class in nemo_tts.data_layers)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.attend">attend() (nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator static method)</a>
 </li>
-      <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.AudioToTextDataLayer">AudioToTextDataLayer (class in nemo_asr.data_layer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.attend_vocab">attend_vocab() (nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator static method)</a>
+</li>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.data_layers.AudioDataLayer">AudioDataLayer (class in nemo.collections.tts.data_layers)</a>
+</li>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer">AudioToSpeechLabelDataLayer (class in nemo.collections.asr.data_layer)</a>
+</li>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToTextDataLayer">AudioToTextDataLayer (class in nemo.collections.asr.data_layer)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeploymentFormat.AUTO">AUTO (nemo.core.neural_factory.DeploymentFormat attribute)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralType.axis2type">axis2type() (nemo.core.neural_types.NeuralType property)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.AxisType">AxisType (class in nemo.core.neural_types)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -219,46 +223,30 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.Backend">Backend (class in nemo.core.neural_factory)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.BaseTag">BaseTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.batch_size">batch_size() (nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.BatchTag">BatchTag (class in nemo.core.neural_types)</a>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.batch_size">batch_size() (nemo.backends.pytorch.nm.DataLayerNM property)</a>
 </li>
       <li><a href="collections/core.html#nemo.backends.pytorch.common.search.BeamSearch">BeamSearch (class in nemo.backends.pytorch.common.search)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.transformer_nm.BeamSearchTranslatorNM">BeamSearchTranslatorNM (class in nemo_nlp.modules.transformer_nm)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM">BeamSearchTranslatorNM (class in nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.huggingface.bert.BERT">BERT (class in nemo_nlp.huggingface.bert)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT">BERT (class in nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertJointIntentSlotDataLayer">BertJointIntentSlotDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertJointIntentSlotInferDataLayer">BertJointIntentSlotInferDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertPretrainingDataLayer">BertPretrainingDataLayer (class in nemo_nlp.data_layers)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier">BertTokenClassifier (class in nemo.collections.nlp.nm.trainables.common.token_classification_nm)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertPretrainingPreprocessedDataLayer">BertPretrainingPreprocessedDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertSentenceClassificationDataLayer">BertSentenceClassificationDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertTokenClassificationDataLayer">BertTokenClassificationDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertTokenClassificationInferDataLayer">BertTokenClassificationInferDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.classifiers.BertTokenClassifier">BertTokenClassifier (class in nemo_nlp.modules.classifiers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.bos_id">bos_id() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.bos_id">bos_id() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer property)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.bos_id">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.bos_id">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.bos_id">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.bos_id">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.bos_id">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.bos_id">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.bos_id">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.bos_id">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.bos_id">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer property)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -267,19 +255,11 @@
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.CanNotInferResultNeuralType">CanNotInferResultNeuralType</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.CategoricalTag">CategoricalTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.ChannelTag">ChannelTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer">CharTokenizer (class in nemo_nlp.data.tokenizers.char_tokenizer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer">CharTokenizer (class in nemo.collections.nlp.data.tokenizers.char_tokenizer)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.checkpoint_dir">checkpoint_dir() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
       <li><a href="collections/core.html#nemo.backends.pytorch.common.search.BeamSearch.choose">choose() (nemo.backends.pytorch.common.search.BeamSearch static method)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.ClassTag">ClassTag (class in nemo.core.neural_types)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.clear_cache">clear_cache() (nemo.backends.pytorch.actions.PtActions method)</a>
 
@@ -287,12 +267,14 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.clear_cache">(nemo.core.neural_factory.NeuralModuleFactory method)</a>
 </li>
       </ul></li>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.cls_id">cls_id() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer property)</a>
+
+      <ul>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.cls_id">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer property)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralType.compare">compare() (nemo.core.neural_types.NeuralType method)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.AxisType.compare_to">compare_to() (nemo.core.neural_types.AxisType method)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeviceType.CPU">CPU (nemo.core.neural_factory.DeviceType attribute)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.create_optimizer">create_optimizer() (nemo.backends.pytorch.actions.PtActions method)</a>
@@ -303,13 +285,9 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.create_optimizer">(nemo.core.neural_factory.NeuralModuleFactory method)</a>
 </li>
       </ul></li>
-      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.create_ports">create_ports() (nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper static method)</a>
-
-      <ul>
-        <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.create_ports">(nemo.core.neural_modules.NeuralModule static method)</a>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.create_ports">create_ports() (nemo.core.neural_modules.NeuralModule static method)</a>
 </li>
-      </ul></li>
-      <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.CrossEntropyLoss">CrossEntropyLoss (class in nemo.backends.pytorch.common.losses)</a>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.CrossEntropyLossNM">CrossEntropyLossNM (class in nemo.backends.pytorch.common.losses)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -322,19 +300,15 @@
       <ul>
         <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.data_iterator">(nemo.backends.pytorch.nm.DataLayerNM property)</a>
 </li>
-        <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.AudioToTextDataLayer.data_iterator">(nemo_asr.data_layer.AudioToTextDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.data_iterator">(nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer.data_iterator">(nemo_asr.data_layer.KaldiFeatureDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToTextDataLayer.data_iterator">(nemo.collections.asr.data_layer.AudioToTextDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.TranscriptDataLayer.data_iterator">(nemo_asr.data_layer.TranscriptDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.KaldiFeatureDataLayer.data_iterator">(nemo.collections.asr.data_layer.KaldiFeatureDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertPretrainingPreprocessedDataLayer.data_iterator">(nemo_nlp.data_layers.BertPretrainingPreprocessedDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.TranscriptDataLayer.data_iterator">(nemo.collections.asr.data_layer.TranscriptDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.TextDataLayer.data_iterator">(nemo_nlp.data_layers.TextDataLayer property)</a>
-</li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.TranslationDataLayer.data_iterator">(nemo_nlp.data_layers.TranslationDataLayer property)</a>
-</li>
-        <li><a href="collections/nemo_tts.html#nemo_tts.data_layers.AudioDataLayer.data_iterator">(nemo_tts.data_layers.AudioDataLayer property)</a>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.data_layers.AudioDataLayer.data_iterator">(nemo.collections.tts.data_layers.AudioDataLayer property)</a>
 </li>
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM">DataLayerNM (class in nemo.backends.pytorch.nm)</a>
@@ -344,26 +318,22 @@
       <ul>
         <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.dataset">(nemo.backends.pytorch.nm.DataLayerNM property)</a>
 </li>
-        <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.AudioToTextDataLayer.dataset">(nemo_asr.data_layer.AudioToTextDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.dataset">(nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer.dataset">(nemo_asr.data_layer.KaldiFeatureDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToTextDataLayer.dataset">(nemo.collections.asr.data_layer.AudioToTextDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.TranscriptDataLayer.dataset">(nemo_asr.data_layer.TranscriptDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.KaldiFeatureDataLayer.dataset">(nemo.collections.asr.data_layer.KaldiFeatureDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.BertPretrainingPreprocessedDataLayer.dataset">(nemo_nlp.data_layers.BertPretrainingPreprocessedDataLayer property)</a>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.TranscriptDataLayer.dataset">(nemo.collections.asr.data_layer.TranscriptDataLayer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.TextDataLayer.dataset">(nemo_nlp.data_layers.TextDataLayer property)</a>
-</li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.TranslationDataLayer.dataset">(nemo_nlp.data_layers.TranslationDataLayer property)</a>
-</li>
-        <li><a href="collections/nemo_tts.html#nemo_tts.data_layers.AudioDataLayer.dataset">(nemo_tts.data_layers.AudioDataLayer property)</a>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.data_layers.AudioDataLayer.dataset">(nemo.collections.tts.data_layers.AudioDataLayer property)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="collections/core.html#nemo.backends.pytorch.common.rnn.DecoderRNN">DecoderRNN (class in nemo.backends.pytorch.common.rnn)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowInferNM.denoise">denoise() (nemo_tts.waveglow_modules.WaveGlowInferNM method)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM.denoise">denoise() (nemo.collections.tts.waveglow_modules.WaveGlowInferNM method)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.depad_tensor">depad_tensor() (nemo.backends.pytorch.actions.PtActions static method)</a>
 </li>
@@ -375,13 +345,7 @@
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeploymentFormat">DeploymentFormat (class in nemo.core.neural_factory)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.AxisType.descriptor">descriptor() (nemo.core.neural_types.AxisType property)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeviceType">DeviceType (class in nemo.core.neural_factory)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.AxisType.dim">dim() (nemo.core.neural_types.AxisType property)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult.DIM_INCOMPATIBLE">DIM_INCOMPATIBLE (nemo.core.neural_types.NeuralTypeComparisonResult attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -389,20 +353,20 @@
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.EmbeddedTextTag">EmbeddedTextTag (class in nemo.core.neural_types)</a>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.rnn.EncoderRNN">EncoderRNN (class in nemo.backends.pytorch.common.rnn)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.EncodedRepresentationTag">EncodedRepresentationTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.eos_id">eos_id() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.eos_id">eos_id() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer property)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.eos_id">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.eos_id">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.eos_id">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.eos_id">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.eos_id">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.eos_id">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.eos_id">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.eos_id">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.eos_id">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer property)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -415,6 +379,8 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.eval">(nemo.core.neural_factory.NeuralModuleFactory method)</a>
 </li>
       </ul></li>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.export_to_config">export_to_config() (nemo.core.neural_modules.NeuralModule method)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -451,6 +417,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.get_config_dict_and_checkpoint">get_config_dict_and_checkpoint() (nemo.core.neural_modules.NeuralModule method)</a>
 </li>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.get_DDP_modules">get_DDP_modules() (nemo.backends.pytorch.actions.PtActions method)</a>
+</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.get_default_factory">get_default_factory() (nemo.core.neural_factory.NeuralModuleFactory class method)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.get_module">get_module() (nemo.core.neural_factory.NeuralModuleFactory method)</a>
@@ -479,15 +447,9 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.global_rank">(nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
       </ul></li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.GlueDataLayerClassification">GlueDataLayerClassification (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.GlueDataLayerRegression">GlueDataLayerRegression (class in nemo_nlp.data_layers)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeviceType.GPU">GPU (nemo.core.neural_factory.DeviceType attribute)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult.GREATER">GREATER (nemo.core.neural_types.NeuralTypeComparisonResult attribute)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.transformer_nm.GreedyLanguageGeneratorNM">GreedyLanguageGeneratorNM (class in nemo_nlp.modules.transformer_nm)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM">GreedyLanguageGeneratorNM (class in nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm)</a>
 </li>
       <li><a href="collections/core.html#nemo.backends.pytorch.common.search.GreedySearch">GreedySearch (class in nemo.backends.pytorch.common.search)</a>
 </li>
@@ -497,53 +459,53 @@
 <h2 id="H">H</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.handle_quotes">handle_quotes() (in module nemo_nlp.data.tokenizers.bert_tokenizer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.hidden_size">hidden_size() (nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert property)</a>
+
+      <ul>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.hidden_size">(nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.HeightTag">HeightTag (class in nemo.core.neural_types)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.hidden_size">(nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta property)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="I">I</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_text">ids_to_text() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_text">ids_to_text() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_text">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_text">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_text">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_text">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.ids_to_text">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_text">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_text">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_text">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_text">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_text">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.ids_to_text">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_text">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer method)</a>
 </li>
       </ul></li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_tokens">ids_to_tokens() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_tokens">ids_to_tokens() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_tokens">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_tokens">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_tokens">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_tokens">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.ids_to_tokens">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_tokens">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_tokens">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_tokens">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_tokens">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_tokens">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.ids_to_tokens">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_tokens">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult.INCOMPATIBLE">INCOMPATIBLE (nemo.core.neural_types.NeuralTypeComparisonResult attribute)</a>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.import_from_config">import_from_config() (nemo.core.neural_modules.NeuralModule class method)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.infer">infer() (nemo.backends.pytorch.actions.PtActions method)</a>
 
@@ -553,8 +515,86 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.infer">(nemo.core.neural_factory.NeuralModuleFactory method)</a>
 </li>
       </ul></li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.input_ports">input_ports() (nemo.core.neural_modules.NeuralModule property)</a>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.init_params">init_params() (nemo.core.neural_modules.NeuralModule property)</a>
 </li>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.CrossEntropyLossNM.input_ports">input_ports() (nemo.backends.pytorch.common.losses.CrossEntropyLossNM property)</a>
+
+      <ul>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.LossAggregatorNM.input_ports">(nemo.backends.pytorch.common.losses.LossAggregatorNM property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.MSELoss.input_ports">(nemo.backends.pytorch.common.losses.MSELoss property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.SequenceLoss.input_ports">(nemo.backends.pytorch.common.losses.SequenceLoss property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.rnn.DecoderRNN.input_ports">(nemo.backends.pytorch.common.rnn.DecoderRNN property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.rnn.EncoderRNN.input_ports">(nemo.backends.pytorch.common.rnn.EncoderRNN property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.search.GreedySearch.input_ports">(nemo.backends.pytorch.common.search.GreedySearch property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.input_ports">(nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
+</li>
+        <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.input_ports">(nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper property)</a>
+</li>
+        <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.input_ports">(nemo.backends.pytorch.nm.DataLayerNM property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperDecoderForClassification.input_ports">(nemo.collections.asr.jasper.JasperDecoderForClassification property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperDecoderForCTC.input_ports">(nemo.collections.asr.jasper.JasperDecoderForCTC property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperEncoder.input_ports">(nemo.collections.asr.jasper.JasperEncoder property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.input_ports">(nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.input_ports">(nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.input_ports">(nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier.input_ports">(nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression.input_ports">(nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier.input_ports">(nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier.input_ports">(nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.input_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.input_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM.input_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM.input_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.input_ports">(nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier.input_ports">(nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.MakeGate.input_ports">(nemo.collections.tts.tacotron2_modules.MakeGate property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Decoder.input_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Decoder property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer.input_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Encoder.input_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Encoder property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Loss.input_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Loss property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Postnet.input_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Postnet property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.TextEmbedding.input_ports">(nemo.collections.tts.tacotron2_modules.TextEmbedding property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM.input_ports">(nemo.collections.tts.waveglow_modules.WaveGlowInferNM property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowLoss.input_ports">(nemo.collections.tts.waveglow_modules.WaveGlowLoss property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowNM.input_ports">(nemo.collections.tts.waveglow_modules.WaveGlowNM property)</a>
+</li>
+        <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.input_ports">(nemo.core.neural_modules.NeuralModule property)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.is_trainable">is_trainable() (nemo.core.neural_modules.NeuralModule method)</a>
 </li>
   </ul></td>
@@ -563,15 +603,15 @@
 <h2 id="J">J</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_asr.html#nemo_asr.jasper.JasperDecoderForCTC">JasperDecoderForCTC (class in nemo_asr.jasper)</a>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperDecoderForClassification">JasperDecoderForClassification (class in nemo.collections.asr.jasper)</a>
 </li>
-      <li><a href="collections/nemo_asr.html#nemo_asr.jasper.JasperEncoder">JasperEncoder (class in nemo_asr.jasper)</a>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperDecoderForCTC">JasperDecoderForCTC (class in nemo.collections.asr.jasper)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.classifiers.JointIntentSlotClassifier">JointIntentSlotClassifier (class in nemo_nlp.modules.classifiers)</a>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperEncoder">JasperEncoder (class in nemo.collections.asr.jasper)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.losses.JointIntentSlotLoss">JointIntentSlotLoss (class in nemo_nlp.modules.losses)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier">JointIntentSlotClassifier (class in nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -579,7 +619,7 @@
 <h2 id="K">K</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer">KaldiFeatureDataLayer (class in nemo_asr.data_layer)</a>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.KaldiFeatureDataLayer">KaldiFeatureDataLayer (class in nemo.collections.asr.data_layer)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -587,14 +627,16 @@
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.LanguageModelingDataLayer">LanguageModelingDataLayer (class in nemo_nlp.data_layers)</a>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperEncoder.length">length (nemo.collections.asr.jasper.JasperEncoder attribute)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult.LESS">LESS (nemo.core.neural_types.NeuralTypeComparisonResult attribute)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.list_pretrained_models">list_pretrained_models() (nemo.core.neural_modules.NeuralModule static method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.list_pretrained_models">list_pretrained_models() (nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert static method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.huggingface.bert.BERT.list_pretrained_models">(nemo_nlp.huggingface.bert.BERT static method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.list_pretrained_models">(nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT static method)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.list_pretrained_models">(nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta static method)</a>
+</li>
+        <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.list_pretrained_models">(nemo.core.neural_modules.NeuralModule static method)</a>
 </li>
       </ul></li>
   </ul></td>
@@ -605,7 +647,7 @@
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.logger">logger() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.losses.LossAggregatorNM">LossAggregatorNM (class in nemo_nlp.modules.losses)</a>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.LossAggregatorNM">LossAggregatorNM (class in nemo.backends.pytorch.common.losses)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM">LossNM (class in nemo.backends.pytorch.nm)</a>
 </li>
@@ -615,22 +657,16 @@
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.MakeGate">MakeGate (class in nemo_tts.tacotron2_modules)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.losses.MaskedLanguageModelingLossNM">MaskedLanguageModelingLossNM (class in nemo_nlp.modules.losses)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.MelSpectrogramSignalTag">MelSpectrogramSignalTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.MFCCSignalTag">MFCCSignalTag (class in nemo.core.neural_types)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.MakeGate">MakeGate (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.ModelMode">ModelMode (class in nemo.core.neural_factory)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.modules">modules() (nemo.backends.pytorch.actions.PtActions property)</a>
 </li>
       <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.MSELoss">MSELoss (class in nemo.backends.pytorch.common.losses)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.Optimization.mxprO0">mxprO0 (nemo.core.neural_factory.Optimization attribute)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.Optimization.mxprO1">mxprO1 (nemo.core.neural_factory.Optimization attribute)</a>
@@ -645,8 +681,6 @@
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NmTensor.name">name() (nemo.core.neural_types.NmTensor property)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.named_parameters">named_parameters() (nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper method)</a>
 </li>
       <li><a href="api-docs/nemo.html#module-nemo.backends.pytorch.actions">nemo.backends.pytorch.actions (module)</a>
@@ -663,69 +697,69 @@
 </li>
       <li><a href="api-docs/nemo.html#module-nemo.backends.pytorch.nm">nemo.backends.pytorch.nm (module)</a>
 </li>
+      <li><a href="collections/nemo_asr.html#module-nemo.collections.asr.data_layer">nemo.collections.asr.data_layer (module)</a>
+</li>
+      <li><a href="collections/nemo_asr.html#module-nemo.collections.asr.jasper">nemo.collections.asr.jasper (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.datasets">nemo.collections.nlp.data.datasets (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.bert_tokenizer">nemo.collections.nlp.data.tokenizers.bert_tokenizer (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.char_tokenizer">nemo.collections.nlp.data.tokenizers.char_tokenizer (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.gpt2_tokenizer">nemo.collections.nlp.data.tokenizers.gpt2_tokenizer (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer">nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.tokenizer_spec">nemo.collections.nlp.data.tokenizers.tokenizer_spec (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.word_tokenizer">nemo.collections.nlp.data.tokenizers.word_tokenizer (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer">nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.data_layers">nemo.collections.nlp.nm.data_layers (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.losses">nemo.collections.nlp.nm.losses (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm">nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm">nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm">nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.sequence_classification_nm">nemo.collections.nlp.nm.trainables.common.sequence_classification_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.sequence_regression_nm">nemo.collections.nlp.nm.trainables.common.sequence_regression_nm (module)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.token_classification_nm">nemo.collections.nlp.nm.trainables.common.token_classification_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm">nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm">nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm">nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm (module)</a>
+</li>
+      <li><a href="collections/nemo_tts.html#module-nemo.collections.tts.data_layers">nemo.collections.tts.data_layers (module)</a>
+</li>
+      <li><a href="collections/nemo_tts.html#module-nemo.collections.tts.tacotron2_modules">nemo.collections.tts.tacotron2_modules (module)</a>
+</li>
+      <li><a href="collections/nemo_tts.html#module-nemo.collections.tts.waveglow_modules">nemo.collections.tts.waveglow_modules (module)</a>
+</li>
       <li><a href="api-docs/nemo.html#module-nemo.core.neural_factory">nemo.core.neural_factory (module)</a>
 </li>
       <li><a href="api-docs/nemo.html#module-nemo.core.neural_modules">nemo.core.neural_modules (module)</a>
 </li>
       <li><a href="api-docs/nemo.html#module-nemo.core.neural_types">nemo.core.neural_types (module)</a>
 </li>
-      <li><a href="collections/nemo_asr.html#module-nemo_asr.data_layer">nemo_asr.data_layer (module)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer">NemoBertTokenizer (class in nemo.collections.nlp.data.tokenizers.bert_tokenizer)</a>
 </li>
-      <li><a href="collections/nemo_asr.html#module-nemo_asr.jasper">nemo_asr.jasper (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.bert_tokenizer">nemo_nlp.data.tokenizers.bert_tokenizer (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.char_tokenizer">nemo_nlp.data.tokenizers.char_tokenizer (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.gpt2_tokenizer">nemo_nlp.data.tokenizers.gpt2_tokenizer (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.spc_tokenizer">nemo_nlp.data.tokenizers.spc_tokenizer (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.tokenizer_spec">nemo_nlp.data.tokenizers.tokenizer_spec (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.word_tokenizer">nemo_nlp.data.tokenizers.word_tokenizer (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data.tokenizers.yttm_tokenizer">nemo_nlp.data.tokenizers.yttm_tokenizer (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.data_layers">nemo_nlp.data_layers (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.huggingface.bert">nemo_nlp.huggingface.bert (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.modules.classifiers">nemo_nlp.modules.classifiers (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.modules.losses">nemo_nlp.modules.losses (module)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.modules.pytorch_utils">nemo_nlp.modules.pytorch_utils (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#module-nemo_nlp.modules.transformer_nm">nemo_nlp.modules.transformer_nm (module)</a>
-</li>
-      <li><a href="collections/nemo_tts.html#module-nemo_tts.data_layers">nemo_tts.data_layers (module)</a>
-</li>
-      <li><a href="collections/nemo_tts.html#module-nemo_tts.tacotron2_modules">nemo_tts.tacotron2_modules (module)</a>
-</li>
-      <li><a href="collections/nemo_tts.html#module-nemo_tts.waveglow_modules">nemo_tts.waveglow_modules (module)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer">NemoBertTokenizer (class in nemo_nlp.data.tokenizers.bert_tokenizer)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer">NemoGPT2Tokenizer (class in nemo_nlp.data.tokenizers.gpt2_tokenizer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer">NemoGPT2Tokenizer (class in nemo.collections.nlp.data.tokenizers.gpt2_tokenizer)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule">NeuralModule (class in nemo.core.neural_modules)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory">NeuralModuleFactory (class in nemo.core.neural_factory)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralPortNameMismatchError">NeuralPortNameMismatchError</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralPortNmTensorMismatchError">NeuralPortNmTensorMismatchError</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralType">NeuralType (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult">NeuralTypeComparisonResult (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeError">NeuralTypeError</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NmTensor">NmTensor (class in nemo.core.neural_types)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM">NonTrainableNM (class in nemo.backends.pytorch.nm)</a>
 </li>
@@ -742,13 +776,15 @@
 </li>
         <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM.num_weights">(nemo.backends.pytorch.nm.TrainableNM property)</a>
 </li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.num_weights">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.num_weights">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM property)</a>
+</li>
         <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.num_weights">(nemo.core.neural_modules.NeuralModule property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.transformer_nm.BeamSearchTranslatorNM.num_weights">(nemo_nlp.modules.transformer_nm.BeamSearchTranslatorNM property)</a>
-</li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.transformer_nm.GreedyLanguageGeneratorNM.num_weights">(nemo_nlp.modules.transformer_nm.GreedyLanguageGeneratorNM property)</a>
-</li>
       </ul></li>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.num_workers">num_workers() (nemo.backends.pytorch.nm.DataLayerNM property)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -759,38 +795,118 @@
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.optim_level">optim_level() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.Optimization">Optimization (class in nemo.core.neural_factory)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.output_ports">output_ports() (nemo.core.neural_modules.NeuralModule property)</a>
+      <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.CrossEntropyLossNM.output_ports">output_ports() (nemo.backends.pytorch.common.losses.CrossEntropyLossNM property)</a>
+
+      <ul>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.LossAggregatorNM.output_ports">(nemo.backends.pytorch.common.losses.LossAggregatorNM property)</a>
 </li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.MSELoss.output_ports">(nemo.backends.pytorch.common.losses.MSELoss property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.SequenceLoss.output_ports">(nemo.backends.pytorch.common.losses.SequenceLoss property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.rnn.DecoderRNN.output_ports">(nemo.backends.pytorch.common.rnn.DecoderRNN property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.rnn.EncoderRNN.output_ports">(nemo.backends.pytorch.common.rnn.EncoderRNN property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.search.GreedySearch.output_ports">(nemo.backends.pytorch.common.search.GreedySearch property)</a>
+</li>
+        <li><a href="collections/core.html#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.output_ports">(nemo.backends.pytorch.common.zero_data.ZerosDataLayer property)</a>
+</li>
+        <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.output_ports">(nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer.output_ports">(nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.AudioToTextDataLayer.output_ports">(nemo.collections.asr.data_layer.AudioToTextDataLayer property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.KaldiFeatureDataLayer.output_ports">(nemo.collections.asr.data_layer.KaldiFeatureDataLayer property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.TranscriptDataLayer.output_ports">(nemo.collections.asr.data_layer.TranscriptDataLayer property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperDecoderForClassification.output_ports">(nemo.collections.asr.jasper.JasperDecoderForClassification property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperDecoderForCTC.output_ports">(nemo.collections.asr.jasper.JasperDecoderForCTC property)</a>
+</li>
+        <li><a href="collections/nemo_asr.html#nemo.collections.asr.jasper.JasperEncoder.output_ports">(nemo.collections.asr.jasper.JasperEncoder property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.output_ports">(nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.output_ports">(nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.output_ports">(nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier.output_ports">(nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression.output_ports">(nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier.output_ports">(nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier.output_ports">(nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.output_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.output_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM.output_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM.output_ports">(nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.output_ports">(nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier.output_ports">(nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.data_layers.AudioDataLayer.output_ports">(nemo.collections.tts.data_layers.AudioDataLayer property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.MakeGate.output_ports">(nemo.collections.tts.tacotron2_modules.MakeGate property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Decoder.output_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Decoder property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer.output_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Encoder.output_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Encoder property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Loss.output_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Loss property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Postnet.output_ports">(nemo.collections.tts.tacotron2_modules.Tacotron2Postnet property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.TextEmbedding.output_ports">(nemo.collections.tts.tacotron2_modules.TextEmbedding property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM.output_ports">(nemo.collections.tts.waveglow_modules.WaveGlowInferNM property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowLoss.output_ports">(nemo.collections.tts.waveglow_modules.WaveGlowLoss property)</a>
+</li>
+        <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowNM.output_ports">(nemo.collections.tts.waveglow_modules.WaveGlowNM property)</a>
+</li>
+        <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.output_ports">(nemo.core.neural_modules.NeuralModule property)</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.pad_id">pad_id() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.pad_id">pad_id() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer property)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.pad_id">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.pad_id">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.pad_id">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.pad_id">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.pad_id">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.pad_id">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer property)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.pad_id">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.pad_id">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer property)</a>
+</li>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.pad_id">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer property)</a>
 </li>
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.pad_tensor">pad_tensor() (nemo.backends.pytorch.actions.PtActions static method)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.losses.PaddedSmoothedCrossEntropyLossNM">PaddedSmoothedCrossEntropyLossNM (class in nemo_nlp.modules.losses)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.parameters">parameters() (nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.parameters">parameters() (nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper method)</a>
+</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.placement">placement() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 
       <ul>
@@ -798,12 +914,6 @@
 </li>
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.pretrained_storage">pretrained_storage() (nemo.core.neural_modules.NeuralModule static method)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.ProcessedTimeTag">ProcessedTimeTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NmTensor.producer">producer() (nemo.core.neural_types.NmTensor property)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NmTensor.producer_args">producer_args() (nemo.core.neural_types.NmTensor property)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions">PtActions (class in nemo.backends.pytorch.actions)</a>
 </li>
@@ -817,10 +927,6 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.RegressionTag">RegressionTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.remove_spaces">remove_spaces() (in module nemo_nlp.data.tokenizers.bert_tokenizer)</a>
-</li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.reset_default_factory">reset_default_factory() (nemo.core.neural_factory.NeuralModuleFactory class method)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.reset_trainer">reset_trainer() (nemo.core.neural_factory.NeuralModuleFactory method)</a>
@@ -847,6 +953,8 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_factory.Actions.restore_state_from">(nemo.core.neural_factory.Actions method)</a>
 </li>
       </ul></li>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta">Roberta (class in nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -854,11 +962,7 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform.SAME">SAME (nemo.core.neural_modules.WeightShareTransform attribute)</a>
-
-      <ul>
-        <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult.SAME">(nemo.core.neural_types.NeuralTypeComparisonResult attribute)</a>
 </li>
-      </ul></li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.actions.PtActions.save_state_to">save_state_to() (nemo.backends.pytorch.actions.PtActions method)</a>
 
       <ul>
@@ -879,17 +983,21 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.save_to">(nemo.core.neural_modules.NeuralModule method)</a>
 </li>
       </ul></li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.AxisType.semantics">semantics() (nemo.core.neural_types.AxisType property)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer">SentencePieceTokenizer (class in nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer">SentencePieceTokenizer (class in nemo_nlp.data.tokenizers.spc_tokenizer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.sep_id">sep_id() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer property)</a>
+
+      <ul>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.sep_id">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer property)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.classifiers.SequenceClassifier">SequenceClassifier (class in nemo_nlp.modules.classifiers)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier">SequenceClassifier (class in nemo.collections.nlp.nm.trainables.common.sequence_classification_nm)</a>
 </li>
       <li><a href="collections/core.html#nemo.backends.pytorch.common.losses.SequenceLoss">SequenceLoss (class in nemo.backends.pytorch.common.losses)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.classifiers.SequenceRegression">SequenceRegression (class in nemo_nlp.modules.classifiers)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression">SequenceRegression (class in nemo.collections.nlp.nm.trainables.common.sequence_regression_nm)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.set_default_factory">set_default_factory() (nemo.core.neural_factory.NeuralModuleFactory class method)</a>
 </li>
@@ -907,9 +1015,9 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.set_weights">(nemo.core.neural_modules.NeuralModule method)</a>
 </li>
       </ul></li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowInferNM.setup_denoiser">setup_denoiser() (nemo_tts.waveglow_modules.WaveGlowInferNM method)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM.setup_denoiser">setup_denoiser() (nemo.collections.tts.waveglow_modules.WaveGlowInferNM method)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.SpectrogramSignalTag">SpectrogramSignalTag (class in nemo.core.neural_types)</a>
+      <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM.shuffle">shuffle() (nemo.backends.pytorch.nm.DataLayerNM property)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.sync_all_processes">sync_all_processes() (nemo.core.neural_factory.NeuralModuleFactory method)</a>
 </li>
@@ -919,53 +1027,51 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Decoder">Tacotron2Decoder (class in nemo_tts.tacotron2_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Decoder">Tacotron2Decoder (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2DecoderInfer">Tacotron2DecoderInfer (class in nemo_tts.tacotron2_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer">Tacotron2DecoderInfer (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Encoder">Tacotron2Encoder (class in nemo_tts.tacotron2_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Encoder">Tacotron2Encoder (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Loss">Tacotron2Loss (class in nemo_tts.tacotron2_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Loss">Tacotron2Loss (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.Tacotron2Postnet">Tacotron2Postnet (class in nemo_tts.tacotron2_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Postnet">Tacotron2Postnet (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.tb_writer">tb_writer() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_ids">text_to_ids() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_ids">text_to_ids() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_ids">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_ids">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_ids">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_ids">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.text_to_ids">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_ids">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_ids">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_ids">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_ids">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_ids">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.text_to_ids">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_ids">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer method)</a>
 </li>
       </ul></li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_tokens">text_to_tokens() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_tokens">text_to_tokens() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_tokens">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_tokens">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_tokens">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_tokens">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.text_to_tokens">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_tokens">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_tokens">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_tokens">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_tokens">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_tokens">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.text_to_tokens">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_tokens">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer method)</a>
 </li>
       </ul></li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.TextDataLayer">TextDataLayer (class in nemo_nlp.data_layers)</a>
-</li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.tacotron2_modules.TextEmbedding">TextEmbedding (class in nemo_tts.tacotron2_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.TextEmbedding">TextEmbedding (class in nemo.collections.tts.tacotron2_modules)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper.tie_weights_with">tie_weights_with() (nemo.backends.pytorch.module_wrapper.TrainableNeuralModuleWrapper method)</a>
 
@@ -981,55 +1087,53 @@
         <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.tie_weights_with">(nemo.core.neural_modules.NeuralModule method)</a>
 </li>
       </ul></li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.TimeTag">TimeTag (class in nemo.core.neural_types)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.token_to_id">token_to_id() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.token_to_id">token_to_id() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.token_to_id">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.token_to_id">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.losses.TokenClassificationLoss">TokenClassificationLoss (class in nemo_nlp.modules.losses)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier">TokenClassifier (class in nemo.collections.nlp.nm.trainables.common.token_classification_nm)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.classifiers.TokenClassifier">TokenClassifier (class in nemo_nlp.modules.classifiers)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec">TokenizerSpec (class in nemo.collections.nlp.data.tokenizers.tokenizer_spec)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec">TokenizerSpec (class in nemo_nlp.data.tokenizers.tokenizer_spec)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_ids">tokens_to_ids() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_ids">tokens_to_ids() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_ids">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_ids">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_ids">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_ids">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.tokens_to_ids">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_ids">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_ids">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_ids">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_ids">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_ids">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.tokens_to_ids">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_ids">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer method)</a>
 </li>
       </ul></li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_text">tokens_to_text() (nemo_nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_text">tokens_to_text() (nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer method)</a>
 
       <ul>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_text">(nemo_nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_text">(nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_text">(nemo_nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_text">(nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer.tokens_to_text">(nemo_nlp.data.tokenizers.spc_tokenizer.SentencePieceTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_text">(nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_text">(nemo_nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_text">(nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_text">(nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_text">(nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer method)</a>
 </li>
-        <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer.tokens_to_text">(nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer method)</a>
+        <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_text">(nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer method)</a>
 </li>
       </ul></li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeploymentFormat.TORCHSCRIPT">TORCHSCRIPT (nemo.core.neural_factory.DeploymentFormat attribute)</a>
+</li>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator">TRADEGenerator (class in nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.ModelMode.train">train (nemo.core.neural_factory.ModelMode attribute)</a>
 </li>
@@ -1047,17 +1151,15 @@
 </li>
       <li><a href="api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM">TrainableNM (class in nemo.backends.pytorch.nm)</a>
 </li>
-      <li><a href="collections/nemo_asr.html#nemo_asr.data_layer.TranscriptDataLayer">TranscriptDataLayer (class in nemo_asr.data_layer)</a>
+      <li><a href="collections/nemo_asr.html#nemo.collections.asr.data_layer.TranscriptDataLayer">TranscriptDataLayer (class in nemo.collections.asr.data_layer)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.transformer_nm.TransformerDecoderNM">TransformerDecoderNM (class in nemo_nlp.modules.transformer_nm)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM">TransformerDecoderNM (class in nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.modules.transformer_nm.TransformerEncoderNM">TransformerEncoderNM (class in nemo_nlp.modules.transformer_nm)</a>
-</li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data_layers.TranslationDataLayer">TranslationDataLayer (class in nemo_nlp.data_layers)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM">TransformerEncoderNM (class in nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform.TRANSPOSE">TRANSPOSE (nemo.core.neural_modules.WeightShareTransform attribute)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME">TRANSPOSE_SAME (nemo.core.neural_types.NeuralTypeComparisonResult attribute)</a>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_factory.DeploymentFormat.TRTONNX">TRTONNX (nemo.core.neural_factory.DeploymentFormat attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -1083,29 +1185,23 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.unique_instance_id">unique_instance_id() (nemo.core.neural_modules.NeuralModule property)</a>
 </li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.NmTensor.unique_name">unique_name() (nemo.core.neural_types.NmTensor property)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.update_local_params">update_local_params() (nemo.core.neural_modules.NeuralModule static method)</a>
-</li>
   </ul></td>
 </tr></table>
 
 <h2 id="W">W</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowInferNM">WaveGlowInferNM (class in nemo_tts.waveglow_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM">WaveGlowInferNM (class in nemo.collections.tts.waveglow_modules)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowLoss">WaveGlowLoss (class in nemo_tts.waveglow_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowLoss">WaveGlowLoss (class in nemo.collections.tts.waveglow_modules)</a>
 </li>
-      <li><a href="collections/nemo_tts.html#nemo_tts.waveglow_modules.WaveGlowNM">WaveGlowNM (class in nemo_tts.waveglow_modules)</a>
-</li>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform">WeightShareTransform (class in nemo.core.neural_modules)</a>
+      <li><a href="collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowNM">WaveGlowNM (class in nemo.collections.tts.waveglow_modules)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api-docs/nemo.html#nemo.core.neural_types.WidthTag">WidthTag (class in nemo.core.neural_types)</a>
+      <li><a href="api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform">WeightShareTransform (class in nemo.core.neural_modules)</a>
 </li>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.word_tokenizer.WordTokenizer">WordTokenizer (class in nemo_nlp.data.tokenizers.word_tokenizer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer">WordTokenizer (class in nemo.collections.nlp.data.tokenizers.word_tokenizer)</a>
 </li>
       <li><a href="api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory.work_dir">work_dir() (nemo.core.neural_factory.NeuralModuleFactory property)</a>
 </li>
@@ -1117,7 +1213,7 @@
 <h2 id="Y">Y</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="collections/nemo_nlp.html#nemo_nlp.data.tokenizers.yttm_tokenizer.YouTokenToMeTokenizer">YouTokenToMeTokenizer (class in nemo_nlp.data.tokenizers.yttm_tokenizer)</a>
+      <li><a href="collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer">YouTokenToMeTokenizer (class in nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -1142,7 +1238,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

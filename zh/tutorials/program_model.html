@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>编程模型 &mdash; nemo 0.9.0 documentation</title>
+  <title>编程模型 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,19 +86,20 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">从这里开始</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">编程模型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">例子</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">神经类型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">如何构建神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">模块配置</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">回调</a></li>
-<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程（ GAN 例子）</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -179,8 +180,8 @@
 </ol>
 <p>NeMo 遵循 <em>lazy execution</em> 模型 - 实际的计算只会在训练和推理的操作被调用后才会执行。</p>
 <p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 是层和神经网络的一个抽象，比如：编码器，解码器，语言模型，声学模型等。每个 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 从一系列的输入计算一系列的输出。
-每个 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_types.NmTensor" title="nemo.core.neural_types.NmTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">NmTensor</span></code></a> 有 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_types.NeuralType" title="nemo.core.neural_types.NeuralType"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code></a> 。
-<a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_types.NeuralType" title="nemo.core.neural_types.NeuralType"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code></a> 描述了张量的语义，轴的次序和维度。用这些类型
+每个 <code class="xref py py-class docutils literal notranslate"><span class="pre">NmTensor</span></code> 有 <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> 。
+<code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> 描述了张量的语义，轴的次序和维度。用这些类型
 来确定模块之间如何连接起来。</p>
 <p>你也可以给操作传递 <em>回调函数</em> ，这些回调函数可以用来做评估验证，打印日志和性能监测。</p>
 </div>
@@ -205,7 +206,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

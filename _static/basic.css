@@ -4,7 +4,7 @@
  *
  * Sphinx stylesheet -- basic theme.
  *
- * :copyright: Copyright 2007-2019 by the Sphinx team, see AUTHORS.
+ * :copyright: Copyright 2007-2020 by the Sphinx team, see AUTHORS.
  * :license: BSD, see LICENSE for details.
  *
  */
@@ -520,14 +520,15 @@ dl.citation > dd:after {
 }
 
 dl.field-list {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: fit-content(30%) auto;
 }
 
 dl.field-list > dt {
-    flex-basis: 20%;
     font-weight: bold;
     word-break: break-word;
+    padding-left: 0.5em;
+    padding-right: 5px;
 }
 
 dl.field-list > dt:after {
@@ -535,8 +536,8 @@ dl.field-list > dt:after {
 }
 
 dl.field-list > dd {
-    flex-basis: 70%;
-    padding-left: 1em;
+    padding-left: 0.5em;
+    margin-top: 0em;
     margin-left: 0em;
     margin-bottom: 0em;
 }
@@ -669,6 +670,10 @@ div.code-block-caption code {
 
 div.code-block-caption + div > div.highlight > pre {
     margin-top: 0;
+}
+
+div.doctest > div.highlight span.gp {  /* gp: Generic.Prompt */
+    user-select: none;
 }
 
 div.code-block-caption span.caption-number {

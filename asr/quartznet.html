@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>QuartzNet &mdash; nemo 0.9.0 documentation</title>
+  <title>QuartzNet &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Natural Language Processing" href="../nlp/intro.html" />
+    <link rel="next" title="Speech Commands" href="../speech_command/intro.html" />
     <link rel="prev" title="Jasper" href="jasper.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,7 +86,6 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Recognition</a><ul class="current">
@@ -101,6 +100,7 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -176,14 +176,14 @@
             
   <div class="section" id="quartznet">
 <h1>QuartzNet<a class="headerlink" href="#quartznet" title="Permalink to this headline">¶</a></h1>
-<p>QuartzNet is a version of Jasper <a class="reference internal" href="models.html#asr-models-li2019jasper" id="id1">[ASR-MODELS1]</a> model with separable convolutions and larger filters. It can achieve performance
+<p>QuartzNet is a version of Jasper <a class="bibtex reference internal" href="models.html#asr-models-li2019jasper" id="id1">[ASR-MODELS1]</a> model with separable convolutions and larger filters. It can achieve performance
 similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D <em>separable</em> convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
 <div><img alt="quartznet model" class="align-center" src="../_images/quartz_vertical.png" />
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This checkpoint was trained on LibriSpeech <a class="reference internal" href="#panayotov2015librispeech" id="id2">[2]</a> and full “validated” part of En Mozilla Common Voice <a class="reference internal" href="#ardila2019common" id="id3">[1]</a></p>
+<p>This checkpoint was trained on LibriSpeech <a class="bibtex reference internal" href="#panayotov2015librispeech" id="id2">[2]</a> and full “validated” part of En Mozilla Common Voice <a class="bibtex reference internal" href="#ardila2019common" id="id3">[1]</a></p>
 </div>
 </div></blockquote>
 <p><a class="reference external" href="https://arxiv.org/abs/1910.10261">QuartzNet paper</a>.</p>
@@ -216,10 +216,10 @@ Mozilla Common Voice</p></td>
 <div class="section" id="references">
 <h1>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h1>
 <p id="bibtex-bibliography-asr/quartznet-0"><dl class="citation">
-<dt class="label" id="ardila2019common"><span class="brackets"><a class="fn-backref" href="#id3">1</a></span></dt>
+<dt class="bibtex label" id="ardila2019common"><span class="brackets"><a class="fn-backref" href="#id3">1</a></span></dt>
 <dd><p>Rosana Ardila, Megan Branson, Kelly Davis, Michael Henretty, Michael Kohler, Josh Meyer, Reuben Morais, Lindsay Saunders, Francis M. Tyers, and Gregor Weber. Common voice: a massively-multilingual speech corpus. 2019. <a class="reference external" href="https://arxiv.org/abs/1912.06670">arXiv:1912.06670</a>.</p>
 </dd>
-<dt class="label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dt class="bibtex label" id="panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>Acoustics, Speech and Signal Processing (ICASSP), 2015 IEEE International Conference on</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>
@@ -234,7 +234,7 @@ Mozilla Common Voice</p></td>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../nlp/intro.html" class="btn btn-neutral float-right" title="Natural Language Processing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../speech_command/intro.html" class="btn btn-neutral float-right" title="Speech Commands" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="jasper.html" class="btn btn-neutral float-left" title="Jasper" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -246,7 +246,7 @@ Mozilla Common Voice</p></td>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

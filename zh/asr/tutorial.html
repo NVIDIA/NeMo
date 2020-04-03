@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>教程 &mdash; nemo 0.9.0 documentation</title>
+  <title>教程 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,7 +86,6 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">语音识别</a><ul class="current">
@@ -105,13 +104,15 @@
 <li class="toctree-l4"><a class="reference internal" href="#kenlm">用 KenLM 构建的语言模型</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#id16">参考</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kaldi">Kaldi 兼容性</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id17">参考</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="datasets.html">数据集</a></li>
 <li class="toctree-l2"><a class="reference internal" href="models.html">模型</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -185,28 +186,26 @@
   <div class="section" id="id1">
 <h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
 <p>确保你已经安装了 <code class="docutils literal notranslate"><span class="pre">nemo</span></code> 和 <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code>
-参考 <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">如何安装</span></a> 部分。</p>
+参考 <a class="reference internal" href="../index.html#installation"><span class="std std-ref">开始吧</span></a> 部分。</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>在这个教程中你只需要用到 <cite>nemo</cite> 和 <cite>nemo_asr</cite> 。</p>
 </div>
+<p>一个基础的 ASR Jupyter教程可以参见 <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/asr/notebooks">GitHub</a> 。</p>
 <div class="section" id="id2">
 <h2>简介<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
-<p>这个教程中我们使用 Jasper <a class="reference internal" href="#asr-tut-li2019jasper" id="id3">[ASR-TUT2]</a> 模型。Jasper 是一个基于 CTC <a class="reference internal" href="#asr-tut-graves2006" id="id4">[ASR-TUT1]</a> 的端到端的语音识别模型。这个模型之所以被称之为“端到端”是因为它在不需要额外的对齐信息下就可以把输入的音频样本转到对应的文本上。
+<p>这个 ASR 教程中我们使用 QuartzNet <a class="bibtex reference internal" href="#asr-tut-kriman2019quartznet" id="id3">[ASR-TUT2]</a> 模型。QuartzNet 是一个基于 CTC <a class="bibtex reference internal" href="#asr-tut-graves2006" id="id4">[ASR-TUT1]</a> 的端到端的语音识别模型。这个模型之所以被称之为“端到端”是因为它在不需要额外的对齐信息下就可以把输入的音频样本转到对应的文本上。
 CTC 可以在音频和文本中找到对齐方式。基于 CTC 的语音识别管道包含了下面的这些模块：</p>
-<ol class="arabic">
+<ol class="arabic simple">
 <li><p>音频预处理（特征提取）：信号正则化，窗口化，（log）频谱（梅尔谱或者 MFCC）</p></li>
 <li><p>神经网络声学模型（在给定的每个时间步上的输入特征下，预测词表中字符c的概率分布 P_t(c)）</p></li>
-<li><p>CTC 损失函数</p>
-<blockquote>
-<div><img alt="CTC-based ASR" class="align-center" src="../_images/ctc_asr.png" />
-</div></blockquote>
-</li>
+<li><p>CTC 损失函数</p></li>
 </ol>
+<img alt="CTC-based ASR" class="align-center" src="../_images/ctc_asr.png" />
 </div>
 <div class="section" id="id5">
 <h2>获取数据<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h2>
-<p>我们会使用 LibriSpeech <a class="reference internal" href="#asr-tut-panayotov2015librispeech" id="id6">[ASR-TUT3]</a> 数据集。下面这些脚本会下载并且把 Librispeech 转成 <cite>nemo_asr</cite> 需要的数据格式：</p>
+<p>我们会使用 LibriSpeech <a class="bibtex reference internal" href="#asr-tut-panayotov2015librispeech" id="id6">[ASR-TUT3]</a> 数据集。下面这些脚本会下载并且把 Librispeech 转成 <cite>nemo_asr</cite> 需要的数据格式：</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir data
 <span class="c1"># 我们需要安装 sox</span>
 <span class="c1"># 在 ubuntu 上安装 sox, 只需要：sudo apt-get install sox</span>
@@ -219,7 +218,7 @@ python get_librispeech_data.py --data_root<span class="o">=</span>data --data_se
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>如果用 <code class="docutils literal notranslate"><span class="pre">--data_set=dev_clean,train_clean_100</span></code> ，你的磁盘空间至少需要 26GB。如果用 <code class="docutils literal notranslate"><span class="pre">--data_set=ALL</span></code> ，你的磁盘空间至少需要 110GB。下载和处理都需要一段时间，所以休息一下下吧。</p>
+<p>如果用 <code class="docutils literal notranslate"><span class="pre">--data_set=dev_clean,train_clean_100</span></code> ，你的磁盘空间至少需要 52GB。如果用 <code class="docutils literal notranslate"><span class="pre">--data_set=ALL</span></code> ，你的磁盘空间至少需要 250GB。下载和处理都需要一段时间，所以休息一下下吧。下载完成后，你可以删除原始的 .tar.gz 和 .flac 文件，这样会减少一半的硬盘使用。</p>
 </div>
 <p>下载和转换后, 你的 <cite>data</cite> 文件夹应该包含两个 Json 文件：</p>
 <ul class="simple">
@@ -235,12 +234,10 @@ Json 文件中的每一行都指的是一个训练样本 <cite>audio_filepath</c
 </div>
 <div class="section" id="id7">
 <h2>训练<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
-<p>我们会在 Jasper 家族 <a class="reference internal" href="#asr-tut-li2019jasper" id="id8">[ASR-TUT2]</a> 中训练一个小模型。
-Jasper（Just Another SPeech Recognizer）是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。
-Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块的个数, R 表示的是一个块中卷积子块的个数。每个子块包含了一个一维卷积层，一层 batch normalization，一个 ReLU 激活函数，和一个 dropout 层：</p>
-<blockquote>
-<div><img alt="japer model" class="align-center" src="../_images/jasper.png" />
-</div></blockquote>
+<p>我们会在 QuartzNet 家族 <a class="bibtex reference internal" href="#asr-tut-kriman2019quartznet" id="id8">[ASR-TUT2]</a> 中训练一个小模型。
+QuartzNet 是一个深度时延网络 （TDNN） 包含了一维卷积层的块（blocks）。
+QuartzNet 家族的模型的结构可以这样表示 QuartzNet_[BxR] 其中 B 是块的个数, R 表示的是一个块中卷积子块的个数。每个子块包含了一个一维卷积层，一层 batch normalization，一个 ReLU 激活函数，和一个 dropout 层：</p>
+<img alt="quartznet model" class="align-center" src="../_images/quartz_vertical.png" />
 <p>在这个教程中我们会使用 [12x1] 的模型结构并且会用分开的卷积。
 下面脚本的训练（on <cite>train_clean_100.json</cite> ）和评估（on <cite>dev_clean.json</cite> ）都是在一块GPU上：</p>
 <blockquote>
@@ -253,15 +250,14 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NeMo&#39;s &quot;core&quot; package</span>
 <span class="kn">import</span> <span class="nn">nemo</span>
 <span class="c1"># NeMo&#39;s ASR collection</span>
-<span class="kn">import</span> <span class="nn">nemo_asr</span>
+<span class="kn">import</span> <span class="nn">nemo.collections.asr</span> <span class="k">as</span> <span class="nn">nemo_asr</span>
 
 <span class="c1"># 创建 Neural Factory</span>
 <span class="c1"># 它会为我们创建日志文件和 tensorboard 记录器</span>
 <span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-    <span class="n">log_dir</span><span class="o">=</span><span class="s1">&#39;jasper12x1SEP&#39;</span><span class="p">,</span>
-    <span class="n">create_tb_writer</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">log_dir</span><span class="o">=</span><span class="s1">&#39;QuartzNet12x1&#39;</span><span class="p">,</span>
+    <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">tb_writer</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span>
-<span class="n">logger</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">logger</span>
 
 <span class="c1"># 到训练列表文件的路径</span>
 <span class="n">train_dataset</span> <span class="o">=</span> <span class="s2">&quot;&lt;path_to_where_you_put_data&gt;/train_clean_100.json&quot;</span>
@@ -269,15 +265,15 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <span class="c1"># 到验证集列表文件的路径</span>
 <span class="n">eval_datasets</span> <span class="o">=</span> <span class="s2">&quot;&lt;path_to_where_you_put_data&gt;/dev_clean.json&quot;</span>
 
-<span class="c1"># Jasper 模型定义</span>
+<span class="c1"># QuartzNet 模型定义</span>
 <span class="kn">from</span> <span class="nn">ruamel.yaml</span> <span class="kn">import</span> <span class="n">YAML</span>
 
 <span class="c1"># 这里我们用可分离卷积</span>
 <span class="c1"># with 12 blocks (k=12 repeated once r=1 from the picture above)</span>
 <span class="n">yaml</span> <span class="o">=</span> <span class="n">YAML</span><span class="p">(</span><span class="n">typ</span><span class="o">=</span><span class="s2">&quot;safe&quot;</span><span class="p">)</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;&lt;nemo_git_repo_root&gt;/examples/asr/configs/jasper12x1SEP.yaml&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-    <span class="n">jasper_model_definition</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-<span class="n">labels</span> <span class="o">=</span> <span class="n">jasper_model_definition</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet12x1.yaml&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">quartznet_model_definition</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="n">quartznet_model_definition</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
 
 <span class="c1"># 初始化神经模块</span>
 <span class="n">data_layer</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToTextDataLayer</span><span class="p">(</span>
@@ -285,15 +281,15 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span>
 <span class="n">data_layer_val</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToTextDataLayer</span><span class="p">(</span>
     <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">eval_datasets</span><span class="p">,</span>
-    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 <span class="n">data_preprocessor</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToMelSpectrogramPreprocessor</span><span class="p">()</span>
 <span class="n">spec_augment</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">SpectrogramAugmentation</span><span class="p">(</span><span class="n">rect_masks</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 
-<span class="n">jasper_encoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperEncoder</span><span class="p">(</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperEncoder</span><span class="p">(</span>
     <span class="n">feat_in</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
-    <span class="o">**</span><span class="n">jasper_model_definition</span><span class="p">[</span><span class="s1">&#39;JasperEncoder&#39;</span><span class="p">])</span>
-<span class="n">jasper_decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperDecoderForCTC</span><span class="p">(</span>
+    <span class="o">**</span><span class="n">quartznet_model_definition</span><span class="p">[</span><span class="s1">&#39;JasperEncoder&#39;</span><span class="p">])</span>
+<span class="n">decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperDecoderForCTC</span><span class="p">(</span>
     <span class="n">feat_in</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">))</span>
 <span class="n">ctc_loss</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">CTCLossNM</span><span class="p">(</span><span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">))</span>
 <span class="n">greedy_decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">GreedyCTCDecoder</span><span class="p">()</span>
@@ -303,9 +299,9 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <span class="n">processed_signal</span><span class="p">,</span> <span class="n">processed_signal_len</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span>
     <span class="n">input_signal</span><span class="o">=</span><span class="n">audio_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">audio_signal_len</span><span class="p">)</span>
 <span class="n">aug_signal</span> <span class="o">=</span> <span class="n">spec_augment</span><span class="p">(</span><span class="n">input_spec</span><span class="o">=</span><span class="n">processed_signal</span><span class="p">)</span>
-<span class="n">encoded</span><span class="p">,</span> <span class="n">encoded_len</span> <span class="o">=</span> <span class="n">jasper_encoder</span><span class="p">(</span>
+<span class="n">encoded</span><span class="p">,</span> <span class="n">encoded_len</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span>
     <span class="n">audio_signal</span><span class="o">=</span><span class="n">aug_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">processed_signal_len</span><span class="p">)</span>
-<span class="n">log_probs</span> <span class="o">=</span> <span class="n">jasper_decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded</span><span class="p">)</span>
+<span class="n">log_probs</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded</span><span class="p">)</span>
 <span class="n">predictions</span> <span class="o">=</span> <span class="n">greedy_decoder</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs</span><span class="p">)</span>
 <span class="n">loss</span> <span class="o">=</span> <span class="n">ctc_loss</span><span class="p">(</span>
     <span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">transcript</span><span class="p">,</span>
@@ -317,9 +313,9 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <span class="n">processed_signal_v</span><span class="p">,</span> <span class="n">processed_signal_len_v</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span>
     <span class="n">input_signal</span><span class="o">=</span><span class="n">audio_signal_v</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">audio_signal_len_v</span><span class="p">)</span>
 <span class="c1"># 注意我们再验证 DAG 的时候不会用数据增强</span>
-<span class="n">encoded_v</span><span class="p">,</span> <span class="n">encoded_len_v</span> <span class="o">=</span> <span class="n">jasper_encoder</span><span class="p">(</span>
+<span class="n">encoded_v</span><span class="p">,</span> <span class="n">encoded_len_v</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span>
     <span class="n">audio_signal</span><span class="o">=</span><span class="n">processed_signal_v</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">processed_signal_len_v</span><span class="p">)</span>
-<span class="n">log_probs_v</span> <span class="o">=</span> <span class="n">jasper_decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded_v</span><span class="p">)</span>
+<span class="n">log_probs_v</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded_v</span><span class="p">)</span>
 <span class="n">predictions_v</span> <span class="o">=</span> <span class="n">greedy_decoder</span><span class="p">(</span><span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs_v</span><span class="p">)</span>
 <span class="n">loss_v</span> <span class="o">=</span> <span class="n">ctc_loss</span><span class="p">(</span>
     <span class="n">log_probs</span><span class="o">=</span><span class="n">log_probs_v</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">transcript_v</span><span class="p">,</span>
@@ -328,7 +324,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <span class="c1"># 这些帮助函数对于打印和计算不同的指标很重要</span>
 <span class="c1"># 比如计算错词率和把它们记录到 tensorboard</span>
 <span class="c1"># 这些函数是领域特殊性的，由 NeMo 的不同 collections 提供（nemo_asr，nemo_nlp）</span>
-<span class="kn">from</span> <span class="nn">nemo_asr.helpers</span> <span class="kn">import</span> <span class="n">monitor_asr_train_progress</span><span class="p">,</span> \
+<span class="kn">from</span> <span class="nn">nemo.collections.asr.helpers</span> <span class="kn">import</span> <span class="n">monitor_asr_train_progress</span><span class="p">,</span> \
     <span class="n">process_evaluation_batch</span><span class="p">,</span> <span class="n">process_evaluation_epoch</span>
 
 <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
@@ -342,8 +338,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     <span class="c1"># 为了能把日志打印到屏幕，定义一个 print_func 函数</span>
     <span class="n">print_func</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span>
         <span class="n">monitor_asr_train_progress</span><span class="p">,</span>
-        <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
-        <span class="n">logger</span><span class="o">=</span><span class="n">logger</span>
+        <span class="n">labels</span><span class="o">=</span><span class="n">labels</span>
     <span class="p">))</span>
 
 <span class="n">saver_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
@@ -363,7 +358,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
         <span class="p">),</span>
     <span class="c1"># 如何把每个 batch 的验证集统计指标（比如WER）合并起来</span>
     <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span>
-        <span class="n">process_evaluation_epoch</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;DEV-CLEAN&quot;</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span>
+        <span class="n">process_evaluation_epoch</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">&quot;DEV-CLEAN&quot;</span>
         <span class="p">),</span>
     <span class="n">eval_step</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
     <span class="n">tb_writer</span><span class="o">=</span><span class="n">tb_writer</span><span class="p">)</span>
@@ -387,7 +382,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>这个脚本在 GTX1080 上完成 50 轮训练需要大约 7 小时</p>
+<p>这个脚本在 GTX1080 上完成 50 轮训练需要大约 7 小时。你可以得到的 WER 应该在30%左右。</p>
 </div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -412,8 +407,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
     <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
     <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
     <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">,</span>
-    <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
-    <span class="n">cudnn_benchmark</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">cudnn_benchmark</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -431,14 +425,14 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <li><p>用 <cite>torch.distributed.launch</cite> 包来运行你的脚本（把 <cite>&lt;num_gpus&gt;</cite> 改成 GPU 的数量）</p></li>
 </ol>
 </div></blockquote>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py ...
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/quartznet.py ...
 </pre></div>
 </div>
 <div class="section" id="id10">
 <h3>大量训练样本例子<a class="headerlink" href="#id10" title="Permalink to this headline">¶</a></h3>
-<p>请参考 <cite>&lt;nemo_git_repo_root&gt;/examples/asr/jasper.py</cite> , 该实例做一个更全面的理解。它构建了一个训练的有向无环图，在不同的验证集上构建了多达三个有向无环图。</p>
+<p>请参考 <cite>&lt;nemo_git_repo_root&gt;/examples/asr/quartznet.py</cite> , 该实例做一个更全面的理解。它构建了一个训练的有向无环图，在不同的验证集上构建了多个有向无环图。每个验证 DAG 与训练 DAG 共享相同的模型和参数，可以用于评估不同的数据集。</p>
 <p>假设你能够使用基于 Volta 架构的的 DGX 服务器，你可以这样运行：</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/jasper.py --batch_size<span class="o">=</span><span class="m">64</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_dataset<span class="o">=</span>/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/quartznet15x5.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/quartznet.py --batch_size<span class="o">=</span><span class="m">64</span> --num_epochs<span class="o">=</span><span class="m">100</span> --lr<span class="o">=</span><span class="m">0</span>.015 --warmup_steps<span class="o">=</span><span class="m">8000</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --train_dataset<span class="o">=</span>/manifests/librivox-train-all.json --eval_datasets /manifests/librivox-dev-clean.json /manifests/librivox-dev-other.json --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/nemo/examples/asr/configs/quartznet15x5.yaml --exp_name<span class="o">=</span>MyLARGE-ASR-EXPERIMENT
 </pre></div>
 </div>
 <p>上面的命令会运行一个8 GPU 的混合精度训练。其中不同的列表文件（.json）文件是不同的数据集。你可以用你的数据来替代它们。</p>
@@ -458,10 +452,10 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <li><p>在你初始化好 jasper_encoder 和 jasper_decoder 后，可以这样加载权重：</p></li>
 </ol>
 </div></blockquote>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">jasper_encoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperEncoder-STEP-247400.pt&quot;</span><span class="p">)</span>
-<span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">encoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperEncoder-STEP-247400.pt&quot;</span><span class="p">)</span>
+<span class="n">decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">)</span>
 <span class="c1"># 防止是分布式训练加入 args.local_rank</span>
-<span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">)</span>
+<span class="n">decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/15x5SEP/JasperDecoderForCTC-STEP-247400.pt&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">)</span>
 </pre></div>
 </div>
 <div class="admonition tip">
@@ -472,7 +466,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <div class="section" id="id13">
 <h2>推理<a class="headerlink" href="#id13" title="Permalink to this headline">¶</a></h2>
 <p>首先下载预训练模型（jasper_encoder, jasper_decoder and configuration files） 请从 <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:quartznet15x5">这里</a> 下载并放置到 <cite>&lt;path_to_checkpoints&gt;</cite> 。 我们会用这个预训练模型在 LibriSpeech dev-clean 数据集上测试 WER。</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_eval.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt;
 </pre></div>
 </div>
 </div>
@@ -490,6 +484,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">update</span> <span class="pre">&amp;&amp;</span> <span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">swig</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">pkg-config</span> <span class="pre">libflac-dev</span> <span class="pre">libogg-dev</span> <span class="pre">libvorbis-dev</span> <span class="pre">libboost-dev</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">libsndfile1-dev</span> <span class="pre">python-setuptools</span> <span class="pre">libboost-all-dev</span> <span class="pre">python-dev</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">cmake</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">./install_decoders.sh</span></code></p></li>
 </ul>
 </dd>
@@ -498,22 +493,40 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 <li><p>在 Librispeech 上构建一个 6-gram KenLM 的语言模型 <code class="docutils literal notranslate"><span class="pre">./build_6-gram_OpenSLR_lm.sh</span></code></p></li>
 <li><p>运行 <code class="docutils literal notranslate"><span class="pre">jasper_infer.py</span></code> 带上 <code class="docutils literal notranslate"><span class="pre">--lm_path</span></code> 来指定语言模型的路径</p></li>
 </ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_infer.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python &lt;nemo_git_repo_root&gt;/examples/asr/jasper_eval.py --model_config<span class="o">=</span>&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet15x5.yaml --eval_datasets <span class="s2">&quot;&lt;path_to_data&gt;/dev_clean.json&quot;</span> --load_dir<span class="o">=</span>&lt;directory_containing_checkpoints&gt; --lm_path<span class="o">=</span>&lt;path_to_6gram.binary&gt;
 </pre></div>
 </div>
 </div></blockquote>
 </div>
 </div>
-<div class="section" id="id16">
-<h2>参考<a class="headerlink" href="#id16" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="kaldi">
+<h2>Kaldi 兼容性<a class="headerlink" href="#kaldi" title="Permalink to this headline">¶</a></h2>
+<p>在 <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> 中，可以使用 <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code> 来读取 Kaldi 格式的数据集。
+为了读取 Kaldi 格式的数据，你需要提供一个文件夹，其中包含以下文件：</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">feats.scp</span></code>, 这个文件将句子 ID 映射到.ark文件，.ark文件中存放了相应的音频数据。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">text</span></code>, 这个文件把句子 ID 映射到文本标注。</p></li>
+<li><p>(可选) <code class="docutils literal notranslate"><span class="pre">utt2dur</span></code>, 这个文件把句子 ID 映射到音频数据的时长，如果你要基于时长切分音频的话，这个文件是必需的。</p></li>
+</ul>
+<p>当然，.ark文件中包含了相应的音频数据，与 <code class="docutils literal notranslate"><span class="pre">feats.scp</span></code> 文件中所提供的位置一致。</p>
+<p>为了加载Kaldi格式的数据，你需要使用 <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code> 而不是 <code class="docutils literal notranslate"><span class="pre">AudioToTextDataLayer</span></code> 。
+<code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code> 层接收 <code class="docutils literal notranslate"><span class="pre">kaldi_dir</span></code> 这个参数，而不是 <code class="docutils literal notranslate"><span class="pre">manifest_filepath</span></code> ，这个参数需要设置成包含如上所述文件的目录。
+参见 <a class="reference external" href="https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer">文档</a> 来获取这个层参数的更多详细信息。</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>如果你切换到 <code class="docutils literal notranslate"><span class="pre">KaldiFeatureDataLayer</span></code>，请确保任何 <code class="docutils literal notranslate"><span class="pre">feat_in</span></code> 参数都正确表示了 Kaldi 特征的维度（例如在encoder中）。此外，你的数据应该很可能被预处理过（例如，MFCC格式），这种情况下，你并不需要 <code class="docutils literal notranslate"><span class="pre">AudioToMelSpectrogramPreprocessor</span></code> 中的任何音频前处理。</p>
+</div>
+</div>
+<div class="section" id="id17">
+<h2>参考<a class="headerlink" href="#id17" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-asr/tutorial-0"><dl class="citation">
-<dt class="label" id="asr-tut-graves2006"><span class="brackets"><a class="fn-backref" href="#id4">ASR-TUT1</a></span></dt>
+<dt class="bibtex label" id="asr-tut-graves2006"><span class="brackets"><a class="fn-backref" href="#id4">ASR-TUT1</a></span></dt>
 <dd><p>Alex Graves, Santiago Fernández, Faustino Gomez, and Jürgen Schmidhuber. Connectionist temporal classification: labelling unsegmented sequence data with recurrent neural networks. In <em>Proceedings of the 23rd international conference on Machine learning</em>, 369–376. ACM, 2006.</p>
 </dd>
-<dt class="label" id="asr-tut-li2019jasper"><span class="brackets">ASR-TUT2</span><span class="fn-backref">(<a href="#id3">1</a>,<a href="#id8">2</a>)</span></dt>
-<dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
+<dt class="bibtex label" id="asr-tut-kriman2019quartznet"><span class="brackets">ASR-TUT2</span><span class="fn-backref">(<a href="#id3">1</a>,<a href="#id8">2</a>)</span></dt>
+<dd><p>Samuel Kriman, Stanislav Beliaev, Boris Ginsburg, Jocelyn Huang, Oleksii Kuchaiev, Vitaly Lavrukhin, Ryan Leary, Jason Li, and Yang Zhang. Quartznet: deep automatic speech recognition with 1d time-channel separable convolutions. <em>arXiv preprint arXiv:1910.10261</em>, 2019.</p>
 </dd>
-<dt class="label" id="asr-tut-panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id6">ASR-TUT3</a></span></dt>
+<dt class="bibtex label" id="asr-tut-panayotov2015librispeech"><span class="brackets"><a class="fn-backref" href="#id6">ASR-TUT3</a></span></dt>
 <dd><p>Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an asr corpus based on public domain audio books. In <em>Acoustics, Speech and Signal Processing (ICASSP), 2015 IEEE International Conference on</em>, 5206–5210. IEEE, 2015.</p>
 </dd>
 </dl>
@@ -541,7 +554,7 @@ Jasper 家族的模型的结构可以这样表示 Jasper_[BxR] 其中 B 是块�
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

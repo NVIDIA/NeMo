@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Programming Model &mdash; nemo 0.9.0 documentation</title>
+  <title>Programming Model &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,12 +86,12 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Programming Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
@@ -99,6 +99,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -180,8 +181,8 @@
 </ol>
 <p>NeMo follows <em>lazy execution</em> model - actual computation happen only after training or inference is called.</p>
 <p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> is an abstraction between a layer and a neural network, for example: encoder, decoder, language model, acoustic model, etc. Each <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> computes a set of outputs from a set of inputs.
-Every <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_types.NmTensor" title="nemo.core.neural_types.NmTensor"><code class="xref py py-class docutils literal notranslate"><span class="pre">NmTensor</span></code></a> has <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_types.NeuralType" title="nemo.core.neural_types.NeuralType"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code></a> .
-<a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_types.NeuralType" title="nemo.core.neural_types.NeuralType"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code></a> describes tensor semantics, axis’ order and dimensions. These types
+Every <code class="xref py py-class docutils literal notranslate"><span class="pre">NmTensor</span></code> has <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> .
+<code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> describes tensor semantics, axis’ order and dimensions. These types
 are used to determine how modules should be connected together.</p>
 <p>You can also pass to <em>callbacks</em> to actions which are then used for evaluation, logging and performance monitoring.</p>
 </div>
@@ -206,7 +207,7 @@ are used to determine how modules should be connected together.</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

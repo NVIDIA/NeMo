@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Getting started &mdash; nemo 0.9.0 documentation</title>
+  <title>Getting started &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Programming Model" href="program_model.html" />
-    <link rel="prev" title="Installation" href="../installation.html" /> 
+    <link rel="prev" title="NVIDIA Neural Modules Developer Guide" href="../index.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,12 +86,12 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Getting started</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
@@ -99,6 +99,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -178,23 +179,37 @@
 <li class="toctree-l2"><a class="reference internal" href="examples.html#simple-chatbot">Simple Chatbot</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="neuraltypes.html">Neural Types</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#basics">Basics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#neural-type-comparison">Neural type comparison</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#special-cases">Special cases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#inheritance">Inheritance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#advanced-usage">Advanced usage</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="custommodules.html">How to build Neural Module</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html#trainable-module">Trainable Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html#data-layer-module">Data Layer Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html#loss-neural-module">Loss Neural Module</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="module_configuration.html">Module Configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html#exporting-the-configuration">Exporting the configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html#importing-the-configuration">Importing the configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html#customizing-the-configuration">Customizing the configuration</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="weightsharing.html#neural-module-reuse">Neural Module reuse</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weightsharing.html#copy-weights-between-modules">Copy weights between modules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="weightsharing.html#tie-weights-between-modules">Tie weights between modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html#neural-module-reuse">Neural Module Reuse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html#weight-copying-between-modules">Weight Copying Between Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html#weight-tying-between-modules">Weight Tying Between Modules</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="callbacks.html">Callbacks</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html#simplelossloggercallback">SimpleLossLoggerCallback</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html#checkpointcallback">CheckpointCallback</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html#evaluatorcallback">EvaluatorCallback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="callbacks.html#wandbcallback">WandbCallback</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a><ul>
@@ -217,7 +232,7 @@
         <a href="program_model.html" class="btn btn-neutral float-right" title="Programming Model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../index.html" class="btn btn-neutral float-left" title="NVIDIA Neural Modules Developer Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -226,7 +241,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

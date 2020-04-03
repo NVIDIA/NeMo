@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.9.0 documentation</title>
+  <title>Tutorial &mdash; nemo 0.10.0 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0
               </div>
             
           
@@ -86,10 +86,10 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Synthesis</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Tutorial</a><ul>
@@ -177,7 +177,7 @@
   <div class="section" id="tutorial">
 <h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code>, <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code>, and <code class="docutils literal notranslate"><span class="pre">nemo_tts</span></code>
-collection. See the <a class="reference internal" href="../installation.html#installation"><span class="std std-ref">Installation</span></a> section.</p>
+collection. See the <a class="reference internal" href="../index.html#installation"><span class="std std-ref">Getting started</span></a> section.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>You only need <cite>nemo</cite>, <cite>nemo_asr</cite>, and <cite>nemo_tts</cite> collection for this
@@ -235,12 +235,12 @@ such as Mandarin.</p>
 <p>Training Tacotron 2 can be done by running the <cite>tacotron2.py</cite> file inside
 NeMo/examples/tts. Assuming you are inside the NeMo/examples/tts directory,
 you can run the following to start training:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/ljspeech_train.json --eval_datasets &lt;data_root&gt;/ljspeech_eval.json --model_config<span class="o">=</span>configs/tacotron.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/ljspeech_train.json --eval_datasets &lt;data_root&gt;/ljspeech_eval.json --model_config<span class="o">=</span>configs/tacotron2.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
 </pre></div>
 </div>
 <p>Training Tacotron 2 on Mandarin also can be done by running the <cite>tacotron2.py</cite> file.
 You can run the following to start training:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/databaker_csmsc_train.json --eval_datasets &lt;data_root&gt;/databaker_csmsc_eval.json --model_config<span class="o">=</span>configs/tacotron_mandarin.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tacotron2.py --train_dataset<span class="o">=</span>&lt;data_root&gt;/databaker_csmsc_train.json --eval_datasets &lt;data_root&gt;/databaker_csmsc_eval.json --model_config<span class="o">=</span>configs/tacotron2_mandarin.yaml --max_steps<span class="o">=</span><span class="m">30000</span>
 </pre></div>
 </div>
 <div class="admonition tip">
@@ -253,8 +253,8 @@ audible speech.</p>
 <div class="section" id="mixed-precision-training">
 <h2>Mixed Precision training<a class="headerlink" href="#mixed-precision-training" title="Permalink to this headline">¶</a></h2>
 <p>Enabling or disabling mixed precision training can be changed through a command
-line argument –amp_opt_level. Recommended and default values for Tacotron 2
-and Waveglow are O1. It can be:</p>
+line argument <code class="docutils literal notranslate"><span class="pre">--amp_opt_level</span></code>. Recommended and default values for Tacotron 2 are O0,
+whereas values for Waveglow are O1. Options for amp_opt_level are:</p>
 <ul class="simple">
 <li><p>O0: float32 training</p></li>
 <li><p>O1: mixed precision training</p></li>
@@ -279,8 +279,9 @@ torch.distributed.launch module and sepcifying the num_gpus as the
 <div class="section" id="inference">
 <span id="tts-inference"></span><h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
 <p>You can now to inference with either your own trained Tacotron 2, or you can
-use our pre-trained Tacotron 2 model. <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech">Please download our
-pretrained model here</a>.
+use our pre-trained Tacotron 2 model. Please download our models for
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech">tacotron 2 here</a> and
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech">waveglow here</a>.
 Next create the texts that you want
 to generate and add them to a json like the training dataset. They should
 have lines like so:</p>
@@ -300,6 +301,12 @@ NeMo/examples/tts folder like so:</p>
 </pre></div>
 </div>
 <p>For Mandarin, remember to replace the config file of Tacotron 2 with tacotron2_mandarin.yaml.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The inference via waveglow can be further controlled via the <code class="docutils literal notranslate"><span class="pre">--waveglow_denoiser_strength</span></code> and
+<code class="docutils literal notranslate"><span class="pre">--waveglow_sigma</span></code> arguments. If there is a stuble white noise to the audio, we recommend slowing increasing
+<code class="docutils literal notranslate"><span class="pre">--waveglow_denoiser_strength</span></code> from 0.</p>
+</div>
 </div>
 </div>
 
@@ -323,7 +330,7 @@ NeMo/examples/tts folder like so:</p>
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

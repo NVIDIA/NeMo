@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>如何构建神经模块 &mdash; nemo 0.9.0 documentation</title>
+  <title>如何构建神经模块 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="模块间的权重共享" href="weightsharing.html" />
+    <link rel="next" title="模块配置" href="module_configuration.html" />
     <link rel="prev" title="神经类型" href="neuraltypes.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,7 +86,6 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">从这里开始</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">编程模型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">例子</a></li>
@@ -108,13 +107,15 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">模块配置</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">回调</a></li>
-<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程（ GAN 例子）</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -218,21 +219,22 @@
 <h3>从头定义模块<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
 <li><p>首先继承 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> 类。</p></li>
-<li><p>创建 <code class="docutils literal notranslate"><span class="pre">create_ports()</span></code> 静态方法，定义输入输出端口
-如果你的 <code class="docutils literal notranslate"><span class="pre">create_ports()</span></code> 方法需要一些参数，把它作为 <code class="docutils literal notranslate"><span class="pre">create_port_args</span></code> 的部分参数传递给基类的构造函数。</p></li>
+<li><p>实现 <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> 和 <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> 属性，定义输入输出端口。</p></li>
 </ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@staticmethod</span>
-<span class="k">def</span> <span class="nf">create_ports</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
-    <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
-    <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
-    <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@property</span>
+<span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
+
+<span class="nd">@property</span>
+<span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
 </pre></div>
 </div>
 <ol class="arabic simple" start="3">
 <li><p>在构造函数里，首先调用基类的构造函数</p></li>
 </ol>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">module_params</span><span class="p">,</span> <span class="o">..</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">create_port_args</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="n">size</span><span class="p">},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module_params</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 </pre></div>
 </div>
 <ol class="arabic simple" start="4">
@@ -248,20 +250,23 @@
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">TaylorNet</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span> <span class="c1"># (1) 注意继承 TrainableNM 类</span>
     <span class="sd">&quot;&quot;&quot;学习Taylor系数的模块&quot;&quot;&quot;</span>
 
-    <span class="c1"># (2) create_ports()定义输入输出端口</span>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
-        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
-                                        <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)})}</span>
-        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;y_pred&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
-                                              <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)})}</span>
-        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+    <span class="c1"># (2) 定义输入输出端口</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;x&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+            <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+            <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)})}</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;y_pred&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+            <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+            <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)})}</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
         <span class="c1"># (3) 调用基类构造函数</span>
-        <span class="n">TrainableNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="c1"># Neural Modules 的特定部分，剩下的是 PyTorch 代码</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_parameters</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dim</span> <span class="o">=</span> <span class="n">dim</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fc1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="n">t</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_uniform_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fc1</span><span class="o">.</span><span class="n">weight</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">device</span><span class="p">(</span>
@@ -284,18 +289,19 @@
 <ol class="arabic simple">
 <li><p>如果你已经有 PyTorch 的类继承自 <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code> ，把那个继承改成继承
 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> 类。</p></li>
-<li><p>创建 <code class="docutils literal notranslate"><span class="pre">create_ports()</span></code> 静态方法</p></li>
+<li><p>实现 <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> 和 <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> 属性</p></li>
 <li><p>修改构造函数，首先调用基类构造函数</p></li>
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MyNeuralModule</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
-        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
-        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
-        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="o">...</span><span class="p">}</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">module_params</span><span class="p">,</span> <span class="o">..</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="n">TrainableNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">module_params</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 </pre></div>
 </div>
 <ol class="arabic simple" start="4">
@@ -308,9 +314,10 @@
 <ol class="arabic simple">
 <li><p>继承自 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataLayerNM</span></code></a> 类。</p></li>
 <li><p>实现 <code class="docutils literal notranslate"><span class="pre">__len__</span></code> 方法，返回数据集大小</p></li>
-<li><p>实现 <code class="docutils literal notranslate"><span class="pre">dataset</span></code> 或者 <code class="docutils literal notranslate"><span class="pre">data_iterator</span></code> 属性，返回一个PyTorch数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)</p></li>
+<li><p>实现 <code class="docutils literal notranslate"><span class="pre">dataset</span></code> 或者 <code class="docutils literal notranslate"><span class="pre">data_iterator</span></code> 属性，返回一个 PyTorch 数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)</p></li>
 </ol>
-<p>当实现构造函数的时候，你首先要调用基类构造函数，并且定义在create_ports()定义 <em>仅输出端口</em> 。
+<p>当实现构造函数的时候，你首先要调用基类构造函数，
+并且定义在 output_ports 定义 <em>仅输出端口</em> 。
 另外，模块应该接收像是 <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> 和 <code class="docutils literal notranslate"><span class="pre">shuffle</span></code> 的参数。</p>
 <p>如果你使用了 <code class="docutils literal notranslate"><span class="pre">torch.utils.data.Dataset</span></code> 类 (<em>推荐方法</em>)，那么你可以实现 <code class="docutils literal notranslate"><span class="pre">dataset</span></code> 属性，一个数据加载器就会自动给你创建。
 (见下面的例子)。</p>
@@ -319,31 +326,34 @@
 <p>这个例子把 PyTorch 的 <em>ImageFolder</em> 数据集封装成一个神经模块的数据层。</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">import</span> <span class="nn">torchvision</span>
-<span class="kn">import</span> <span class="nn">torchvision.transforms</span> <span class="kn">as</span> <span class="nn">transforms</span><span class="o">,</span> <span class="nn">datasets</span>
+<span class="kn">import</span> <span class="nn">torchvision.transforms</span> <span class="k">as</span> <span class="nn">transforms</span><span class="o">,</span> <span class="nn">datasets</span>
 
 <span class="sd">&quot;&quot;&quot;这个类把 Pytorch 的 ImageFolder 数据集的 API 封装成了神经模块&quot;&quot;&quot;</span>
 
 <span class="k">class</span> <span class="nc">ImageFolderDataLayer</span><span class="p">(</span><span class="n">DataLayerNM</span><span class="p">):</span>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
-        <span class="c1"># 注意，我们会定义输出的高和宽</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;返回模块输出端口的定义&quot;&quot;&quot;</span>
+        <span class="c1"># 注意，我们会定义输出的高和宽的尺寸张量</span>
         <span class="c1"># 因此需要一个size参数</span>
-        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s2">&quot;image&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
-                                 <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">),</span>
-                                 <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">HeightTag</span><span class="p">,</span> <span class="n">size</span><span class="p">),</span>
-                                 <span class="mi">3</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">WidthTag</span><span class="p">,</span> <span class="n">size</span><span class="p">)}),</span>
-            <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)})</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;image&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                    <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">),</span>
+                    <span class="mi">2</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">HeightTag</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span><span class="p">),</span>
+                    <span class="mi">3</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">WidthTag</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">),</span>
+            <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)}),</span>
         <span class="p">}</span>
-        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="n">create_port_args</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;input_size&quot;</span><span class="p">]}</span>
-        <span class="n">DataLayerNM</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">create_port_args</span><span class="o">=</span><span class="n">create_port_args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_size</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;input_size&quot;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span> <span class="o">=</span> <span class="n">input_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">path</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_transforms</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
             <span class="n">transforms</span><span class="o">.</span><span class="n">RandomResizedCrop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_size</span><span class="p">),</span>
@@ -362,7 +372,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data_iterator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">None</span>
+        <span class="k">return</span> <span class="kc">None</span>
 </pre></div>
 </div>
 </div>
@@ -371,24 +381,31 @@
 <h2>损失函数神经模块<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
 <ol class="arabic simple">
 <li><p>继承自 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">LossNM</span></code></a> 类</p></li>
-<li><p>创建create_ports()方法</p></li>
+<li><p>实现 <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> 和 <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> 属性</p></li>
 <li><p>在构造函数里调用基类构造函数</p></li>
 <li><p>实现 <code class="xref py py-meth docutils literal notranslate"><span class="pre">_loss_function</span></code> 方法。</p></li>
 </ol>
 <div class="section" id="example">
 <h3>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CrossEntropyLoss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">():</span>
-        <span class="n">input_ports</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;predictions&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
-                                                  <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)}),</span>
-                       <span class="s2">&quot;labels&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span><span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)})}</span>
-        <span class="n">output_ports</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="bp">None</span><span class="p">)}</span>
-        <span class="k">return</span> <span class="n">input_ports</span><span class="p">,</span> <span class="n">output_ports</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;predictions&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                    <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">),</span>
+                    <span class="mi">1</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">ChannelTag</span><span class="p">)}),</span>
+                <span class="s2">&quot;labels&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">({</span>
+                    <span class="mi">0</span><span class="p">:</span> <span class="n">AxisType</span><span class="p">(</span><span class="n">BatchTag</span><span class="p">)</span>
+                    <span class="p">})</span>
+                <span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="kc">None</span><span class="p">)}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># 神经模块 API</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
         <span class="c1"># 结束神经模块 API</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">()</span>
@@ -410,7 +427,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="weightsharing.html" class="btn btn-neutral float-right" title="模块间的权重共享" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="module_configuration.html" class="btn btn-neutral float-right" title="模块配置" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="neuraltypes.html" class="btn btn-neutral float-left" title="神经类型" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
@@ -422,7 +439,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>

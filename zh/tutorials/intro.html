@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>从这里开始 &mdash; nemo 0.9.0 documentation</title>
+  <title>从这里开始 &mdash; nemo 0.10.0b8 documentation</title>
   
 
   
@@ -21,10 +21,10 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
-        <script type="text/javascript" src="../_static/jquery.js"></script>
-        <script type="text/javascript" src="../_static/underscore.js"></script>
-        <script type="text/javascript" src="../_static/doctools.js"></script>
-        <script type="text/javascript" src="../_static/language_data.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
     
     <script type="text/javascript" src="../_static/js/theme.js"></script>
 
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="编程模型" href="program_model.html" />
-    <link rel="prev" title="如何安装" href="../installation.html" /> 
+    <link rel="prev" title="NVIDIA Neural Modules 开发者指南(中文版)" href="../index.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.9.0
+                0.10.0b8
               </div>
             
           
@@ -86,19 +86,20 @@
             
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../installation.html">如何安装</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">从这里开始</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="program_model.html">编程模型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html">例子</a></li>
 <li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">神经类型</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html">如何构建神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">模块配置</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">回调</a></li>
-<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程（ GAN 例子）</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -177,11 +178,24 @@
 <li class="toctree-l2"><a class="reference internal" href="examples.html#id2">简单的聊天机器人</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="neuraltypes.html">神经类型</a></li>
+<li class="toctree-l1"><a class="reference internal" href="neuraltypes.html">神经类型</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#id2">基础</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#id3">神经类型比较</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#id4">特殊例子</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#id5">继承</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html#id6">高级用法</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="custommodules.html">如何构建神经模块</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html#id2">可训练模块</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html#id5">数据层模块</a></li>
 <li class="toctree-l2"><a class="reference internal" href="custommodules.html#id7">损失函数神经模块</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="module_configuration.html">模块配置</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html#id2">导出配置文件</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html#id3">导入配置</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html#id4">自定义配置</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a><ul>
@@ -194,9 +208,10 @@
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html#simplelossloggercallback">SimpleLossLoggerCallback</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html#checkpointcallback">CheckpointCallback</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html#evaluatorcallback">EvaluatorCallback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="callbacks.html#wandbcallback">WandbCallback</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="complex_training.html">复杂训练流程（ GAN 例子）</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html#id1">多个损失函数</a></li>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html#id2">多个优化器和多个损失函数</a></li>
 </ul>
@@ -216,7 +231,7 @@
         <a href="program_model.html" class="btn btn-neutral float-right" title="编程模型" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../installation.html" class="btn btn-neutral float-left" title="如何安装" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../index.html" class="btn btn-neutral float-left" title="NVIDIA Neural Modules 开发者指南(中文版)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
@@ -225,7 +240,7 @@
 
   <div role="contentinfo">
     <p>
-        &copy; Copyright 2018-2019, NVIDIA
+        &copy; Copyright 2018-2020, NVIDIA
 
     </p>
   </div>
