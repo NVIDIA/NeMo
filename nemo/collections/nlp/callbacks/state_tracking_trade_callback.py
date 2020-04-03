@@ -58,7 +58,7 @@ def eval_iter_callback(tensors, global_vars, data_desc):
         mask_paddings = tgt_ids_list[i] == data_desc.vocab.pad_id
         comp_res = (point_outputs_max_list[i] == tgt_ids_list[i]) | mask_paddings
         comp_res = np.all(comp_res, axis=-1, keepdims=False)
-        comp_res_list.append(comp_res.tolist())
+        comp_res_list.extend(comp_res.tolist())
 
     gate_outputs_max = np.concatenate(gate_outputs_max_list, axis=0).tolist()
 
