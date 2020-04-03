@@ -1,0 +1,571 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>教程 &mdash; nemo 0.10.0b8 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="教程" href="joint_intent_slot_filling.html" />
+    <link rel="prev" title="教程" href="ner.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.10.0b8
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">从这里开始</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">自然语言处理</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#nmt">神经网络机器翻译 (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bert">BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer">Transformer语言模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#id2">对话状态跟踪</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#ner">命名实体识别 (NER)</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#id3">标点符号和单词首字母大写</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">教程</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id2">任务描述</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3">数据集</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4">代码概览</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id5">推理</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#punct-scripts">训练和推理脚本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gpu">多 GPU 训练</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#id4">意图识别和槽填充</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#id5">问答系统</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#bertx2">用 BERTx2 后处理模型来提升语音识别性能</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">自然语言处理</a> &raquo;</li>
+        
+      <li>教程</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/punctuation.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>教程<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<p>ASR系统通常产生的文本是没有标点符号和不区分词的大小写。这个教程讲述了如果在 NeMo 中实现模型预测标点和为每个词预测是否要首字母大写，从而使得 ASR 的输出更加可读，并且提升下游的任务像是命名实体识别和机器翻译。我们会展示如何用一个预训练的 BERT 模型来训练这个网络。</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>我们建议你在 Jupyter notebook 中尝试这个例子，它位于 examples/nlp/token_classification/PunctuationWithBERT.ipynb.</p>
+<p>这个教程中的所有代码都基于 <a class="reference internal" href="#punct-scripts"><span class="std std-ref">训练和推理脚本</span></a>.
+在 NeMo 中预训练 BERT 以及预训练好的模型 checkpoints 请参考 <a class="reference external" href="https://nvidia.github.io/NeMo/zh/nlp/bert_pretraining.html">BERT 预训练</a>.</p>
+</div>
+<div class="section" id="id2">
+<h2>任务描述<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>对训练集中每个字我们要预测:</p>
+<ol class="arabic simple">
+<li><p>跟着这个词的标点符号和</p></li>
+<li><p>这个词是否要首字母大写</p></li>
+</ol>
+<p>在这个模型中， 我们在预训练的 BERT 模型上联合训练 2 个 token 层面的分类器: 一个预测标点符号，另一个预测大小写。</p>
+</div>
+<div class="section" id="id3">
+<h2>数据集<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>模型可以运行在任何数据集上，只要它遵守下面的格式。这个教程中我们会用数据集 <a class="reference external" href="https://tatoeba.org/eng">Tatoeba collection of sentences</a>. <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/token_classification/get_tatoeba_data.py">This</a> 脚本下载和预处理数据集。</p>
+<p>训练集和验证集分成了两个文件: text.txt 以及 labels.txt。text.txt 文件的每行包含了文本序列，词之间用空格分割:
+[WORD] [SPACE] [WORD] [SPACE] [WORD], 例如:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">when</span> <span class="ow">is</span> <span class="n">the</span> <span class="nb">next</span> <span class="n">flight</span> <span class="n">to</span> <span class="n">new</span> <span class="n">york</span>
+<span class="n">the</span> <span class="nb">next</span> <span class="n">flight</span> <span class="ow">is</span> <span class="o">...</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>文件 labels.txt 包含了 text.txt 中每个词的标签(label), 标注用空格分割.
+在 labels.txt 文件中的每个标签包含两个符号:</p>
+<ul class="simple">
+<li><p>标签的第一个符号表示这个词后面应该跟什么标点符号 (其中 <code class="docutils literal notranslate"><span class="pre">O</span></code> 表示不需要标点符号);</p></li>
+<li><p>第二个符号决定了这个词是否要大写(其中 <code class="docutils literal notranslate"><span class="pre">U</span></code> 说明这个词需要大写， <code class="docutils literal notranslate"><span class="pre">O</span></code> 表示不需要大写)</p></li>
+</ul>
+<p>我们在这个任务中只考虑逗号，句号和问号。剩下的标点符号都去除了。
+labels.txt 文件的每行都应该是下面这个格式的:
+[LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (labels.txt). 比如，在上面的 text.txt 文件中的标签应该是:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>OU OO OO OO OO OO OU ?U
+OU OO OO OO ...
+...
+</pre></div>
+</div>
+<p>这个任务所有可能的标签是: <code class="docutils literal notranslate"><span class="pre">OO</span></code>, <code class="docutils literal notranslate"><span class="pre">,O</span></code>, <code class="docutils literal notranslate"><span class="pre">.O</span></code>, <code class="docutils literal notranslate"><span class="pre">?O</span></code>, <code class="docutils literal notranslate"><span class="pre">OU</span></code>, <code class="docutils literal notranslate"><span class="pre">,U</span></code>, <code class="docutils literal notranslate"><span class="pre">.U</span></code>, <code class="docutils literal notranslate"><span class="pre">?U</span></code>.</p>
+</div>
+<div class="section" id="id4">
+<h2>代码概览<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<p>首先, 设置一些必须的参数:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">DATA_DIR</span> <span class="o">=</span> <span class="s2">&quot;PATH_TO_WHERE_THE_DATA_IS&quot;</span>
+<span class="n">WORK_DIR</span> <span class="o">=</span> <span class="s2">&quot;PATH_TO_WHERE_TO_STORE_CHECKPOINTS_AND_LOGS&quot;</span>
+<span class="n">PRETRAINED_BERT_MODEL</span> <span class="o">=</span> <span class="s2">&quot;bert-base-uncased&quot;</span>
+
+<span class="c1"># 模型参数</span>
+<span class="n">BATCHES_PER_STEP</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">BATCH_SIZE</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="n">CLASSIFICATION_DROPOUT</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="n">MAX_SEQ_LENGTH</span> <span class="o">=</span> <span class="mi">64</span>
+<span class="n">NUM_EPOCHS</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">LEARNING_RATE</span> <span class="o">=</span> <span class="mf">0.00002</span>
+<span class="n">LR_WARMUP_PROPORTION</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="n">OPTIMIZER</span> <span class="o">=</span> <span class="s2">&quot;adam&quot;</span>
+<span class="n">STEP_FREQ</span> <span class="o">=</span> <span class="mi">200</span> <span class="c1"># 决定了 loss 多久打印一次，checkpoint 多久保存一次</span>
+<span class="n">PUNCT_NUM_FC_LAYERS</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">NUM_SAMPLES</span> <span class="o">=</span> <span class="mi">100000</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>下载，预处理一部分的数据集 (Tatoeba collection of sentences), 运行:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
+</pre></div>
+</div>
+<p>接着，我们需要用支持的后端创建 neural factory。 这个教程假设你在单卡 GPU 上训练，混精度 (<code class="docutils literal notranslate"><span class="pre">optimization_level=&quot;O1&quot;</span></code>)。如果你不想用混精度训练，设置 <code class="docutils literal notranslate"><span class="pre">optimization_level</span></code> 为 <code class="docutils literal notranslate"><span class="pre">O0</span></code>。</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
+                                   <span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                   <span class="n">optimization_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">,</span>
+                                   <span class="n">log_dir</span><span class="o">=</span><span class="n">WORK_DIR</span><span class="p">,</span>
+                                   <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>然后，定义我们的分词器和 BERT 模型。如果你用标准的 BERT，你可以这么做。想要看所有 BERT O型的名字，可以查看 <code class="docutils literal notranslate"><span class="pre">nemo.collections.nlp.nm.trainables.get_bert_models_list()</span></code>. ``</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">=</span><span class="n">PRETRAINED_BERT_MODEL</span><span class="p">)</span>
+<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">PRETRAINED_BERT_MODEL</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>现在, 创建验证和训练的数据层:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">train_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">data_layers</span><span class="o">.</span><span class="n">PunctuationCapitalizationDataLayer</span><span class="p">(</span>
+                                    <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+                                    <span class="n">text_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DATA_DIR</span><span class="p">,</span> <span class="s1">&#39;text_train.txt&#39;</span><span class="p">),</span>
+                                    <span class="n">label_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DATA_DIR</span><span class="p">,</span> <span class="s1">&#39;labels_train.txt&#39;</span><span class="p">),</span>
+                                    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+                                    <span class="n">batch_size</span><span class="o">=</span><span class="n">BATCH_SIZE</span><span class="p">)</span>
+
+<span class="n">punct_label_ids</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">punct_label_ids</span>
+<span class="n">capit_label_ids</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">capit_label_ids</span>
+
+<span class="n">hidden_size</span> <span class="o">=</span> <span class="n">bert_model</span><span class="o">.</span><span class="n">hidden_size</span>
+
+<span class="c1"># 注意你需要指定 punct_label_ids 和 capit_label_ids  - 它们是在创建train_data_layer</span>
+<span class="c1"># 映射标签到标签id(label_ids)时候生成的</span>
+<span class="c1"># 目的是为了确保映射是正确的，</span>
+<span class="c1"># 防止一些训练集的标签在验证集上丢失</span>
+<span class="n">eval_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">BertPunctuationCapitalizationDataLayer</span><span class="p">(</span>
+                                    <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+                                    <span class="n">text_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DATA_DIR</span><span class="p">,</span> <span class="s1">&#39;text_dev.txt&#39;</span><span class="p">),</span>
+                                    <span class="n">label_file</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DATA_DIR</span><span class="p">,</span> <span class="s1">&#39;labels_dev.txt&#39;</span><span class="p">),</span>
+                                    <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+                                    <span class="n">batch_size</span><span class="o">=</span><span class="n">BATCH_SIZE</span><span class="p">,</span>
+                                    <span class="n">punct_label_ids</span><span class="o">=</span><span class="n">punct_label_ids</span><span class="p">,</span>
+                                    <span class="n">capit_label_ids</span><span class="o">=</span><span class="n">capit_label_ids</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>现在，在预训练 BERT 模型上创建标签和大写分类器并且定义这个任务的损失函数:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">punct_classifier</span> <span class="o">=</span> <span class="n">TokenClassifier</span><span class="p">(</span>
+                                   <span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                                   <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">punct_label_ids</span><span class="p">),</span>
+                                   <span class="n">dropout</span><span class="o">=</span><span class="n">CLASSIFICATION_DROPOUT</span><span class="p">,</span>
+                                   <span class="n">num_layers</span><span class="o">=</span><span class="n">PUNCT_NUM_FC_LAYERS</span><span class="p">,</span>
+                                   <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Punctuation&#39;</span><span class="p">)</span>
+
+<span class="n">capit_classifier</span> <span class="o">=</span> <span class="n">TokenClassifier</span><span class="p">(</span><span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+                                   <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">capit_label_ids</span><span class="p">),</span>
+                                   <span class="n">dropout</span><span class="o">=</span><span class="n">CLASSIFICATION_DROPOUT</span><span class="p">,</span>
+                                   <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Capitalization&#39;</span><span class="p">)</span>
+
+
+<span class="c1"># 如果你不想在标点符号任务上用加权损失函数，设置 class_weights=None</span>
+<span class="n">punct_label_freqs</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="o">.</span><span class="n">dataset</span><span class="o">.</span><span class="n">punct_label_frequencies</span>
+<span class="n">class_weights</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">datasets</span><span class="o">.</span><span class="n">datasets_utils</span><span class="o">.</span><span class="n">calc_class_weights</span><span class="p">(</span><span class="n">punct_label_freqs</span><span class="p">)</span>
+
+<span class="c1"># 定义损失函数</span>
+<span class="n">punct_loss</span> <span class="o">=</span> <span class="n">CrossEntropyLossNM</span><span class="p">(</span><span class="n">logits_ndim</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="n">class_weights</span><span class="p">)</span>
+<span class="n">capit_loss</span> <span class="o">=</span> <span class="n">CrossEntropyLossNM</span><span class="p">(</span><span class="n">logits_ndim</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">task_loss</span> <span class="o">=</span> <span class="n">LossAggregatorNM</span><span class="p">(</span><span class="n">num_inputs</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>下面，通过预训练的 BERT 模型，我们传递数据层的输出给到分类器:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">loss_mask</span><span class="p">,</span> <span class="n">subtokens_mask</span><span class="p">,</span> <span class="n">punct_labels</span><span class="p">,</span> <span class="n">capit_labels</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids</span><span class="p">,</span>
+                      <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
+                      <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+
+<span class="n">punct_logits</span> <span class="o">=</span> <span class="n">punct_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">capit_logits</span> <span class="o">=</span> <span class="n">capit_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+
+<span class="n">punct_loss</span> <span class="o">=</span> <span class="n">punct_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">punct_logits</span><span class="p">,</span>
+                        <span class="n">labels</span><span class="o">=</span><span class="n">punct_labels</span><span class="p">,</span>
+                        <span class="n">loss_mask</span><span class="o">=</span><span class="n">loss_mask</span><span class="p">)</span>
+<span class="n">capit_loss</span> <span class="o">=</span> <span class="n">capit_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">capit_logits</span><span class="p">,</span>
+                        <span class="n">labels</span><span class="o">=</span><span class="n">capit_labels</span><span class="p">,</span>
+                        <span class="n">loss_mask</span><span class="o">=</span><span class="n">loss_mask</span><span class="p">)</span>
+<span class="n">task_loss</span> <span class="o">=</span> <span class="n">task_loss</span><span class="p">(</span><span class="n">loss_1</span><span class="o">=</span><span class="n">punct_loss</span><span class="p">,</span>
+                      <span class="n">loss_2</span><span class="o">=</span><span class="n">capit_loss</span><span class="p">)</span>
+
+<span class="n">eval_input_ids</span><span class="p">,</span> <span class="n">eval_input_type_ids</span><span class="p">,</span> <span class="n">eval_input_mask</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">eval_subtokens_mask</span><span class="p">,</span> <span class="n">eval_punct_labels</span><span class="p">,</span> <span class="n">eval_capit_labels</span>\
+    <span class="o">=</span> <span class="n">eval_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">eval_input_ids</span><span class="p">,</span>
+                           <span class="n">token_type_ids</span><span class="o">=</span><span class="n">eval_input_type_ids</span><span class="p">,</span>
+                           <span class="n">attention_mask</span><span class="o">=</span><span class="n">eval_input_mask</span><span class="p">)</span>
+
+<span class="n">eval_punct_logits</span> <span class="o">=</span> <span class="n">punct_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">eval_capit_logits</span> <span class="o">=</span> <span class="n">capit_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>现在，我们设置我们的回调函数。我们用3个回调函数:</p>
+<ul>
+<li><p><cite>SimpleLossLoggerCallback</cite> 打印训练过程中的损失函数值</p></li>
+<li><p><cite>EvaluatorCallback</cite> 计算验证集上的数据指标</p></li>
+<li><p><cite>CheckpointCallback</cite> 用来保存和还原 checkpoints</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">callback_train</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+<span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">task_loss</span><span class="p">,</span> <span class="n">punct_loss</span><span class="p">,</span> <span class="n">capit_loss</span><span class="p">,</span> <span class="n">punct_logits</span><span class="p">,</span> <span class="n">capit_logits</span><span class="p">],</span>
+<span class="n">print_func</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Loss: </span><span class="si">{:.3f}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">item</span><span class="p">())),</span>
+<span class="n">step_freq</span><span class="o">=</span><span class="n">STEP_FREQ</span><span class="p">)</span>
+
+<span class="n">train_data_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_data_layer</span><span class="p">)</span>
+
+<span class="c1"># 如果你用多 GPUs，这行应该是</span>
+<span class="c1"># train_data_size / (batch_size * batches_per_step * num_gpus)</span>
+<span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">train_data_size</span> <span class="o">/</span> <span class="p">(</span><span class="n">BATCHES_PER_STEP</span> <span class="o">*</span> <span class="n">BATCH_SIZE</span><span class="p">))</span>
+
+<span class="c1"># 回调评估模型</span>
+<span class="n">callback_eval</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="p">[</span><span class="n">eval_punct_logits</span><span class="p">,</span>
+                  <span class="n">eval_capit_logits</span><span class="p">,</span>
+                  <span class="n">eval_punct_labels</span><span class="p">,</span>
+                  <span class="n">eval_capit_labels</span><span class="p">,</span>
+                  <span class="n">eval_subtokens_mask</span><span class="p">],</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">eval_iter_callback</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">eval_epochs_done_callback</span><span class="p">(</span><span class="n">x</span><span class="p">,</span>
+                                                                  <span class="n">punct_label_ids</span><span class="p">,</span>
+                                                                  <span class="n">capit_label_ids</span><span class="p">),</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="n">steps_per_epoch</span><span class="p">)</span>
+
+<span class="c1"># 回调保存 checkpoints</span>
+<span class="n">ckpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="n">folder</span><span class="o">=</span><span class="n">nf</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+                                             <span class="n">step_freq</span><span class="o">=</span><span class="n">STEP_FREQ</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p>最后，定义学习率策略和我们的优化器，开始训练:</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">lr_policy</span> <span class="o">=</span> <span class="n">WarmupAnnealing</span><span class="p">(</span><span class="n">NUM_EPOCHS</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+                    <span class="n">warmup_ratio</span><span class="o">=</span><span class="n">LR_WARMUP_PROPORTION</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">task_loss</span><span class="p">],</span>
+         <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">callback_train</span><span class="p">,</span> <span class="n">callback_eval</span><span class="p">,</span> <span class="n">ckpt_callback</span><span class="p">],</span>
+         <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
+         <span class="n">batches_per_step</span><span class="o">=</span><span class="n">BATCHES_PER_STEP</span><span class="p">,</span>
+         <span class="n">optimizer</span><span class="o">=</span><span class="n">OPTIMIZER</span><span class="p">,</span>
+         <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">NUM_EPOCHS</span><span class="p">,</span>
+                              <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">LEARNING_RATE</span><span class="p">})</span>
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="id5">
+<h2>推理<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h2>
+<p>为了看看模型的推理预测，我们在一些样本上运行推理。我们需要定义一个数据层，就像我们为训练和验证评估那样创建的数据层。</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">queries</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;can i help you&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;yes please&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;we bought four shirts from the nvidia gear store in santa clara&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;we bought four shirts one mug and ten thousand titan rtx graphics cards&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;the more you buy the more you save&#39;</span><span class="p">]</span>
+<span class="n">infer_data_layer</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">data_layers</span><span class="o">.</span><span class="n">BertTokenClassificationInferDataLayer</span><span class="p">(</span>
+                                                        <span class="n">queries</span><span class="o">=</span><span class="n">queries</span><span class="p">,</span>
+                                                        <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">,</span>
+                                                        <span class="n">max_seq_length</span><span class="o">=</span><span class="n">MAX_SEQ_LENGTH</span><span class="p">,</span>
+                                                        <span class="n">batch_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>运行推理，基于训练结果加上标点符号和单词大写:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">input_ids</span><span class="p">,</span> <span class="n">input_type_ids</span><span class="p">,</span> <span class="n">input_mask</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">subtokens_mask</span> <span class="o">=</span> <span class="n">infer_data_layer</span><span class="p">()</span>
+
+<span class="n">hidden_states</span> <span class="o">=</span> <span class="n">bert_model</span><span class="p">(</span><span class="n">input_ids</span><span class="o">=</span><span class="n">input_ids</span><span class="p">,</span>
+                                      <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
+                                      <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
+<span class="n">punct_logits</span> <span class="o">=</span> <span class="n">punct_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">capit_logits</span> <span class="o">=</span> <span class="n">capit_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+
+<span class="n">evaluated_tensors</span> <span class="o">=</span> <span class="n">nf</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">punct_logits</span><span class="p">,</span> <span class="n">capit_logits</span><span class="p">,</span> <span class="n">subtokens_mask</span><span class="p">],</span>
+                             <span class="n">checkpoint_dir</span><span class="o">=</span><span class="n">WORK_DIR</span> <span class="o">+</span> <span class="s1">&#39;/checkpoints&#39;</span><span class="p">)</span>
+
+
+
+<span class="c1"># 帮助函数</span>
+<span class="k">def</span> <span class="nf">concatenate</span><span class="p">(</span><span class="n">lists</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">t</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">lists</span><span class="p">])</span>
+
+<span class="n">punct_ids_to_labels</span> <span class="o">=</span> <span class="p">{</span><span class="n">punct_label_ids</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">punct_label_ids</span><span class="p">}</span>
+<span class="n">capit_ids_to_labels</span> <span class="o">=</span> <span class="p">{</span><span class="n">capit_label_ids</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">capit_label_ids</span><span class="p">}</span>
+
+<span class="n">punct_logits</span><span class="p">,</span> <span class="n">capit_logits</span><span class="p">,</span> <span class="n">subtokens_mask</span> <span class="o">=</span> <span class="p">[</span><span class="n">concatenate</span><span class="p">(</span><span class="n">tensors</span><span class="p">)</span> <span class="k">for</span> <span class="n">tensors</span> <span class="ow">in</span> <span class="n">evaluated_tensors</span><span class="p">]</span>
+<span class="n">punct_preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">punct_logits</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">capit_preds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">capit_logits</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">query</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">queries</span><span class="p">):</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Query: </span><span class="si">{query}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">punct_pred</span> <span class="o">=</span> <span class="n">punct_preds</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">subtokens_mask</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">]</span>
+    <span class="n">capit_pred</span> <span class="o">=</span> <span class="n">capit_preds</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">subtokens_mask</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">]</span>
+    <span class="n">words</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">punct_pred</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">capit_pred</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Pred and words must be of the same length&#39;</span><span class="p">)</span>
+
+    <span class="n">output</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+        <span class="n">punct_label</span> <span class="o">=</span> <span class="n">punct_ids_to_labels</span><span class="p">[</span><span class="n">punct_pred</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
+        <span class="n">capit_label</span> <span class="o">=</span> <span class="n">capit_ids_to_labels</span><span class="p">[</span><span class="n">capit_pred</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
+
+        <span class="k">if</span> <span class="n">capit_label</span> <span class="o">!=</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span>
+        <span class="n">output</span> <span class="o">+=</span> <span class="n">w</span>
+        <span class="k">if</span> <span class="n">punct_label</span> <span class="o">!=</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">+=</span> <span class="n">punct_label</span>
+        <span class="n">output</span> <span class="o">+=</span> <span class="s1">&#39; &#39;</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Combined: {output.strip()}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>预测结果:</p>
+<blockquote>
+<div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Query: can i help you
+Combined: Can I help you?
+
+Query: yes please
+Combined: Yes, please.
+
+Query: we bought four shirts from the nvidia gear store in santa clara
+Combined: We bought four shirts from the Nvidia gear store in Santa Clara.
+
+Query: we bought four shirts one mug and ten thousand titan rtx graphics cards
+Combined: We bought four shirts, one mug, and ten thousand Titan Rtx graphics cards.
+
+Query: the more you buy the more you save
+Combined: The more you buy, the more you save.
+</pre></div>
+</div>
+</div></blockquote>
+</div>
+<div class="section" id="punct-scripts">
+<span id="id6"></span><h2>训练和推理脚本<a class="headerlink" href="#punct-scripts" title="Permalink to this headline">¶</a></h2>
+<p>运行提供的训练脚本:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path_to_data --pretrained_model_name<span class="o">=</span>bert-base-uncased --work_dir path_to_output_dir
+</pre></div>
+</div>
+<p>运行推理:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --checkpoint_dir path_to_output_dir/checkpoints/
+</pre></div>
+</div>
+<p>注意, punct_label_ids.csv 和 capit_label_ids.csv 文件在训练的时候会生成并且存在 data_dir 文件目录下。</p>
+</div>
+<div class="section" id="gpu">
+<h2>多 GPU 训练<a class="headerlink" href="#gpu" title="Permalink to this headline">¶</a></h2>
+<p>在多张 GPU 上训练，运行</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">NUM_GPUS</span><span class="o">=</span><span class="m">2</span>
+python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="nv">$NUM_GPUS</span> examples/nlp/token_classification/punctuation_capitalization.py --num_gpus <span class="nv">$NUM_GPUS</span> --data_dir path_to_data
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-right" title="教程" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="ner.html" class="btn btn-neutral float-left" title="教程" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

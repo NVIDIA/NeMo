@@ -1,0 +1,10 @@
+{"audio_filepath": "tests/data/asr/test/an4/wav/an443-mmxg-b.wav", "duration": 1.40275, "text": "no"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/an409-fcaw-b.wav", "duration": 1.60275, "text": "go"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/an440-mjgm-b.wav", "duration": 1.60275, "text": "stop"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/an392-mjwl-b.wav", "duration": 1.60275, "text": "repeat"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/an402-mdms2-b.wav", "duration": 1.60275, "text": "no"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/an416-fjlp-b.wav", "duration": 1.60275, "text": "no"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/an442-mmxg-b.wav", "duration": 1.80275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/cen3-mjwl-b.wav", "duration": 2.00275, "text": "nineteen"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/cen3-mdms2-b.wav", "duration": 2.40275, "text": "two forty"}
+{"audio_filepath": "tests/data/asr/test/an4/wav/cen3-fjlp-b.wav", "duration": 2.60275, "text": "one fifty"}

@@ -1,0 +1,30 @@
+{"audio_filepath": "tests/data/asr/train/an4/wav/an46-mmap-b.wav", "duration": 2.00275, "text": "stop"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an298-fsaf2-b.wav", "duration": 2.00275, "text": "repeat"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an357-mscg2-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an333-msrb-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an22-flrp-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an265-mcfl-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an369-mtos-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an390-mmtm-b.wav", "duration": 2.00275, "text": "repeat"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an261-mcfl-b.wav", "duration": 2.00275, "text": "start"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an225-fwxs-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an127-mcen-b.wav", "duration": 2.00275, "text": "repeat"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an32-mtje-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an324-mmal-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an388-mmtm-b.wav", "duration": 2.00275, "text": "start"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an230-msjm-b.wav", "duration": 2.00275, "text": "stop"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an90-fbbh-b.wav", "duration": 2.00275, "text": "no"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an251-fash-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an341-msct-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an104-mrcb-b.wav", "duration": 2.00275, "text": "start"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an152-mwhw-b.wav", "duration": 2.00275, "text": "start"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an185-fnsv-b.wav", "duration": 2.00275, "text": "help"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/cen3-mtxj-b.wav", "duration": 2.00275, "text": "one hundred"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an180-mjjs2-b.wav", "duration": 2.00275, "text": "yes"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/cen3-fjdn-b.wav", "duration": 2.00275, "text": "thirty three"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an199-mgah-b.wav", "duration": 2.00275, "text": "no"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an234-mcsc-b.wav", "duration": 2.00275, "text": "repeat"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an204-mcel-b.wav", "duration": 2.00275, "text": "start"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an223-fwxs-b.wav", "duration": 2.00275, "text": "help"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an304-mtcv-b.wav", "duration": 2.00275, "text": "stop"}
+{"audio_filepath": "tests/data/asr/train/an4/wav/an5-mblw-b.wav", "duration": 2.00275, "text": "repeat"}

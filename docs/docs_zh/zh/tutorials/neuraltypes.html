@@ -1,0 +1,382 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>神经类型 &mdash; nemo 0.10.0b8 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="如何构建神经模块" href="custommodules.html" />
+    <link rel="prev" title="例子" href="examples.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.10.0b8
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">简介</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">从这里开始</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="program_model.html">编程模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html">例子</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">神经类型</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id2">基础</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">神经类型比较</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id4">特殊例子</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id5">继承</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id6">高级用法</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="custommodules.html">如何构建神经模块</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">模块配置</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html">模块间的权重共享</a></li>
+<li class="toctree-l2"><a class="reference internal" href="callbacks.html">回调</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">复杂训练流程 (GAN 例子)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">快速训练</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">语音识别</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">语音指令</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">自然语言处理</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">语音合成</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">从这里开始</a> &raquo;</li>
+        
+      <li>神经类型</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tutorials/neuraltypes.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="id1">
+<h1>神经类型<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="id2">
+<h2>基础<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>每个神经模块的输入和输出端口都是有类型的。
+类型系统的目标是要检查相连输入/输出端口对之间的兼容性。
+当用户连接各个模块以及在训练和推理开始之前，类型系统的约束限制都会被检查。</p>
+<p>神经类型 (Neural Types) 在 Python 类 <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> 中实现，帮助类
+由 <code class="xref py py-class docutils literal notranslate"><span class="pre">ElementType</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">AxisType</span></code> 和 <code class="xref py py-class docutils literal notranslate"><span class="pre">AxisKindAbstract</span></code> 这几个类得到。</p>
+<p><strong>一个神经类型包含两类信息</strong></p>
+<ul class="simple">
+<li><p><strong>axes</strong> - 表示特定轴的含义 (e.g. batch, time, 等)</p></li>
+<li><p><strong>elements_type</strong> - 表示存在里面的激活元的语义和属性 (audio signal,text embedding, logits, 等)</p></li>
+</ul>
+<p>如果想初始化一个NeuralType, 你需要传递给它下面的参数: <cite>axes: Optional[Tuple] = None,
+elements_type: ElementType = VoidType(), optional=False</cite>. 通常，初始化
+<code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> 对象的地方是在模块里面的 <cite>input_ports</cite> 和
+<cite>output_ports</cite> 属性中。</p>
+<p>考虑下面的这个例子。它表示了一个在语音识别集合中用到的(音频) 数据层的输出端口。</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;audio_signal&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                                     <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">)),</span>
+                               <span class="n">elements_type</span><span class="o">=</span><span class="n">AudioSignal</span><span class="p">(</span><span class="n">freq</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">)),</span>
+    <span class="s1">&#39;a_sig_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">)),</span>
+                               <span class="n">elements_type</span><span class="o">=</span><span class="n">LengthsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                                     <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">)),</span>
+                              <span class="n">elements_type</span><span class="o">=</span><span class="n">LabelsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcript_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">)),</span>
+                                    <span class="n">elements_type</span><span class="o">=</span><span class="n">LengthsType</span><span class="p">()),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>一个具有一样输出端口的更加精简的版本:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;audio_signal&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">AudioSignal</span><span class="p">(</span><span class="n">freq</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">)),</span>
+    <span class="s1">&#39;a_sig_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">LabelsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcript_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="id3">
+<h2>神经类型比较<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>两个 <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> 对象可以用 <code class="docutils literal notranslate"><span class="pre">.compare</span></code> 方法来进行比较。
+比较的结果来自 <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralTypeComparisonResult</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">NeuralTypeComparisonResult</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;比较两个神经类型对象兼容性的比较结果，</span>
+<span class="sd">    使用 A.compare_to(B):&quot;&quot;&quot;</span>
+
+    <span class="n">SAME</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">LESS</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># A 是 B</span>
+    <span class="n">GREATER</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># B 是 A</span>
+    <span class="n">DIM_INCOMPATIBLE</span> <span class="o">=</span> <span class="mi">3</span>  <span class="c1"># 调整连接的大小 (resize) 也许可以修复不兼容性</span>
+    <span class="n">TRANSPOSE_SAME</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># 转置以及/或者在 lists 和 tensors 之间的转换可以让它们一致</span>
+    <span class="n">CONTAINER_SIZE_MISMATCH</span> <span class="o">=</span> <span class="mi">5</span>  <span class="c1"># A 和 B 包含不同数量的元素</span>
+    <span class="n">INCOMPATIBLE</span> <span class="o">=</span> <span class="mi">6</span>  <span class="c1"># A 和 B 不兼容</span>
+    <span class="n">SAME_TYPE_INCOMPATIBLE_PARAMS</span> <span class="o">=</span> <span class="mi">7</span>  <span class="c1"># A 和 B 相同类型但参数化不同</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="id4">
+<h2>特殊例子<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Void</strong> 元素类型。有时候，有个像  C/C++ 中 “void*” 的功能还挺有必要的。也就是说，我们想强制顺序(order)和轴的语义但是又要求能接受任何类型的元素。我们可以用 <code class="xref py py-class docutils literal notranslate"><span class="pre">VoidType</span></code> 实例作为 <code class="docutils literal notranslate"><span class="pre">elements_type</span></code> 。</p></li>
+<li><p><strong>Big void</strong> 这种类型会取禁用掉所有的类型检查。可以这样创建这个类型: <code class="docutils literal notranslate"><span class="pre">NeuralType()</span></code>. 它和其它类型的比较结果永远都是 SAME。</p></li>
+<li><p><strong>AxisKind.Any</strong> 这个轴类型(kind)用来表示任意的轴类型。这个很管用，比如，在损失函数中，一个特定的损失函数模块可以用在不同的应用中，表示不同的轴类型。</p></li>
+</ul>
+</div>
+<div class="section" id="id5">
+<h2>继承<a class="headerlink" href="#id5" title="Permalink to this headline">¶</a></h2>
+<p>类型继承在编程中是非常强大的工具。 NeMo 的神经类型支持继承。考虑
+下面这个例子。</p>
+<p><strong>例子.</strong> 我们想要表示: A 模块的 A 输出 (out1) 产生梅尔谱(mel-spectrogram)
+信号, 而模块 B 输出产生 mffc 频谱。我们也想要一个模块 C 可以对任意频谱做数据增强
+用 NeMo 的神经类型表示这种语义就很容易:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">input</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">SpectrogramType</span><span class="p">())</span>
+<span class="n">out1</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">MelSpectrogramType</span><span class="p">())</span>
+<span class="n">out2</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">MFCCSpectrogramType</span><span class="p">())</span>
+
+<span class="c1"># 会生成下面的结果</span>
+<span class="nb">input</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">out1</span><span class="p">)</span> <span class="o">==</span> <span class="n">SAME</span>
+<span class="nb">input</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">out2</span><span class="p">)</span> <span class="o">==</span> <span class="n">SAME</span>
+<span class="n">out1</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span> <span class="o">==</span> <span class="n">INCOMPATIBLE</span>
+<span class="n">out2</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">out1</span><span class="p">)</span> <span class="o">==</span> <span class="n">INCOMPATIBLE</span>
+</pre></div>
+</div>
+<p>之所以会这样是因为 <code class="docutils literal notranslate"><span class="pre">MelSpectrogramType</span></code> 和 <code class="docutils literal notranslate"><span class="pre">MFCCSpectrogramType</span></code> 都继承自 <code class="docutils literal notranslate"><span class="pre">SpectrogramType</span></code> 类。
+注意, mfcc 和 mel 频谱是不能互换的，这就是为什么 <code class="docutils literal notranslate"><span class="pre">out1.compare(input)</span> <span class="pre">==</span> <span class="pre">INCOMPATIBLE</span></code></p>
+</div>
+<div class="section" id="id6">
+<h2>高级用法<a class="headerlink" href="#id6" title="Permalink to this headline">¶</a></h2>
+<p><strong>使用用户定义的类型</strong> 如果你相加自己的元素类型, 创建一个新的继承类
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ElementType</span></code> 的类。除了使用内置的轴类型
+<code class="xref py py-class docutils literal notranslate"><span class="pre">AxisKind</span></code>, 你可以定义自己的轴类型
+创建一个新的 Python enum, 继承 <code class="xref py py-class docutils literal notranslate"><span class="pre">AxisKindAbstract</span></code>.</p>
+<p><strong>列表(Lists)</strong>. 有时候模块的输入和输出应该是一个 List 的(也有可能是嵌套的)张量。 NeMo 的
+<code class="xref py py-class docutils literal notranslate"><span class="pre">AxisType</span></code> 类接受 <code class="docutils literal notranslate"><span class="pre">is_list</span></code> 参数，它可以设置为 True。
+考虑下面的例子:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">T1</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">(</span>
+    <span class="n">axes</span><span class="o">=</span><span class="p">(</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">elements_type</span><span class="o">=</span><span class="n">ChannelType</span><span class="p">(),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>这个例子中，前两个轴是 list。这个对象的 list 中的 list 中的元素秩为3的张量，张量维度为(32x128x256).
+注意 list 的轴必须在其它张量轴的前面。</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>我们强烈建议避免这么做。可能的话还是用张量带 padding 的方式来做。</p>
+</div>
+<p><strong>命名元组(Named tuples) (数据结构).</strong> 为了能够表示结构化的对象, 例如：在计算机视觉中的边界框(bounding box),
+可以用下面的语句:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">BoundingBox</span><span class="p">(</span><span class="n">ElementType</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;bounding box from detection model&quot;</span>
+    <span class="k">def</span> <span class="nf">fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;H&quot;</span><span class="p">)</span>
+<span class="c1"># 加新的用户定义的轴类型</span>
+<span class="k">class</span> <span class="nc">AxisKind2</span><span class="p">(</span><span class="n">AxisKindAbstract</span><span class="p">):</span>
+    <span class="n">Image</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">T1</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">elements_type</span><span class="o">=</span><span class="n">BoundingBox</span><span class="p">(),</span>
+                <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+                      <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind2</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>在上面的例子中, 我们给边界框构建了一个特别的 “element type” 类，包含了4个值。
+我们也加了自己的轴类型(Image). 所以最后的神经类型(T1) 表示的是 lists(batch) 的 lists (
+image) 的边界框。就是说，它是 list(lists(4x1 张量))。</p>
+<p><strong>神经类型帮助我们调试模型</strong></p>
+<p>有一个很大的错误类, 在运行和编译的时候不会报错。比如:</p>
+<ol class="arabic simple">
+<li><p>“Rank matches but semantics doesn’t”.</p></li>
+</ol>
+<p>比如，模块 A 产生的数据格式是 [Batch, Time, Dim] 而模块 B 期望的格式是 [Time, Batch, Dim]。简单的轴转置就可以解决这个错。</p>
+<ol class="arabic simple" start="2">
+<li><p>“Concatenating wrong dimensions”.</p></li>
+</ol>
+<p>例如, 模块应该沿着维度 0 合并(相加)两个输入张量 X 和 Y。但是张量 X 格式为 [B, T, D] 而张量 Y=[T, B, D] 然后合并. .</p>
+<ol class="arabic simple" start="3">
+<li><p>“Dimensionality mismatch”</p></li>
+</ol>
+<p>一个模块想要一张大小为 224x224 的图片，但得到的是 256x256。类型比较的结果是 <code class="docutils literal notranslate"><span class="pre">NeuralTypeComparisonResult.DIM_INCOMPATIBLE</span></code> 。</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="custommodules.html" class="btn btn-neutral float-right" title="如何构建神经模块" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="examples.html" class="btn btn-neutral float-left" title="例子" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

@@ -1,0 +1,339 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Customizing the configuration &mdash; nemo 0.10.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.10.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+      <li>Customizing the configuration</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tutorials/module_custom_configuration.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="customizing-the-configuration">
+<h1>Customizing the configuration<a class="headerlink" href="#customizing-the-configuration" title="Permalink to this headline">¶</a></h1>
+<p>A generic configuration export enables to use of parameters of primitive types (string, int, float) or nested lists of/dicts of primitive types.</p>
+<p>In order to extend that functionality by other, custom types one must overload the generic <code class="xref py py-meth docutils literal notranslate"><span class="pre">export_to_config()</span></code> and  <code class="xref py py-meth docutils literal notranslate"><span class="pre">import_from_config()</span></code> methods for his/her Module class. This tutorial explains how one can do it.</p>
+<p>In the following example we will derive a class from the <code class="xref py py-class docutils literal notranslate"><span class="pre">TaylorNet</span></code> (used in the previous example) and extend it by those methods. But first, let us define a simple <code class="xref py py-class docutils literal notranslate"><span class="pre">Status</span></code> enum:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Status</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">success</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>Now let us define the <code class="xref py py-class docutils literal notranslate"><span class="pre">CustomTaylorNet</span></code> Neural Module class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomTaylorNet</span><span class="p">(</span><span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Module which learns Taylor&#39;s coefficients. Extends the original module by a custom status enum.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">status</span><span class="p">:</span> <span class="n">Status</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Status: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">status</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>In order to properly handle the export of the <code class="xref py py-class docutils literal notranslate"><span class="pre">Status</span></code> enum we must implement a custom function <code class="xref py py-meth docutils literal notranslate"><span class="pre">export_to_config()</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="k">def</span> <span class="nf">export_to_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_file</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            A custom method exporting configuration to a YAML file.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Greate an absolute path.</span>
+        <span class="n">abs_path_file</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+
+        <span class="c1"># Create the dictionary to be exported.</span>
+        <span class="n">to_export</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Add &quot;header&quot; with module &quot;specification&quot;.</span>
+        <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_config_header</span><span class="p">()</span>
+
+        <span class="c1"># Add init parameters.</span>
+        <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span>
+
+        <span class="c1"># Custom processing of the status.</span>
+        <span class="k">if</span> <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">Status</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># All parameters are ok, let&#39;s export.</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">abs_path_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
+            <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">to_export</span><span class="p">,</span> <span class="n">outfile</span><span class="p">)</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Configuration of module </span><span class="si">{}</span><span class="s2"> (</span><span class="si">{}</span><span class="s2">) exported to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">abs_path_file</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that the configuration is actually a dictionary consisting of two sections:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">header</span></code> (storing class specification, NeMo version, NeMo collection name etc.) and</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">init_params</span></code> storing the parameters used for instantiation of the object.</p></li>
+</ul>
+</div></blockquote>
+<p>Those parameters are stored in the protected <code class="docutils literal notranslate"><span class="pre">self._init_params</span></code>  field of the base <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code> class.
+It is assumed that (aside of this use-case) the user won’t access nor use them directly.</p>
+<p>Analogically, we must overload the <code class="xref py py-meth docutils literal notranslate"><span class="pre">import_from_config()</span></code> method:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">import_from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite_params</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            A custom method importing the YAML configuration file.</span>
+<span class="sd">            Raises an ImportError exception when config file is invalid or</span>
+<span class="sd">            incompatible (when called from a particular class).</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
+
+<span class="sd">                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)</span>
+
+<span class="sd">                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default</span>
+<span class="sd">                parameters loaded from the configuration file</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                Instance of the created NeuralModule object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Validate the content of the configuration file (its header).</span>
+        <span class="n">loaded_config</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_validate_config_file</span><span class="p">(</span><span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="p">)</span>
+
+        <span class="c1"># Get init parameters.</span>
+        <span class="n">init_params</span> <span class="o">=</span> <span class="n">loaded_config</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span>
+        <span class="c1"># Update parameters with additional ones.</span>
+        <span class="n">init_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overwrite_params</span><span class="p">)</span>
+
+        <span class="c1"># Custom processing of the status.</span>
+        <span class="k">if</span> <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">success</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">error</span>
+
+        <span class="c1"># Create and return the object.</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">CustomTaylorNet</span><span class="p">(</span><span class="o">**</span><span class="n">init_params</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Instantiated a new Neural Module of type `</span><span class="si">{}</span><span class="s2">` using configuration loaded from the `</span><span class="si">{}</span><span class="s2">` file&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="s2">&quot;CustomTaylorNet&quot;</span><span class="p">,</span> <span class="n">config_file</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+</pre></div>
+</div>
+<p>Please note that the base <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code> class provides several protected methods that we used, with most important being:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">_create_config_header()</span></code> generating the appropriate header, and </p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">_validate_config_file()</span></code> validating the loaded configuration file (checking the header content).</p></li>
+</ul>
+</div></blockquote>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>It is once again worth emphasizing that the <code class="xref py py-meth docutils literal notranslate"><span class="pre">import_from_config()</span></code> is a class method, actually returning a new object instance - in this case of the hardcoded <code class="xref py py-class docutils literal notranslate"><span class="pre">CustomTaylorNet</span></code> type.</p>
+</div>
+<p>Now we can simply create an instance and export its configuration by calling:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Instantiate a simple feed-forward, single layer neural network.</span>
+<span class="n">fx</span> <span class="o">=</span> <span class="n">CustomTaylorNet</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="n">Status</span><span class="o">.</span><span class="n">error</span><span class="p">)</span>
+<span class="c1"># Export the model configuration.</span>
+<span class="n">fx</span><span class="o">.</span><span class="n">export_to_config</span><span class="p">(</span><span class="s2">&quot;/tmp/custom_taylor_net.yml&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>And instantiate a second by loading that configuration:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a second instance, using the parameters loaded from the previously created configuration.</span>
+<span class="c1"># Please note that we are calling the overriden method from the CustomTaylorNet class.</span>
+<span class="n">fx2</span> <span class="o">=</span> <span class="n">CustomTaylorNet</span><span class="o">.</span><span class="n">import_from_config</span><span class="p">(</span><span class="s2">&quot;/tmp/custom_taylor_net.yml&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>As a result we will see that the new object has set the status to the same value as the original one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">[</span>NeMo I <span class="m">2020</span>-02-18 <span class="m">20</span>:15:50 module_custom_configuration:74<span class="o">]</span> Configuration of module 3ec99d30-baba-4e4c-a62b-e91268762864 <span class="o">(</span>CustomTaylorNet<span class="o">)</span> exported to /tmp/custom_taylor_net.yml
+<span class="o">[</span>NeMo I <span class="m">2020</span>-02-18 <span class="m">20</span>:15:50 module_custom_configuration:41<span class="o">]</span> Status: Status.error
+<span class="o">[</span>NeMo I <span class="m">2020</span>-02-18 <span class="m">20</span>:15:50 module_custom_configuration:114<span class="o">]</span> Instantiated a new Neural Module of <span class="nb">type</span> <span class="sb">`</span>CustomTaylorNet<span class="sb">`</span> using configuration loaded from the <span class="sb">`</span>/tmp/custom_taylor_net.yml<span class="sb">`</span> file
+</pre></div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
