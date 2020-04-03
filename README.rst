@@ -69,7 +69,7 @@ THE LATEST STABLE VERSION OF NeMo is **0.10.0** (Available via PIP).
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:20.01-py3``
-* Run:``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
+* Run:``docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
 * ``apt-get update && apt-get install -y libsndfile1``
 * ``pip install nemo_toolkit`` Installs NeMo core only.
 * ``pip install nemo_toolkit[all]`` Installs NeMo core and ALL collections
