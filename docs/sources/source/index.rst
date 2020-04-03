@@ -66,19 +66,15 @@ You can use NVIDIA `NGC NeMo container <https://ngc.nvidia.com/catalog/container
 .. code-block:: bash
 
     # Pull the docker
-    docker pull nvcr.io/nvidia/nemo:v0.9
-
-    # Do one of the two following commands
-    # Run Docker for docker version <19.03
-    nvidia-docker run -it --rm --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
+    docker pull nvcr.io/nvidia/nemo:v0.10
     
     # Run Docker for docker version >=19.03
-    docker run -it --rm --gpus all --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
+    docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
 
 and begin using NeMo immediately.
 
 If you have all requirements installed (or are using `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ ),
-then you can simply use pip to install the latest released version (**currently 0.9.0**) of NeMo and its collections:
+then you can simply use pip to install the latest released version (**currently 0.10.0**) of NeMo and its collections:
 
 .. code-block:: bash
 
@@ -140,7 +136,7 @@ container at runtime.
 
     # launch the container, mapping local nemo into it
     cd <nemo_path>
-    docker run -it --rm --gpus all -v $(pwd):/workspace/nemo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9
+    docker run -it --rm --gpus all -v $(pwd):/workspace/nemo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
 
     # install in development mode
     ./reinstall.sh
