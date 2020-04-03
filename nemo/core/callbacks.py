@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import glob
 import os
 import sys
@@ -200,8 +201,10 @@ class SimpleLossLoggerCallback(ActionCallback):
     def on_epoch_end(self):
         if self.global_rank is None or self.global_rank == 0:
             step = self.step
-            run_time = time.time() - self._last_epoch_start
-            logging.info(f"Finished epoch {self.epoch_num} in {run_time}")
+
+            delta = datetime.timedelta(seconds=(time.time() - self._last_epoch_start))
+            logging.info(f"Finished epoch {self.epoch_num} in {delta}")
+
             if self._swriter is not None:
                 value = self.epoch_num
                 self._swriter.add_scalar('misc/epoch', value, step)
@@ -373,8 +376,6 @@ class CheckpointCallback(ActionCallback):
     def on_epoch_end(self):
         if self._epoch_freq > 0:
             if self.global_rank is None or self.global_rank == 0:
-                run_time = time.time() - self._last_epoch_start
-                logging.info(f'Finished epoch {self.epoch_num} in {run_time}')
                 if (self.epoch_num + 1) % self._epoch_freq == 0:
                     self.__save_to(path=self._folder)
 

@@ -1124,9 +1124,10 @@ class PtActions(Actions):
             training_loop = [(optimizer, tensors_to_optimize, opt_call_chain)]
 
             self.optimizers.append(optimizer)
-            assert (
-                len(self.optimizers) == 1
-            ), "There was more than one optimizer, was create_optimizer() called before train()?"
+            assert len(self.optimizers) == 1, (
+                "There was more than one optimizer, was create_optimizer() called before train()? Are you calling "
+                "train() twice in one script, If so you need to call NeuralModuleFactory.reset_trainer() first."
+            )
 
         elif PtActions._check_tuples(tensors_to_optimize):
             if batches_per_step != 1:
@@ -1213,7 +1214,12 @@ class PtActions(Actions):
                 for i in range(1, len(call_chain) - 1):
                     key = call_chain[i][0].unique_instance_id
                     pmodule = self.module_reference_table[key][1]
-                    if not isinstance(pmodule, DDP) and isinstance(pmodule, torch.nn.Module):
+                    num_trainable_weights = self.module_reference_table[key][1].num_weights
+                    if (
+                        not isinstance(pmodule, DDP)
+                        and isinstance(pmodule, torch.nn.Module)
+                        and num_trainable_weights > 0
+                    ):
                         # gpf = 1
                         # if gradient_predivide:
                         #     gpf = dist.get_world_size()
