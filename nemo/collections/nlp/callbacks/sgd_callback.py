@@ -66,10 +66,10 @@ def eval_iter_callback(tensors, global_vars, ids_to_service_names_dict, eval_dat
     total_scores = torch.unsqueeze(start_scores, axis=3) + torch.unsqueeze(end_scores, axis=2)
     # Mask out scores where start_index > end_index.
     device = total_scores.device
-    start_idx = torch.arange(max_num_tokens).view(1, 1, -1, 1).to(device)
-    end_idx = torch.arange(max_num_tokens).view(1, 1, 1, -1).to(device)
+    start_idx = torch.arange(max_num_tokens, device=device).view(1, 1, -1, 1)
+    end_idx = torch.arange(max_num_tokens, device=device).view(1, 1, 1, -1)
     invalid_index_mask = (start_idx > end_idx).repeat(batch_size, max_num_noncat_slots, 1, 1)
-    total_scores = torch.where(invalid_index_mask, torch.zeros(total_scores.size()).to(device), total_scores)
+    total_scores = torch.where(invalid_index_mask, torch.zeros(total_scores.size(), device=device), total_scores)
     max_span_index = torch.argmax(total_scores.view(-1, max_num_noncat_slots, max_num_tokens ** 2), axis=-1)
     span_start_index = torch.div(max_span_index, max_num_tokens)
     span_end_index = torch.fmod(max_span_index, max_num_tokens)
