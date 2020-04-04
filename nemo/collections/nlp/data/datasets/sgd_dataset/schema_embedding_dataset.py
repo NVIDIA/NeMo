@@ -311,7 +311,7 @@ class SchemaEmbeddingDataset(Dataset):
         if master_device:
             with open(output_file, "wb") as f_s:
                 np.save(f_s, schema_embeddings)
-            f_s.close()
+                f_s.close()
 
 
 class InputFeatures(object):

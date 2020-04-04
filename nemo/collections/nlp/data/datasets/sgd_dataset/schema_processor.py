@@ -105,7 +105,7 @@ class SchemaPreprocessor:
 
         with open(schema_embedding_file, "rb") as f:
             schema_data = np.load(f, allow_pickle=True)
-        f.close()
+            f.close()
 
         # Convert from list of dict to dict of list
         schema_data_dict = collections.defaultdict(list)

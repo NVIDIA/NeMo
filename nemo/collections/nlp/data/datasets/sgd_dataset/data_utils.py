@@ -110,7 +110,7 @@ class Dstc8DataProcessor(object):
             if os.path.exists(schema_pkl_file):
                 with open(schema_pkl_file, "rb") as f:
                     self._schemas[dataset] = pickle.load(f)
-                f.close()
+                    f.close()
 
     def get_dialog_examples(self, dataset):
         """Return a list of `InputExample`s of the data splits' dialogues.
@@ -142,7 +142,7 @@ class Dstc8DataProcessor(object):
         schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
         with open(schema_pkl_file, "wb") as f:
             pickle.dump(self._schemas[dataset], f)
-        f.close()
+            f.close()
 
     def get_service_names_to_id_dict(self, dataset):
         if dataset not in self._schemas:
@@ -692,7 +692,7 @@ def load_dialogues(dialog_json_filepaths):
     for dialog_json_filepath in sorted(dialog_json_filepaths):
         with open(dialog_json_filepath, 'r') as f:
             dialogs.extend(json.load(f))
-        f.close()
+            f.close()
     return dialogs
 
 

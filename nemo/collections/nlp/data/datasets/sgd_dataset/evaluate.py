@@ -49,7 +49,7 @@ def get_service_set(schema_path):
         schema = json.load(f)
         for service in schema:
             service_set.add(service["service_name"])
-    f.close()
+        f.close()
     return service_set
 
 
@@ -76,7 +76,7 @@ def get_dataset_as_dict(file_path_patterns):
                     dataset_dict[dial["dialogue_id"]] = dial
             elif isinstance(data, dict):
                 dataset_dict.update(data)
-        f.close()
+            f.close()
     return dataset_dict
 
 

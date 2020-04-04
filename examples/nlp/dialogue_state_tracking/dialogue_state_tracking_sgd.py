@@ -9,7 +9,6 @@ import os
 import pickle
 
 import numpy as np
-import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -76,7 +75,6 @@ parser.add_argument(
     help="Proportion of training to perform linear learning rate warmup for. " "E.g., 0.1 = 10% of training.",
 )
 parser.add_argument("--grad_norm_clip", type=float, default=1, help="Gradient clipping")
-parser.add_argument("--save_epoch_freq", default=1, type=int, help="How often to save the model checkpoint.")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--num_gpus", default=1, type=int)
@@ -125,7 +123,18 @@ parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether t
 parser.add_argument(
     "--eval_dataset", type=str, default="dev", choices=["dev", "test"], help="Dataset split for evaluation."
 )
-parser.add_argument("--ckpt_save_freq", type=int, default=1000, help="How often to save checkpoints")
+parser.add_argument(
+    "--save_epoch_freq",
+    default=1,
+    type=int,
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
+)
+parser.add_argument(
+    "--save_step_freq",
+    default=-1,
+    type=int,
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
+)
 
 args = parser.parse_args()
 
@@ -139,7 +148,7 @@ nf = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
-    create_tb_writer=True,
+    # create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
@@ -328,22 +337,18 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     step_freq=steps_per_epoch // 10,
 )
 
-master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-if master_device:
-    # we'll write predictions to file in DSTC8 format during evaluation callback
-    input_json_files = [
-        os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
-        for fid in data_utils.FILE_RANGES[args.task_name][args.eval_dataset]
-    ]
+# we'll write predictions to file in DSTC8 format during evaluation callback
+input_json_files = [
+    os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
+    for fid in data_utils.FILE_RANGES[args.task_name][args.eval_dataset]
+]
 
-    schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
+schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
-    # Write predictions to file in DSTC8 format.
-    prediction_dir = os.path.join(
-        nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name)
-    )
-    output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
-    os.makedirs(prediction_dir, exist_ok=True)
+# Write predictions to file in DSTC8 format.
+prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
+output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
+os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
@@ -357,7 +362,9 @@ eval_callback = nemo.core.EvaluatorCallback(
     eval_step=10 * steps_per_epoch,
 )
 
-ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.ckpt_save_freq)
+ckpt_callback = nemo.core.CheckpointCallback(
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
+)
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
