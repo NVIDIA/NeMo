@@ -175,6 +175,7 @@ def create_all_dags(args, neural_factory):
             folder=args.checkpoint_dir, 
             load_from_folder=args.checkpoint_dir, #load dir
             step_freq=args.checkpoint_save_freq,
+            checkpoints_to_keep=125
         )
 
         callbacks.append(chpt_callback)
