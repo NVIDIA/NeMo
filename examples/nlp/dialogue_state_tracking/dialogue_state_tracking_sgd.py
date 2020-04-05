@@ -143,6 +143,8 @@ args = parser.parse_args()
 
 logging.info(args)
 
+num_workers = 0
+
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
 
@@ -199,7 +201,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dialogues_processor=dialogues_processor,
     batch_size=args.train_batch_size,
     shuffle=not args.no_shuffle,
-    num_workers=-1,
+    num_workers=num_workers,
 )
 
 train_data = train_datalayer()
@@ -269,6 +271,7 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dialogues_processor=dialogues_processor,
     batch_size=args.eval_batch_size,
     shuffle=False,
+    num_workers=num_workers,
 )
 
 # Encode the utterances using BERT
