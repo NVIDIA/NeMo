@@ -270,7 +270,7 @@ class SchemaEmbeddingDataset(Dataset):
             service = self.schemas.get_service_from_id(service_id)
 
             if service not in completed_services:
-                logging.info("Generating embeddings for service {service}.")
+                logging.info(f"Generating embeddings for service {service}.")
                 completed_services.add(service)
             tensor_name = self.features["embedding_tensor_name"][idx]
             emb_mat = schema_embeddings[service_id][tensor_name]
