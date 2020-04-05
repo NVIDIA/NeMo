@@ -137,7 +137,6 @@ def create_all_dags(args, neural_factory):
         emb_size=args.emb_size,
         covr=True
         )
-    
     if os.path.exists(args.checkpoint_dir+'/JasperEncoder-STEP-100.pt'):
         encoder.restore_from(args.checkpoint_dir+'/JasperEncoder-STEP-100.pt')
         logging.info('Pretrained Encoder loaded')

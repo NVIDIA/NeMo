@@ -356,7 +356,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
         if self._midEmbd1:
             self.decoder_layers = nn.Sequential(
                     nn.Linear(self._feat_in,self._midEmbd1),
-                    nn.BatchNorm1d(self._midEmbd1),
+                    nn.BatchNorm1d(self._midEmbd1,affine=False,track_running_stats=True),
                     nn.ReLU(),
                     nn.Linear(self._midEmbd1,self._num_classes)
                     # nn.Linear(self._midEmbd1,self._midEmbd2),
@@ -375,7 +375,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
     def forward(self, encoder_output):
         pool = self._pooling(encoder_output)
         if self._midEmbd1:
-            return self.decoder_layers(pool), self.decoder_layers[0](pool)
+            return self.decoder_layers(pool), self.decoder_layers[:2](pool)
         return self.decoder_layers(pool)
 
 
