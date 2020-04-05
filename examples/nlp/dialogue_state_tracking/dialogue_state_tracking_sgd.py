@@ -61,8 +61,7 @@ parser.add_argument(
 # Hyperparameters and optimization related flags.
 parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
 parser.add_argument("--eval_batch_size", default=8, type=int, help="Total batch size for eval.")
-parser.add_argument("--predict_batch_size", default=8, type=int, help="Total batch size for predict.")
-parser.add_argument("--num_epochs", default=80.0, type=int, help="Total number of training epochs to perform.")
+parser.add_argument("--num_epochs", default=80, type=int, help="Total number of training epochs to perform.")
 
 parser.add_argument("--optimizer_kind", default="adam_w", type=str)
 parser.add_argument("--learning_rate", default=1e-4, type=float, help="The initial learning rate for Adam.")
@@ -136,6 +135,10 @@ parser.add_argument(
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 
+parser.add_argument(
+    "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
+)
+
 args = parser.parse_args()
 
 logging.info(args)
@@ -196,6 +199,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dialogues_processor=dialogues_processor,
     batch_size=args.train_batch_size,
     shuffle=not args.no_shuffle,
+    num_workers=-1,
 )
 
 train_data = train_datalayer()
@@ -359,7 +363,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file
     ),
     tb_writer=nf.tb_writer,
-    eval_step=10 * steps_per_epoch,
+    eval_step=args.eval_epoch_freq * steps_per_epoch,
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(

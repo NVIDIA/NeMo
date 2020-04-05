@@ -118,17 +118,16 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
     schema_json_file: Path for the json file containing the schemas.
     output_dir: The directory where output json files will be created.
   """
-    nemo.logging.info("Writing predictions to %s.", output_dir)
+    nemo.logging.info(f"Writing predictions to {output_dir} started.")
     schemas = schema.Schema(schema_json_file)
     # Index all predictions.
     all_predictions = {}
     for idx, prediction in enumerate(predictions):
         if not prediction["is_real_example"]:
             continue
-        if idx % 100 == 0:
-            nemo.logging.info(f'Processed {idx} examples')
         _, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
         all_predictions[(dialog_id, turn_id, service_name)] = prediction
+    nemo.logging.info(f'Predictions for {idx} examples processed.')
 
     # Read each input file and write its predictions.
     for input_file_path in input_json_files:
