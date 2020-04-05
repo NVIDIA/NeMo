@@ -537,7 +537,6 @@ class PtActions(Actions):
                         batch_size=dl_nm.batch_size,
                         shuffle=dl_nm.shuffle,
                         pin_memory=True,
-
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -691,7 +690,6 @@ class PtActions(Actions):
                         batch_size=dl_nm.batch_size,
                         shuffle=False,
                         pin_memory=True,
-
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator

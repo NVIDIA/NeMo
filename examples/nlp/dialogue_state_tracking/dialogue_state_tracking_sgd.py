@@ -158,7 +158,7 @@ nf = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
-    # create_tb_writer=True,
+    create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
