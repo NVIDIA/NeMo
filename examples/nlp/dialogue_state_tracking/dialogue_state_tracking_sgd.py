@@ -139,11 +139,16 @@ parser.add_argument(
     "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
 )
 
+parser.add_argument(
+    "--num_workers",
+    default=-1,
+    type=int,
+    help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
+)
+
 args = parser.parse_args()
 
 logging.info(args)
-
-num_workers = -1
 
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
@@ -201,7 +206,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dialogues_processor=dialogues_processor,
     batch_size=args.train_batch_size,
     shuffle=not args.no_shuffle,
-    num_workers=num_workers,
+    num_workers=args.num_workers,
 )
 
 train_data = train_datalayer()
@@ -271,7 +276,7 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dialogues_processor=dialogues_processor,
     batch_size=args.eval_batch_size,
     shuffle=False,
-    num_workers=num_workers,
+    num_workers=args.num_workers,
 )
 
 # Encode the utterances using BERT
