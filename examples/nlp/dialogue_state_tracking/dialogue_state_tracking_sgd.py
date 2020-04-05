@@ -61,8 +61,7 @@ parser.add_argument(
 # Hyperparameters and optimization related flags.
 parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
 parser.add_argument("--eval_batch_size", default=8, type=int, help="Total batch size for eval.")
-parser.add_argument("--predict_batch_size", default=8, type=int, help="Total batch size for predict.")
-parser.add_argument("--num_epochs", default=80.0, type=int, help="Total number of training epochs to perform.")
+parser.add_argument("--num_epochs", default=80, type=int, help="Total number of training epochs to perform.")
 
 parser.add_argument("--optimizer_kind", default="adam_w", type=str)
 parser.add_argument("--learning_rate", default=1e-4, type=float, help="The initial learning rate for Adam.")
@@ -75,7 +74,6 @@ parser.add_argument(
     help="Proportion of training to perform linear learning rate warmup for. " "E.g., 0.1 = 10% of training.",
 )
 parser.add_argument("--grad_norm_clip", type=float, default=1, help="Gradient clipping")
-parser.add_argument("--save_epoch_freq", default=1, type=int, help="How often to save the model checkpoint.")
 parser.add_argument("--local_rank", default=None, type=int)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--num_gpus", default=1, type=int)
@@ -120,10 +118,26 @@ parser.add_argument(
     "--overwrite_dial_files", action="store_true", help="Whether to generate a new file saving the dialogue examples."
 )
 parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
+parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
     "--eval_dataset", type=str, default="dev", choices=["dev", "test"], help="Dataset split for evaluation."
 )
-parser.add_argument("--ckpt_save_freq", type=int, default=1000, help="How often to save checkpoints")
+parser.add_argument(
+    "--save_epoch_freq",
+    default=1,
+    type=int,
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
+)
+parser.add_argument(
+    "--save_step_freq",
+    default=-1,
+    type=int,
+    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
+)
+
+parser.add_argument(
+    "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
+)
 
 args = parser.parse_args()
 
@@ -137,8 +151,9 @@ nf = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
-    create_tb_writer=True,
+    # create_tb_writer=True,
     files_to_copy=[__file__],
+    add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
 pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
@@ -184,6 +199,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dialogues_processor=dialogues_processor,
     batch_size=args.train_batch_size,
     shuffle=not args.no_shuffle,
+    num_workers=-1,
 )
 
 train_data = train_datalayer()
@@ -288,8 +304,6 @@ eval_encoded_utterance, eval_token_embeddings = encoder(hidden_states=eval_token
     intent_embeddings=eval_data.intent_emb,
 )
 
-train_tensors = [loss]
-
 eval_tensors = [
     eval_data.example_id_num,
     eval_data.service_id,
@@ -312,19 +326,20 @@ eval_tensors = [
     eval_data.num_noncategorical_slots,
 ]
 
+
 steps_per_epoch = math.ceil(len(train_datalayer) / (args.train_batch_size * args.num_gpus))
 
 logging.info(f'steps per epoch: {steps_per_epoch}')
 
+train_tensors = [loss]
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: logging.info("Loss: {:.8f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
-    step_freq=steps_per_epoch,
+    step_freq=steps_per_epoch // 10,
 )
-
 
 # we'll write predictions to file in DSTC8 format during evaluation callback
 input_json_files = [
@@ -335,8 +350,8 @@ input_json_files = [
 schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
 # Write predictions to file in DSTC8 format.
-prediction_dir = os.path.join(args.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
-output_metric_file = os.path.join(args.work_dir, 'metrics.txt')
+prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
+output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
 os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
@@ -348,10 +363,12 @@ eval_callback = nemo.core.EvaluatorCallback(
         x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file
     ),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=args.eval_epoch_freq * steps_per_epoch,
 )
 
-ckpt_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.ckpt_save_freq)
+ckpt_callback = nemo.core.CheckpointCallback(
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
+)
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
@@ -371,3 +388,5 @@ nf.train(
         "grad_norm_clip": args.grad_norm_clip,
     },
 )
+
+logging.info('********End of script***********')

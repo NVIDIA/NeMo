@@ -17,6 +17,7 @@
 import torch
 from torch import nn
 
+from nemo import logging
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import STATUS_ACTIVE
 from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, LossType, NeuralType
@@ -95,7 +96,7 @@ class SGDDialogueStateLoss(LossNM):
 
     def _get_mask(self, max_number, values):
 
-        mask = torch.arange(0, max_number, 1).to(self._device) < torch.unsqueeze(values, dim=-1)
+        mask = torch.arange(0, max_number, 1, device=self._device) < torch.unsqueeze(values, dim=-1)
         return mask.view(-1)
 
     def _loss_function(
@@ -132,7 +133,7 @@ class SGDDialogueStateLoss(LossNM):
         # Add label corresponding to NONE intent.
         num_active_intents = torch.sum(intent_status, axis=1).unsqueeze(1)
         none_intent_label = (
-            torch.ones(num_active_intents.size(), dtype=torch.long).to(self._device) - num_active_intents
+            torch.ones(num_active_intents.size(), dtype=intent_status.dtype, device=self._device) - num_active_intents
         )
         # Shape: (batch_size, max_num_intents + 1).
         onehot_intent_labels = torch.cat([none_intent_label, intent_status], axis=1)
@@ -155,6 +156,7 @@ class SGDDialogueStateLoss(LossNM):
         cat_slot_status_mask = self._get_mask(max_num_cat_slots, num_categorical_slots)
 
         if sum(cat_slot_status_mask) == 0:
+            logging.warning(f'No active categorical slots in the batch')
             cat_slot_status_loss = 0
         else:
             cat_slot_status_loss = self._cross_entropy(
@@ -170,6 +172,7 @@ class SGDDialogueStateLoss(LossNM):
         cat_slot_value_mask = (categorical_slot_status == STATUS_ACTIVE).view(-1)
         # to handle cases with no active categorical slot value
         if sum(cat_slot_value_mask) == 0:
+            logging.warning(f'No active categorical slots in the batch')
             cat_slot_value_loss = 0
         else:
             slot_values_active_logits = logit_cat_slot_value.view(-1, max_num_slot_values)[cat_slot_value_mask]

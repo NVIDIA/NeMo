@@ -277,7 +277,9 @@ class SGDModel(TrainableNM):
         # Mask out invalid logits for padded tokens.
         utterance_mask = utterance_mask.to(bool)  # Shape: (batch_size, max_num_tokens).
         repeated_utterance_mask = utterance_mask.unsqueeze(1).unsqueeze(3).repeat(1, max_num_slots, 1, 2)
-        negative_logits = -0.7 * torch.ones(span_logits.size()).to(self._device) * torch.finfo(span_logits.dtype).max
+        negative_logits = (torch.finfo(span_logits.dtype).max * -0.7) * torch.ones(
+            span_logits.size(), device=self._device, dtype=span_logits.dtype
+        )
 
         span_logits = torch.where(repeated_utterance_mask, span_logits, negative_logits)
 
@@ -286,6 +288,8 @@ class SGDModel(TrainableNM):
         return status_logits, span_start_logits, span_end_logits
 
     def _get_mask(self, logits, max_length, actual_length):
-        mask = torch.arange(0, max_length, 1).to(self._device) < torch.unsqueeze(actual_length, dim=-1)
-        negative_logits = -0.7 * torch.ones(logits.size()).to(self._device) * torch.finfo(logits.dtype).max
+        mask = torch.arange(0, max_length, 1, device=self._device) < torch.unsqueeze(actual_length, dim=-1)
+        negative_logits = (torch.finfo(logits.dtype).max * -0.7) * torch.ones(
+            logits.size(), device=self._device, dtype=logits.dtype
+        )
         return mask, negative_logits

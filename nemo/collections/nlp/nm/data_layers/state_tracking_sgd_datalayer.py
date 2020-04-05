@@ -78,7 +78,7 @@ class SGDDataLayer(TextDataLayer):
         dataset_type=SGDDataset,
         shuffle=False,
         batch_size=1,
-        num_workers=0,
+        num_workers=-1,
     ):
 
         dataset_params = {
@@ -89,4 +89,4 @@ class SGDDataLayer(TextDataLayer):
             'schema_emb_processor': schema_emb_processor,
             'dialogues_processor': dialogues_processor,
         }
-        super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)
+        super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)

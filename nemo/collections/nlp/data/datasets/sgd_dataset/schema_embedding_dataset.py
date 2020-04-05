@@ -23,6 +23,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
 
 # Separator to separate the two sentences in BERT's input sequence.
@@ -269,7 +270,7 @@ class SchemaEmbeddingDataset(Dataset):
             service = self.schemas.get_service_from_id(service_id)
 
             if service not in completed_services:
-                print("Generating embeddings for service %s.", service)
+                logging.info("Generating embeddings for service {service}.")
                 completed_services.add(service)
             tensor_name = self.features["embedding_tensor_name"][idx]
             emb_mat = schema_embeddings[service_id][tensor_name]
@@ -311,7 +312,7 @@ class SchemaEmbeddingDataset(Dataset):
         if master_device:
             with open(output_file, "wb") as f_s:
                 np.save(f_s, schema_embeddings)
-            f_s.close()
+                f_s.close()
 
 
 class InputFeatures(object):

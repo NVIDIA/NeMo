@@ -31,7 +31,7 @@ import torch
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
 
-torch.multiprocessing.set_sharing_strategy('file_system')
+# torch.multiprocessing.set_sharing_strategy('file_system')
 
 __all__ = [
     'EMBEDDING_DIMENSION',
@@ -108,7 +108,9 @@ class Dstc8DataProcessor(object):
             schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
             self.schema_pkl_files[dataset] = schema_pkl_file
             if os.path.exists(schema_pkl_file):
-                self._schemas[dataset] = pickle.load(open(schema_pkl_file, "rb"))
+                with open(schema_pkl_file, "rb") as f:
+                    self._schemas[dataset] = pickle.load(f)
+                    f.close()
 
     def get_dialog_examples(self, dataset):
         """Return a list of `InputExample`s of the data splits' dialogues.
@@ -138,7 +140,9 @@ class Dstc8DataProcessor(object):
 
     def _save_schemas(self, dataset):
         schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
-        pickle.dump(self._schemas[dataset], open(schema_pkl_file, "wb"))
+        with open(schema_pkl_file, "wb") as f:
+            pickle.dump(self._schemas[dataset], f)
+            f.close()
 
     def get_service_names_to_id_dict(self, dataset):
         if dataset not in self._schemas:
@@ -688,6 +692,7 @@ def load_dialogues(dialog_json_filepaths):
     for dialog_json_filepath in sorted(dialog_json_filepaths):
         with open(dialog_json_filepath, 'r') as f:
             dialogs.extend(json.load(f))
+            f.close()
     return dialogs
 
 
