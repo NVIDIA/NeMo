@@ -143,7 +143,7 @@ args = parser.parse_args()
 
 logging.info(args)
 
-num_workers = 2
+num_workers = -1
 
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
