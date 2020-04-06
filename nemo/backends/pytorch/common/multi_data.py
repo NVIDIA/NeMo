@@ -104,7 +104,7 @@ class MultiDataset(torch.utils.data.Dataset):
     ):
         """
         Datasets: list of torch.utils.data.Dataset objects.
-        combination_mode: str, defines how to combine the datasets, Options are ["cross_product", "zip"]. 
+        combination_mode: DataCombination, defines how to combine the datasets, Options are [DataCombination.CROSSPRODUCT, DataCombination.ZIP]. 
         """
         self.datasets = datasets
         self.combination_mode = combination_mode
@@ -120,7 +120,7 @@ class MultiDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         """
-        Returns tuple (x1, x2, ...xn) where x1 \in D1, x2 \in D2, ...xn\ Dn
+        Returns list [x1, x2, ...xn] where x1 \in D1, x2 \in D2, ...xn\ Dn
         """
 
         return [x for d in self.datasets for x in d[i % len(d)]]
@@ -128,7 +128,7 @@ class MultiDataset(torch.utils.data.Dataset):
     def __len__(self):
         """
         Returns length of this dataset (int).
-        In case of  combination_mode="cross_product" this would be prod(len(d) for d in self.datasets). 
-        In case of  combination_mode="zip" this would be min(len(d) for d in self.datasets) given that all datasets have same length. 
+        In case of  DataCombination.CROSSPRODUCT this would be prod(len(d) for d in self.datasets). 
+        In case of  DataCombination.ZIP this would be min(len(d) for d in self.datasets) given that all datasets have same length. 
         """
         return self.len
