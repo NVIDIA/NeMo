@@ -49,6 +49,8 @@ __all__ = [
     'if_exist',
     'remove_punctuation_from_sentence',
     'dataset_to_ids',
+    'get_freq_weights',
+    'fill_class_weights',
     'calc_class_weights',
 ]
 
@@ -71,13 +73,16 @@ def get_label_stats(labels, outfile='stats.tsv'):
     total = sum(labels.values())
     out = open(outfile, 'w')
     i = 0
+    freq_dict = {}
     label_frequencies = labels.most_common()
     for k, v in label_frequencies:
         out.write(f'{k}\t{v / total}\n')
         if i < 3:
             logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1
-    return total, label_frequencies
+        freq_dict[k] = v
+
+    return total, freq_dict, max(labels.keys())
 
 
 def partition_data(intent_queries, slot_tags, split=0.1):
@@ -314,19 +319,42 @@ def dataset_to_ids(dataset, tokenizer, cache_ids=False, add_bos_eos=True):
     return ids
 
 
-def calc_class_weights(label_freq):
+def get_freq_weights(label_freq):
     """
     Goal is to give more weight to the classes with less samples
-    so as to match the one with the higest frequency. We achieve this by
-    dividing the highest frequency by the freq of each label.
-    Example -
-    [12, 5, 3] -> [12/12, 12/5, 12/3] -> [1, 2.4, 4]
-
-    Here label_freq is assumed to be sorted by the frequency. I.e.
-    label_freq[0] is the most frequent element.
-
+    so as to match the ones with the higher frequencies. We achieve this by
+    dividing the total frequency by the freq of each label to calculate its weight.
     """
+    total_size = 0
+    for lf in label_freq.values():
+        total_size += lf
+    weighted_slots = {label: (total_size / (len(label_freq) * freq)) for label, freq in label_freq.items()}
+    return weighted_slots
 
-    most_common_label_freq = label_freq[0]
-    weighted_slots = sorted([(index, most_common_label_freq[1] / freq) for (index, freq) in label_freq])
-    return [weight for (_, weight) in weighted_slots]
+
+def fill_class_weights(weights, max_id=-1):
+    """
+    Gets a dictionary of labels with their weights and creates a list with size of the labels filled with those weights.
+    Missing labels in the dictionary would get value 1.
+
+    Args:
+        weights: dictionary of weights for labels, labels as keys and weights are their values
+        max_id: the largest label id in the dataset, default=-1 would consider the largest label in the weights dictionary as max_id
+    Returns:
+        weights_list: list of weights for labels
+    """
+    if max_id < 0:
+        max_id = 0
+        for l in weights.keys():
+            max_id = max(max_id, l)
+
+    all_weights = [1.0] * (max_id + 1)
+    for i in range(len(all_weights)):
+        if i in weights:
+            all_weights[i] = weights[i]
+    return all_weights
+
+
+def calc_class_weights(label_freq, max_id=-1):
+    weights_dict = get_freq_weights(label_freq)
+    return fill_class_weights(weights_dict, max_id=max_id)

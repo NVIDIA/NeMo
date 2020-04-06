@@ -135,7 +135,7 @@ def get_features(
                 capit_all_labels[i] = [pad_id] + capit_all_labels[i][-max_seq_length + 1 :]
             too_long_count += 1
 
-        all_input_ids.append([tokenizer.tokens_to_ids(t) for t in subtokens])
+        all_input_ids.append(tokenizer.tokens_to_ids(subtokens))
 
         if len(subtokens) < max_seq_length:
             extra = max_seq_length - len(subtokens)
@@ -345,7 +345,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             infold = text_file[: text_file.rfind('/')]
             merged_labels = itertools.chain.from_iterable(all_labels)
             logging.info('Three most popular labels')
-            _, label_frequencies = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
+            _, label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
 
             out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
