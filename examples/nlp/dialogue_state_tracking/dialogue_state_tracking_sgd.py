@@ -23,9 +23,7 @@ from nemo.utils.lr_policies import get_lr_policy
 parser = argparse.ArgumentParser(description='Schema_guided_dst')
 
 # BERT based utterance encoder related arguments
-parser.add_argument(
-    "--bert_ckpt_dir", default=None, type=str, help="Directory containing pre-trained BERT checkpoint."
-)
+
 parser.add_argument(
     "--max_seq_length",
     default=80,
@@ -59,6 +57,7 @@ parser.add_argument(
 )
 
 # Hyperparameters and optimization related flags.
+parser.add_argument("--checkpoint_dir", default=None, type=str)
 parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
 parser.add_argument("--eval_batch_size", default=8, type=int, help="Total batch size for eval.")
 parser.add_argument("--num_epochs", default=80, type=int, help="Total number of training epochs to perform.")
@@ -159,6 +158,7 @@ nf = nemo.core.NeuralModuleFactory(
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
+    checkpoint_dir=args.checkpoint_dir,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
@@ -188,7 +188,7 @@ schema_preprocessor = SchemaPreprocessor(
     bert_model=pretrained_bert_model,
     datasets=['train', args.eval_dataset],
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
-    bert_ckpt_dir=args.bert_ckpt_dir,
+    bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
 )
 

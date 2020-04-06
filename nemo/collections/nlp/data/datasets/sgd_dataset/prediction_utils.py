@@ -18,6 +18,7 @@
 import collections
 import json
 import os
+import copy
 
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
@@ -51,7 +52,7 @@ def get_predicted_dialog(dialog, all_predictions, schemas):
             turn_id = "{:02d}".format(turn_idx)
             for frame in turn["frames"]:
                 predictions = all_predictions[(dialog_id, turn_id, frame["service"])]
-                slot_values = all_slot_values[frame["service"]]
+                slot_values = copy.deepcopy(all_slot_values[frame["service"]])
                 service_schema = schemas.get_service_schema(frame["service"])
                 # Remove the slot spans and state if present.
                 frame.pop("slots", None)
@@ -102,8 +103,11 @@ def get_predicted_dialog(dialog, all_predictions, schemas):
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
                 # Create a new dict to avoid overwriting the state in previous turns
                 # because of use of same objects.
-                state["slot_values"] = {s: [v] for s, v in slot_values.items()}
+                state["slot_values"] = {s: [v] for s, v in slot_values.items()} # maybe not necessary now
                 frame["state"] = state
+
+                all_slot_values[frame["service"]] = copy.deepcopy(slot_values)
+
     return dialog
 
 
@@ -127,7 +131,7 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
             continue
         _, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
         all_predictions[(dialog_id, turn_id, service_name)] = prediction
-    nemo.logging.info(f'Predictions for {idx} examples processed.')
+    nemo.logging.info(f'Predictions for {idx} examples are getting processed.')
 
     # Read each input file and write its predictions.
     for input_file_path in input_json_files:
