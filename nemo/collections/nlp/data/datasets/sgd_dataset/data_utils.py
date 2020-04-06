@@ -208,7 +208,7 @@ class Dstc8DataProcessor(object):
         dialog_id_1, dialog_id_2 = dialog_id.split('_')
         base_example.example_id_num = [int(dialog_id_1), int(dialog_id_2), int(turn_id_)]
         base_example.add_utterance_features(
-            system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, user_utterance, system_utterance
+            system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, system_utterance, user_utterance
         )
         examples = []
         for service, user_frame in user_frames.items():
