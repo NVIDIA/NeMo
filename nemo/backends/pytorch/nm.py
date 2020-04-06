@@ -320,6 +320,11 @@ class DataLayerNM(NeuralModule):
     #    """ Property setting the number of workers. """
     #    self._num_workers = nw
 
+    @property
+    def pin_memory(self):
+        """ Property returning the shuffle flag. """
+        return self._pin_memory
+
 
 class LossNM(NeuralModule):
     """A helper Base class for creating Pytorch-based loss function modules.
