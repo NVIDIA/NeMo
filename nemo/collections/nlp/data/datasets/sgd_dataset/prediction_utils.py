@@ -16,9 +16,9 @@
 """Prediction and evaluation-related utility functions."""
 
 import collections
+import copy
 import json
 import os
-import copy
 
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
