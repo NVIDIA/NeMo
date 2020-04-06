@@ -150,6 +150,12 @@ parser.add_argument(
     help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
 )
 
+parser.add_argument(
+    "--enable_pin_memory",
+    action="store_true",
+    help="Enabled the pin_memory feature of Pytroch's DataLoader",
+)
+
 args = parser.parse_args()
 
 logging.info(args)
@@ -199,7 +205,7 @@ schema_preprocessor = SchemaPreprocessor(
 
 # Dstc8Data
 dialogues_processor = data_utils.Dstc8DataProcessor(
-    args.task_name, args.data_dir, tokenizer=tokenizer, max_seq_length=args.max_seq_length, log_data_warnings=False
+    args.task_name, args.data_dir, tokenizer=tokenizer, max_seq_length=args.max_seq_length, log_data_warnings=False,
 )
 
 train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
@@ -212,6 +218,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     batch_size=args.train_batch_size,
     shuffle=not args.no_shuffle,
     num_workers=args.num_workers,
+    pin_memory=args.enable_pin_memory,
 )
 
 train_data = train_datalayer()
@@ -282,6 +289,7 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     batch_size=args.eval_batch_size,
     shuffle=False,
     num_workers=args.num_workers,
+    pin_memory=args.enable_pin_memory,
 )
 
 # Encode the utterances using BERT
