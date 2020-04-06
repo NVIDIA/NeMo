@@ -16,7 +16,6 @@
 """Prediction and evaluation-related utility functions."""
 
 import collections
-import copy
 import json
 import os
 

@@ -285,7 +285,7 @@ class SchemaEmbeddingDataset(Dataset):
             else:
                 emb_mat[intent_or_slot_id] = embedding
 
-    def save_embeddings(self, bert_hidden_states, output_file):
+    def get_embeddings(self, bert_hidden_states, output_file):
         """Generate schema element embeddings and save it as a numpy file."""
         schema_embeddings = []
         max_num_intent = data_utils.MAX_NUM_INTENT
@@ -308,11 +308,14 @@ class SchemaEmbeddingDataset(Dataset):
 
         # Populate the embeddings based on bert inference results and save them.
         self._populate_schema_embeddings(schema_embeddings, bert_hidden_states)
+
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         if master_device:
             with open(output_file, "wb") as f_s:
                 np.save(f_s, schema_embeddings)
+                logging.info(f"The schema embeddings saved at {output_file}")
                 f_s.close()
+        return schema_embeddings
 
 
 class InputFeatures(object):

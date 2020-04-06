@@ -16,44 +16,13 @@ __all__ = ['SGDDataset']
 
 class SGDDataset(Dataset):
     """ 
-    TODO: Update here
+    TODO
     """
 
     def __init__(
-        self,
-        task_name,
-        dialogues_example_dir,
-        overwrite_dial_file,
-        dataset_split,
-        schema_emb_processor,
-        dialogues_processor,
+        self, dataset_split, schema_emb_processor, dialogues_processor,
     ):
-
-        # Generate the dialogue examples if needed or specified.
-        dial_file_name = f"{task_name}_{dataset_split}_examples.processed"
-        dial_file = os.path.join(dialogues_example_dir, dial_file_name)
-
-        schema_pkl_files = dialogues_processor.schema_pkl_files
-        schema_pkl_exist = dataset_split in schema_pkl_files and os.path.exists(schema_pkl_files[dataset_split])
-
-        if os.path.exists(dial_file) and not overwrite_dial_file and schema_pkl_exist:
-            logging.info(f"Loading dialogue examples from {dial_file}.")
-            with open(dial_file, "rb") as f:
-                self.features = np.load(f, allow_pickle=True)
-                f.close()
-        else:
-            logging.info("Start generating the dialogue examples.")
-            self.features = dialogues_processor.get_dialog_examples(dataset_split)
-
-            master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-            if master_device:
-                if not os.path.exists(dialogues_example_dir):
-                    os.makedirs(dialogues_example_dir)
-                with open(dial_file, "wb") as f:
-                    np.save(f, self.features)
-                    f.close()
-                logging.info(f"The dialogue examples saved at {dial_file}")
-                logging.info("Finish generating the dialogue examples.")
+        self.features = dialogues_processor.get_dialog_examples(dataset_split)
         self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
 
     def __len__(self):

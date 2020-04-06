@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 import nemo
+from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
 from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import BertInferDataLayer
 
@@ -69,13 +70,11 @@ class SchemaPreprocessor:
         for dataset_split in datasets:
             schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
 
-            # Generate the schema embeddings if needed or specified
-            master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-            if master_device and not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
-                nemo.logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
+            if not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
+                # Generate the schema embeddings if needed or specified
+                logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
                 # create schema embedding if no file exists
                 schema_json_path = os.path.join(data_dir, dataset_split, "schema.json")
-
                 emb_datalayer = BertInferDataLayer(
                     dataset_type=SchemaEmbeddingDataset,
                     tokenizer=tokenizer,
@@ -88,34 +87,30 @@ class SchemaPreprocessor:
                 hidden_states = bert_model(
                     input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
                 )
-
                 evaluated_tensors = nf.infer(tensors=[hidden_states], checkpoint_dir=bert_ckpt_dir)
-
                 hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
-                emb_datalayer.dataset.save_embeddings(hidden_states, schema_embedding_file)
-
-                nemo.logging.info(f"The schema embeddings saved at {schema_embedding_file}")
-                nemo.logging.info("Finish generating the schema embeddings.")
+                self.schemas_dict[dataset_split] = emb_datalayer.dataset.get_embeddings(
+                    hidden_states, schema_embedding_file
+                )
+                logging.info(f"Finish generating the schema embeddings for {dataset_split} dataset.")
+            else:
+                with open(schema_embedding_file, "rb") as f:
+                    self.schemas_dict[dataset_split] = np.load(f, allow_pickle=True)
+                    f.close()
 
     def get_schema_embeddings(self, dataset_split):
-        schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
-
-        if not os.path.exists(schema_embedding_file):
-            raise ValueError(f"{schema_embedding_file} not found.")
-
-        with open(schema_embedding_file, "rb") as f:
-            schema_data = np.load(f, allow_pickle=True)
-            f.close()
-
         # Convert from list of dict to dict of list
         schema_data_dict = collections.defaultdict(list)
-        for service in schema_data:
+        if dataset_split not in dataset_split:
+            raise ValueError(
+                f"{dataset_split} was not processed. Re-initialize SchemaPreprocessor and add {dataset_split} dataset to datasets arg."
+            )
+        for service in self.schemas_dict[dataset_split]:
             schema_data_dict["cat_slot_emb"].append(service["cat_slot_emb"])
             schema_data_dict["cat_slot_value_emb"].append(service["cat_slot_value_emb"])
             schema_data_dict["noncat_slot_emb"].append(service["noncat_slot_emb"])
             schema_data_dict["req_slot_emb"].append(service["req_slot_emb"])
             schema_data_dict["intent_emb"].append(service["intent_emb"])
-
         return schema_data_dict
 
     def _get_schema_embedding_file_name(self, dataset_split):

@@ -69,9 +69,6 @@ class SGDDataLayer(TextDataLayer):
 
     def __init__(
         self,
-        task_name,
-        dialogues_example_dir,
-        overwrite_dial_file,
         dataset_split,
         schema_emb_processor,
         dialogues_processor,
@@ -82,9 +79,6 @@ class SGDDataLayer(TextDataLayer):
     ):
 
         dataset_params = {
-            'task_name': task_name,
-            'dialogues_example_dir': dialogues_example_dir,
-            'overwrite_dial_file': overwrite_dial_file,
             'dataset_split': dataset_split,
             'schema_emb_processor': schema_emb_processor,
             'dialogues_processor': dialogues_processor,

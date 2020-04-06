@@ -197,15 +197,18 @@ schema_preprocessor = SchemaPreprocessor(
     nf=nf,
 )
 
-# Dstc8Data
 dialogues_processor = data_utils.Dstc8DataProcessor(
-    args.task_name, args.data_dir, tokenizer=tokenizer, max_seq_length=args.max_seq_length, log_data_warnings=False
+    task_name=args.task_name,
+    dstc8_data_dir=args.data_dir,
+    dialogues_example_dir=args.dialogues_example_dir,
+    tokenizer=tokenizer,
+    max_seq_length=args.max_seq_length,
+    datasets=['train', args.eval_dataset],
+    overwrite_dial_files=args.overwrite_dial_files,
+    log_data_warnings=False,
 )
 
 train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
-    task_name=args.task_name,
-    dialogues_example_dir=args.dialogues_example_dir,
-    overwrite_dial_file=args.overwrite_dial_files,
     dataset_split='train',
     schema_emb_processor=schema_preprocessor,
     dialogues_processor=dialogues_processor,
@@ -213,8 +216,17 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     shuffle=not args.no_shuffle,
     num_workers=args.num_workers,
 )
+eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
+    dataset_split=args.eval_dataset,
+    schema_emb_processor=schema_preprocessor,
+    dialogues_processor=dialogues_processor,
+    batch_size=args.eval_batch_size,
+    shuffle=False,
+    num_workers=args.num_workers,
+)
 
 train_data = train_datalayer()
+eval_data = eval_datalayer()
 
 # define model pipeline
 encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
@@ -272,21 +284,8 @@ loss = dst_loss(
     noncategorical_slot_value_end=train_data.noncategorical_slot_value_end,
 )
 
-eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
-    task_name=args.task_name,
-    dialogues_example_dir=args.dialogues_example_dir,
-    overwrite_dial_file=args.overwrite_dial_files,
-    dataset_split=args.eval_dataset,
-    schema_emb_processor=schema_preprocessor,
-    dialogues_processor=dialogues_processor,
-    batch_size=args.eval_batch_size,
-    shuffle=False,
-    num_workers=args.num_workers,
-)
 
 # Encode the utterances using BERT
-eval_data = eval_datalayer()
-
 eval_token_embeddings = pretrained_bert_model(
     input_ids=eval_data.utterance_ids,
     attention_mask=eval_data.utterance_mask,
