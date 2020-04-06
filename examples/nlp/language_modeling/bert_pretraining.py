@@ -405,9 +405,11 @@ logging.info("steps per epoch", steps_per_epoch)
 # callback which prints training loss and perplexity once in a while
 if not args.only_mlm_loss:
     log_tensors = [train_loss, mlm_loss, nsp_loss]
+    eval_log_tensors = [eval_loss, eval_mlm_loss, eval_nsp_loss]
     print_msg = "Loss: {:.3f} MLM Loss: {:.3f} NSP Loss: {:.3f}"
 else:
     log_tensors = [train_loss]
+    eval_log_tensors = [eval_loss]
     print_msg = "Loss: {:.3f}"
 train_callback = nemo_core.SimpleLossLoggerCallback(
     tensors=log_tensors,
@@ -425,7 +427,7 @@ ckpt_callback = nemo_core.CheckpointCallback(
 )
 
 ckpt_eval = nemo.core.EvaluatorCallback(
-    eval_tensors=[eval_mlm_loss, eval_nsp_loss],
+    eval_tensors=eval_log_tensors,
     user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
     user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback,
     eval_step=args.eval_step_freq,
@@ -462,11 +464,15 @@ else:
 
 if args.grad_norm_clip >= 0:
     optimization_params['grad_norm_clip'] = args.grad_norm_clip
+call_backs = [train_callback, ckpt_callback, ckpt_eval]
+
+if 'data_preprocessed' in sys.argv:
+    call_backs = [train_callback, ckpt_callback]
 
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,
-    callbacks=[train_callback, ckpt_callback, ckpt_eval],
+    callbacks=call_backs,
     optimizer=args.optimizer,
     batches_per_step=args.batches_per_step,
     gradient_predivide=args.gradient_predivide,
