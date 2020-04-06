@@ -121,6 +121,8 @@ class Dstc8DataProcessor(object):
         Returns:
           examples: a list of `InputExample`s.
         """
+        logging.info(f'Creating examples from the dialogues started...')
+
         dialog_paths = [
             os.path.join(self.dstc8_data_dir, dataset, "dialogues_{:03d}.json".format(i))
             for i in self._file_ranges[dataset]
@@ -136,6 +138,8 @@ class Dstc8DataProcessor(object):
             if dialog_idx % 1000 == 0:
                 logging.info(f'Processed {dialog_idx} dialogs.')
             examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset))
+
+        logging.info(f'Finished creating the examples from {dialog_idx} dialogues.')
         return examples
 
     def _save_schemas(self, dataset):
