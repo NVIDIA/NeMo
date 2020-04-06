@@ -26,6 +26,7 @@ import os
 import pickle
 import re
 
+import numpy as np
 import torch
 
 from nemo import logging
@@ -84,10 +85,22 @@ PER_FRAME_OUTPUT_FILENAME = "dialogues_and_metrics.json"
 class Dstc8DataProcessor(object):
     """Data generator for dstc8 dialogues."""
 
-    def __init__(self, task_name, dstc8_data_dir, tokenizer, max_seq_length, log_data_warnings):
+    def __init__(
+        self,
+        task_name,
+        dstc8_data_dir,
+        dialogues_example_dir,
+        tokenizer,
+        max_seq_length,
+        datasets=["train", "dev", "test"],
+        overwrite_dial_files=False,
+        log_data_warnings=False,
+    ):
 
         self.dstc8_data_dir = dstc8_data_dir
+        self.dialogues_examples_dir = dialogues_example_dir
         self._log_data_warnings = log_data_warnings
+        self._task_name = task_name
 
         train_file_range = FILE_RANGES[task_name]["train"]
         dev_file_range = FILE_RANGES[task_name]["dev"]
@@ -104,15 +117,49 @@ class Dstc8DataProcessor(object):
 
         self._schemas = {}
         self.schema_pkl_files = {}
-        for dataset in ["train", "dev", "test"]:
-            schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
+        self.dial_files = {}
+
+        for dataset in datasets:
+            # load schema_pkl_file to convert Service id to service name during evaluation
+            schema_pkl_file = os.path.join(dialogues_example_dir, "{}_{}_schema.pkl".format(task_name, dataset))
             self.schema_pkl_files[dataset] = schema_pkl_file
             if os.path.exists(schema_pkl_file):
                 with open(schema_pkl_file, "rb") as f:
                     self._schemas[dataset] = pickle.load(f)
                     f.close()
 
+            # Process dialogue files
+            dial_file = f"{task_name}_{dataset}_examples.processed"
+            dial_file = os.path.join(dialogues_example_dir, dial_file)
+            self.dial_files[(task_name, dataset)] = dial_file
+
+            if not os.path.exists(dial_file) or overwrite_dial_files or not os.path.exists(schema_pkl_file):
+                logging.info(f"Start generating the dialogue examples for {dataset} dataset.")
+                dial_examples = self._generate_dialog_examples(dataset)
+                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+                if master_device:
+                    if not os.path.exists(dialogues_example_dir):
+                        os.makedirs(dialogues_example_dir)
+                    with open(dial_file, "wb") as f:
+                        np.save(f, dial_examples)
+                        f.close()
+                    logging.info(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
+                logging.info(f"Finish generating the dialogue examples for {dataset} dataset.")
+
     def get_dialog_examples(self, dataset):
+        if (self._task_name, dataset) not in self.dial_files:
+            raise ValueError(
+                f"{dataset_split} dialogue examples were not processed for {self._task_name} task. Re-initialize Dstc8DataProcessor and add {dataset_split} dataset to datasets arg."
+            )
+
+        dial_file = self.dial_files[(self._task_name, dataset)]
+        logging.info(f"Loading dialogue examples from {dial_file}.")
+        with open(dial_file, "rb") as f:
+            dial_examples = np.load(f, allow_pickle=True)
+            f.close()
+        return dial_examples
+
+    def _generate_dialog_examples(self, dataset):
         """Return a list of `InputExample`s of the data splits' dialogues.
 
         Args:
@@ -122,7 +169,6 @@ class Dstc8DataProcessor(object):
           examples: a list of `InputExample`s.
         """
         logging.info(f'Creating examples from the dialogues started...')
-
         dialog_paths = [
             os.path.join(self.dstc8_data_dir, dataset, "dialogues_{:03d}.json".format(i))
             for i in self._file_ranges[dataset]
@@ -143,17 +189,26 @@ class Dstc8DataProcessor(object):
         return examples
 
     def _save_schemas(self, dataset):
-        schema_pkl_file = os.path.join(self.dstc8_data_dir, dataset, "_schema.pkl")
-        with open(schema_pkl_file, "wb") as f:
+        if dataset not in self.schema_pkl_files:
+            raise ValueError(
+                f"{dataset} schema was not processed. Re-initialize Dstc8DataProcessor and add {dataset_split} dataset to datasets arg."
+            )
+        with open(self.schema_pkl_files[dataset], "wb") as f:
             pickle.dump(self._schemas[dataset], f)
             f.close()
 
     def get_service_names_to_id_dict(self, dataset):
         if dataset not in self._schemas:
-            raise ValueError(f"schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files")
+            raise ValueError(
+                f"Schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files and add {dataset} dataset to Dstc8DataProcessor"
+            )
         return self._schemas[dataset]._services_vocab
 
     def get_ids_to_service_names_dict(self, dataset):
+        if dataset not in self._schemas:
+            raise ValueError(
+                f"Schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files and add {dataset} dataset to Dstc8DataProcessor"
+            )
         return self._schemas[dataset]._services_id_to_vocab
 
     def _create_examples_from_dialog(self, dialog, schemas, dataset):
