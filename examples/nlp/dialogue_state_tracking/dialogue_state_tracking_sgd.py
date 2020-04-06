@@ -57,7 +57,7 @@ parser.add_argument(
 )
 
 # Hyperparameters and optimization related flags.
-parser.add_argument("--checkpoint_dir", default=None, type=str)
+parser.add_argument("--checkpoint_dir", default=None, type=str, help="The folder containing the checkpoints for the model to continue training")
 parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
 parser.add_argument("--eval_batch_size", default=8, type=int, help="Total batch size for eval.")
 parser.add_argument("--num_epochs", default=80, type=int, help="Total number of training epochs to perform.")
