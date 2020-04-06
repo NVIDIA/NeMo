@@ -59,7 +59,9 @@ def NeuralGraphDecorator(func):
 
         # Return our new compose neural module
         return g0
+
     return wrapper
+
 
 @NeuralGraphDecorator
 def my_DAG():
@@ -67,6 +69,7 @@ def my_DAG():
     p = m2(x=x)
     lss = loss(predictions=p, target=t)
     return lss
+
 
 graph = my_DAG()
 lss = graph.output_ports
