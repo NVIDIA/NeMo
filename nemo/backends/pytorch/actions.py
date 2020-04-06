@@ -517,10 +517,10 @@ class PtActions(Actions):
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=sampler,
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
+                        num_workers=dl_nm._num_workers,
+                        batch_size=dl_nm._batch_size,
                         shuffle=False,
-                        pin_mmeory=dl_nm.pin_memory,
+                        pin_memory=dl_nm._pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -533,10 +533,10 @@ class PtActions(Actions):
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=dl_nm.shuffle,
-                        pin_mmeory=dl_nm.pin_memory,
+                        num_workers=dl_nm._num_workers,
+                        batch_size=dl_nm._batch_size,
+                        shuffle=dl_nm._shuffle,
+                        pin_memory=dl_nm._pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -686,10 +686,10 @@ class PtActions(Actions):
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=sampler,
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
+                        num_workers=dl_nm._num_workers,
+                        batch_size=dl_nm._batch_size,
                         shuffle=False,
-                        pin_mmeory=dl_nm.pin_memory,
+                        pin_memory=dl_nm._pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -702,10 +702,10 @@ class PtActions(Actions):
                     eval_dataloader = torch.utils.data.DataLoader(
                         dataset=dl_nm.dataset,
                         sampler=None,  # not distributed sampler
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=dl_nm.shuffle,
-                        pin_mmeory=dl_nm.pin_memory,
+                        num_workers=dl_nm._num_workers,
+                        batch_size=dl_nm._batch_size,
+                        shuffle=dl_nm._shuffle,
+                        pin_memory=dl_nm._pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -1202,10 +1202,10 @@ class PtActions(Actions):
                 train_dataloader = torch.utils.data.DataLoader(
                     dataset=t_dataset,
                     sampler=train_sampler,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
+                    num_workers=dataNM._num_workers,
+                    batch_size=dataNM._batch_size,
                     shuffle=False,
-                    pin_mmeory=dataNM.pin_memory,
+                    pin_memory=dataNM._pin_memory,
                 )
             else:
                 train_dataloader = dataNM.data_iterator
@@ -1282,10 +1282,10 @@ class PtActions(Actions):
                 train_dataloader = torch.utils.data.DataLoader(
                     dataset=t_dataset,
                     sampler=None,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
-                    shuffle=dataNM.shuffle,
-                    pin_mmeory=dataNM.pin_memory,
+                    num_workers=dataNM._num_workers,
+                    batch_size=dataNM._batch_size,
+                    shuffle=dataNM._shuffle,
+                    pin_memory=dataNM._pin_memory,
                 )
             else:
                 train_dataloader = dataNM.data_iterator
