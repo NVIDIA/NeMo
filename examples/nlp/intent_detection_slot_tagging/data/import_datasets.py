@@ -19,9 +19,9 @@ import os
 import shutil
 from os.path import exists
 
+from assistant_utils import process_assistant
 from dialogflow_utils import process_dialogflow
 from mturk_utils import process_mturk
-from assistant_utils import process_assistant
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import (
@@ -239,7 +239,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--target_data_dir", required=True, type=str, help='path to save the processed dataset')
     parser.add_argument("--do_lower_case", action='store_true')
-    parser.add_argument("--ignore_prev_intent", action='store_true', help='ignores previous intent while importing datasets in jarvis\'s format')
+    parser.add_argument(
+        "--ignore_prev_intent",
+        action='store_true',
+        help='ignores previous intent while importing datasets in jarvis\'s format',
+    )
     parser.add_argument("--use_full_dataset", default=True, help='using full dataset for assistant\'s format')
     args = parser.parse_args()
 

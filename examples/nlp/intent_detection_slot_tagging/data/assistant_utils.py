@@ -15,30 +15,37 @@
 # =============================================================================
 
 import os
-import shutil
 import re
+import shutil
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist, write_files
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
+    DATABASE_EXISTS_TMP,
+    if_exist,
+    write_files,
+)
 
 
 # put training files in convenient place for conversion to our format
 def copy_input_files(infold):
-    our_infold = infold+"/dataset"
+    our_infold = infold + "/dataset"
 
-    if os.path.exists(our_infold+"/trainset") and os.path.exists(our_infold+"/testset"):
+    if os.path.exists(our_infold + "/trainset") and os.path.exists(our_infold + "/testset"):
         logging.info("Input folders exists")
         return
 
     logging.info(f"Copying files to input folder: {our_infold}")
     os.makedirs(infold, exist_ok=True)
 
-    old_infold = infold + '/CrossValidation/autoGeneFromRealAnno/autoGene_2018_03_22-13_01_25_169/CrossValidation/KFold_1'
+    old_infold = (
+        infold + '/CrossValidation/autoGeneFromRealAnno/autoGene_2018_03_22-13_01_25_169/CrossValidation/KFold_1'
+    )
     if not os.path.exists(our_infold + "/trainset"):
-        shutil.copytree(old_infold+'/trainset', our_infold+'/trainset')
+        shutil.copytree(old_infold + '/trainset', our_infold + '/trainset')
 
     if not os.path.exists(our_infold + "/testset"):
         shutil.copytree(old_infold + '/testset/csv', our_infold + '/testset')
+
 
 # get list of intents from file names
 def get_intents(infold):
@@ -100,7 +107,7 @@ def get_slot_queries(infold, slot_dict, mode, intent_names):
             for word in words:
                 if word[0] == "[":
                     current_slot = slot_dict[word[1:]]
-                elif word[0]  == ":":
+                elif word[0] == ":":
                     continue
                 else:
                     slot_query += str(current_slot) + " "
@@ -110,6 +117,7 @@ def get_slot_queries(infold, slot_dict, mode, intent_names):
             slot_queries.append(slot_query.strip())
 
     return slot_queries
+
 
 def process_assistant(infold, outfold, modes=['train', 'test']):
     """
