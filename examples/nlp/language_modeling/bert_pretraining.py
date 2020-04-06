@@ -426,7 +426,7 @@ ckpt_callback = nemo_core.CheckpointCallback(
     step_freq=args.save_step_freq,
 )
 
-ckpt_eval = nemo.core.EvaluatorCallback(
+eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_log_tensors,
     user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
     user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback,
@@ -464,7 +464,7 @@ else:
 
 if args.grad_norm_clip >= 0:
     optimization_params['grad_norm_clip'] = args.grad_norm_clip
-call_backs = [train_callback, ckpt_callback, ckpt_eval]
+call_backs = [train_callback, ckpt_callback, eval_callback]
 
 if 'data_preprocessed' in sys.argv:
     call_backs = [train_callback, ckpt_callback]
