@@ -188,6 +188,7 @@ parser.add_argument(
 parser.add_argument(
     "--work_dir", default="outputs/bert_lm", type=str, help="Output directory for checkpoints, logs etc."
 )
+parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
 parser.add_argument("--save_epoch_freq", default=1, type=int, help="Save checkpoints every given epoch.")
 parser.add_argument("--save_step_freq", default=100, type=int, help="Save checkpoints every given iteration.")
 parser.add_argument("--train_step_freq", default=25, type=int, help="Print training metrics every given iteration.")
@@ -458,6 +459,10 @@ if args.num_iters < 0:
     optimization_params['num_epochs'] = args.num_epochs
 else:
     optimization_params['max_steps'] = args.num_iters
+
+if args.grad_norm_clip >= 0:
+    optimization_params['grad_norm_clip'] = args.grad_norm_clip
+
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,
