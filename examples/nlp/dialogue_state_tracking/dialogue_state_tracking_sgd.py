@@ -151,9 +151,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--enable_pin_memory",
-    action="store_true",
-    help="Enabled the pin_memory feature of Pytroch's DataLoader",
+    "--enable_pin_memory", action="store_true", help="Enabled the pin_memory feature of Pytroch's DataLoader",
 )
 
 args = parser.parse_args()
