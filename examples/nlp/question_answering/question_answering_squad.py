@@ -31,11 +31,11 @@ python question_answering_squad.py
 --bert_config /path_to/bert-config.json
 --pretrained_model_name bert-base-uncased
 --bert_checkpoint /path_to_bert_checkpoint
---amp_opt_level "O1"
+--amp_opt_level "O2"
 --batch_size 24
 --num_epochs 2
 --lr_policy WarmupAnnealing
---optimizer adam_w
+--optimizer fused_adam
 --lr 3e-5
 --do_lower_case
 --mode train_eval
@@ -49,6 +49,8 @@ python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.p
 --batch_size 3
 --num_gpus 8
 ...
+
+This takes about 18 minutes.
 
 To finetune on SQuADv2.0 which allows non-answerable questions, add the flag --version_2_with_negative.
 
@@ -134,7 +136,7 @@ def parse_args():
         choices=["nemobert", "sentencepiece"],
         help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
-    parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
+    parser.add_argument("--optimizer", default="fused_adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
     parser.add_argument("--lr", default=3e-5, type=float, help="The initial learning rate.")
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
@@ -142,6 +144,7 @@ def parse_args():
     parser.add_argument("--num_epochs", default=2, type=int, help="Total number of training epochs to perform.")
     parser.add_argument("--max_steps", default=-1, type=int, help="If specified overrides --num_epochs.")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
+    parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
     parser.add_argument(
         "--do_lower_case",
         action='store_true',
@@ -446,11 +449,14 @@ if __name__ == "__main__":
         else:
             optimization_params['max_steps'] = args.max_steps
 
+        if args.grad_norm_clip >= 0:
+            optimization_params['grad_norm_clip'] = args.grad_norm_clip
+
         nf.train(
             tensors_to_optimize=[train_loss],
             callbacks=[callback_train, ckpt_callback, callbacks_eval],
             lr_policy=lr_policy_fn,
-            optimizer=args.optimizer_kind,
+            optimizer=args.optimizer,
             batches_per_step=args.batches_per_step,
             optimization_params=optimization_params,
         )
