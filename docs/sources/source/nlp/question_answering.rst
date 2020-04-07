@@ -47,6 +47,8 @@ Model results:
 | BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% |
 +---------------------------------------------+--------+--------+--------+--------+
 
+On a DGX1 with 8 V100 16GB training on SQuADv1.1 with the default script parameters takes between 14-18 minutes.
+
 Preliminaries
 -------------
 
