@@ -35,7 +35,6 @@ class TrainableNM(NeuralModule, nn.Module):
     """
 
     def __init__(self, pretrained_model_name=None, name=None):
-        print("TrainableNM: ", name)
         NeuralModule.__init__(self, name)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
 

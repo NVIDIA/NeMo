@@ -25,11 +25,11 @@ from nemo.core.neural_graph import NeuralGraph
 class NeuralGraphManager(object):
     def __init__(self):
         """
-            Constructor. Initializes the manager.
+        Constructor. Initializes the manager.
 
-            Args:
-                operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
-                [training | eval]
+        Args:
+            operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
+            [training | evaluation | both]
         """
         self._active_graph = None
         self._graphs = {}
@@ -37,16 +37,17 @@ class NeuralGraphManager(object):
     def register_graph(self, graph):
         """ Registers a new graph. """
         # Create a unigue name.
-        # Add it to the list.
         unique_name = self.__generate_unique_graph_name(graph._name)
+        # Add graph to the list.
         self._graphs[unique_name] = graph
 
     @property
     def graphs(self):
-        """ Property returns the list of graphs.
+        """
+        Property returns the list of graphs.
 
-            Returns:
-                List of created graphs.
+        Returns:
+            List of created graphs.
         """
         return self._graphs
 
@@ -61,15 +62,15 @@ class NeuralGraphManager(object):
     @property
     def active_graph(self):
         """
-            Property returns the active graph. If there is no active graph, creates a new one.
+        Property returns the active graph. If there is no active graph, creates a new one.
 
-            Returns:
-                Active graph
+        Returns:
+            Active graph
         """
         # Create a new graph - training is the default.
         if self._active_graph is None:
-            # Store graph on the list.
-            new_graph = NeuralGraph(operation_mode=OperationMode.training)
+            # Create a new "default" graph. Default mode: both.
+            new_graph = NeuralGraph(operation_mode=OperationMode.both)
             self.register_graph(new_graph)
             # Set the newly created graph as active.
             self._active_graph = new_graph
@@ -79,10 +80,11 @@ class NeuralGraphManager(object):
 
     @active_graph.setter
     def active_graph(self, graph):
-        """ Property sets the active graph.
+        """
+        Property sets the active graph.
 
-            Args:
-                graph: Neural graph object that will become active.
+        Args:
+            graph: Neural graph object that will become active.
         """
         # Activate the graph.
         self._active_graph = graph
@@ -103,9 +105,10 @@ class NeuralGraphManager(object):
 
     def __len__(self):
         """
+        Returns number of existing graphs.
 
-        :return: Number of created neural graphs.
-
+        Returns:
+            Number of created neural graphs.
         """
         return len(self._graphs)
 
@@ -113,9 +116,11 @@ class NeuralGraphManager(object):
         """
         Value getter function.
 
-        :param key: Graph name.
+        Args:
+            key: Graph name.
 
-        :return: Associated graph.
+        Returns:
+            Associated graph.
         """
-        # Retrieve the value.
+        # Retrieve the graph.
         return self._graphs[key]

@@ -26,10 +26,12 @@ logging = nemo.logging
 
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
-dl_training = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128, name="dl_training")
+dl_training = nemo.tutorials.RealFunctionDataLayer(n=1000, batch_size=32, name="dl_training")
 fx = nemo.tutorials.TaylorNet(dim=4, name="fx")
-print(fx.name)
+fx2 = nemo.tutorials.TaylorNet(dim=4)
+fx3 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss(name="loss")
+loss2 = nemo.tutorials.MSELoss()
 
 logging.info(
     "This example shows how one can access modules nested in a graph."
@@ -39,6 +41,8 @@ logging.info(
 with NeuralGraph(operation_mode=OperationMode.both, name="trainable_module") as trainable_module:
     # Bind the input.
     _ = fx(x=trainable_module)
+    _ = fx2(x=trainable_module)
+    _ = fx3(x=trainable_module)
     # All outputs will be bound by default.
 
 # Compose two graphs into final graph.
@@ -49,6 +53,8 @@ with NeuralGraph(operation_mode=OperationMode.training, name="training_graph") a
     p = trainable_module(x=x)
     # Pass both of them to loss.
     lss = loss(predictions=p, target=t)
+    lss2 = loss2(predictions=p, target=t)
+    
 
 print(trainable_module.list_modules())
 
