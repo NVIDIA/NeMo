@@ -149,7 +149,7 @@ class Dstc8DataProcessor(object):
     def get_dialog_examples(self, dataset):
         if (self._task_name, dataset) not in self.dial_files:
             raise ValueError(
-                f"{dataset_split} dialogue examples were not processed for {self._task_name} task. Re-initialize Dstc8DataProcessor and add {dataset_split} dataset to datasets arg."
+                f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize Dstc8DataProcessor and add {dataset} dataset to datasets arg."
             )
 
         dial_file = self.dial_files[(self._task_name, dataset)]
@@ -191,7 +191,7 @@ class Dstc8DataProcessor(object):
     def _save_schemas(self, dataset):
         if dataset not in self.schema_pkl_files:
             raise ValueError(
-                f"{dataset} schema was not processed. Re-initialize Dstc8DataProcessor and add {dataset_split} dataset to datasets arg."
+                f"{dataset} schema was not processed. Re-initialize Dstc8DataProcessor and add {dataset} dataset to datasets arg."
             )
         with open(self.schema_pkl_files[dataset], "wb") as f:
             pickle.dump(self._schemas[dataset], f)
