@@ -8,6 +8,7 @@ import os
 
 import numpy as np
 import torch
+from filelock import FileLock
 
 import nemo
 from nemo import logging
@@ -70,7 +71,13 @@ class SchemaPreprocessor:
         for dataset_split in datasets:
             schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
 
-            if not os.path.exists(schema_embedding_file) or overwrite_schema_emb_files:
+            if overwrite_schema_emb_files:
+                try:
+                    os.remove(schema_embedding_file)
+                except OSError:
+                    pass
+
+            if not os.path.exists(schema_embedding_file):
                 # Generate the schema embeddings if needed or specified
                 logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
                 # create schema embedding if no file exists
@@ -87,16 +94,23 @@ class SchemaPreprocessor:
                 hidden_states = bert_model(
                     input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
                 )
+                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 evaluated_tensors = nf.infer(tensors=[hidden_states], checkpoint_dir=bert_ckpt_dir)
-                hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
-                self.schemas_dict[dataset_split] = emb_datalayer.dataset.get_embeddings(
-                    hidden_states, schema_embedding_file
-                )
-                logging.info(f"Finish generating the schema embeddings for {dataset_split} dataset.")
-            else:
-                with open(schema_embedding_file, "rb") as f:
-                    self.schemas_dict[dataset_split] = np.load(f, allow_pickle=True)
-                    f.close()
+            while True:
+                lock = FileLock(schema_embedding_file + ".lock")
+                with lock:
+                    if master_device:
+                        hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
+                        emb_datalayer.dataset.save_embeddings(hidden_states, schema_embedding_file)
+                        logging.info(f"Finish generating the schema embeddings for {dataset_split} dataset.")
+                        break
+                    else:
+                        if os.path.exists(schema_embedding_file) and os.stat(schema_embedding_file).st_size > 0:
+                            break
+
+            with open(schema_embedding_file, "rb") as f:
+                self.schemas_dict[dataset_split] = np.load(f, allow_pickle=True)
+                f.close()
 
     def get_schema_embeddings(self, dataset_split):
         # Convert from list of dict to dict of list

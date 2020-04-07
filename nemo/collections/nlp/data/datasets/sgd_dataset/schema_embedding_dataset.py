@@ -270,7 +270,7 @@ class SchemaEmbeddingDataset(Dataset):
             service = self.schemas.get_service_from_id(service_id)
 
             if service not in completed_services:
-                logging.info(f"Generating embeddings for service {service}.")
+                logging.debug(f"Generating embeddings for service {service}.")
                 completed_services.add(service)
             tensor_name = self.features["embedding_tensor_name"][idx]
             emb_mat = schema_embeddings[service_id][tensor_name]
@@ -285,7 +285,7 @@ class SchemaEmbeddingDataset(Dataset):
             else:
                 emb_mat[intent_or_slot_id] = embedding
 
-    def get_embeddings(self, bert_hidden_states, output_file):
+    def save_embeddings(self, bert_hidden_states, output_file):
         """Generate schema element embeddings and save it as a numpy file."""
         schema_embeddings = []
         max_num_intent = data_utils.MAX_NUM_INTENT
@@ -315,7 +315,6 @@ class SchemaEmbeddingDataset(Dataset):
                 np.save(f_s, schema_embeddings)
                 logging.info(f"The schema embeddings saved at {output_file}")
                 f_s.close()
-        return schema_embeddings
 
 
 class InputFeatures(object):

@@ -32,7 +32,7 @@ import torch
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
 
-# torch.multiprocessing.set_sharing_strategy('file_system')
+# torch.multiprocessing.set_sharings_strategy('file_system')
 
 __all__ = [
     'EMBEDDING_DIMENSION',
@@ -134,7 +134,7 @@ class Dstc8DataProcessor(object):
             self.dial_files[(task_name, dataset)] = dial_file
 
             if not os.path.exists(dial_file) or overwrite_dial_files or not os.path.exists(schema_pkl_file):
-                logging.info(f"Start generating the dialogue examples for {dataset} dataset.")
+                logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
                 dial_examples = self._generate_dialog_examples(dataset)
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
@@ -143,8 +143,8 @@ class Dstc8DataProcessor(object):
                     with open(dial_file, "wb") as f:
                         np.save(f, dial_examples)
                         f.close()
-                    logging.info(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
-                logging.info(f"Finish generating the dialogue examples for {dataset} dataset.")
+                    logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
+                logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
 
     def get_dialog_examples(self, dataset):
         if (self._task_name, dataset) not in self.dial_files:
@@ -693,7 +693,7 @@ class InputExample(object):
                     # only makes use of the last two utterances to predict state updates,
                     # it will fail in such cases.
                     if self._log_data_warnings:
-                        logging.info(
+                        logging.debug(
                             f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
                         )
 
