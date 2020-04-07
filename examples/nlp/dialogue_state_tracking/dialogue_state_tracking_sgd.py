@@ -152,6 +152,10 @@ parser.add_argument(
     help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
 )
 
+parser.add_argument(
+    "--enable_pin_memory", action="store_true", help="Enabled the pin_memory feature of Pytroch's DataLoader",
+)
+
 args = parser.parse_args()
 
 logging.info(args)
@@ -217,6 +221,7 @@ train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     batch_size=args.train_batch_size,
     shuffle=not args.no_shuffle,
     num_workers=args.num_workers,
+    pin_memory=args.enable_pin_memory,
 )
 eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     dataset_split=args.eval_dataset,
@@ -225,6 +230,7 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
     batch_size=args.eval_batch_size,
     shuffle=False,
     num_workers=args.num_workers,
+    pin_memory=args.enable_pin_memory,
 )
 
 train_data = train_datalayer()

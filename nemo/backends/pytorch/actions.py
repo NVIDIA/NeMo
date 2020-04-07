@@ -520,6 +520,7 @@ class PtActions(Actions):
                         num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
                         shuffle=False,
+                        pin_memory=dl_nm.pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -535,6 +536,7 @@ class PtActions(Actions):
                         num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
                         shuffle=dl_nm.shuffle,
+                        pin_memory=dl_nm.pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -687,6 +689,7 @@ class PtActions(Actions):
                         num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
                         shuffle=False,
+                        pin_memory=dl_nm.pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -702,6 +705,7 @@ class PtActions(Actions):
                         num_workers=dl_nm.num_workers,
                         batch_size=dl_nm.batch_size,
                         shuffle=dl_nm.shuffle,
+                        pin_memory=dl_nm.pin_memory,
                     )
                 else:
                     eval_dataloader = dl_nm.data_iterator
@@ -1201,6 +1205,7 @@ class PtActions(Actions):
                     num_workers=dataNM.num_workers,
                     batch_size=dataNM.batch_size,
                     shuffle=False,
+                    pin_memory=dataNM.pin_memory,
                 )
             else:
                 train_dataloader = dataNM.data_iterator
@@ -1280,6 +1285,7 @@ class PtActions(Actions):
                     num_workers=dataNM.num_workers,
                     batch_size=dataNM.batch_size,
                     shuffle=dataNM.shuffle,
+                    pin_memory=dataNM.pin_memory,
                 )
             else:
                 train_dataloader = dataNM.data_iterator
