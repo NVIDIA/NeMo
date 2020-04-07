@@ -84,7 +84,6 @@ class TestTTSPytorch(TestCase):
         loss_log_list.append(loss_tensor[0].item())
 
     @pytest.mark.integration
-    @pytest.mark.skipduringci
     @pytest.mark.run_only_on('GPU')
     def test_tacotron2_training(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
