@@ -145,7 +145,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--num_workers",
-    default=-1,
+    default=2,
     type=int,
     help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
 )
