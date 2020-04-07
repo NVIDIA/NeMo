@@ -97,6 +97,8 @@ class Dstc8DataProcessor(object):
 
         self.dstc8_data_dir = dstc8_data_dir
         self.dialogues_examples_dir = dialogues_example_dir
+        os.makedirs(dialogues_example_dir, exist_ok=True)
+
         self._log_data_warnings = log_data_warnings
         self._task_name = task_name
 

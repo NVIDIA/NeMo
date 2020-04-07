@@ -67,6 +67,8 @@ class SchemaPreprocessor:
     ):
         self.schemas_dict = {}
         self._schema_embedding_dir = schema_embedding_dir
+        os.makedirs(schema_embedding_dir, exist_ok=True)
+
         for dataset_split in datasets:
             schema_embedding_file = self._get_schema_embedding_file_name(dataset_split)
 
@@ -95,13 +97,13 @@ class SchemaPreprocessor:
                     emb_datalayer.dataset.save_embeddings(hidden_states, schema_embedding_file)
                     logging.info(f"Finish generating the schema embeddings for {dataset_split} dataset.")
 
-                # wait until the master process writes to the schema embedding file
-                if torch.distributed.is_initialized():
-                    torch.distributed.barrier()
+            # wait until the master process writes to the schema embedding file
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
-                with open(schema_embedding_file, "rb") as f:
-                    self.schemas_dict[dataset_split] = np.load(f, allow_pickle=True)
-                    f.close()
+            with open(schema_embedding_file, "rb") as f:
+                self.schemas_dict[dataset_split] = np.load(f, allow_pickle=True)
+                f.close()
 
     def get_schema_embeddings(self, dataset_split):
         # Convert from list of dict to dict of list

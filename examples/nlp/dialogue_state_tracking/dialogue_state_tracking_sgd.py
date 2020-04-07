@@ -106,9 +106,8 @@ parser.add_argument(
 parser.add_argument(
     "--schema_embedding_dir",
     type=str,
-    required=True,
-    help="Directory where .npy file for embedding of entities (slots, values,"
-    " intents) in the dataset_split's schema are stored.",
+    default='schema_embedding_dir',
+    help="Directory where .npy file for embedding of entities (slots, values, intents) in the dataset_split's schema are stored.",
 )
 parser.add_argument(
     "--overwrite_schema_emb_files",
@@ -116,7 +115,10 @@ parser.add_argument(
     help="Whether to generate a new file saving the dialogue examples.",
 )
 parser.add_argument(
-    "--dialogues_example_dir", type=str, required=True, help="Directory where preprocessed DSTC8 dialogues are stored."
+    "--dialogues_example_dir",
+    type=str,
+    default="dialogues_example_dir",
+    help="Directory where preprocessed DSTC8 dialogues are stored.",
 )
 parser.add_argument(
     "--overwrite_dial_files", action="store_true", help="Whether to generate a new file saving the dialogue examples."
