@@ -1,3 +1,5 @@
+
+
 Tutorial
 ========
 
@@ -6,11 +8,31 @@ Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tuto
 
 The code used in this tutorial can be found at ``examples/nlp/language_modeling/bert_pretraining.py``.
 
-.. tip::
-    Pretrained BERT models can be found at 
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
-    `https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
+.. _pretrained_models_bert:
+
+Download pretrained models
+--------------------------
+
+Pretrained BERT models and model configuration files can be downloaded at following links.
+
+BERT Large models (~330M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`__
+
+BERT Base models (~110M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:bertbasecasedfornemo>`__
+
+Model results on downstream tasks:
+
++---------------------------------------------+--------+--------+--------+--------+--------+--------+
+|                                             | SQuADv1.1       | SQuADv2.0       | GLUE MRPC       |
++                                             +--------+--------+--------+--------+--------+--------+
+|  Model                                      | EM     |  F1    |  EM    |  F1    |  Acc   |  F1    |
++=============================================+========+========+========+========+========+========+
+| BERT-base-uncased                           | 82.74% | 89.79% | 71.24% | 74.32% | 86.52% | 90.53% |
++---------------------------------------------+--------+--------+--------+--------+--------+--------+
+| BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% | 88.72% | 91.96% |
++---------------------------------------------+--------+--------+--------+--------+--------+--------+
 
 Introduction
 ------------
@@ -45,8 +67,8 @@ use the script ``examples/nlp/language_modeling/process_wiki_zh.py`` for preproc
 
 For already preprocessed data, we will be using a large dataset composed of Wikipedia and BookCorpus as in the original BERT paper.
 
-To download the dataset, go to `https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT <https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT>`__
-and run the script ``./data/create_datasets_from_start.sh``.
+To download the dataset, go to `https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT#quick-start-guide <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT#quick-start-guide>`__,
+follow steps 1-5 in the Quick-Start-Guide and run the script ``./data/create_datasets_from_start.sh`` inside the docker container.
 The downloaded folder should include a 2 sub folders with the prefix `lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5`
 and `lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5`, containing sequences of length 128 with a maximum of 20 masked tokens
 and sequences of length 512 with a maximum of 80 masked tokens respectively.
@@ -332,7 +354,9 @@ For single GPU training, the script can be started with
 .. code-block:: bash
 
     cd examples/nlp/language_modeling
-    python bert_pretraining.py [args]
+    python bert_pretraining.py --config_file bert-config.json [args]
+
+The BERT configuration files can be found in the NGC model repositories, see :ref:`pretrained_models_bert`.
 
 
 For multi-GPU training with ``x`` GPUs, the script can be started with 
