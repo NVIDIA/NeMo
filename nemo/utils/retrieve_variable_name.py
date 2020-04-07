@@ -34,4 +34,4 @@ def retrieve_variable_name(var):
         if len(names) > 0:
             return names[0]
         else:
-            raise KeyError
+            raise KeyError("Cannot retrieve the name of object {} as it is not present on the stack (yet)".format(var))
