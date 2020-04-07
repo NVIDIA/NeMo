@@ -131,7 +131,8 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
 
     all_metric_aggregate, _ = get_metrics(dataset_ref, dataset_hyp, eval_services, in_domain_services)
     logging.info(f'Dialog metrics for {ALL_SERVICES}: {all_metric_aggregate[ALL_SERVICES]}')
-
+    logging.info(f'Dialog metrics for {SEEN_SERVICES}: {all_metric_aggregate[SEEN_SERVICES]}')
+    logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {all_metric_aggregate[UNSEEN_SERVICES]}')
     # Write the aggregated metrics values.
     with open(output_metric_file, "w") as f:
         json.dump(all_metric_aggregate, f, indent=2, separators=(",", ": "), sort_keys=True)
