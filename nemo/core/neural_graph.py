@@ -27,9 +27,16 @@ from nemo.core.neural_types import (
     NeuralType,
     NeuralTypeComparisonResult,
 )
+from nemo.utils.retrieve_variable_name import retrieve_variable_name
 
 
 class NeuralGraph(NeuralInterface):
+    """
+        Neural Graph class stores dynamically defined graphs of connected Neural Modules.
+    """
+
+
+
     def __init__(self, operation_mode, name=None):
         """
             Constructor. Initializes graph variables.
@@ -41,6 +48,7 @@ class NeuralGraph(NeuralInterface):
         """
         # Call integrace constructor.
         super().__init__()
+
         # Store name and operation mode.
         self._operation_mode = operation_mode
         if name is None:
@@ -58,8 +66,10 @@ class NeuralGraph(NeuralInterface):
         # input port will be connected.
         self._bound_input_module = {}
 
-        # Operations.
-        self._operation_list = []
+        # "Modules" - list of modules constituting edges in a given graph.
+        self._modules = {}
+        # "Steps": ordered execution of modules in a graph.
+        self._steps = []
         # Register graph.
         self._app_state.register_graph(self)
 
@@ -77,10 +87,10 @@ class NeuralGraph(NeuralInterface):
         # TODO: check graph operation mode compatibility.
 
         # "Copy" all the operations from the previous graph.
-        for operation in self._operation_list:
-            self._app_state.active_graph.record_operation(*operation)
+        for step in self._steps:
+            self._app_state.active_graph.record_step(*step)
 
-        # print(self._operation_list)
+        # print(self._steps)
 
         # Iterate through all passed parameters.
         for port_name, port_content in kwargs.items():
@@ -200,16 +210,46 @@ class NeuralGraph(NeuralInterface):
     def __str__(self):
         """ Prints a nice summary. """
         # TODO: a nice summary. ;)
-        desc = "`{}` ({}):\n".format(self._name, len(self._operation_list))
-        for op in self._operation_list:
+        desc = "`{}` ({}):\n".format(self._name, len(self._steps))
+        for op in self._steps:
             desc = desc + "  {}\n".format(type(op[0]).__name__)
         return desc
 
-    def record_operation(self, module, inputs):
+    def __getitem__(self, key):
+        """ Returns module given its name (name of the variable).
+
+            Args:
+                key: Name of the variable.
+        """
+        if key not in self._modules.keys():
+            raise KeyError("Neural Graph doesn't contain a module named {}".format(key))
+        return self._modules[key]
+
+    def __len__(self):
+        return len(self._modules)
+
+    def list_modules(self):
+        desc = "{} ({}):\n".format(retrieve_variable_name(self), len(self))
+        for key, value in self._modules.items():
+            desc += " * `{}` ({})\n".format(key, value )
+        return desc
+
+    def record_step(self, module, inputs):
         """
             Records the operation (module plus passed inputs) on a list.
         """
-        self._operation_list.append([module, inputs])
+        # Get module name.
+        module_name = retrieve_variable_name(module)
+        #print("module_name: ", module_name)
+
+        # Check if module with that name already exists.
+        if module_name in self._modules.keys():
+            raise KeyError("Neural Graph already contains a module named {}".format(module_name))
+        # Add module to list of modules.
+        self._modules[module_name] = module
+
+        # Add step.
+        self._steps.append([module, inputs])
 
     def bind_input(self, port_name, port_definition, bound_module):
         # print("Binding input: `{}`: def = `{}` value = NONE".format(port_name, port_definition))

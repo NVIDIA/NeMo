@@ -1,7 +1,7 @@
-# ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,22 @@
 # limitations under the License.
 # =============================================================================
 
-from .nemo_logging import Logger as _Logger
-from .nemo_logging import LogMode as logging_mode
+import inspect
 
-logging = _Logger()
+def retrieve_variable_name(var):
+    """
+    Function returns the name of the variable.
+    Throws the KeyError exception is name was not found.
 
-from .argparse import NemoArgParser
-from .exp_logging import ExpManager, get_logger
-from .helpers import *
+    Args:
+        var: Variable.
 
-from .retrieve_variable_name import retrieve_variable_name
+    Returns:
+        String representing the variable name.
+    """
+    for fi in reversed(inspect.stack()):
+        names = [var_name for var_name, var_val in fi.frame.f_locals.items() if var_val is var]
+        if len(names) > 0:
+            return names[0]
+        else:
+            raise KeyError

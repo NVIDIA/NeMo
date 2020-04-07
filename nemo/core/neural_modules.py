@@ -447,8 +447,8 @@ class NeuralModule(NeuralInterface):
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
 
-        # Record the operation (i.e. add a single module)
-        self._app_state.active_graph.record_operation(self, kwargs.items())
+        # Record the operation (i.e. add a single module).
+        self._app_state.active_graph.record_step(self, kwargs.items())
 
         first_input_nmtensor_type = None
         input_nmtensors_are_of_same_type = True

@@ -29,10 +29,9 @@ m2 = nemo.tutorials.TaylorNet(dim=4)
 loss = nemo.tutorials.MSELoss()
 
 logging.info(
-    "This example shows how one can nest one graph into another - without binding of the input ports."
+    "This example shows how one can nest one graph into another - with binding of output ports."
     F" Please note that the nested graph can be used exatly like any other module"
     F" By default, all output graph ports are bound, thus `visible` outside."
-    F" The user will be able to pick pick a subset manually (this simple feature is in my TODO list)."
 )
 
 with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
