@@ -26,9 +26,10 @@ logging = nemo.logging
 
 nf = nemo.core.NeuralModuleFactory()
 # Instantiate the necessary neural modules.
-dl_training = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-fx = nemo.tutorials.TaylorNet(dim=4)
-loss = nemo.tutorials.MSELoss()
+dl_training = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128, name="dl_training")
+fx = nemo.tutorials.TaylorNet(dim=4, name="fx")
+print(fx.name)
+loss = nemo.tutorials.MSELoss(name="loss")
 
 logging.info(
     "This example shows how one can access modules nested in a graph."

@@ -35,11 +35,16 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType(('B', 'D'), ChannelType())}
 
-    def __init__(self, dim):
-        # Part specific for Neural Modules API:
-        #   (1) call base constructor
-        #   (2) define input and output ports
-        super().__init__()
+    def __init__(self, dim, name=None):
+        """
+            Creates TaylorNet object.
+            
+            Args:
+                dim: Number of dimensions (number of terms in Taylor series).
+                name: Name of the module instance
+        """
+        print("TaylorNet: ", name)
+        super().__init__(name=name)
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -78,11 +83,11 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType(('B', 'D'), ChannelType(), optional=True)}
 
-    def __init__(self, dim):
+    def __init__(self, dim,name=None):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports
-        super().__init__()
+        super().__init__(name=name)
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
@@ -133,7 +138,7 @@ class RealFunctionDataLayer(DataLayerNM):
             "y": NeuralType(('B', 'D'), LabelsType()),
         }
 
-    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4):
+    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4, name=None):
         """
             Creates a datalayer returning (x-y) pairs, with n points from a given range.
 
@@ -143,8 +148,9 @@ class RealFunctionDataLayer(DataLayerNM):
                 n: number of points
                 x_lo: lower boundary along x axis
                 x_hi: higher boundary along x axis
+                name: Name of the module instance
         """
-        super().__init__()
+        super().__init__(name=name)
 
         # Dicionary with handled functions.
         handled_funcs = {"sin": t.sin, "cos": t.cos}
@@ -200,8 +206,8 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, **kwargs):
@@ -226,8 +232,8 @@ class L1Loss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self._criterion = nn.L1Loss()
 
     def _loss_function(self, **kwargs):
@@ -255,10 +261,8 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
-        # Neural Module API specific
-        NeuralModule.__init__(self)
-        # End of Neural Module API specific
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self._criterion = nn.CrossEntropyLoss()
 
     # You need to implement this function

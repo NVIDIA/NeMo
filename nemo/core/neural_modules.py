@@ -63,9 +63,12 @@ class NeuralModule(NeuralInterface):
     """Abstract class that every Neural Module must inherit from.
     """
 
-    def __init__(self):
+    def __init__(self, name=None):
         # Call integrace constructor.
         super().__init__()
+
+        # Save name.
+        self._name = name
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
@@ -82,13 +85,6 @@ class NeuralModule(NeuralInterface):
 
         # Retrieve dictionary of parameters (keys, values) passed to init.
         self._init_params = self.__extract_init_params()
-
-        # Pint the types of the values.
-        # for key, value in self._init_params.items():
-        #    print("{}: {} ({})".format(key, value, type(value)))
-
-        # Validate the parameters.
-        # self._validate_params(self._init_params)
 
     @property
     def init_params(self) -> Optional[Dict]:
@@ -369,6 +365,11 @@ class NeuralModule(NeuralInterface):
         )
         return obj
 
+    @property
+    def name(self):
+        """ Returns graph name. """
+        return self._name
+
     @deprecated(version=0.11)
     @staticmethod
     def create_ports(**kwargs):
@@ -414,7 +415,7 @@ class NeuralModule(NeuralInterface):
         """
         return set([])
 
-    def _prepare_for_deployment(self) -> None:
+    def _prepare_for_deployment(self) -> None: 
         """Patch the module if required to prepare for deployment
 
         """

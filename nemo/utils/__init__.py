@@ -24,5 +24,3 @@ logging = _Logger()
 from .argparse import NemoArgParser
 from .exp_logging import ExpManager, get_logger
 from .helpers import *
-
-from .retrieve_variable_name import retrieve_variable_name

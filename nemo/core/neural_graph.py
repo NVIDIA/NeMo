@@ -27,8 +27,6 @@ from nemo.core.neural_types import (
     NeuralType,
     NeuralTypeComparisonResult,
 )
-from nemo.utils.retrieve_variable_name import retrieve_variable_name
-
 
 class NeuralGraph(NeuralInterface):
     """
@@ -57,19 +55,25 @@ class NeuralGraph(NeuralInterface):
         else:
             self._name = name
 
-        # Input and output ports - empty for now.
+        # Input ports and tensors - empty for now.
         self._bound_input_ports = {}
-        self._bound_output_ports = {}
         self._bound_input_tensors = {}
-        self._bound_output_tensors = {}
         # List of modules of bound inputs - so we will update their output tensors when the "bound"
         # input port will be connected.
-        self._bound_input_module = {}
+        self._bound_input_modules = {}
+
+        # Output ports and tensors - used in manual binding, empty for now.
+        self._bound_output_tensors_manual = {}
+        self._bound_output_ports_manual = {}
+        # Default output ports and tensors - used in automatic binding, empty for now.
+        self._bound_output_tensors_default = {}
+        self._bound_output_ports_default = {}
 
         # "Modules" - list of modules constituting edges in a given graph.
         self._modules = {}
         # "Steps": ordered execution of modules in a graph.
         self._steps = []
+        
         # Register graph.
         self._app_state.register_graph(self)
 
@@ -132,8 +136,8 @@ class NeuralGraph(NeuralInterface):
                 # The current graph parsing requires us to update all outputs of
                 # a module that "accepted" the input.
                 # Update means changing the original producer_args for the bound port.
-                producer = self._bound_input_module[port_name]
-                for _, output_tensor in self._bound_output_tensors.items():
+                producer = self._bound_input_modules[port_name]
+                for _, output_tensor in self._bound_output_tensors_default.items():
                     if output_tensor.producer == producer:
                         # Set "input port value" to new content - which indicates tensor (and producer)
                         # that will be used during graph backward traverse.
@@ -149,7 +153,7 @@ class NeuralGraph(NeuralInterface):
             # Get the name of the ouput port.
             out_name = list(output_port_defs)[0]
             # Simply pass the bound tensor.
-            results = self._bound_output_tensors[out_name]
+            results = self._bound_output_tensors_default[out_name]
             # BUT UPDATE THE inputs to it!!
 
             # Bind the output ports.
@@ -157,7 +161,7 @@ class NeuralGraph(NeuralInterface):
 
         else:
             result = []
-            for _, tensor in self._bound_output_tensors.items():
+            for _, tensor in self._bound_output_tensors_default.items():
                 result.append(tensor)
 
             # Creating ad-hoc class for returning from module's forward pass.
@@ -190,27 +194,38 @@ class NeuralGraph(NeuralInterface):
         Returns:
           A (dict) of module's output ports names to NeuralTypes mapping
         """
-        return self._bound_output_ports
+        #print("getter!")
+        return self._bound_output_ports_default
+
+    #@output_ports.setter
+    #def output_ports(self, ports):
+    #    print("setter!")
+    #    self._bound_output_ports_default = ports
 
     def __enter__(self):
         """ Activates given graph as current. """
-        # print("Entering graph: ", self._name)
+        # print("Entering graph: ", self.name)
         self._app_state.active_graph = self
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """ Deactivates current graph. """
-        # print("Exiting graph: ", self._name)
+        # print("Exiting graph: ", self.name)
         self._app_state.active_graph = None
         # if exc_type:
         #    print(f'exc_type: {exc_type}')
         #    print(f'exc_value: {exc_value}')
         #    print(f'exc_traceback: {exc_traceback}')
 
+    @property
+    def name(self):
+        """ Returns graph name. """
+        return self._name
+
     def __str__(self):
         """ Prints a nice summary. """
         # TODO: a nice summary. ;)
-        desc = "`{}` ({}):\n".format(self._name, len(self._steps))
+        desc = "`{}` ({}):\n".format(self.name, len(self._steps))
         for op in self._steps:
             desc = desc + "  {}\n".format(type(op[0]).__name__)
         return desc
@@ -229,7 +244,7 @@ class NeuralGraph(NeuralInterface):
         return len(self._modules)
 
     def list_modules(self):
-        desc = "{} ({}):\n".format(retrieve_variable_name(self), len(self))
+        desc = "{} ({}):\n".format(self.name, len(self))
         for key, value in self._modules.items():
             desc += " * `{}` ({})\n".format(key, value )
         return desc
@@ -238,15 +253,11 @@ class NeuralGraph(NeuralInterface):
         """
             Records the operation (module plus passed inputs) on a list.
         """
-        # Get module name.
-        module_name = retrieve_variable_name(module)
-        #print("module_name: ", module_name)
-
         # Check if module with that name already exists.
-        if module_name in self._modules.keys():
-            raise KeyError("Neural Graph already contains a module named {}".format(module_name))
+        if module.name in self._modules.keys():
+            raise KeyError("Neural Graph already contains a module named {}".format(module.name))
         # Add module to list of modules.
-        self._modules[module_name] = module
+        self._modules[module.name] = module
 
         # Add step.
         self._steps.append([module, inputs])
@@ -259,7 +270,7 @@ class NeuralGraph(NeuralInterface):
         # Indicate that this tensor is missing and has to be provided!
         self._bound_input_tensors[port_name] = None
         # Additionally, remember the bound module
-        self._bound_input_module[port_name] = bound_module
+        self._bound_input_modules[port_name] = bound_module
 
     def bind_outputs(self, output_port_defs, output_values):
         # print("Binding ALL outputs: defs = `{}`, values = `{}`".format(output_port_defs, output_values))
@@ -271,10 +282,10 @@ class NeuralGraph(NeuralInterface):
             #    )
             # )
             # Copy the definition of the port to graph input port definition.
-            self._bound_output_ports[output_name] = output_definition
+            self._bound_output_ports_default[output_name] = output_definition
 
             # Bind output tensors.
-            self._bound_output_tensors[output_name] = output_value
+            self._bound_output_tensors_default[output_name] = output_value
             # Additionally, store all output tensors.
             # self._all_output_tensors[output_name] = output_value
 
@@ -288,10 +299,10 @@ class NeuralGraph(NeuralInterface):
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
     def show_bound_outputs(self):
-        print("bound output ports: ")
-        for key, value in self._bound_output_ports.items():
+        print("bound (default) output ports: ")
+        for key, value in self._bound_output_ports_default.items():
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
-        print("bound output tensors: ")
-        for key, value in self._bound_output_tensors.items():
+        print("bound (default) output tensors: ")
+        for key, value in self._bound_output_tensors_default.items():
             print(" * `{}`: `{}` ({})".format(key, value, type(value)))
