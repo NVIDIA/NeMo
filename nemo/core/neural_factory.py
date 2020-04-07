@@ -339,6 +339,11 @@ class NeuralModuleFactory(object):
                 np.random.seed(random_seed)
                 random.seed(random_seed)
 
+            # logging.info("Random seeds")
+            # logging.info("torch: %d", torch.initial_seed())
+            # logging.info("numpy: %d", )
+            # logging.info("random: %d", )
+
             if self._local_rank is not None:
                 torch.distributed.init_process_group(backend="nccl", init_method="env://")
 
