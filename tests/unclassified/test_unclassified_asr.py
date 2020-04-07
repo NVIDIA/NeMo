@@ -143,7 +143,7 @@ class TestASRPytorch(TestCase):
         self.nf.train(
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
-        # self.nf.reset_trainer()
+        self.nf.reset_trainer()
 
         # Assert that training loss went down
         assert loss_list[-1] < loss_list[0]
@@ -252,7 +252,7 @@ class TestASRPytorch(TestCase):
         self.nf.train(
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
-        # self.nf.reset_trainer()
+        self.nf.reset_trainer()
 
         # Assert that training loss went down
         assert loss_list[-1] < loss_list[0]
@@ -302,7 +302,7 @@ class TestASRPytorch(TestCase):
         self.nf.train(
             [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
-        # self.nf.reset_trainer()
+        self.nf.reset_trainer()
 
         # Assert that training loss went down
         assert loss_list[-1] < loss_list[0]
