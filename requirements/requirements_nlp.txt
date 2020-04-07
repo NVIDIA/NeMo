@@ -10,4 +10,3 @@ numpy
 tqdm
 sklearn
 fuzzywuzzy
-filelock
