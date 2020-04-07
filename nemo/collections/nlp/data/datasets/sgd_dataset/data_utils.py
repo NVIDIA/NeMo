@@ -32,8 +32,6 @@ import torch
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
 
-# torch.multiprocessing.set_sharings_strategy('file_system')
-
 __all__ = [
     'EMBEDDING_DIMENSION',
     'MAX_NUM_CAT_SLOT',
