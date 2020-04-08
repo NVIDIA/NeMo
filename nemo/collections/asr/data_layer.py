@@ -40,6 +40,38 @@ __all__ = [
 logging = nemo.logging
 
 
+def _process_augmentations(augmenter) -> AudioAugmentor:
+    if isinstance(augmenter, AudioAugmentor):
+        return augmenter
+
+    if not type(augmenter) == dict:
+        raise ValueError("Cannot parse augmenter. Must be a dict or an AudioAugmentor object ")
+
+    augmenter = copy.deepcopy(augmenter)
+
+    augmentations = []
+    for augment_name, augment_kwargs in augmenter.items():
+        prob = augment_kwargs.get('prob', None)
+
+        if prob is None:
+            logging.warning(
+                f'Augmentation "{augment_name}" will not be applied as '
+                f'keyword argument "prob" was not defined for this augmentation.'
+            )
+
+        else:
+            _ = augment_kwargs.pop('prob')
+
+            try:
+                augmentation = perturbation_types[augment_name](**augment_kwargs)
+                augmentations.append([prob, augmentation])
+            except KeyError:
+                logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
+
+    augmenter = AudioAugmentor(perturbations=augmentations)
+    return augmenter
+
+
 class AudioToTextDataLayer(DataLayerNM):
     """Data Layer for general ASR tasks.
 
@@ -96,6 +128,14 @@ transcript_n}
         num_workers (int): See PyTorch DataLoader.
             Defaults to 0.
         perturb_config (dict): Currently disabled.
+        augmentor (AudioAugmentor or dict): Optional AudioAugmentor or
+            dictionary of str -> kwargs (dict) which is parsed and used
+            to initialize an AudioAugmentor.
+            Note: It is crucial that each individual augmentation has
+            a keyword `prob`, that defines a float probability in the
+            the range [0, 1] of this augmentation being applied.
+            If this keyword is not present, then the augmentation is
+            disabled and a warning is logged.
     """
 
     @property
@@ -137,10 +177,17 @@ transcript_n}
         drop_last=False,
         shuffle=True,
         num_workers=0,
+        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
     ):
         super().__init__()
         self._sample_rate = sample_rate
-        self._featurizer = WaveformFeaturizer(sample_rate=self._sample_rate, int_values=int_values, augmentor=None)
+
+        if augmentor is not None:
+            augmentor = _process_augmentations(augmentor)
+
+        self._featurizer = WaveformFeaturizer(
+            sample_rate=self._sample_rate, int_values=int_values, augmentor=augmentor
+        )
 
         # Set up dataset
         dataset_params = {
@@ -493,8 +540,9 @@ target_label_n, "offset": offset_in_sec_n}
             Defaults to True.
         num_workers (int): See PyTorch DataLoader.
             Defaults to 0.
-        augmentor (dict): Optional dictionary of str -> kwargs (dict)
-            which is parsed and used to initialize an AudioAugmentor.
+        augmenter (AudioAugmentor or dict): Optional AudioAugmentor or
+            dictionary of str -> kwargs (dict) which is parsed and used
+            to initialize an AudioAugmentor.
             Note: It is crucial that each individual augmentation has
             a keyword `prob`, that defines a float probability in the
             the range [0, 1] of this augmentation being applied.
@@ -507,10 +555,6 @@ target_label_n, "offset": offset_in_sec_n}
         """Returns definitions of module output ports.
         """
         return {
-            # 'audio_signal': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # 'a_sig_length': NeuralType({0: AxisType(BatchTag)}),
-            # 'label': NeuralType({0: AxisType(BatchTag)}),
-            # 'label_length': NeuralType({0: AxisType(BatchTag)}),
             'audio_signal': NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
             'a_sig_length': NeuralType(tuple('B'), LengthsType()),
             'label': NeuralType(tuple('B'), LabelsType()),
@@ -541,12 +585,7 @@ target_label_n, "offset": offset_in_sec_n}
         self._sample_rate = sample_rate
 
         if augmentor is not None:
-            if isinstance(augmentor, AudioAugmentor):
-                pass
-            elif isinstance(augmentor, dict):
-                augmentor = self._process_augmentations(augmentor)
-            else:
-                raise ValueError("Cannot parse augmentor provided !")
+            augmentor = _process_augmentations(augmentor)
 
         self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
 
@@ -580,30 +619,6 @@ target_label_n, "offset": offset_in_sec_n}
 
     def __len__(self):
         return len(self._dataset)
-
-    def _process_augmentations(self, augmentor) -> AudioAugmentor:
-        augmentations = []
-        augmentor = copy.deepcopy(augmentor)
-        for augment_name, augment_kwargs in augmentor.items():
-            prob = augment_kwargs.get('prob', None)
-
-            if prob is None:
-                logging.error(
-                    f'Augmentation "{augment_name}" will not be applied as '
-                    f'keyword argument "prob" was not defined for this augmentation.'
-                )
-
-            else:
-                _ = augment_kwargs.pop('prob')
-
-                try:
-                    augmentation = perturbation_types[augment_name](**augment_kwargs)
-                    augmentations.append([prob, augmentation])
-                except KeyError:
-                    logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
-
-        augmentor = AudioAugmentor(perturbations=augmentations)
-        return augmentor
 
     @property
     def dataset(self):
