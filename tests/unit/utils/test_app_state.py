@@ -1,6 +1,5 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
-
 # =============================================================================
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -18,10 +17,8 @@
 # =============================================================================
 
 import pytest
-from ruamel.yaml import YAML
 
 from nemo.utils.app_state import AppState
-
 
 class TestAppState():
     @pytest.mark.unit

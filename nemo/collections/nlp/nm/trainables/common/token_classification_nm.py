@@ -131,6 +131,7 @@ class TokenClassifier(TrainableNM):
         dropout=0.0,
         use_transformer_pretrained=True,
     ):
+        # Pass name up the module class hierarchy.
         super().__init__(name)
 
         self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self._device, num_layers, activation, log_softmax)
