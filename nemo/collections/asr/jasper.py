@@ -341,42 +341,42 @@ class JasperDecoderForSpkrClass(TrainableNM):
             "embs" : NeuralType(('B','D'), AcousticEncodedRepresentation())
             }
 
-    def __init__(self, feat_in, num_classes,emb_size = 256, covr=False,init_mode="xavier_uniform"):
+    def __init__(self, feat_in, num_classes,emb_sizes = [256], covr=False,init_mode="xavier_uniform"):
         super().__init__()
         if covr:
             self._feat_in = feat_in**2 +2*feat_in
         else:
             self._feat_in = 2*feat_in
 
-        self._midEmbd1 = emb_size # Spkr Vector Embedding Shape
-        self._midEmbd2 = 256 # Spkr Vector Embedding Shape
-        # Add 1 for blank char
+        self._midEmbd1 = int(emb_sizes[0]) # Spkr Vector Embedding Shape
+        self._midEmbd2 = int(emb_sizes[1]) if len(emb_sizes)>1 else 0 # Spkr Vector Embedding Shape
+
         self._num_classes = num_classes 
         self._pooling = StatsPoolLayer(covr=covr)
-        if self._midEmbd1:
-            self.decoder_layers = nn.Sequential(
-                    nn.Linear(self._feat_in,self._midEmbd1),
-                    nn.BatchNorm1d(self._midEmbd1,affine=False,track_running_stats=True),
-                    nn.ReLU(),
-                    nn.Linear(self._midEmbd1,self._num_classes)
-                    # nn.Linear(self._midEmbd1,self._midEmbd2),
-                    # nn.BatchNorm1d(self._midEmbd2),
-                    # nn.ReLU(),
-                    # nn.Linear(self._midEmbd2,self._num_classes)
-                    )
-        else:
-            self.decoder_layers = nn.Sequential(
-                    nn.BatchNorm1d(self._feat_in),
-                    nn.Linear(self._feat_in,self._num_classes)
-                    )
+        self.norm = nn.BatchNorm2d(feat_in)
+        self.mid1 = self.affineLayer(self._feat_in,self._midEmbd1)
+        self.mid2 = self.affineLayer(self._midEmbd1,self._midEmbd2,learn_mean=False)
+        self.final = nn.Linear(self._midEmbd2,self._num_classes)
+
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
+    def affineLayer(self,inp_shape,out_shape,learn_mean=True):
+        layer = nn.Sequential(
+            nn.Linear(inp_shape,out_shape),
+            nn.BatchNorm1d(out_shape,affine=learn_mean,track_running_stats=True),
+            nn.ReLU())
+        
+        return layer # layer, embs
+
     def forward(self, encoder_output):
+        encoder_output = self.norm(encoder_output)
         pool = self._pooling(encoder_output)
-        if self._midEmbd1:
-            return self.decoder_layers(pool), self.decoder_layers[:2](pool)
-        return self.decoder_layers(pool)
+        mid1 = self.mid1(pool)
+        mid2,embs = self.mid2(mid1),self.mid2[:2](mid1)
+        out = self.final(mid2)
+        
+        return out,embs
 
 
 class JasperDecoderForSpkrClass_Covr(TrainableNM):
@@ -424,10 +424,9 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
     def __init__(self, feat_in, num_classes,emb_size = 256,init_mode="xavier_uniform"):
         super().__init__()
         print("Covariance Decoder")
-        self._feat_in = feat_in**2
+        self._feat_in = 2*feat_in+feat_in**2
 
         self._midEmbd1 = emb_size # Spkr Vector Embedding Shape
-        self._midEmbd2 = 256 # Spkr Vector Embedding Shape
         # Add 1 for blank char
         self._num_classes = num_classes 
         self._pooling = StatsPoolLayer(covr=True)

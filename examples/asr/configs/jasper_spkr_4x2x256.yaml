@@ -1,7 +1,7 @@
 model: "Jasper"
 sample_rate: &sample_rate 16000
 dropout: &drop 0.5
-repeat:  &rep  1
+repeat:  &rep  2
 
 AudioToLabelDataLayer:
     min_duration: 0.1
@@ -85,4 +85,4 @@ JasperEncoder:
 
 JasperDecoderForSpkrClass:
     feat_in: *enc_feat_out
-    emb_sizes: 512
+    emb_sizes: 1024,1024
