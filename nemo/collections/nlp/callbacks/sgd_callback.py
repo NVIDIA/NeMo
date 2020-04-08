@@ -103,10 +103,10 @@ def combine_predictions_in_example(predictions, batch_size):
 
 
 def eval_epochs_done_callback(
-    global_vars, input_json_files, schema_json_file, prediction_dir, data_dir, eval_dataset, output_metric_file
+    global_vars, input_json_files, schema_json_file, prediction_dir, data_dir, eval_dataset, output_metric_file, state_tracker
 ):
     pred_utils.write_predictions_to_file(
-        global_vars['predictions'], input_json_files, schema_json_file, prediction_dir
+        global_vars['predictions'], input_json_files, schema_json_file, prediction_dir, state_tracker=state_tracker,
     )
 
     metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file)

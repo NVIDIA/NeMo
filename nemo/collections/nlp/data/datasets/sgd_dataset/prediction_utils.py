@@ -24,10 +24,10 @@ from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
 
 REQ_SLOT_THRESHOLD = 0.5
 
-__all__ = ['get_predicted_dialog', 'write_predictions_to_file']
+__all__ = ['get_predicted_dialog_baseline', 'write_predictions_to_file']
 
 
-def get_predicted_dialog(dialog, all_predictions, schemas):
+def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
     """Update labels in a dialogue based on model predictions.
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
@@ -117,7 +117,7 @@ def get_predicted_dialog(dialog, all_predictions, schemas):
     return dialog
 
 
-def get_predicted_dialog_orig(dialog, all_predictions, schemas):
+def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
     """Update labels in a dialogue based on model predictions.
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
@@ -195,7 +195,7 @@ def get_predicted_dialog_orig(dialog, all_predictions, schemas):
     return dialog
 
 
-def write_predictions_to_file(predictions, input_json_files, schema_json_file, output_dir):
+def write_predictions_to_file(predictions, input_json_files, schema_json_file, output_dir, state_tracker):
     """Write the predicted dialogues as json files.
 
   Args:
@@ -224,7 +224,13 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
             nemo.logging.info(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
-                pred_dialogs.append(get_predicted_dialog(d, all_predictions, schemas))
+                if state_tracker == 'baseline':
+                    pred_dialog = get_predicted_dialog_baseline(d, all_predictions, schemas)
+                elif state_tracker == 'ret_sys_act':
+                    pred_dialog = get_predicted_dialog_ret_sys_act(d, all_predictions, schemas)
+                else:
+                    raise ValueError(f"tracker_mode {state_tracker} is not defined.")
+                pred_dialogs.append(pred_dialog)
             f.close()
         input_file_name = os.path.basename(input_file_path)
         output_file_path = os.path.join(output_dir, input_file_name)

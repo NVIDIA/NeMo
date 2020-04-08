@@ -156,6 +156,10 @@ parser.add_argument(
     "--enable_pin_memory", action="store_true", help="Enabled the pin_memory feature of Pytroch's DataLoader",
 )
 
+parser.add_argument(
+    "--state_tracker", type=str, default='baseline', help="Specifies the state tracker mode.",
+)
+
 args = parser.parse_args()
 
 logging.info(args)
@@ -380,7 +384,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         x, y, dialogues_processor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset
     ),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file
+        x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file, args.state_tracker
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,
