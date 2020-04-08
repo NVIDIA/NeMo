@@ -257,8 +257,8 @@ class NeuralGraph(NeuralInterface):
             Records the operation (module plus passed inputs) on a list.
         """
         # Check if module with that name already exists.
-        if module.name in self._modules.keys():
-            raise KeyError("Neural Graph already contains a module named {}".format(module.name))
+        #if module.name in self._modules.keys():
+        #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
         # Add module to list of modules.
         self._modules[module.name] = module
 

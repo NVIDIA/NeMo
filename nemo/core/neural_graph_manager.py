@@ -50,7 +50,7 @@ class NeuralGraphManager(ObjectRegistry):
         if self._active_graph is None:
             # Create a new "default" graph. Default mode: both.
             new_graph = NeuralGraph(operation_mode=OperationMode.both)
-            new_graph.name = self.register(new_graph, None)
+            new_graph._name = self.register(new_graph, None)
             # Set the newly created graph as active.
             self._active_graph = new_graph
 
