@@ -303,7 +303,12 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
                 )
             elif optimizer_class.lower() == "fused_adam":
-                optimizer = FusedAdam(params=params_to_optimize, lr=lr)
+                optimizer = FusedAdam(
+                    params=params_to_optimize,
+                    lr=lr,
+                    weight_decay=optimization_params.get("weight_decay", 0.0),
+                    betas=optimization_params.get("betas", (0.9, 0.999)),
+                )
             elif optimizer_class.lower() == "adam_w":
                 optimizer = AdamW(
                     params=params_to_optimize,
