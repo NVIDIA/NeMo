@@ -17,15 +17,13 @@
 # limitations under the License.
 # =============================================================================
 
-from unittest import TestCase
-
 import pytest
 from ruamel.yaml import YAML
 
-from nemo.core import AppState
+from nemo.utils.app_state import AppState
 
 
-class TestAppState(TestCase):
+class TestAppState():
     @pytest.mark.unit
     def test_value_sharing(self):
         # Create first instance of AppState.
@@ -33,7 +31,8 @@ class TestAppState(TestCase):
         x.test_value = "ala"
         # Create second instance of AppState and test value.
         y = AppState()
-        self.assertEqual(y.test_value, "ala")
+        assert y.test_value == "ala"
+
         # Change second instance and test first one.
         y.test_value = "ola"
-        self.assertEqual(x.test_value, "ola")
+        assert x.test_value == "ola"
