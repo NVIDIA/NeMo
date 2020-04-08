@@ -27,7 +27,7 @@ from nemo.core import AppState
 
 class TestAppState(TestCase):
     @pytest.mark.unit
-    def test_shared_graph(self):
+    def test_value_sharing(self):
         # Create first instance of AppState.
         x = AppState()
         x.test_value = "ala"

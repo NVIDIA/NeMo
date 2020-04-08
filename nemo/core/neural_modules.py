@@ -58,86 +58,23 @@ PretrainedModelInfo = namedtuple(
     "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location"),
 )
 
-
-import weakref
-
-class NameRegistry(object):
-    """
-        Class used for storing a list of object instances, generating unique names and monitoring their `uniqueness`.
-    """
-    _instances = set()
-
-    def __init__(self, name=None):
-        """ 
-            Sets object name and registers it on a list.
-        """
-        super().__init__()
-
-        # Set object name.
-        if name is None:
-            self._name =  self.__generate_unique_name(type(self).__name__)
-        else:
-            # Check if name is unique.
-            for ref in self._instances:
-                if ref().name == name:
-                    NameError("Module with name `{}` already exists!".format(name))
-            # Ok, set the object's name.
-            self._name = name
-            
-        # Register object.
-        self._instances.add(weakref.ref(self))
-
-    @property
-    def name(self):
-        """ Returns the object name. """
-        return self._name
-
-    def __generate_unique_name(self, base_name):
-        """
-            Generates a new unique name by adding postfix (number) to base name.
-
-            Args:
-                base_name: Base name.
-            Returns:
-                Generated name,
-        """
-        # Iterate through numbers.
-        postfix = 0
-        name_unique = False
-        while not name_unique:
-            # Generate name.
-            new_name = base_name + str(postfix)
-            name_unique = True
-            for ref in self._instances:
-                if ref().name == new_name:
-                    # Sadly name not unique.
-                    name_unique = False
-                    break
-            # Increment index.
-            postfix += 1
-        return new_name
-
-    @classmethod
-    def get_instances(cls):
-        dead = set()
-        for ref in cls._instances:
-            obj = ref()
-            if obj is not None:
-                yield obj
-            else:
-                dead.add(ref)
-        cls._instances -= dead
-
-class NeuralModule(NeuralInterface, NameRegistry):
+class NeuralModule(NeuralInterface):
     """
         Abstract class that every Neural Module must inherit from.
     """
 
     def __init__(self, name=None):
-        # Initialize inferface.
-        NeuralInterface.__init__(self)
-        # Auto-register name.
-        NameRegistry.__init__(self, name=name)
+        # Initialize the inferface.
+        super().__init__(name)
+
+        # Retrieve dictionary of parameters (keys, values) passed to init.
+        self._init_params = self.__extract_init_params()
+
+        # Get object UUID.
+        self._uuid = str(uuid.uuid4())
+
+        # Register module and store the generated name.
+        self._name = self._app_state.register_module(self, name)
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
@@ -149,11 +86,7 @@ class NeuralModule(NeuralInterface, NameRegistry):
         # Optimization level.
         self._opt_level = self._factory.optim_level
 
-        # Get object UUID.
-        self._uuid = str(uuid.uuid4())
 
-        # Retrieve dictionary of parameters (keys, values) passed to init.
-        self._init_params = self.__extract_init_params()
 
     @property
     def init_params(self) -> Optional[Dict]:
@@ -195,6 +128,7 @@ class NeuralModule(NeuralInterface, NameRegistry):
 
         # Return parameters.
         return init_params
+
 
     def __validate_params(self, params):
         """

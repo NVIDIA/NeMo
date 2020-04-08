@@ -1,6 +1,4 @@
-# ! /usr/bin/python
 # -*- coding: utf-8 -*-
-
 # =============================================================================
 # Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
@@ -63,6 +61,8 @@ class AppState(metaclass=Singleton):
             self._device = nemo.core.DeviceType.GPU
         else:
             self._device = device
+        # Create registers.
+        self._module_registry = nemo.utils.ObjectRegistry("module")
         self._neural_graph_manager = nemo.core.NeuralGraphManager()
 
     @property
@@ -77,6 +77,20 @@ class AppState(metaclass=Singleton):
     def register_graph(self, graph):
         """ Registers a new graph. """
         self._neural_graph_manager.register_graph(graph)
+
+    def register_module(self, module, name):
+        """ 
+            Registers a module using the provided name. 
+            If name is none - generates new unique name.
+            
+            Args:
+                module: A Neural Module object to be registered.
+                name: A "proposition" of module name.
+            
+            Returns:
+                A unique name (proposition or newly generated name).
+        """
+        return self._module_registry.register(module, name)
 
     @property
     def active_graph(self):

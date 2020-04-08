@@ -44,8 +44,8 @@ class NeuralGraph(NeuralInterface):
                 [training | eval]
                 name: Name of the graph (optional)
         """
-        # Call integrace constructor.
-        super().__init__()
+        # Initialize the inferface.
+        super().__init__(name)
 
         # Store name and operation mode.
         self._operation_mode = operation_mode
@@ -216,11 +216,6 @@ class NeuralGraph(NeuralInterface):
         #    print(f'exc_type: {exc_type}')
         #    print(f'exc_value: {exc_value}')
         #    print(f'exc_traceback: {exc_traceback}')
-
-    @property
-    def name(self):
-        """ Returns graph name. """
-        return self._name
 
     def __str__(self):
         """ Prints a nice summary. """

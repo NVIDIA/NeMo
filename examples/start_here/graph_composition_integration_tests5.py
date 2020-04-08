@@ -30,6 +30,7 @@ dl_training = nemo.tutorials.RealFunctionDataLayer(n=1000, batch_size=32, name="
 fx = nemo.tutorials.TaylorNet(dim=4, name="fx")
 fx2 = nemo.tutorials.TaylorNet(dim=4)
 fx3 = nemo.tutorials.TaylorNet(dim=4)
+print(fx3.name)
 loss = nemo.tutorials.MSELoss(name="loss")
 loss2 = nemo.tutorials.MSELoss()
 

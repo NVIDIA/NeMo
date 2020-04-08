@@ -33,15 +33,18 @@ class NeuralInterface(ABC):
         graph, e.g. get_weights, tie_weights, )
     """
 
-    def __init__(self):
-        """ Constructor. Set application state. """
-        # Get access to app state.
-        self._app_state = nemo.core.app_state.AppState()
+    def __init__(self, name):
+        """ Constructor. Sets the application state. """
+        # Copy the name. As names should be unique in module/graph scope, this should be handled additionally 
+        # in their constructors.
+        self._name = name
+        # Create access to the app state.
+        self._app_state = nemo.utils.app_state.AppState()
 
     @property
     @abstractmethod
     def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module input ports
+        """ Returns definitions of module input ports
 
         Returns:
           A (dict) of module's input ports names to NeuralTypes mapping
@@ -50,7 +53,7 @@ class NeuralInterface(ABC):
     @property
     @abstractmethod
     def output_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports
+        """ Returns definitions of module output ports
 
         Returns:
           A (dict) of module's output ports names to NeuralTypes mapping
@@ -65,3 +68,9 @@ class NeuralInterface(ABC):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
+
+    @property
+    def name(self):
+        """ Returns the object name. """
+        return self._name
+

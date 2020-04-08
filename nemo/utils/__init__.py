@@ -1,7 +1,6 @@
-# ! /usr/bin/python
 # -*- coding: utf-8 -*-
-
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# =============================================================================
+# Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,3 +23,5 @@ logging = _Logger()
 from .argparse import NemoArgParser
 from .exp_logging import ExpManager, get_logger
 from .helpers import *
+from nemo.utils.app_state import AppState
+from nemo.utils.object_registry import ObjectRegistry
