@@ -110,6 +110,7 @@ def create_all_dags(args, neural_factory):
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
 
+    audio_augmentor = spkr_params.get('AudioAugmentor', None)
     data_layers_test = []
     for test_set in args.eval_datasets:
 
@@ -118,6 +119,7 @@ def create_all_dags(args, neural_factory):
             labels=data_layer_train.labels,
             batch_size=args.batch_size,
             num_workers=cpu_per_traindl,
+            augmentor=audio_augmentor,
             **eval_dl_params,
         # normalize_transcripts=False
         )
@@ -128,6 +130,9 @@ def create_all_dags(args, neural_factory):
         sample_rate=sample_rate, **spkr_params["AudioToMelSpectrogramPreprocessor"],
     )
 
+    spectr_augment_config = spkr_params.get('SpectrogramAugmentation', None)
+    if spectr_augment_config:
+        data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(**spectr_augment_config)
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
 
@@ -152,6 +157,9 @@ def create_all_dags(args, neural_factory):
     processed_signal, processed_signal_len = data_preprocessor(
         input_signal=audio_signal,
         length=audio_signal_len)
+    
+    if spectr_augment_config:
+        processed_signal = data_spectr_augmentation(input_spec=processed_signal)
     
     encoded, encoded_len = encoder(audio_signal=processed_signal,length=processed_signal_len)    
     

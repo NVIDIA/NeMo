@@ -440,7 +440,7 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
             "embs" : NeuralType(('B','D'), AcousticEncodedRepresentation())
             }
 
-    def __init__(self, feat_in, num_classes,emb_size = 256,init_mode="xavier_uniform"):
+    def __init__(self, feat_in, num_classes,emb_size = 512,init_mode="xavier_uniform"):
         super().__init__()
         print("Covariance Decoder")
         self._feat_in = 2*feat_in+feat_in**2
@@ -467,5 +467,5 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
     def forward(self, encoder_output):
         pool = self._pooling(encoder_output)
         if self._midEmbd1:
-            return self.decoder_layers(pool), self.decoder_layers[0](pool)
+            return self.decoder_layers(pool), self.decoder_layers[:2](pool)
         return self.decoder_layers(pool)
