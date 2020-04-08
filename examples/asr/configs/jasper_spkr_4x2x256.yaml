@@ -2,6 +2,7 @@ model: "Jasper"
 sample_rate: &sample_rate 16000
 dropout: &drop 0.5
 repeat:  &rep  2
+time_length: 8
 
 AudioToLabelDataLayer:
     min_duration: 0.1

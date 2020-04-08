@@ -500,6 +500,7 @@ target_label_n, "offset": offset_in_sec_n}
             the range [0, 1] of this augmentation being applied.
             If this keyword is not present, then the augmentation is
             disabled and a warning is logged.
+        time_length (int): max seconds to consider in a batch
     """
 
     @property
@@ -533,6 +534,7 @@ target_label_n, "offset": offset_in_sec_n}
         drop_last: bool = False,
         load_audio: bool = True,
         augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        time_length: int = 8
     ):
         super(AudioToLabelDataLayer, self).__init__()
 
@@ -575,7 +577,7 @@ target_label_n, "offset": offset_in_sec_n}
             dataset=self._dataset,
             batch_size=batch_size,
             # collate_fn=partial(seq_collate_fn, token_pad_value=0),
-            collate_fn=partial(fixed_seq_collate_fn, fixed_length=8*self._sample_rate),
+            collate_fn=partial(fixed_seq_collate_fn, fixed_length=time_length*self._sample_rate),
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,

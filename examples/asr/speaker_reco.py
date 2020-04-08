@@ -76,6 +76,8 @@ def create_all_dags(args, neural_factory):
         spkr_params = yaml.load(f)
     
     sample_rate = spkr_params['sample_rate']
+    time_length = spkr_params.get('time_length',8)
+    logging.info("max time length considered is {} sec".format(time_length))
 
     # Calculate num_workers for dataloader
     total_cpus = os.cpu_count()
@@ -86,6 +88,7 @@ def create_all_dags(args, neural_factory):
     train_dl_params.update(spkr_params["AudioToLabelDataLayer"]["train"])
     del train_dl_params["train"]
     del train_dl_params["eval"]
+    audio_augmentor = spkr_params.get('AudioAugmentor', None)
     # del train_dl_params["normalize_transcripts"]
 
     data_layer_train = nemo_asr.AudioToLabelDataLayer(
@@ -93,6 +96,8 @@ def create_all_dags(args, neural_factory):
         labels=None,
         batch_size=args.batch_size,
         num_workers=cpu_per_traindl,
+        augmentor=audio_augmentor,
+        time_length=time_length,
         **train_dl_params,
         # normalize_transcripts=False
     )
@@ -110,7 +115,7 @@ def create_all_dags(args, neural_factory):
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
 
-    audio_augmentor = spkr_params.get('AudioAugmentor', None)
+    
     data_layers_test = []
     for test_set in args.eval_datasets:
 
@@ -119,7 +124,7 @@ def create_all_dags(args, neural_factory):
             labels=data_layer_train.labels,
             batch_size=args.batch_size,
             num_workers=cpu_per_traindl,
-            augmentor=audio_augmentor,
+            time_length=time_length,
             **eval_dl_params,
         # normalize_transcripts=False
         )
