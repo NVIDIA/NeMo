@@ -188,7 +188,7 @@ def main():
                     num_cpus=max(os.cpu_count(), 1),
                     input_tensor=False,
                 )
-                
+
                 beam_predictions = beam_search_with_lm(log_probs=logprobexp, log_probs_length=None, force_pt=True)
 
                 beam_predictions = [b[0][1] for b in beam_predictions[0]]
