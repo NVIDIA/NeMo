@@ -151,7 +151,7 @@ def parse_args():
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
-        "--mode", default="train_eval", choices=["train_eval", "eval", "test"], help="Mode of model usage."
+        "--mode", default="train_eval", choices=["train", "train_eval", "eval", "test"], help="Mode of model usage."
     )
     parser.add_argument(
         "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
@@ -218,10 +218,7 @@ def parse_args():
         help="If null_score - best_non_null is greater than the threshold predict null.",
     )
     parser.add_argument(
-        "--n_best_size",
-        default=20,
-        type=int,
-        help="The total number of n-best predictions to generate in the nbest_predictions.json output file.",
+        "--n_best_size", default=20, type=int, help="The total number of n-best predictions to generate at testing.",
     )
     parser.add_argument("--batches_per_step", default=1, type=int, help="Number of iterations per step.")
     parser.add_argument(
@@ -238,7 +235,14 @@ def parse_args():
         type=str,
         required=False,
         default="predictions.json",
-        help="File to write predictions to. Only in evaluation mode.",
+        help="File to write predictions to. Only in evaluation or test mode.",
+    )
+    parser.add_argument(
+        "--output_nbest_file",
+        type=str,
+        required=False,
+        default="nbest.json",
+        help="File to write nbest predictions to. Only in evaluation or test mode.",
     )
     args = parser.parse_args()
     return args
@@ -304,23 +308,21 @@ def create_pipeline(
 if __name__ == "__main__":
     args = parse_args()
 
-    if args.mode == "train_eval":
-        if not os.path.exists(args.train_file) or not os.path.exists(args.eval_file):
+    if "train" in args.mode:
+        if not os.path.exists(args.train_file):
             raise FileNotFoundError(
-                "train and eval data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
+                "train data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
-    elif args.mode == "eval":
+    if "eval" in args.mode:
         if not os.path.exists(args.eval_file):
             raise FileNotFoundError(
                 "eval data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
-    elif args.mode == "test":
+    if "test" in args.mode:
         if not os.path.exists(args.test_file):
             raise FileNotFoundError(
                 "test data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
-    else:
-        raise ValueError(f"{args.mode} can only be one of [train_eval, eval, test]")
 
     # Instantiate neural factory with supported backend
     nf = nemo_core.NeuralModuleFactory(
@@ -400,7 +402,7 @@ if __name__ == "__main__":
             use_data_cache=not args.no_data_cache,
         )
 
-    if args.mode == "train_eval":
+    if "train" in args.mode:
         logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
         train_callback = nemo_core.SimpleLossLoggerCallback(
             tensors=[train_loss],
@@ -409,52 +411,47 @@ if __name__ == "__main__":
             step_freq=args.train_step_freq,
             tb_writer=nf.tb_writer,
         )
-
         ckpt_callback = nemo_core.CheckpointCallback(
             folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
         )
-        eval_callback = nemo_core.EvaluatorCallback(
-            eval_tensors=eval_output,
-            user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-                x,
-                eval_data_layer=eval_data_layer,
-                do_lower_case=args.do_lower_case,
-                n_best_size=args.n_best_size,
-                max_answer_length=args.max_answer_length,
-                version_2_with_negative=args.version_2_with_negative,
-                null_score_diff_threshold=args.null_score_diff_threshold,
-            ),
-            tb_writer=nf.tb_writer,
-            eval_step=args.eval_step_freq,
-        )
-
-        if args.max_steps < 0:
-            lr_policy_fn = get_lr_policy(
-                args.lr_policy,
-                total_steps=args.num_epochs * train_steps_per_epoch,
-                warmup_ratio=args.lr_warmup_proportion,
+        callbacks = [train_callback, ckpt_callback]
+        if "eval" in args.mode:
+            eval_callback = nemo_core.EvaluatorCallback(
+                eval_tensors=eval_output,
+                user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+                user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                    x,
+                    eval_data_layer=eval_data_layer,
+                    do_lower_case=args.do_lower_case,
+                    n_best_size=args.n_best_size,
+                    max_answer_length=args.max_answer_length,
+                    version_2_with_negative=args.version_2_with_negative,
+                    null_score_diff_threshold=args.null_score_diff_threshold,
+                ),
+                tb_writer=nf.tb_writer,
+                eval_step=args.eval_step_freq,
             )
-        else:
-            lr_policy_fn = get_lr_policy(
-                args.lr_policy, total_steps=args.max_steps, warmup_ratio=args.lr_warmup_proportion
-            )
+            callbacks.append(eval_callback)
 
         optimization_params = {
             "lr": args.lr,
             "weight_decay": args.weight_decay,
         }
         if args.max_steps < 0:
+            total_steps = args.num_epochs * train_steps_per_epoch
             optimization_params['num_epochs'] = args.num_epochs
         else:
+            total_steps = args.max_steps
             optimization_params['max_steps'] = args.max_steps
+
+        lr_policy_fn = get_lr_policy(args.lr_policy, total_steps=total_steps, warmup_ratio=args.lr_warmup_proportion)
 
         if args.grad_norm_clip >= 0:
             optimization_params['grad_norm_clip'] = args.grad_norm_clip
 
         nf.train(
             tensors_to_optimize=[train_loss],
-            callbacks=[train_callback, ckpt_callback, eval_callback],
+            callbacks=callbacks,
             lr_policy=lr_policy_fn,
             optimizer=args.optimizer,
             batches_per_step=args.batches_per_step,
@@ -466,7 +463,9 @@ if __name__ == "__main__":
         if args.checkpoint_dir is not None:
             load_from_folder = args.checkpoint_dir
 
-        evaluated_tensors = nf.infer(tensors=eval_output, checkpoint_dir=load_from_folder, cache=True)
+        evaluated_tensors = nf.infer(
+            tensors=eval_output, checkpoint_dir=load_from_folder, cache=True, offload_to_cpu=False
+        )
         unique_ids = []
         for t in evaluated_tensors[0]:
             unique_ids.extend(t.tolist())
@@ -478,7 +477,7 @@ if __name__ == "__main__":
             for t in evaluated_tensors[2]:
                 end_logits.extend(t.tolist())
 
-            exact_match, f1, all_predictions = eval_data_layer.dataset.evaluate(
+            exact_match, f1, all_predictions, all_nbest = eval_data_layer.dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,
@@ -496,7 +495,7 @@ if __name__ == "__main__":
             for t in evaluated_tensors[1]:
                 logits.extend(t.tolist())
             start_logits, end_logits = np.split(np.asarray(logits), 2, axis=-1)
-            (all_predictions, all_nbest_json, scores_diff_json) = test_data_layer.dataset.get_predictions(
+            (all_predictions, all_nbest, scores_diff) = test_data_layer.dataset.get_predictions(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
                 end_logits=end_logits,
@@ -506,6 +505,9 @@ if __name__ == "__main__":
                 null_score_diff_threshold=args.null_score_diff_threshold,
                 do_lower_case=args.do_lower_case,
             )
+        if args.output_nbest_file is not None:
+            with open(args.output_nbest_file, "w") as writer:
+                writer.write(json.dumps(all_nbest, indent=4) + "\n")
         if args.output_prediction_file is not None:
             with open(args.output_prediction_file, "w") as writer:
                 writer.write(json.dumps(all_predictions, indent=4) + "\n")
