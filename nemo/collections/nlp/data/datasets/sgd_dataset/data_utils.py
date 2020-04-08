@@ -145,8 +145,14 @@ class Dstc8DataProcessor(object):
                     logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
 
+                # wait until the master process writes to the schema embedding file
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
     def get_dialog_examples(self, dataset):
-        if (self._task_name, dataset) not in self.dial_files or not os.path.exists(self.dial_files[(self._task_name, dataset)]):
+        if (self._task_name, dataset) not in self.dial_files or not os.path.exists(
+            self.dial_files[(self._task_name, dataset)]
+        ):
             raise ValueError(
                 f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize Dstc8DataProcessor and add {dataset} dataset to datasets arg."
             )
