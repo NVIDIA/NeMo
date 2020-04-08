@@ -18,7 +18,8 @@
 # =============================================================================
 
 import nemo
-from nemo.core import AppState, NeuralGraph, OperationMode
+from nemo.core import NeuralGraph, OperationMode
+from nemo.utils.app_state import AppState
 
 logging = nemo.logging
 

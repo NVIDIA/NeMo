@@ -33,8 +33,6 @@ class NeuralGraph(NeuralInterface):
         Neural Graph class stores dynamically defined graphs of connected Neural Modules.
     """
 
-
-
     def __init__(self, operation_mode, name=None):
         """
             Constructor. Initializes graph variables.
@@ -47,13 +45,11 @@ class NeuralGraph(NeuralInterface):
         # Initialize the inferface.
         super().__init__(name)
 
+        # Register graph.
+        self._name = self._app_state.register_graph(self, name)
+
         # Store name and operation mode.
         self._operation_mode = operation_mode
-        if name is None:
-            # Simply take the name of operation.
-            self._name = str(self._operation_mode)[14:]
-        else:
-            self._name = name
 
         # Input ports and tensors - empty for now.
         self._bound_input_ports = {}
@@ -74,8 +70,6 @@ class NeuralGraph(NeuralInterface):
         # "Steps": ordered execution of modules in a graph.
         self._steps = []
         
-        # Register graph.
-        self._app_state.register_graph(self)
 
     def __call__(self, **kwargs):
         """
@@ -203,19 +197,33 @@ class NeuralGraph(NeuralInterface):
     #    self._bound_output_ports_default = ports
 
     def __enter__(self):
-        """ Activates given graph as current. """
-        # print("Entering graph: ", self.name)
+        """ 
+            Activates this graph.
+        
+            Returns:
+                The graph object.
+        """
         self._app_state.active_graph = self
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        """ Deactivates current graph. """
-        # print("Exiting graph: ", self.name)
+        """
+            Deactivates the current graph.
+        """
         self._app_state.active_graph = None
-        # if exc_type:
-        #    print(f'exc_type: {exc_type}')
-        #    print(f'exc_value: {exc_value}')
-        #    print(f'exc_traceback: {exc_traceback}')
+
+    def activate(self):
+        """ 
+            Activates this graph.
+        """
+        self._app_state.active_graph = self
+
+    def deactivate(self):
+        """
+            Deactivates the current graph.
+        """
+        self._app_state.active_graph = None
+
 
     def __str__(self):
         """ Prints a nice summary. """

@@ -66,22 +66,27 @@ class AppState(metaclass=Singleton):
         self._neural_graph_manager = nemo.core.NeuralGraphManager()
 
     @property
-    def graphs(self):
-        """ Property returns the graph manager.
+    def modules(self):
+        """ Property returning the existing modules.
 
             Returns:
-                List of created graphs
+                Existing modules (a set object).
+        """
+        return self._module_registry
+
+    @property
+    def graphs(self):
+        """ Property returning the existing graphs.
+
+            Returns:
+                Existing graphs (a set object).
         """
         return self._neural_graph_manager
-
-    def register_graph(self, graph):
-        """ Registers a new graph. """
-        self._neural_graph_manager.register_graph(graph)
 
     def register_module(self, module, name):
         """ 
             Registers a module using the provided name. 
-            If name is none - generates new unique name.
+            If name is none - generates a new unique name.
             
             Args:
                 module: A Neural Module object to be registered.
@@ -91,6 +96,20 @@ class AppState(metaclass=Singleton):
                 A unique name (proposition or newly generated name).
         """
         return self._module_registry.register(module, name)
+
+    def register_graph(self, graph, name):
+        """
+            Registers a new graph using the provided name.
+            If name is none - generates a new unique name.
+            
+            Args:
+                graph: A Neural Graph object to be registered.
+                name: A "proposition" of graph name.
+            
+            Returns:
+                A unique name (proposition or newly generated name).
+        """
+        return self._neural_graph_manager.register(graph, name)
 
     @property
     def active_graph(self):

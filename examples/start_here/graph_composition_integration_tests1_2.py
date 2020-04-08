@@ -18,7 +18,7 @@
 # =============================================================================
 
 import nemo
-from nemo.core import AppState, NeuralGraph, OperationMode
+from nemo.core import NeuralGraph, OperationMode
 
 logging = nemo.logging
 
@@ -36,7 +36,7 @@ logging.info(
 # Create the g0 graph.
 g0 = NeuralGraph(operation_mode=OperationMode.training)
 
-# Activate the "g0 graph context" "manually" - all operations will be recorded to g0.
+# Activate the "g0 graph context" "manually" - all steps will be recorded to g0.
 g0.activate()
 
 # Define g0 - connections between the modules.
@@ -44,7 +44,7 @@ x, t = dl()
 p = m2(x=x)
 lss = loss(predictions=p, target=t)
 
-# Deactivate the "g0 graph context" (this is really optional, as long as there are no other operations).
+# Deactivate the "g0 graph context" (this is really optional, as long as there are no other steps to be recorded).
 g0.deactivate()
 
 # SimpleLossLoggerCallback will print loss values to console.
