@@ -3,7 +3,7 @@ Tutorial
 
 In this tutorial we are going to implement Neural Machine Translation (NMT) system based on
 `Transformer encoder-decoder architecture <https://arxiv.org/abs/1706.03762>`_ :cite:`nlp-nmt-vaswani2017attention`.
-All code used in this tutorial is based on ``examples/nlp/machine_translation/machine_translation_tutorial.py``.
+All code used in this tutorial is based on ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py``.
 
 Preliminaries
 -------------
@@ -19,7 +19,7 @@ To clean the dataset we remove all sentence pairs such that:
 We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from
 `here <https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT>`__. In the following steps, we assume that all data is located at **<path_to_data>**.
 
-**Resources.** Training script ``examples/nlp/machine_translation/machine_translation_tutorial.py`` used in this tutorial allows to train Transformer-big architecture
+**Resources.** Training script ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py`` used in this tutorial allows to train Transformer-big architecture
 to **29.2** BLEU / **28.5** SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA's DGX-1 with 16GB Volta GPUs.
 This setup can also be replicated with fewer resources by using more steps of gradient accumulation :cite:`nlp-nmt-ott2018scaling`.
 
@@ -189,7 +189,7 @@ Finally, we define the optimization parameters and run the whole pipeline.
 Model training
 --------------
 
-To train the Transformer-big model, run ``machine_translation_tutorial.py`` located at ``examples/nlp/machine_translation``:
+To train the Transformer-big model, run ``machine_translation_tutorial.py`` located at ``examples/nlp/neural_machine_translation``:
 
     .. code-block:: python
 
@@ -228,7 +228,7 @@ References
 References
 ------------------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-NMT
     :keyprefix: nlp-nmt-

@@ -6,3 +6,6 @@ torchtext
 transformers
 unidecode
 youtokentome
+numpy
+tqdm
+sklearn

@@ -70,6 +70,24 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Dependencies Update
+
+### Deprecated
+
+### Fixed
+
+### Removed
+
+### Security
+
+### Contributors
+
+## [0.10.0] - 2020-04-03
+
+### Added
 - Roberta and Albert support added to GLUE script, data caching also added.
 ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @ekmb
 - text classification notebook added
@@ -126,6 +144,8 @@ files, along with unit tests, examples and tutorials
 ### Fixed
 - Critical fix of the training action on CPU 
 ([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
+- Fixed issue in Tacotron 2 prenet
+([PR #444](https://github.com/NVIDIA/NeMo/pull/444)) - @blisc
 
 ### Removed
 - gradient_predivide_factor arg of train() now has no effect
@@ -184,7 +204,8 @@ This release also includes nemo_asr'' and nemo_nlp'' collections for Speech Reco
 
 Please refer to the documentation here: https://nvidia.github.io/NeMo/
 
-[Unreleased]: https://github.com/NVIDIA/NeMo/compare/v0.9.0...master
+[Unreleased]: https://github.com/NVIDIA/NeMo/compare/v0.10.0...master
+[0.10.0]: https://github.com/NVIDIA/NeMo/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/NVIDIA/NeMo/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/NVIDIA/NeMo/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/NVIDIA/NeMo/compare/r0.8...v0.8.1

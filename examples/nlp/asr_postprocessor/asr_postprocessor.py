@@ -60,14 +60,12 @@ parser.add_argument("--ffn_dropout", default=0.25, type=float)
 parser.add_argument("--attn_score_dropout", default=0.25, type=float)
 parser.add_argument("--attn_layer_dropout", default=0.25, type=float)
 parser.add_argument("--eval_step_frequency", default=2000, type=int)
-parser.add_argument("--data_dir", default="/dataset/", type=str)
+parser.add_argument("--data_dir", default="../../../tests/data/pred_real", type=str)
 parser.add_argument("--src_lang", default="pred", type=str)
 parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--len_pen", default=0.0, type=float)
-parser.add_argument(
-    "--restore_from", dest="restore_from", type=str, default="../../../scripts/bert-base-uncased_decoder.pt"
-)
+parser.add_argument("--restore_from", dest="restore_from", type=str, default="bert-base-uncased_decoder.pt")
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(

@@ -1,5 +1,5 @@
-Transformer Language Model
-==========================
+Tutorial
+========
 
 In this tutorial, we will build and train a language model using the Transformer architecture :cite:`nlp-lm-vaswani2017attention`.
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
@@ -15,7 +15,7 @@ Download Corpus
 
 For demonstration purposes, we will be using the very small WikiText-2 dataset :cite:`nlp-lm-merity2016pointer`.
 
-To download the dataset, run the script ``examples/nlp/scripts/get_wkt2.sh``. After downloading and unzipping, the folder should include 3 files that look like this:
+To download the dataset, run the script ``examples/nlp/language_modeling/get_wkt2.sh <FOLDER_FOR_DATA>``. After downloading and unzipping, the folder ``<FOLDER_FOR_DATA>`` should include 3 files that look like this:
 
     .. code-block:: bash
 
@@ -145,7 +145,7 @@ Next, we define necessary callbacks:
         from nemo.collections.nlp.callbacks.lm_transformer_callback import eval_epochs_done_callback, eval_iter_callback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
             tb_writer=nf.tb_writer,
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=steps_per_epoch,
@@ -194,7 +194,7 @@ Finally, you should define your optimizer, and start training!
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-LM
     :keyprefix: nlp-lm-

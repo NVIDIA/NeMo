@@ -55,14 +55,14 @@ def get_features(
 
     for i, query in enumerate(queries):
         words = query.strip().split()
-        subtokens = ['[CLS]']
+        subtokens = [tokenizer.cls_token]
         loss_mask = [1 - ignore_start_end]
         subtokens_mask = [0]
         if with_label:
             slots = [pad_label]
 
         for j, word in enumerate(words):
-            word_tokens = tokenizer.tokenize(word)
+            word_tokens = tokenizer.text_to_tokens(word)
             subtokens.extend(word_tokens)
 
             loss_mask.append(1)
@@ -74,8 +74,8 @@ def get_features(
             if with_label:
                 slots.extend([raw_slots[i][j]] * len(word_tokens))
 
-        subtokens.append('[SEP]')
-        loss_mask.append(not ignore_start_end)
+        subtokens.append(tokenizer.sep_token)
+        loss_mask.append(1 - ignore_start_end)
         subtokens_mask.append(0)
         sent_lengths.append(len(subtokens))
         all_subtokens.append(subtokens)
@@ -93,7 +93,7 @@ def get_features(
 
     for i, subtokens in enumerate(all_subtokens):
         if len(subtokens) > max_seq_length:
-            subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1 :]
+            subtokens = [tokenizer.cls_token] + subtokens[-max_seq_length + 1 :]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
             all_loss_mask[i] = [1 - ignore_start_end] + all_loss_mask[i][-max_seq_length + 1 :]
             all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
@@ -102,7 +102,7 @@ def get_features(
                 all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1 :]
             too_long_count += 1
 
-        all_input_ids.append([tokenizer._convert_token_to_id(t) for t in subtokens])
+        all_input_ids.append([tokenizer.tokens_to_ids(t) for t in subtokens])
 
         if len(subtokens) < max_seq_length:
             extra = max_seq_length - len(subtokens)
@@ -117,6 +117,16 @@ def get_features(
         all_segment_ids.append([0] * max_seq_length)
 
     logging.info(f'{too_long_count} are longer than {max_seq_length}')
+
+    logging.info("*** Some Examples of Processed Data***")
+    for i in range(min(len(all_input_ids), 5)):
+        logging.info("i: %s" % (i))
+        logging.info("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
+        logging.info("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
+        logging.info("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
+        logging.info("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
+        if with_label:
+            logging.info("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
 
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 
@@ -139,7 +149,7 @@ class BertJointIntentSlotDataset(Dataset):
         slot_file (str): file to slot labels, each line corresponding to
             slot labels for a sentence in input_file. No header.
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as BertTokenizer
+        tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
         pad_label (int): pad value use for slot labels.
@@ -157,6 +167,7 @@ class BertJointIntentSlotDataset(Dataset):
         pad_label=128,
         ignore_extra_tokens=False,
         ignore_start_end=False,
+        do_lower_case=False,
     ):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
@@ -179,7 +190,10 @@ class BertJointIntentSlotDataset(Dataset):
             raw_slots.append([int(slot) for slot in slot_line.strip().split()])
             parts = input_line.strip().split()
             raw_intents.append(int(parts[-1]))
-            queries.append(' '.join(parts[:-1]))
+            query = ' '.join(parts[:-1])
+            if do_lower_case:
+                query = query.lower()
+            queries.append(query)
 
         features = get_features(
             queries,
@@ -228,13 +242,17 @@ class BertJointIntentSlotInferDataset(Dataset):
     Args:
         queries (list): list of queries to run inference on
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as BertTokenizer
+        tokenizer (Tokenizer): such as NemoBertTokenizer
         pad_label (int): pad value use for slot labels.
             by default, it's the neutral label.
 
     """
 
-    def __init__(self, queries, max_seq_length, tokenizer):
+    def __init__(self, queries, max_seq_length, tokenizer, do_lower_case):
+        if do_lower_case:
+            for idx, query in enumerate(queries):
+                queries[idx] = queries[idx].lower()
+
         features = get_features(queries, max_seq_length, tokenizer)
 
         self.all_input_ids = features[0]

@@ -28,7 +28,7 @@ Dataset
 This model can work with any dataset as long as it follows the format specified below. For this tutorial, we're going to use the `Tatoeba collection of sentences`_. `This`_ script downloads and preprocesses the dataset. 
 
 .. _Tatoeba collection of sentences: https://tatoeba.org/eng
-.. _This: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/scripts/get_tatoeba.py
+.. _This: https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/token_classification/get_tatoeba_data.py
 
 
 The training and evaluation data is divided into 2 files: text.txt and labels.txt. Each line of the text.txt file contains text sequences, where words are separated with spaces:
@@ -86,7 +86,7 @@ To download and preprocess a subset of the Tatoeba collection of sentences, run:
 
 .. code-block:: bash
         
-        python ../scripts/get_tatoeba.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
+        python get_tatoeba_data.py --data_dir DATA_DIR --num_sample NUM_SAMPLES
 
 Then, we need to create our neural factory with the supported backend. This tutorial assumes that you're training on a single GPU, with mixed precision (``optimization_level="O1"``). If you don't want to use mixed precision, set ``optimization_level`` to ``O0``.
 
@@ -98,7 +98,11 @@ Then, we need to create our neural factory with the supported backend. This tuto
                                            log_dir=WORK_DIR,
                                            placement=nemo.core.DeviceType.GPU)
 
-Next, we'll need to define our tokenizer and our BERT model. If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()``
+Next, we'll need to define our tokenizer and our BERT model. Currently, there are 3 pretrained back-bone models supported:
+BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
+on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument in the training script.
+The pretrained back-bone models can be specified `--pretrained_model_name`.
+See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`. \
 
     .. code-block:: python
 
@@ -158,8 +162,8 @@ Now, create punctuation and capitalization classifiers to sit on top of the pret
       class_weights = nemo.collections.nlp.data.datasets.datasets_utils.calc_class_weights(punct_label_freqs)
 
       # define loss
-      punct_loss = CrossEntropyLossNM(logits_dim=3, weight=class_weights)
-      capit_loss = CrossEntropyLossNM(logits_dim=3)
+      punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
+      capit_loss = CrossEntropyLossNM(logits_ndim=3)
       task_loss = LossAggregatorNM(num_inputs=2)
 
 
@@ -345,13 +349,13 @@ To run the provided training script:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path_to_data --pretrained_bert_model=bert-base-uncased --work_dir path_to_output_dir
+    python examples/nlp/token_classification/punctuation_capitalization.py --data_dir path_to_data --pretrained_model_name=bert-base-uncased --work_dir path_to_output_dir
 
 To run inference:
 
 .. code-block:: bash
 
-    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --work_dir path_to_output_dir/checkpoints/
+    python examples/nlp/token_classification/punctuation_capitalization_infer.py --punct_labels_dict path_to_data/punct_label_ids.csv --capit_labels_dict path_to_data/capit_label_ids.csv --checkpoint_dir path_to_output_dir/checkpoints/
 
 Note, punct_label_ids.csv and capit_label_ids.csv files will be generated during training and stored in the data_dir folder.
 

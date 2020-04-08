@@ -1,17 +1,18 @@
 Tutorial
 ========
 
-In this tutorial, we are going to implement a joint intent and slot filling system with pretrained BERT model based on
-`BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`.
-All code used in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
+In this tutorial, we are going to show the structure of our example on training and evaluating an intent detection and slot filling model with pretrained BERT model. \
+This model is based on a model proposed in `BERT for Joint Intent Classification and Slot Filling <https://arxiv.org/abs/1902.10909>`_ :cite:`nlp-slot-chen2019bert`.
+All the code introduced in this tutorial is based on ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``.
 
-There are a variety pre-trained BERT models that we can select from using the argument `--pretrained_bert_model`. We're currently
-using the script for loading pre-trained models from `pytorch_transformers`. See the list of available pre-trained models
-`here <https://huggingface.co/pytorch-transformers/pretrained_models.html>`__. 
+There are a variety pre-trained BERT models that we can select as the base encoder for our model. We're currently
+using the script for loading pre-trained models from `transformers`. \
+See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`. \
+The type of the encoder can get defined by the argument `--pretrained_model_name`.
 
 .. tip::
 
-    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+    For pretraining BERT model in NeMo and also downloading pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 
 Preliminaries
@@ -28,20 +29,31 @@ When `intent_loss_weight = 0.5`, this loss jointly maximizes:
 
 with x being the sequence of n tokens (x1, x2, ..., xn), y being the predicted intent for x, and s1, s2, ..., sn being the predicted slots corresponding to x1, x2, ..., xn.
 
-**Datasets.** 
+**Datasets.**
 
-This model can work with any dataset that follows the format:
+This model can work with any dataset that follows the NeMo's format:
     * input file: a `tsv` file with the first line as a header [sentence][tab][label]
-
     * slot file: slot labels for all tokens in the sentence, separated by space. The length of the slot labels should be the same as the length of all tokens in sentence in input file.
 
+Datasets which are not in this format should get processed and converted into NeMo's format. \
 Currently, the datasets that we provide pre-processing script for include ATIS which can be downloaded
 from `Kaggle <https://www.kaggle.com/siddhadev/atis-dataset-from-ms-cntk>`_ and the SNIPS spoken language understanding research dataset which can be
-requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__.
-You can find the pre-processing script in ``collections/nemo_nlp/nemo_nlp/data/datasets/utils.py``.
+requested from `here <https://github.com/snipsco/spoken-language-understanding-research-datasets>`__. \
+
+You may use ``/examples/nlp/intent_detection_slot_tagging/data/import_datasets.py`` script to process these datasets:
+
+    .. code-block:: python
+
+        cd examples/nlp/intent_detection_slot_tagging/data/
+        python import_datasets.py \
+            --dataset_name <name of the dataset>
+            --source_data_dir <path to data>\
+            --target_data_dir <path to save the processed data in NeMo format>
+
+By setting the dataset_name parameter to one of ['atis', 'snips'], you can process and convert these datasets into NeMo's format. you can also write your own preprocessing scripts for any dataset.
 
 
-Code structure
+Code Structure
 --------------
 
 First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
@@ -53,38 +65,39 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or
             backend=nemo.core.Backend.PyTorch,
             local_rank=args.local_rank,
             optimization_level=args.amp_opt_level,
-            log_dir=work_dir,
+            log_dir=args.work_dir,
+            checkpoint_dir=args.checkpoint_dir,
             create_tb_writer=True,
             files_to_copy=[__file__],
             add_time_to_log_dir=True,
         )
 
-We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `pytorch_transformers`.
-This will tokenize text following the mapping of the original BERT model.
+We define the tokenizer which transforms text into BERT tokens, using a built-in tokenizer by `transformers`. \
+NemoBertTokenizer would select and return the appropriate tokenizer for each model.
 
     .. code-block:: python
 
-        from transformers import BertTokenizer
-        tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 Next, we define all Neural Modules participating in our joint intent slot filling classification pipeline.
 
-    * Process data: the `JointIntentSlotDataDesc` class in `nemo/collections/nlp/data/datasets/joint_intent_slot_dataset/data_descriptor.py` is supposed to do the preprocessing of raw data into the format data supported by `BertJointIntentSlotDataset`.
-    Currently, it supports SNIPS and ATIS raw datasets, but you can also write your own preprocessing scripts for any dataset.
+    * Build data description: the `JointIntentSlotDataDesc` class in `nemo/collections/nlp/data/datasets/joint_intent_slot_dataset/data_descriptor.py` is supposed to do the read the dataset and build its schema.
 
     .. code-block:: python
 
         from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
         data_desc = JointIntentSlotDataDesc(
-            args.data_dir, args.do_lower_case, args.dataset_name, args.none_slot_label, args.pad_label
+            data_dir=args.data_dir, none_slot_label=args.none_slot_label, pad_label=args.pad_label
         )
 
 
-    * Load the pretrained BERT model to encode the corresponding inputs.
+    * Load the pre-trained BERT model to encode the corresponding inputs.
 
     .. code-block:: python
-        from nemo.collections.nlp.nm.trainables.common.huggingface import BERT
-        pretrained_bert_model = BERT(pretrained_model_name=args.pretrained_bert_model)
+
+        pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+        )
 
     * Create the classifier heads for our task.
 
@@ -100,20 +113,20 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
     .. code-block:: python
 
         from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
-        intent_loss_fn = CrossEntropyLossNM(logits_dim=2)
-        slot_loss_fn = CrossEntropyLossNM(logits_dim=3)
+        intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
+        slot_loss_fn = CrossEntropyLossNM(logits_ndim=3)
         total_loss_fn = LossAggregatorNM(num_inputs=2, weights=[args.intent_loss_weight, 1.0 - args.intent_loss_weight])
 
-    * Create the pipelines for the train and evaluation processes. Each pipeline creates its own data layer (BertJointIntentSlotDataLayer). DataLayer is an extra layer to do the semantic checking for your dataset and convert it into DataLayerNM. You have to define `input_ports` and `output_ports`.
+    * Create the pipelines for the train and evaluation processes. Each pipeline creates its own data layer (BertJointIntentSlotDataLayer).
 
     .. code-block:: python
 
         from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
-        def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train'):
-            logging.info(f"Loading {mode} data...")
-            data_file = f'{data_desc.data_dir}/{mode}.tsv'
-            slot_file = f'{data_desc.data_dir}/{mode}_slots.tsv'
-            shuffle = args.shuffle_data if mode == 'train' else False
+        def create_pipeline(num_samples=-1, batch_size=32, data_prefix='train', is_training=True, num_gpus=1):
+            logging.info(f"Loading {data_prefix} data...")
+            data_file = f'{data_desc.data_dir}/{data_prefix}.tsv'
+            slot_file = f'{data_desc.data_dir}/{data_prefix}_slots.tsv'
+            shuffle = args.shuffle_data if is_training else False
 
             data_layer = BertJointIntentSlotDataLayer(
                 input_file=data_file,
@@ -126,6 +139,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
                 batch_size=batch_size,
                 ignore_extra_tokens=args.ignore_extra_tokens,
                 ignore_start_end=args.ignore_start_end,
+                do_lower_case=args.do_lower_case,
             )
 
             input_data = data_layer()
@@ -151,7 +165,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             slot_loss = slot_loss_fn(logits=slot_logits, labels=input_data.slots, loss_mask=input_data.loss_mask)
             total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
-            if mode == 'train':
+            if is_training:
                 tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
             else:
                 tensors_to_evaluate = [
@@ -165,11 +179,19 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             return tensors_to_evaluate, total_loss, steps_per_epoch, data_layer
 
 
-        train_tensors, train_loss, steps_per_epoch, _ = create_pipeline(
-            args.num_train_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.train_file_prefix,
+        train_tensors, train_loss, train_steps_per_epoch, _ = create_pipeline(
+            num_samples=args.num_train_samples,
+            batch_size=args.batch_size,
+            data_prefix=args.train_file_prefix,
+            is_training=True,
+            num_gpus=args.num_gpus,
         )
-        eval_tensors, _, _, data_layer = create_pipeline(
-            args.num_eval_samples, batch_size=args.batch_size, num_gpus=args.num_gpus, mode=args.eval_file_prefix,
+        eval_tensors, _, _, eval_data_layer = create_pipeline(
+            num_samples=args.num_eval_samples,
+            batch_size=args.batch_size,
+            data_prefix=args.eval_file_prefix,
+            is_training=False,
+            num_gpus=args.num_gpus,
         )
 
     * Create relevant callbacks for saving checkpoints, printing training progresses and evaluating results.
@@ -180,7 +202,7 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
         from nemo.core import CheckpointCallback, SimpleLossLoggerCallback
         train_callback = SimpleLossLoggerCallback(
             tensors=train_tensors,
-            print_func=lambda x: str(np.round(x[0].item(), 3)),
+            print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
             tb_writer=nf.tb_writer,
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=steps_per_epoch,
@@ -188,10 +210,16 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=eval_tensors,
-            user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
+            user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                x,
+                intents_label_ids=data_desc.intents_label_ids,
+                slots_label_ids=data_desc.slots_label_ids,
+                graph_fold=f'{nf.work_dir}/graphs',
+                normalize_cm=True
+            ),
             tb_writer=nf.tb_writer,
-            eval_step=steps_per_epoch,
+            eval_step=train_steps_per_epoch,
         )
 
         ckpt_callback = CheckpointCallback(
@@ -215,38 +243,43 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
             optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
         )
 
-Model training
+Model Training
 --------------
 
-To train a joint intent slot filling model, run ``joint_intent_slot_with_bert.py`` located at ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``:
+To train an intent detection and slot filling model on a dataset, run ``joint_intent_slot_with_bert.py`` located at ``examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py``:
 
     .. code-block:: python
 
-        python -m torch.distributed.launch --nproc_per_node=2 joint_intent_slot_with_bert.py \
-            --data_dir <path to data>
-            --work_dir <where you want to log your experiment> \
+        cd examples/nlp/intent_detection_slot_tagging/
+        python joint_intent_slot_with_bert.py \
+            --data_dir <path to data>\
+            --work_dir <where you want to log your experiment>\
 
-To do inference, run:
+By default a folder named "checkpoints" would get created under the working folder specified by `--work_dir` and checkpoints are stored under it.
+To do inference with a checkpoint on test set, you may run:
 
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
             --data_dir <path to data> \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>\
+            --eval_file_prefix test
 
 To do inference on a single query, run:
-    
+
     .. code-block:: python
 
+        cd examples/nlp/intent_detection_slot_tagging/
         python joint_intent_slot_infer.py \
-            --work_dir <path to checkpoint folder>
+            --checkpoint_dir <path to checkpoint folder>
             --query <query>
 
 
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-SLOT
     :keyprefix: nlp-slot-

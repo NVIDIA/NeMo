@@ -16,9 +16,9 @@
 
 import re
 
-from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
-
+from nemo import logging
 from nemo.collections.nlp.data.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 
 __all__ = [
     'NemoBertTokenizer',
@@ -62,42 +62,42 @@ def remove_spaces(text):
 
 
 class NemoBertTokenizer(TokenizerSpec):
-    def __init__(
-        self,
-        pretrained_model=None,
-        vocab_file=None,
-        bert_derivate='bert',
-        special_tokens={
-            "unk_token": "[UNK]",
-            "sep_token": "[SEP]",
-            "eos_token": "[SEP]",
-            "pad_token": "[PAD]",
-            "cls_token": "[CLS]",
-            "bos_token": "[CLS]",
-            "mask_token": "[MASK]",
-        },
-        do_lower_case=False,
-    ):
+    def __init__(self, pretrained_model=None, vocab_file=None, bert_derivative='bert', do_lower_case=False):
+        '''
+        The user needs to specify pretrained_model name or vocab file and bert_derivative
 
-        if bert_derivate == 'bert':
-            tokenizer_cls = BertTokenizer
-        elif bert_derivate == 'albert':
-            tokenizer_cls = AlbertTokenizer
-        elif bert_derivate == 'roberta':
-            tokenizer_cls = RobertaTokenizer
+        pretrained_model (str):name of the pretrained model from the hugging face list,
+            for example: bert-base-cased
+            To see the list of pretrained models, call:
+            huggingface_utils.get_bert_models_list()
+        vocab_file: File containing the vocabulary.
+        bert_derivative: for example: 'bert', 'roberta', 'albert'. Only used when vocab_file specified.
+        '''
+        if pretrained_model:
+            bert_derivative = pretrained_model.split('-')[0]
+            logging.info(f'Deriving bert model type from pretrained model name.')
 
-        if pretrained_model is not None:
+        if bert_derivative in TOKENIZERS:
+            tokenizer_cls = TOKENIZERS[bert_derivative]
+        else:
+            raise ValueError(
+                "Bert_derivative value {bert_derivative} is not currently supported"
+                + " Please choose from the following list: {TOKENIZERS.keys()}"
+            )
+
+        if pretrained_model:
             self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
-        elif vocab_file is not None:
+        elif vocab_file:
             self.tokenizer = tokenizer_cls(vocab_file=vocab_file, do_lower_case=do_lower_case)
         else:
             raise ValueError("either 'vocab_file' or 'pretrained_model' has to be specified")
 
         if hasattr(self.tokenizer, "vocab"):
             self.vocab_size = len(self.tokenizer.vocab)
+
+        special_tokens = MODEL_SPECIAL_TOKENS[bert_derivative]
         for k, v in special_tokens.items():
             setattr(self, k, v)
-
         self.never_split = tuple(special_tokens.values())
 
     def text_to_tokens(self, text):

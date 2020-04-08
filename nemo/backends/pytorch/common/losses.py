@@ -107,9 +107,8 @@ class CrossEntropyLossNM(LossNM):
     """
     CrossEntropyLoss
     Args:
-        logits_dim (int): dimension size of the logits tensor
+        logits_ndim (int): number of dimensions (or rank) of the logits tensor
         weight (list): list of rescaling weight given to each class
-        reduce (bool): controls if reduction would be done over the batch
         reduction (str): type of the reduction over the batch
     """
 
@@ -134,13 +133,13 @@ class CrossEntropyLossNM(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, logits_dim=2, weight=None, reduce=True, reduction='mean'):
+    def __init__(self, logits_ndim=2, weight=None, reduction='mean'):
         super().__init__()
 
         if weight:
             weight = torch.FloatTensor(weight).to(self._device)
-        self._criterion = nn.CrossEntropyLoss(weight=weight, reduce=reduce, reduction=reduction)
-        self._logits_dim = logits_dim
+        self._criterion = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
+        self._logits_dim = logits_ndim
 
     def _loss_function(self, logits, labels, loss_mask=None):
         """
@@ -153,9 +152,14 @@ class CrossEntropyLossNM(LossNM):
         labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
 
         if loss_mask is not None:
+            if loss_mask.dtype is not torch.bool:
+                loss_mask = loss_mask > 0.5
             loss_mask_flatten = torch.flatten(loss_mask, start_dim=0, end_dim=-1)
             logits_flatten = logits_flatten[loss_mask_flatten]
             labels_flatten = labels_flatten[loss_mask_flatten]
+
+        if len(labels_flatten) == 0:
+            return 0
 
         loss = self._criterion(logits_flatten, labels_flatten)
         return loss

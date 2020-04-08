@@ -368,7 +368,7 @@ class TranscriptDataLayer(DataLayerNM):
         return {
             # 'texts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'texts_length': NeuralType({0: AxisType(BatchTag)}),
-            'texts': NeuralType(('B', 'T'), ChannelType()),
+            'texts': NeuralType(('B', 'T'), LabelsType()),
             'texts_length': NeuralType(tuple('B'), LengthsType()),
         }
 

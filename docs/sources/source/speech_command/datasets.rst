@@ -21,8 +21,8 @@ Dataset
 Google released two versions of the dataset with the first version containing 65k samples over 30 classes and the second containing 110k samples over 35 classes.
 We refer to these datasets as v1 and v2, and currently we have metrics for v1 version in order to compare to the different metrics used by other papers.
 
-Run the script to process Google Speech Commands dataset in order to generate files in the supported format of  `nemo_asr`.
-You should set the data folder of Speech Commands using `--data_root` and the version of the dataset using `--data_version` as an int.
+Run the script `process_speech_commands_data.py` to process Google Speech Commands dataset in order to generate files in the supported format of  `nemo_asr`,
+which can be found in the `scripts` sub-directory of the nemo base directory. You should set the data folder of Speech Commands using `--data_root` and the version of the dataset using `--data_version` as an int.
 
 You can further rebalance the train set by passing the `--rebalance` flag.
 

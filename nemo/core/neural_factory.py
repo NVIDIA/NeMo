@@ -48,6 +48,7 @@ class DeploymentFormat(Enum):
     PYTORCH = 1
     TORCHSCRIPT = 2
     ONNX = 3
+    TRTONNX = 4
 
 
 class Backend(Enum):
@@ -338,6 +339,11 @@ class NeuralModuleFactory(object):
                 np.random.seed(random_seed)
                 random.seed(random_seed)
 
+            # logging.info("Random seeds")
+            # logging.info("torch: %d", torch.initial_seed())
+            # logging.info("numpy: %d", )
+            # logging.info("random: %d", )
+
             if self._local_rank is not None:
                 torch.distributed.init_process_group(backend="nccl", init_method="env://")
 
@@ -598,7 +604,7 @@ class NeuralModuleFactory(object):
         )
 
     def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
+        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 
@@ -609,22 +615,7 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        # Custom hacks: These will be put into a proper place soon
-        # We are checking type like this to avoid taking dependency on nemo_asr
-        if type(module).__name__ == "JasperEncoder":
-            # logging.warning(f"Module is JasperEncoder. We are removing"
-            #                     f"input and output length ports since they "
-            #                     f"are not needed for deployment")
-            # del module._input_ports['length']
-            # del module._output_ports['encoded_lengths']
-
-            # disable masked convolutions
-            m_count = 0
-            for m in module.modules():
-                if type(m).__name__ == "MaskedConv1d":
-                    m.use_mask = False
-                    m_count += 1
-            logging.warning(f"Turned off {m_count} masked convolutions")
+        module._prepare_for_deployment()
 
         return self._trainer.deployment_export(
             module=module,
@@ -688,7 +679,6 @@ class NeuralModuleFactory(object):
         """Helper function to clean inference cache."""
         self._trainer.clear_cache()
 
-    @deprecated(version="future")
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")

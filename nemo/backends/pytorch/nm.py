@@ -64,7 +64,7 @@ class TrainableNM(NeuralModule, nn.Module):
             if name2name_and_transform is None:
                 self.load_state_dict({key: name2weight[key][0] for key in name2weight.keys()})
             else:
-                self.load_state_dict({key: name2weight[key][0] for key in name2weight.keys()})
+                raise NotImplementedError("Transforms are not currently supported for set_weights")
 
     @t.jit.ignore
     def tie_weights_with(self, module, weight_names, name2name_and_transform=None):

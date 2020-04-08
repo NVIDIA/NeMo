@@ -82,7 +82,13 @@ class BERT(TrainableNM):
         intermediate_size=3072,
         hidden_act="gelu",
         max_position_embeddings=512,
+        hidden_dropout_prob=0.1,
+        attention_probs_dropout_prob=0.1,
+        type_vocab_size=2,
+        initializer_range=0.02,
+        layer_norm_eps=1e-12,
     ):
+
         super().__init__()
 
         # Check that only one of pretrained_model_name, config_filename, and

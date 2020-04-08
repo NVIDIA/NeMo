@@ -57,7 +57,6 @@ from nemo.package_info import (
     __version__,
 )
 
-
 if os.path.exists('nemo/README.md'):
     with open("nemo/README.md", "r") as fh:
         long_description = fh.read()
@@ -119,7 +118,7 @@ class StyleCommand(distutils_cmd.Command):
         'isort '
         # These two lines makes isort compatible with black.
         '--multi-line=3 --trailing-comma --force-grid-wrap=0 '
-        f'--use-parentheses --line-width={__LINE_WIDTH} -rc'
+        f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
     )
     __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
     description = 'Checks overall project code style.'

@@ -20,64 +20,71 @@
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 
-Download the Squad data by running the script:
-examples/nlp/scripts/get_squad.py
+Download the SQuAD data by running the script:
+examples/nlp/question_answering/get_squad.py
 
-To finetune Squad v1.1 on pretrained BERT large uncased on 1 GPU:
+To finetune SQuADv1.1 on pretrained BERT Base uncased on 1 GPU:
 python question_answering_squad.py
 --train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
 --eval_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
 --work_dir /path_to_output_folder
+--bert_config /path_to/bert-config.json
+--pretrained_model_name bert-base-uncased
 --bert_checkpoint /path_to_bert_checkpoint
---amp_opt_level "O1"
+--amp_opt_level "O2"
 --batch_size 24
 --num_epochs 2
 --lr_policy WarmupAnnealing
---lr_warmup_proportion 0.0
---optimizer adam_w
---weight_decay 0.0
+--optimizer fused_adam
 --lr 3e-5
 --do_lower_case
 --mode train_eval
+--no_data_cache
 
-If --bert_checkpoint is not specified, training starts from
+If --bert_checkpoint and --bert_config are not specified, training starts from
 Huggingface pretrained checkpoints.
 
-To finetune Squad v1.1 on pretrained BERT large uncased on 8 GPU:
+To finetune SQuADv1.1 on pretrained BERT large uncased on 8 GPU change to:
 python -m torch.distributed.launch --nproc_per_node=8 question_answering_squad.py
---amp_opt_level "O1"
---train_file /path_to_data_dir/squad/v1.1/train-v1.1.json
---eval_file /path_to_data_dir/squad/v1.1/dev-v1.1.json
---bert_checkpoint /path_to_bert_checkpoint
 --batch_size 3
 --num_gpus 8
---num_epochs 2
---lr_policy WarmupAnnealing
---lr_warmup_proportion 0.0
---optimizer adam_w
---weight_decay 0.0
---lr 3e-5
---mode train_eval
---do_lower_case
+...
 
-On Huggingface the final Exact Match (EM) and F1 scores are as follows:
-Model	                EM      F1
-BERT Based uncased      80.59    88.34
-BERT Large uncased      83.88    90.65
+This takes about 18 minutes.
+
+To finetune on SQuADv2.0 which allows non-answerable questions, add the flag --version_2_with_negative.
 
 To run only evaluation on pretrained question answering checkpoints on 1 GPU with ground-truth data:
 python question_answering_squad.py
 --eval_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
---do_lower_case
 --mode eval
 
 To run only inference on pretrained question answering checkpoints on 1 GPU without ground-truth data:
 python question_answering_squad.py
 --test_file /path_to_data_dir/test.json
 --checkpoint_dir /path_to_checkpoints
---do_lower_case
 --mode test
+
+Finetuned SQuAD models and model configuration files can be found at 
+https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1
+https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1
+https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2
+
+
+On BERT base uncased pretrained model
+the final Exact Match (EM) and F1 scores are as follows:
+Data	        EM      F1
+SQuADv1.1       82.74   89.79
+SQuADv2.0       71.24   74.32
+
+
+On BERT large uncased pretrained model
+the final Exact Match (EM) and F1 scores are as follows:
+Data	        EM      F1
+SQuADv1.1       85.79   92.28
+SQuADv2.0       80.17   83.32
 """
 import argparse
 import json
@@ -86,6 +93,7 @@ import os
 import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
+import nemo.collections.nlp.data.tokenizers.tokenizer_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.collections.nlp.callbacks.qa_squad_callback import eval_epochs_done_callback, eval_iter_callback
@@ -104,16 +112,11 @@ def parse_args():
         "--test_file", type=str, help="The test data file. Should be *.json. Does not need to contain ground truth",
     )
     parser.add_argument(
-        "--pretrained_model_name",
-        type=str,
+        '--pretrained_model_name',
         default='roberta-base',
-        help="Name of the pre-trained model",
-        choices=[
-            _.pretrained_model_name
-            for _ in nemo_nlp.nm.trainables.huggingface.Albert.list_pretrained_models()
-            + nemo_nlp.nm.trainables.huggingface.Roberta.list_pretrained_models()
-            + nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        ],
+        type=str,
+        help='Name of the pre-trained model',
+        choices=nemo_nlp.nm.trainables.get_bert_models_list(),
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
@@ -122,7 +125,7 @@ def parse_args():
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
         "--tokenizer_model",
-        default="tokenizer.model",
+        default=None,
         type=str,
         help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
     )
@@ -133,7 +136,7 @@ def parse_args():
         choices=["nemobert", "sentencepiece"],
         help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
-    parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
+    parser.add_argument("--optimizer", default="fused_adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
     parser.add_argument("--lr", default=3e-5, type=float, help="The initial learning rate.")
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
@@ -141,6 +144,7 @@ def parse_args():
     parser.add_argument("--num_epochs", default=2, type=int, help="Total number of training epochs to perform.")
     parser.add_argument("--max_steps", default=-1, type=int, help="If specified overrides --num_epochs.")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
+    parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
     parser.add_argument(
         "--do_lower_case",
         action='store_true',
@@ -303,17 +307,17 @@ if __name__ == "__main__":
     if args.mode == "train_eval":
         if not os.path.exists(args.train_file) or not os.path.exists(args.eval_file):
             raise FileNotFoundError(
-                "train and eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "train and eval data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
     elif args.mode == "eval":
         if not os.path.exists(args.eval_file):
             raise FileNotFoundError(
-                "eval data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "eval data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
     elif args.mode == "test":
         if not os.path.exists(args.test_file):
             raise FileNotFoundError(
-                "test data not found. Datasets can be obtained using examples/nlp/scripts/get_squad.py"
+                "test data not found. Datasets can be obtained using examples/nlp/question_answering/get_squad.py"
             )
     else:
         raise ValueError(f"{args.mode} can only be one of [train_eval, eval, test]")
@@ -329,38 +333,17 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    model_type = args.pretrained_model_name.split('-')[0]
-    model_cls = nemo_nlp.utils.DEFAULT_MODELS[model_type]['class']
-
-    if args.bert_config is not None:
-        model = model_cls(config_filename=args.bert_config)
-    else:
-        """ Use this if you're using a standard BERT model.
-        To see the list of pretrained models, call:
-        nemo_nlp.nm.trainables.huggingface.BERT.list_pretrained_models()
-        """
-        model = model_cls(pretrained_model_name=args.pretrained_model_name)
+    model = nemo_nlp.nm.trainables.get_huggingface_model(
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+    )
 
     hidden_size = model.hidden_size
 
-    if args.tokenizer == "sentencepiece":
-        try:
-            tokenizer = nemo_nlp.data.SentencePieceTokenizer(model_path=args.tokenizer_model)
-        except Exception:
-            raise ValueError(
-                "Using --tokenizer=sentencepiece \
-                        requires valid --tokenizer_model"
-            )
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-        tokenizer.add_special_tokens(special_tokens)
-    else:
-        tokenizer_cls = nemo_nlp.data.NemoBertTokenizer
-        tokenizer_special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS[model_type]
-        tokenizer = tokenizer_cls(
-            pretrained_model=args.pretrained_model_name,
-            special_tokens=tokenizer_special_tokens,
-            bert_derivate=model_type,
-        )
+    tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+        tokenizer_name=args.tokenizer,
+        pretrained_model_name=args.pretrained_model_name,
+        tokenizer_model=args.tokenizer_model,
+    )
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
@@ -421,7 +404,7 @@ if __name__ == "__main__":
         logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
         callback_train = nemo_core.SimpleLossLoggerCallback(
             tensors=[train_loss],
-            print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+            print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
             step_freq=args.train_step_freq,
             tb_writer=nf.tb_writer,
@@ -457,17 +440,23 @@ if __name__ == "__main__":
                 args.lr_policy, total_steps=args.max_steps, warmup_ratio=args.lr_warmup_proportion
             )
 
-        optimization_params = {"lr": args.lr}
+        optimization_params = {
+            "lr": args.lr,
+            "weight_decay": args.weight_decay,
+        }
         if args.max_steps < 0:
             optimization_params['num_epochs'] = args.num_epochs
         else:
             optimization_params['max_steps'] = args.max_steps
 
+        if args.grad_norm_clip >= 0:
+            optimization_params['grad_norm_clip'] = args.grad_norm_clip
+
         nf.train(
             tensors_to_optimize=[train_loss],
             callbacks=[callback_train, ckpt_callback, callbacks_eval],
             lr_policy=lr_policy_fn,
-            optimizer=args.optimizer_kind,
+            optimizer=args.optimizer,
             batches_per_step=args.batches_per_step,
             optimization_params=optimization_params,
         )

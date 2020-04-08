@@ -56,7 +56,7 @@ class AudioDataLayer(DataLayerNM):
         return {
             # "audio_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
-            "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_signal": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate)),
             "a_sig_length": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -64,6 +64,7 @@ class AudioDataLayer(DataLayerNM):
         self,
         manifest_filepath,
         batch_size,
+        sample_rate,
         min_duration=0.1,
         max_duration=None,
         trim_silence=False,
@@ -73,6 +74,7 @@ class AudioDataLayer(DataLayerNM):
         n_segments=0,
     ):
         super().__init__()
+        self.sample_rate = sample_rate
 
         self._dataset = AudioOnlyDataset(
             manifest_filepath=manifest_filepath,

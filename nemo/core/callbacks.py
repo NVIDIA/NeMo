@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import glob
 import os
 import sys
@@ -25,6 +26,13 @@ from collections import namedtuple
 
 import nemo
 from nemo.utils import get_checkpoint_from_dir
+
+try:
+    import wandb
+
+    _WANDB_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    _WANDB_AVAILABLE = False
 
 logging = nemo.logging
 
@@ -183,7 +191,8 @@ class SimpleLossLoggerCallback(ActionCallback):
         if self.global_rank is None or self.global_rank == 0:
             if self._swriter is not None:
                 self._swriter.close()
-            logging.info(f"Done in {time.time() - self._start_time}")
+            delta = datetime.timedelta(seconds=(time.time() - self._start_time))
+            logging.info("Done in %s", delta)
 
     def on_epoch_start(self):
         if self.global_rank is None or self.global_rank == 0:
@@ -193,8 +202,10 @@ class SimpleLossLoggerCallback(ActionCallback):
     def on_epoch_end(self):
         if self.global_rank is None or self.global_rank == 0:
             step = self.step
-            run_time = time.time() - self._last_epoch_start
-            logging.info(f"Finished epoch {self.epoch_num} in {run_time:.3f} secs")
+
+            delta = datetime.timedelta(seconds=(time.time() - self._last_epoch_start))
+            logging.info(f"Finished epoch {self.epoch_num} in {delta}")
+
             if self._swriter is not None:
                 value = self.epoch_num
                 self._swriter.add_scalar('misc/epoch', value, step)
@@ -210,7 +221,6 @@ class SimpleLossLoggerCallback(ActionCallback):
             step = self.step
             if step % self._step_freq == 0:
                 tensor_values = [self.registered_tensors[t.unique_name] for t in self.tensors]
-
                 logging.info(f"Step: {step}")
                 if self._print_func:
                     self._print_func(tensor_values)
@@ -243,7 +253,7 @@ class CheckpointCallback(ActionCallback):
             logging.warning("No checkpoints will be saved because step_freq and epoch_freq are both -1.")
 
         if step_freq > -1 and epoch_freq > -1:
-            logging.warning("You config the model to save by both steps and epochs. Save by step_freq only")
+            logging.warning("You config the model to save by both steps and epochs. Please use one or the other")
             epoch_freq = -1
 
         self._step_freq = step_freq
@@ -266,8 +276,8 @@ class CheckpointCallback(ActionCallback):
             if module.num_weights > 0:
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
-                        "There were two instances of the same module. Please "
-                        "overwrite __str__() of one of the modules."
+                        "There were two instances of the same module. Please overwrite __str__() of one of the "
+                        "modules."
                     )
                 unique_mod_names.add(str(module))
                 if self._step_freq > -1:
@@ -298,7 +308,7 @@ class CheckpointCallback(ActionCallback):
                 raise ValueError("force_load was set to True for checkpoint callback but a checkpoint was not found.")
             logging.warning(f"Checkpoint folder {path} not found!")
         else:
-            logging.info(f"Restoring checkpoint from folder {path} ...")
+            logging.info(f"Found checkpoint folder {path}. Will attempt to restore checkpoints from it.")
             modules_to_restore = []
             modules_to_restore_name = []
             for module in self.action.modules:
@@ -316,7 +326,10 @@ class CheckpointCallback(ActionCallback):
                         "force_load was set to True for checkpoint callback but a checkpoint was not found."
                     )
                 logging.warning(e)
-                logging.warning(f"Checkpoint folder {path} present but did not restore")
+                logging.warning(
+                    f"Checkpoint folder {path} was present but nothing was restored. Continuing training from random "
+                    "initialization."
+                )
                 return
 
             try:
@@ -325,7 +338,10 @@ class CheckpointCallback(ActionCallback):
                     tr.restore_state_from(checkpoint)
             except (BaseException, ValueError) as e:
                 logging.warning(e)
-                logging.warning("Trainer state wasn't restored")
+                logging.warning(
+                    "Trainer state such as optimizer state and current step/epoch was not restored. Pretrained weights"
+                    " have still been restore and fine-tuning should continue fine."
+                )
                 return
 
     def on_action_start(self):
@@ -335,8 +351,8 @@ class CheckpointCallback(ActionCallback):
             if module.num_weights > 0:
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
-                        "There were two instances of the same module. Please "
-                        "overwrite __str__() of one of the modules."
+                        "There were two instances of the same module. Please overwrite __str__() of one of the "
+                        "modules."
                     )
                 unique_mod_names.add(str(module))
                 num_parameters += module.num_weights
@@ -361,8 +377,6 @@ class CheckpointCallback(ActionCallback):
     def on_epoch_end(self):
         if self._epoch_freq > 0:
             if self.global_rank is None or self.global_rank == 0:
-                run_time = time.time() - self._last_epoch_start
-                logging.info(f'Finished epoch {self.epoch_num} in {run_time}')
                 if (self.epoch_num + 1) % self._epoch_freq == 0:
                     self.__save_to(path=self._folder)
 
@@ -382,6 +396,9 @@ class EvaluatorCallback(ActionCallback):
         tb_writer_func=None,
         eval_step=1,
         eval_epoch=None,
+        wandb_name=None,
+        wandb_project=None,
+        eval_at_start=True,
     ):
         # TODO: Eval_epoch currently does nothing
         if eval_step is None and eval_epoch is None:
@@ -393,12 +410,17 @@ class EvaluatorCallback(ActionCallback):
         self._swriter = tb_writer
         self._tb_writer_func = tb_writer_func
         self._eval_frequency = eval_step
+        self._eval_at_start = eval_at_start
         # will be passed to callbacks below
         self._global_var_dict = {}
 
         # Callbacks
         self.user_iter_callback = user_iter_callback
         self.user_done_callback = user_epochs_done_callback
+
+        # Weights and biases
+        self._wandb_project = wandb_project
+        self._wandb_name = wandb_name
 
     @property
     def eval_tensors(self):
@@ -416,15 +438,29 @@ class EvaluatorCallback(ActionCallback):
         pass
 
     def on_iteration_end(self):
-        step = self.step
-        if step % self._eval_frequency == 0:
+        if self.step == 0 and not self._eval_at_start:
+            return
+        if self.step % self._eval_frequency == 0:
             if self.global_rank == 0 or self.global_rank is None:
                 logging.info('Doing Evaluation ' + '.' * 30)
             start_time = time.time()
-            self.action._eval(self._eval_tensors, self, step)
+            self.action._eval(self._eval_tensors, self, self.step)
             elapsed_time = time.time() - start_time
             if self.global_rank == 0 or self.global_rank is None:
                 logging.info(f'Evaluation time: {elapsed_time:.3f} seconds')
+
+    def on_action_start(self):
+        if self.global_rank is None or self.global_rank == 0:
+            if self._wandb_name is not None or self._wandb_project is not None:
+                if _WANDB_AVAILABLE and wandb.run is None:
+                    wandb.init(name=self._wandb_name, project=self._wandb_project)
+                elif _WANDB_AVAILABLE and wandb.run is not None:
+                    logging.info("Re-using wandb session")
+                else:
+                    logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+                    logging.info("Will not log data to weights and biases.")
+                    self._wandb_name = None
+                    self._wandb_project = None
 
     def on_action_end(self):
         step = self.step
@@ -439,34 +475,9 @@ class EvaluatorCallback(ActionCallback):
     def clear_global_var_dict(self):
         self._global_var_dict = {}
 
-
-# class InferenceCallback(ActionCallback):
-#     def __init__(
-#             self,
-#             eval_tensors,
-#     ):
-#         super().__init__()
-#         self._eval_tensors = eval_tensors
-#         # will be passed to callbacks below
-#         self._global_var_dict = {}
-#         self._swriter = None
-
-#     @property
-#     def eval_tensors(self):
-#         return self._eval_tensors
-
-#     def user_done_callback(self, global_var_dict):
-#         pass
-
-#     def user_iter_callback(self, tensors, global_var_dict):
-#         """ Pushes evaluated tensors to var_dict """
-#         for tensor in self._eval_tensors:
-#             key = tensor.unique_name
-#             self._global_var_dict[key] += tensors[key]
-
-#     def clear_global_var_dict(self):
-#         for tensor in self._eval_tensors:
-#             self._global_var_dict[tensor.unique_name] = []
+    def wandb_log(self, tensors_logged):
+        if self._wandb_name is not None and _WANDB_AVAILABLE:
+            wandb.log(tensors_logged, step=self.step)
 
 
 _Policy = namedtuple('Policy', 'method start end')
@@ -564,3 +575,67 @@ class UnfreezeCallback(ActionCallback):
         if self.epoch_num == self.start_epoch:
             for m in self.modules:
                 m.unfreeze()
+
+
+class WandbCallback(ActionCallback):
+    """
+    Log metrics to [Weights & Biases](https://docs.wandb.com/)
+    """
+
+    def __init__(
+        self, train_tensors=[], wandb_name=None, wandb_project=None, args=None, update_freq=25,
+    ):
+        """
+        Args:
+            train_tensors: list of tensors to evaluate and log based on training batches
+            wandb_name: wandb experiment name
+            wandb_project: wandb project name
+            args: argparse flags - will be logged as hyperparameters
+            update_freq: frequency with which to log updates
+        """
+        super().__init__()
+
+        if not _WANDB_AVAILABLE:
+            logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+
+        self._update_freq = update_freq
+        self._train_tensors = train_tensors
+        self._name = wandb_name
+        self._project = wandb_project
+        self._args = args
+
+    def on_action_start(self):
+        if self.global_rank is None or self.global_rank == 0:
+            if _WANDB_AVAILABLE and wandb.run is None:
+                wandb.init(name=self._name, project=self._project)
+                if self._args is not None:
+                    wandb.config.update(self._args)
+            elif _WANDB_AVAILABLE and wandb.run is not None:
+                logging.info("Re-using wandb session")
+            else:
+                logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+                logging.info("Will not log data to weights and biases.")
+                self._update_freq = -1
+
+    def on_iteration_end(self):
+        # log training metrics
+        if self.global_rank is None or self.global_rank == 0:
+            if self.step % self._update_freq == 0 and self._update_freq > 0:
+                tensors_logged = {t.name: self.registered_tensors[t.unique_name].cpu() for t in self._train_tensors}
+                # Always log learning rate
+                tensors_logged['LR'] = self.learning_rate
+                self.wandb_log(tensors_logged)
+
+    def on_epoch_start(self):
+        if self.global_rank is None or self.global_rank == 0:
+            self._last_epoch_start = time.time()
+
+    def on_epoch_end(self):
+        if self.global_rank is None or self.global_rank == 0:
+            # always log epoch num and epoch_time
+            epoch_time = time.time() - self._last_epoch_start
+            self.wandb_log({"epoch": self.epoch_num, "epoch_time": epoch_time})
+
+    def wandb_log(self, tensors_logged):
+        if _WANDB_AVAILABLE:
+            wandb.log(tensors_logged, step=self.step)

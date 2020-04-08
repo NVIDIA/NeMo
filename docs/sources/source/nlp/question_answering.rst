@@ -1,3 +1,5 @@
+.. _squad_model_links:
+
 Tutorial
 ========
 
@@ -9,15 +11,43 @@ All code used in this tutorial is based on ``examples/nlp/question_answering/que
 Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
 BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument.
-The pretrained back-bone models can be specified by `--model_type` and the specific model by `--pretrained_model_name`.
+The pretrained back-bone models can be specified `--pretrained_model_name`.
 See the list of available pre-trained models
 `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
+
+.. _pretrained_models_squad:
+
+Download pretrained models
+--------------------------
+
+Finetuned SQuAD models and model configuration files can be downloaded at following links.
+
+BERT Base uncased models (~330M parameters) finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
+`https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv1>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedsquadv2>`__
+
+BERT Large uncased models (~110M parameters) finetuned on SQuADv1.1 or SQuADv2.0 dataset: 
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
+`https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
+
 
 .. tip::
 
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
+Model results:
 
++---------------------------------------------+--------+--------+--------+--------+
+|                                             | SQuADv1.1       | SQuADv2.0       |
++                                             +--------+--------+--------+--------+
+|  Model                                      | EM     |  F1    |  EM    |  F1    |
++=============================================+========+========+========+========+
+| BERT-base-uncased                           | 82.74% | 89.79% | 71.24% | 74.32% |
++---------------------------------------------+--------+--------+--------+--------+
+| BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% |
++---------------------------------------------+--------+--------+--------+--------+
+
+On a DGX1 with 8 V100 16GB training on SQuADv1.1 with the default script parameters takes between 14-18 minutes.
 
 Preliminaries
 -------------
@@ -48,7 +78,7 @@ This model can work with any dataset that follows the format:
 Currently, the datasets that we provide pre-processing script for is SQuAD v1.1 and v2.0 
 which can be downloaded
 from `https://rajpurkar.github.io/SQuAD-explorer/ <https://rajpurkar.github.io/SQuAD-explorer/>`_.
-You can find the pre-processing script in ``examples/nlp/scripts/get_squad.py``.
+You can find the pre-processing script in ``examples/nlp/question_answering/get_squad.py``.
 
 
 Code structure
@@ -68,21 +98,6 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch), 
                                                create_tb_writer=True,
                                                files_to_copy=[__file__],
                                                add_time_to_log_dir=True)
-
-We define the tokenizer which transforms text into BERT tokens, using `NemoBertTokenizer`.
-This will tokenize text following the mapping of the original BERT model.
-
-    .. code-block:: python
-
-        hidden_size = model.hidden_size
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='bert', pretrained_model="bert-base-uncased")
-        # to use RoBERTa tokenizer, run e.g.
-        special_tokens_roberta = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['roberta']
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='roberta', pretrained_model="roberta-base", special_tokens=special_tokens_roberta)
-        # to use Albert tokenizer, run e.g.
-        special_tokens_albert = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['albert']
-        tokenizer = nemo_nlp.data.NemoBertTokenizer(bert_derivate='albert', pretrained_model="albert-base-v1", special_tokens=special_tokens_albert)
-
 
 Next, we define all Neural Modules participating in our question answering classification pipeline.
 
@@ -128,6 +143,14 @@ Next, we define all Neural Modules participating in our question answering class
         # or for Albert
         args.pretrained_model_name = "albert-base-v1"
         model = nemo_nlp.nm.trainables.huggingface.Albert(args.pretrained_model_name)
+
+    * Define the tokenizer which transforms text into BERT tokens, using `NemoBertTokenizer`. This will tokenize text following the mapping of the original BERT model.
+
+    .. code-block:: python
+
+        hidden_size = model.hidden_size
+        tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+
 
     * Create the classifier head for our task.
 
@@ -248,8 +271,11 @@ To train a question answering model on SQuAD using multi-gpu, run ``question_ans
             --amp_opt_level <amp optimization level> 
             --pretrained_model_name <type of model to use> 
             --bert_checkpoint <pretrained bert checkpoint>
+            --bert_config <model configuration file>
             --mode "train_eval"
             ...
+
+For model configuration files and checkpoints, see :ref:`pretrained_models_squad`.
 
 To run evaluation:
 
@@ -277,7 +303,7 @@ To run inference:
 References
 ----------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-QA
     :keyprefix: nlp-qa-
