@@ -402,7 +402,7 @@ if __name__ == "__main__":
 
     if args.mode == "train_eval":
         logging.info(f"steps_per_epoch = {train_steps_per_epoch}")
-        callback_train = nemo_core.SimpleLossLoggerCallback(
+        train_callback = nemo_core.SimpleLossLoggerCallback(
             tensors=[train_loss],
             print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
             get_tb_values=lambda x: [["loss", x[0]]],
@@ -413,7 +413,7 @@ if __name__ == "__main__":
         ckpt_callback = nemo_core.CheckpointCallback(
             folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
         )
-        callbacks_eval = nemo_core.EvaluatorCallback(
+        eval_callback = nemo_core.EvaluatorCallback(
             eval_tensors=eval_output,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
             user_epochs_done_callback=lambda x: eval_epochs_done_callback(
@@ -454,7 +454,7 @@ if __name__ == "__main__":
 
         nf.train(
             tensors_to_optimize=[train_loss],
-            callbacks=[callback_train, ckpt_callback, callbacks_eval],
+            callbacks=[train_callback, ckpt_callback, eval_callback],
             lr_policy=lr_policy_fn,
             optimizer=args.optimizer,
             batches_per_step=args.batches_per_step,
