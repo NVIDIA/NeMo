@@ -26,8 +26,8 @@ from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import
 )
 
 
-# put training files in convenient place for conversion to our format
 def copy_input_files(infold):
+    """ Put training files in convenient place for conversion to our format. """
     our_infold = infold + "/dataset"
 
     if os.path.exists(our_infold + "/trainset") and os.path.exists(our_infold + "/testset"):
@@ -47,16 +47,16 @@ def copy_input_files(infold):
         shutil.copytree(old_infold + '/testset/csv', our_infold + '/testset')
 
 
-# get list of intents from file names
 def get_intents(infold):
+    """ Get list of intents from file names. """
     intents = [f[:-4] for f in os.listdir(infold)]
     intents.sort()
     print(f'Found {len(intents)} intents')
     return intents
 
 
-# get list of queries with their corresponding intent number
 def get_intent_queries(infold, intent_names, mode):
+    """ Get list of queries with their corresponding intent number. """
     intent_queries = ['sentence\tlabel\n']
 
     for index, intent in enumerate(intent_names):
@@ -69,9 +69,11 @@ def get_intent_queries(infold, intent_names, mode):
     return intent_queries
 
 
-# find a lost of unique slot types in training and testing data
-# we give a single slot type name both for starting and continuation tokes (not using B-, I- notation)
 def get_slots(infold, modes):
+    """
+    Find a lost of unique slot types in training and testing data.
+    We use a single slot type name both for starting and continuation tokes (not using B-, I- notation).
+    """
     slots = set()
 
     for mode in modes:
@@ -91,8 +93,8 @@ def get_slots(infold, modes):
     return slots
 
 
-# convert each word in a query to corresponding slot number
 def get_slot_queries(infold, slot_dict, mode, intent_names):
+    """ Convert each word in a query to corresponding slot number. """
     slot_queries = []
     outside_slot = len(slot_dict) - 1
 
@@ -121,9 +123,8 @@ def get_slot_queries(infold, slot_dict, mode, intent_names):
 
 def process_assistant(infold, outfold, modes=['train', 'test']):
     """
-    https://github.com/xliuhw/NLU-Evaluation-Data data set from 2018
-    that includes about 25 thousand examples with 64 multi-domain intents and 54 entity types.
-    It is already uncased, so there is no difference
+    https://github.com/xliuhw/NLU-Evaluation-Data - this dataset includes
+    about 25 thousand examples with 66 various multi-domain intents and 57 entity types.
     """
     if if_exist(outfold, [f'{mode}_slots.tsv' for mode in modes]):
         logging.info(DATABASE_EXISTS_TMP.format('robot', outfold))
@@ -147,7 +148,6 @@ def process_assistant(infold, outfold, modes=['train', 'test']):
 
     # get list of all unique slots in training and testing files
     slot_types = get_slots(infold, modes)
-    # print(slot_types)
     write_files(slot_types, f'{outfold}/dict.slots.csv')
 
     # create files of slot queries

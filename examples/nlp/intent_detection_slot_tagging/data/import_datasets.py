@@ -244,7 +244,12 @@ if __name__ == "__main__":
         action='store_true',
         help='ignores previous intent while importing datasets in jarvis\'s format',
     )
-    parser.add_argument("--use_full_dataset", default=True, help='using full dataset for assistant\'s format')
+    parser.add_argument(
+        "--use_full_dataset",
+        action='store_true',
+        help='using full 25K dataset versus smaller 10K version for assistant\'s dataset',
+    )
+
     args = parser.parse_args()
 
     dataset_name = args.dataset_name

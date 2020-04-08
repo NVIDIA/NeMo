@@ -26,7 +26,12 @@ from nemo import logging
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
 from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotDataLayer
 from nemo.collections.nlp.nm.trainables.joint_intent_slot import JointIntentSlotClassifier
-from nemo.collections.nlp.utils.callback_utils import get_classification_report, get_f1_scores
+from nemo.collections.nlp.utils.callback_utils import (
+    analyze_confusion_matrix,
+    errors_per_class,
+    get_classification_report,
+    get_f1_scores,
+)
 
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Batch inference for intent detection/slot tagging with BERT')
@@ -81,7 +86,6 @@ intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 ###########################################################################
 
-
 # Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(
     tensors=[
@@ -105,6 +109,10 @@ def get_preds(logits):
 
 
 def log_misclassified_queries(intent_labels, intent_preds, queries, intent_dict, limit=50):
+    """
+    Display examples of Intent mistakes.
+    In a format: Query, predicted and labeled intent names.
+    """
     logging.info(f'*** Misclassified intent queries (limit {limit}) ***')
     cnt = 0
     for i in range(len(intent_preds)):
@@ -121,6 +129,11 @@ def log_misclassified_queries(intent_labels, intent_preds, queries, intent_dict,
 def log_misclassified_slots(
     intent_labels, intent_preds, slot_labels, slot_preds, subtokens_mask, queries, intent_dict, slot_dict, limit=50
 ):
+    """
+    Display examples of Slot mistakes.
+    In a format: Query, predicted and labeled intent names and list of predicted and labeled slot numbers.
+    also prints dictionary of the slots at the start for easier reading.
+    """
     logging.info('')
     logging.info(f'*** Misclassified slots queries (limit {limit}) ***')
     # print slot dictionary
@@ -148,9 +161,8 @@ def log_misclassified_slots(
                 break
 
 
-# check non compliance of B- and I- slots,
 def check_problematic_slots(slot_preds_list, slot_dict):
-    slot_dict = open(slot_dict, 'r').readlines()
+    """ Check non compliance of B- and I- slots for datasets that use such slot encoding. """
     cnt = 0
 
     # for sentence in slot_preds:
@@ -166,56 +178,11 @@ def check_problematic_slots(slot_preds_list, slot_dict):
     print("Total problematic slots: " + str(cnt))
 
 
-def errors_per_class(cm, dict):
-    size = cm.shape[0]
-    confused_per_class = {}
-    total_errors = 0
-    for class_num in range(size):
-        sum = 0
-        for i in range(size):
-            if i != class_num:
-                sum += cm[class_num][i]
-                sum += cm[i][class_num]
-        confused_per_class[dict[class_num]] = sum
-        total_errors += sum
-        # logging.info(f'{dict[class_num]} - {sum}')
-
-    logging.info(f'Total errors (multiplied by 2): {total_errors}')
-    sorted_confused_per_class = sorted(confused_per_class.items(), key=lambda x: x[1], reverse=True)
-    for conf_str in sorted_confused_per_class:
-        logging.info(conf_str)
-
-
-def analyze_confusion_matrix(cm, dict, max_pairs=10):
-    threshold = 5
-    confused_pairs = {}
-    size = cm.shape[0]
-    for i in range(size):
-        res = cm[i].argsort()
-        for j in range(size):
-            pos = res[size - j - 1]
-            # no confusion - same row and column
-            if pos == i:
-                continue
-            elif cm[i][pos] >= threshold:
-                str = f'{dict[i]} -> {dict[pos]}'
-                confused_pairs[str] = cm[i][pos]
-            else:
-                break
-
-    # sort my max confusions and print first max_pairs
-    sorted_confused_pairs = sorted(confused_pairs.items(), key=lambda x: x[1], reverse=True)
-    for i, pair_str in enumerate(sorted_confused_pairs):
-        if i >= max_pairs:
-            break
-        logging.info(pair_str)
-
-
+# --- analyse of the results ---
 intent_logits, slot_logits, loss_mask, subtokens_mask, intent_labels, slot_labels_unmasked = [
     concatenate(tensors) for tensors in evaluated_tensors
 ]
 
-# --- analyse of the results ---
 # slot accuracies
 logging.info('Slot Prediction Results:')
 slot_preds_unmasked = np.argmax(slot_logits, axis=2)
@@ -275,10 +242,8 @@ logging.info(f'*** Most Confused Slots ***')
 cm = confusion_matrix(slot_labels, slot_preds, np.arange(len(slot_dict)))
 analyze_confusion_matrix(cm, slot_dict, max_pairs=20)
 
-
 # does not work well for large matrices
 # print(f'Intent Confusion matrix:\n{cm}')
 
 # check potentially problematic slots - when I- label comes after different B- label
-# slot_dict_file = f'{data_desc.data_dir}/dict.slots.csv'
-# check_problematic_slots(slot_labels, slot_dict_file)
+# check_problematic_slots(slot_labels, slot_dict)
