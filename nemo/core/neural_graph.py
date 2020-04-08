@@ -28,6 +28,7 @@ from nemo.core.neural_types import (
     NeuralTypeComparisonResult,
 )
 
+
 class NeuralGraph(NeuralInterface):
     """
         Neural Graph class stores dynamically defined graphs of connected Neural Modules.
@@ -69,7 +70,6 @@ class NeuralGraph(NeuralInterface):
         self._modules = {}
         # "Steps": ordered execution of modules in a graph.
         self._steps = []
-        
 
     def __call__(self, **kwargs):
         """
@@ -188,11 +188,11 @@ class NeuralGraph(NeuralInterface):
         Returns:
           A (dict) of module's output ports names to NeuralTypes mapping
         """
-        #print("getter!")
+        # print("getter!")
         return self._bound_output_ports_default
 
-    #@output_ports.setter
-    #def output_ports(self, ports):
+    # @output_ports.setter
+    # def output_ports(self, ports):
     #    print("setter!")
     #    self._bound_output_ports_default = ports
 
@@ -224,7 +224,6 @@ class NeuralGraph(NeuralInterface):
         """
         self._app_state.active_graph = None
 
-
     def __str__(self):
         """ Prints a nice summary. """
         # TODO: a nice summary. ;)
@@ -249,7 +248,7 @@ class NeuralGraph(NeuralInterface):
     def list_modules(self):
         desc = "{} ({}):\n".format(self.name, len(self))
         for key, value in self._modules.items():
-            desc += " * `{}` ({})\n".format(key, value )
+            desc += " * `{}` ({})\n".format(key, value)
         return desc
 
     def record_step(self, module, inputs):
@@ -257,7 +256,7 @@ class NeuralGraph(NeuralInterface):
             Records the operation (module plus passed inputs) on a list.
         """
         # Check if module with that name already exists.
-        #if module.name in self._modules.keys():
+        # if module.name in self._modules.keys():
         #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
         # Add module to list of modules.
         self._modules[module.name] = module

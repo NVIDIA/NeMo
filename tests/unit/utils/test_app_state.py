@@ -20,7 +20,8 @@ import pytest
 
 from nemo.utils.app_state import AppState
 
-class TestAppState():
+
+class TestAppState:
     @pytest.mark.unit
     def test_value_sharing(self):
         # Create first instance of AppState.

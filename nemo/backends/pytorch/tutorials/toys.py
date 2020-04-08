@@ -82,7 +82,7 @@ class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType(('B', 'D'), ChannelType(), optional=True)}
 
-    def __init__(self, dim,name=None):
+    def __init__(self, dim, name=None):
         # Part specific for Neural Modules API:
         #   (1) call base constructor
         #   (2) define input and output ports

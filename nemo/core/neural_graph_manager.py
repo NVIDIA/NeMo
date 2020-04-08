@@ -16,10 +16,9 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.utils.object_registry import ObjectRegistry
-
 from nemo.core.neural_factory import OperationMode
 from nemo.core.neural_graph import NeuralGraph
+from nemo.utils.object_registry import ObjectRegistry
 
 
 class NeuralGraphManager(ObjectRegistry):

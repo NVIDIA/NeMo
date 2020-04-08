@@ -20,8 +20,8 @@ import pytest
 
 from nemo.utils.object_registry import ObjectRegistry
 
-class TestAppState():
 
+class TestAppState:
     @pytest.mark.unit
     def test_registry(self):
         """ Tests registry reference management. """
@@ -52,14 +52,14 @@ class TestAppState():
         assert len(registry) == 4
 
         # Delete all objects - aside of reference!
-        del(c1)
-        del(c2)
-        del(c3)
-        del(c4)
+        del c1
+        del c2
+        del c3
+        del c4
         assert len(registry) == 1
         with pytest.raises(KeyError):
             registry["c4"]
 
         # Delete the last object.
-        del(c1_ref)
+        del c1_ref
         assert len(registry) == 0

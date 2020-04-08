@@ -35,7 +35,7 @@ class NeuralInterface(ABC):
 
     def __init__(self, name):
         """ Constructor. Sets the application state. """
-        # Copy the name. As names should be unique in module/graph scope, this should be handled additionally 
+        # Copy the name. As names should be unique in module/graph scope, this should be handled additionally
         # in their constructors.
         self._name = name
         # Create access to the app state.
@@ -73,4 +73,3 @@ class NeuralInterface(ABC):
     def name(self):
         """ Returns the object name. """
         return self._name
-

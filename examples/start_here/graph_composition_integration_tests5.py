@@ -34,9 +34,7 @@ print(fx3.name)
 loss = nemo.tutorials.MSELoss(name="loss")
 loss2 = nemo.tutorials.MSELoss()
 
-logging.info(
-    "This example shows how one can access modules nested in a graph."
-)
+logging.info("This example shows how one can access modules nested in a graph.")
 
 # Build the training graph.
 with NeuralGraph(operation_mode=OperationMode.both, name="trainable_module") as trainable_module:
@@ -55,7 +53,7 @@ with NeuralGraph(operation_mode=OperationMode.training, name="training_graph") a
     # Pass both of them to loss.
     lss = loss(predictions=p, target=t)
     lss2 = loss2(predictions=p, target=t)
-    
+
 
 print(trainable_module.list_modules())
 

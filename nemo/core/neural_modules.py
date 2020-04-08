@@ -58,6 +58,7 @@ PretrainedModelInfo = namedtuple(
     "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location"),
 )
 
+
 class NeuralModule(NeuralInterface):
     """
         Abstract class that every Neural Module must inherit from.
@@ -85,8 +86,6 @@ class NeuralModule(NeuralInterface):
 
         # Optimization level.
         self._opt_level = self._factory.optim_level
-
-
 
     @property
     def init_params(self) -> Optional[Dict]:
@@ -128,7 +127,6 @@ class NeuralModule(NeuralInterface):
 
         # Return parameters.
         return init_params
-
 
     def __validate_params(self, params):
         """
@@ -413,7 +411,7 @@ class NeuralModule(NeuralInterface):
         """
         return set([])
 
-    def _prepare_for_deployment(self) -> None: 
+    def _prepare_for_deployment(self) -> None:
         """Patch the module if required to prepare for deployment
 
         """

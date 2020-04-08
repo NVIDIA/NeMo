@@ -17,6 +17,7 @@
 
 from weakref import WeakSet
 
+
 class ObjectRegistry(WeakSet):
     """
         Registry used for storing references to objects, generating unique names and monitoring their `uniqueness`.
@@ -64,7 +65,7 @@ class ObjectRegistry(WeakSet):
 
         # Return the name.
         return unique_name
-            
+
     def __generate_unique_name(self):
         """
             Generates a new unique name by adding postfix (number) to base name.
