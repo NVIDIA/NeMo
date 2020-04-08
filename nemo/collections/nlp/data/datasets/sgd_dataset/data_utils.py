@@ -150,7 +150,9 @@ class Dstc8DataProcessor(object):
                 torch.distributed.barrier()
 
     def get_dialog_examples(self, dataset):
-        if (self._task_name, dataset) not in self.dial_files or not os.path.exists(self.dial_files[(self._task_name, dataset)]):
+        if (self._task_name, dataset) not in self.dial_files or not os.path.exists(
+            self.dial_files[(self._task_name, dataset)]
+        ):
             raise ValueError(
                 f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize Dstc8DataProcessor and add {dataset} dataset to datasets arg."
             )
