@@ -372,7 +372,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
 
         self._num_classes = num_classes 
         self._pooling = StatsPoolLayer(covr=covr)
-        self.norm = nn.BatchNorm2d(feat_in)
+        self.norm = nn.BatchNorm1d(feat_in)
         self.mid1 = self.affineLayer(self._feat_in,self._midEmbd1)
         self.mid2 = self.affineLayer(self._midEmbd1,self._midEmbd2,learn_mean=False)
         self.final = nn.Linear(self._midEmbd2,self._num_classes)
