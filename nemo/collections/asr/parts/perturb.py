@@ -56,7 +56,7 @@ class ImpulsePerturbation(Perturbation):
     def perturb(self, data):
         impulse_record = self._rng.sample(self._manifest.data, 1)[0]
         impulse = AudioSegment.from_file(impulse_record['audio_filepath'], target_sr=data.sample_rate)
-        logging.debug("impulse: %s", impulse_record['audio_filepath'])
+        # logging.debug("impulse: %s", impulse_record['audio_filepath'])
         data._samples = signal.fftconvolve(data.samples, impulse.samples, "full")
 
 
@@ -94,17 +94,27 @@ class NoisePerturbation(Perturbation):
     def perturb(self, data):
         snr_db = self._rng.uniform(self._min_snr_db, self._max_snr_db)
         noise_record = self._rng.sample(self._manifest.data, 1)[0]
-        noise = AudioSegment.from_file(noise_record['audio_filepath'], target_sr=data.sample_rate)
+        noise = AudioSegment.from_file(noise_record.audio_file, target_sr=data.sample_rate)
         noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
-        logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record['audio_filepath'])
+        # logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
+
+        # if noise.duration < data.duration:
+        #     noise.pad(data._samples.shape[0] - noise._samples.shape[0], symmetric=True)
 
         # calculate noise segment to use
         start_time = self._rng.uniform(0.0, noise.duration - data.duration)
-        noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
+        if noise.duration > (start_time + data.duration):
+            noise.subsegment(start_time=start_time, end_time=start_time + data.duration)
 
         # adjust gain for snr purposes and superimpose
         noise.gain_db(noise_gain_db)
-        data._samples = data._samples + noise.samples
+
+        if noise._samples.shape[0] < data._samples.shape[0]:
+            noise_idx = self._rng.randint(0, data._samples.shape[0] - noise._samples.shape[0])
+            data._samples[noise_idx: noise_idx + noise._samples.shape[0]] += noise._samples
+
+        else:
+            data._samples += noise._samples
 
 
 class WhiteNoisePerturbation(Perturbation):
@@ -119,13 +129,42 @@ class WhiteNoisePerturbation(Perturbation):
         data._samples += noise_signal
 
 
+class EchoPerturbation(Perturbation):
+    def __init__(self, min_delay=0.1, max_duration=1.0, max_dampen=0.5, normalize=False, rng=None):
+        self.min_delay = min_delay
+        self.max_duration = max_duration
+        self.max_dampen = max_dampen
+        self.normalize = normalize
+        self._rng = np.random.RandomState() if rng is None else rng
+
+    def perturb(self, data: AudioSegment):
+        min_delay = self._rng.uniform(0., self.min_delay)
+        max_delay = self._rng.uniform(min_delay, self.max_duration)
+        max_dampen = self._rng.uniform(0., self.max_dampen)
+
+        echo_start = int(min_delay * data._samples.shape[0])
+        echo_end = int(max_delay * data._samples.shape[0])
+        echo_duration = int(echo_end - echo_start)
+        echo_dampen = np.linspace(1.0, max_dampen, num=echo_duration, dtype=np.float32)
+
+        data._samples[echo_start:echo_end] += (data._samples[0:echo_duration] * echo_dampen)
+
+        if self.normalize:
+            max_amplitude = np.max(np.abs(data._samples))
+            if max_amplitude > 1.0:
+                data._samples /= max_amplitude
+
+        return data
+
+
 perturbation_types = {
     "speed": SpeedPerturbation,
     "gain": GainPerturbation,
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,
-    'white_noise': WhiteNoisePerturbation,
+    "white_noise": WhiteNoisePerturbation,
+    "echo": EchoPerturbation,
 }
 
 

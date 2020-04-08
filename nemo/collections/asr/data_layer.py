@@ -14,8 +14,9 @@
 # =============================================================================
 """This package contains Neural Modules responsible for ASR data layers."""
 
+import copy
 from functools import partial
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 
@@ -454,10 +455,10 @@ class AudioToLabelDataLayer(DataLayerNM):
     and their target labels. JSON files should be of the following format::
 
         {"audio_filepath": path_to_wav_0, "duration": time_in_sec_0, "label": \
-target_label_0}
+target_label_0, "offset": offset_in_sec_0}
         ...
         {"audio_filepath": path_to_wav_n, "duration": time_in_sec_n, "label": \
-target_label_n}
+target_label_n, "offset": offset_in_sec_n}
 
     Args:
         manifest_filepath (str): Dataset parameter.
@@ -531,7 +532,7 @@ target_label_n}
         trim_silence: bool = False,
         drop_last: bool = False,
         load_audio: bool = True,
-        augmentor: Optional[Dict[str, Dict[str, Any]]] = None,
+        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
     ):
         super(AudioToLabelDataLayer, self).__init__()
 
@@ -540,7 +541,12 @@ target_label_n}
         self._sample_rate = sample_rate
 
         if augmentor is not None:
-            augmentor = self._process_augmentations(augmentor)
+            if isinstance(augmentor, AudioAugmentor):
+                pass
+            elif isinstance(augmentor, dict):
+                augmentor = self._process_augmentations(augmentor)
+            else:
+                raise ValueError("Cannot parse augmentor provided !")
 
         self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
 
@@ -581,6 +587,7 @@ target_label_n}
 
     def _process_augmentations(self, augmentor) -> AudioAugmentor:
         augmentations = []
+        augmentor = copy.deepcopy(augmentor)
         for augment_name, augment_kwargs in augmentor.items():
             prob = augment_kwargs.get('prob', None)
 

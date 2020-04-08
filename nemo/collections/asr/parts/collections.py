@@ -166,13 +166,14 @@ class ASRAudioText(AudioText):
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label',)
+    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label offset',)
 
     def __init__(
         self,
         audio_files: List[str],
         durations: List[float],
         labels: List[Union[int, str]],
+        offsets: List[Optional[float]],
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
@@ -184,6 +185,7 @@ class SpeechLabel(_Collection):
             audio_files: List of audio files.
             durations: List of float durations.
             labels: List of labels.
+            offsets: List of offsets or None.
             min_duration: Minimum duration to keep entry with (default: None).
             max_duration: Maximum duration to keep entry with (default: None).
             max_number: Maximum number of samples to collect.
@@ -192,8 +194,7 @@ class SpeechLabel(_Collection):
 
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        pre_commands=set()
-        for audio_file, duration, command in zip(audio_files, durations, labels):
+        for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -203,7 +204,7 @@ class SpeechLabel(_Collection):
                 duration_filtered += duration
                 continue
 
-            data.append(output_type(audio_file, duration, command))
+            data.append(output_type(audio_file, duration, command, offset))
 
             # Max number of entities filter.
             if len(data) == max_number:
@@ -234,14 +235,15 @@ class ASRSpeechLabel(SpeechLabel):
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
-        audio_files, durations, labels = [], [], []
+        audio_files, durations, labels, offsets = [], [], [], []
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             labels.append(item['label'])
+            offsets.append(item['offset'])
 
-        super().__init__(audio_files, durations, labels, *args, **kwargs)
+        super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)
