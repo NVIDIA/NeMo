@@ -108,7 +108,7 @@ class NoisePerturbation(Perturbation):
 
         if noise._samples.shape[0] < data._samples.shape[0]:
             noise_idx = self._rng.randint(0, data._samples.shape[0] - noise._samples.shape[0])
-            data._samples[noise_idx: noise_idx + noise._samples.shape[0]] += noise._samples
+            data._samples[noise_idx : noise_idx + noise._samples.shape[0]] += noise._samples
 
         else:
             data._samples += noise._samples
@@ -132,7 +132,7 @@ perturbation_types = {
     "impulse": ImpulsePerturbation,
     "shift": ShiftPerturbation,
     "noise": NoisePerturbation,
-    "white_noise": WhiteNoisePerturbation
+    "white_noise": WhiteNoisePerturbation,
 }
 
 
