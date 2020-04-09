@@ -220,7 +220,6 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
     max_seq_length=args.max_seq_length,
     datasets=['train', args.eval_dataset],
     overwrite_dial_files=args.overwrite_dial_files,
-    log_data_warnings=args.debug_mode,
 )
 
 train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
