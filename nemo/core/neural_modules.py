@@ -29,8 +29,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
-import nemo
-from .neural_types import (
+from nemo.core.neural_types import (
     CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
     NeuralPortNmTensorMismatchError,
@@ -38,8 +37,8 @@ from .neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
-from nemo import logging
-from nemo.core import NeuralModuleFactory, OperationMode
+from nemo.utils import logging
+from nemo.core import NeuralModuleFactory, OperationMode, NeuralGraph
 from nemo.core.neural_interface import NeuralInterface
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
@@ -452,6 +451,7 @@ class NeuralModule(NeuralInterface):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
+
         # Set the operation mode of the outer graph.
         self.operation_mode = self._app_state.active_graph.operation_mode
 
@@ -470,7 +470,7 @@ class NeuralModule(NeuralInterface):
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
             # Check what was actually passed.
-            if isinstance(port_content, nemo.core.NeuralGraph):
+            if isinstance(port_content, NeuralGraph):
                 # Bind this input port to a neural graph.
 
                 # TODO: make sure that port_content ==  self._app_state.active_graph ?????
