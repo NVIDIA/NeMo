@@ -20,14 +20,14 @@
 import pytest
 import torch
 
-from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
-from nemo.core import NeuralGraph, OperationMode, EvaluatorCallback, SimpleLossLoggerCallback
 from nemo.backends.pytorch.actions import PtActions
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import EvaluatorCallback, NeuralGraph, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraphNesting:
-
     @pytest.mark.unit
     def test_module_nesting_change_operation_modes(self):
         """ 
@@ -47,7 +47,6 @@ class TestNeuralGraphNesting:
         with NeuralGraph(operation_mode=OperationMode.inference):
             _, _ = dl()
             assert dl.operation_mode == OperationMode.inference
-
 
     @pytest.mark.unit
     def test_graph_nesting_possible_operation_modes(self):

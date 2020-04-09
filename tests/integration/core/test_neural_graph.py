@@ -18,13 +18,13 @@
 
 import pytest
 
+from nemo.backends.pytorch.actions import PtActions
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import NeuralGraph
-from nemo.backends.pytorch.actions import PtActions
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraph:
-
     @pytest.mark.integration
     def test_nm_tensors(self):
         """
@@ -68,7 +68,6 @@ class TestNeuralGraph:
         # Invoke "train" action - perform single forward-backard step.
         optimizer.train([lss], optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
 
-
     @pytest.mark.integration
     def test_explicit_graph(self):
         """  Tests integration of an `explicit` graph and decoupling of graph creation from its activation. """
@@ -90,4 +89,3 @@ class TestNeuralGraph:
         optimizer = PtActions()
         # Invoke "train" action - perform single forward-backard step.
         optimizer.train([lss], optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
-

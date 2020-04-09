@@ -20,14 +20,14 @@
 import pytest
 import torch
 
-from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
-from nemo.core import NeuralGraph, OperationMode, EvaluatorCallback, SimpleLossLoggerCallback
 from nemo.backends.pytorch.actions import PtActions
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import EvaluatorCallback, NeuralGraph, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraphNesting:
-
     @pytest.mark.integration
     def test_nesting_operation_modes_ok(self):
         """ 
@@ -62,12 +62,10 @@ class TestNeuralGraphNesting:
             p_valid = model(x=x_valid)
             loss_e = loss(predictions=p_valid, target=t_valid)
 
-
         # Callbacks to print info to console and Tensorboard.
         train_callback = SimpleLossLoggerCallback(
             tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}')
         )
-
 
         def batch_loss_per_batch_callback(tensors, global_vars):
             if "batch_loss" not in global_vars.keys():
@@ -76,12 +74,10 @@ class TestNeuralGraphNesting:
                 if key.startswith("loss"):
                     global_vars["batch_loss"].append(torch.mean(torch.stack(value)))
 
-
         def batch_loss_epoch_finished_callback(global_vars):
             epoch_loss = torch.max(torch.tensor(global_vars["batch_loss"]))
             logging.info("Evaluation Loss: {0}".format(epoch_loss))
             return dict({"Evaluation Loss": epoch_loss})
-
 
         eval_callback = EvaluatorCallback(
             eval_tensors=[loss_e],
@@ -93,7 +89,8 @@ class TestNeuralGraphNesting:
         # Instantiate an optimizer to perform the `train` action.
         optimizer = PtActions()
         # Invoke "train" action - perform single forward-backard step.
-        optimizer.train([lss], 
+        optimizer.train(
+            [lss],
             callbacks=[train_callback, eval_callback],
             optimization_params={"max_steps": 2, "lr": 0.0003},
             optimizer="sgd",

@@ -24,9 +24,9 @@ from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, Tayl
 from nemo.core import NeuralGraph, OperationMode
 from nemo.core.neural_types import NeuralTypeComparisonResult
 
+
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraphs:
-
     @pytest.mark.unit
     def test_explicit_graph_with_activation(self):
         """ 
@@ -49,7 +49,7 @@ class TestNeuralGraphs:
 
         # Assert that there are 3 modules in the graph.
         assert len(g0) == 3
-        
+
         # Test access modules.
         assert g0["dl"] is dl
         assert g0["fx"] is fx
@@ -82,9 +82,6 @@ class TestNeuralGraphs:
         # Assert that there are 2 modules in the graph.
         assert len(g0) == 2
 
-
-
-
     @pytest.mark.unit
     def test_default_output_ports(self):
         """ Tests automatic binding of default output ports. """
@@ -101,5 +98,3 @@ class TestNeuralGraphs:
         assert g1.output_ports["x"].compare(x) == NeuralTypeComparisonResult.SAME
         assert g1.output_ports["y"].compare(t) == NeuralTypeComparisonResult.SAME
         assert g1.output_ports["y_pred"].compare(p) == NeuralTypeComparisonResult.SAME
-
-
