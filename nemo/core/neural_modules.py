@@ -30,7 +30,6 @@ from typing import Dict, List, Optional, Set, Tuple
 from ruamel.yaml import YAML
 
 from nemo.core.neural_types import (
-    CanNotInferResultNeuralType,
     NeuralPortNameMismatchError,
     NeuralPortNmTensorMismatchError,
     NeuralType,

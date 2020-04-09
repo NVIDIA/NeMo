@@ -107,3 +107,9 @@ class ObjectRegistry(WeakSet):
                 return obj
         # Else: seems that there is no object with that name.
         raise KeyError("A {} with name `{}` don't exists!".format(self._base_type_name, key))
+
+    def __eq__(self, other):
+        """ Checks if two resitrys have similar content. """
+        if not isinstance(other, WeakSet):
+            return False
+        return super().__eq__(other)

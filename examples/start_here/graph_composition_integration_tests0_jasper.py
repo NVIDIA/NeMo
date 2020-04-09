@@ -25,7 +25,7 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import monitor_asr_train_progress
-from nemo.core import NeuralGraph, OperationMode
+from nemo.core import NeuralGraph
 
 logging = nemo.logging
 
