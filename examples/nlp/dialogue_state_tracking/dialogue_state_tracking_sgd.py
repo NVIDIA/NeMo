@@ -161,6 +161,10 @@ parser.add_argument(
     "--log_data_warnings", action="store_true", help="Enables logging warnings for data",
 )
 
+parser.add_argument(
+    "--eval_debug", action="store_true", help="Enables logging evaluation info for debugging",
+)
+
 args = parser.parse_args()
 
 logging.info(args)
@@ -393,6 +397,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         args.eval_dataset,
         output_metric_file,
         args.state_tracker,
+        args.eval_debug,
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,

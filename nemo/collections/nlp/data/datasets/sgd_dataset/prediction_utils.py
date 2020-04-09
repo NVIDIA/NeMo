@@ -22,12 +22,12 @@ import os
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
 
-REQ_SLOT_THRESHOLD = 0.2
+REQ_SLOT_THRESHOLD = 0.5
 
 __all__ = ['get_predicted_dialog_baseline', 'write_predictions_to_file']
 
 
-def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
+def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debug):
     """Update labels in a dialogue based on model predictions.
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
@@ -54,9 +54,17 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
             system_utterance = dialog["turns"][turn_idx - 1]["utterance"] if turn_idx else ""
             turn_id = "{:02d}".format(turn_idx)
             for frame in turn["frames"]:
+                if eval_debug:
+                    print("-----------------------------------New Frame----------------------------")
+                    print(f'sys:{system_utterance}, user:{user_utterance}')
+                    print("Slots - Ground Truth:", frame['slots'])
+                    print("Frame - Ground Trurh:", frame['state'])
+                    print("\n")
+
                 predictions = all_predictions[(dialog_id, turn_id, frame["service"])]
                 slot_values = all_slot_values[frame["service"]]
                 service_schema = schemas.get_service_schema(frame["service"])
+
                 # Remove the slot spans and state if present.
                 frame.pop("slots", None)
                 frame.pop("state", None)
@@ -81,15 +89,52 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
 
                 # Add prediction for user goal (slot values).
                 # Categorical slots.
+                categorical_slots_dict = {}
+                predictions["cat_slot_status_p"] = predictions["cat_slot_status_p"].cpu().numpy()
+                predictions["cat_slot_status"] = predictions["cat_slot_status"].cpu().numpy()
+
                 for slot_idx, slot in enumerate(service_schema.categorical_slots):
+                    categorical_slots_dict[slot] = (predictions["cat_slot_status"][slot_idx],
+                                                    predictions["cat_slot_status_p"][slot_idx],
+                                                    service_schema.get_categorical_slot_values(slot)[predictions["cat_slot_value"][slot_idx]])
+
                     slot_status = predictions["cat_slot_status"][slot_idx]
                     if slot_status == data_utils.STATUS_DONTCARE:
                         slot_values[slot] = data_utils.STR_DONTCARE
                     elif slot_status == data_utils.STATUS_ACTIVE:
                         value_idx = predictions["cat_slot_value"][slot_idx]
                         slot_values[slot] = service_schema.get_categorical_slot_values(slot)[value_idx]
+
+                if eval_debug:
+                    print(f"Predicted categorical_slots_dict: {categorical_slots_dict}")
+
                 # Non-categorical slots.
+                #print(f'non_cat_slot_status: {predictions["noncat_slot_status"]}')
+                #print(f'non_cat_slot_status_p: {predictions["noncat_slot_status_p"]}')
+                non_categorical_slots_dict = {}
+                predictions["noncat_slot_status_p"] = predictions["noncat_slot_status_p"].cpu().numpy()
+                predictions["noncat_slot_status"] = predictions["noncat_slot_status"].cpu().numpy()
+                predictions["noncat_slot_p"] = predictions["noncat_slot_p"].cpu().numpy()
+
+                predictions["noncat_alignment_start"] = predictions["noncat_alignment_start"].cpu().numpy()
+                predictions["noncat_alignment_end"] = predictions["noncat_alignment_end"].cpu().numpy()
+
+                #for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
+                #print(f"noncat_slot_status{non_categorical_slots_dict}")
+
+
                 for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
+                    tok_start_idx = predictions["noncat_slot_start"][slot_idx]
+                    tok_end_idx = predictions["noncat_slot_end"][slot_idx]
+                    ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
+                    ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
+
+                    non_categorical_slots_dict[slot] = (predictions["noncat_slot_status"][slot_idx],
+                                                        predictions["noncat_slot_status_p"][slot_idx],
+                                                        predictions["noncat_slot_p"][slot_idx],
+                                                        (ch_start_idx, ch_end_idx),
+                                                        user_utterance[ch_start_idx - 1 : ch_end_idx] if (ch_start_idx>0 and ch_end_idx>0) else system_utterance[-ch_start_idx - 1 : -ch_end_idx])
+
                     slot_status = predictions["noncat_slot_status"][slot_idx]
                     if slot_status == data_utils.STATUS_DONTCARE:
                         slot_values[slot] = data_utils.STR_DONTCARE
@@ -99,6 +144,8 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
                         # print(ch_start_idx, ch_end_idx)
+                        #print(f'Active Slot: {slot}')
+                        #print(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
@@ -107,14 +154,22 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
                         #    slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
+                                if eval_debug:
+                                    print("Sys Ret:", sys_prev_slots[frame["service"]][slot])
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
                             # elif ch_start_idx < 0 and ch_end_idx < 0:
                             #     slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
                             #     print("hoooy")
+
+                if eval_debug:
+                    print(f"Predicted non_categorical_slots_dict: {non_categorical_slots_dict}")
+
                 # Create a new dict to avoid overwriting the state in previous turns
                 # because of use of same objects.
                 state["slot_values"] = {s: [v] for s, v in slot_values.items()}
                 frame["state"] = state
+                if eval_debug:
+                    print("Predicted state:", state)
     return dialog
 
 
@@ -196,7 +251,7 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
     return dialog
 
 
-def write_predictions_to_file(predictions, input_json_files, schema_json_file, output_dir, state_tracker):
+def write_predictions_to_file(predictions, input_json_files, schema_json_file, output_dir, state_tracker, eval_debug):
     """Write the predicted dialogues as json files.
 
   Args:
@@ -228,7 +283,7 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
                 if state_tracker == 'baseline':
                     pred_dialog = get_predicted_dialog_baseline(d, all_predictions, schemas)
                 elif state_tracker == 'ret_sys_act':
-                    pred_dialog = get_predicted_dialog_ret_sys_act(d, all_predictions, schemas)
+                    pred_dialog = get_predicted_dialog_ret_sys_act(d, all_predictions, schemas, eval_debug)
                 else:
                     raise ValueError(f"tracker_mode {state_tracker} is not defined.")
                 pred_dialogs.append(pred_dialog)
