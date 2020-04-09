@@ -167,7 +167,8 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-logging.info(args)
+if args.debug_mode:
+    logging.setLevel(10)
 
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')

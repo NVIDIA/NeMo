@@ -255,9 +255,7 @@ class Dstc8DataProcessor(object):
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
         base_example = InputExample(
-            max_seq_length=self._max_seq_length,
-            is_real_example=True,
-            tokenizer=self._tokenizer,
+            max_seq_length=self._max_seq_length, is_real_example=True, tokenizer=self._tokenizer,
         )
         base_example.example_id = turn_id
 
