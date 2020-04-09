@@ -94,9 +94,11 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                 predictions["cat_slot_status"] = predictions["cat_slot_status"].cpu().numpy()
 
                 for slot_idx, slot in enumerate(service_schema.categorical_slots):
-                    categorical_slots_dict[slot] = (predictions["cat_slot_status"][slot_idx],
-                                                    predictions["cat_slot_status_p"][slot_idx],
-                                                    service_schema.get_categorical_slot_values(slot)[predictions["cat_slot_value"][slot_idx]])
+                    categorical_slots_dict[slot] = (
+                        predictions["cat_slot_status"][slot_idx],
+                        predictions["cat_slot_status_p"][slot_idx],
+                        service_schema.get_categorical_slot_values(slot)[predictions["cat_slot_value"][slot_idx]],
+                    )
 
                     slot_status = predictions["cat_slot_status"][slot_idx]
                     if slot_status == data_utils.STATUS_DONTCARE:
@@ -109,8 +111,8 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     print(f"Predicted categorical_slots_dict: {categorical_slots_dict}")
 
                 # Non-categorical slots.
-                #print(f'non_cat_slot_status: {predictions["noncat_slot_status"]}')
-                #print(f'non_cat_slot_status_p: {predictions["noncat_slot_status_p"]}')
+                # print(f'non_cat_slot_status: {predictions["noncat_slot_status"]}')
+                # print(f'non_cat_slot_status_p: {predictions["noncat_slot_status_p"]}')
                 non_categorical_slots_dict = {}
                 predictions["noncat_slot_status_p"] = predictions["noncat_slot_status_p"].cpu().numpy()
                 predictions["noncat_slot_status"] = predictions["noncat_slot_status"].cpu().numpy()
@@ -119,9 +121,8 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                 predictions["noncat_alignment_start"] = predictions["noncat_alignment_start"].cpu().numpy()
                 predictions["noncat_alignment_end"] = predictions["noncat_alignment_end"].cpu().numpy()
 
-                #for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
-                #print(f"noncat_slot_status{non_categorical_slots_dict}")
-
+                # for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
+                # print(f"noncat_slot_status{non_categorical_slots_dict}")
 
                 for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
                     tok_start_idx = predictions["noncat_slot_start"][slot_idx]
@@ -129,11 +130,15 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                     ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
 
-                    non_categorical_slots_dict[slot] = (predictions["noncat_slot_status"][slot_idx],
-                                                        predictions["noncat_slot_status_p"][slot_idx],
-                                                        predictions["noncat_slot_p"][slot_idx],
-                                                        (ch_start_idx, ch_end_idx),
-                                                        user_utterance[ch_start_idx - 1 : ch_end_idx] if (ch_start_idx>0 and ch_end_idx>0) else system_utterance[-ch_start_idx - 1 : -ch_end_idx])
+                    non_categorical_slots_dict[slot] = (
+                        predictions["noncat_slot_status"][slot_idx],
+                        predictions["noncat_slot_status_p"][slot_idx],
+                        predictions["noncat_slot_p"][slot_idx],
+                        (ch_start_idx, ch_end_idx),
+                        user_utterance[ch_start_idx - 1 : ch_end_idx]
+                        if (ch_start_idx > 0 and ch_end_idx > 0)
+                        else system_utterance[-ch_start_idx - 1 : -ch_end_idx],
+                    )
 
                     slot_status = predictions["noncat_slot_status"][slot_idx]
                     if slot_status == data_utils.STATUS_DONTCARE:
@@ -144,8 +149,8 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
                         # print(ch_start_idx, ch_end_idx)
-                        #print(f'Active Slot: {slot}')
-                        #print(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
+                        # print(f'Active Slot: {slot}')
+                        # print(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
