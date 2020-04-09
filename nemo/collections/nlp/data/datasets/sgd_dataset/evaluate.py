@@ -186,7 +186,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services):
         for metric_key, value_list in domain_metric_vals.items():
             if value_list:
                 # Metrics are macro-averaged across all frames.
-                domain_metric_aggregate[metric_key] = float(np.mean(value_list))
+                domain_metric_aggregate[metric_key] = round(float(np.mean(value_list)) * 100.0, 2)
             else:
                 domain_metric_aggregate[metric_key] = metrics.NAN_VAL
         all_metric_aggregate[domain_key] = domain_metric_aggregate

@@ -3,13 +3,8 @@ This code were adapted from
 https://github.com/google-research/google-research/tree/master/schema_guided_dst
 """
 
-import os
-
 import numpy as np
-import torch
 from torch.utils.data import Dataset
-
-from nemo import logging
 
 __all__ = ['SGDDataset']
 
