@@ -120,7 +120,7 @@ class MultiDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, i):
         """
-        Returns list [x1, x2, ...xn] where x1 \in D1, x2 \in D2, ...xn\ Dn
+        Returns list [x1, x2, ...xn] where x1 \in D1, x2 \in D2, ..., xn \in Dn
         """
 
         return [x for d in self.datasets for x in d[i % len(d)]]
