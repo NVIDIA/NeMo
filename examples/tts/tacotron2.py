@@ -55,6 +55,11 @@ def parse_args():
     parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
     parser.add_argument("--grad_norm_clip", type=float, default=1.0, help="gradient clipping")
     parser.add_argument("--min_lr", type=float, default=1e-5, help="minimum learning rate to decay to")
+    parser.add_argument(
+        "--do_not_eval_at_start", action='store_true', help="toggle for whether to do evaluation on step 0"
+    )
+    parser.add_argument("--decoder_force", action='store_true', help="toggle for teacher forcing during evaluation")
+    parser.add_argument("--random_seed", default=None, type=int, help="random seed for torch, numpy, and random")
 
     # Create new args
     parser.add_argument("--exp_name", default="Tacotron2", type=str)
@@ -82,7 +87,7 @@ def parse_args():
     return args, "".join(exp_directory)
 
 
-def create_NMs(tacotron2_config_file, labels, decoder_infer=False):
+def create_NMs(tacotron2_config_file, labels, decoder_infer=False, decoder_force=False):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
         tacotron2_config_file, "AudioToMelSpectrogramPreprocessor"
     )
@@ -93,7 +98,9 @@ def create_NMs(tacotron2_config_file, labels, decoder_infer=False):
     if decoder_infer:
         t2_dec = nemo_tts.Tacotron2DecoderInfer.import_from_config(tacotron2_config_file, "Tacotron2DecoderInfer")
     else:
-        t2_dec = nemo_tts.Tacotron2Decoder.import_from_config(tacotron2_config_file, "Tacotron2Decoder")
+        t2_dec = nemo_tts.Tacotron2Decoder.import_from_config(
+            tacotron2_config_file, "Tacotron2Decoder", overwrite_params={"force": decoder_force}
+        )
     t2_postnet = nemo_tts.Tacotron2Postnet.import_from_config(tacotron2_config_file, "Tacotron2Postnet")
     t2_loss = nemo_tts.Tacotron2Loss.import_from_config(tacotron2_config_file, "Tacotron2Loss")
     makegatetarget = nemo_tts.MakeGate()
@@ -189,6 +196,7 @@ def create_eval_dags(
     eval_freq,
     labels,
     cpu_per_dl=1,
+    do_not_eval_at_start=False,
 ):
     (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
@@ -245,6 +253,7 @@ def create_eval_dags(
             tb_writer_func=partial(tacotron2_eval_log_to_tb_func, tag=tagname),
             eval_step=eval_freq,
             tb_writer=neural_factory.tb_writer,
+            eval_at_start=not do_not_eval_at_start,
         )
 
         callbacks.append(eval_callback)
@@ -262,6 +271,7 @@ def create_all_dags(
     checkpoint_save_freq=None,
     eval_datasets=None,
     eval_batch_size=None,
+    do_not_eval_at_start=False,
 ):
     # Calculate num_workers for dataloader
     cpu_per_dl = max(int(os.cpu_count() / neural_factory.world_size), 1)
@@ -289,6 +299,7 @@ def create_all_dags(
             eval_freq=eval_freq,
             cpu_per_dl=cpu_per_dl,
             labels=labels,
+            do_not_eval_at_start=do_not_eval_at_start,
         )
     else:
         logging.info("There were no val datasets passed")
@@ -315,6 +326,7 @@ def main():
         files_to_copy=[args.model_config, __file__],
         cudnn_benchmark=args.cudnn_benchmark,
         tensorboard_dir=args.tensorboard_dir,
+        random_seed=args.random_seed,
     )
 
     if args.local_rank is not None:
@@ -325,7 +337,7 @@ def main():
         tacotron2_params = yaml.load(file)
         labels = tacotron2_params["labels"]
     # instantiate neural modules
-    neural_modules = create_NMs(args.model_config, labels)
+    neural_modules = create_NMs(args.model_config, labels, decoder_force=args.decoder_force)
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(
@@ -339,6 +351,7 @@ def main():
         eval_datasets=args.eval_datasets,
         eval_batch_size=args.eval_batch_size,
         labels=labels,
+        do_not_eval_at_start=args.do_not_eval_at_start,
     )
 
     # train model
