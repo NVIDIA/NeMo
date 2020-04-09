@@ -50,6 +50,7 @@ class SchemaPreprocessor:
             the dialogue examples overwrite_schema_emb_file,
         bert_ckpt_dir (str) - Directory containing pre-trained BERT checkpoint
         nf - NeuralModuleFactory
+        mode(str): 
     """
 
     def __init__(
@@ -64,6 +65,7 @@ class SchemaPreprocessor:
         overwrite_schema_emb_files,
         bert_ckpt_dir,
         nf,
+        mode='baseline',
     ):
         self.schemas_dict = {}
         self._schema_embedding_dir = schema_embedding_dir
@@ -94,7 +96,7 @@ class SchemaPreprocessor:
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
                     hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
-                    emb_datalayer.dataset.save_embeddings(hidden_states, schema_embedding_file)
+                    emb_datalayer.dataset.save_embeddings(hidden_states, schema_embedding_file, mode)
                     logging.info(f"Finish generating the schema embeddings for {dataset_split} dataset.")
 
             # wait until the master process writes to the schema embedding file

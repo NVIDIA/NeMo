@@ -38,6 +38,8 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
   Returns:
     A json object containing the dialogue with labels predicted by the model.
   """
+    if eval_debug:
+        logging.setLevel(10)
     # This approach retreives slot values from the history of system actions if slot is active but it can not find it in user utterance
     # Overwrite the labels in the turn with the predictions from the model. For
     # test set, these labels are missing from the data and hence they are added.
@@ -56,12 +58,10 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
             system_utterance = dialog["turns"][turn_idx - 1]["utterance"] if turn_idx else ""
             turn_id = "{:02d}".format(turn_idx)
             for frame in turn["frames"]:
-                if eval_debug:
-                    logging.debug("-----------------------------------New Frame----------------------------")
-                    logging.debug(f'sys:{system_utterance}, user:{user_utterance}')
-                    logging.debug("Slots - Ground Truth:", frame['slots'])
-                    logging.debug("Frame - Ground Trurh:", frame['state'])
-                    logging.debug("\n")
+                logging.debug("-----------------------------------New Frame----------------------------")
+                logging.debug(f'sys:{system_utterance}, user:{user_utterance}')
+                logging.debug("Slots - Ground Truth:", frame['slots'])
+                logging.debug("Frame - Ground Trurh:", frame['state'], "\n")
 
                 predictions = all_predictions[(dialog_id, turn_id, frame["service"])]
                 slot_values = all_slot_values[frame["service"]]
@@ -71,12 +71,10 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                 frame.pop("slots", None)
                 frame.pop("state", None)
 
-                # The baseline model doesn't predict slot spans. Only state predictions
-                # are added.
+                # The baseline model doesn't predict slot spans. Only state predictions are added.
                 state = {}
 
-                # Add prediction for active intent. Offset is subtracted to account for
-                # NONE intent.
+                # Add prediction for active intent. Offset is subtracted to account for NONE intent.
                 active_intent_id = predictions["intent_status"]
                 state["active_intent"] = (
                     service_schema.get_intent_from_id(active_intent_id - 1) if active_intent_id else "NONE"
@@ -150,19 +148,16 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
-                                if eval_debug:
-                                    logging.debug("Sys Ret:", sys_prev_slots[frame["service"]][slot])
+                                logging.debug("Sys Ret:", sys_prev_slots[frame["service"]][slot])
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
 
-                if eval_debug:
-                    logging.debug(f"Predicted non_categorical_slots_dict: {non_categorical_slots_dict}")
+                logging.debug(f"Predicted non_categorical_slots_dict: {non_categorical_slots_dict}")
 
                 # Create a new dict to avoid overwriting the state in previous turns
                 # because of use of same objects.
                 state["slot_values"] = {s: [v] for s, v in slot_values.items()}
                 frame["state"] = state
-                if eval_debug:
-                    logging.debug("Predicted state:", state)
+                logging.debug("Predicted state:", state)
     return dialog
 
 

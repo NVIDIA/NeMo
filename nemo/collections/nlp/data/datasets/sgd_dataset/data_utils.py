@@ -132,18 +132,18 @@ class Dstc8DataProcessor(object):
 
             if not os.path.exists(dial_file) or overwrite_dial_files or not os.path.exists(schema_pkl_file):
                 logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
-                dial_examples = self._generate_dialog_examples(dataset)
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
                     if not os.path.exists(dialogues_example_dir):
                         os.makedirs(dialogues_example_dir)
+                    dial_examples = self._generate_dialog_examples(dataset)
                     with open(dial_file, "wb") as f:
                         np.save(f, dial_examples)
                         f.close()
                     logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
 
-                # wait until the master process writes to the schema embedding file
+            # wait until the master process writes to the dialogue processed file
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
 

@@ -259,7 +259,7 @@ class SchemaEmbeddingDataset(Dataset):
 
         return features
 
-    def _populate_schema_embeddings(self, schema_embeddings, hidden_states):
+    def _populate_schema_embeddings(self, schema_embeddings, hidden_states, mode):
         """
         Populate all schema embeddings with BERT embeddings.
         """
@@ -275,8 +275,14 @@ class SchemaEmbeddingDataset(Dataset):
             tensor_name = self.features["embedding_tensor_name"][idx]
             emb_mat = schema_embeddings[service_id][tensor_name]
 
-            # Obtain the encoding of the [CLS] token.
-            embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]
+            if mode == 'random':
+                # randomly initialize schema embeddings
+                embedding = np.round(np.random.normal(size=hidden_states[0].shape[-1]), 6)
+            elif mode == 'baseline':
+                # Obtain the encoding of the [CLS] token.
+                embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]
+            else:
+                raise ValueError(f'Mode {mode} for generation schema embeddings is not supported')
             intent_or_slot_id = self.features['intent_or_slot_id'][idx]
             value_id = self.features['value_id'][idx]
 
@@ -285,7 +291,7 @@ class SchemaEmbeddingDataset(Dataset):
             else:
                 emb_mat[intent_or_slot_id] = embedding
 
-    def save_embeddings(self, bert_hidden_states, output_file):
+    def save_embeddings(self, bert_hidden_states, output_file, mode):
         """Generate schema element embeddings and save it as a numpy file."""
         schema_embeddings = []
         max_num_intent = data_utils.MAX_NUM_INTENT
@@ -307,7 +313,7 @@ class SchemaEmbeddingDataset(Dataset):
             )
 
         # Populate the embeddings based on bert inference results and save them.
-        self._populate_schema_embeddings(schema_embeddings, bert_hidden_states)
+        self._populate_schema_embeddings(schema_embeddings, bert_hidden_states, mode)
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         if master_device:

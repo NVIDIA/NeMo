@@ -160,7 +160,13 @@ parser.add_argument(
     choices=['baseline', 'ret_sys_act'],
     help="Specifies the state tracker mode",
 )
-
+parser.add_argument(
+    "--schema_emb_mode",
+    type=str,
+    default='baseline',
+    choices=['baseline', 'random'],
+    help="Specifies how schema embeddings are generated. Baseline uses ['CLS'] token",
+)
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
 )
@@ -211,6 +217,7 @@ schema_preprocessor = SchemaPreprocessor(
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
     bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
+    mode=args.schema_emb_mode,
 )
 
 dialogues_processor = data_utils.Dstc8DataProcessor(
