@@ -29,6 +29,8 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
+from nemo.core import NeuralGraph, NeuralModuleFactory, OperationMode
+from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import (
     NeuralPortNameMismatchError,
     NeuralPortNmTensorMismatchError,
@@ -36,10 +38,8 @@ from nemo.core.neural_types import (
     NeuralTypeComparisonResult,
     NmTensor,
 )
-from nemo.utils import logging
-from nemo.core import NeuralModuleFactory, OperationMode, NeuralGraph
-from nemo.core.neural_interface import NeuralInterface
 from nemo.package_info import __version__ as nemo_version
+from nemo.utils import logging
 from nemo.utils.decorators.deprecated import deprecated
 
 YAML = YAML(typ='safe')
