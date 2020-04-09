@@ -92,13 +92,11 @@ class Dstc8DataProcessor(object):
         max_seq_length,
         datasets=["train", "dev", "test"],
         overwrite_dial_files=False,
-        log_data_warnings=False,
     ):
 
         self.dstc8_data_dir = dstc8_data_dir
         self.dialogues_examples_dir = dialogues_example_dir
 
-        self._log_data_warnings = log_data_warnings
         self._task_name = task_name
 
         train_file_range = FILE_RANGES[task_name]["train"]
@@ -257,10 +255,7 @@ class Dstc8DataProcessor(object):
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
         base_example = InputExample(
-            max_seq_length=self._max_seq_length,
-            is_real_example=True,
-            tokenizer=self._tokenizer,
-            log_data_warnings=self._log_data_warnings,
+            max_seq_length=self._max_seq_length, is_real_example=True, tokenizer=self._tokenizer,
         )
         base_example.example_id = turn_id
 
@@ -412,7 +407,6 @@ class InputExample(object):
         example_id_num=[],
         is_real_example=False,
         tokenizer=None,
-        log_data_warnings=False,
     ):
         """Constructs an InputExample.
 
@@ -429,8 +423,6 @@ class InputExample(object):
           tokenizer: A tokenizer object that has convert_tokens_to_ids and
             convert_ids_to_tokens methods. It must be non-None when
             is_real_example=True.
-          log_data_warnings: If True, warnings generted while processing data are
-            logged. This is useful for debugging data processing.
         """
         self.service_schema = service_schema
         self.example_id = example_id
@@ -439,7 +431,6 @@ class InputExample(object):
         self.is_real_example = is_real_example
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
-        self._log_data_warnings = log_data_warnings
         if self.is_real_example and self._tokenizer is None:
             raise ValueError("Must specify tokenizer when input is a real example.")
 
@@ -570,8 +561,8 @@ class InputExample(object):
         # Modify lengths of sys & usr utterance so that length of total utt
         # (including [CLS], [SEP], [SEP]) is no more than max_utt_len
         is_too_long = truncate_seq_pair(system_tokens, user_tokens, max_utt_len - 3)
-        if is_too_long and self._log_data_warnings:
-            logging.info(f'Utterance sequence truncated in example id - {self.example_id}.')
+        if is_too_long:
+            logging.debug(f'Utterance sequence truncated in example id - {self.example_id}.')
 
         # Construct the tokens, segment mask and valid token mask which will be
         # input to BERT, using the tokens for system utterance (sequence A) and
@@ -643,7 +634,6 @@ class InputExample(object):
             example_id_num=self.example_id_num,
             is_real_example=self.is_real_example,
             tokenizer=self._tokenizer,
-            log_data_warnings=self._log_data_warnings,
         )
         new_example.utterance_ids = list(self.utterance_ids)
         new_example.utterance_segment = list(self.utterance_segment)
@@ -697,10 +687,9 @@ class InputExample(object):
                     # the value was mentioned earlier in the dialogue. Since this model
                     # only makes use of the last two utterances to predict state updates,
                     # it will fail in such cases.
-                    if self._log_data_warnings:
-                        logging.debug(
-                            f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
-                        )
+                    logging.debug(
+                        f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
+                    )
 
                     continue
                 self.noncategorical_slot_value_start[slot_idx] = start

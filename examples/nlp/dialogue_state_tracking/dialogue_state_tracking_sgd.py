@@ -154,20 +154,21 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--state_tracker", type=str, default='baseline', help="Specifies the state tracker mode",
+    "--state_tracker",
+    type=str,
+    default='baseline',
+    choices=['baseline', 'ret_sys_act'],
+    help="Specifies the state tracker mode",
 )
 
 parser.add_argument(
-    "--log_data_warnings", action="store_true", help="Enables logging warnings for data",
-)
-
-parser.add_argument(
-    "--eval_debug", action="store_true", help="Enables logging evaluation info for debugging",
+    "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
 )
 
 args = parser.parse_args()
 
-logging.info(args)
+if args.debug_mode:
+    logging.setLevel(10)
 
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
@@ -220,7 +221,6 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
     max_seq_length=args.max_seq_length,
     datasets=['train', args.eval_dataset],
     overwrite_dial_files=args.overwrite_dial_files,
-    log_data_warnings=args.log_data_warnings,
 )
 
 train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
@@ -397,7 +397,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         args.eval_dataset,
         output_metric_file,
         args.state_tracker,
-        args.eval_debug,
+        args.debug_mode,
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,

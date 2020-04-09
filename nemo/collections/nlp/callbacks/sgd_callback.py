@@ -1,11 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
 
-import collections
 import json
 import os
-from collections import OrderedDict
 
-import numpy as np
 import torch
 from fuzzywuzzy import fuzz
 
