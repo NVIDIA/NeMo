@@ -20,6 +20,7 @@ import json
 import os
 
 import nemo
+from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
 
 REQ_SLOT_THRESHOLD = 0.5
@@ -37,6 +38,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
   Returns:
     A json object containing the dialogue with labels predicted by the model.
   """
+    # This approach retreives slot values from the history of system actions if slot is active but it can not find it in user utterance
     # Overwrite the labels in the turn with the predictions from the model. For
     # test set, these labels are missing from the data and hence they are added.
     dialog_id = dialog["dialogue_id"]
@@ -55,11 +57,11 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
             turn_id = "{:02d}".format(turn_idx)
             for frame in turn["frames"]:
                 if eval_debug:
-                    print("-----------------------------------New Frame----------------------------")
-                    print(f'sys:{system_utterance}, user:{user_utterance}')
-                    print("Slots - Ground Truth:", frame['slots'])
-                    print("Frame - Ground Trurh:", frame['state'])
-                    print("\n")
+                    logging.debug("-----------------------------------New Frame----------------------------")
+                    logging.debug(f'sys:{system_utterance}, user:{user_utterance}')
+                    logging.debug("Slots - Ground Truth:", frame['slots'])
+                    logging.debug("Frame - Ground Trurh:", frame['state'])
+                    logging.debug("\n")
 
                 predictions = all_predictions[(dialog_id, turn_id, frame["service"])]
                 slot_values = all_slot_values[frame["service"]]
@@ -108,11 +110,11 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         slot_values[slot] = service_schema.get_categorical_slot_values(slot)[value_idx]
 
                 if eval_debug:
-                    print(f"Predicted categorical_slots_dict: {categorical_slots_dict}")
+                    logging.debug(f"Predicted categorical_slots_dict: {categorical_slots_dict}")
 
                 # Non-categorical slots.
-                # print(f'non_cat_slot_status: {predictions["noncat_slot_status"]}')
-                # print(f'non_cat_slot_status_p: {predictions["noncat_slot_status_p"]}')
+                # logging.debug(f'non_cat_slot_status: {predictions["noncat_slot_status"]}')
+                # logging.debug(f'non_cat_slot_status_p: {predictions["noncat_slot_status_p"]}')
                 non_categorical_slots_dict = {}
                 predictions["noncat_slot_status_p"] = predictions["noncat_slot_status_p"].cpu().numpy()
                 predictions["noncat_slot_status"] = predictions["noncat_slot_status"].cpu().numpy()
@@ -122,7 +124,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                 predictions["noncat_alignment_end"] = predictions["noncat_alignment_end"].cpu().numpy()
 
                 # for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
-                # print(f"noncat_slot_status{non_categorical_slots_dict}")
+                # logging.debug(f"noncat_slot_status{non_categorical_slots_dict}")
 
                 for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
                     tok_start_idx = predictions["noncat_slot_start"][slot_idx]
@@ -148,9 +150,9 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
-                        # print(ch_start_idx, ch_end_idx)
-                        # print(f'Active Slot: {slot}')
-                        # print(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
+                        # logging.debug(ch_start_idx, ch_end_idx)
+                        # logging.debug(f'Active Slot: {slot}')
+                        # logging.debug(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
@@ -160,21 +162,21 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
                                 if eval_debug:
-                                    print("Sys Ret:", sys_prev_slots[frame["service"]][slot])
+                                    logging.debug("Sys Ret:", sys_prev_slots[frame["service"]][slot])
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
                             # elif ch_start_idx < 0 and ch_end_idx < 0:
                             #     slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
-                            #     print("hoooy")
+                            #     logging.debug("hoooy")
 
                 if eval_debug:
-                    print(f"Predicted non_categorical_slots_dict: {non_categorical_slots_dict}")
+                    logging.debug(f"Predicted non_categorical_slots_dict: {non_categorical_slots_dict}")
 
                 # Create a new dict to avoid overwriting the state in previous turns
                 # because of use of same objects.
                 state["slot_values"] = {s: [v] for s, v in slot_values.items()}
                 frame["state"] = state
                 if eval_debug:
-                    print("Predicted state:", state)
+                    logging.debug("Predicted state:", state)
     return dialog
 
 
