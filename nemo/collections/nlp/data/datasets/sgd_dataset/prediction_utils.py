@@ -113,8 +113,6 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     logging.debug(f"Predicted categorical_slots_dict: {categorical_slots_dict}")
 
                 # Non-categorical slots.
-                # logging.debug(f'non_cat_slot_status: {predictions["noncat_slot_status"]}')
-                # logging.debug(f'non_cat_slot_status_p: {predictions["noncat_slot_status_p"]}')
                 non_categorical_slots_dict = {}
                 predictions["noncat_slot_status_p"] = predictions["noncat_slot_status_p"].cpu().numpy()
                 predictions["noncat_slot_status"] = predictions["noncat_slot_status"].cpu().numpy()
@@ -122,9 +120,6 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
 
                 predictions["noncat_alignment_start"] = predictions["noncat_alignment_start"].cpu().numpy()
                 predictions["noncat_alignment_end"] = predictions["noncat_alignment_end"].cpu().numpy()
-
-                # for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
-                # logging.debug(f"noncat_slot_status{non_categorical_slots_dict}")
 
                 for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
                     tok_start_idx = predictions["noncat_slot_start"][slot_idx]
@@ -150,23 +145,14 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
-                        # logging.debug(ch_start_idx, ch_end_idx)
-                        # logging.debug(f'Active Slot: {slot}')
-                        # logging.debug(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
-                        # elif ch_start_idx < 0 and ch_end_idx < 0:
-                        # Add span from the system utterance.
-                        #    slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
                                 if eval_debug:
                                     logging.debug("Sys Ret:", sys_prev_slots[frame["service"]][slot])
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
-                            # elif ch_start_idx < 0 and ch_end_idx < 0:
-                            #     slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
-                            #     logging.debug("hoooy")
 
                 if eval_debug:
                     logging.debug(f"Predicted non_categorical_slots_dict: {non_categorical_slots_dict}")
