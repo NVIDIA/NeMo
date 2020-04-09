@@ -3,6 +3,7 @@
 import collections
 import json
 import os
+from collections import OrderedDict
 
 import numpy as np
 import torch
@@ -11,7 +12,6 @@ from fuzzywuzzy import fuzz
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import *
-from collections import OrderedDict
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -104,7 +104,14 @@ def combine_predictions_in_example(predictions, batch_size):
 
 
 def eval_epochs_done_callback(
-    global_vars, input_json_files, schema_json_file, prediction_dir, data_dir, eval_dataset, output_metric_file, state_tracker
+    global_vars,
+    input_json_files,
+    schema_json_file,
+    prediction_dir,
+    data_dir,
+    eval_dataset,
+    output_metric_file,
+    state_tracker,
 ):
     pred_utils.write_predictions_to_file(
         global_vars['predictions'], input_json_files, schema_json_file, prediction_dir, state_tracker=state_tracker,

@@ -22,7 +22,7 @@ import os
 import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
 
-REQ_SLOT_THRESHOLD = 0.5
+REQ_SLOT_THRESHOLD = 0.2
 
 __all__ = ['get_predicted_dialog_baseline', 'write_predictions_to_file']
 
@@ -98,7 +98,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas):
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
-                        #print(ch_start_idx, ch_end_idx)
+                        # print(ch_start_idx, ch_end_idx)
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]

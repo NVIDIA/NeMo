@@ -6,9 +6,6 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 import argparse
 import math
 import os
-import pickle
-
-import numpy as np
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -153,11 +150,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--enable_pin_memory", action="store_true", help="Enabled the pin_memory feature of Pytroch's DataLoader",
+    "--enable_pin_memory", action="store_true", help="Enables the pin_memory feature of Pytroch's DataLoader",
 )
 
 parser.add_argument(
-    "--state_tracker", type=str, default='baseline', help="Specifies the state tracker mode.",
+    "--state_tracker", type=str, default='baseline', help="Specifies the state tracker mode",
+)
+
+parser.add_argument(
+    "--log_data_warnings", action="store_true", help="Enables logging warnings for data",
 )
 
 args = parser.parse_args()
@@ -215,7 +216,7 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
     max_seq_length=args.max_seq_length,
     datasets=['train', args.eval_dataset],
     overwrite_dial_files=args.overwrite_dial_files,
-    log_data_warnings=False,
+    log_data_warnings=args.log_data_warnings,
 )
 
 train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
@@ -384,7 +385,14 @@ eval_callback = nemo.core.EvaluatorCallback(
         x, y, dialogues_processor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset
     ),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, input_json_files, schema_json_file, prediction_dir, args.data_dir, args.eval_dataset, output_metric_file, args.state_tracker
+        x,
+        input_json_files,
+        schema_json_file,
+        prediction_dir,
+        args.data_dir,
+        args.eval_dataset,
+        output_metric_file,
+        args.state_tracker,
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,
