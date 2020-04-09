@@ -15,7 +15,7 @@
 import argparse
 import math
 import os
-from typing import Mapping
+from typing import Any, Mapping
 
 import torch
 from ruamel import yaml
@@ -28,68 +28,49 @@ from nemo.utils import lr_policies
 logging = nemo.logging
 
 
-def parse_args(coef=2):
+def parse_args():
     parser = argparse.ArgumentParser(
         description='FasterSpeech Training Pipeline.',
         parents=[nm_argparse.NemoArgParser()],
         conflict_handler='resolve',  # For parents common flags.
     )
     parser.set_defaults(
+        # `x = 30000`
         amp_opt_level='O0',
         model_config='configs/fasterspeech_durations.yaml',
-        batch_size=coef * 32,
-        eval_batch_size=coef * 32,
+        batch_size=64,
+        eval_batch_size=64,
+        train_freq=300,  # 1/100x
         eval_freq=3000,  # 10x train freq.
         optimizer='novograd',
         weight_decay=1e-6,
+        warmup=3000,
         num_epochs=150,  # Couple of epochs for testing.
-        lr=coef * 1e-2,  # Goes good with Adam.
+        lr=1e-2,  # Goes good with Adam.
+        min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
         checkpoint_save_freq=10000,  # 1/3x
     )
 
-    # Default training things.
-    parser.add_argument('--train_log_freq', type=int, default=300, help="Train metrics logging frequency.")  # 1/100x
-    parser.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
-    parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
-    parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
+    # Required: train_dataset
+    # Optional: eval_names, eval_datasets
 
-    # Durations from ASR CTC model.
+    # Durations from ASR CTC Model
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
-    parser.add_argument(
-        '--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations directory path.",
-    )
-    parser.add_argument(
-        '--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durations handling type.",
-    )
+    parser.add_argument('--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations")
+    parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type.")
 
-    # Model.
-    parser.add_argument('--d_emb', type=int, default=128, help="Size of input char embedding.")
+    # Model
+    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
+    parser.add_argument('--loss_dmld_hidden', type=int, default=5, help="1/3 of d_hidden for dmld (log2(num_classes)")
+    parser.add_argument('--loss_num_classes', type=int, default=32, help="'n_classes' for dmld or xe (32 covers 98%).")
+    parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
     parser.add_argument(
         '--loss_method',
         type=str,
-        choices=['l2-log', 'l2', 'dmld-log', 'dmld', 'xe'],
-        default='l2-log',
-        help="Method for loss calculation.",
-    )
-    parser.add_argument(
-        '--loss_dmld_hidden',
-        type=int,
-        default=5,  # ~= log2(num_classes)
-        help="Third of size of hidden vector for dmld.",
-    )
-    parser.add_argument(
-        '--loss_num_classes',
-        type=int,
-        default=32,  # Cover >98% of all true durations.
-        help="Number of classes to predict for dmld or xe losses.",
-    )
-    parser.add_argument(
-        '--loss_reduction',
-        type=str,
-        choices=['batch', 'all'],
-        default='all',
-        help="Method for loss tensor reduction.",
+        choices=['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps'],
+        default='xe',
+        help="Method for Loss Calculation",
     )
 
     args = parser.parse_args()
@@ -127,7 +108,7 @@ class DurMetric(nemo.core.Metric):
             self._hit10m += ((dur_true1 == dur_pred1) & (dur_true1 >= 10)).sum().item()
             self._total10m += (dur_true1 >= 10).sum().item()
 
-    def final(self) -> Mapping[str, float]:
+    def final(self) -> Any:
         mse = self._ss / self._total
         acc = self._hit0 / self._total * 100
         d1 = self._hit1 / self._total * 100
@@ -140,7 +121,6 @@ class DurMetric(nemo.core.Metric):
 
 class FasterSpeechGraph:
     def __init__(self, args, engine, config):
-        # Labels
         labels = config.labels
         pad_id, labels = len(labels), labels + ['<PAD>']
         blank_id, labels = len(labels), labels + ['<BLANK>']
@@ -153,6 +133,7 @@ class FasterSpeechGraph:
             batch_size=args.batch_size,
             pad_id=pad_id,
             blank_id=blank_id,
+            load_audio=False,  # It's just durations predictor, so we won't need audio.
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
             **config.FasterSpeechDataLayer_train,
         )
@@ -167,45 +148,44 @@ class FasterSpeechGraph:
                 batch_size=args.eval_batch_size,
                 pad_id=pad_id,
                 blank_id=blank_id,
+                load_audio=False,
                 num_workers=max(int(os.cpu_count() / engine.world_size), 1),
                 **config.FasterSpeechDataLayer_eval,
             )
 
-        self.model = nemo_tts.FasterSpeech(
-            n_vocab=len(labels),
-            d_char=args.d_emb,
-            pad_id=pad_id,
-            jasper_kwargs=config.JasperEncoder,
-            d_out=(
-                3 * args.loss_dmld_hidden
-                if args.loss_method.startswith('dmld')
-                else (args.loss_num_classes if args.loss_method == 'xe' else 1)
-            ),
+        self.loss = nemo_tts.FasterSpeechDurLoss(
+            method=args.loss_method,
+            num_classes=args.loss_num_classes,
+            dmld_hidden=args.loss_dmld_hidden,
+            reduction=args.loss_reduction,
         )
 
-        self.loss = nemo_tts.FasterSpeechDurLoss(
-            method=args.loss_method, num_classes=args.loss_num_classes, reduction=args.loss_reduction,
+        self.model = nemo_tts.FasterSpeech(
+            n_vocab=len(labels),
+            d_char=args.d_char,
+            pad_id=pad_id,
+            jasper_kwargs=config.JasperEncoder,
+            d_out=self.loss.d_out,
         )
 
     def build(self, args, engine):
         train_loss, callbacks = None, []
         metrics = ['loss', DurMetric(self.loss.preprocessing)]
 
-        # Train.
+        # Train
         data = self.train_dl()
         output = self.model(text=data.text, text_mask=data.text_mask)
-        loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
-        train_loss = loss
+        train_loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
         callbacks.append(
             nemo.core.TrainLogger(
-                tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
+                tensors=dict(loss=train_loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
                 metrics=metrics,
-                freq=args.train_log_freq,
+                freq=args.train_freq,
                 tb_writer=engine.tb_writer,
             )
         )
 
-        # Eval.
+        # Eval
         for name, eval_dl in self.eval_dls.items():
             data = eval_dl()
             output = self.model(text=data.text, text_mask=data.text_mask)
@@ -243,7 +223,7 @@ def main():
     # noinspection PyProtectedMember
     logging.info('Engine: %s', vars(engine._exp_manager))
 
-    yaml_loader = yaml.YAML(typ="safe")
+    yaml_loader = yaml.YAML(typ='safe')
     with open(args.model_config) as f:
         config = argparse.Namespace(**yaml_loader.load(f))
     logging.info('Config: %s', config)

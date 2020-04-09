@@ -1,23 +1,35 @@
 model: "FasterSpeech"
-sample_rate: &sample_rate 16000
+sample_rate: &sample_rate 24000
 labels: [
-    " ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"
+  # Space
+    ' ',
+  # string.ascii_lowercase
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  # Punctuation
+    "'",
 ]
 
 FasterSpeechDataLayer_train:
     sample_rate: *sample_rate
-    max_duration: 16.7
+    max_duration: 20.0  # ~= -30h. This wasn't applied for inferred durations.
+    normalize_transcripts: true
     trim_silence: true
+    drop_last: true
+    shuffle: true
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
+    normalize_transcripts: true
     trim_silence: true
+    drop_last: false
+    shuffle: false
 
 JasperEncoder:
     activation: "relu"
     conv_mask: true
 
+    # (Number of Layers) x (Number of Filters) x (Kernel Size)
     jasper:
         # 3 x 256 x 5
         -   filters: 256
@@ -131,7 +143,7 @@ JasperEncoder:
             residual: true
             separable: true
 
-        # Final 1024.
+        # Final 1024
         -   filters: 1024
             repeat: 1
             kernel: [1]

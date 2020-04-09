@@ -42,36 +42,37 @@ FasterSpeechDataLayer_eval:
 AudioToMelSpectrogramPreprocessor:
     window_size: 0.02
     window_stride: 0.01
-    window: "hann"
-    normalize: "per_feature"
+    window: 'hann'
+    normalize: null
     n_fft: 512
     features: *n_mels
-    dither: 0.00001
+    dither: 0.0
     pad_to: 16
     sample_rate: *sample_rate
     stft_conv: true
+    preemph: null
 #AudioToMelSpectrogramPreprocessor:
-#    dither: 0.0
-#    features: *num_mels
-#    frame_splicing: 1
-#    highfreq: 8000
-#    log: true
-#    log_zero_guard_type: clamp
-#    log_zero_guard_value: 1e-05
-#    lowfreq: 0
-#    mag_power: 1.0
-#    n_fft: 1024
+#    sample_rate: *sample_rate  # 24k for LibriTTS
+#    window_size: null  # Because "n_window_size" below is set.
+#    window_stride: null  # Because "n_window_size" below is set.
 #    n_window_size: 1024
 #    n_window_stride: 256
-#    normalize: null
-#    pad_to: 16
-#    pad_value: -11.52
+#    window: 'hann'
+#    normalize: null  # Seems like it's bad for TTS.
+#    n_fft: 1024
 #    preemph: null
-#    sample_rate: *sample_rate
+#    features: *n_mels  # 80 works good for TTS.
+#    lowfreq: 0
+#    highfreq: null
+#    log: true
+#    log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
+#    log_zero_guard_value: 1e-05
+#    dither: 0.0
+#    pad_to: 16
+#    frame_splicing: 1
 #    stft_conv: true
-#    window: hann
-#    window_size: null
-#    window_stride: null
+#    pad_value: -11.52
+#    mag_power: 1.0  # People use 1.0 for TTS for some reason.
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
 JasperEncoder:

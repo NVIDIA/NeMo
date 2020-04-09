@@ -23,9 +23,10 @@ import json
 import os
 import pprint
 from collections import namedtuple
-from typing import Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import numpy as np
+import torch
 
 import nemo
 from nemo.core import callbacks as nemo_callbacks
@@ -34,17 +35,19 @@ logging = nemo.logging
 
 
 class Metric(abc.ABC):
-    @abc.abstractmethod
     def clear(self) -> None:
         pass
 
-    @abc.abstractmethod
     def batch(self, tensors) -> None:
         pass
 
-    @abc.abstractmethod
-    def final(self) -> Mapping[str, float]:
-        pass
+    def final(self) -> Any:
+        return None
+
+    def log(self, tb_writer, step, prefix, final_output=None) -> None:
+        # Default "str -> float" dict log
+        for key, val in (final_output or {}).items():
+            tb_writer.add_scalar(f'{prefix}/{key}', val, step)
 
     def __call__(self, tensors):
         self.clear()
@@ -127,22 +130,27 @@ class EvalLogger(nemo_callbacks.EvaluatorCallback):
                     metric.batch(kv_tensors1)
 
         # noinspection PyUnusedLocal
-        def user_epochs_done_callback(global_var_dict):
-            del global_var_dict
+        def tb_writer_func(unused1, unused2, step):
+            del unused1
+            del unused2
 
             output = {}
             for metric in metrics:
-                output.update(metric.final())
+                final_output = metric.final()
+                metric.log(tb_writer, step, prefix, final_output)
                 metric.clear()
+
+                if isinstance(final_output, dict):
+                    output.update(final_output)
 
             output = {f'{prefix}/{k}': v for k, v in output.items()}
             logging.info(json.dumps(output, indent=4))
-            return output
 
         super().__init__(
             eval_tensors=list(tensors.values()),
             user_iter_callback=user_iter_callback,
-            user_epochs_done_callback=user_epochs_done_callback,
+            user_epochs_done_callback=lambda _: dict(),  # Not None.
             tb_writer=tb_writer,
+            tb_writer_func=tb_writer_func,
             eval_step=freq,
         )

@@ -33,29 +33,24 @@ rsync -r . "${tmp_dir}" --exclude .git --filter=":- .gitignore"
 ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
-script=examples/tts/fasterspeech_durations.py
-config=examples/tts/configs/fasterspeech_durations.yaml
+script=examples/asr/quartznet.py
+config=examples/asr/configs/quartznet15x5-libritts-durs.yaml
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
---work_dir=${RESULT} \
+--num_epochs=150 \
+--eval_batch_size=32 \
 --model_config=${config} \
---tensorboard_dir=${WORKSPACE}/tb/durs/loss/${id} \
+--checkpoint_dir=${RESULT} \
+--checkpoint_save_freq=10000 \
 --train_dataset=/manifests/libritts/train-all.json \
---train_durs=/data/libridurs/libritts_original-qn15x5_24k/train-all_full-pad.npy \
---eval_names dev-clean dev-other test-clean test-other \
 --eval_datasets \
 /manifests/libritts/dev-clean.json \
 /manifests/libritts/dev-other.json \
 /manifests/libritts/test-clean.json \
-/manifests/libritts/test-other.json \
---eval_durs \
-/data/libridurs/libritts_original-qn15x5_24k/dev-clean_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/dev-other_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/test-clean_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/test-other_full-pad.npy
+/manifests/libritts/test-other.json
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -67,6 +62,5 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 58106:/data/libritts \
   --datasetid 58404:/manifests/libritts \
-  --datasetid 59034:/data/libridurs \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

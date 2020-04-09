@@ -33,16 +33,17 @@ rsync -r . "${tmp_dir}" --exclude .git --filter=":- .gitignore"
 ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
-script=examples/tts/fasterspeech_durations.py
-config=examples/tts/configs/fasterspeech_durations.yaml
+script=examples/tts/fasterspeech.py
+config=examples/tts/configs/fasterspeech.yaml
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 \
+&& pip install -U librosa \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
 --work_dir=${RESULT} \
 --model_config=${config} \
---tensorboard_dir=${WORKSPACE}/tb/durs/loss/${id} \
+--tensorboard_dir=${WORKSPACE}/tb/mels/${id} \
 --train_dataset=/manifests/libritts/train-all.json \
 --train_durs=/data/libridurs/libritts_original-qn15x5_24k/train-all_full-pad.npy \
 --eval_names dev-clean dev-other test-clean test-other \
@@ -55,7 +56,8 @@ nvidia-smi \
 /data/libridurs/libritts_original-qn15x5_24k/dev-clean_full-pad.npy \
 /data/libridurs/libritts_original-qn15x5_24k/dev-other_full-pad.npy \
 /data/libridurs/libritts_original-qn15x5_24k/test-clean_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/test-other_full-pad.npy
+/data/libridurs/libritts_original-qn15x5_24k/test-other_full-pad.npy \
+--speakers=/manifests/libritts/speakers.tsv
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------

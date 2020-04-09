@@ -1,0 +1,207 @@
+model: "QuartzNet"
+sample_rate: &sample_rate 24000
+n_mels: &n_mels 64
+
+AudioToTextDataLayer:
+    max_duration: 20.0  # ~= -30h. This wasn't applied for inferred durations.
+    trim_silence: true
+
+    train:
+        shuffle: true
+
+    eval:
+        shuffle: false
+        max_duration: null
+
+#AudioToMelSpectrogramPreprocessor:
+#    window_size: 0.02
+#    window_stride: 0.01
+#    window: "hann"
+#    normalize: "per_feature"
+#    n_fft: 512
+#    features: 64
+#    dither: 0.00001
+#    pad_to: 16
+#    stft_conv: true
+
+# This config is a result of taking good TTS one and adjust it to ASR training.
+AudioToMelSpectrogramPreprocessor:
+    sample_rate: *sample_rate  # 24k for LibriTTS
+    window_size: null  # Because "n_window_size" below is set.
+    window_stride: null  # Because "n_window_size" below is set.
+    n_window_size: 512
+    n_window_stride: 256
+    window: 'hann'
+    normalize: 'per_feature'  # Seems like it's bad for TTS.
+    n_fft: 512
+    preemph: null
+    features: *n_mels  # 80 works good for TTS.
+    lowfreq: 0
+    highfreq: null
+    log: true
+    log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
+    log_zero_guard_value: 1e-05
+    dither: 0.0
+    pad_to: 16
+    frame_splicing: 1
+    stft_conv: true
+    pad_value: -11.52
+    mag_power: 2.0  # People use 1.0 for TTS for some reason.
+
+SpectrogramAugmentation:
+    rect_masks: 5
+    rect_time: 120
+    rect_freq: 50
+
+JasperEncoder:
+    activation: "relu"
+    conv_mask: true
+
+    # Copied from 12x1.
+    jasper:
+        -   filters: 256
+            repeat: 1
+            kernel: [33]
+            stride: [1]  # Was 2 in original version.
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: true
+
+        -   filters: 256
+            repeat: 1
+            kernel: [33]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 256
+            repeat: 1
+            kernel: [33]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 256
+            repeat: 1
+            kernel: [33]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 256
+            repeat: 1
+            kernel: [39]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 256
+            repeat: 1
+            kernel: [39]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 256
+            repeat: 1
+            kernel: [39]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [51]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [51]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [51]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [63]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [63]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [63]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 1
+            kernel: [75]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 1024
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+
+labels: [
+  # Space
+    ' ',
+  # string.ascii_letters
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  # Punctuation
+    ',', '.', '!', '?', ';', ':', '-', '/',
+    '"', "'", '(', ')', '[', ']', '{', '}',
+]

@@ -15,8 +15,10 @@
 import argparse
 import math
 import os
-from typing import Mapping
+from typing import Any, Mapping
 
+import librosa
+import numpy as np
 import torch
 from ruamel import yaml
 
@@ -36,46 +38,127 @@ def parse_args():
         conflict_handler='resolve',  # For parents common flags.
     )
     parser.set_defaults(
+        # `x = 30000`
         amp_opt_level='O0',
         model_config='configs/fasterspeech.yaml',
         batch_size=32,
-        eval_batch_size=16,
-        eval_freq=3000,  # 10x train freq.
+        eval_batch_size=32,
+        train_freq=300,  # 1/100x
+        eval_freq=10000,  # 1/3x (Sampling process may take time.)
         optimizer='novograd',
         weight_decay=1e-6,
+        warmup=3000,
         num_epochs=150,  # Couple of epochs for testing.
         lr=1e-2,  # Goes good with Adam.
+        min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
         checkpoint_save_freq=10000,  # 1/3x
     )
 
-    # Default Training Things
-    # TODO: Make 300.
-    parser.add_argument('--train_freq', type=int, default=10, help="Train metrics logging frequency.")  # 1/100x
-    parser.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
-    parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
-    parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
+    # Required: train_dataset
+    # Optional: eval_names, eval_datasets
 
     # Durations from ASR CTC Model
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
-    parser.add_argument(
-        '--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations directory path.",
-    )
-    parser.add_argument(
-        '--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durations handling type.",
-    )
+    parser.add_argument('--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations")
+    parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type.")
 
     # Speakers
     parser.add_argument('--speakers', type=str, required=True, help="LibriTTS speakers TSV File")
     parser.add_argument('--d_speaker', type=int, default=64, help="Size of Speaker Embedding")
 
     # Model
-    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding.")
+    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
 
     return args
+
+
+class AudioInspector(nemo.core.Metric):
+    def __init__(
+        self, sample_rate, n_fft, hop_length, win_length, window, power, k=3, vocoder='griffin-lim',
+    ):
+        super().__init__()
+
+        if vocoder != 'griffin-lim':
+            raise ValueError("Only griffin-lim supported at this point.")
+
+        self._sample_rate = sample_rate
+        self._n_fft = n_fft
+        self._hop_length = hop_length
+        self._win_length = win_length
+        self._window = window
+        self._power = power
+        self._k = k
+
+        self._samples = None
+
+    def _mel_to_audio(self, mel):
+        return librosa.feature.inverse.mel_to_audio(
+            M=np.exp(mel),
+            sr=self._sample_rate,
+            n_fft=self._n_fft,
+            hop_length=self._hop_length,
+            win_length=self._win_length,
+            window=self._window,
+            power=self._power,
+            n_iter=50,
+        )
+
+    def clear(self) -> None:
+        self._samples = ()
+
+    def batch(self, tensors) -> None:
+        if len(self._samples):
+            return
+
+        logging.info("Start vocoding process...")
+
+        # Audio
+        audios = []
+        for audio1, audio_len1 in zip(tensors.audio[: self._k], tensors.audio_len[: self._k]):
+            audios.append(audio1.cpu().numpy()[: audio_len1.cpu().numpy().item()])
+
+        # True Mels
+        vocodeds_true, mels_true = [], []
+        for mel1, mel_len1 in zip(tensors.mel_true[: self._k], tensors.mel_len[: self._k]):
+            mel = mel1.cpu().numpy()[:, : mel_len1.cpu().numpy().item()]
+            vocodeds_true.append(self._mel_to_audio(mel))
+            mels_true.append(mel)
+
+        # Pred Mels
+        vocodeds_pred, mels_pred = [], []
+        for mel1, mel_len1 in zip(tensors.mel_pred[: self._k], tensors.mel_len[: self._k]):
+            mel1 = mel1.t()  # Pred tensors have another order.
+            mel = mel1.cpu().numpy()[:, : mel_len1.cpu().numpy().item()]
+            vocodeds_pred.append(self._mel_to_audio(mel))
+            mels_pred.append(mel)
+
+        logging.info("End vocoding process.")
+
+        self._samples = audios, vocodeds_true, vocodeds_pred, mels_true, mels_pred
+
+    def log(self, tb_writer, step, prefix, samples=None) -> None:
+        def log_audio(key, signal):
+            tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._sample_rate)
+
+        def log_mel(key, mel):
+            tb_writer.add_image(
+                tag=key,
+                img_tensor=nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel),
+                global_step=step,
+                dataformats='HWC',
+            )
+
+        for i, (audio, vocoded_true, vocoded_pred, mel_true, mel_pred) in enumerate(zip(*self._samples)):
+            log_audio(f'{prefix}/sample{i}_audio', audio)
+            log_audio(f'{prefix}/sample{i}_vocoded-true', vocoded_true)
+            log_audio(f'{prefix}/sample{i}_vocoded-pred', vocoded_pred)
+
+            log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
+            log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred)
 
 
 class FasterSpeechGraph:
@@ -94,7 +177,7 @@ class FasterSpeechGraph:
             pad_id=pad_id,
             blank_id=blank_id,
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-            **config.FasterSpeechDataLayer_train,
+            **config.FasterSpeechDataLayer_train,  # Including sample rate.
         )
 
         self.eval_dls = {}
@@ -113,6 +196,14 @@ class FasterSpeechGraph:
             )
 
         self.preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(**config.AudioToMelSpectrogramPreprocessor)
+        self._audio_inspector = AudioInspector(
+            sample_rate=config.sample_rate,
+            n_fft=self.preprocessor.featurizer.n_fft,
+            hop_length=self.preprocessor.featurizer.hop_length,
+            win_length=self.preprocessor.featurizer.win_length,
+            window=config.AudioToMelSpectrogramPreprocessor['window'],
+            power=self.preprocessor.featurizer.mag_power,
+        )
 
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
@@ -128,9 +219,8 @@ class FasterSpeechGraph:
 
     def build(self, args, engine):
         train_loss, callbacks = None, []
-        metrics = ['loss']
 
-        # Train.
+        # Train
         data = self.train_dl()
         mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
         output = self.model(
@@ -149,11 +239,11 @@ class FasterSpeechGraph:
         )
         callbacks.append(
             nemo.core.TrainLogger(
-                tensors=dict(loss=train_loss), metrics=metrics, freq=args.train_freq, tb_writer=engine.tb_writer,
+                tensors=dict(loss=train_loss), metrics=['loss'], freq=args.train_freq, tb_writer=engine.tb_writer,
             )
         )
 
-        # Eval.
+        # Eval
         for name, eval_dl in self.eval_dls.items():
             data = eval_dl()
             mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
@@ -173,8 +263,15 @@ class FasterSpeechGraph:
             )
             callbacks.append(
                 nemo.core.EvalLogger(
-                    tensors=dict(loss=loss),
-                    metrics=metrics,
+                    tensors=dict(
+                        loss=loss,
+                        audio=data.audio,
+                        audio_len=data.audio_len,
+                        mel_true=mel_true,
+                        mel_pred=output.pred,
+                        mel_len=mel_len,
+                    ),
+                    metrics=['loss', self._audio_inspector],
                     freq=args.eval_freq,
                     tb_writer=engine.tb_writer,
                     prefix=name,
@@ -204,7 +301,7 @@ def main():
     # noinspection PyProtectedMember
     logging.info('Engine: %s', vars(engine._exp_manager))
 
-    yaml_loader = yaml.YAML(typ="safe")
+    yaml_loader = yaml.YAML(typ='safe')
     with open(args.model_config) as f:
         config = argparse.Namespace(**yaml_loader.load(f))
     logging.info('Config: %s', config)
@@ -230,7 +327,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # TODO: Delete.
-    torch.cuda.set_device(2)
-
     main()

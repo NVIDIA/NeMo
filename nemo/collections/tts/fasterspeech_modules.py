@@ -59,6 +59,12 @@ class _Ops:
         device = lengths.device if torch.is_tensor(lengths) else 'cpu'
         return _Ops.merge([torch.ones(length, device=device) for length in lengths], value=0, dtype=torch.bool)
 
+    @staticmethod
+    def interleave(x, y):
+        xy = torch.stack([x[:-1], y], dim=1).view(-1)
+        xy = F.pad(xy, pad=[0, 1], value=x[-1])
+        return xy
+
 
 class FasterSpeechDataset:
     def __init__(self, audio_dataset, durs_file, durs_type='full-pad', speakers=None):
@@ -209,6 +215,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         self._blank_id = blank_id
         self._space_id = labels.index(' ')
         self._sample_rate = sample_rate
+        self._load_audio = load_audio
 
         sampler = None
         if self._placement == nemo.core.DeviceType.AllGpu:
@@ -227,8 +234,11 @@ class FasterSpeechDataLayer(DataLayerNM):
     def _collate(self, batch):
         batch = {key: [example[key] for example in batch] for key in batch[0]}
 
-        audio = _Ops.merge(batch['audio'])
-        audio_len = torch.tensor(batch['audio_len'], dtype=torch.long)
+        if self._load_audio:
+            audio = _Ops.merge(batch['audio'])
+            audio_len = torch.tensor(batch['audio_len'], dtype=torch.long)
+        else:
+            audio, audio_len = None, None
 
         if self._durs_type == 'pad':
             text = [F.pad(text, pad=[1, 1], value=self._space_id) for text in batch['text']]
@@ -237,15 +247,9 @@ class FasterSpeechDataLayer(DataLayerNM):
             text_mask = _Ops.make_mask([text_len + 2 for text_len in batch['text_len']])
             dur = _Ops.merge(batch['dur'], dtype=torch.long)
         elif self._durs_type == 'full-pad':
-
-            def interleave(x, y):
-                xy = torch.stack([x[:-1], y], dim=1).view(-1)
-                xy = F.pad(xy, pad=[0, 1], value=x[-1])
-                return xy
-
             # `text`
             text = [
-                interleave(x=torch.empty(len(text) + 1, dtype=torch.long).fill_(self._blank_id), y=text)
+                _Ops.interleave(x=torch.empty(len(text) + 1, dtype=torch.long).fill_(self._blank_id), y=text)
                 for text in batch['text']
             ]
             text = _Ops.merge(text, value=self._pad_id, dtype=torch.long)
@@ -256,7 +260,7 @@ class FasterSpeechDataLayer(DataLayerNM):
 
             # `dur`
             blank, dur = batch['blank'], batch['dur']
-            dur = _Ops.merge([interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
+            dur = _Ops.merge([_Ops.interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
         else:
             raise ValueError("Wrong durations handling type.")
 
@@ -264,9 +268,13 @@ class FasterSpeechDataLayer(DataLayerNM):
             tensors=[torch.repeat_interleave(text1, dur1) for text1, dur1 in zip(text, dur)], dtype=torch.long,
         )
         text_rep_mask = _Ops.make_mask(dur.sum(-1))
-        speaker = torch.tensor(batch['speaker'], dtype=torch.long)
 
-        assert audio.shape[-1] == audio_len.max()
+        if 'speaker' in batch:
+            speaker = torch.tensor(batch['speaker'], dtype=torch.long)
+        else:
+            speaker = torch.zeros(len(batch['audio']), dtype=torch.long)  # Fake Speakers
+
+        assert audio is None or audio.shape[-1] == audio_len.max()
         assert text.shape == text_mask.shape, f'{text.shape} vs {text_mask.shape}'
         assert text.shape == dur.shape, f'{text.shape} vs {dur.shape}'
 
@@ -375,12 +383,26 @@ class FasterSpeechDurLoss(LossNM):
         """Returns definitions of module output ports."""
         return dict(loss=NeuralType(None))
 
-    def __init__(self, method='l2-log', num_classes=32, reduction='all'):
+    def __init__(
+        self, method='l2-log', num_classes=32, dmld_hidden=5, reduction='all', max_dur=500, xe_steps_coef=1.5,
+    ):
         super().__init__()
 
         self._method = method
         self._num_classes = num_classes
+        self._dmld_hidden = dmld_hidden
         self._reduction = reduction
+
+        # Creates XE Steps classes.
+        classes = np.arange(num_classes).tolist()
+        k, c = 1, num_classes - 1
+        while c < max_dur:
+            k *= xe_steps_coef
+            c += k
+            classes.append(int(c))
+        self._xe_steps_classes = classes
+        if self._method == 'xe-steps':
+            nemo.logging.info('XE Steps Classes: %s', str(classes))
 
     def _loss_function(self, dur_true, dur_pred, text_mask):
         if self._method.startswith('l2'):
@@ -413,8 +435,16 @@ class FasterSpeechDurLoss(LossNM):
             dur_true = torch.clamp(dur_true, max=self._num_classes - 1)
 
             loss = F.cross_entropy(input=dur_pred.transpose(1, 2), target=dur_true, reduction='none')
+        elif self._method == 'xe-steps':
+            # [0, inf] => [0, xe-steps-num-classes - 1]
+            classes = torch.tensor(self._xe_steps_classes, device=dur_pred.device)
+            a = dur_true.unsqueeze(-1).repeat(1, 1, *classes.shape)
+            b = classes.unsqueeze(0).unsqueeze(0).repeat(*dur_true.shape, 1)
+            dur_true = (a - b).abs().argmin(-1)
+
+            loss = F.cross_entropy(input=dur_pred.transpose(1, 2), target=dur_true, reduction='none')
         else:
-            raise ValueError("Wrong method.")
+            raise ValueError("Wrong Method")
 
         loss *= text_mask.float()
         if self._reduction == 'all':
@@ -423,9 +453,27 @@ class FasterSpeechDurLoss(LossNM):
             loss = loss.sum(-1) / text_mask.sum(-1)
             loss = loss.mean()
         else:
-            raise ValueError("Wrong reduction.")
+            raise ValueError("Wrong Reduction")
 
         return loss
+
+    @property
+    def d_out(self):
+        if self._method == 'l2-log':
+            return 1
+        elif self._method == 'l2':
+            return 1
+        elif self._method == 'dmld-log':
+            return 3 * self._args.loss_dmld_hidden
+        elif self._method == 'dmld':
+            return 3 * self._args.loss_dmld_hidden
+        elif self._method == 'xe':
+            return self._num_classes
+        elif self._method == 'xe-steps':
+            # noinspection PyTypeChecker
+            return len(self._xe_steps_classes)
+        else:
+            raise ValueError("Wrong Method")
 
     def preprocessing(self, tensors):
         if self._method == 'l2-log':
@@ -446,8 +494,13 @@ class FasterSpeechDurLoss(LossNM):
             dur_pred = (dur_pred + 1) / 2 * (self._num_classes - 1)
         elif self._method == 'xe':
             dur_pred = tensors.dur_pred.argmax(-1)
+        elif self._method == 'xe-steps':
+            dur_pred = tensors.dur_pred.argmax(-1)
+            classes = torch.tensor(self._xe_steps_classes, device=dur_pred.device)
+            b = classes.unsqueeze(0).unsqueeze(0).repeat(*dur_pred.shape, 1)
+            dur_pred = b.gather(-1, dur_pred.unsqueeze(-1)).squeeze()
         else:
-            raise ValueError("Wrong method.")
+            raise ValueError("Wrong Method")
 
         dur_pred[dur_pred < 0.0] = 0.0
         dur_pred = dur_pred.float().round().long()
