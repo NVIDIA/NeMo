@@ -192,7 +192,7 @@ class TestTTSPytorch(TestCase):
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
         )
 
-    @pytest.mark.integration
+    @pytest.mark.unclassified
     def test_fastspeech(self):
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath,

@@ -17,42 +17,78 @@
 # limitations under the License.
 # =============================================================================
 
-from unittest import TestCase
-
 import pytest
 
-import nemo
-
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import NeuralGraph, OperationMode
+from nemo.backends.pytorch.actions import PtActions
 
 @pytest.mark.usefixtures("neural_factory")
-class TestNeuralGraph(TestCase):
+class TestNeuralGraph:
+
     @pytest.mark.integration
-    def test_create_simple_graph(self):
+    def test_nm_tensors(self):
+        """
+            Tests whether nmTensors are correct.
+        """
         # Create modules.
-        dl = nemo.tutorials.RealFunctionDataLayer(n=100, batch_size=16)
-        fx = nemo.tutorials.TaylorNet(dim=4)
-        loss = nemo.tutorials.MSELoss()
+        data_source = RealFunctionDataLayer(n=100, batch_size=1)
+        trainable_module = TaylorNet(dim=4)
+        loss = MSELoss()
 
         # Create the graph by connnecting the modules.
-        x, y = dl()
-        y_pred = fx(x=x)
-        _ = loss(predictions=y_pred, target=y)
-
-    @pytest.mark.integration
-    def test_simple_chain(self):
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=1)
-        trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
-        loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
         y_pred = trainable_module(x=x)
         loss_tensor = loss(predictions=y_pred, target=y)
 
         # check producers' bookkeeping
-        self.assertEqual(loss_tensor.producer, loss)
-        self.assertEqual(loss_tensor.producer_args, {"predictions": y_pred, "target": y})
-        self.assertEqual(y_pred.producer, trainable_module)
-        self.assertEqual(y_pred.producer_args, {"x": x})
-        self.assertEqual(y.producer, data_source)
-        self.assertEqual(y.producer_args, {})
-        self.assertEqual(x.producer, data_source)
-        self.assertEqual(x.producer_args, {})
+        assert loss_tensor.producer == loss
+        assert loss_tensor.producer_args == {"predictions": y_pred, "target": y}
+        assert y_pred.producer == trainable_module
+        assert y_pred.producer_args == {"x": x}
+        assert y.producer == data_source
+        assert y.producer_args == {}
+        assert x.producer == data_source
+        assert x.producer_args == {}
+
+    @pytest.mark.integration
+    def test_implicit_default_graph(self):
+        """ Tests integration of a `default` (implicit) graph. """
+        # Create modules.
+        dl = RealFunctionDataLayer(n=100, batch_size=4)
+        fx = TaylorNet(dim=4)
+        loss = MSELoss()
+
+        # This will create a default (implicit) graph: "training".
+        x, t = dl()
+        p = fx(x=x)
+        lss = loss(predictions=p, target=t)
+
+        # Instantiate an optimizer to perform the `train` action.
+        optimizer = PtActions()
+        # Invoke "train" action - perform single forward-backard step.
+        optimizer.train([lss], optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
+
+
+    @pytest.mark.integration
+    def test_explicit_graph(self):
+        """  Tests integration of an `explicit` graph and decoupling of graph creation from its activation. """
+        # Create modules.
+        dl = RealFunctionDataLayer(n=100, batch_size=4)
+        fx = TaylorNet(dim=4)
+        loss = MSELoss()
+
+        # Create the g0 graph.
+        g0 = NeuralGraph()
+
+        # Activate the "g0 graph context" - all operations will be recorded to g0.
+        with g0:
+            x, t = dl()
+            p = fx(x=x)
+            lss = loss(predictions=p, target=t)
+
+        # Instantiate an optimizer to perform the `train` action.
+        optimizer = PtActions()
+        # Invoke "train" action - perform single forward-backard step.
+        optimizer.train([lss], optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
+

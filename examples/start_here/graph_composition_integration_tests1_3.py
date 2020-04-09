@@ -76,7 +76,7 @@ graph = my_DAG()
 lss = graph.output_ports
 
 ## Pros: functions are easy to understand
-## Cons: function must return nxTensors, eg cannot create callbacks in them
+## Cons: function must return nmTensors, eg cannot create callbacks in them
 ##       need to return relevant tensors
 
 # SimpleLossLoggerCallback will print loss values to console.

@@ -20,6 +20,7 @@ import collections
 from typing import Dict, Optional
 
 import nemo
+from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import (
     NeuralPortNameMismatchError,
@@ -34,13 +35,13 @@ class NeuralGraph(NeuralInterface):
         Neural Graph class stores dynamically defined graphs of connected Neural Modules.
     """
 
-    def __init__(self, operation_mode, name=None):
+    def __init__(self, operation_mode=OperationMode.both, name=None):
         """
             Constructor. Initializes graph variables.
 
             Args:
                 operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
-                [training | eval]
+                [training | eval | both] (DEFAULT: both)
                 name: Name of the graph (optional)
         """
         # Initialize the inferface.

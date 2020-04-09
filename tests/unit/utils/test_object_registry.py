@@ -36,7 +36,7 @@ class TestAppState:
         # Test object uniqueness.
         c1 = MockupObjectClass("c1")
         c1_ref = registry["c1"]
-        assert c1_ref == c1
+        assert c1_ref is c1
 
         # Test name uniqueness.
         c2 = MockupObjectClass("c2")
@@ -57,6 +57,8 @@ class TestAppState:
         del c3
         del c4
         assert len(registry) == 1
+        # Assert that "c1" is still there, but "c4" is not.
+        registry["c1"]
         with pytest.raises(KeyError):
             registry["c4"]
 
