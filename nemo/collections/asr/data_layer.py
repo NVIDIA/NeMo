@@ -62,6 +62,9 @@ def _process_augmentations(augmenter) -> AudioAugmentor:
         else:
             _ = augment_kwargs.pop('prob')
 
+            if prob < 0.0 or prob > 1.0:
+                raise ValueError("`prob` must be a float value between 0 and 1.")
+
             try:
                 augmentation = perturbation_types[augment_name](**augment_kwargs)
                 augmentations.append([prob, augmentation])
