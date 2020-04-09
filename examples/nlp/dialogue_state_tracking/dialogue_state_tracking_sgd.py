@@ -162,7 +162,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--debug_mode", action="store_true", help="Enables debug mode with more info",
+    "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
 )
 
 args = parser.parse_args()
