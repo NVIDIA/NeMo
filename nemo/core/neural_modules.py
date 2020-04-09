@@ -39,7 +39,7 @@ from .neural_types import (
     NmTensor,
 )
 from nemo import logging
-from nemo.core import NeuralModuleFactory
+from nemo.core import NeuralModuleFactory, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils.decorators.deprecated import deprecated
@@ -76,6 +76,9 @@ class NeuralModule(NeuralInterface):
 
         # Register module and store the generated name.
         self._name = self._app_state.register_module(self, name)
+
+        # Set "both" as default operation mode.
+        self._operation_mode = OperationMode.both
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
@@ -417,6 +420,16 @@ class NeuralModule(NeuralInterface):
         """
         return
 
+    @property
+    def operation_mode(self):
+        """ Returns the operation mode. """
+        return self._operation_mode
+
+    @operation_mode.setter
+    def operation_mode(self, operation_mode):
+        """ Sets the operation mode. """
+        self._operation_mode = operation_mode
+
     @staticmethod
     def pretrained_storage():
         return ''
@@ -439,10 +452,14 @@ class NeuralModule(NeuralInterface):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
+        # Set the operation mode of the outer graph.
+        self.operation_mode = self._app_state.active_graph.operation_mode
+
         # print(" Neural Module:__call__")
-        # Get input and output ports definitions.
+        # Get input and output ports definitions - potentially depending on the operation mode!
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
+
 
         # Record the operation (i.e. add a single module).
         self._app_state.active_graph.record_step(self, kwargs.items())

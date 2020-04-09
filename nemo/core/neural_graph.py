@@ -74,10 +74,26 @@ class NeuralGraph(NeuralInterface):
 
     def __call__(self, **kwargs):
         """
-            This method "inserts" one existing neural graph into another one.
+            This method "nests" one existing neural graph into another one.
             Also checks if all inputs were provided and properly connects them.
 
         """
+        # Test operation modes of the nested graphs.
+        outer_mode = self._app_state.active_graph.operation_mode
+        inner_mode = self.operation_mode
+
+        if inner_mode == OperationMode.inference and outer_mode == OperationMode.training:
+            raise TypeError("Cannot nest 'inference' graph into 'training'")
+
+        if inner_mode == OperationMode.training and outer_mode == OperationMode.inference:
+            raise TypeError("Cannot nest 'training' graph into 'inference'")
+
+        if inner_mode == OperationMode.training and outer_mode == OperationMode.both:
+            raise TypeError("Cannot nest 'training' graph into 'both'")
+
+        if inner_mode == OperationMode.inference and outer_mode == OperationMode.both:
+            raise TypeError("Cannot nest 'inference' graph into 'both'")
+
         # print(" Neural Graph {} __call__".format(self._name))
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
@@ -191,6 +207,11 @@ class NeuralGraph(NeuralInterface):
         """
         # print("getter!")
         return self._bound_output_ports_default
+
+    @property
+    def operation_mode(self):
+        """ Returns operation mode. """
+        return self._operation_mode
 
     # @output_ports.setter
     # def output_ports(self, ports):

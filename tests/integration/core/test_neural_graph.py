@@ -1,6 +1,5 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
-
 # =============================================================================
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -20,7 +19,7 @@
 import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
-from nemo.core import NeuralGraph, OperationMode
+from nemo.core import NeuralGraph
 from nemo.backends.pytorch.actions import PtActions
 
 @pytest.mark.usefixtures("neural_factory")
