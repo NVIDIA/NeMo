@@ -463,8 +463,6 @@ class NeuralModule(NeuralInterface):
         # Record the operation (i.e. add a single module).
         self._app_state.active_graph.record_step(self, kwargs.items())
 
-        first_input_nmtensor_type = None
-        input_nmtensors_are_of_same_type = True
         # Iterate through all passed parameters.
         for port_name, port_content in kwargs.items():
             # make sure that passed arguments correspond to input port names
@@ -500,7 +498,6 @@ class NeuralModule(NeuralInterface):
                             type_comatibility,
                         )
                     )
-        # TODO CHECK 1: Are we making sure that ALL necessary inputs that were PASSED?
 
         # Here we will store the results.
         results = None
@@ -508,31 +505,16 @@ class NeuralModule(NeuralInterface):
         if len(output_port_defs) == 1:
             out_name = list(output_port_defs)[0]
             out_type = output_port_defs[out_name]
-            if out_type is None:
-                if input_nmtensors_are_of_same_type:
-                    out_type = first_input_nmtensor_type
-                else:
-                    raise CanNotInferResultNeuralType(
-                        "Can't infer output neural type. Likely your inputs are of different type."
-                    )
-            # TODO CHECK 2: Why are we returning "something" (having input type) if there SHOULD be NO output?
+
             results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
 
             # Bind the output ports.
             self._app_state.active_graph.bind_outputs(output_port_defs, [results])
 
         else:
-            result = []
-            for out_port, n_type in output_port_defs.items():
-                out_type = n_type
-                if out_type is None:
-                    if input_nmtensors_are_of_same_type:
-                        out_type = first_input_nmtensor_type
-                    else:
-                        raise CanNotInferResultNeuralType(
-                            "Can't infer output neural type. Likely your inputs are of different type."
-                        )
-                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
+            results_list = []
+            for out_name, out_type in output_port_defs.items():
+                results_list.append(NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,))
 
             # Creating ad-hoc class for returning from module's forward pass.
             output_class_name = f'{self.__class__.__name__}Output'
@@ -540,10 +522,10 @@ class NeuralModule(NeuralInterface):
             result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
 
             # Bind the output ports.
-            self._app_state.active_graph.bind_outputs(output_port_defs, result)
+            self._app_state.active_graph.bind_outputs(output_port_defs, results_list)
 
             # Tie tuple of output tensors with corresponding names.
-            results = result_type(*result)
+            results = result_type(*results_list)
 
         # Return the results.
         return results

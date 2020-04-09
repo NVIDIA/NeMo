@@ -30,10 +30,6 @@ from nemo.core import NeuralGraph, OperationMode
 logging = nemo.logging
 
 nf = nemo.core.NeuralModuleFactory()
-# Instantiate the necessary neural modules.
-dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-fx = nemo.tutorials.TaylorNet(dim=4)
-loss = nemo.tutorials.MSELoss()
 
 logging.info(
     "This example shows how one can build a Jasper model using the `default` (implicit) graph."
@@ -70,10 +66,10 @@ ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
 greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
 # Create the Jasper composite module.
-with NeuralGraph(operation_mode=OperationMode.training) as Jasper:
+with NeuralGraph() as Jasper:
     processed_signal, processed_signal_len = data_preprocessor(input_signal=Jasper, length=Jasper)  # Bind inputs.
     encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=processed_signal_len)
-    log_probs = jasper_decoder(encoder_output=encoded)  # All output ports are bind (for now!)
+    _ = jasper_decoder(encoder_output=encoded)  # All output ports are bind (for now!)
 
 # Create the "implicit" training graph.
 audio_signal, audio_signal_len, transcript, transcript_len = data_layer()
