@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
 import nemo
+from nemo.core.neural_types import NeuralType
 
 
 class NeuralInterface(ABC):
@@ -42,7 +43,7 @@ class NeuralInterface(ABC):
 
     @property
     @abstractmethod
-    def input_ports(self) -> Optional[Dict[str, nemo.core.neural_types.NeuralType]]:
+    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
         """ Returns definitions of module input ports
 
         Returns:
@@ -51,7 +52,7 @@ class NeuralInterface(ABC):
 
     @property
     @abstractmethod
-    def output_ports(self) -> Optional[Dict[str, nemo.core.neural_types.NeuralType]]:
+    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
         """ Returns definitions of module output ports
 
         Returns:
