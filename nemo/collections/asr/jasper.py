@@ -389,7 +389,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
         return layer # layer, embs
 
     def forward(self, encoder_output):
-        encoder_output = self.norm(encoder_output)
+        # encoder_output = self.norm(encoder_output)
         pool = self._pooling(encoder_output)
         mid1 = self.mid1(pool)
         mid2,embs = self.mid2(mid1),self.mid2[:2](mid1)
