@@ -55,6 +55,7 @@ class TestNmTensor:
         data_source = RealFunctionDataLayer(n=10, batch_size=1,)
         # Get data
         data = data_source()
+        
         # Check output class naming coherence.
         assert type(data).__name__ == 'RealFunctionDataLayerOutput'
 
