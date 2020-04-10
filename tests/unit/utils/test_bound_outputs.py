@@ -26,8 +26,8 @@ import pytest
 # )
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core.neural_types import NeuralTypeComparisonResult
-
 from nemo.utils.bound_outputs import BoundOutputs
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestBoundOutputs:
@@ -80,5 +80,3 @@ class TestBoundOutputs:
 
         with pytest.raises(KeyError):
             _ = defs["x"]
-
-

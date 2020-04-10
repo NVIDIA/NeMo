@@ -27,7 +27,6 @@ from nemo.core.neural_types import (
     NeuralType,
     NeuralTypeComparisonResult,
 )
-
 from nemo.utils.bound_outputs import BoundOutputs
 
 
@@ -103,8 +102,8 @@ class NeuralGraph(NeuralInterface):
 
         # print(self._steps)
 
-        # Iterate through all passed parameters - input ports. 
-        # Port content: NmTensor or NeuralGraph (binding). 
+        # Iterate through all passed parameters - input ports.
+        # Port content: NmTensor or NeuralGraph (binding).
         for input_port_name, input_object in kwargs.items():
             # make sure that passed arguments correspond to input port names
             if input_port_name not in input_port_defs.keys():
@@ -139,11 +138,11 @@ class NeuralGraph(NeuralInterface):
                             type_comatibility,
                         )
                     )
-                
+
                 # Reaching that point means that we accepted input to a bound port.
                 # Need to connect it - add bound module as consumer.
                 consumer = self._bound_input_modules[input_port_name]
-                port_name = input_port_name # For now!
+                port_name = input_port_name  # For now!
                 input_object.add_consumer(consumer, port_name)
 
                 # The current graph parsing requires us to update all outputs of
@@ -154,7 +153,7 @@ class NeuralGraph(NeuralInterface):
                     if output_tensor.producer.name == producer.name:
                         # Set "input port value" to new content - which indicates tensor (and producer)
                         # that will be used during graph backward traverse.
-                        output_tensor.producer_args[port_name] = input_object # i.e. Tensor.
+                        output_tensor.producer_args[port_name] = input_object  # i.e. Tensor.
 
         # Create the module outputs.
         # This part is different from Neural Module.

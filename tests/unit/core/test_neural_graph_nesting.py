@@ -108,7 +108,6 @@ class TestNeuralGraphNesting:
             with NeuralGraph(operation_mode=OperationMode.both):
                 _, _ = inference()
 
-
     def test_output_ports_binding(self):
         # Create modules.
         data_source = RealFunctionDataLayer(n=100, batch_size=1)
@@ -136,4 +135,3 @@ class TestNeuralGraphNesting:
         assert len(g1.output_ports) == 2
         assert g1.output_ports["my_prediction"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
         assert g1.output_ports["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
-
