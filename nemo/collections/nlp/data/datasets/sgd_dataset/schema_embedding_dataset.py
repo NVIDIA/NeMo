@@ -17,6 +17,7 @@
 # Modified from bert.extract_features
 
 import collections
+import random
 import re
 
 import numpy as np
@@ -264,6 +265,7 @@ class SchemaEmbeddingDataset(Dataset):
         Populate all schema embeddings with BERT embeddings.
         """
         completed_services = set()
+        batch_size, seq_len, hidden_size = hidden_states[0].shape
 
         for idx in range(len(self)):
             service_id = self.features['service_id'][idx]
@@ -277,7 +279,11 @@ class SchemaEmbeddingDataset(Dataset):
 
             if mode == 'random':
                 # randomly initialize schema embeddings
-                embedding = np.round(np.random.normal(size=hidden_states[0].shape[-1]), 6)
+                random_token = random.randint(0, seq_len - 1)
+                embedding = [round(float(x), 6) for x in hidden_states[0][idx, random_token, :].flat]
+            elif mode == 'last_layer_average':
+                # Obtain the encoding of the [CLS] token.
+                embedding = [round(float(x), 6) for x in np.mean(hidden_states[0][idx, :], 0).flat]
             elif mode == 'baseline':
                 # Obtain the encoding of the [CLS] token.
                 embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]

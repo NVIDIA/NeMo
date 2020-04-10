@@ -139,6 +139,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--loss_log_freq", default=-1, type=int, help="Frequency of logging loss values, '-1' - at the end of the epoch",
+)
+
+parser.add_argument(
     "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
 )
 
@@ -164,7 +168,7 @@ parser.add_argument(
     "--schema_emb_mode",
     type=str,
     default='baseline',
-    choices=['baseline', 'random'],
+    choices=['baseline', 'random', 'last_layer_average'],
     help="Specifies how schema embeddings are generated. Baseline uses ['CLS'] token",
 )
 parser.add_argument(
@@ -364,8 +368,7 @@ eval_tensors = [
 
 
 steps_per_epoch = math.ceil(len(train_datalayer) / (args.train_batch_size * args.num_gpus))
-
-logging.info(f'steps per epoch: {steps_per_epoch}')
+logging.info(f'Steps per epoch: {steps_per_epoch}')
 
 train_tensors = [loss]
 # Create trainer and execute training action
@@ -374,7 +377,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     print_func=lambda x: logging.info("Loss: {:.8f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
-    step_freq=steps_per_epoch // 10,
+    step_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
 )
 
 # we'll write predictions to file in DSTC8 format during evaluation callback
