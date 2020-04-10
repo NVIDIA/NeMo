@@ -16,11 +16,14 @@
 # limitations under the License.
 # =============================================================================
 
-from unittest import TestCase
 import os
+from unittest import TestCase
+
 import pytest
-from nemo.collections.asr.models import QuartzNet
+from ruamel.yaml import YAML
+
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.collections.asr.models import QuartzNet
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
@@ -37,17 +40,21 @@ from nemo.core.neural_types import (
     SpectrogramType,
     VoidType,
 )
-from ruamel.yaml import YAML
+
 
 @pytest.mark.usefixtures("neural_factory")
 class NeMoModelsTests(TestCase):
     @pytest.mark.unit
     def test_quartznet_creation(self):
         yaml = YAML(typ="safe")
-        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../examples/asr/configs/jasper_an4.yaml"))) as file:
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../examples/asr/configs/jasper_an4.yaml"))
+        ) as file:
             model_definition = yaml.load(file)
-        model = QuartzNet(preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
-                          encoder_params=model_definition['JasperEncoder'],
-                          decoder_params=model_definition['JasperDecoderForCTC'])
+        model = QuartzNet(
+            preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
+            encoder_params=model_definition['JasperEncoder'],
+            decoder_params=model_definition['JasperDecoderForCTC'],
+        )
         self.assertTrue(model.num_weights > 0)
         self.assertEqual(len(model.modules), 3)

@@ -25,7 +25,7 @@ from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
 from os import path
-from typing import Dict, List, Optional, Set, Tuple, Iterable
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
@@ -727,6 +727,7 @@ class NeMoModel(NeuralModule):
     A NeMoModel is a kind of neural module which contains other neural modules and logic inside.
     It typically represents a whole neural network and requires only connections with data layer and loss
     modules for training."""
+
     @staticmethod
     @abstractmethod
     def from_pretrained(model_info: PretrainedModelInfo) -> NeuralModule:
@@ -740,6 +741,7 @@ class NeMoModel(NeuralModule):
 
 class JarvisModel(NeMoModel):
     """This is a kind of NeMoModel which can be exported to Jarvis for deployment"""
+
     @abstractmethod
     def deploy_to_jarvis(self, output: str):
         pass

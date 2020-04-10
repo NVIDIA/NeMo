@@ -15,17 +15,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import nemo.collections.asr as nemo_asr
-from nemo.core import JarvisModel, WeightShareTransform, NeuralType, NeuralModule, PretrainedModelInfo
+from typing import Dict, Iterable, List, Optional, Set, Tuple
+
 from ruamel.yaml import YAML
-from typing import Optional, Set, Dict, Tuple, Iterable, List
+
+import nemo.collections.asr as nemo_asr
+from nemo.core import JarvisModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
 
 
 class QuartzNet(JarvisModel):
-    def __init__(self, preprocessor_params: Dict,
-                       encoder_params: Dict,
-                       decoder_params: Dict,
-                       spec_augment_params: Optional[Dict] = None):
+    def __init__(
+        self,
+        preprocessor_params: Dict,
+        encoder_params: Dict,
+        decoder_params: Dict,
+        spec_augment_params: Optional[Dict] = None,
+    ):
         super().__init__()
         preprocessor, _ = NeuralModule._import_from_config_dict(preprocessor_params)
         encoder, _ = NeuralModule._import_from_config_dict(encoder_params)
@@ -35,13 +40,17 @@ class QuartzNet(JarvisModel):
         else:
             spec_augment = None
 
-        self.__instantiate_modules(preprocessor=preprocessor, encoder=encoder, decoder=decoder,
-                                   spec_augmentation=spec_augment)
+        self.__instantiate_modules(
+            preprocessor=preprocessor, encoder=encoder, decoder=decoder, spec_augmentation=spec_augment
+        )
 
-    def __instantiate_modules(self, preprocessor: nemo_asr.AudioPreprocessor,
-                                    encoder: nemo_asr.JasperEncoder,
-                                    decoder: nemo_asr.JasperDecoderForCTC,
-                                    spec_augmentation: Optional[nemo_asr.SpectrogramAugmentation] = None):
+    def __instantiate_modules(
+        self,
+        preprocessor: nemo_asr.AudioPreprocessor,
+        encoder: nemo_asr.JasperEncoder,
+        decoder: nemo_asr.JasperDecoderForCTC,
+        spec_augmentation: Optional[nemo_asr.SpectrogramAugmentation] = None,
+    ):
         # Record all modules
         self._modules = []
         self._preprocessor = preprocessor
@@ -59,8 +68,9 @@ class QuartzNet(JarvisModel):
         self._output_ports['encoded_lengths'] = encoder.output_ports['encoded_lengths']
 
     def __call__(self, **kwargs):
-        processed_signal, p_length = self._preprocessor(input_signal=kwargs['audio_signal'],
-                                                        length=kwargs['a_sig_length'])
+        processed_signal, p_length = self._preprocessor(
+            input_signal=kwargs['audio_signal'], length=kwargs['a_sig_length']
+        )
         if self._spec_augmentation is not None:
             processed_signal = self._spec_augmentation(input_spec=processed_signal)
         encoded, encoded_len = self._encoder(audio_signal=processed_signal, length=p_length)
@@ -95,12 +105,19 @@ class QuartzNet(JarvisModel):
     def get_weights(self) -> Optional[Dict[(str, bool)]]:
         pass
 
-    def set_weights(self, name2weight: Dict[(str, Tuple[str, bool])],
-                    name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None):
+    def set_weights(
+        self,
+        name2weight: Dict[(str, Tuple[str, bool])],
+        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
+    ):
         pass
 
-    def tie_weights_with(self, module, weight_names=List[str],
-                         name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None):
+    def tie_weights_with(
+        self,
+        module,
+        weight_names=List[str],
+        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
+    ):
         pass
 
     def save_to(self, path: str):
@@ -139,4 +156,3 @@ class QuartzNet(JarvisModel):
             vocab = quartznet_params['labels']
         except IOError:
             raise IOError(f'could not read configuration from {config_file}')
-
