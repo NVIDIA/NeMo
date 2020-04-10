@@ -56,7 +56,7 @@ class TestBoundOutputs:
         assert defs["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
         assert defs["y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
         assert defs["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
-        
+
         with pytest.raises(KeyError):
             _ = defs["lss"]
 

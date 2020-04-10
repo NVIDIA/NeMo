@@ -73,7 +73,7 @@ class BoundOutputs(MutableMapping):
         """
         for tensor in tensors_list:
             # Check the presence of the port name in default dictionary.
-            name = tensor.name # Use the default port name.
+            name = tensor.name  # Use the default port name.
             if name in self._default_dict.keys():
                 logging.warning(
                     "Overwriting the already bound output port `{}` produced by `{}`".format(
