@@ -16,7 +16,7 @@
 # limitations under the License.
 
 """This file contains NeuralModule and NmTensor classes."""
-__all__ = ['WeightShareTransform', 'NeuralModule']
+__all__ = ['WeightShareTransform', 'NeuralModule', 'NeMoModel', 'PretrainedModelInfo', 'JarvisModel']
 
 import collections
 import uuid
@@ -25,7 +25,7 @@ from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
 from os import path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Iterable
 
 from ruamel.yaml import YAML
 
@@ -322,7 +322,27 @@ class NeuralModule(ABC):
         return loaded_config
 
     @classmethod
-    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
+    def _import_from_config_dict(cls, config, overwrite_params={}):
+        # Parse the "full specification".
+        spec_list = config["header"]["full_spec"].split(".")
+
+        # Get object class from "full specification".
+        mod_obj = __import__(spec_list[0])
+        for spec in spec_list[1:]:
+            mod_obj = getattr(mod_obj, spec)
+        # print(mod_obj)
+
+        # Get init parameters.
+        init_params = config["init_params"]
+        # Update parameters with additional ones.
+        init_params.update(overwrite_params)
+
+        # Create and return the object.
+        obj = mod_obj(**init_params)
+        return obj, spec_list
+
+    @classmethod
+    def import_from_config(cls, config_file: str, section_name: str = None, overwrite_params: Dict = {}):
         """
             Class method importing the configuration file.
             Raises an ImportError exception when config file is invalid or
@@ -341,23 +361,8 @@ class NeuralModule(ABC):
         """
         # Validate the content of the configuration file (its header).
         loaded_config = cls._validate_config_file(config_file, section_name)
-
-        # Parse the "full specification".
-        spec_list = loaded_config["header"]["full_spec"].split(".")
-
-        # Get object class from "full specification".
-        mod_obj = __import__(spec_list[0])
-        for spec in spec_list[1:]:
-            mod_obj = getattr(mod_obj, spec)
-        # print(mod_obj)
-
-        # Get init parameters.
-        init_params = loaded_config["init_params"]
-        # Update parameters with additional ones.
-        init_params.update(overwrite_params)
-
-        # Create and return the object.
-        obj = mod_obj(**init_params)
+        # Instantiate object from the config dictionary
+        obj, spec_list = cls._import_from_config_dict(config=loaded_config, overwrite_params=overwrite_params)
         logging.info(
             "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
                 spec_list[-1], config_file
@@ -714,4 +719,27 @@ class NeuralModule(ABC):
     def num_weights(self):
         """Number of module's weights
         """
+        pass
+
+
+class NeMoModel(NeuralModule):
+    """Abstract class representing NeMoModel.
+    A NeMoModel is a kind of neural module which contains other neural modules and logic inside.
+    It typically represents a whole neural network and requires only connections with data layer and loss
+    modules for training."""
+    @staticmethod
+    @abstractmethod
+    def from_pretrained(model_info: PretrainedModelInfo) -> NeuralModule:
+        pass
+
+    @property
+    @abstractmethod
+    def modules(self) -> Iterable[NeuralModule]:
+        pass
+
+
+class JarvisModel(NeMoModel):
+    """This is a kind of NeMoModel which can be exported to Jarvis for deployment"""
+    @abstractmethod
+    def deploy_to_jarvis(self, output: str):
         pass
