@@ -70,6 +70,8 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- Added multi-dataset data-layer and dataset.
+([PR #538](https://github.com/NVIDIA/NeMo/pull/538)) - @yzhang123
 
 ### Changed
 
