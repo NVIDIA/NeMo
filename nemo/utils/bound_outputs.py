@@ -49,7 +49,7 @@ class BoundOutputs(MutableMapping):
             return self._default_dict[key]
 
     def __delitem__(self, key):
-        raise NotImplemented("Deleting a bound output port is not allowed")
+        raise NotImplementedError("Deleting a bound output port is not allowed")
 
     def __iter__(self):
         """ Iterates over the outputs - depending whether there are some manual outputs or not. """
@@ -65,7 +65,7 @@ class BoundOutputs(MutableMapping):
         else:  # Use default dict.
             return len(self._default_dict)
 
-    def add_defaults(self, tensors_list):
+    def bind_defaults(self, tensors_list):
         """ Binds default output tensors.
 
             Args:

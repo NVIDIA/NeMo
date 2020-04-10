@@ -29,7 +29,7 @@ from nemo.utils import logging
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraphNesting:
     @pytest.mark.integration
-    def test_nesting_operation_modes_ok(self):
+    def test_nesting_operation_modes_example(self):
         """ 
             Tests whether one can nest one graph in mode `both` (representing the our `model`) into
             `training` and validation (`inference`) graphs.

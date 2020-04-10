@@ -23,6 +23,7 @@ import torch
 from nemo.backends.pytorch.actions import PtActions
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import EvaluatorCallback, NeuralGraph, OperationMode, SimpleLossLoggerCallback
+from nemo.core.neural_types import NeuralTypeComparisonResult
 from nemo.utils import logging
 
 
@@ -106,3 +107,33 @@ class TestNeuralGraphNesting:
         with pytest.raises(TypeError):
             with NeuralGraph(operation_mode=OperationMode.both):
                 _, _ = inference()
+
+
+    def test_output_ports_binding(self):
+        # Create modules.
+        data_source = RealFunctionDataLayer(n=100, batch_size=1)
+        tn = TaylorNet(dim=4)
+        loss = MSELoss()
+
+        # Test default binding.
+        with NeuralGraph(operation_mode=OperationMode.training) as g1:
+            # Create the graph by connnecting the modules.
+            x, y = data_source()
+            y_pred = tn(x=x)
+            lss = loss(predictions=y_pred, target=y)
+
+        assert len(g1.output_ports) == 4
+        assert g1.output_ports["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+
+        # Test manual binding.
+        with g1:
+            g1.output_ports["my_prediction"] = y_pred
+            g1.output_ports["my_loss"] = lss
+
+        assert len(g1.output_ports) == 2
+        assert g1.output_ports["my_prediction"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+

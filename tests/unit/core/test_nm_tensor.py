@@ -52,7 +52,7 @@ class TestNmTensor:
     @pytest.mark.unit
     def test_simple_train_named_output(self):
         """ Test named output """
-        data_source = RealFunctionDataLayer(n=10, batch_size=1,)
+        data_source = RealFunctionDataLayer(n=10, batch_size=1)
         # Get data
         data = data_source()
 

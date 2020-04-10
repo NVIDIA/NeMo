@@ -26,8 +26,8 @@ import pytest
 # )
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core.neural_types import NeuralTypeComparisonResult
-from nemo.utils.bound_outputs import BoundOutputs
 
+from nemo.utils.bound_outputs import BoundOutputs
 
 @pytest.mark.usefixtures("neural_factory")
 class TestBoundOutputs:
@@ -46,11 +46,16 @@ class TestBoundOutputs:
         # Test default binding.
         bound_outputs = BoundOutputs()
 
-        bound_outputs.add_defaults([x, y])
-        bound_outputs.add_defaults([y_pred])
-        bound_outputs.add_defaults([lss])
+        bound_outputs.bind_defaults([x, y])
+        bound_outputs.bind_defaults([y_pred])
+        bound_outputs.bind_defaults([lss])
+
+        # Delete not allowed.
+        with pytest.raises(NotImplementedError):
+            del bound_outputs["loss"]
 
         assert len(bound_outputs) == 4
+
         defs = bound_outputs.definitions
         assert defs["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
         assert defs["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
@@ -60,9 +65,13 @@ class TestBoundOutputs:
         with pytest.raises(KeyError):
             _ = defs["lss"]
 
-        # And now bound manually.
+        # Bound manually.
         bound_outputs["my_prediction"] = y_pred
         bound_outputs["my_loss"] = lss
+
+        # Delete not allowed.
+        with pytest.raises(NotImplementedError):
+            del bound_outputs["my_prediction"]
 
         assert len(bound_outputs) == 2
         defs = bound_outputs.definitions
@@ -71,3 +80,5 @@ class TestBoundOutputs:
 
         with pytest.raises(KeyError):
             _ = defs["x"]
+
+

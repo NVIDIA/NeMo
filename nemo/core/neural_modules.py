@@ -509,7 +509,7 @@ class NeuralModule(NeuralInterface):
             results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
 
             # Bind the "default" output ports.
-            self._app_state.active_graph.bind_outputs(output_port_defs, [results])
+            self._app_state.active_graph.bind_default_outputs([results])
         else:
             # Create output tensors.
             output_tensors = []
@@ -524,7 +524,7 @@ class NeuralModule(NeuralInterface):
             results = result_type(*output_tensors)
 
             # Bind the "default" output ports.
-            self._app_state.active_graph.bind_outputs(output_port_defs, output_tensors)
+            self._app_state.active_graph.bind_default_outputs(output_tensors)
 
         # Return the results.
         return results
