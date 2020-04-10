@@ -138,8 +138,9 @@ perturbation_types = {
 
 def register_perturbation(name: str, perturbation: Perturbation):
     if name in perturbation_types.keys():
-        raise KeyError(f"Perturbation with the name {name} exists. "
-                       f"Type of perturbation : {perturbation_types[name]}.")
+        raise KeyError(
+            f"Perturbation with the name {name} exists. " f"Type of perturbation : {perturbation_types[name]}."
+        )
 
     perturbation_types[name] = perturbation
 
