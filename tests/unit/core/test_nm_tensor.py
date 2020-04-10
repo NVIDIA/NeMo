@@ -55,14 +55,13 @@ class TestNmTensor:
         data_source = RealFunctionDataLayer(n=10, batch_size=1,)
         # Get data
         data = data_source()
-        
+
         # Check output class naming coherence.
         assert type(data).__name__ == 'RealFunctionDataLayerOutput'
 
         # Check types.
         assert data.x.compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
         assert data.y.compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
-
 
     @pytest.mark.unit
     def test_nm_tensors_producer_consumers(self):
