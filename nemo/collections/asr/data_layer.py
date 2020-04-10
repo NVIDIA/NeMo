@@ -56,21 +56,64 @@ def _process_augmentations(augmenter) -> AudioAugmentor:
     value in the range [0, 1].
 
     # Example in YAML config file
+
+    Augmentations are generally applied only during training, so we can add
+    these augmentations to our yaml config file, and modify the behaviour
+    for training and evaluation.
+
     ```yaml
     AudioToSpeechLabelDataLayer:
-        ...
-        augmentor:
-            shift:
-                prob: 0.5
-                min_shift_ms: -5.0
-                max_shift_ms: 5.0
-            white_noise:
-                prob: 1.0
-                min_level: -90
-                max_level: -46
+        ...  # Parameters shared between train and evaluation time
+        train:
+            augmentor:
+                shift:
+                    prob: 0.5
+                    min_shift_ms: -5.0
+                    max_shift_ms: 5.0
+                white_noise:
+                    prob: 1.0
+                    min_level: -90
+                    max_level: -46
+                ...
+        eval:
+            ...
+    ```
+
+    Then in the training script,
+
+    ```python
+    import copy
+    from ruamel.yaml import YAML
+
+    yaml = YAML(typ="safe")
+    with open(model_config) as f:
+        params = yaml.load(f)
+
+    # Train Config for Data Loader
+    train_dl_params = copy.deepcopy(params["AudioToTextDataLayer"])
+    train_dl_params.update(params["AudioToTextDataLayer"]["train"])
+    del train_dl_params["train"]
+    del train_dl_params["eval"]
+
+    data_layer_train = nemo_asr.AudioToTextDataLayer(
+        ...,
+        **train_dl_params,
+    )
+
+    # Evaluation Config for Data Loader
+    eval_dl_params = copy.deepcopy(params["AudioToTextDataLayer"])
+    eval_dl_params.update(params["AudioToTextDataLayer"]["eval"])
+    del eval_dl_params["train"]
+    del eval_dl_params["eval"]
+
+    data_layer_eval = nemo_asr.AudioToTextDataLayer(
+        ...,
+        **eval_dl_params,
+    )
     ```
 
     # Registering your own Augmentations
+
     To register custom augmentations to obtain the above convenience of
     the declaring the augmentations in YAML, you can put additional keys in
     `perturbation_types` dictionary as follows.
