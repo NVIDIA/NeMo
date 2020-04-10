@@ -17,9 +17,6 @@
 import os
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from ruamel.yaml import YAML
-
-import nemo.collections.asr as nemo_asr
 from nemo.core import JarvisModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
 
 
@@ -131,28 +128,3 @@ class QuartzNet(JarvisModel):
 
     def unfreeze(self, weights: Set[str] = None):
         pass
-
-    @classmethod
-    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
-        """
-        Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
-
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
-                parameters loaded from the configuration file
-
-        Returns:
-                Instance of the created QuartzNet object.
-        """
-        if not os.path.isfile(config_file):
-            raise FileExistsError(f' {config_file} is not a file or does not exist')
-
-        try:
-            yaml = YAML(typ="safe")
-            with open(config_file) as f:
-                quartznet_params = yaml.load(f)
-            vocab = quartznet_params['labels']
-        except IOError:
-            raise IOError(f'could not read configuration from {config_file}')
