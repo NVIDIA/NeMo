@@ -19,8 +19,15 @@
 
 import torch
 
-from nemo.core import NeuralGraph, DeviceType, OperationMode, NeuralModuleFactory, SimpleLossLoggerCallback, EvaluatorCallback
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import (
+    DeviceType,
+    EvaluatorCallback,
+    NeuralGraph,
+    NeuralModuleFactory,
+    OperationMode,
+    SimpleLossLoggerCallback,
+)
 from nemo.utils import logging
 
 nf = NeuralModuleFactory(placement=DeviceType.CPU)

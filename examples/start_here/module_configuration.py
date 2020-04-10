@@ -17,9 +17,9 @@
 # limitations under the License.
 # =============================================================================
 
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import DeviceType, NeuralModule, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.utils import logging
-from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 
 # Run on CPU.
 nf = NeuralModuleFactory(placement=DeviceType.CPU)

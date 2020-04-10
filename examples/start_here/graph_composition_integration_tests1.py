@@ -17,8 +17,8 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core import NeuralModuleFactory, DeviceType, NeuralGraph, OperationMode, SimpleLossLoggerCallback
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
 
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
@@ -36,8 +36,8 @@ with NeuralGraph(operation_mode=OperationMode.training) as g0:
     # Manual bind.
     g0.output_ports["output"] = loss
 
-#print(g0.output_ports)
-#print(g0.output_ports["x"])
+# print(g0.output_ports)
+# print(g0.output_ports["x"])
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(

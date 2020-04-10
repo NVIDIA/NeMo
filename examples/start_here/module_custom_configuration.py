@@ -22,8 +22,8 @@ from os import path
 
 from ruamel import yaml
 
-from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.utils import logging
 
 

@@ -16,8 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-from typing import Dict, Optional
 from collections import namedtuple
+from typing import Dict, Optional
 
 from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
@@ -112,7 +112,7 @@ class NeuralGraph(NeuralInterface):
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
             # Check what was actually passed.
-            if isinstance(port_content,  NeuralGraph):
+            if isinstance(port_content, NeuralGraph):
 
                 # TODO: make sure that port_content ==  self._app_state.active_graph ?!?!
 
