@@ -497,6 +497,8 @@ class NeuralModule(NeuralInterface):
                             type_comatibility,
                         )
                     )
+                # Ok, we have checked the input, let's "consume" it.
+                port_content.add_consumer(self, port_name)
 
         # Here we will store the results.
         results = None

@@ -187,6 +187,9 @@ class NeuralType(object):
                 return 3
 
 
+from collections import namedtuple
+ModulePort = namedtuple('ModulePort', ["name", "port"])
+
 class NmTensor(NeuralType):
     """Class representing data which flows between NeuralModules' ports.
     It also has a type of NeuralType represented by inheriting from NeuralType
@@ -203,8 +206,10 @@ class NmTensor(NeuralType):
         super(NmTensor, self).__init__(axes=ntype.axes, elements_type=ntype.elements_type, optional=ntype.optional)
         self._producer = producer
         self._producer_args = producer_args
-        self._name = name
+        self._output_port_name = name
         self._uuid = str(uuid.uuid4())
+        # List of tuples (consumer name, input port name)
+        self._consumers_ports = []
 
     @property
     def producer(self):
@@ -213,6 +218,43 @@ class NmTensor(NeuralType):
           NeuralModule object which produced this NmTensor.
         """
         return self._producer
+
+    @property
+    def producer_port(self):
+        """
+        Returns:
+          A tuple containing producer name and corresponding output port name.
+        """
+        return ModulePort(self._producer.name, self._output_port_name)
+
+    @property
+    def consumers_ports(self):
+        """
+        Returns:
+          A list of tuples containing consumer name and corresponding input port names.
+        """
+        return self._consumers_ports
+
+    def add_consumer(self, module, input_port_name):
+        """
+        Adds tensor "consumer".
+
+        Args:
+            module: Module that accepts the tensor as input.
+            input_port_name: Name of the module's input port.
+
+        """
+        self._consumers_ports.append(ModulePort(module.name, input_port_name))
+
+
+    @property
+    def type(self):
+        """
+        Returns:
+            Neural Type associated with this NmTensor.
+        """
+        return NeuralType(axes=self.axes, elements_type=self.elements_type, optional=self.optional)
+
 
     @property
     def producer_args(self):
@@ -230,7 +272,7 @@ class NmTensor(NeuralType):
           A NmTensor's name which should be equal to
           the NeuralModule's output port's name which created it
         """
-        return self._name
+        return self._output_port_name
 
     @property
     def unique_name(self):
@@ -243,7 +285,7 @@ class NmTensor(NeuralType):
         """
         if self._producer is None:
             raise ValueError("This NmTensor does not have a unique name")
-        return f"{self._name}~~~{self.producer}~~~{self._uuid}"
+        return f"{self._output_port_name}~~~{self.producer.name}~~~{self._uuid}"
 
 
 class NeuralTypeError(Exception):

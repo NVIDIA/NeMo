@@ -34,6 +34,11 @@ with NeuralGraph(operation_mode=OperationMode.training) as g0:
     x, t = dl()
     p = m2(x=x)
     lss = loss(predictions=p, target=t)
+    # Manual bind.
+    g0.output_ports["output"] = loss
+
+print(g0.output_ports)
+print(g0.output_ports["x"])
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = nemo.core.SimpleLossLoggerCallback(

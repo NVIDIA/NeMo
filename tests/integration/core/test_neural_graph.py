@@ -26,31 +26,6 @@ from nemo.core import NeuralGraph
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraph:
     @pytest.mark.integration
-    def test_nm_tensors(self):
-        """
-            Tests whether nmTensors are correct.
-        """
-        # Create modules.
-        data_source = RealFunctionDataLayer(n=100, batch_size=1)
-        trainable_module = TaylorNet(dim=4)
-        loss = MSELoss()
-
-        # Create the graph by connnecting the modules.
-        x, y = data_source()
-        y_pred = trainable_module(x=x)
-        loss_tensor = loss(predictions=y_pred, target=y)
-
-        # check producers' bookkeeping
-        assert loss_tensor.producer == loss
-        assert loss_tensor.producer_args == {"predictions": y_pred, "target": y}
-        assert y_pred.producer == trainable_module
-        assert y_pred.producer_args == {"x": x}
-        assert y.producer == data_source
-        assert y.producer_args == {}
-        assert x.producer == data_source
-        assert x.producer_args == {}
-
-    @pytest.mark.integration
     def test_implicit_default_graph(self):
         """ Tests integration of a `default` (implicit) graph. """
         # Create modules.
