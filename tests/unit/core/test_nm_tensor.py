@@ -49,7 +49,6 @@ class TestNmTensor:
         assert x.producer is data_source
         assert x.producer_args == {}
 
-
     @pytest.mark.unit
     def test_nm_tensors_producer_consumers(self):
         """
@@ -98,7 +97,6 @@ class TestNmTensor:
         assert cs[1].name == "loss2"
         assert cs[1].port == "predictions"
 
-
     @pytest.mark.unit
     def test_nm_tensors_types(self):
         """
@@ -119,5 +117,3 @@ class TestNmTensor:
         assert y.type.compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
         assert y_pred.type.compare(trainable_module.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
         assert lss.type.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
-
-

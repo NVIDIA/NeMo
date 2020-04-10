@@ -24,6 +24,7 @@ __all__ = [
     'CanNotInferResultNeuralType',
 ]
 import uuid
+from collections import namedtuple
 from typing import Optional, Tuple
 
 from nemo.core.neural_types.axes import AxisKind, AxisType
@@ -187,8 +188,8 @@ class NeuralType(object):
                 return 3
 
 
-from collections import namedtuple
 ModulePort = namedtuple('ModulePort', ["name", "port"])
+
 
 class NmTensor(NeuralType):
     """Class representing data which flows between NeuralModules' ports.
@@ -246,7 +247,6 @@ class NmTensor(NeuralType):
         """
         self._consumers_ports.append(ModulePort(module.name, input_port_name))
 
-
     @property
     def type(self):
         """
@@ -254,7 +254,6 @@ class NmTensor(NeuralType):
             Neural Type associated with this NmTensor.
         """
         return NeuralType(axes=self.axes, elements_type=self.elements_type, optional=self.optional)
-
 
     @property
     def producer_args(self):
