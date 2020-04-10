@@ -28,7 +28,7 @@ class TestPytorchTrainers(TestCase):
     @pytest.mark.system
     def test_simple_train(self):
         """ Simplest train test """
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=1000, batch_size=128)
         trainable_module = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         loss = nemo.backends.pytorch.tutorials.MSELoss()
         x, y = data_source()
@@ -48,11 +48,6 @@ class TestPytorchTrainers(TestCase):
         loss = nemo.backends.pytorch.tutorials.MSELoss()
 
         data = data_source()
-        self.assertEqual(
-            first=type(data).__name__,
-            second='RealFunctionDataLayerOutput',
-            msg='Check output class naming coherence.',
-        )
         y_pred = trainable_module(x=data.x)
         loss_tensor = loss(predictions=y_pred, target=data.y)
 
@@ -64,7 +59,7 @@ class TestPytorchTrainers(TestCase):
     @pytest.mark.system
     def test_simple_chained_train(self):
         """ Chained train test """
-        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=10000, batch_size=32)
+        data_source = nemo.backends.pytorch.tutorials.RealFunctionDataLayer(n=1000, batch_size=32)
         trainable_module1 = nemo.backends.pytorch.tutorials.TaylorNet(dim=4)
         trainable_module2 = nemo.backends.pytorch.tutorials.TaylorNet(dim=2)
         trainable_module3 = nemo.backends.pytorch.tutorials.TaylorNet(dim=2)

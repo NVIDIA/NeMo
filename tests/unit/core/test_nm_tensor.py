@@ -50,12 +50,26 @@ class TestNmTensor:
         assert x.producer_args == {}
 
     @pytest.mark.unit
+    def test_simple_train_named_output(self):
+        """ Test named output """
+        data_source = RealFunctionDataLayer(n=10, batch_size=1,)
+        # Get data
+        data = data_source()
+        # Check output class naming coherence.
+        assert type(data).__name__ == 'RealFunctionDataLayerOutput'
+
+        # Check types.
+        assert data.x.compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert data.y.compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
+
+
+    @pytest.mark.unit
     def test_nm_tensors_producer_consumers(self):
         """
             Tests whether nmTensors are correct - checking producers and consumers.
         """
         # Create modules.
-        data_source = RealFunctionDataLayer(n=100, batch_size=1, name="source")
+        data_source = RealFunctionDataLayer(n=10, batch_size=1, name="source")
         trainable_module = TaylorNet(dim=4, name="tm")
         loss = MSELoss(name="loss")
         loss2 = MSELoss(name="loss2")
@@ -103,7 +117,7 @@ class TestNmTensor:
             Tests whether nmTensors are correct - checking type property.
         """
         # Create modules.
-        data_source = RealFunctionDataLayer(n=100, batch_size=1)
+        data_source = RealFunctionDataLayer(n=10, batch_size=1)
         trainable_module = TaylorNet(dim=4)
         loss = MSELoss()
 

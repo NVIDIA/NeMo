@@ -500,33 +500,32 @@ class NeuralModule(NeuralInterface):
                 # Ok, we have checked the input, let's "consume" it.
                 port_content.add_consumer(self, port_name)
 
-        # Here we will store the results.
-        results = None
-
+        # Create output tensors.
         if len(output_port_defs) == 1:
+            # Get port name and type.
             out_name = list(output_port_defs)[0]
             out_type = output_port_defs[out_name]
 
+            # Create a single returned tensor.
             results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
 
-            # Bind the output ports.
+            # Bind the "default" output ports.
             self._app_state.active_graph.bind_outputs(output_port_defs, [results])
-
         else:
-            results_list = []
+            # Create output tensors.
+            output_tensors = []
             for out_name, out_type in output_port_defs.items():
-                results_list.append(NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,))
+                output_tensors.append(NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,))
 
-            # Creating ad-hoc class for returning from module's forward pass.
+            # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
             output_class_name = f'{self.__class__.__name__}Output'
-            field_names = list(output_port_defs)
-            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
+            result_type = namedtuple(typename=output_class_name, field_names=output_port_defs.keys())
 
-            # Bind the output ports.
-            self._app_state.active_graph.bind_outputs(output_port_defs, results_list)
+            # Create the returned tuple object.
+            results = result_type(*output_tensors)
 
-            # Tie tuple of output tensors with corresponding names.
-            results = result_type(*results_list)
+            # Bind the "default" output ports.
+            self._app_state.active_graph.bind_outputs(output_port_defs, output_tensors)
 
         # Return the results.
         return results

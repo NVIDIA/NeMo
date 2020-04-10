@@ -255,6 +255,22 @@ class NmTensor(NeuralType):
         """
         return NeuralType(axes=self.axes, elements_type=self.elements_type, optional=self.optional)
 
+
+    #def serialize(self):
+    #    """
+    #        Serializes tensor to a dictionary (yaml structure).
+    #    """
+    #    # serialize type.
+    #    return 1
+
+    #@classmethod
+    #def deserialize(cls):
+    #    """
+    #        Deserializes tensor from a dictionary (yaml structure).
+    #    """
+    #    return 2
+
+
     @property
     def producer_args(self):
         """

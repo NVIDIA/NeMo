@@ -154,37 +154,19 @@ class NeuralGraph(NeuralInterface):
                         # that will be used during graph backward traverse.
                         output_tensor.producer_args[port_name] = port_content
 
-        # TODO CHECK 1: Are we making sure that ALL necessary inputs that were PASSED?
-
-        # Here we will store the results.
-        results = None
-
-        # This part is different. Now the goal is not to create NEW "tensors", but to return the bound ones!
+        # Create the module outputs.
+        # This part is different from Neural Module.
+        # Now the goal is NOT to create NEW "tensors", but to return the BOUND ones!
         if len(output_port_defs) == 1:
-            # Get the name of the ouput port.
-            out_name = list(output_port_defs)[0]
-            # Simply pass the bound tensor.
-            results = self._bound_output_tensors_default[out_name]
-            # BUT UPDATE THE inputs to it!!
-
-            # Bind the output ports.
-            self._app_state.active_graph.bind_outputs(output_port_defs, [results])
-
+            # Return the single tensor.
+            results = next(iter(self._bound_output_tensors_default.values()))
         else:
-            result = []
-            for _, tensor in self._bound_output_tensors_default.items():
-                result.append(tensor)
-
-            # Creating ad-hoc class for returning from module's forward pass.
+            # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
             output_class_name = f'{self.__class__.__name__}Output'
-            field_names = list(output_port_defs)
-            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
+            result_type = namedtuple(typename=output_class_name, field_names=output_port_defs.keys())
 
-            # Bind the output ports.
-            self._app_state.active_graph.bind_outputs(output_port_defs, result)
-
-            # Tie tuple of output tensors with corresponding names.
-            results = result_type(*result)
+            # Bind the "default" output ports.
+            results = result_type(*self._bound_output_tensors_default)
 
         # Return the results.
         return results
