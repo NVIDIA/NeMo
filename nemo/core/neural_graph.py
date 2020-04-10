@@ -16,10 +16,9 @@
 # limitations under the License.
 # =============================================================================
 
-import collections
 from typing import Dict, Optional
+from collections import namedtuple
 
-import nemo
 from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import (
@@ -97,7 +96,6 @@ class NeuralGraph(NeuralInterface):
         # print(" Neural Graph {} __call__".format(self._name))
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
-        output_port_defs = self.output_ports
 
         # TODO: check graph operation mode compatibility.
 
@@ -114,7 +112,7 @@ class NeuralGraph(NeuralInterface):
                 raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
 
             # Check what was actually passed.
-            if isinstance(port_content, nemo.core.NeuralGraph):
+            if isinstance(port_content,  NeuralGraph):
 
                 # TODO: make sure that port_content ==  self._app_state.active_graph ?!?!
 
@@ -157,16 +155,16 @@ class NeuralGraph(NeuralInterface):
         # Create the module outputs.
         # This part is different from Neural Module.
         # Now the goal is NOT to create NEW "tensors", but to return the BOUND ones!
-        if len(output_port_defs) == 1:
+        if len(self._bound_output_tensors_default) == 1:
             # Return the single tensor.
             results = next(iter(self._bound_output_tensors_default.values()))
         else:
             # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
             output_class_name = f'{self.__class__.__name__}Output'
-            result_type = namedtuple(typename=output_class_name, field_names=output_port_defs.keys())
+            result_type = namedtuple(typename=output_class_name, field_names=self._bound_output_tensors_default.keys())
 
-            # Bind the "default" output ports.
-            results = result_type(*self._bound_output_tensors_default)
+            # Return the "default" bound output ports.
+            results = result_type(*self._bound_output_tensors_default.values())
 
         # Return the results.
         return results

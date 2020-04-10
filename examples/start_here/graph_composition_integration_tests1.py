@@ -17,16 +17,15 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo
-from nemo.core import NeuralGraph, OperationMode
+from nemo.core import NeuralModuleFactory, DeviceType, NeuralGraph, OperationMode, SimpleLossLoggerCallback
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.utils import logging
 
-logging = nemo.logging
-
-nf = nemo.core.NeuralModuleFactory()
+nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantiate the necessary neural modules.
-dl = nemo.tutorials.RealFunctionDataLayer(n=10000, batch_size=128)
-m2 = nemo.tutorials.TaylorNet(dim=4)
-loss = nemo.tutorials.MSELoss()
+dl = RealFunctionDataLayer(n=100, batch_size=32)
+m2 = TaylorNet(dim=4)
+loss = MSELoss()
 
 logging.info("This example shows how one can build an `explicit` graph.")
 
@@ -37,13 +36,13 @@ with NeuralGraph(operation_mode=OperationMode.training) as g0:
     # Manual bind.
     g0.output_ports["output"] = loss
 
-print(g0.output_ports)
-print(g0.output_ports["x"])
+#print(g0.output_ports)
+#print(g0.output_ports["x"])
 
 # SimpleLossLoggerCallback will print loss values to console.
-callback = nemo.core.SimpleLossLoggerCallback(
+callback = SimpleLossLoggerCallback(
     tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
 )
 
 # Invoke "train" action.
-nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")
+nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")

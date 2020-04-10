@@ -18,7 +18,6 @@
 """This file contains NeuralModule and NmTensor classes."""
 __all__ = ['WeightShareTransform', 'NeuralModule']
 
-import collections
 import uuid
 from abc import abstractmethod
 from collections import namedtuple

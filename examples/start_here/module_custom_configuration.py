@@ -22,11 +22,9 @@ from os import path
 
 from ruamel import yaml
 
-import nemo
 from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback
-from nemo.core.neural_types import ChannelType, NeuralType
-
-logging = nemo.logging
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.utils import logging
 
 
 # A custom enum.
@@ -35,7 +33,7 @@ class Status(Enum):
     error = 1
 
 
-class CustomTaylorNet(nemo.tutorials.TaylorNet):
+class CustomTaylorNet(TaylorNet):
     """Module which learns Taylor's coefficients. Extends the original module by a custom status enum."""
 
     def __init__(self, dim, status: Status):
@@ -123,13 +121,13 @@ class CustomTaylorNet(nemo.tutorials.TaylorNet):
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 
 # Instantitate RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-1, 1]
-dl = nemo.tutorials.RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
+dl = RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=32)
 
 # Instantiate a simple feed-forward, single layer neural network.
 fx = CustomTaylorNet(dim=4, status=Status.error)
 
 # Instantitate loss.
-mse_loss = nemo.tutorials.MSELoss()
+mse_loss = MSELoss()
 
 # Export the model configuration.
 fx.export_to_config("/tmp/custom_taylor_net.yml")

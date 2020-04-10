@@ -21,7 +21,7 @@
 import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
-from nemo.core import NeuralGraph, OperationMode
+from nemo.core import NeuralGraph
 from nemo.core.neural_types import NeuralTypeComparisonResult
 
 
@@ -89,7 +89,7 @@ class TestNeuralGraphs:
         m2 = TaylorNet(dim=4)
         loss = MSELoss()
 
-        with NeuralGraph(operation_mode=OperationMode.both) as g1:
+        with NeuralGraph() as g1:
             x, t = dl()
             p = m2(x=x)
 

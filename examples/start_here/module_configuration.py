@@ -17,22 +17,21 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo
-from nemo.core import DeviceType, NeuralModule, NeuralModuleFactory
-
-logging = nemo.logging
+from nemo.core import DeviceType, NeuralModule, NeuralModuleFactory, SimpleLossLoggerCallback
+from nemo.utils import logging
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 
 # Run on CPU.
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 
 # Instantitate RealFunctionDataLayer defaults to f=torch.sin, sampling from x=[-1, 1]
-dl = nemo.tutorials.RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
+dl = RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
 
 # Instantiate a simple feed-forward, single layer neural network.
-fx = nemo.tutorials.TaylorNet(dim=4)
+fx = TaylorNet(dim=4)
 
 # Instantitate loss.
-mse_loss = nemo.tutorials.MSELoss()
+mse_loss = MSELoss()
 
 # Export the model configuration.
 fx.export_to_config("/tmp/taylor_net.yml")
@@ -47,7 +46,7 @@ p = fx2(x=x)
 loss = mse_loss(predictions=p, target=y)
 
 # SimpleLossLoggerCallback will print loss values to console.
-callback = nemo.core.SimpleLossLoggerCallback(
+callback = SimpleLossLoggerCallback(
     tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}')
 )
 
