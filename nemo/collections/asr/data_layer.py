@@ -41,6 +41,62 @@ logging = nemo.logging
 
 
 def _process_augmentations(augmenter) -> AudioAugmentor:
+    """Process list of online data augmentations.
+
+    Accepts either an AudioAugmentor object with pre-defined augmentations,
+    or a dictionary that points to augmentations that have been defined.
+
+    If a dictionary is passed, must follow the below structure:
+    Dict[str, Dict[str, Any]]: Which refers to a dictionary of string
+    names for augmentations, defined in `asr/parts/perturb.py`.
+
+    The inner dictionary may contain key-value arguments of the specific
+    augmentation, along with an essential key `prob`. `prob` declares the
+    probability of the augmentation being applied, and must be a float
+    value in the range [0, 1].
+
+    # Example in YAML config file
+    ```yaml
+    AudioToSpeechLabelDataLayer:
+        ...
+        augmentor:
+            shift:
+                prob: 0.5
+                min_shift_ms: -5.0
+                max_shift_ms: 5.0
+            white_noise:
+                prob: 1.0
+                min_level: -90
+                max_level: -46
+    ```
+
+    # Registering your own Augmentations
+    To register custom augmentations to obtain the above convenience of
+    the declaring the augmentations in YAML, you can put additional keys in
+    `perturbation_types` dictionary as follows.
+
+    ```python
+    from nemo.collections.asr.parts import perturb
+
+    # Define your own perturbation here
+    class CustomPerturbation(perturb.Perturbation):
+        ...
+
+    perturb.register_perturbation(name_of_perturbation, CustomPerturbation)
+    ```
+
+    Args:
+        augmenter: AudioAugmentor object or
+            dictionary of str -> kwargs (dict) which is parsed and used
+            to initialize an AudioAugmentor.
+            Note: It is crucial that each individual augmentation has
+            a keyword `prob`, that defines a float probability in the
+            the range [0, 1] of this augmentation being applied.
+            If this keyword is not present, then the augmentation is
+            disabled and a warning is logged.
+
+    Returns: AudioAugmentor object
+    """
     if isinstance(augmenter, AudioAugmentor):
         return augmenter
 
@@ -54,7 +110,7 @@ def _process_augmentations(augmenter) -> AudioAugmentor:
         prob = augment_kwargs.get('prob', None)
 
         if prob is None:
-            logging.warning(
+            raise KeyError(
                 f'Augmentation "{augment_name}" will not be applied as '
                 f'keyword argument "prob" was not defined for this augmentation.'
             )
@@ -69,7 +125,7 @@ def _process_augmentations(augmenter) -> AudioAugmentor:
                 augmentation = perturbation_types[augment_name](**augment_kwargs)
                 augmentations.append([prob, augmentation])
             except KeyError:
-                logging.error(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
+                raise KeyError(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
 
     augmenter = AudioAugmentor(perturbations=augmentations)
     return augmenter
