@@ -5,11 +5,12 @@ repeat:  &rep  2
 time_length: 8
 
 AudioToLabelDataLayer:
-    min_duration: 0.1
     sample_rate: *sample_rate
     train:
+        min_duration: 0.1
         shuffle: true
     eval:
+        min_duration: 0.0
         shuffle: false
 
 AudioToMelSpectrogramPreprocessor:
