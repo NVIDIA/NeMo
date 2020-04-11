@@ -145,7 +145,7 @@ def create_all_dags(args, neural_factory):
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
         num_classes=data_layer_train.num_classes,
         emb_sizes=spkr_params['JasperDecoderForSpkrClass']['emb_sizes'].split(','),
-        covr=True
+        covr=spkr_params['JasperDecoderForSpkrClass']['covr']
         )
     if os.path.exists(args.checkpoint_dir+'/JasperEncoder-STEP-100.pt'):
         encoder.restore_from(args.checkpoint_dir+'/JasperEncoder-STEP-100.pt')
