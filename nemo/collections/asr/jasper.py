@@ -373,7 +373,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
         self._num_classes = num_classes 
         self._pooling = StatsPoolLayer(covr=covr)
         self.norm = nn.BatchNorm1d(feat_in)
-        self.mid1 = self.affineLayer(self._feat_in,self._midEmbd1)
+        self.mid1 = self.affineLayer(self._feat_in,self._midEmbd1,learn_mean=False)
         self.mid2 = self.affineLayer(self._midEmbd1,self._midEmbd2,learn_mean=False)
         self.final = nn.Linear(self._midEmbd2,self._num_classes)
 
@@ -391,7 +391,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
     def forward(self, encoder_output):
         # encoder_output = self.norm(encoder_output)
         pool = self._pooling(encoder_output)
-        mid1 = self.mid1(pool)
+        mid1,emb1 = self.mid1(pool),self.mid1[:2](pool)
         mid2,embs = self.mid2(mid1),self.mid2[:2](mid1)
         out = self.final(mid2)
         

@@ -1,12 +1,13 @@
-model: "Jasper"
+model: "QuartzNet"
 sample_rate: &sample_rate 16000
-dropout: &drop 0.5
-repeat:  &rep  1
+dropout: &drop 0.2
+repeat:  &rep  2
+time_length: 8
 
 AudioToLabelDataLayer:
     sample_rate: *sample_rate
     train:
-        min_duration: 0.01
+        min_duration: 0.1
         shuffle: true
     eval:
         min_duration: 0.01
@@ -23,58 +24,76 @@ AudioToMelSpectrogramPreprocessor:
     dither: 0.00001
     stft_conv: false
 
+SpectrogramAugmentation:
+    rect_masks: 5
+    rect_time: 120
+    rect_freq: 50
+
+AudioAugmentor:
+    speed:
+        prob: 0.1
+    
+    gain:
+        prob: 0.1
+    
+    echo:
+        prob: 0.1
+    
+    white_noise:
+        prob: 0.1
+
 JasperEncoder:
     feat_in: *n_mels
     activation: "relu"
 
     jasper:
-        -   filters: 128
+        -   filters: 512
             repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: 512
+            repeat: *rep
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: 512
+            repeat: *rep
+            kernel: [7]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: 512
+            repeat: *rep
+            kernel: [9]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: 512
+            repeat: *rep
             kernel: [11]
             stride: [1]
             dilation: [1]
             dropout: *drop
             residual: true
 
-        -   filters: 256
+        -   filters: 512
             repeat: *rep
             kernel: [13]
             stride: [1]
             dilation: [1]
             dropout: *drop
             residual: true
-
-        -   filters: 256
-            repeat: *rep
-            kernel: [15]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-
-        -   filters: 256
-            repeat: *rep
-            kernel: [17]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-
-        -   filters: 256
-            repeat: *rep
-            kernel: [19]
-            stride: [1]
-            dilation: [1]
-            dropout: *drop
-            residual: true
-
-        -   filters: 256
-            repeat: 1
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: false
 
         -   filters: &enc_feat_out 32
             repeat: 1
@@ -86,4 +105,5 @@ JasperEncoder:
 
 JasperDecoderForSpkrClass:
     feat_in: *enc_feat_out
-    emb_sizes: 512
+    emb_sizes: 1024,1024
+
