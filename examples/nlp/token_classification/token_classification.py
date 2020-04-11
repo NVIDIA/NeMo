@@ -21,6 +21,7 @@ https://nvidia.github.io/NeMo/nlp/intro.html#named-entity-recognition
 
 import argparse
 import os
+import json
 
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.utils.data_utils
@@ -97,7 +98,9 @@ parser.add_argument(
 parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
 parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")
 
-args = parser.parse_args()
+parser = argparse.ArgumentParser(description="Token classification with pretrained BERT")
+args = get_tasks_args(parser).parse_args()
+logging.info(args)
 
 if not os.path.exists(args.data_dir):
     raise FileNotFoundError(
@@ -109,7 +112,7 @@ if not os.path.exists(args.data_dir):
 
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
-    local_rank=args.local_rank,
+    local_rank=None,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
@@ -117,23 +120,63 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
-logging.info(args)
-
 output_file = f'{nf.work_dir}/output.txt'
 
-model = nemo_nlp.nm.trainables.get_huggingface_model(
+# import sys
+# sys.path.append('/home/ebakhturina/scripts/mem_report')
+# sys.path.append('/home/ebakhturina/scripts')
+# import scripts
+# from mem_report import mem_report
+
+# sys.path.append('/home/ebakhturina/question-answering/megatron-lm')
+# import megatron
+
+if args.pretrained_model_name == "megatron":
+    import sys
+    sys.path.append('/home/ebakhturina/megatron-lm')
+    from megatron import get_args
+    from megatron.initialize import initialize_megatron
+
+    initialize_megatron(extra_args_provider=get_tasks_args)
+    args_megatron = get_args()
+    import pdb; pdb.set_trace()
+
+    if not (args.bert_config and args.bert_checkpoint):
+        raise FileNotFoundError("Both config file and the checkpoint should be provided for Megatron models.")
+    
+    with open(args.bert_config) as json_file:
+        config = json.load(json_file)
+
+    
+
+    model = nemo_nlp.nm.trainables.MegatronBERT(args=args, num_layers=config['num-layers'])
+    # import pdb; pdb.set_trace()
+    # import torch
+    # ckpt_name = '/home/ebakhturina/megatron_ckpts/bert_ckpt/345_bert_megatron.pt'
+    # ckpt = torch.load(ckpt_name)
+    # logging.info('before restore_from', mem_report())
+    # model.restore_from(args.bert_checkpoint)
+    # model.language_model.load_state_dict(ckpt['model']['language_model'])
+    # logging.info(f"Model restored from {args.bert_checkpoint}")
+    # logging.info('after restore_from', mem_report())
+    #TODO add support for other tokenizers with Megatron
+    tokenizer = nemo_nlp.data.tokenizers.NemoBertTokenizer("bert-large-uncased")
+
+else:
+    model = nemo_nlp.nm.trainables.get_huggingface_model(
     bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-)
+    )
 
-tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
-    tokenizer_name=args.tokenizer,
-    pretrained_model_name=args.pretrained_model_name,
-    tokenizer_model=args.tokenizer_model,
-)
+    tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+        tokenizer_name=args.tokenizer,
+        pretrained_model_name=args.pretrained_model_name,
+        tokenizer_model=args.tokenizer_model,
+    )
 
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
+    if args.bert_checkpoint is not None:
+        # import pdb; pdb.set_trace()
+        model.restore_from(args.bert_checkpoint)
+        logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
@@ -235,7 +278,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=250,
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
@@ -248,7 +291,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[train_loss],
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=[train_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
