@@ -39,18 +39,38 @@ FasterSpeechDataLayer_eval:
     drop_last: false
     shuffle: false
 
+#AudioToMelSpectrogramPreprocessor:
+#    window_size: 0.02
+#    window_stride: 0.01
+#    window: 'hann'
+#    normalize: null
+#    n_fft: 512
+#    features: *n_mels
+#    dither: 0.0
+#    pad_to: 16
+#    sample_rate: *sample_rate
+#    stft_conv: true
+#    preemph: null
 AudioToMelSpectrogramPreprocessor:
-    window_size: 0.02
-    window_stride: 0.01
+    sample_rate: *sample_rate  # 24k for LibriTTS
+    window_size: 0.02  # Because "n_window_size" below is set.
+    window_stride: 0.01  # Because "n_window_size" below is set.
     window: 'hann'
-    normalize: null
+    normalize: null  # Seems like it's bad for TTS.
     n_fft: 512
-    features: *n_mels
+    preemph: null
+    features: *n_mels  # 80 works good for TTS.
+    lowfreq: 0
+    highfreq: null
+    log: true
+    log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
+    log_zero_guard_value: 1e-05
     dither: 0.0
     pad_to: 16
-    sample_rate: *sample_rate
+    frame_splicing: 1
     stft_conv: true
-    preemph: null
+    pad_value: -11.52
+    mag_power: 1.0  # People use 1.0 for TTS for some reason.
 #AudioToMelSpectrogramPreprocessor:
 #    sample_rate: *sample_rate  # 24k for LibriTTS
 #    window_size: null  # Because "n_window_size" below is set.
@@ -84,26 +104,17 @@ JasperEncoder:
         # First Layers
         -   filters: 256
             repeat: 1  # First repeat is 1.
-            kernel: [11]  # Was 33 in Original QuartzNet15x5 (here and further).
+            kernel: [3]  # Was 33 in Original QuartzNet15x5 (here and further).
             stride: [1]  # Was 2 in Original QuartzNet15x5.
             dilation: [1]
             dropout: 0.0
             residual: false  # Non-Residual
             separable: true
 
-        # 3 x 256 x 13
+        # 3 x 256 x 3
         -   filters: 256
             repeat: 5
-            kernel: [13]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 256
-            repeat: 5
-            kernel: [13]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -112,45 +123,26 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [13]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
-        # 3 x 512 x 21
-        -   filters: 512
+        -   filters: 256
             repeat: 5
-            kernel: [21]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
+        # 3 x 512 x 3
         -   filters: 512
             repeat: 5
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 512
-            repeat: 5
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        # 3 x 512 x 25
-        -   filters: 512
-            repeat: 5
-            kernel: [25]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -159,7 +151,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [25]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -168,17 +160,45 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [25]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
-        # 1 x 512 x 29
+        # 3 x 512 x 3
+        -   filters: 512
+            repeat: 5
+            kernel: [3]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 5
+            kernel: [3]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 5
+            kernel: [3]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        # 1 x 512 x 3
         -   filters: 512
             repeat: 1
-            kernel: [29]
+            kernel: [3]
             stride: [1]
             dilation: [2]
             dropout: 0.0

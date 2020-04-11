@@ -36,12 +36,22 @@ logging = nemo.logging
 
 class Metric(abc.ABC):
     def clear(self) -> None:
+        """Clears cache."""
+
         pass
 
     def batch(self, tensors) -> None:
+        """Processes single batch.
+
+        We feed pytorch tensors rather then numpy ones because metrics could be calculated on GPU.
+
+        """
+
         pass
 
     def final(self) -> Any:
+        """Finalizes calculation with optional dict of values (or anything else)."""
+
         return None
 
     def log(self, tb_writer, step, prefix, final_output=None) -> None:
@@ -75,6 +85,25 @@ class Loss(Metric):
         return {self.KEY: np.array(self._values).mean()}
 
 
+class MaskUsage(Metric):
+    KEY = 'mask-usage'
+
+    def __init__(self):
+        super().__init__()
+
+        self._values = None
+
+    def clear(self) -> None:
+        self._values = []
+
+    def batch(self, tensors) -> None:
+        mask = tensors.mask
+        self._values.append(mask.sum().item() / mask.numel())
+
+    def final(self) -> Mapping[str, float]:
+        return {self.KEY: np.array(self._values).mean()}
+
+
 def metric_by(name) -> Metric:
     for cls in Metric.__subclasses__():
         if hasattr(cls, 'KEY') and cls.KEY == name:
@@ -84,36 +113,69 @@ def metric_by(name) -> Metric:
 
 
 class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
-    def __init__(self, tensors, metrics, freq, tb_writer, mu=0.99, prefix='train'):
+    def __init__(self, tensors, metrics, freq, tb_writer, mu=0.99, prefix='train', local_rank=None):
+        if (local_rank is None and tb_writer is None) or (
+            local_rank is not None and local_rank != 0 and tb_writer is not None
+        ):
+            raise ValueError(
+                "Only logging to Tensorboard in single process is supported for now (tb_writer=%s, local_rank=%s).",
+                repr(tb_writer),
+                str(local_rank),
+            )
+
         self._cache = collections.defaultdict(float)
 
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
+        for metric in metrics:
+            metric.clear()
 
         def print_func(pt_tensors):
             kv_tensors = argparse.Namespace(**dict(zip(tensors.keys(), pt_tensors)))
 
             for metric in metrics:
-                # We feed pytorch tensors rather then numpy ones because metrics could be calculated on GPU.
-                for k, v in metric(kv_tensors).items():
-                    self._cache[k] = (1 - mu) * self._cache[k] + mu * v
+                # Processes single batch for single GPU (current NeMo limitation).
+                metric.batch(kv_tensors)
 
         # noinspection PyUnusedLocal
-        def get_tb_values(*args, **kwargs):
-            output = {f'{prefix}/{k}': v for k, v in self._cache.items()}
+        def log_to_tb_func(unused1, unused2, step):
+            del unused1
+            del unused2
+
+            output = {}
+            for metric in metrics:
+                final_output = metric.final()
+                # No `mu` discounting for TB, it's already there.
+                metric.log(tb_writer, step, prefix, final_output)
+                metric.clear()
+
+                if isinstance(final_output, dict):
+                    for k, v in final_output.items():
+                        self._cache[k] = (1 - mu) * self._cache[k] + mu * v
+                        output[k] = self._cache[k]
+
+            output = {f'{prefix}/{k}': v for k, v in output.items()}
             logging.info(json.dumps(output, indent=4))
-            return list((k, np.array(v)) for k, v in output.items())
 
         super().__init__(
             tensors=list(tensors.values()),
             print_func=print_func,
-            get_tb_values=get_tb_values,
+            log_to_tb_func=log_to_tb_func,
             step_freq=freq,
             tb_writer=tb_writer,
         )
 
 
 class EvalLogger(nemo_callbacks.EvaluatorCallback):
-    def __init__(self, tensors, metrics, freq, tb_writer, prefix='eval'):
+    def __init__(self, tensors, metrics, freq, tb_writer, prefix='eval', local_rank=None):
+        if (local_rank is None and tb_writer is None) or (
+            local_rank is not None and local_rank != 0 and tb_writer is not None
+        ):
+            raise ValueError(
+                "Only logging to Tensorboard in single process is supported for now (tb_writer=%s, local_rank=%s).",
+                repr(tb_writer),
+                str(local_rank),
+            )
+
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
         for metric in metrics:
             metric.clear()

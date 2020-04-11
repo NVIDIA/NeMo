@@ -69,7 +69,7 @@ def parse_args():
         '--loss_method',
         type=str,
         choices=['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps'],
-        default='xe',
+        default='xe-steps',
         help="Method for Loss Calculation",
     )
 
@@ -96,7 +96,8 @@ class DurMetric(nemo.core.Metric):
 
         for dur_true1, dur_pred1, mask1 in zip(tensors.dur_true, tensors.dur_pred, tensors.mask):
             prefix = mask1.sum().item()
-            dur_true1, dur_pred1 = dur_true1[:prefix], dur_pred1[:prefix]
+            dur_true1 = dur_true1[:prefix]
+            dur_pred1 = dur_pred1[:prefix]
             assert dur_true1.shape == dur_true1.shape
 
             self._ss += ((dur_true1 - dur_pred1) ** 2).sum().item()

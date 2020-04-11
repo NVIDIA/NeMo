@@ -44,7 +44,7 @@ def parse_args():
         batch_size=32,
         eval_batch_size=32,
         train_freq=300,  # 1/100x
-        eval_freq=10000,  # 1/3x (Sampling process may take time.)
+        eval_freq=3000,  # 1/10x (Sampling process may take time.)
         optimizer='novograd',
         weight_decay=1e-6,
         warmup=3000,
@@ -64,8 +64,10 @@ def parse_args():
     parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type.")
 
     # Speakers
-    parser.add_argument('--speakers', type=str, required=True, help="LibriTTS speakers TSV File")
-    parser.add_argument('--d_speaker', type=int, default=64, help="Size of Speaker Embedding")
+    parser.add_argument('--speaker_table', type=str, required=True, help="LibriTTS speakers TSV table file")
+    parser.add_argument('--speaker_embs', type=str, required=True, help="LibriTTS speakers embeddings")
+    parser.add_argument('--d_speaker_emb', type=int, default=256, help="Size of speaker embedding")
+    parser.add_argument('--d_speaker', type=int, default=64, help="Size of speaker embedding projection")
 
     # Model
     parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
@@ -77,26 +79,31 @@ def parse_args():
 
 
 class AudioInspector(nemo.core.Metric):
-    def __init__(
-        self, sample_rate, n_fft, hop_length, win_length, window, power, k=3, vocoder='griffin-lim',
-    ):
+    def __init__(self, preprocessor, k=3, vocoder='griffin-lim', warmup=5000, log_step=5000):
         super().__init__()
 
         if vocoder != 'griffin-lim':
             raise ValueError("Only griffin-lim supported at this point.")
 
-        self._sample_rate = sample_rate
-        self._n_fft = n_fft
-        self._hop_length = hop_length
-        self._win_length = win_length
-        self._window = window
-        self._power = power
+        self._sample_rate = preprocessor.featurizer.sample_rate
+        self._n_fft = preprocessor.featurizer.n_fft
+        self._hop_length = preprocessor.featurizer.hop_length
+        self._win_length = preprocessor.featurizer.win_length
+        self._window = preprocessor.featurizer.window
+        self._power = preprocessor.featurizer.mag_power
         self._k = k
+        self._warmup = warmup
+        self._log_step = log_step
 
+        # Local
         self._samples = None
 
+        # Global
+        self._last_logged = -log_step  # Fake
+        self._logged_true = False
+
     def _mel_to_audio(self, mel):
-        return librosa.feature.inverse.mel_to_audio(
+        audio = librosa.feature.inverse.mel_to_audio(
             M=np.exp(mel),
             sr=self._sample_rate,
             n_fft=self._n_fft,
@@ -106,6 +113,7 @@ class AudioInspector(nemo.core.Metric):
             power=self._power,
             n_iter=50,
         )
+        return np.clip(audio, -1, 1)
 
     def clear(self) -> None:
         self._samples = ()
@@ -114,33 +122,38 @@ class AudioInspector(nemo.core.Metric):
         if len(self._samples):
             return
 
-        logging.info("Start vocoding process...")
-
         # Audio
         audios = []
-        for audio1, audio_len1 in zip(tensors.audio[: self._k], tensors.audio_len[: self._k]):
-            audios.append(audio1.cpu().numpy()[: audio_len1.cpu().numpy().item()])
+        if not self._logged_true:
+            for audio1, audio_len1 in zip(tensors.audio[: self._k], tensors.audio_len[: self._k]):
+                audio = audio1.cpu().numpy()[: audio_len1.cpu().numpy().item()]
+                audios.append(audio)
+        else:
+            audios.extend([None] * self._k)
 
         # True Mels
-        vocodeds_true, mels_true = [], []
-        for mel1, mel_len1 in zip(tensors.mel_true[: self._k], tensors.mel_len[: self._k]):
-            mel = mel1.cpu().numpy()[:, : mel_len1.cpu().numpy().item()]
-            vocodeds_true.append(self._mel_to_audio(mel))
-            mels_true.append(mel)
+        mels_true = []
+        if not self._logged_true:
+            for mel1, mel_len1 in zip(tensors.mel_true[: self._k], tensors.mel_len[: self._k]):
+                mel = mel1.cpu().numpy()[:, : mel_len1.cpu().numpy().item()]
+                mels_true.append(mel)
+        else:
+            mels_true.extend([None] * self._k)
 
         # Pred Mels
-        vocodeds_pred, mels_pred = [], []
+        mels_pred = []
         for mel1, mel_len1 in zip(tensors.mel_pred[: self._k], tensors.mel_len[: self._k]):
             mel1 = mel1.t()  # Pred tensors have another order.
-            mel = mel1.cpu().numpy()[:, : mel_len1.cpu().numpy().item()]
-            vocodeds_pred.append(self._mel_to_audio(mel))
+            mel = mel1.cpu().detach().numpy()[:, : mel_len1.cpu().numpy().item()]
             mels_pred.append(mel)
 
-        logging.info("End vocoding process.")
-
-        self._samples = audios, vocodeds_true, vocodeds_pred, mels_true, mels_pred
+        self._samples = audios, mels_true, mels_pred
 
     def log(self, tb_writer, step, prefix, samples=None) -> None:
+        if not (step >= self._warmup and step - self._last_logged >= self._log_step):
+            # Don't met conditions yet.
+            return
+
         def log_audio(key, signal):
             tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._sample_rate)
 
@@ -152,13 +165,20 @@ class AudioInspector(nemo.core.Metric):
                 dataformats='HWC',
             )
 
-        for i, (audio, vocoded_true, vocoded_pred, mel_true, mel_pred) in enumerate(zip(*self._samples)):
-            log_audio(f'{prefix}/sample{i}_audio', audio)
-            log_audio(f'{prefix}/sample{i}_vocoded-true', vocoded_true)
-            log_audio(f'{prefix}/sample{i}_vocoded-pred', vocoded_pred)
+        logging.info("Start vocoding and logging process for %s on step %s...", prefix, step)
+        for i, (audio, mel_true, mel_pred) in enumerate(zip(*self._samples)):
+            if not self._logged_true:
+                log_audio(f'{prefix}/sample{i}_audio', audio)
+                log_audio(f'{prefix}/sample{i}_vocoded-true', self._mel_to_audio(mel_true))
+                log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
 
-            log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
+            log_audio(f'{prefix}/sample{i}_vocoded-pred', self._mel_to_audio(mel_pred))
             log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred)
+        logging.info("End vocoding and logging process for %s on step %s.", prefix, step)
+
+        # At this point, we already logged true stuff at least once.
+        self._logged_true = True
+        self._last_logged = step
 
 
 class FasterSpeechGraph:
@@ -172,11 +192,13 @@ class FasterSpeechGraph:
             durs_file=args.train_durs,
             labels=labels,
             durs_type=args.durs_type,
-            speakers=args.speakers,
+            speaker_table=args.speaker_table,
+            speaker_embs=args.speaker_embs,
             batch_size=args.batch_size,
             pad_id=pad_id,
             blank_id=blank_id,
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
+            # sampler_type='super-smart',  # Promises around 0.9 mask usage on average.
             **config.FasterSpeechDataLayer_train,  # Including sample rate.
         )
 
@@ -187,7 +209,8 @@ class FasterSpeechGraph:
                 durs_file=eval_durs1,
                 labels=labels,
                 durs_type=args.durs_type,
-                speakers=args.speakers,
+                speaker_table=args.speaker_table,
+                speaker_embs=args.speaker_embs,
                 batch_size=args.eval_batch_size,
                 pad_id=pad_id,
                 blank_id=blank_id,
@@ -196,14 +219,6 @@ class FasterSpeechGraph:
             )
 
         self.preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(**config.AudioToMelSpectrogramPreprocessor)
-        self._audio_inspector = AudioInspector(
-            sample_rate=config.sample_rate,
-            n_fft=self.preprocessor.featurizer.n_fft,
-            hop_length=self.preprocessor.featurizer.hop_length,
-            win_length=self.preprocessor.featurizer.win_length,
-            window=config.AudioToMelSpectrogramPreprocessor['window'],
-            power=self.preprocessor.featurizer.mag_power,
-        )
 
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
@@ -211,7 +226,7 @@ class FasterSpeechGraph:
             pad_id=pad_id,
             jasper_kwargs=config.JasperEncoder,
             d_out=config.n_mels,
-            n_speakers=self.train_dl.n_speakers,
+            d_speaker_emb=args.d_speaker_emb,
             d_speaker=args.d_speaker,
         )
 
@@ -228,7 +243,7 @@ class FasterSpeechGraph:
             text_mask=data.text_mask,
             text_rep=data.text_rep,
             text_rep_mask=data.text_rep_mask,
-            speaker=data.speaker,
+            speaker_emb=data.speaker_emb,
         )
         train_loss = self.loss(
             mel_true=mel_true,
@@ -239,7 +254,19 @@ class FasterSpeechGraph:
         )
         callbacks.append(
             nemo.core.TrainLogger(
-                tensors=dict(loss=train_loss), metrics=['loss'], freq=args.train_freq, tb_writer=engine.tb_writer,
+                tensors=dict(
+                    loss=train_loss,
+                    mask=data.text_rep_mask,
+                    audio=data.audio,
+                    audio_len=data.audio_len,
+                    mel_true=mel_true,
+                    mel_pred=output.pred,
+                    mel_len=mel_len,
+                ),
+                metrics=['loss', 'mask-usage', AudioInspector(self.preprocessor)],
+                freq=args.train_freq,
+                tb_writer=engine.tb_writer,
+                local_rank=args.local_rank,
             )
         )
 
@@ -252,7 +279,7 @@ class FasterSpeechGraph:
                 text_mask=data.text_mask,
                 text_rep=data.text_rep,
                 text_rep_mask=data.text_rep_mask,
-                speaker=data.speaker,
+                speaker_emb=data.speaker_emb,
             )
             loss = self.loss(
                 mel_true=mel_true,
@@ -271,10 +298,11 @@ class FasterSpeechGraph:
                         mel_pred=output.pred,
                         mel_len=mel_len,
                     ),
-                    metrics=['loss', self._audio_inspector],
+                    metrics=['loss', AudioInspector(self.preprocessor)],
                     freq=args.eval_freq,
                     tb_writer=engine.tb_writer,
                     prefix=name,
+                    local_rank=args.local_rank,
                 )
             )
 

@@ -6,7 +6,7 @@ if [[ -z $1 || "$#" -ne 1 ]]; then
 fi
 
 if [ ! -f setup.py ]; then
-  echo "Script should be runned from project root."
+  echo "Script should be ran from project root."
   exit 1
 fi
 
@@ -45,7 +45,7 @@ nvidia-smi \
 --model_config=${config} \
 --tensorboard_dir=${WORKSPACE}/tb/mels/${id} \
 --train_dataset=/manifests/libritts/train-all.json \
---train_durs=/data/libridurs/libritts_original-qn15x5_24k/train-all_full-pad.npy \
+--train_durs=/data/librimeta/durs/libritts_original-qn15x5_24k/train-all_full-pad.npy \
 --eval_names dev-clean dev-other test-clean test-other \
 --eval_datasets \
 /manifests/libritts/dev-clean.json \
@@ -53,11 +53,12 @@ nvidia-smi \
 /manifests/libritts/test-clean.json \
 /manifests/libritts/test-other.json \
 --eval_durs \
-/data/libridurs/libritts_original-qn15x5_24k/dev-clean_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/dev-other_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/test-clean_full-pad.npy \
-/data/libridurs/libritts_original-qn15x5_24k/test-other_full-pad.npy \
---speakers=/manifests/libritts/speakers.tsv
+/data/librimeta/durs/libritts_original-qn15x5_24k/dev-clean_full-pad.npy \
+/data/librimeta/durs/libritts_original-qn15x5_24k/dev-other_full-pad.npy \
+/data/librimeta/durs/libritts_original-qn15x5_24k/test-clean_full-pad.npy \
+/data/librimeta/durs/libritts_original-qn15x5_24k/test-other_full-pad.npy \
+--speaker_table=/manifests/libritts/speakers.tsv \
+--speaker_embs=/data/librimeta/speaker-embs/22k.npy
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -69,6 +70,6 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 58106:/data/libritts \
   --datasetid 58404:/manifests/libritts \
-  --datasetid 59034:/data/libridurs \
+  --datasetid 59319:/data/librimeta \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

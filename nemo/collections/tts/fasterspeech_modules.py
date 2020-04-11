@@ -33,6 +33,7 @@ from nemo.core.neural_types import (
     AudioSignal,
     ChannelType,
     EmbeddedTextType,
+    EncodedRepresentation,
     LengthsType,
     MaskType,
     MelSpectrogramType,
@@ -67,14 +68,16 @@ class _Ops:
 
 
 class FasterSpeechDataset:
-    def __init__(self, audio_dataset, durs_file, durs_type='full-pad', speakers=None):
+    def __init__(self, audio_dataset, durs_file, durs_type='full-pad', speaker_table=None, speaker_embs=None):
         self._audio_dataset = audio_dataset
         self._durs = np.load(durs_file, allow_pickle=True)
         self._durs_type = durs_type
         self._speakers = None
+        self._speaker_embs = None
 
-        if speakers is not None:
-            self._speakers = {sid: i for i, sid in enumerate(pd.read_csv(speakers, sep='\t').index)}
+        if speaker_table is not None:
+            self._speakers = {sid: i for i, sid in enumerate(pd.read_csv(speaker_table, sep='\t').index)}
+            self._speaker_embs = np.load(speaker_embs, allow_pickle=True)
 
     def __getitem__(self, index):
         id_, audio, audio_len, text, text_len, speaker = self._audio_dataset[index]
@@ -92,6 +95,7 @@ class FasterSpeechDataset:
 
         if self._speakers is not None:
             example['speaker'] = self._speakers[speaker]
+            example['speaker_emb'] = torch.tensor(self._speaker_embs[example['speaker']])
 
         return example
 
@@ -99,56 +103,34 @@ class FasterSpeechDataset:
         return len(self._audio_dataset)
 
 
+class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
+    def __init__(self, *args, **kwargs):
+        self.lengths = kwargs.pop('lengths')
+        self.batch_size = kwargs.pop('batch_size')
+
+        super().__init__(*args, **kwargs)
+
+    def __iter__(self):
+        indices = list(super().__iter__())
+
+        indices.sort(key=lambda i: self.lengths[i])
+
+        batches = []
+        for i in range(0, len(indices), self.batch_size):
+            batches.append(indices[i : i + self.batch_size])
+
+        g = torch.Generator()
+        g.manual_seed(self.epoch)
+        b_indices = torch.randperm(len(batches), generator=g).tolist()
+
+        for b_i in b_indices:
+            yield from batches[b_i]
+
+
 class FasterSpeechDataLayer(DataLayerNM):
     """Data Layer for Faster Speech model.
 
     Basically, replicated behavior from AudioToText Data Layer, zipped with ground truth durations for additional loss.
-
-    Args:
-        manifests (str): Dataset parameter.
-            Path to JSON containing data.
-        durs_file (str): Path to durations arrays file.
-        durs_type: Type of durations to handle.
-        labels (list): Dataset parameter.
-            List of characters that can be output by the ASR model.
-            For Jasper, this is the 28 character set {a-z '}. The CTC blank
-            symbol is automatically added later for models using ctc.
-        batch_size (int): batch size
-        sample_rate (int): Target sampling rate for data. Audio files will be
-            resampled to sample_rate if it is not already.
-            Defaults to 16000.
-        int_values (bool): Bool indicating whether the audio file is saved as
-            int data or float data.
-            Defaults to False.
-        eos_id (id): Dataset parameter.
-            End of string symbol id used for seq2seq models.
-            Defaults to None.
-        min_duration (float): Dataset parameter.
-            All training files which have a duration less than min_duration
-            are dropped. Note: Duration is read from the manifest JSON.
-            Defaults to 0.1.
-        max_duration (float): Dataset parameter.
-            All training files which have a duration more than max_duration
-            are dropped. Note: Duration is read from the manifest JSON.
-            Defaults to None.
-        normalize_transcripts (bool): Dataset parameter.
-            Whether to use automatic text cleaning.
-            It is highly recommended to manually clean text for best results.
-            Defaults to True.
-        trim_silence (bool): Whether to use trim silence from beginning and end
-            of audio signal using librosa.effects.trim().
-            Defaults to False.
-        load_audio (bool): Dataset parameter.
-            Controls whether the dataloader loads the audio signal and
-            transcript or just the transcript.
-            Defaults to True.
-        drop_last (bool): See PyTorch DataLoader.
-            Defaults to False.
-        shuffle (bool): See PyTorch DataLoader.
-            Defaults to True.
-        num_workers (int): See PyTorch DataLoader.
-            Defaults to 0.
-        perturb_config (dict): Currently disabled.
 
     """
 
@@ -164,7 +146,8 @@ class FasterSpeechDataLayer(DataLayerNM):
             dur=NeuralType(('B', 'T'), LengthsType()),
             text_rep=NeuralType(('B', 'T'), LengthsType()),
             text_rep_mask=NeuralType(('B', 'T'), MaskType()),
-            speaker=NeuralType(('B',), EmbeddedTextType()),
+            speaker=NeuralType(('B',), EmbeddedTextType(), optional=True),
+            speaker_emb=NeuralType(('B', 'T'), EncodedRepresentation(), optional=True),
         )
 
     def __init__(
@@ -173,7 +156,8 @@ class FasterSpeechDataLayer(DataLayerNM):
         durs_file,
         labels,
         durs_type='full-pad',
-        speakers=None,
+        speaker_table=None,
+        speaker_embs=None,
         batch_size=32,
         sample_rate=16000,
         int_values=False,
@@ -189,6 +173,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         drop_last=False,
         shuffle=True,
         num_workers=0,
+        sampler_type='default',
     ):
         super().__init__()
 
@@ -209,7 +194,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             'add_speaker': True,
         }
         audio_dataset = AudioDataset(**dataset_params)
-        self._dataset = FasterSpeechDataset(audio_dataset, durs_file, durs_type, speakers)
+        self._dataset = FasterSpeechDataset(audio_dataset, durs_file, durs_type, speaker_table, speaker_embs)
         self._durs_type = durs_type
         self._pad_id = pad_id
         self._blank_id = blank_id
@@ -219,7 +204,16 @@ class FasterSpeechDataLayer(DataLayerNM):
 
         sampler = None
         if self._placement == nemo.core.DeviceType.AllGpu:
-            sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
+            if sampler_type == 'default':
+                sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
+            elif sampler_type == 'super-smart':
+                sampler = SuperSmartSampler(
+                    dataset=self._dataset,
+                    lengths=[e.duration for e in audio_dataset.collection],
+                    batch_size=batch_size,
+                )
+            else:
+                raise ValueError("Invalid sample type.")
 
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
@@ -269,16 +263,16 @@ class FasterSpeechDataLayer(DataLayerNM):
         )
         text_rep_mask = _Ops.make_mask(dur.sum(-1))
 
+        speaker, speaker_emb = None, None
         if 'speaker' in batch:
             speaker = torch.tensor(batch['speaker'], dtype=torch.long)
-        else:
-            speaker = torch.zeros(len(batch['audio']), dtype=torch.long)  # Fake Speakers
+            speaker_emb = _Ops.merge(batch['speaker_emb'], dtype=torch.float)
 
         assert audio is None or audio.shape[-1] == audio_len.max()
         assert text.shape == text_mask.shape, f'{text.shape} vs {text_mask.shape}'
         assert text.shape == dur.shape, f'{text.shape} vs {dur.shape}'
 
-        return audio, audio_len, text, text_mask, dur, text_rep, text_rep_mask, speaker
+        return audio, audio_len, text, text_mask, dur, text_rep, text_rep_mask, speaker, speaker_emb
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -294,7 +288,7 @@ class FasterSpeechDataLayer(DataLayerNM):
     @property
     def n_speakers(self):
         # noinspection PyProtectedMember
-        return len(self._dataset._speakers)
+        return len(self._dataset._speaker_table)
 
 
 class FasterSpeech(nemo_nm.TrainableNM):
@@ -309,7 +303,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
             text_mask=NeuralType(('B', 'T'), MaskType()),
             text_rep=NeuralType(('B', 'T'), LengthsType(), optional=True),
             text_rep_mask=NeuralType(('B', 'T'), MaskType(), optional=True),
-            speaker=NeuralType(('B',), EmbeddedTextType(), optional=True),
+            speaker_emb=NeuralType(('B', 'T'), EncodedRepresentation(), optional=True),
         )
 
     @property
@@ -325,17 +319,17 @@ class FasterSpeech(nemo_nm.TrainableNM):
         pad_id: int,
         jasper_kwargs: Dict[str, Any],
         d_out: int,
-        n_speakers: Optional[int] = None,
+        d_speaker_emb: Optional[int] = None,
         d_speaker: Optional[int] = None,
     ):
         super().__init__()
 
-        # Embedding for Input Text
+        # Embedding for input text
         self.text_emb = nn.Embedding(n_vocab, d_char, padding_idx=pad_id).to(self._device)
 
-        # Embedding for Speaker
-        if d_speaker is not None:
-            self.speaker_emb = nn.Embedding(n_speakers, d_speaker).to(self._device)
+        # Embedding for speaker
+        if d_speaker_emb is not None:
+            self.speaker_in = nn.Linear(d_speaker_emb, d_speaker).to(self._device)
 
         jasper_params = jasper_kwargs['jasper']
         d_enc_out = jasper_params[-1]["filters"]
@@ -343,15 +337,15 @@ class FasterSpeech(nemo_nm.TrainableNM):
 
         self.out = nn.Conv1d(d_enc_out, d_out, kernel_size=1, bias=True).to(self._device)
 
-    def forward(self, text, text_mask, text_rep=None, text_rep_mask=None, speaker=None):
+    def forward(self, text, text_mask, text_rep=None, text_rep_mask=None, speaker_emb=None):
         if text_rep is not None:
             text, text_mask = text_rep, text_rep_mask
 
         x = self.text_emb(text)  # BT => BTE
         x_len = text_mask.sum(-1)
 
-        if speaker is not None:
-            speaker_x = self.speaker_emb(speaker)  # B => BS
+        if speaker_emb is not None:
+            speaker_x = self.speaker_in(speaker_emb)  # BZ => BS
             speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
             x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
 
@@ -498,7 +492,7 @@ class FasterSpeechDurLoss(LossNM):
             dur_pred = tensors.dur_pred.argmax(-1)
             classes = torch.tensor(self._xe_steps_classes, device=dur_pred.device)
             b = classes.unsqueeze(0).unsqueeze(0).repeat(*dur_pred.shape, 1)
-            dur_pred = b.gather(-1, dur_pred.unsqueeze(-1)).squeeze()
+            dur_pred = b.gather(-1, dur_pred.unsqueeze(-1)).squeeze(-1)
         else:
             raise ValueError("Wrong Method")
 
