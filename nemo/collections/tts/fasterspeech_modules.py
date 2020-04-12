@@ -110,10 +110,32 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
 
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _local_shuffle(values, keys, window, seed):
+        g = np.random.Generator(np.random.PCG64(seed))
+
+        keys = np.array(keys)
+        kam_middle = keys[2 * window:] - keys[:- (2 * window)]
+        kam_prefix = keys[window: 2 * window] - keys[:window]
+        kam_suffix = keys[-window:] - keys[-2 * window: -window]
+        kam = np.hstack([kam_prefix, kam_middle, kam_suffix])
+        new_keys = keys + g.uniform(-kam, kam, size=keys.shape)
+
+        kvs = list(zip(new_keys, values))
+        kvs.sort()
+
+        return [v for _, v in kvs]
+
     def __iter__(self):
         indices = list(super().__iter__())
 
         indices.sort(key=lambda i: self.lengths[i])
+
+        # Local shuffle (to introduce a little bit of randomness)
+        lens = [self.lengths[i] for i in indices]
+        # For lengths over workers to be notably different, coef should be around 1000. But smaller values works for
+        # shuffling as well.
+        indices = self._local_shuffle(indices, lens, 10 * self.batch_size, hash((self.rank, self.epoch)))
 
         batches = []
         for i in range(0, len(indices), self.batch_size):
@@ -328,8 +350,10 @@ class FasterSpeech(nemo_nm.TrainableNM):
         self.text_emb = nn.Embedding(n_vocab, d_char, padding_idx=pad_id).to(self._device)
 
         # Embedding for speaker
-        if d_speaker_emb is not None:
+        if d_speaker_emb is not None and d_speaker_emb != d_speaker:
             self.speaker_in = nn.Linear(d_speaker_emb, d_speaker).to(self._device)
+        else:
+            self.speaker_in = None
 
         jasper_params = jasper_kwargs['jasper']
         d_enc_out = jasper_params[-1]["filters"]
@@ -345,7 +369,12 @@ class FasterSpeech(nemo_nm.TrainableNM):
         x_len = text_mask.sum(-1)
 
         if speaker_emb is not None:
-            speaker_x = self.speaker_in(speaker_emb)  # BZ => BS
+            # BZ => BS
+            if self.speaker_in is not None:
+                speaker_x = self.speaker_in(speaker_emb)
+            else:
+                speaker_x = speaker_emb
+
             speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
             x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
 
@@ -383,7 +412,7 @@ class LenSampler(NonTrainableNM):
             mel_len=NeuralType(('B',), LengthsType()),
         )
 
-    def __init__(self, max_len=1000):
+    def __init__(self, max_len=1200):
         super().__init__()
 
         self._max_len = max_len

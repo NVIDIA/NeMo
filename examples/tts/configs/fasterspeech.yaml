@@ -93,6 +93,9 @@ AudioToMelSpectrogramPreprocessor:
 #    pad_value: -11.52
 #    mag_power: 1.0  # People use 1.0 for TTS for some reason.
 
+LenSampler:
+    max_len: 1200  # Able to fit 64 batch size with around this number.
+
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
 JasperEncoder:
     activation: "relu"

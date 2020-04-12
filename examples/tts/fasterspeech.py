@@ -67,10 +67,10 @@ def parse_args():
     parser.add_argument('--speaker_table', type=str, required=True, help="LibriTTS speakers TSV table file")
     parser.add_argument('--speaker_embs', type=str, required=True, help="LibriTTS speakers embeddings")
     parser.add_argument('--d_speaker_emb', type=int, default=256, help="Size of speaker embedding")
-    parser.add_argument('--d_speaker', type=int, default=64, help="Size of speaker embedding projection")
+    parser.add_argument('--d_speaker', type=int, default=256, help="Size of speaker embedding projection")
 
     # Model
-    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
+    parser.add_argument('--d_char', type=int, default=256, help="Size of input char embedding")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
@@ -194,7 +194,7 @@ class FasterSpeechGraph:
             pad_id=pad_id,
             blank_id=blank_id,
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-            # sampler_type='super-smart',  # Promises around 0.9 mask usage on average.
+            sampler_type='super-smart',  # Promises around 0.9 mask usage on average.
             **config.FasterSpeechDataLayer_train,  # Including sample rate.
         )
 
@@ -216,7 +216,7 @@ class FasterSpeechGraph:
 
         self.preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(**config.AudioToMelSpectrogramPreprocessor)
 
-        self.sampler = nemo_tts.LenSampler()
+        self.sampler = nemo_tts.LenSampler(**config.LenSampler)
 
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
