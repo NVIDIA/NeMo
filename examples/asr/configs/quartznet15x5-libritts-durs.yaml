@@ -26,7 +26,7 @@ AudioToTextDataLayer:
 
 # This config is a result of taking good TTS one and adjust it to ASR training.
 AudioToMelSpectrogramPreprocessor:
-    sample_rate: *sample_rate  # 24k for LibriTTS
+#    sample_rate: *sample_rate  # 24k for LibriTTS
     window_size: null  # Because "n_window_size" below is set.
     window_stride: null  # Because "n_window_size" below is set.
     n_window_size: 512

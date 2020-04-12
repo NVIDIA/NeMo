@@ -41,7 +41,7 @@ def parse_args():
         # `x = 30000`
         amp_opt_level='O0',
         model_config='configs/fasterspeech.yaml',
-        batch_size=32,
+        batch_size=64,
         eval_batch_size=32,
         train_freq=300,  # 1/100x
         eval_freq=3000,  # 1/10x (Sampling process may take time.)
@@ -79,21 +79,17 @@ def parse_args():
 
 
 class AudioInspector(nemo.core.Metric):
-    def __init__(self, preprocessor, k=3, vocoder='griffin-lim', warmup=5000, log_step=5000):
+    def __init__(self, preprocessor, k=3, vocoder='griffin-lim', warmup=5000, log_step=5000, shuffle=False):
         super().__init__()
 
         if vocoder != 'griffin-lim':
             raise ValueError("Only griffin-lim supported at this point.")
 
-        self._sample_rate = preprocessor.featurizer.sample_rate
-        self._n_fft = preprocessor.featurizer.n_fft
-        self._hop_length = preprocessor.featurizer.hop_length
-        self._win_length = preprocessor.featurizer.win_length
-        self._window = preprocessor.featurizer.window
-        self._power = preprocessor.featurizer.mag_power
+        self._featurizer = preprocessor.featurizer
         self._k = k
         self._warmup = warmup
         self._log_step = log_step
+        self._shuffle = shuffle
 
         # Local
         self._samples = None
@@ -105,12 +101,12 @@ class AudioInspector(nemo.core.Metric):
     def _mel_to_audio(self, mel):
         audio = librosa.feature.inverse.mel_to_audio(
             M=np.exp(mel),
-            sr=self._sample_rate,
-            n_fft=self._n_fft,
-            hop_length=self._hop_length,
-            win_length=self._win_length,
-            window=self._window,
-            power=self._power,
+            sr=self._featurizer.sample_rate,
+            n_fft=self._featurizer.n_fft,
+            hop_length=self._featurizer.hop_length,
+            win_length=self._featurizer.win_length,
+            window=self._featurizer.window,
+            power=self._featurizer.mag_power,
             n_iter=50,
         )
         return np.clip(audio, -1, 1)
@@ -155,7 +151,7 @@ class AudioInspector(nemo.core.Metric):
             return
 
         def log_audio(key, signal):
-            tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._sample_rate)
+            tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._featurizer.sample_rate)
 
         def log_mel(key, mel):
             tb_writer.add_image(
@@ -167,7 +163,7 @@ class AudioInspector(nemo.core.Metric):
 
         logging.info("Start vocoding and logging process for %s on step %s...", prefix, step)
         for i, (audio, mel_true, mel_pred) in enumerate(zip(*self._samples)):
-            if not self._logged_true:
+            if self._shuffle or not self._logged_true:
                 log_audio(f'{prefix}/sample{i}_audio', audio)
                 log_audio(f'{prefix}/sample{i}_vocoded-true', self._mel_to_audio(mel_true))
                 log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
@@ -220,6 +216,8 @@ class FasterSpeechGraph:
 
         self.preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(**config.AudioToMelSpectrogramPreprocessor)
 
+        self.sampler = nemo_tts.LenSampler()
+
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
             d_char=args.d_char,
@@ -238,32 +236,23 @@ class FasterSpeechGraph:
         # Train
         data = self.train_dl()
         mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
-        output = self.model(
-            text=data.text,
-            text_mask=data.text_mask,
-            text_rep=data.text_rep,
-            text_rep_mask=data.text_rep_mask,
-            speaker_emb=data.speaker_emb,
+        sample = self.sampler(
+            text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, mel_true=mel_true, mel_len=mel_len,
         )
-        train_loss = self.loss(
-            mel_true=mel_true,
-            mel_pred=output.pred,
-            mel_len=mel_len,
-            dur_true=data.dur,
-            text_rep_mask=data.text_rep_mask,
-        )
+        output = self.model(text_rep=sample.text_rep, text_rep_mask=sample.text_rep_mask, speaker_emb=data.speaker_emb)
+        train_loss = self.loss(mel_true=sample.mel_true, mel_pred=output.pred, text_rep_mask=sample.text_rep_mask)
         callbacks.append(
             nemo.core.TrainLogger(
                 tensors=dict(
                     loss=train_loss,
-                    mask=data.text_rep_mask,
+                    mask=sample.text_rep_mask,
                     audio=data.audio,
                     audio_len=data.audio_len,
-                    mel_true=mel_true,
+                    mel_true=sample.mel_true,
                     mel_pred=output.pred,
-                    mel_len=mel_len,
+                    mel_len=sample.mel_len,
                 ),
-                metrics=['loss', 'mask-usage', AudioInspector(self.preprocessor)],
+                metrics=['loss', 'mask-usage', AudioInspector(self.preprocessor, shuffle=True)],
                 freq=args.train_freq,
                 tb_writer=engine.tb_writer,
                 local_rank=args.local_rank,
@@ -275,19 +264,9 @@ class FasterSpeechGraph:
             data = eval_dl()
             mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
             output = self.model(
-                text=data.text,
-                text_mask=data.text_mask,
-                text_rep=data.text_rep,
-                text_rep_mask=data.text_rep_mask,
-                speaker_emb=data.speaker_emb,
+                text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, speaker_emb=data.speaker_emb,
             )
-            loss = self.loss(
-                mel_true=mel_true,
-                mel_pred=output.pred,
-                mel_len=mel_len,
-                dur_true=data.dur,
-                text_rep_mask=data.text_rep_mask,
-            )
+            loss = self.loss(mel_true=mel_true, mel_pred=output.pred, text_rep_mask=data.text_rep_mask,)
             callbacks.append(
                 nemo.core.EvalLogger(
                     tensors=dict(

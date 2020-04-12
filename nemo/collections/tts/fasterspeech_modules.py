@@ -25,7 +25,7 @@ from torch.nn import functional as F
 
 import nemo
 from nemo.backends.pytorch import nm as nemo_nm
-from nemo.backends.pytorch.nm import DataLayerNM, LossNM
+from nemo.backends.pytorch.nm import DataLayerNM, LossNM, NonTrainableNM
 from nemo.collections import asr as nemo_asr
 from nemo.collections import tts as nemo_tts
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer
@@ -41,7 +41,7 @@ from nemo.core.neural_types import (
 )
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'FasterSpeechDurLoss', 'FasterSpeechMelLoss']
+__all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'LenSampler', 'FasterSpeechDurLoss', 'FasterSpeechMelLoss']
 
 
 class _Ops:
@@ -299,8 +299,8 @@ class FasterSpeech(nemo_nm.TrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports."""
         return dict(
-            text=NeuralType(('B', 'T'), EmbeddedTextType()),
-            text_mask=NeuralType(('B', 'T'), MaskType()),
+            text=NeuralType(('B', 'T'), EmbeddedTextType(), optional=True),
+            text_mask=NeuralType(('B', 'T'), MaskType(), optional=True),
             text_rep=NeuralType(('B', 'T'), LengthsType(), optional=True),
             text_rep_mask=NeuralType(('B', 'T'), MaskType(), optional=True),
             speaker_emb=NeuralType(('B', 'T'), EncodedRepresentation(), optional=True),
@@ -337,7 +337,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
 
         self.out = nn.Conv1d(d_enc_out, d_out, kernel_size=1, bias=True).to(self._device)
 
-    def forward(self, text, text_mask, text_rep=None, text_rep_mask=None, speaker_emb=None):
+    def forward(self, text=None, text_mask=None, text_rep=None, text_rep_mask=None, speaker_emb=None):
         if text_rep is not None:
             text, text_mask = text_rep, text_rep_mask
 
@@ -356,6 +356,51 @@ class FasterSpeech(nemo_nm.TrainableNM):
         pred = self.out(pred).transpose(-1, -2)  # BTO
 
         return pred, pred_len
+
+
+class LenSampler(NonTrainableNM):
+    """Subsample data based on length to fit in bigger batches."""
+
+    @property
+    @add_port_docs
+    def input_ports(self):
+        """Returns definitions of module input ports."""
+        return dict(
+            text_rep=NeuralType(('B', 'T'), LengthsType()),
+            text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+            mel_true=NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            mel_len=NeuralType(('B',), LengthsType()),
+        )
+
+    @property
+    @add_port_docs
+    def output_ports(self):
+        """Returns definitions of module input ports."""
+        return dict(
+            text_rep=NeuralType(('B', 'T'), LengthsType()),
+            text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+            mel_true=NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            mel_len=NeuralType(('B',), LengthsType()),
+        )
+
+    def __init__(self, max_len=1000):
+        super().__init__()
+
+        self._max_len = max_len
+
+    def forward(self, text_rep, text_rep_mask, mel_true, mel_len):
+        # Optimization
+        if mel_len.max().item() <= self._max_len:
+            return text_rep, text_rep_mask, mel_true, mel_len
+
+        inds = np.random.randint(np.maximum(mel_len.cpu().numpy() - self._max_len, 0) + 1)
+
+        text_rep = torch.stack([b1[i : i + self._max_len] for i, b1 in zip(inds, text_rep)])
+        text_rep_mask = torch.stack([b1[i : i + self._max_len] for i, b1 in zip(inds, text_rep_mask)])
+        mel_true = torch.stack([b1[:, i : i + self._max_len] for i, b1 in zip(inds, mel_true)])
+        mel_len = torch.clamp(mel_len, max=self._max_len)
+
+        return text_rep, text_rep_mask, mel_true, mel_len
 
 
 class FasterSpeechDurLoss(LossNM):
@@ -513,9 +558,9 @@ class FasterSpeechMelLoss(LossNM):
         return dict(
             mel_true=NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             mel_pred=NeuralType(('B', 'T', 'D'), ChannelType()),
-            mel_len=NeuralType(('B',), LengthsType()),
-            dur_true=NeuralType(('B', 'T'), LengthsType()),
             text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+            mel_len=NeuralType(('B',), LengthsType(), optional=True),
+            dur_true=NeuralType(('B', 'T'), LengthsType(), optional=True),
         )
 
     @property
@@ -529,9 +574,10 @@ class FasterSpeechMelLoss(LossNM):
 
         self._reduction = reduction
 
-    def _loss_function(self, mel_true, mel_pred, mel_len, dur_true, text_rep_mask):
-        if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, text_rep_mask.sum(-1)):
-            raise ValueError("Wrong mel length calculation.")
+    def _loss_function(self, mel_true, mel_pred, text_rep_mask, mel_len=None, dur_true=None):
+        if mel_len is not None and dur_true is not None:
+            if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, text_rep_mask.sum(-1)):
+                raise ValueError("Wrong mel length calculation.")
 
         loss = F.mse_loss(mel_pred, mel_true.transpose(-1, -2), reduction='none').mean(-1)
 

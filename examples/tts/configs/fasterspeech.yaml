@@ -1,7 +1,6 @@
 model: "FasterSpeech"
 sample_rate: &sample_rate 24000
 n_mels: &n_mels 64
-#num_mels: &num_mels 80
 labels: [
   # Space
     ' ',
@@ -26,7 +25,7 @@ labels: [
 
 FasterSpeechDataLayer_train:
     sample_rate: *sample_rate
-    max_duration: 20.0  # ~= -30h. This wasn't applied for inferred durations.
+#    max_duration: 20.0  # ~= -30h. This wasn't applied for inferred durations.
     normalize_transcripts: true
     trim_silence: true
     drop_last: true

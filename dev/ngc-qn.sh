@@ -40,7 +40,7 @@ nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
---num_epochs=150 \
+--num_epochs=300 \
 --eval_batch_size=32 \
 --model_config=${config} \
 --checkpoint_dir=${RESULT} \
