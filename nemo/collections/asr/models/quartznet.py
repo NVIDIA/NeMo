@@ -14,12 +14,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Dict, Iterable, List, Optional, Set, Tuple
-
+import os
 import nemo
+from nemo import logging
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Set, Tuple
+from ..jasper import JasperEncoder, JasperDecoderForCTC
+from ..audio_preprocessing import AudioPreprocessor, SpectrogramAugmentation
 from nemo.core import JarvisModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
-
+from nemo.utils import maybe_download_from_cloud
 
 class QuartzNet(JarvisModel):
     def __init__(
@@ -44,10 +47,10 @@ class QuartzNet(JarvisModel):
 
     def __instantiate_modules(
         self,
-        preprocessor: nemo.collections.asr.AudioPreprocessor,
-        encoder: nemo.collections.asr.JasperEncoder,
-        decoder: nemo.collections.asr.JasperDecoderForCTC,
-        spec_augmentation: Optional[nemo.collections.asr.SpectrogramAugmentation] = None,
+        preprocessor: AudioPreprocessor,
+        encoder: JasperEncoder,
+        decoder: JasperDecoderForCTC,
+        spec_augmentation: Optional[SpectrogramAugmentation] = None,
     ):
         # Record all modules
         self._modules = []
@@ -102,6 +105,7 @@ class QuartzNet(JarvisModel):
             retrieve pre-trained model's weights (pass it as
             pretrained_model_name argument to the module's constructor)
         """
+        logging.warning("THIS METHOD IS NOT DONE YET")
         result = []
         enbase = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5-En-BASE",
@@ -112,13 +116,47 @@ class QuartzNet(JarvisModel):
             description="This is a checkpoint for the QuartzNet 15x5 model that was trained in NeMo "
             "on five datasets: LibriSpeech, Mozilla Common Voice, WSJ, Fisher, "
             "and Switchboard.",
+            parameters='',
+        )
+        zhbase = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5-Zh-BASE",
+            location="",
+            description="",
+            parameters='',
         )
         result.append(enbase)
+        result.append(zhbase)
         return result
 
     @staticmethod
-    def from_pretrained(model_info: PretrainedModelInfo) -> NeuralModule:
-        pass
+    def from_pretrained(model_info) -> Optional[NeuralModule]:
+        # Create destination folder:
+        logging.warning("THIS METHOD IS NOT DONE YET")
+        nfname = f".nemo_files/NEMO_{nemo.__version__}/{str(model_info)}"
+        home_folder = Path.home()
+        dest_dir = os.path.join(home_folder, nfname)
+
+        url = "https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/"
+        maybe_download_from_cloud(url=url,
+                                  filename="JasperEncoder-STEP-243800.pt",
+                                  dest_dir=dest_dir)
+        maybe_download_from_cloud(url=url,
+                                  filename="JasperDecoderForCTC-STEP-243800.pt",
+                                  dest_dir=dest_dir)
+        maybe_download_from_cloud(url=url,
+                                  filename="JasperDecoderForCTC-STEP-243800.pt",
+                                  dest_dir=dest_dir)
+        maybe_download_from_cloud(url="https://nemo-public.s3.us-east-2.amazonaws.com/",
+                                  filename="qn.yaml",
+                                  dest_dir=dest_dir)
+        logging.info("Instantiating model from pre-trained checkpoint")
+        qn = QuartzNet.import_from_config(config_file=os.path.join(dest_dir, "qn.yaml"))
+        logging.info("Model instantiated with pre-trained weights")
+        return qn
+
+    def deploy_to_jarvis(self, output: str):
+        logging.warning("THIS METHOD IS NOT DONE YET")
+
 
     @property
     def modules(self) -> Iterable[NeuralModule]:

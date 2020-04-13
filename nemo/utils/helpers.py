@@ -2,7 +2,6 @@
 import functools
 import glob
 import os
-import tarfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
@@ -12,9 +11,6 @@ import wget
 
 import nemo
 from nemo.utils import logging
-
-# logging = nemo.logging
-
 
 def rgetattr(obj, attr, *args):
     def _getattr(obj, attr):
@@ -124,7 +120,7 @@ def get_cuda_device(placement):
 #                                          placement=device)
 
 
-def maybe_download_from_cloud(url, filename) -> str:
+def maybe_download_from_cloud(url, filename, dest_dir=None) -> str:
     """
     Helper function to download pre-trained weights from the cloud
     Args:
@@ -137,29 +133,36 @@ def maybe_download_from_cloud(url, filename) -> str:
         checkpoints are
         else - empty string
     """
-    try:
+    #try:
+    if dest_dir is None:
         nfname = ".nemo_files"
         # check if ~/.nemo_files exists, if not - create
         home_folder = Path.home()
         nf_absname = os.path.join(home_folder, nfname)
-        if not os.path.exists(nf_absname):
-            os.mkdir(nf_absname)
-        # check if thing is already downloaded and unpacked
-        if filename.endswith('.tar.gz'):
-            name = filename[:-7]
-        else:
-            name = filename
-        destination = os.path.join(nf_absname, name)
-        if os.path.exists(destination):
-            return str(destination)
-        # download file
-        wget.download(url + name + ".tar.gz", str(nf_absname))
-        tf = tarfile.open(os.path.join(nf_absname, name + ".tar.gz"))
-        tf.extractall(nf_absname)
-        if os.path.exists(destination):
-            return destination
-        else:
-            return ""
-    except (FileNotFoundError, ConnectionError, OSError):
-        logging.info(f"Could not obtain {filename} from the cloud")
+    else:
+        nf_absname = dest_dir
+
+    if not os.path.exists(nf_absname):
+        os.makedirs(nf_absname)
+    # check if thing is already downloaded and unpacked
+    if filename.endswith('.tar.gz'):
+        name = filename[:-7]
+    else:
+        name = filename
+    destination = os.path.join(nf_absname, name)
+    if os.path.exists(destination):
+        logging.info(f"Found existing object {destination}. Re-using")
+        return str(destination)
+    # download file
+    wget_uri = url + name
+    logging.info(f"Downloading from: {wget_uri} to {str(nf_absname)}")
+    wget.download(wget_uri, str(nf_absname))
+    # tf = tarfile.open(os.path.join(nf_absname, name + ".tar.gz"))
+    # tf.extractall(nf_absname)
+    if os.path.exists(destination):
+        return destination
+    else:
         return ""
+    # except (FileNotFoundError, ConnectionError, OSError):
+    #     logging.info(f"Could not obtain {filename} from the cloud")
+    #     return ""

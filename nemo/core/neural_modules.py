@@ -730,7 +730,7 @@ class NeMoModel(NeuralModule):
 
     @staticmethod
     @abstractmethod
-    def from_pretrained(model_info: PretrainedModelInfo) -> NeuralModule:
+    def from_pretrained(model_info) -> NeuralModule:
         pass
 
     @property

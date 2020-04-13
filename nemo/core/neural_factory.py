@@ -49,6 +49,7 @@ class DeploymentFormat(Enum):
     TORCHSCRIPT = 2
     ONNX = 3
     TRTONNX = 4
+    JARVIS = 5
 
 
 class Backend(Enum):
@@ -615,6 +616,12 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
+        if d_format == DeploymentFormat.JARVIS:
+            logging.info("Exporting model to Jarvis.")
+            module.deploy_to_jarvis(output=output)
+            logging.info(f"Exported to {output}")
+            return
+
         module._prepare_for_deployment()
 
         return self._trainer.deployment_export(
