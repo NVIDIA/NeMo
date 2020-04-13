@@ -24,6 +24,20 @@ from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
+import sys
+sys.path.append('/home/ebakhturina/megatron-lm')
+from megatron.model import language_model
+from megatron.model.language_model import get_language_model
+from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+from megatron.model.utils import init_method_normal, scaled_init_method_normal
+from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+from megatron.model.language_model import get_language_model
+from megatron.model.utils import get_linear_layer
+from megatron.model.utils import init_method_normal, scaled_init_method_normal
+
+from megatron import get_args
+
+
 __all__ = ['MegatronBERT']
 
 
@@ -78,26 +92,10 @@ class MegatronBERT(TrainableNM):
          num_tokentypes=2):
 
         super().__init__()
-        import sys
-        sys.path.append('/home/ebakhturina/megatron-lm')
-        from megatron.model import language_model
-        from megatron.model.language_model import get_language_model
-        from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-        from megatron.model.utils import init_method_normal, scaled_init_method_normal
-
-        
+    
         init_method = init_method_normal(init_method_std)
-
-        from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-        from megatron.model.language_model import get_language_model
-        from megatron.model.utils import get_linear_layer
-        from megatron.model.utils import init_method_normal, scaled_init_method_normal
-
-        import pdb; pdb.set_trace()
-        from megatron import get_args
-        args = get_args()
-        
-        self.language_model = get_language_model(
+          
+        self.language_model, _ = get_language_model(
             attention_mask_func=bert_attention_mask_func,
             num_tokentypes=num_tokentypes,
             add_pooler=True,
@@ -105,10 +103,8 @@ class MegatronBERT(TrainableNM):
             scaled_init_method=scaled_init_method_normal(init_method_std,
                                                          num_layers))
 
-        import pdb; pdb.set_trace()
-
         self.language_model.to(self._device)
-        self._hidden_size = hidden_size
+        self._hidden_size = self.language_model.hidden_size
 
     @property
     def hidden_size(self):
@@ -139,6 +135,22 @@ class MegatronBERT(TrainableNM):
         #                                       position_ids,
         #                                       extended_attention_mask,
         #                                       tokentype_ids=token_type_ids)
-        # nemo.logging.info(mem_report())
 
+        extended_attention_mask = bert_extended_attention_mask(
+            attention_mask, next(self.language_model.parameters()).dtype)
+        position_ids = bert_position_ids(input_ids)
+
+        sequence_output, pooled_output = self.language_model(input_ids,
+                                               position_ids,
+                                               extended_attention_mask,
+                                               tokentype_ids=token_type_ids)
+
+        # # Output.
+        # classification_output = self.classification_dropout(pooled_output)
+        # classification_logits = self.classification_head(classification_output)
+
+        # # Reshape back to separate choices.
+        # classification_logits = classification_logits.view(-1, self.num_classes)
+        # nemo.logging.info(mem_report())
+        # import pdb; pdb.set_trace()
         return sequence_output
