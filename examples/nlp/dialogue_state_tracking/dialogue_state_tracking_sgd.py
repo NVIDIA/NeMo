@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='Schema_guided_dst')
 
 parser.add_argument(
     "--max_seq_length",
-    default=80,
+    default=128,
     type=int,
     help="The maximum total input sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
@@ -165,10 +165,25 @@ parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
 )
 
+parser.add_argument(
+    "--embedding_dimension",
+    default=768,
+    type=int,
+    help="Embedding size of the model",
+)
+
 args = parser.parse_args()
 
 if args.debug_mode:
     logging.setLevel(10)
+
+if args.task_name == "multiwoz":
+    schema_config = {"MAX_NUM_CAT_SLOT": 9, "MAX_NUM_NONCAT_SLOT": 4, "MAX_NUM_VALUE_PER_CAT_SLOT": 50, "MAX_NUM_INTENT": 1}
+else:
+    schema_config = {"MAX_NUM_CAT_SLOT": 6, "MAX_NUM_NONCAT_SLOT": 12, "MAX_NUM_VALUE_PER_CAT_SLOT": 11, "MAX_NUM_INTENT": 4}
+
+schema_config["EMBEDDING_DIMENSION"] = args.embedding_dimension
+schema_config["MAX_SEQ_LENGTH"] = args.max_seq_length
 
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
@@ -203,9 +218,8 @@ hidden_size = pretrained_bert_model.hidden_size
 schema_preprocessor = SchemaPreprocessor(
     data_dir=args.data_dir,
     schema_embedding_dir=args.schema_embedding_dir,
-    max_seq_length=args.max_seq_length,
+    schema_config=schema_config,
     tokenizer=tokenizer,
-    embedding_dim=hidden_size,
     bert_model=pretrained_bert_model,
     datasets=['train', args.eval_dataset],
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
@@ -217,8 +231,8 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
     task_name=args.task_name,
     dstc8_data_dir=args.data_dir,
     dialogues_example_dir=args.dialogues_example_dir,
+    schema_config=schema_config,
     tokenizer=tokenizer,
-    max_seq_length=args.max_seq_length,
     datasets=['train', args.eval_dataset],
     overwrite_dial_files=args.overwrite_dial_files,
 )

@@ -56,15 +56,26 @@ class SchemaPreprocessor:
         self,
         data_dir,
         schema_embedding_dir,
-        max_seq_length,
+        schema_config,
         tokenizer,
-        embedding_dim,
         bert_model,
         datasets,
         overwrite_schema_emb_files,
         bert_ckpt_dir,
         nf,
     ):
+
+        # Dimension of the embedding for intents, slots and categorical slot values in
+        # Maximum allowed number of categorical trackable slots for a service.
+        self.schema_config = schema_config.copy()
+        # self.MAX_NUM_CAT_SLOT = config["MAX_NUM_CAT_SLOT"]
+        # # Maximum allowed number of non-categorical trackable slots for a service.
+        # self.MAX_NUM_NONCAT_SLOT = config["MAX_NUM_NONCAT_SLOT"]
+        # # Maximum allowed number of values per categorical trackable slot.
+        # self.MAX_NUM_VALUE_PER_CAT_SLOT = config["MAX_NUM_VALUE_PER_CAT_SLOT"]
+        # # Maximum allowed number of intents for a service.
+        # self.MAX_NUM_INTENT = config["MAX_NUM_INTENT"]
+
         self.schemas_dict = {}
         self._schema_embedding_dir = schema_embedding_dir
         os.makedirs(schema_embedding_dir, exist_ok=True)
@@ -77,12 +88,13 @@ class SchemaPreprocessor:
                 logging.info(f"Start generating the schema embeddings for {dataset_split} dataset.")
                 # create schema embedding if no file exists
                 schema_json_path = os.path.join(data_dir, dataset_split, "schema.json")
+
+                dataset_params = {"schema_config": schema_config, "tokenizer": tokenizer, "input_file": schema_json_path}
                 emb_datalayer = BertInferDataLayer(
                     dataset_type=SchemaEmbeddingDataset,
-                    tokenizer=tokenizer,
-                    max_seq_length=max_seq_length,
-                    input_file=schema_json_path,
-                    embedding_dim=embedding_dim,
+                    dataset_params=dataset_params,
+                    batch_size=1,
+                    shuffle=False,
                 )
 
                 input_ids, input_mask, input_type_ids = emb_datalayer()
