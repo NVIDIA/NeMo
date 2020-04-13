@@ -17,6 +17,7 @@
 # Modified from bert.extract_features
 
 import collections
+import random
 import re
 
 import numpy as np
@@ -259,11 +260,12 @@ class SchemaEmbeddingDataset(Dataset):
 
         return features
 
-    def _populate_schema_embeddings(self, schema_embeddings, hidden_states):
+    def _populate_schema_embeddings(self, schema_embeddings, hidden_states, mode):
         """
         Populate all schema embeddings with BERT embeddings.
         """
         completed_services = set()
+        batch_size, seq_len, hidden_size = hidden_states[0].shape
 
         for idx in range(len(self)):
             service_id = self.features['service_id'][idx]
@@ -275,8 +277,18 @@ class SchemaEmbeddingDataset(Dataset):
             tensor_name = self.features["embedding_tensor_name"][idx]
             emb_mat = schema_embeddings[service_id][tensor_name]
 
-            # Obtain the encoding of the [CLS] token.
-            embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]
+            if mode == 'random':
+                # randomly initialize schema embeddings
+                random_token = random.randint(0, seq_len - 1)
+                embedding = [round(float(x), 6) for x in hidden_states[0][idx, random_token, :].flat]
+            elif mode == 'last_layer_average':
+                # Obtain the encoding of the [CLS] token.
+                embedding = [round(float(x), 6) for x in np.mean(hidden_states[0][idx, :], 0).flat]
+            elif mode == 'baseline':
+                # Obtain the encoding of the [CLS] token.
+                embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]
+            else:
+                raise ValueError(f'Mode {mode} for generation schema embeddings is not supported')
             intent_or_slot_id = self.features['intent_or_slot_id'][idx]
             value_id = self.features['value_id'][idx]
 
@@ -285,7 +297,7 @@ class SchemaEmbeddingDataset(Dataset):
             else:
                 emb_mat[intent_or_slot_id] = embedding
 
-    def save_embeddings(self, bert_hidden_states, output_file):
+    def save_embeddings(self, bert_hidden_states, output_file, mode):
         """Generate schema element embeddings and save it as a numpy file."""
         schema_embeddings = []
         max_num_intent = data_utils.MAX_NUM_INTENT
@@ -307,7 +319,7 @@ class SchemaEmbeddingDataset(Dataset):
             )
 
         # Populate the embeddings based on bert inference results and save them.
-        self._populate_schema_embeddings(schema_embeddings, bert_hidden_states)
+        self._populate_schema_embeddings(schema_embeddings, bert_hidden_states, mode)
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         if master_device:
