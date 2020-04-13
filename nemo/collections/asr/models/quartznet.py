@@ -14,9 +14,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+
+
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+from .. import AudioPreprocessor, JasperDecoderForCTC, JasperEncoder, SpectrogramAugmentation
 from nemo.core import JarvisModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
 
 
@@ -43,10 +45,10 @@ class QuartzNet(JarvisModel):
 
     def __instantiate_modules(
         self,
-        preprocessor: nemo_asr.AudioPreprocessor,
-        encoder: nemo_asr.JasperEncoder,
-        decoder: nemo_asr.JasperDecoderForCTC,
-        spec_augmentation: Optional[nemo_asr.SpectrogramAugmentation] = None,
+        preprocessor: AudioPreprocessor,
+        encoder: JasperEncoder,
+        decoder: JasperDecoderForCTC,
+        spec_augmentation: Optional[SpectrogramAugmentation] = None,
     ):
         # Record all modules
         self._modules = []
