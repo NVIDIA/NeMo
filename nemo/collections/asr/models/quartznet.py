@@ -18,7 +18,7 @@
 
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-from .. import AudioPreprocessor, JasperDecoderForCTC, JasperEncoder, SpectrogramAugmentation
+from nemo.collections.asr import AudioPreprocessor, JasperDecoderForCTC, JasperEncoder, SpectrogramAugmentation
 from nemo.core import JarvisModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
 
 
@@ -92,6 +92,30 @@ class QuartzNet(JarvisModel):
     @property
     def num_weights(self):
         return self._encoder.num_weights + self._decoder.num_weights
+
+    @staticmethod
+    def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
+        """List all available pre-trained models (e.g. weights) for QuartzNet.
+
+        Returns:
+            A list of PretrainedModelInfo tuples.
+            The pretrained_model_name field of the tuple can be used to
+            retrieve pre-trained model's weights (pass it as
+            pretrained_model_name argument to the module's constructor)
+        """
+        result = []
+        enbase = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5-En-BASE",
+            location=""
+            "{'decoder': 'https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/JasperDecoderForCTC-STEP-243800.pt', "
+            " 'encoder':'https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/JasperEncoder-STEP-243800.pt', "
+            " 'config':'https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/quartznet15x5.yaml'}",
+            description="This is a checkpoint for the QuartzNet 15x5 model that was trained in NeMo "
+            "on five datasets: LibriSpeech, Mozilla Common Voice, WSJ, Fisher, "
+            "and Switchboard.",
+        )
+        result.append(enbase)
+        return result
 
     @staticmethod
     def from_pretrained(model_info: PretrainedModelInfo) -> NeuralModule:
