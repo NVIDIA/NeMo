@@ -20,7 +20,7 @@ import os
 from nemo import logging
 
 
-def __convert_data(in_file, out_text, out_labels):
+def __convert_data(in_file, out_text, out_labels, max_length):
     """
     in_file should be in the IOB format, see example here:
     https://www.clips.uantwerpen.be/conll2003/ner/.
@@ -36,15 +36,61 @@ def __convert_data(in_file, out_text, out_labels):
 
     """
     in_file = open(in_file, 'r')
-    with open(out_text, 'w') as text, open(out_labels, 'w') as labels:
-        for line in in_file:
-            if line == '\n':
-                text.write(line)
-                labels.write(line)
-            else:
-                line = line.split()
-                text.write(line[0] + ' ')
-                labels.write(line[-1] + ' ')
+
+    if max_length == -1:
+        with open(out_text, 'w') as out_text, open(out_labels, 'w') as out_labels:
+            for line in in_file:
+                if line == '\n':
+                    out_out_text.write(line)
+                    out_out_labels.write(line)
+                else:
+                    line = line.split()
+                    out_out_text.write(line[0] + ' ')
+                    out_out_labels.write(line[-1] + ' ')
+    
+    else:
+        lines = []
+        words = []
+        labels = []
+        with open(out_text, 'w') as out_text, open(out_labels, 'w') as out_labels:
+            lines = in_file.readlines()
+            for line_id, line in enumerate(lines):
+                logging.info(f"{line_id} {len(lines)}")
+                contends = line.strip()
+                if len(contends) == 0:
+                    assert len(words) == len(labels)
+                    if len(words) > max_length:
+                        # split if the sentence is longer than 30
+                        while len(words) > max_length:
+                            tmplabel = labels[:max_length]
+                            for iidx in range(len(tmplabel)):
+                                if tmplabel.pop() == 'O':
+                                    break
+                            l = ' '.join(
+                                [label for label in labels[:len(tmplabel) + 1] if len(label) > 0])
+                            w = ' '.join(
+                                [word for word in words[:len(tmplabel) + 1] if len(word) > 0])
+                            # lines.append([l, w])
+                            out_text.write(w + "\n")
+                            out_labels.write(l + "\n")
+                            words = words[len(tmplabel) + 1:]
+                            labels = labels[len(tmplabel) + 1:]
+
+                    if len(words) == 0:
+                        continue
+                    l = ' '.join([label for label in labels if len(label) > 0])
+                    w = ' '.join([word for word in words if len(word) > 0])
+                    # lines.append([l, w])
+                    out_text.write(w + "\n")
+                    out_labels.write(l + "\n")
+                    words = []
+                    labels = []
+                    continue
+
+                word = line.strip().split()[0]
+                label = line.strip().split()[-1]
+                words.append(word)
+                labels.append(label)
 
 
 if __name__ == "__main__":
@@ -54,6 +100,7 @@ if __name__ == "__main__":
         + 'nlp/examples/token_classification.py'
     )
     parser.add_argument("--data_file", required=True, type=str)
+    parser.add_argument("--max_length", default=-1, type=int)
     args = parser.parse_args()
 
     data_dir =  os.path.dirname(args.data_file)
@@ -68,5 +115,5 @@ if __name__ == "__main__":
     out_text = os.path.join(data_dir, 'text_' + prefix + '.txt')
     out_labels = os.path.join(data_dir, 'labels_' + prefix + '.txt')
 
-    __convert_data(args.data_file, out_text, out_labels)
+    __convert_data(args.data_file, out_text, out_labels, args.max_length)
     logging.info(f'Processing of the {args.data_file} is complete')
