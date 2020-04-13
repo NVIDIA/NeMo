@@ -67,10 +67,10 @@ def parse_args():
     parser.add_argument('--speaker_table', type=str, required=True, help="LibriTTS speakers TSV table file")
     parser.add_argument('--speaker_embs', type=str, required=True, help="LibriTTS speakers embeddings")
     parser.add_argument('--d_speaker_emb', type=int, default=256, help="Size of speaker embedding")
-    parser.add_argument('--d_speaker', type=int, default=256, help="Size of speaker embedding projection")
+    parser.add_argument('--d_speaker', type=int, default=64, help="Size of speaker embedding projection")
 
     # Model
-    parser.add_argument('--d_char', type=int, default=256, help="Size of input char embedding")
+    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
@@ -120,7 +120,7 @@ class AudioInspector(nemo.core.Metric):
 
         # Audio
         audios = []
-        if not self._logged_true:
+        if self._shuffle or not self._logged_true:
             for audio1, audio_len1 in zip(tensors.audio[: self._k], tensors.audio_len[: self._k]):
                 audio = audio1.cpu().numpy()[: audio_len1.cpu().numpy().item()]
                 audios.append(audio)
@@ -129,7 +129,7 @@ class AudioInspector(nemo.core.Metric):
 
         # True Mels
         mels_true = []
-        if not self._logged_true:
+        if self._shuffle or not self._logged_true:
             for mel1, mel_len1 in zip(tensors.mel_true[: self._k], tensors.mel_len[: self._k]):
                 mel = mel1.cpu().numpy()[:, : mel_len1.cpu().numpy().item()]
                 mels_true.append(mel)

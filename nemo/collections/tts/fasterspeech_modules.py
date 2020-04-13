@@ -115,9 +115,9 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
         g = np.random.Generator(np.random.PCG64(seed))
 
         keys = np.array(keys)
-        kam_middle = keys[2 * window:] - keys[:- (2 * window)]
-        kam_prefix = keys[window: 2 * window] - keys[:window]
-        kam_suffix = keys[-window:] - keys[-2 * window: -window]
+        kam_middle = keys[2 * window :] - keys[: -(2 * window)]
+        kam_prefix = keys[window : 2 * window] - keys[:window]
+        kam_suffix = keys[-window:] - keys[-2 * window : -window]
         kam = np.hstack([kam_prefix, kam_middle, kam_suffix])
         new_keys = keys + g.uniform(-kam, kam, size=keys.shape)
 
@@ -135,7 +135,9 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
         lens = [self.lengths[i] for i in indices]
         # For lengths over workers to be notably different, coef should be around 1000. But smaller values works for
         # shuffling as well.
-        indices = self._local_shuffle(indices, lens, 10 * self.batch_size, hash((self.rank, self.epoch)))
+        new_indices = self._local_shuffle(indices, lens, 10 * self.batch_size, hash((self.rank, self.epoch)))
+        assert len(indices) == len(new_indices)
+        indices = new_indices
 
         batches = []
         for i in range(0, len(indices), self.batch_size):

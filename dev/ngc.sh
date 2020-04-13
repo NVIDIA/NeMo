@@ -12,11 +12,12 @@ fi
 
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=32    # Default is 32.
-NUM_GPU=8     # Default is 8.
-WS=stan       # Workspace name.
-WORKSPACE=/ws # Workspace mount point.
-RESULT=/result
+GPU_MEM=32     # Default is 32.
+NUM_GPU=8      # Default is 8.
+OPT=O0         # Default is O0.
+WS=stan        # Workspace name.
+WORKSPACE=/ws  # Workspace mount point.
+RESULT=/result # Results dir.
 
 # ---------------------------------------------------- SAVE STATE ----------------------------------------------------
 echo "Updating source code..."
@@ -41,6 +42,7 @@ nvidia-smi \
 && pip install -U librosa \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
+--amp_opt_level=${OPT} \
 --work_dir=${RESULT} \
 --model_config=${config} \
 --tensorboard_dir=${WORKSPACE}/tb/mels/${id} \
