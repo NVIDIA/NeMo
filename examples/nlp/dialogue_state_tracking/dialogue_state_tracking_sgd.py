@@ -353,6 +353,7 @@ eval_tensors = [
     eval_data.categorical_slot_values,
     eval_data.noncategorical_slot_status,
     eval_data.num_noncategorical_slots,
+
 ]
 
 
@@ -404,7 +405,7 @@ eval_callback = nemo.core.EvaluatorCallback(
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1
 )
 
 lr_policy_fn = get_lr_policy(

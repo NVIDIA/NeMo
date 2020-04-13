@@ -52,13 +52,18 @@ __all__ = [
 # the schema. Should be equal to BERT's hidden_size.
 EMBEDDING_DIMENSION = 768
 # Maximum allowed number of categorical trackable slots for a service.
-MAX_NUM_CAT_SLOT = 6
+#MAX_NUM_CAT_SLOT = 9 # multiwoz
+MAX_NUM_CAT_SLOT = 6 #sgd
 # Maximum allowed number of non-categorical trackable slots for a service.
-MAX_NUM_NONCAT_SLOT = 12
+#MAX_NUM_NONCAT_SLOT = 4 #multiwoz
+MAX_NUM_NONCAT_SLOT = 12 #sgd
 # Maximum allowed number of values per categorical trackable slot.
-MAX_NUM_VALUE_PER_CAT_SLOT = 11
+#MAX_NUM_VALUE_PER_CAT_SLOT = 50 #multiwoz
+MAX_NUM_VALUE_PER_CAT_SLOT = 11 #sgd
 # Maximum allowed number of intents for a service.
-MAX_NUM_INTENT = 4
+#MAX_NUM_INTENT = 1 #multiwoz
+MAX_NUM_INTENT = 4 #sgd
+
 STR_DONTCARE = "dontcare"
 # The maximum total input sequence length after WordPiece tokenization.
 DEFAULT_MAX_SEQ_LENGTH = 128
@@ -74,6 +79,7 @@ FILE_RANGES = {
     "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
     "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 3)},
+    "multiwoz": {"train": range(1, 2), "dev": range(1, 2), "test": range(1,1)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -188,7 +194,7 @@ class Dstc8DataProcessor(object):
                 logging.info(f'Processed {dialog_idx} dialogs.')
             examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset))
 
-        logging.info(f'Finished creating the examples from {dialog_idx} dialogues.')
+        logging.info(f'Finished creating the examples from {len(dialogs)} dialogues.')
         return examples
 
     def _save_schemas(self, dataset):
