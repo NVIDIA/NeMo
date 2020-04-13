@@ -66,9 +66,11 @@ class SchemaPreprocessor:
         bert_ckpt_dir,
         nf,
         mode='baseline',
+        is_trainable=False,
     ):
         self.schemas_dict = {}
         self._schema_embedding_dir = schema_embedding_dir
+        self.is_trainable = is_trainable
         os.makedirs(schema_embedding_dir, exist_ok=True)
 
         for dataset_split in datasets:

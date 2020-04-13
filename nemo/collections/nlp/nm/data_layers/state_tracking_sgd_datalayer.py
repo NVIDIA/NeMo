@@ -60,11 +60,11 @@ class SGDDataLayer(TextDataLayer):
             "requested_slot_status": NeuralType(('B', 'T'), LabelsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "intent_status": NeuralType(('B'), LabelsType()),
-            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType()),
-            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "intent_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
+            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType(), optional=True),
+            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "intent_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
         }
 
     def __init__(

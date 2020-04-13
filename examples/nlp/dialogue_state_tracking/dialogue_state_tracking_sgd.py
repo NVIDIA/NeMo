@@ -165,11 +165,16 @@ parser.add_argument(
     help="Specifies the state tracker mode",
 )
 parser.add_argument(
-    "--schema_emb_mode",
+    "--schema_emb_init",
     type=str,
     default='baseline',
     choices=['baseline', 'random', 'last_layer_average'],
     help="Specifies how schema embeddings are generated. Baseline uses ['CLS'] token",
+)
+parser.add_argument(
+    "--train_schema_emb",
+    action="store_true",
+    help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
@@ -221,7 +226,8 @@ schema_preprocessor = SchemaPreprocessor(
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
     bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
-    mode=args.schema_emb_mode,
+    mode=args.schema_emb_init,
+    is_trainable=args.train_schema_emb
 )
 
 dialogues_processor = data_utils.Dstc8DataProcessor(
@@ -254,6 +260,7 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 )
 
 train_data = train_datalayer()
+import pdb; pdb.set_trace()
 eval_data = eval_datalayer()
 
 # define model pipeline
