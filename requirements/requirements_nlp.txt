@@ -10,3 +10,4 @@ numpy
 tqdm
 sklearn
 fuzzywuzzy
+python-Levenshtein

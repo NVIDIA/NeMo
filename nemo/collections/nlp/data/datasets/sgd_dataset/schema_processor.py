@@ -110,7 +110,7 @@ class SchemaPreprocessor:
     def get_schema_embeddings(self, dataset_split):
         # Convert from list of dict to dict of list
         schema_data_dict = collections.defaultdict(list)
-        if dataset_split not in dataset_split:
+        if dataset_split not in self.schemas_dict:
             raise ValueError(
                 f"{dataset_split} was not processed. Re-initialize SchemaPreprocessor and add {dataset_split} dataset to datasets arg."
             )
