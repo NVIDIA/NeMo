@@ -1,8 +1,9 @@
-model: "QuartzNet"
+model: "Jasper"
 sample_rate: &sample_rate 16000
 dropout: &drop 0.2
 repeat:  &rep  2
 time_length: 8
+n_filters: &n_filters 512
 
 AudioToLabelDataLayer:
     sample_rate: *sample_rate
@@ -47,15 +48,15 @@ JasperEncoder:
     activation: "relu"
 
     jasper:
-        -   filters: 512
+        -   filters: *n_filters
             repeat: 1
-            kernel: [1]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: *drop
             residual: true
 
-        -   filters: 512
+        -   filters: *n_filters
             repeat: *rep
             kernel: [5]
             stride: [1]
@@ -63,7 +64,7 @@ JasperEncoder:
             dropout: *drop
             residual: true
 
-        -   filters: 512
+        -   filters: *n_filters
             repeat: *rep
             kernel: [7]
             stride: [1]
@@ -71,7 +72,7 @@ JasperEncoder:
             dropout: *drop
             residual: true
 
-        -   filters: 512
+        -   filters: *n_filters
             repeat: *rep
             kernel: [9]
             stride: [1]
@@ -79,7 +80,7 @@ JasperEncoder:
             dropout: *drop
             residual: true
 
-        -   filters: 512
+        -   filters: *n_filters
             repeat: *rep
             kernel: [11]
             stride: [1]
@@ -87,7 +88,7 @@ JasperEncoder:
             dropout: *drop
             residual: true
 
-        -   filters: 512
+        -   filters: *n_filters
             repeat: *rep
             kernel: [13]
             stride: [1]
@@ -95,7 +96,7 @@ JasperEncoder:
             dropout: *drop
             residual: true
 
-        -   filters: &enc_feat_out 32
+        -   filters: &enc_feat_out 512
             repeat: 1
             kernel: [1]
             stride: [1]
@@ -105,5 +106,6 @@ JasperEncoder:
 
 JasperDecoderForSpkrClass:
     feat_in: *enc_feat_out
+    gram: False
+    super_vector: False 
     emb_sizes: 1024,1024
-

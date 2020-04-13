@@ -360,18 +360,22 @@ class JasperDecoderForSpkrClass(TrainableNM):
             "embs" : NeuralType(('B','D'), AcousticEncodedRepresentation())
             }
 
-    def __init__(self, feat_in, num_classes,emb_sizes = [256], covr=False,init_mode="xavier_uniform"):
+    def __init__(self, feat_in, num_classes,emb_sizes = [256],gram=False,super_vector=True,init_mode="xavier_uniform"):
         super().__init__()
-        if covr:
-            self._feat_in = feat_in**2 +2*feat_in
+        self._feat_in = 0
+        if gram:
+            self._feat_in += feat_in**2
         else:
-            self._feat_in = 2*feat_in
+            self._feat_in += 2*feat_in
+        
+        if super_vector and gram:
+            self._feat_in += 2*feat_in
 
         self._midEmbd1 = int(emb_sizes[0]) # Spkr Vector Embedding Shape
         self._midEmbd2 = int(emb_sizes[1]) if len(emb_sizes)>1 else 0 # Spkr Vector Embedding Shape
 
         self._num_classes = num_classes 
-        self._pooling = StatsPoolLayer(covr=covr)
+        self._pooling = StatsPoolLayer(gram=gram,super_vector=super_vector)
         self.norm = nn.BatchNorm1d(feat_in)
         self.mid1 = self.affineLayer(self._feat_in,self._midEmbd1,learn_mean=False)
         self.mid2 = self.affineLayer(self._midEmbd1,self._midEmbd2,learn_mean=False)

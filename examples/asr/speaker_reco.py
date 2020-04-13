@@ -49,8 +49,8 @@ def parse_args():
     parser.add_argument("--warmup_steps", default=1000, type=int)
     parser.add_argument("--load_dir", default=None, type=str)
     parser.add_argument("--synced_bn", action='store_true', help="Use synchronized batch norm")
-    parser.add_argument("--synced_bn_groupsize", default=0, type=int)
     parser.add_argument("--emb_size", default=256, type=int)
+    parser.add_argument("--synced_bn_groupsize", default=0, type=int)
     parser.add_argument("--print_freq", default=256, type=int)
     
 
@@ -145,7 +145,8 @@ def create_all_dags(args, neural_factory):
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
         num_classes=data_layer_train.num_classes,
         emb_sizes=spkr_params['JasperDecoderForSpkrClass']['emb_sizes'].split(','),
-        covr=spkr_params['JasperDecoderForSpkrClass']['covr']
+        gram=spkr_params['JasperDecoderForSpkrClass']['gram'],
+        super_vector=spkr_params['JasperDecoderForSpkrClass']['super_vector']
         )
     if os.path.exists(args.checkpoint_dir+'/JasperEncoder-STEP-100.pt'):
         encoder.restore_from(args.checkpoint_dir+'/JasperEncoder-STEP-100.pt')
@@ -225,8 +226,8 @@ def main():
     args = parse_args()
 
     print(args)
-
-    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,args.emb_size)
+    emb_size=1024
+    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,emb_size=emb_size)
     work_dir = name
     if args.work_dir:
         work_dir = os.path.join(args.work_dir, name)

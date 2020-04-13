@@ -1,0 +1,111 @@
+model: "Jasper"
+sample_rate: &sample_rate 16000
+dropout: &drop 0.2
+repeat:  &rep  2
+time_length: 8
+n_filters: &n_filters 512
+
+AudioToLabelDataLayer:
+    sample_rate: *sample_rate
+    train:
+        min_duration: 0.1
+        shuffle: true
+    eval:
+        min_duration: 0.01
+        shuffle: false
+
+AudioToMelSpectrogramPreprocessor:
+    normalize: "per_feature"
+    window_size: 0.02
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 64
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    stft_conv: false
+
+SpectrogramAugmentation:
+    rect_masks: 5
+    rect_time: 120
+    rect_freq: 50
+
+AudioAugmentor:
+    speed:
+        prob: 0.1
+    
+    gain:
+        prob: 0.1
+    
+    echo:
+        prob: 0.1
+    
+    white_noise:
+        prob: 0.1
+
+JasperEncoder:
+    feat_in: *n_mels
+    activation: "relu"
+
+    jasper:
+        -   filters: *n_filters
+            repeat: 1
+            kernel: [3]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [7]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [9]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [11]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [13]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+
+        -   filters: &enc_feat_out 32
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+
+JasperDecoderForSpkrClass:
+    feat_in: *enc_feat_out
+    gram: True 
+    super_vector: False 
+    emb_sizes: 1024,1024
