@@ -176,7 +176,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding_dimension", default=768, type=int, help="Embedding size of the model",
+    "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
 )
 
 args = parser.parse_args()
@@ -199,7 +199,7 @@ else:
         "MAX_NUM_INTENT": 4,
     }
 
-schema_config["EMBEDDING_DIMENSION"] = args.embedding_dimension
+schema_config["EMBEDDING_DIMENSION"] = 768
 schema_config["MAX_SEQ_LENGTH"] = args.max_seq_length
 
 if not os.path.exists(args.data_dir):
