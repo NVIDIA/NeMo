@@ -193,8 +193,8 @@ class SGDDialogueStateLoss(LossNM):
         max_num_tokens = logit_noncat_slot_start.size()[-1]
         # Zero out losses for non-categorical slot spans when the slot status is not active.
         #changed here
-        #non_cat_slot_value_mask = (noncategorical_slot_status == STATUS_ACTIVE).view(-1)
-        non_cat_slot_value_mask = (noncategorical_slot_status > -1 ).view(-1)
+        non_cat_slot_value_mask = (noncategorical_slot_status == STATUS_ACTIVE).view(-1)
+        #non_cat_slot_value_mask = (noncategorical_slot_status > -1 ).view(-1)
         # to handle cases with no active categorical slot value
         if sum(non_cat_slot_value_mask) == 0:
             span_start_loss = 0
