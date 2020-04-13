@@ -51,6 +51,7 @@ parser.add_argument("--num_fc_layers", default=2, type=int)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
+parser.add_argument("--mode", default='train_eval', type=str)
 parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
@@ -215,13 +216,9 @@ def create_pipeline(
         tensors_to_evaluate = [logits, labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
 
-
+callbacks=[]
 train_tensors, train_loss, steps_per_epoch, label_ids, classifier = create_pipeline()
-
-eval_tensors, data_layer = create_pipeline(mode='dev', label_ids=label_ids, classifier=classifier)
-
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
-
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
@@ -229,18 +226,24 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
 )
+callbacks.append(train_callback)
 
-eval_callback = nemo.core.EvaluatorCallback(
-    eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
-    tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
-)
+
+if "eval" in args.mode:
+    eval_tensors, data_layer = create_pipeline(mode='dev', label_ids=label_ids, classifier=classifier)
+    eval_callback = nemo.core.EvaluatorCallback(
+        eval_tensors=eval_tensors,
+        user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
+        tb_writer=nf.tb_writer,
+        eval_step=steps_per_epoch,
+    )
+    callbacks.append(eval_callback)
 
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
+callbacks.append(ckpt_callback)
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
@@ -248,7 +251,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[train_loss],
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},

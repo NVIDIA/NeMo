@@ -53,23 +53,20 @@ if __name__ == "__main__":
         + 'format to the format compatible with '
         + 'nlp/examples/token_classification.py'
     )
-    parser.add_argument("--data_dir", required=True, type=str)
+    parser.add_argument("--data_file", required=True, type=str)
     args = parser.parse_args()
 
-    for dataset in ['dev.txt', 'train.txt']:
-        file_path = os.path.join(args.data_dir, dataset)
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(
-                "{file_path} not found in {args.data_dir}"
-                "For NER, CoNLL-2003 dataset"
-                "can be obtained at"
-                "https://github.com/kyzhouhzau/BERT"
-                "-NER/tree/master/data."
-            )
+    data_dir =  os.path.dirname(args.data_file)
+    basename = os.path.basename(args.data_file)
+    prefix, ext = os.path.splitext(basename)
+    if not os.path.exists(args.data_file):
+        raise FileNotFoundError(
+            "{data_file} not found in {data_dir}"
+        )
 
-        logging.info(f'Processing {dataset}')
-        out_text = os.path.join(args.data_dir, 'text_' + dataset)
-        out_labels = os.path.join(args.data_dir, 'labels_' + dataset)
+    logging.info(f'Processing {args.data_file}')
+    out_text = os.path.join(data_dir, 'text_' + prefix + '.txt')
+    out_labels = os.path.join(data_dir, 'labels_' + prefix + '.txt')
 
-        __convert_data(file_path, out_text, out_labels)
-        logging.info(f'Processing of the {dataset} is complete')
+    __convert_data(args.data_file, out_text, out_labels)
+    logging.info(f'Processing of the {args.data_file} is complete')
