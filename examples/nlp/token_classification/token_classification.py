@@ -205,28 +205,10 @@ if args.pretrained_model_name == "megatron":
     if not (args.bert_config and args.bert_checkpoint):
         raise FileNotFoundError("Both config file and the checkpoint should be provided for Megatron models.")
     
-    with open(args.bert_config) as json_file:
-        config = json.load(json_file)
+    # with open(args.bert_config) as json_file:
+    #     config = json.load(json_file)
 
-    parser_megatron = argparse.ArgumentParser(description="Megatron")
-    parser_megatron.add_argument("--num-layers", default=config['num-layers'])
-    parser_megatron.add_argument("--hidden-size", default=config['hidden-size'])
-    parser_megatron.add_argument("--num-attention-heads", default=config['num-attention-heads'])
-    parser_megatron.add_argument("--max-position-embeddings", default=config['max-seq-length'])
-
-    import sys
-    sys.path.append('/home/ebakhturina/megatron-lm')
-    from megatron import get_args
-    from megatron.initialize import initialize_megatron
-    
-    initialize_megatron(None, {"num_layers": config['num-layers'],
-                               "hidden_size": config['hidden-size'],
-                               "num_attention_heads": config['num-attention-heads'], 
-                               "max_position_embeddings": config['max-seq-length'],
-                               "padded_vocab_size": config['vocab-size']})
-    args_megatron = get_args()  
-
-    model = nemo_nlp.nm.trainables.MegatronBERT(args=args, num_layers=config['num-layers'])
+    model = nemo_nlp.nm.trainables.MegatronBERT(config=args.bert_config)
     # import pdb; pdb.set_trace()
     # import torch
     # ckpt_name = '/home/ebakhturina/megatron_ckpts/bert_ckpt/345_bert_megatron.pt'

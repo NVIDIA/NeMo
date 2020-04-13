@@ -24,6 +24,10 @@ from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
+import argparse
+import json
+import os
+
 import sys
 sys.path.append('/home/ebakhturina/megatron-lm')
 from megatron.model import language_model
@@ -86,22 +90,37 @@ class MegatronBERT(TrainableNM):
 
     def __init__(
          self,
-         args,
-         num_layers,
+         config,
          init_method_std=0.02,
          num_tokentypes=2):
 
         super().__init__()
-    
+
+        import sys
+        sys.path.append('/home/ebakhturina/megatron-lm')
+        from megatron import get_args
+        from megatron.initialize import initialize_megatron
+        
+        if not os.path.exists(config):
+            raise ValueError (f'Config file not found at {config}')
+        with open(config) as json_file:
+            config = json.load(json_file)
+        megatron_args = {"num_layers": config['num-layers'],
+                         "hidden_size": config['hidden-size'],
+                         "num_attention_heads": config['num-attention-heads'], 
+                         "max_position_embeddings": config['max-seq-length'],
+                         "padded_vocab_size": config['vocab-size']}
+        
+        initialize_megatron(None, megatron_args)
         init_method = init_method_normal(init_method_std)
           
         self.language_model, _ = get_language_model(
             attention_mask_func=bert_attention_mask_func,
             num_tokentypes=num_tokentypes,
-            add_pooler=True,
+            add_pooler=False,
             init_method=init_method,
             scaled_init_method=scaled_init_method_normal(init_method_std,
-                                                         num_layers))
+                                                         config['num-layers']))
 
         self.language_model.to(self._device)
         self._hidden_size = self.language_model.hidden_size
@@ -117,40 +136,21 @@ class MegatronBERT(TrainableNM):
         return self._hidden_size
 
 
-    def forward(self, input_ids, attention_mask, token_type_ids=None):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         import sys
-        sys.path.append('/home/ebakhturina/scripts/mem_report')
         sys.path.append('/home/ebakhturina/scripts')
-        import scripts
         from mem_report import mem_report
         import nemo
-        nemo.logging.info(mem_report())
-        # extended_attention_mask = bert_extended_attention_mask(
-        #     attention_mask, next(self.language_model.parameters()).dtype)
-        # nemo.logging.info(mem_report())
-        # position_ids = bert_position_ids(input_ids)
-        # nemo.logging.info(mem_report())
-
-        # sequence_output = self.language_model(input_ids,
-        #                                       position_ids,
-        #                                       extended_attention_mask,
-        #                                       tokentype_ids=token_type_ids)
-
+        nemo.logging.info(f'INSIDE before forward: {mem_report()}')
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype)
         position_ids = bert_position_ids(input_ids)
+        nemo.logging.info(f'INSIDE after ext_att_mask: {mem_report()}')
+        
+        sequence_output = self.language_model(input_ids,
+                                              position_ids,
+                                              extended_attention_mask,
+                                              tokentype_ids=token_type_ids)
 
-        sequence_output, pooled_output = self.language_model(input_ids,
-                                               position_ids,
-                                               extended_attention_mask,
-                                               tokentype_ids=token_type_ids)
-
-        # # Output.
-        # classification_output = self.classification_dropout(pooled_output)
-        # classification_logits = self.classification_head(classification_output)
-
-        # # Reshape back to separate choices.
-        # classification_logits = classification_logits.view(-1, self.num_classes)
-        # nemo.logging.info(mem_report())
-        # import pdb; pdb.set_trace()
+        nemo.logging.info(f'INSIDE after forward: {mem_report()}')
         return sequence_output
