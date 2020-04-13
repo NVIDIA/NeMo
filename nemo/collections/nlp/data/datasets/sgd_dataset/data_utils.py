@@ -55,7 +55,7 @@ FILE_RANGES = {
     "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
     "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 3)},
-    "multiwoz": {"train": range(1, 2), "dev": range(1, 2), "test": range(1,1)},
+    "multiwoz": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 1)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -81,7 +81,6 @@ class Dstc8DataProcessor(object):
 
         self._task_name = task_name
         self.schema_config = schema_config
-
 
         train_file_range = FILE_RANGES[task_name]["train"]
         dev_file_range = FILE_RANGES[task_name]["dev"]
@@ -238,9 +237,7 @@ class Dstc8DataProcessor(object):
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
-        base_example = InputExample(
-            schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer,
-        )
+        base_example = InputExample(schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer,)
         base_example.example_id = turn_id
 
         _, dialog_id, turn_id_ = turn_id.split('-')
@@ -463,7 +460,9 @@ class InputExample(object):
         # since every slot can be requested.
         self.num_slots = 0
         # Takes value 1 if the corresponding slot is requested, 0 otherwise.
-        self.requested_slot_status = [STATUS_OFF] * (schema_config["MAX_NUM_CAT_SLOT"] + schema_config["MAX_NUM_NONCAT_SLOT"])
+        self.requested_slot_status = [STATUS_OFF] * (
+            schema_config["MAX_NUM_CAT_SLOT"] + schema_config["MAX_NUM_NONCAT_SLOT"]
+        )
 
         # Total number of intents present in the service.
         self.num_intents = 0

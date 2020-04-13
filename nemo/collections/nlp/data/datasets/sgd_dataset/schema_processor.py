@@ -91,12 +91,13 @@ class SchemaPreprocessor:
                 # create schema embedding if no file exists
                 schema_json_path = os.path.join(data_dir, dataset_split, "schema.json")
 
-                dataset_params = {"schema_config": schema_config, "tokenizer": tokenizer, "input_file": schema_json_path}
+                dataset_params = {
+                    "schema_config": schema_config,
+                    "tokenizer": tokenizer,
+                    "input_file": schema_json_path,
+                }
                 emb_datalayer = BertInferDataLayer(
-                    dataset_type=SchemaEmbeddingDataset,
-                    dataset_params=dataset_params,
-                    batch_size=1,
-                    shuffle=False,
+                    dataset_type=SchemaEmbeddingDataset, dataset_params=dataset_params, batch_size=1, shuffle=False,
                 )
 
                 input_ids, input_mask, input_type_ids = emb_datalayer()

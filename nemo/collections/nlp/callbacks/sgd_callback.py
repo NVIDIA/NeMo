@@ -95,7 +95,7 @@ def eval_iter_callback(tensors, global_vars, ids_to_service_names_dict, eval_dat
     predictions['noncat_alignment_start'] = output['start_char_idx']
     predictions['noncat_alignment_end'] = output['end_char_idx']
 
-    #added for debugging
+    # added for debugging
     predictions['cat_slot_status_GT'] = output['categorical_slot_status']
     predictions['noncat_slot_status_GT'] = output['noncategorical_slot_status']
 

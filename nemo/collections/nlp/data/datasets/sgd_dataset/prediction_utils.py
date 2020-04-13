@@ -47,7 +47,6 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
     sys_prev_slots = collections.defaultdict(dict)
     sys_rets = {}
 
-
     for turn_idx, turn in enumerate(dialog["turns"]):
         if turn["speaker"] == "SYSTEM":
             for frame in turn["frames"]:
@@ -110,7 +109,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                 predictions["noncat_slot_status_GT"] = predictions["noncat_slot_status_GT"].cpu().numpy()
 
                 for slot_idx, slot in enumerate(service_schema.categorical_slots):
-                    #debugging info
+                    # debugging info
                     cat_slot_status_num += 1
                     categorical_slots_dict[slot] = (
                         predictions["cat_slot_status_GT"][slot_idx],
@@ -127,13 +126,15 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     if slot_status == data_utils.STATUS_DONTCARE:
                         slot_values[slot] = data_utils.STR_DONTCARE
                     elif slot_status == data_utils.STATUS_ACTIVE:
-                        #print(predictions["cat_slot_status_p"][slot_idx])
-                        if (predictions["cat_slot_status_p"][slot_idx] + predictions["cat_slot_value_p"][slot_idx])/2 > 0.9:
+                        # print(predictions["cat_slot_status_p"][slot_idx])
+                        if (
+                            predictions["cat_slot_status_p"][slot_idx] + predictions["cat_slot_value_p"][slot_idx]
+                        ) / 2 > 0.9:
                             value_idx = predictions["cat_slot_value"][slot_idx]
                             slot_values[slot] = service_schema.get_categorical_slot_values(slot)[value_idx]
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
-                                #debugging info
+                                # debugging info
                                 sys_rets[slot] = sys_prev_slots[frame["service"]][slot]
                                 ##
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
@@ -148,7 +149,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                     ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
 
-                    #debugging nfo
+                    # debugging nfo
                     noncat_slot_status_num += 1
 
                     non_categorical_slots_dict[slot] = (
@@ -163,7 +164,6 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     )
                     if predictions["noncat_slot_status_GT"][slot_idx] == predictions["noncat_slot_status"][slot_idx]:
                         noncat_slot_status_acc += 1
-
 
                     slot_status = predictions["noncat_slot_status"][slot_idx]
                     if slot_status == data_utils.STATUS_DONTCARE:
@@ -184,7 +184,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         #    slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
-                                #debugging info
+                                # debugging info
                                 sys_rets[slot] = sys_prev_slots[frame["service"]][slot]
                                 ##
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
@@ -209,11 +209,14 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     logging.debug("\n")
                     logging.debug(f"SYS PREV SLOT: {sys_prev_slots}")
                     logging.debug(f"SYS RETS: {sys_rets}")
-                    cat_slot_status_acc = "NAN" if cat_slot_status_num == 0 else cat_slot_status_acc / cat_slot_status_num
+                    cat_slot_status_acc = (
+                        "NAN" if cat_slot_status_num == 0 else cat_slot_status_acc / cat_slot_status_num
+                    )
                     logging.debug(f"CAT STATUS ACC: {cat_slot_status_acc}")
-                    noncat_slot_status_acc = "NAN" if noncat_slot_status_num == 0 else noncat_slot_status_acc / noncat_slot_status_num
+                    noncat_slot_status_acc = (
+                        "NAN" if noncat_slot_status_num == 0 else noncat_slot_status_acc / noncat_slot_status_num
+                    )
                     logging.debug(f"NONCAT STATUS ACC: {noncat_slot_status_acc}")
-
 
                 # Create a new dict to avoid overwriting the state in previous turns
                 # because of use of same objects.
@@ -301,7 +304,9 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
     return dialog
 
 
-def write_predictions_to_file(predictions, input_json_files, schema_json_file, output_dir, state_tracker, eval_debug, in_domain_services):
+def write_predictions_to_file(
+    predictions, input_json_files, schema_json_file, output_dir, state_tracker, eval_debug, in_domain_services
+):
     """Write the predicted dialogues as json files.
 
   Args:
@@ -333,7 +338,9 @@ def write_predictions_to_file(predictions, input_json_files, schema_json_file, o
                 if state_tracker == 'baseline':
                     pred_dialog = get_predicted_dialog_baseline(d, all_predictions, schemas)
                 elif state_tracker == 'ret_sys_act':
-                    pred_dialog = get_predicted_dialog_ret_sys_act(d, all_predictions, schemas, eval_debug, in_domain_services)
+                    pred_dialog = get_predicted_dialog_ret_sys_act(
+                        d, all_predictions, schemas, eval_debug, in_domain_services
+                    )
                 else:
                     raise ValueError(f"tracker_mode {state_tracker} is not defined.")
                 pred_dialogs.append(pred_dialog)

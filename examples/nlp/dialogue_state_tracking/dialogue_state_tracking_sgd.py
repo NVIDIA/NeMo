@@ -176,10 +176,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--embedding_dimension",
-    default=768,
-    type=int,
-    help="Embedding size of the model",
+    "--embedding_dimension", default=768, type=int, help="Embedding size of the model",
 )
 
 args = parser.parse_args()
@@ -188,9 +185,19 @@ if args.debug_mode:
     logging.setLevel(10)
 
 if args.task_name == "multiwoz":
-    schema_config = {"MAX_NUM_CAT_SLOT": 9, "MAX_NUM_NONCAT_SLOT": 4, "MAX_NUM_VALUE_PER_CAT_SLOT": 50, "MAX_NUM_INTENT": 1}
+    schema_config = {
+        "MAX_NUM_CAT_SLOT": 9,
+        "MAX_NUM_NONCAT_SLOT": 4,
+        "MAX_NUM_VALUE_PER_CAT_SLOT": 50,
+        "MAX_NUM_INTENT": 1,
+    }
 else:
-    schema_config = {"MAX_NUM_CAT_SLOT": 6, "MAX_NUM_NONCAT_SLOT": 12, "MAX_NUM_VALUE_PER_CAT_SLOT": 11, "MAX_NUM_INTENT": 4}
+    schema_config = {
+        "MAX_NUM_CAT_SLOT": 6,
+        "MAX_NUM_NONCAT_SLOT": 12,
+        "MAX_NUM_VALUE_PER_CAT_SLOT": 11,
+        "MAX_NUM_INTENT": 4,
+    }
 
 schema_config["EMBEDDING_DIMENSION"] = args.embedding_dimension
 schema_config["MAX_SEQ_LENGTH"] = args.max_seq_length
@@ -378,7 +385,6 @@ eval_tensors = [
     eval_data.categorical_slot_values,
     eval_data.noncategorical_slot_status,
     eval_data.num_noncategorical_slots,
-
 ]
 
 
