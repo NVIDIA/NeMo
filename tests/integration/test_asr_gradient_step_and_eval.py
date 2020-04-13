@@ -103,7 +103,7 @@ class TestASRPytorch(TestCase):
             # featurizer_config=self.featurizer_config,
             manifest_filepath=self.manifest_filepath,
             labels=self.labels,
-            batch_size=8,
+            batch_size=30,
         )
         pre_process_params = {
             'frame_splicing': 1,
@@ -141,7 +141,7 @@ class TestASRPytorch(TestCase):
         )
 
         self.nf.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.003},
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
         self.nf.reset_trainer()
 
@@ -152,7 +152,7 @@ class TestASRPytorch(TestCase):
     def test_quartznet_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
-        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=8)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,
@@ -188,7 +188,7 @@ class TestASRPytorch(TestCase):
         )
 
         self.nf.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.003},
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
         self.nf.reset_trainer()
 
@@ -199,7 +199,7 @@ class TestASRPytorch(TestCase):
     def test_stft_conv_training(self):
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=8)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,
@@ -238,7 +238,7 @@ class TestASRPytorch(TestCase):
         )
 
         self.nf.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.003},
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
         self.nf.reset_trainer()
 
