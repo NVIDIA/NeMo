@@ -19,6 +19,7 @@ import os
 import shutil
 from os.path import exists
 
+from assistant_utils import process_assistant
 from dialogflow_utils import process_dialogflow
 from mturk_utils import process_mturk
 
@@ -231,7 +232,7 @@ if __name__ == "__main__":
         "--dataset_name",
         required=True,
         type=str,
-        choices=['atis', 'snips', 'jarvis', 'dialogflow', 'mturk-processed'],
+        choices=['atis', 'snips', 'jarvis', 'dialogflow', 'mturk-processed', 'assistant'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'
@@ -243,6 +244,12 @@ if __name__ == "__main__":
         action='store_true',
         help='ignores previous intent while importing datasets in jarvis\'s format',
     )
+    parser.add_argument(
+        "--use_full_dataset",
+        action='store_true',
+        help='using full 25K dataset versus smaller 10K version for assistant\'s dataset',
+    )
+
     args = parser.parse_args()
 
     dataset_name = args.dataset_name
@@ -268,5 +275,7 @@ if __name__ == "__main__":
         process_dialogflow(infold=source_dir, outfold=target_dir)
     elif dataset_name == 'mturk-processed':
         process_mturk(infold=source_dir, outfold=target_dir)
+    elif dataset_name == 'assistant':
+        process_assistant(infold=source_dir, outfold=target_dir, use_full_dataset=args.use_full_dataset)
     else:
         raise ValueError(f'Dataset {dataset_name} is not supported.')
