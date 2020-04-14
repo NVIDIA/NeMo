@@ -159,21 +159,21 @@ log_misclassified_slots(
 )
 
 # analyze confusion matrices
-max_pairs = 20
+intent_max_pairs = 20
 logging.info('')
-logging.info(f'*** Most Confused Intents (limit {max_pairs}) ***')
+logging.info(f'*** Most Confused Intents (limit {intent_max_pairs}) ***')
 cm = confusion_matrix(intent_labels, intent_preds)
-analyze_confusion_matrix(cm, intent_dict, max_pairs)
+analyze_confusion_matrix(cm, intent_dict, intent_max_pairs)
 
 logging.info('')
-logging.info(f'*** Intent errors per class (in both directions) ***')
+logging.info(f'\*** Intent errors per class (in both directions) ***')
 errors_per_class(cm, intent_dict)
 
-max_pair = 20
+slot_max_pairs = 20
 logging.info('')
-logging.info(f'*** Most Confused Slots (limit {max_pairs}) ***')
+logging.info(f'*** Most Confused Slots (limit {slot_max_pairs}) ***')
 cm = confusion_matrix(slot_labels, slot_preds, np.arange(len(slot_dict)))
-analyze_confusion_matrix(cm, slot_dict, max_pairs)
+analyze_confusion_matrix(cm, slot_dict, slot_max_pairs)
 
 # check potentially problematic slots - when I- label comes after different B- label
 # check_problematic_slots(slot_labels, slot_dict)
