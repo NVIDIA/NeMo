@@ -260,7 +260,11 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 )
 
 train_data = train_datalayer()
+eval_datalayer.dataset[0]
+
 import pdb; pdb.set_trace()
+train_datalayer.dataset[0]
+
 eval_data = eval_datalayer()
 
 # define model pipeline

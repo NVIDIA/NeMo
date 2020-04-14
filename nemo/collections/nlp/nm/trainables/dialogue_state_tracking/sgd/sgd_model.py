@@ -14,6 +14,7 @@ import torch.optim as optim
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
 from nemo.core import ChannelType, EmbeddedTextType, LengthsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
+from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import MAX_NUM_INTENT, MAX_NUM_CAT_SLOT, MAX_NUM_NONCAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT
 
 
 class Logits(nn.Module):
@@ -112,7 +113,7 @@ class SGDModel(TrainableNM):
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, embedding_dim):
+    def __init__(self, embedding_dim, schema_emb_processor):
         """Get logits for elements by conditioning on utterance embedding.
 
         Args:
@@ -147,6 +148,22 @@ class SGDModel(TrainableNM):
         self.noncat_layer1 = nn.Linear(2 * embedding_dim, embedding_dim).to(self._device)
         self.noncat_activation = F.gelu
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
+
+        self.schema_emb_is_trainable = schema_emb_processor.is_trainable
+
+        if self.schema_emb_is_trainable:
+            # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
+
+            self.intents_emb = nn.Embedding(MAX_NUM_INTENT, embedding_dim)
+            self.cat_slot_emb = nn.Embedding(MAX_NUM_CAT_SLOT, embedding_dim)
+            self.cat_slot_value_emb = nn.Embedding(MAX_NUM_CAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
+            self.noncat_slot_emb = nn.Embedding(MAX_NUM_NONCAT_SLOT, embedding_dim)
+            self.req_slot_emb = nn.Embedding(MAX_NUM_CAT_SLOT + MAX_NUM_NONCAT_SLOT, embedding_dim)
+            embed = nn.Embedding(num_embeddings, embedding_dim)
+            # # pretrained_weight is a numpy matrix of shape (num_embeddings, embedding_dim)
+            # embed.weight.data.copy_(torch.from_numpy(pretrained_weight))
+
+
 
     def forward(
         self,
@@ -233,19 +250,20 @@ class SGDModel(TrainableNM):
         status_logits = self.cat_slot_status_layer(encoded_utterance, cat_slot_emb)
 
         # Predict the goal value.
-        # Shape: (batch_size, max_categorical_slots, max_categorical_values,
-        # embedding_dim).
-        _, max_num_slots, max_num_values, embedding_dim = cat_slot_value_emb.size()
-        cat_slot_value_emb_reshaped = cat_slot_value_emb.view(-1, max_num_slots * max_num_values, embedding_dim)
+        # Baseline Shape: (batch_size, max_categorical_slots, max_categorical_values, embedding_dim).
+        embedding_dim = cat_slot_value_emb.size()[-1]
 
-        value_logits = self.cat_slot_value_layer(encoded_utterance, cat_slot_value_emb_reshaped)
+        if not self.self.schema_emb_is_trainable:
+            cat_slot_value_emb = cat_slot_value_emb.view(-1, MAX_NUM_CAT_SLOT * MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
+    
+        value_logits = self.cat_slot_value_layer(encoded_utterance, cat_slot_value_emb)
 
         # Reshape to obtain the logits for all slots.
-        value_logits = value_logits.view(-1, max_num_slots, max_num_values)
+        value_logits = value_logits.view(-1, MAX_NUM_CAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT)
 
         # Mask out logits for padded slots and values because they will be softmaxed
         cat_slot_values_mask, negative_logits = self._get_mask(
-            value_logits, max_num_values, num_categorical_slot_values
+            value_logits, MAX_NUM_VALUE_PER_CAT_SLOT, num_categorical_slot_values
         )
 
         value_logits = torch.where(cat_slot_values_mask, value_logits, negative_logits)

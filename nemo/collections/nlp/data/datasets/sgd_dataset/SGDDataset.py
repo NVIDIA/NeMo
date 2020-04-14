@@ -18,7 +18,10 @@ class SGDDataset(Dataset):
         self, dataset_split, schema_emb_processor, dialogues_processor):
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         self.trainable_schema_emb = schema_emb_processor.is_trainable
-        self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
+        if not self.trainable_schema_emb:
+            self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
+        import pdb; pdb.set_trace()
+        print()
 
     def __len__(self):
         return len(self.features)
@@ -26,7 +29,7 @@ class SGDDataset(Dataset):
     def __getitem__(self, idx):
         ex = self.features[idx]
         service_id = ex.service_schema.service_id
-
+        
         example = [np.array(ex.example_id_num),
         np.array(service_id),
         np.array(ex.is_real_example, dtype=int),

@@ -50,6 +50,7 @@ class ServiceSchema(object):
             value_ids = {value: idx for idx, value in enumerate(values)}
             categorical_slot_value_ids[slot] = value_ids
         self._categorical_slot_values = categorical_slot_values
+        import pdb; pdb.set_trace()
         self._categorical_slot_value_ids = categorical_slot_value_ids
 
     @property
@@ -131,6 +132,7 @@ class Schema(object):
         for schema in schemas:
             service = schema["service_name"]
             service_schemas[service] = ServiceSchema(schema, service_id=self.get_service_id(service))
+      
         self._service_schemas = service_schemas
 
     def get_service_id(self, service):
