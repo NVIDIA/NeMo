@@ -221,6 +221,14 @@ class NmTensor(NeuralType):
         return self._producer
 
     @property
+    def producer_name(self):
+        """
+        Returns:
+            Name of the producer of the tensor.
+        """
+        return self._producer.name
+
+    @property
     def producer_port(self):
         """
         Returns:

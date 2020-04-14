@@ -18,12 +18,6 @@
 
 import pytest
 
-# from nemo.core.neural_types import (
-#    NeuralType,
-#    NeuralTypeComparisonResult,
-#    LossType,
-#    AudioSignal
-# )
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core.neural_types import NeuralTypeComparisonResult
 from nemo.utils.bound_outputs import BoundOutputs

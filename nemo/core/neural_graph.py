@@ -147,10 +147,11 @@ class NeuralGraph(NeuralInterface):
 
                 # The current graph parsing requires us to update all outputs of
                 # a module that "accepted" the input.
-                # Update means changing the original producer_args for ALL IN THE GRAPH!! # TODO!
-                producer = self._bound_input_modules[input_port_name]
-                for output_tensor in self._bound_outputs.values():
-                    if output_tensor.producer.name == producer.name:
+                # Update means changing the original producer_args for ALL (OUTPUT) TENSORS IN THE GRAPH!! 
+                producer_name = self._bound_input_modules[input_port_name].name
+                if producer_name in self._bound_outputs.all.keys():
+                    # Get all tensor producer by this module.
+                    for output_tensor in self._bound_outputs.all[producer_name]:
                         # Set "input port value" to new content - which indicates tensor (and producer)
                         # that will be used during graph backward traverse.
                         output_tensor.producer_args[port_name] = input_object  # i.e. Tensor.

@@ -40,13 +40,13 @@ class TestNmTensor:
         loss_tensor = loss(predictions=y_pred, target=y)
 
         # check producers' bookkeeping
-        assert loss_tensor.producer == loss
+        assert loss_tensor.producer_name == loss.name
         assert loss_tensor.producer_args == {"predictions": y_pred, "target": y}
-        assert y_pred.producer is trainable_module
+        assert y_pred.producer_name == trainable_module.name
         assert y_pred.producer_args == {"x": x}
-        assert y.producer is data_source
+        assert y.producer_name == data_source.name
         assert y.producer_args == {}
-        assert x.producer is data_source
+        assert x.producer_name == data_source.name
         assert x.producer_args == {}
 
     @pytest.mark.unit
