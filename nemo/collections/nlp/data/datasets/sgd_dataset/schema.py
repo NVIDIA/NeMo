@@ -117,13 +117,17 @@ class ServiceSchema(object):
 
 
 class Schema(object):
-    """Wrapper for schemas for all services in a dataset."""
+    """Wrapper for schemas for all services and all dataset splits in a dataset."""
 
-    def __init__(self, schema_json_path):
-        # Load the schema from the json file.
-        with open(schema_json_path, "r") as f:
-            schemas = json.load(f)
-            f.close()
+    def __init__(self, list_of_schema_json_paths):
+        all_schemas = []
+        for schema_json_path in list_of_schema_json_paths:
+            # Load the schema from the json file.
+            with open(schema_json_path, "r") as f:
+                schemas = json.load(f)
+                all_schemas.append(schemas)
+                f.close()
+        import pdb; pdb.set_trace()
         self._services = sorted(schema["service_name"] for schema in schemas)
         self._services_vocab = {v: k for k, v in enumerate(self._services)}
         self._services_id_to_vocab = {v: k for k, v in self._services_vocab.items()}
@@ -146,3 +150,36 @@ class Schema(object):
     @property
     def services(self):
         return self._services
+
+
+# class Schema(object):
+#     """Wrapper for schemas for all services in a dataset."""
+
+#     def __init__(self, schema_json_path):
+#         # Load the schema from the json file.
+#         with open(schema_json_path, "r") as f:
+#             schemas = json.load(f)
+#             f.close()
+
+#         self._services = sorted(schema["service_name"] for schema in schemas)
+#         self._services_vocab = {v: k for k, v in enumerate(self._services)}
+#         self._services_id_to_vocab = {v: k for k, v in self._services_vocab.items()}
+#         service_schemas = {}
+#         for schema in schemas:
+#             service = schema["service_name"]
+#             service_schemas[service] = ServiceSchema(schema, service_id=self.get_service_id(service))
+      
+#         self._service_schemas = service_schemas
+
+#     def get_service_id(self, service):
+#         return self._services_vocab[service]
+
+#     def get_service_from_id(self, service_id):
+#         return self._services[service_id]
+
+#     def get_service_schema(self, service):
+#         return self._service_schemas[service]
+
+#     @property
+#     def services(self):
+#         return self._services
