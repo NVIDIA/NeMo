@@ -101,67 +101,6 @@ def _plot_confusion_matrix(labels, preds, graph_fold):
     plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
 
 
-def analyze_confusion_matrix(cm, dict, max_pairs=10):
-    """
-    Sort all confusions in the confusion matrix by value and display results.
-    Print results in a format: (name -> name, value)
-    Args:
-        cm: Confusion matrix
-        dict: Dictionary with key as a name and index as a value (Intents or Slots)
-        max_pairs: Max number of confusions to print
-    """
-    threshold = 5  # just arbitrary value to take confusion with at least this number
-    confused_pairs = {}
-    size = cm.shape[0]
-    for i in range(size):
-        res = cm[i].argsort()
-        for j in range(size):
-            pos = res[size - j - 1]
-            # no confusion - same row and column
-            if pos == i:
-                continue
-            elif cm[i][pos] >= threshold:
-                str = f'{dict[i]} -> {dict[pos]}'
-                confused_pairs[str] = cm[i][pos]
-            else:
-                break
-
-    # sort by max confusions and print first max_pairs
-    sorted_confused_pairs = sorted(confused_pairs.items(), key=lambda x: x[1], reverse=True)
-    for i, pair_str in enumerate(sorted_confused_pairs):
-        if i >= max_pairs:
-            break
-        logging.info(pair_str)
-
-
-def errors_per_class(cm, dict):
-    """
-    Summarize confusions per each class in the confusion matrix.
-    It can be useful both for Intents and Slots.
-    It counts each confusion twice in both directions.
-    Args:
-        cm: Confusion matrix
-        dict: Dictionary with key as a name and index as a value (Intents or Slots)
-    """
-    size = cm.shape[0]
-    confused_per_class = {}
-    total_errors = 0
-    for class_num in range(size):
-        sum = 0
-        for i in range(size):
-            if i != class_num:
-                sum += cm[class_num][i]
-                sum += cm[i][class_num]
-        confused_per_class[dict[class_num]] = sum
-        total_errors += sum
-        # logging.info(f'{dict[class_num]} - {sum}')
-
-    logging.info(f'Total errors (multiplied by 2): {total_errors}')
-    sorted_confused_per_class = sorted(confused_per_class.items(), key=lambda x: x[1], reverse=True)
-    for conf_str in sorted_confused_per_class:
-        logging.info(conf_str)
-
-
 def get_classification_report(labels, preds, label_ids):
     """
     Returns classification report
