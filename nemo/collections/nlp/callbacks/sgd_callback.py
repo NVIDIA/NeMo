@@ -94,6 +94,11 @@ def eval_iter_callback(tensors, global_vars, ids_to_service_names_dict, eval_dat
     # Add inverse alignments.
     predictions['noncat_alignment_start'] = output['start_char_idx']
     predictions['noncat_alignment_end'] = output['end_char_idx']
+
+    # added for debugging
+    predictions['cat_slot_status_GT'] = output['categorical_slot_status']
+    predictions['noncat_slot_status_GT'] = output['noncategorical_slot_status']
+
     global_vars['predictions'].extend(combine_predictions_in_example(predictions, batch_size))
 
 
@@ -125,6 +130,11 @@ def eval_epochs_done_callback(
     state_tracker,
     eval_debug,
 ):
+    # added for debugging
+    in_domain_services = get_in_domain_services(
+        os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
+    )
+    ##############
     pred_utils.write_predictions_to_file(
         global_vars['predictions'],
         input_json_files,
@@ -132,8 +142,8 @@ def eval_epochs_done_callback(
         prediction_dir,
         state_tracker=state_tracker,
         eval_debug=eval_debug,
+        in_domain_services=in_domain_services,
     )
-
     metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file)
     return metrics
 
@@ -155,9 +165,12 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
 
     all_metric_aggregate, _ = get_metrics(dataset_ref, dataset_hyp, eval_services, in_domain_services)
-    logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
-    logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
-    logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
+    if SEEN_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
+    if UNSEEN_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
+    if ALL_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
     # Write the aggregated metrics values.
     with open(output_metric_file, "w") as f:
         json.dump(all_metric_aggregate, f, indent=2, separators=(",", ": "), sort_keys=True)

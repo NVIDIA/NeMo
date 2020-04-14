@@ -33,13 +33,7 @@ from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
 
 __all__ = [
-    'EMBEDDING_DIMENSION',
-    'MAX_NUM_CAT_SLOT',
-    'MAX_NUM_NONCAT_SLOT',
-    'MAX_NUM_VALUE_PER_CAT_SLOT',
-    'MAX_NUM_INTENT',
     'STATUS_DONTCARE',
-    'DEFAULT_MAX_SEQ_LENGTH',
     'STATUS_OFF',
     'STR_DONTCARE',
     'STATUS_ACTIVE',
@@ -48,20 +42,7 @@ __all__ = [
     'Dstc8DataProcessor',
 ]
 
-# Dimension of the embedding for intents, slots and categorical slot values in
-# the schema. Should be equal to BERT's hidden_size.
-EMBEDDING_DIMENSION = 768
-# Maximum allowed number of categorical trackable slots for a service.
-MAX_NUM_CAT_SLOT = 6
-# Maximum allowed number of non-categorical trackable slots for a service.
-MAX_NUM_NONCAT_SLOT = 12
-# Maximum allowed number of values per categorical trackable slot.
-MAX_NUM_VALUE_PER_CAT_SLOT = 11
-# Maximum allowed number of intents for a service.
-MAX_NUM_INTENT = 4
 STR_DONTCARE = "dontcare"
-# The maximum total input sequence length after WordPiece tokenization.
-DEFAULT_MAX_SEQ_LENGTH = 128
 
 # These are used to represent the status of slots (off, active, dontcare) and
 # intents (off, active) in dialogue state tracking.
@@ -74,6 +55,7 @@ FILE_RANGES = {
     "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
     "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 3)},
+    "multiwoz": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 1)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -88,8 +70,8 @@ class Dstc8DataProcessor(object):
         task_name,
         dstc8_data_dir,
         dialogues_example_dir,
+        schema_config,
         tokenizer,
-        max_seq_length,
         datasets=["train", "dev", "test"],
         overwrite_dial_files=False,
     ):
@@ -98,6 +80,7 @@ class Dstc8DataProcessor(object):
         self.dialogues_examples_dir = dialogues_example_dir
 
         self._task_name = task_name
+        self.schema_config = schema_config
 
         train_file_range = FILE_RANGES[task_name]["train"]
         dev_file_range = FILE_RANGES[task_name]["dev"]
@@ -110,7 +93,7 @@ class Dstc8DataProcessor(object):
         }
 
         self._tokenizer = tokenizer
-        self._max_seq_length = max_seq_length
+        self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]
 
         self._schemas = {}
         self.schema_pkl_files = {}
@@ -188,7 +171,7 @@ class Dstc8DataProcessor(object):
                 logging.info(f'Processed {dialog_idx} dialogs.')
             examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset))
 
-        logging.info(f'Finished creating the examples from {dialog_idx} dialogues.')
+        logging.info(f'Finished creating the examples from {len(dialogs)} dialogues.')
         return examples
 
     def _save_schemas(self, dataset):
@@ -254,9 +237,7 @@ class Dstc8DataProcessor(object):
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
-        base_example = InputExample(
-            max_seq_length=self._max_seq_length, is_real_example=True, tokenizer=self._tokenizer,
-        )
+        base_example = InputExample(schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer,)
         base_example.example_id = turn_id
 
         _, dialog_id, turn_id_ = turn_id.split('-')
@@ -401,7 +382,7 @@ class InputExample(object):
 
     def __init__(
         self,
-        max_seq_length=DEFAULT_MAX_SEQ_LENGTH,
+        schema_config,
         service_schema=None,
         example_id="NONE",
         example_id_num=[],
@@ -424,12 +405,13 @@ class InputExample(object):
             convert_ids_to_tokens methods. It must be non-None when
             is_real_example=True.
         """
+        self.schema_config = schema_config
         self.service_schema = service_schema
         self.example_id = example_id
         self.example_id_num = example_id_num
 
         self.is_real_example = is_real_example
-        self._max_seq_length = max_seq_length
+        self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]
         self._tokenizer = tokenizer
         if self.is_real_example and self._tokenizer is None:
             raise ValueError("Must specify tokenizer when input is a real example.")
@@ -457,33 +439,35 @@ class InputExample(object):
         # Number of categorical slots present in the service.
         self.num_categorical_slots = 0
         # The status of each categorical slot in the service.
-        self.categorical_slot_status = [STATUS_OFF] * MAX_NUM_CAT_SLOT
+        self.categorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_CAT_SLOT"]
         # Number of values taken by each categorical slot.
-        self.num_categorical_slot_values = [0] * MAX_NUM_CAT_SLOT
+        self.num_categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
         # The index of the correct value for each categorical slot.
-        self.categorical_slot_values = [0] * MAX_NUM_CAT_SLOT
+        self.categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
 
         # Number of non-categorical slots present in the service.
         self.num_noncategorical_slots = 0
         # The status of each non-categorical slot in the service.
-        self.noncategorical_slot_status = [STATUS_OFF] * MAX_NUM_NONCAT_SLOT
+        self.noncategorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_NONCAT_SLOT"]
         # The index of the starting subword corresponding to the slot span for a
         # non-categorical slot value.
-        self.noncategorical_slot_value_start = [0] * MAX_NUM_NONCAT_SLOT
+        self.noncategorical_slot_value_start = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
         # The index of the ending (inclusive) subword corresponding to the slot span
         # for a non-categorical slot value.
-        self.noncategorical_slot_value_end = [0] * MAX_NUM_NONCAT_SLOT
+        self.noncategorical_slot_value_end = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
 
         # Total number of slots present in the service. All slots are included here
         # since every slot can be requested.
         self.num_slots = 0
         # Takes value 1 if the corresponding slot is requested, 0 otherwise.
-        self.requested_slot_status = [STATUS_OFF] * (MAX_NUM_CAT_SLOT + MAX_NUM_NONCAT_SLOT)
+        self.requested_slot_status = [STATUS_OFF] * (
+            schema_config["MAX_NUM_CAT_SLOT"] + schema_config["MAX_NUM_NONCAT_SLOT"]
+        )
 
         # Total number of intents present in the service.
         self.num_intents = 0
         # Takes value 1 if the intent is active, 0 otherwise.
-        self.intent_status = [STATUS_OFF] * MAX_NUM_INTENT
+        self.intent_status = [STATUS_OFF] * schema_config["MAX_NUM_INTENT"]
 
     @property
     def readable_summary(self):
@@ -628,7 +612,7 @@ class InputExample(object):
     def make_copy_with_utterance_features(self):
         """Make a copy of the current example with utterance features."""
         new_example = InputExample(
-            max_seq_length=self._max_seq_length,
+            schema_config=self.schema_config,
             service_schema=self.service_schema,
             example_id=self.example_id,
             example_id_num=self.example_id_num,
