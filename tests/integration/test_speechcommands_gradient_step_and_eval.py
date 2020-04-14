@@ -78,11 +78,23 @@ class TestSpeechCommandsPytorch(TestCase):
 
     @staticmethod
     def print_and_log_loss(loss_tensor, loss_log_list):
+        """A helper function that is passed to SimpleLossLoggerCallback. It prints loss_tensors and appends to
+        the loss_log_list list.
+
+        Args:
+            loss_tensor (NMTensor): tensor representing loss. Loss should be a scalar
+            loss_log_list (list): empty list
+        """
         logging.info(f'Train Loss: {str(loss_tensor[0].item())}')
         loss_log_list.append(loss_tensor[0].item())
 
     @pytest.mark.integration
     def test_quartznet_speech_commands_training(self):
+        """Integtaion test that instantiates a small QuartzNet model for speech commands and tests training with the
+        sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
         ) as file:
@@ -135,6 +147,8 @@ class TestSpeechCommandsPytorch(TestCase):
 
     @pytest.mark.integration
     def test_quartznet_speech_commands_eval(self):
+        """Integration test that tests EvaluatorCallback and NeuralModuleFactory.eval().
+        """
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_speech_recognition.yaml"))
         ) as file:

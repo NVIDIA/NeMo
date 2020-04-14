@@ -92,11 +92,22 @@ class TestASRPytorch(TestCase):
 
     @staticmethod
     def print_and_log_loss(loss_tensor, loss_log_list):
+        """A helper function that is passed to SimpleLossLoggerCallback. It prints loss_tensors and appends to
+        the loss_log_list list.
+
+        Args:
+            loss_tensor (NMTensor): tensor representing loss. Loss should be a scalar
+            loss_log_list (list): empty list
+        """
         logging.info(f'Train Loss: {str(loss_tensor[0].item())}')
         loss_log_list.append(loss_tensor[0].item())
 
     @pytest.mark.integration
     def test_jasper_training(self):
+        """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
@@ -150,6 +161,10 @@ class TestASRPytorch(TestCase):
 
     @pytest.mark.integration
     def test_quartznet_training(self):
+        """Integtaion test that instantiates a small QuartzNet model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
         dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
@@ -197,6 +212,12 @@ class TestASRPytorch(TestCase):
 
     @pytest.mark.integration
     def test_stft_conv_training(self):
+        """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
+        test_stft_conv_training tests the torch_stft path while test_jasper_training tests the torch.stft path inside
+        of AudioToMelSpectrogramPreprocessor.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
@@ -248,6 +269,9 @@ class TestASRPytorch(TestCase):
     @pytest.mark.integration
     @pytest.mark.skipduringci
     def test_jasper_evaluation(self):
+        """Integration test that tests EvaluatorCallback and NeuralModuleFactory.eval(). This test is skipped during
+        CI as it is redundant with the Jenkins Jasper ASR CI tests.
+        """
         # Note this test still has no asserts, but rather checks that the current eval path works
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
