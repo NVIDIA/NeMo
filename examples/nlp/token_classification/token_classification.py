@@ -218,7 +218,8 @@ def create_pipeline(
         tensors_to_evaluate = [logits, labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
 
-callbacks=[]
+
+callbacks = []
 train_tensors, train_loss, steps_per_epoch, label_ids, classifier = create_pipeline()
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
 # Create trainer and execute training action

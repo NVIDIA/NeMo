@@ -41,11 +41,13 @@ def __maybe_download_file(destination: str, dataset: str):
         tmp_unzip = '/tmp/data'
         if not os.path.exists(tmp_unzip):
             os.makedirs(tmp_unzip)
-        else: 
+        else:
             subprocess.run(['rm', '-rf', tmp_unzip])
         subprocess.run(['wget', '-O', tmp_zip, download_url])
         subprocess.run(['unzip', tmp_zip, '-d', tmp_unzip])
-        subprocess.run(['mv', os.path.join(tmp_unzip, f"bert_data/{parent_source.upper()}/{child_source}"), destination])
+        subprocess.run(
+            ['mv', os.path.join(tmp_unzip, f"bert_data/{parent_source.upper()}/{child_source}"), destination]
+        )
         subprocess.run(['rm', '-rf', tmp_zip])
         subprocess.run(['rm', '-rf', tmp_unzip])
     else:
@@ -62,5 +64,5 @@ if __name__ == "__main__":
         os.makedirs(args.data_dir)
 
     logging.info(f'Downloading dataset')
-    data_dir=os.path.join(args.data_dir, args.dataset)
+    data_dir = os.path.join(args.data_dir, args.dataset)
     __maybe_download_file(data_dir, args.dataset)

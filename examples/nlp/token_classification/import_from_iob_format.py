@@ -47,7 +47,7 @@ def __convert_data(in_file, out_text, out_labels, max_length):
                     line = line.split()
                     out_out_text.write(line[0] + ' ')
                     out_out_labels.write(line[-1] + ' ')
-    
+
     else:
         lines = []
         words = []
@@ -66,15 +66,13 @@ def __convert_data(in_file, out_text, out_labels, max_length):
                             for iidx in range(len(tmplabel)):
                                 if tmplabel.pop() == 'O':
                                     break
-                            l = ' '.join(
-                                [label for label in labels[:len(tmplabel) + 1] if len(label) > 0])
-                            w = ' '.join(
-                                [word for word in words[:len(tmplabel) + 1] if len(word) > 0])
+                            l = ' '.join([label for label in labels[: len(tmplabel) + 1] if len(label) > 0])
+                            w = ' '.join([word for word in words[: len(tmplabel) + 1] if len(word) > 0])
                             # lines.append([l, w])
                             out_text.write(w + "\n")
                             out_labels.write(l + "\n")
-                            words = words[len(tmplabel) + 1:]
-                            labels = labels[len(tmplabel) + 1:]
+                            words = words[len(tmplabel) + 1 :]
+                            labels = labels[len(tmplabel) + 1 :]
 
                     if len(words) == 0:
                         continue
@@ -103,13 +101,11 @@ if __name__ == "__main__":
     parser.add_argument("--max_length", default=-1, type=int)
     args = parser.parse_args()
 
-    data_dir =  os.path.dirname(args.data_file)
+    data_dir = os.path.dirname(args.data_file)
     basename = os.path.basename(args.data_file)
     prefix, ext = os.path.splitext(basename)
     if not os.path.exists(args.data_file):
-        raise FileNotFoundError(
-            "{data_file} not found in {data_dir}"
-        )
+        raise FileNotFoundError("{data_file} not found in {data_dir}")
 
     logging.info(f'Processing {args.data_file}')
     out_text = os.path.join(data_dir, 'text_' + prefix + '.txt')
