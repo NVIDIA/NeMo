@@ -293,7 +293,7 @@ def create_pipeline(dataset_split='train'):
     )
 
     data = datalayer()
-    datalayer.dataset[0]
+    # datalayer.dataset[0]
 
     # Encode the utterances using BERT.
     token_embeddings = pretrained_bert_model(
@@ -424,18 +424,16 @@ os.makedirs(prediction_dir, exist_ok=True)
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, schema_preprocessor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset
+        x, y, schema_preprocessor, args.eval_dataset
     ),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x,
         input_json_files,
-        schema_json_file,
         prediction_dir,
-        args.data_dir,
-        args.eval_dataset,
         output_metric_file,
         args.state_tracker,
         args.debug_mode,
+        schema_preprocessor
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,

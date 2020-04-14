@@ -86,7 +86,7 @@ class SGDModel(TrainableNM):
             "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType(), optional=True),
             "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
             "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "intent_embeddings": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "intent_embeddings": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True)
         }
 
     @property
@@ -149,15 +149,12 @@ class SGDModel(TrainableNM):
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
 
         self.schema_emb_is_trainable = schema_emb_processor.is_trainable
-        config = schema_emb_processor.congig_file
+        config = schema_emb_processor.schema_config
         if self.schema_emb_is_trainable:
             # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
-
-            self.intents_emb = nn.Embedding(congig["MAX_NUM_INTENT"], embedding_dim)
+            self.intents_emb = nn.Embedding(config["MAX_NUM_INTENT"], embedding_dim)
             self.cat_slot_emb = nn.Embedding(config["MAX_NUM_CAT_SLOT"], embedding_dim)
-            self.cat_slot_value_emb = nn.Embedding(
-                config["MAX_NUM_CAT_SLOT"], config["MAX_NUM_VALUE_PER_CAT_SLOT"], embedding_dim
-            )
+            self.cat_slot_value_emb = nn.Embedding(config["MAX_NUM_CAT_SLOT"], config["MAX_NUM_VALUE_PER_CAT_SLOT"], embedding_dim)
             self.noncat_slot_emb = nn.Embedding(config["MAX_NUM_NONCAT_SLOT"], embedding_dim)
             self.req_slot_emb = nn.Embedding(config["MAX_NUM_CAT_SLOT"] + config["MAX_NUM_NONCAT_SLOT"], embedding_dim)
             # embed = nn.Embedding(num_embeddings, embedding_dim)
@@ -184,9 +181,7 @@ class SGDModel(TrainableNM):
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         
         """
-        import pdb
-
-        pdb.set_trace()
+        import pdb; pdb.set_trace()
         logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, num_intents)
 
         logit_req_slot_status, req_slot_mask = self._get_requested_slots(

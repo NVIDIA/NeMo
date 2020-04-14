@@ -27,7 +27,7 @@ class SGDDataset(Dataset):
     def __getitem__(self, idx):
         ex = self.features[idx]
         service_id = ex.service_schema.service_id
-
+    
         example = [
             np.array(ex.example_id_num),
             np.array(service_id),
@@ -53,11 +53,11 @@ class SGDDataset(Dataset):
 
         if not self.trainable_schema_emb:
             return example + [
-                np.array(self.schema_data_dict['cat_slot_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_data_dict['cat_slot_value_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_data_dict['noncat_slot_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_data_dict['req_slot_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_data_dict['intent_emb'][service_id], dtype=np.float32),
+                np.array(self.schema_embeddings['cat_slot_emb'][service_id], dtype=np.float32),
+                np.array(self.schema_embeddings['cat_slot_value_emb'][service_id], dtype=np.float32),
+                np.array(self.schema_embeddings['noncat_slot_emb'][service_id], dtype=np.float32),
+                np.array(self.schema_embeddings['req_slot_emb'][service_id], dtype=np.float32),
+                np.array(self.schema_embeddings['intent_emb'][service_id], dtype=np.float32),
             ]
 
         return example
