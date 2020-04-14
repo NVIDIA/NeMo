@@ -204,9 +204,6 @@ else:
         "MAX_NUM_INTENT": 4,
     }
 
-schema_config["EMBEDDING_DIMENSION"] = 768
-schema_config["MAX_SEQ_LENGTH"] = args.max_seq_length
-
 if not os.path.exists(args.data_dir):
     raise ValueError('Data not found at {args.data_dir}')
 
@@ -224,6 +221,10 @@ nf = nemo.core.NeuralModuleFactory(
 pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
     bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
 )
+
+schema_config["EMBEDDING_DIMENSION"] = pretrained_bert_model.hidden_size
+schema_config["MAX_SEQ_LENGTH"] = args.max_seq_length
+
 if args.bert_checkpoint is not None:
     pretrained_bert_model.restore_from(args.bert_checkpoint)
     logging.info(f"model restored from {args.bert_checkpoint}")
@@ -281,11 +282,6 @@ eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
 )
 
 train_data = train_datalayer()
-eval_datalayer.dataset[0]
-
-import pdb; pdb.set_trace()
-train_datalayer.dataset[0]
-
 eval_data = eval_datalayer()
 
 # define model pipeline
@@ -299,7 +295,7 @@ token_embeddings = pretrained_bert_model(
     token_type_ids=train_data.utterance_segment,
 )
 encoded_utterance, token_embeddings = encoder(hidden_states=token_embeddings)
-model = sgd_model.SGDModel(embedding_dim=hidden_size)
+model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
 
 (
     logit_intent_status,

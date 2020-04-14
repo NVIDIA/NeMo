@@ -20,8 +20,6 @@ class SGDDataset(Dataset):
         self.trainable_schema_emb = schema_emb_processor.is_trainable
         if not self.trainable_schema_emb:
             self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
-        import pdb; pdb.set_trace()
-        print()
 
     def __len__(self):
         return len(self.features)

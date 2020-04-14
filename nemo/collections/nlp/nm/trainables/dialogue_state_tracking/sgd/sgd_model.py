@@ -14,7 +14,6 @@ import torch.optim as optim
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
 from nemo.core import ChannelType, EmbeddedTextType, LengthsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
-from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import MAX_NUM_INTENT, MAX_NUM_CAT_SLOT, MAX_NUM_NONCAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT
 
 
 class Logits(nn.Module):
@@ -129,6 +128,12 @@ class SGDModel(TrainableNM):
         """
         super().__init__()
 
+        schema_config = schema_emb_processor.schema_config
+        self.MAX_NUM_CAT_SLOT = schema_config["MAX_NUM_CAT_SLOT"]
+        self.MAX_NUM_NONCAT_SLOT = schema_config["MAX_NUM_NONCAT_SLOT"]
+        self.MAX_NUM_VALUE_PER_CAT_SLOT = schema_config["MAX_NUM_VALUE_PER_CAT_SLOT"]
+        self.MAX_NUM_INTENT = schema_config["MAX_NUM_INTENT"]
+
         # Add a trainable vector for the NONE intent
         self.none_intent_vector = torch.empty((1, 1, embedding_dim), requires_grad=True).to(self._device)
         # TODO truncated norm init
@@ -151,15 +156,15 @@ class SGDModel(TrainableNM):
 
         self.schema_emb_is_trainable = schema_emb_processor.is_trainable
 
-        if self.schema_emb_is_trainable:
-            # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
+        # if self.schema_emb_is_trainable:
+        #     # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
 
-            self.intents_emb = nn.Embedding(MAX_NUM_INTENT, embedding_dim)
-            self.cat_slot_emb = nn.Embedding(MAX_NUM_CAT_SLOT, embedding_dim)
-            self.cat_slot_value_emb = nn.Embedding(MAX_NUM_CAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
-            self.noncat_slot_emb = nn.Embedding(MAX_NUM_NONCAT_SLOT, embedding_dim)
-            self.req_slot_emb = nn.Embedding(MAX_NUM_CAT_SLOT + MAX_NUM_NONCAT_SLOT, embedding_dim)
-            embed = nn.Embedding(num_embeddings, embedding_dim)
+        #     self.intents_emb = nn.Embedding(schema_config['MAX_NUM_INTENT'], embedding_dim)
+        #     self.cat_slot_emb = nn.Embedding(schema_config['MAX_NUM_CAT_SLOT'], embedding_dim)
+        #     self.cat_slot_value_emb = nn.Embedding(schema_config['MAX_NUM_CAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
+        #     self.noncat_slot_emb = nn.Embedding(schema_config['MAX_NUM_NONCAT_SLOT, embedding_dim)
+        #     self.req_slot_emb = nn.Embedding(schema_config['MAX_NUM_CAT_SLOT'] + MAX_NUM_NONCAT_SLOT, embedding_dim)
+            # embed = nn.Embedding(schema_config['num_embeddings, embedding_dim)
             # # pretrained_weight is a numpy matrix of shape (num_embeddings, embedding_dim)
             # embed.weight.data.copy_(torch.from_numpy(pretrained_weight))
 
@@ -253,17 +258,17 @@ class SGDModel(TrainableNM):
         # Baseline Shape: (batch_size, max_categorical_slots, max_categorical_values, embedding_dim).
         embedding_dim = cat_slot_value_emb.size()[-1]
 
-        if not self.self.schema_emb_is_trainable:
-            cat_slot_value_emb = cat_slot_value_emb.view(-1, MAX_NUM_CAT_SLOT * MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
+        if not self.schema_emb_is_trainable:
+            cat_slot_value_emb = cat_slot_value_emb.view(-1, self.MAX_NUM_CAT_SLOT * self.MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
     
         value_logits = self.cat_slot_value_layer(encoded_utterance, cat_slot_value_emb)
 
         # Reshape to obtain the logits for all slots.
-        value_logits = value_logits.view(-1, MAX_NUM_CAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT)
+        value_logits = value_logits.view(-1, self.MAX_NUM_CAT_SLOT, self.MAX_NUM_VALUE_PER_CAT_SLOT)
 
         # Mask out logits for padded slots and values because they will be softmaxed
         cat_slot_values_mask, negative_logits = self._get_mask(
-            value_logits, MAX_NUM_VALUE_PER_CAT_SLOT, num_categorical_slot_values
+            value_logits, self.MAX_NUM_VALUE_PER_CAT_SLOT, num_categorical_slot_values
         )
 
         value_logits = torch.where(cat_slot_values_mask, value_logits, negative_logits)

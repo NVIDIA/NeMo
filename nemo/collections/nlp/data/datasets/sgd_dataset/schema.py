@@ -50,7 +50,6 @@ class ServiceSchema(object):
             value_ids = {value: idx for idx, value in enumerate(values)}
             categorical_slot_value_ids[slot] = value_ids
         self._categorical_slot_values = categorical_slot_values
-        import pdb; pdb.set_trace()
         self._categorical_slot_value_ids = categorical_slot_value_ids
 
     @property
