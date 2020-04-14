@@ -107,6 +107,7 @@ class TestASRPytorch(TestCase):
         """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
         Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
         at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
         """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
@@ -164,6 +165,7 @@ class TestASRPytorch(TestCase):
         """Integtaion test that instantiates a small QuartzNet model and tests training with the sample asr data.
         Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
         at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
         """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
@@ -217,6 +219,7 @@ class TestASRPytorch(TestCase):
         of AudioToMelSpectrogramPreprocessor.
         Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
         at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
         """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
