@@ -34,7 +34,7 @@ __all__ = ['SchemaEmbeddingDataset']
 
 
 class SchemaEmbeddingDataset(Dataset):
-    def __init__(self, tokenizer, max_seq_length, input_file, embedding_dim):
+    def __init__(self, schema_config, tokenizer, input_file):
         """Generate the embeddings for a schema's elements.
 
         Args:
@@ -44,8 +44,7 @@ class SchemaEmbeddingDataset(Dataset):
           input_file: path to json schema
         """
         self._tokenizer = tokenizer
-        self._max_seq_length = max_seq_length
-        self._embedding_dim = embedding_dim
+        self.schema_config = schema_config
         self.schemas = schema.Schema(input_file)
 
         input_features = self._get_input_features()
@@ -73,7 +72,7 @@ class SchemaEmbeddingDataset(Dataset):
 
     def _create_feature(self, line, embedding_tensor_name, service_id, intent_or_slot_id, value_id=-1):
         """Create a single InputFeatures instance."""
-        seq_length = self._max_seq_length
+        seq_length = self.schema_config["MAX_SEQ_LENGTH"]
         # line = tokenization.convert_to_unicode(input_line)
         line = line.strip()
         text_a = None
@@ -300,12 +299,12 @@ class SchemaEmbeddingDataset(Dataset):
     def save_embeddings(self, bert_hidden_states, output_file, mode):
         """Generate schema element embeddings and save it as a numpy file."""
         schema_embeddings = []
-        max_num_intent = data_utils.MAX_NUM_INTENT
-        max_num_cat_slot = data_utils.MAX_NUM_CAT_SLOT
-        max_num_noncat_slot = data_utils.MAX_NUM_NONCAT_SLOT
+        max_num_intent = self.schema_config["MAX_NUM_INTENT"]
+        max_num_cat_slot = self.schema_config["MAX_NUM_CAT_SLOT"]
+        max_num_noncat_slot = self.schema_config["MAX_NUM_NONCAT_SLOT"]
         max_num_slot = max_num_cat_slot + max_num_noncat_slot
-        max_num_value = data_utils.MAX_NUM_VALUE_PER_CAT_SLOT
-        embedding_dim = self._embedding_dim
+        max_num_value = self.schema_config["MAX_NUM_VALUE_PER_CAT_SLOT"]
+        embedding_dim = self.schema_config["EMBEDDING_DIMENSION"]
 
         for _ in self.schemas.services:
             schema_embeddings.append(
