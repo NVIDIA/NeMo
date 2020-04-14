@@ -41,12 +41,12 @@ def __convert_data(in_file, out_text, out_labels, max_length):
         with open(out_text, 'w') as out_text, open(out_labels, 'w') as out_labels:
             for line in in_file:
                 if line == '\n':
-                    out_out_text.write(line)
-                    out_out_labels.write(line)
+                    out_text.write(line)
+                    out_labels.write(line)
                 else:
                     line = line.split()
-                    out_out_text.write(line[0] + ' ')
-                    out_out_labels.write(line[-1] + ' ')
+                    out_text.write(line[0] + ' ')
+                    out_labels.write(line[-1] + ' ')
 
     else:
         lines = []

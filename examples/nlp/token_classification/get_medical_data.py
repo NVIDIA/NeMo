@@ -22,7 +22,10 @@ import subprocess
 
 from nemo import logging
 
-URL = {'bc5cdr': 'https://github.com/ncbi-nlp/BLUE_Benchmark/releases/download/0.1/bert_data.zip'}
+URL = {
+    'bc5cdr': 'https://github.com/ncbi-nlp/BLUE_Benchmark/releases/download/0.1/bert_data.zip',
+    'ncbi': 'https://drive.google.com/uc?id=1OletxmPYNkz2ltOr9pyT0b0iBtUWxslh',
+}
 
 
 def __maybe_download_file(destination: str, dataset: str):
@@ -43,11 +46,19 @@ def __maybe_download_file(destination: str, dataset: str):
             os.makedirs(tmp_unzip)
         else:
             subprocess.run(['rm', '-rf', tmp_unzip])
-        subprocess.run(['wget', '-O', tmp_zip, download_url])
+        if parent_source == "bc5cdr":
+            subprocess.run(['wget', '-O', tmp_zip, download_url])
+        elif parent_source == "ncbi":
+            subprocess.run(['gdown', '-O', tmp_zip, download_url])
         subprocess.run(['unzip', tmp_zip, '-d', tmp_unzip])
-        subprocess.run(
-            ['mv', os.path.join(tmp_unzip, f"bert_data/{parent_source.upper()}/{child_source}"), destination]
-        )
+
+        if parent_source == "bc5cdr":
+            subprocess.run(
+                ['mv', os.path.join(tmp_unzip, f"bert_data/{parent_source.upper()}/{child_source}"), destination]
+            )
+        elif parent_source == "ncbi":
+            subprocess.run(['mv', os.path.join(tmp_unzip, f"{parent_source.upper()}-{child_source}"), destination])
+
         subprocess.run(['rm', '-rf', tmp_zip])
         subprocess.run(['rm', '-rf', tmp_unzip])
     else:
@@ -57,7 +68,9 @@ def __maybe_download_file(destination: str, dataset: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare dataset')
     parser.add_argument("--data_dir", required=True, type=str)
-    parser.add_argument("--dataset", default='bc5cdr-chem', choices=['bc5cdr-chem', 'bc5cdr-disease'], type=str)
+    parser.add_argument(
+        "--dataset", default='bc5cdr-chem', choices=['bc5cdr-chem', 'bc5cdr-disease', 'ncbi-disease'], type=str
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.data_dir):
