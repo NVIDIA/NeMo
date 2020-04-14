@@ -17,9 +17,8 @@
 # =============================================================================
 
 import os
-import shutil
 import tarfile
-import unittest
+from functools import partial
 from unittest import TestCase
 
 import pytest
@@ -27,13 +26,8 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
-from nemo.core import DeviceType
 
 logging = nemo.logging
-
-
-freq = 16000
 
 
 @pytest.mark.usefixtures("neural_factory")
@@ -76,7 +70,7 @@ class TestASRPytorch(TestCase):
         'frame_splicing': 1,
         'int_values': False,
         'window_stride': 0.01,
-        'sample_rate': freq,
+        'sample_rate': 16000,
         'features': 64,
         'n_fft': 512,
         'window_size': 0.02,
@@ -96,15 +90,32 @@ class TestASRPytorch(TestCase):
         else:
             logging.info("ASR data found in: {0}".format(os.path.join(data_folder, "asr")))
 
-    @pytest.mark.unclassified
+    @staticmethod
+    def print_and_log_loss(loss_tensor, loss_log_list):
+        """A helper function that is passed to SimpleLossLoggerCallback. It prints loss_tensors and appends to
+        the loss_log_list list.
+
+        Args:
+            loss_tensor (NMTensor): tensor representing loss. Loss should be a scalar
+            loss_log_list (list): empty list
+        """
+        logging.info(f'Train Loss: {str(loss_tensor[0].item())}')
+        loss_log_list.append(loss_tensor[0].item())
+
+    @pytest.mark.integration
     def test_jasper_training(self):
+        """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
+        """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(
             # featurizer_config=self.featurizer_config,
             manifest_filepath=self.manifest_filepath,
             labels=self.labels,
-            batch_size=4,
+            batch_size=30,
         )
         pre_process_params = {
             'frame_splicing': 1,
@@ -136,82 +147,29 @@ class TestASRPytorch(TestCase):
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
+        loss_list = []
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
-        )
-        # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
-        optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
-    @pytest.mark.unclassified
-    def test_double_jasper_training(self):
-        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
-            jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(
-            # featurizer_config=self.featurizer_config,
-            manifest_filepath=self.manifest_filepath,
-            labels=self.labels,
-            batch_size=4,
+        self.nf.train(
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
-        pre_process_params = {
-            'frame_splicing': 1,
-            'features': 64,
-            'window_size': 0.02,
-            'n_fft': 512,
-            'dither': 1e-05,
-            'window': 'hann',
-            'sample_rate': 16000,
-            'normalize': 'per_feature',
-            'window_stride': 0.01,
-        }
-        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        jasper_encoder1 = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **jasper_model_definition['JasperEncoder'],
-        )
-        jasper_encoder2 = nemo_asr.JasperEncoder(
-            feat_in=jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
-            **jasper_model_definition['JasperEncoder'],
-        )
-        # mx_max1 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
-        # mx_max2 = nemo.backends.pytorch.common.SimpleCombiner(mode="max")
-        jasper_decoder1 = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(self.labels))
-        jasper_decoder2 = nemo_asr.JasperDecoderForCTC(feat_in=1024, num_classes=len(self.labels))
+        self.nf.reset_trainer()
 
-        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
 
-        # DAG
-        audio_signal, a_sig_length, transcript, transcript_len = dl()
-        processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
-
-        encoded1, encoded_len1 = jasper_encoder1(audio_signal=processed_signal, length=p_length)
-        encoded2, encoded_len2 = jasper_encoder2(audio_signal=processed_signal, length=p_length)
-        log_probs1 = jasper_decoder1(encoder_output=encoded1)
-        log_probs2 = jasper_decoder2(encoder_output=encoded2)
-        # log_probs = mx_max1(x1=log_probs1, x2=log_probs2)
-        # encoded_len = mx_max2(x1=encoded_len1, x2=encoded_len2)
-        log_probs = log_probs1
-        encoded_len = encoded_len1
-        loss = ctc_loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
-        )
-
-        callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
-        )
-        # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
-        optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
-        )
-
-    @pytest.mark.unclassified
+    @pytest.mark.integration
     def test_quartznet_training(self):
+        """Integtaion test that instantiates a small QuartzNet model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
+        """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_test.yaml"))) as f:
             quartz_model_definition = self.yaml.load(f)
-        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,
@@ -241,20 +199,31 @@ class TestASRPytorch(TestCase):
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
+        loss_list = []
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
-        )
-        # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
-        optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
-    @pytest.mark.unclassified
+        self.nf.train(
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
+        )
+        self.nf.reset_trainer()
+
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
+
+    @pytest.mark.integration
     def test_stft_conv_training(self):
+        """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
+        test_stft_conv_training tests the torch_stft path while test_jasper_training tests the torch.stft path inside
+        of AudioToMelSpectrogramPreprocessor.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
+        """
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,
@@ -287,81 +256,29 @@ class TestASRPytorch(TestCase):
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
         )
 
+        loss_list = []
         callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
-        )
-        # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
-        optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
+            tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
-    @pytest.mark.unclassified
-    def test_garnet_training(self):
-        with open('examples/asr/experimental/configs/garnet_an4.yaml') as file:
-            cfg = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
-        pre_process_params = {
-            'frame_splicing': 1,
-            'features': 64,
-            'window_size': 0.02,
-            'n_fft': 512,
-            'dither': 1e-05,
-            'window': 'hann',
-            'sample_rate': 16000,
-            'normalize': 'per_feature',
-            'window_stride': 0.01,
-            'stft_conv': True,
-        }
-        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        encoder = nemo_asr.JasperEncoder(
-            jasper=cfg['encoder']['jasper'],
-            activation=cfg['encoder']['activation'],
-            feat_in=cfg['input']['train']['features'],
+        self.nf.train(
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
         )
-        connector = nemo_asr.JasperRNNConnector(
-            in_channels=cfg['encoder']['jasper'][-1]['filters'], out_channels=cfg['decoder']['hidden_size'],
-        )
-        decoder = nemo.backends.pytorch.common.DecoderRNN(
-            voc_size=len(self.labels),
-            bos_id=0,
-            hidden_size=cfg['decoder']['hidden_size'],
-            attention_method=cfg['decoder']['attention_method'],
-            attention_type=cfg['decoder']['attention_type'],
-            in_dropout=cfg['decoder']['in_dropout'],
-            gru_dropout=cfg['decoder']['gru_dropout'],
-            attn_dropout=cfg['decoder']['attn_dropout'],
-            teacher_forcing=cfg['decoder']['teacher_forcing'],
-            curriculum_learning=cfg['decoder']['curriculum_learning'],
-            rnn_type=cfg['decoder']['rnn_type'],
-            n_layers=cfg['decoder']['n_layers'],
-            tie_emb_out_weights=cfg['decoder']['tie_emb_out_weights'],
-        )
-        loss = nemo.backends.pytorch.common.SequenceLoss()
+        self.nf.reset_trainer()
 
-        # DAG
-        audio_signal, a_sig_length, transcripts, transcript_len = dl()
-        processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
-        encoded, encoded_len = encoder(audio_signal=processed_signal, length=p_length)
-        encoded = connector(tensor=encoded)
-        log_probs, _ = decoder(targets=transcripts, encoder_outputs=encoded)
-        loss = loss(log_probs=log_probs, targets=transcripts)
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
 
-        # Train
-        callback = nemo.core.SimpleLossLoggerCallback(
-            tensors=[loss], print_func=lambda x: logging.info(str(x[0].item()))
-        )
-        # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
-        optimizer.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"num_epochs": 10, "lr": 0.0003},
-        )
-
-    @pytest.mark.unclassified
+    @pytest.mark.integration
+    @pytest.mark.skipduringci
     def test_jasper_evaluation(self):
+        """Integration test that tests EvaluatorCallback and NeuralModuleFactory.eval(). This test is skipped during
+        CI as it is redundant with the Jenkins Jasper ASR CI tests.
+        """
+        # Note this test still has no asserts, but rather checks that the current eval path works
         with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/jasper_smaller.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
-        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4,)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=8)
         pre_process_params = {
             'frame_splicing': 1,
             'features': 64,

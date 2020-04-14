@@ -87,12 +87,6 @@ pipeline {
       }
     }
 
-    stage('LX: Unclassified Tests GPU') {
-      steps {
-        sh 'pytest -m "unclassified and not skipduringci"'
-      }
-    }
-
     stage('L2: Parallel Stage1 GPU') {
       when {
         anyOf{
