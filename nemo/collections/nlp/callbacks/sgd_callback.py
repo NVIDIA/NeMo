@@ -165,9 +165,12 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
 
     all_metric_aggregate, _ = get_metrics(dataset_ref, dataset_hyp, eval_services, in_domain_services)
-    logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
-    logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
-    logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
+    if SEEN_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
+    if UNSEEN_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
+    if ALL_SERVICES in all_metric_aggregate:
+        logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
     # Write the aggregated metrics values.
     with open(output_metric_file, "w") as f:
         json.dump(all_metric_aggregate, f, indent=2, separators=(",", ": "), sort_keys=True)
