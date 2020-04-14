@@ -30,14 +30,11 @@ import os
 
 import sys
 sys.path.append('/home/ebakhturina/megatron-lm')
-from megatron.model import language_model
 from megatron.model.language_model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
-from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.model.language_model import get_language_model
-from megatron.model.utils import get_linear_layer
-from megatron.model.utils import init_method_normal, scaled_init_method_normal
+from megatron import get_args
+from megatron.initialize import initialize_megatron
 
 from megatron import get_args
 
@@ -47,23 +44,10 @@ __all__ = ['MegatronBERT']
 
 class MegatronBERT(TrainableNM):
     """
-    BERT wraps around the Huggingface implementation of BERT from their
-    transformers repository for easy use within NeMo.
+    TODO
 
     Args:
-        pretrained_model_name (str): If using a pretrained model, this should
-            be the model's name. Otherwise, should be left as None.
-        config_filename (str): path to model configuration file. Optional.
-        vocab_size (int): Size of the vocabulary file, if not using a
-            pretrained model.
-        hidden_size (int): Size of the encoder and pooler layers.
-        num_hidden_layers (int): Number of hidden layers in the encoder.
-        num_attention_heads (int): Number of attention heads for each layer.
-        intermediate_size (int): Size of intermediate layers in the encoder.
-        hidden_act (str): Activation function for encoder and pooler layers;
-            "gelu", "relu", and "swish" are supported.
-        max_position_embeddings (int): The maximum number of tokens in a
-        sequence.
+        TODO
     """
 
     @property
@@ -95,11 +79,6 @@ class MegatronBERT(TrainableNM):
          num_tokentypes=2):
 
         super().__init__()
-
-        import sys
-        sys.path.append('/home/ebakhturina/megatron-lm')
-        from megatron import get_args
-        from megatron.initialize import initialize_megatron
         
         if not os.path.exists(config):
             raise ValueError (f'Config file not found at {config}')
