@@ -27,7 +27,7 @@ def get_str_example_id(eval_dataset, ids_to_service_names_dict, example_id_num):
     return list(map(format_turn_id, tensor2list(example_id_num)))
 
 
-def eval_iter_callback(tensors, global_vars, ids_to_service_names_dict, eval_dataset):
+def eval_iter_callback(tensors, global_vars, schema_processor, eval_dataset):
     if 'predictions' not in global_vars:
         global_vars['predictions'] = []
 
@@ -38,7 +38,9 @@ def eval_iter_callback(tensors, global_vars, ids_to_service_names_dict, eval_dat
             output[k[:ind]] = torch.cat(v)
 
     predictions = {}
+    ids_to_service_names_dict = schema_processor.get_ids_to_service_names_dict()
     predictions['example_id'] = get_str_example_id(eval_dataset, ids_to_service_names_dict, output['example_id_num'])
+
     predictions['service_id'] = output['service_id']
     predictions['is_real_example'] = output['is_real_example']
 

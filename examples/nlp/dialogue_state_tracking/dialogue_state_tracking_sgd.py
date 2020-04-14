@@ -172,9 +172,7 @@ parser.add_argument(
     help="Specifies how schema embeddings are generated. Baseline uses ['CLS'] token",
 )
 parser.add_argument(
-    "--train_schema_emb",
-    action="store_true",
-    help="Specifies whether schema embeddings are trainables.",
+    "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
@@ -244,12 +242,11 @@ schema_preprocessor = SchemaPreprocessor(
     schema_config=schema_config,
     tokenizer=tokenizer,
     bert_model=pretrained_bert_model,
-    datasets=['train', args.eval_dataset],
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
     bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
     mode=args.schema_emb_init,
-    is_trainable=args.train_schema_emb
+    is_trainable=args.train_schema_emb,
 )
 
 dialogues_processor = data_utils.Dstc8DataProcessor(
@@ -258,147 +255,150 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
     dialogues_example_dir=args.dialogues_example_dir,
     schema_config=schema_config,
     tokenizer=tokenizer,
-    datasets=['train', args.eval_dataset],
+    schema_emb_processor=schema_preprocessor,
     overwrite_dial_files=args.overwrite_dial_files,
 )
 
-train_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
-    dataset_split='train',
-    schema_emb_processor=schema_preprocessor,
-    dialogues_processor=dialogues_processor,
-    batch_size=args.train_batch_size,
-    shuffle=not args.no_shuffle,
-    num_workers=args.num_workers,
-    pin_memory=args.enable_pin_memory,
-)
-eval_datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
-    dataset_split=args.eval_dataset,
-    schema_emb_processor=schema_preprocessor,
-    dialogues_processor=dialogues_processor,
-    batch_size=args.eval_batch_size,
-    shuffle=False,
-    num_workers=args.num_workers,
-    pin_memory=args.enable_pin_memory,
-)
-
-train_data = train_datalayer()
-eval_data = eval_datalayer()
-
 # define model pipeline
 encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
+model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 
-# Encode the utterances using BERT.
-token_embeddings = pretrained_bert_model(
-    input_ids=train_data.utterance_ids,
-    attention_mask=train_data.utterance_mask,
-    token_type_ids=train_data.utterance_segment,
-)
-encoded_utterance, token_embeddings = encoder(hidden_states=token_embeddings)
-model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
 
-(
-    logit_intent_status,
-    logit_req_slot_status,
-    req_slot_mask,
-    logit_cat_slot_status,
-    logit_cat_slot_value,
-    logit_noncat_slot_status,
-    logit_noncat_slot_start,
-    logit_noncat_slot_end,
-) = model(
-    encoded_utterance=encoded_utterance,
-    token_embeddings=token_embeddings,
-    utterance_mask=train_data.utterance_mask,
-    num_categorical_slot_values=train_data.num_categorical_slot_values,
-    num_intents=train_data.num_intents,
-    cat_slot_emb=train_data.cat_slot_emb,
-    cat_slot_value_emb=train_data.cat_slot_value_emb,
-    noncat_slot_emb=train_data.noncat_slot_emb,
-    req_slot_emb=train_data.req_slot_emb,
-    req_num_slots=train_data.num_slots,
-    intent_embeddings=train_data.intent_emb,
-)
+def create_pipeline(dataset_split='train'):
+    # if args.train_schema_emb:
+    #     schema_datalayer = nemo_nlp.nm.data_layers.BertInferDataLayer(
+    #             dataset_type=nemo_nlp.data.SchemaEmbeddingDataset,
+    #             dataset_params={
+    #                 "schema_config": schema_config,
+    #                 "tokenizer": tokenizer,
+    #                 "input_file": os.path.join(args.data_dir, dataset_split, "schema.json"),
+    #             },
+    #             shuffle=False,
+    #         )
 
-loss = dst_loss(
-    logit_intent_status=logit_intent_status,
-    logit_req_slot_status=logit_req_slot_status,
-    logit_cat_slot_status=logit_cat_slot_status,
-    logit_cat_slot_value=logit_cat_slot_value,
-    logit_noncat_slot_status=logit_noncat_slot_status,
-    logit_noncat_slot_start=logit_noncat_slot_start,
-    logit_noncat_slot_end=logit_noncat_slot_end,
-    intent_status=train_data.intent_status,
-    requested_slot_status=train_data.requested_slot_status,
-    req_slot_mask=req_slot_mask,
-    categorical_slot_status=train_data.categorical_slot_status,
-    num_categorical_slots=train_data.num_categorical_slots,
-    categorical_slot_values=train_data.categorical_slot_values,
-    noncategorical_slot_status=train_data.noncategorical_slot_status,
-    num_noncategorical_slots=train_data.num_noncategorical_slots,
-    noncategorical_slot_value_start=train_data.noncategorical_slot_value_start,
-    noncategorical_slot_value_end=train_data.noncategorical_slot_value_end,
-)
+    #     input_ids, input_mask, input_type_ids = schema_datalayer()
+    #     schema_embeddings = pretrained_bert_model(
+    #                 input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+    #             )
+
+    datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
+        dataset_split=dataset_split,
+        schema_emb_processor=schema_preprocessor,
+        dialogues_processor=dialogues_processor,
+        batch_size=args.train_batch_size,
+        shuffle=not args.no_shuffle if dataset_split == 'train' else False,
+        num_workers=args.num_workers,
+        pin_memory=args.enable_pin_memory,
+    )
+
+    data = datalayer()
+    datalayer.dataset[0]
+
+    # Encode the utterances using BERT.
+    token_embeddings = pretrained_bert_model(
+        input_ids=data.utterance_ids, attention_mask=data.utterance_mask, token_type_ids=data.utterance_segment,
+    )
+    encoded_utterance, token_embeddings = encoder(hidden_states=token_embeddings)
+
+    if args.train_schema_emb:
+        (
+            logit_intent_status,
+            logit_req_slot_status,
+            req_slot_mask,
+            logit_cat_slot_status,
+            logit_cat_slot_value,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        ) = model(
+            encoded_utterance=encoded_utterance,
+            token_embeddings=token_embeddings,
+            utterance_mask=data.utterance_mask,
+            num_categorical_slot_values=data.num_categorical_slot_values,
+            num_intents=data.num_intents,
+            # cat_slot_emb=data.cat_slot_emb,
+            # cat_slot_value_emb=data.cat_slot_value_emb,
+            # noncat_slot_emb=data.noncat_slot_emb,
+            # req_slot_emb=data.req_slot_emb,
+            # intent_embeddings=data.intent_emb,
+            req_num_slots=data.num_slots,
+        )
+    else:
+        (
+            logit_intent_status,
+            logit_req_slot_status,
+            req_slot_mask,
+            logit_cat_slot_status,
+            logit_cat_slot_value,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        ) = model(
+            encoded_utterance=encoded_utterance,
+            token_embeddings=token_embeddings,
+            utterance_mask=data.utterance_mask,
+            num_categorical_slot_values=data.num_categorical_slot_values,
+            num_intents=data.num_intents,
+            cat_slot_emb=data.cat_slot_emb,
+            cat_slot_value_emb=data.cat_slot_value_emb,
+            noncat_slot_emb=data.noncat_slot_emb,
+            req_slot_emb=data.req_slot_emb,
+            req_num_slots=data.num_slots,
+            intent_embeddings=data.intent_emb,
+        )
+
+    if dataset_split == 'train':
+        loss = dst_loss(
+            logit_intent_status=logit_intent_status,
+            logit_req_slot_status=logit_req_slot_status,
+            logit_cat_slot_status=logit_cat_slot_status,
+            logit_cat_slot_value=logit_cat_slot_value,
+            logit_noncat_slot_status=logit_noncat_slot_status,
+            logit_noncat_slot_start=logit_noncat_slot_start,
+            logit_noncat_slot_end=logit_noncat_slot_end,
+            intent_status=data.intent_status,
+            requested_slot_status=data.requested_slot_status,
+            req_slot_mask=req_slot_mask,
+            categorical_slot_status=data.categorical_slot_status,
+            num_categorical_slots=data.num_categorical_slots,
+            categorical_slot_values=data.categorical_slot_values,
+            noncategorical_slot_status=data.noncategorical_slot_status,
+            num_noncategorical_slots=data.num_noncategorical_slots,
+            noncategorical_slot_value_start=data.noncategorical_slot_value_start,
+            noncategorical_slot_value_end=data.noncategorical_slot_value_end,
+        )
+        steps_per_epoch = math.ceil(len(datalayer) / (args.train_batch_size * args.num_gpus))
+        return steps_per_epoch, [loss]
+    else:
+        eval_tensors = [
+            data.example_id_num,
+            data.service_id,
+            data.is_real_example,
+            data.start_char_idx,
+            data.end_char_idx,
+            logit_intent_status,
+            logit_req_slot_status,
+            logit_cat_slot_status,
+            logit_cat_slot_value,
+            logit_noncat_slot_status,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+            data.intent_status,
+            data.requested_slot_status,
+            data.categorical_slot_status,
+            data.num_categorical_slots,
+            data.categorical_slot_values,
+            data.noncategorical_slot_status,
+            data.num_noncategorical_slots,
+        ]
+        return eval_tensors
 
 
-# Encode the utterances using BERT
-eval_token_embeddings = pretrained_bert_model(
-    input_ids=eval_data.utterance_ids,
-    attention_mask=eval_data.utterance_mask,
-    token_type_ids=eval_data.utterance_segment,
-)
-eval_encoded_utterance, eval_token_embeddings = encoder(hidden_states=eval_token_embeddings)
-
-(
-    eval_logit_intent_status,
-    eval_logit_req_slot_status,
-    _,
-    eval_logit_cat_slot_status,
-    eval_logit_cat_slot_value,
-    eval_logit_noncat_slot_status,
-    eval_logit_noncat_slot_start,
-    eval_logit_noncat_slot_end,
-) = model(
-    encoded_utterance=eval_encoded_utterance,
-    token_embeddings=eval_token_embeddings,
-    utterance_mask=eval_data.utterance_mask,
-    num_categorical_slot_values=eval_data.num_categorical_slot_values,
-    num_intents=eval_data.num_intents,
-    cat_slot_emb=eval_data.cat_slot_emb,
-    cat_slot_value_emb=eval_data.cat_slot_value_emb,
-    noncat_slot_emb=eval_data.noncat_slot_emb,
-    req_slot_emb=eval_data.req_slot_emb,
-    req_num_slots=eval_data.num_slots,
-    intent_embeddings=eval_data.intent_emb,
-)
-
-eval_tensors = [
-    eval_data.example_id_num,
-    eval_data.service_id,
-    eval_data.is_real_example,
-    eval_data.start_char_idx,
-    eval_data.end_char_idx,
-    eval_logit_intent_status,
-    eval_logit_req_slot_status,
-    eval_logit_cat_slot_status,
-    eval_logit_cat_slot_value,
-    eval_logit_noncat_slot_status,
-    eval_logit_noncat_slot_start,
-    eval_logit_noncat_slot_end,
-    eval_data.intent_status,
-    eval_data.requested_slot_status,
-    eval_data.categorical_slot_status,
-    eval_data.num_categorical_slots,
-    eval_data.categorical_slot_values,
-    eval_data.noncategorical_slot_status,
-    eval_data.num_noncategorical_slots,
-]
-
-
-steps_per_epoch = math.ceil(len(train_datalayer) / (args.train_batch_size * args.num_gpus))
+steps_per_epoch, train_tensors = create_pipeline()
 logging.info(f'Steps per epoch: {steps_per_epoch}')
+eval_tensors = create_pipeline(dataset_split=args.eval_dataset)
 
-train_tensors = [loss]
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
@@ -424,7 +424,7 @@ os.makedirs(prediction_dir, exist_ok=True)
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, dialogues_processor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset
+        x, y, schema_preprocessor.get_ids_to_service_names_dict(args.eval_dataset), args.eval_dataset
     ),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x,
@@ -451,7 +451,7 @@ lr_policy_fn = get_lr_policy(
 
 
 nf.train(
-    tensors_to_optimize=[loss],
+    tensors_to_optimize=train_tensors,
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,

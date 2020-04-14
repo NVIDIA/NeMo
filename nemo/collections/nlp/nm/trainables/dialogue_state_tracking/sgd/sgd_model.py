@@ -81,12 +81,12 @@ class SGDModel(TrainableNM):
             "utterance_mask": NeuralType(('B', 'T'), ChannelType()),
             "num_categorical_slot_values": NeuralType(('B', 'T'), LengthsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
-            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType()),
-            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
             "req_num_slots": NeuralType(('B'), LengthsType()),
-            "intent_embeddings": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
+            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType(), optional=True),
+            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
+            "intent_embeddings": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
         }
 
     @property
@@ -128,12 +128,6 @@ class SGDModel(TrainableNM):
         """
         super().__init__()
 
-        schema_config = schema_emb_processor.schema_config
-        self.MAX_NUM_CAT_SLOT = schema_config["MAX_NUM_CAT_SLOT"]
-        self.MAX_NUM_NONCAT_SLOT = schema_config["MAX_NUM_NONCAT_SLOT"]
-        self.MAX_NUM_VALUE_PER_CAT_SLOT = schema_config["MAX_NUM_VALUE_PER_CAT_SLOT"]
-        self.MAX_NUM_INTENT = schema_config["MAX_NUM_INTENT"]
-
         # Add a trainable vector for the NONE intent
         self.none_intent_vector = torch.empty((1, 1, embedding_dim), requires_grad=True).to(self._device)
         # TODO truncated norm init
@@ -155,20 +149,20 @@ class SGDModel(TrainableNM):
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
 
         self.schema_emb_is_trainable = schema_emb_processor.is_trainable
+        config = schema_emb_processor.congig_file
+        if self.schema_emb_is_trainable:
+            # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
 
-        # if self.schema_emb_is_trainable:
-        #     # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
-
-        #     self.intents_emb = nn.Embedding(schema_config['MAX_NUM_INTENT'], embedding_dim)
-        #     self.cat_slot_emb = nn.Embedding(schema_config['MAX_NUM_CAT_SLOT'], embedding_dim)
-        #     self.cat_slot_value_emb = nn.Embedding(schema_config['MAX_NUM_CAT_SLOT, MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
-        #     self.noncat_slot_emb = nn.Embedding(schema_config['MAX_NUM_NONCAT_SLOT, embedding_dim)
-        #     self.req_slot_emb = nn.Embedding(schema_config['MAX_NUM_CAT_SLOT'] + MAX_NUM_NONCAT_SLOT, embedding_dim)
-            # embed = nn.Embedding(schema_config['num_embeddings, embedding_dim)
+            self.intents_emb = nn.Embedding(congig["MAX_NUM_INTENT"], embedding_dim)
+            self.cat_slot_emb = nn.Embedding(config["MAX_NUM_CAT_SLOT"], embedding_dim)
+            self.cat_slot_value_emb = nn.Embedding(
+                config["MAX_NUM_CAT_SLOT"], config["MAX_NUM_VALUE_PER_CAT_SLOT"], embedding_dim
+            )
+            self.noncat_slot_emb = nn.Embedding(config["MAX_NUM_NONCAT_SLOT"], embedding_dim)
+            self.req_slot_emb = nn.Embedding(config["MAX_NUM_CAT_SLOT"] + config["MAX_NUM_NONCAT_SLOT"], embedding_dim)
+            # embed = nn.Embedding(num_embeddings, embedding_dim)
             # # pretrained_weight is a numpy matrix of shape (num_embeddings, embedding_dim)
             # embed.weight.data.copy_(torch.from_numpy(pretrained_weight))
-
-
 
     def forward(
         self,
@@ -177,17 +171,22 @@ class SGDModel(TrainableNM):
         utterance_mask,
         num_categorical_slot_values,
         num_intents,
-        cat_slot_emb,
-        cat_slot_value_emb,
-        noncat_slot_emb,
-        req_slot_emb,
         req_num_slots,
-        intent_embeddings,
+        cat_slot_emb=None,
+        cat_slot_value_emb=None,
+        noncat_slot_emb=None,
+        req_slot_emb=None,
+        intent_embeddings=None,
+        schema_embeddings=None,
+        service_id=None,
     ):
         """
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         
         """
+        import pdb
+
+        pdb.set_trace()
         logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, num_intents)
 
         logit_req_slot_status, req_slot_mask = self._get_requested_slots(
@@ -255,20 +254,18 @@ class SGDModel(TrainableNM):
         status_logits = self.cat_slot_status_layer(encoded_utterance, cat_slot_emb)
 
         # Predict the goal value.
-        # Baseline Shape: (batch_size, max_categorical_slots, max_categorical_values, embedding_dim).
-        embedding_dim = cat_slot_value_emb.size()[-1]
+        # Shape: (batch_size, max_categorical_slots, max_categorical_values, embedding_dim).
+        _, max_num_slots, max_num_values, embedding_dim = cat_slot_value_emb.size()
+        cat_slot_value_emb_reshaped = cat_slot_value_emb.view(-1, max_num_slots * max_num_values, embedding_dim)
 
-        if not self.schema_emb_is_trainable:
-            cat_slot_value_emb = cat_slot_value_emb.view(-1, self.MAX_NUM_CAT_SLOT * self.MAX_NUM_VALUE_PER_CAT_SLOT, embedding_dim)
-    
-        value_logits = self.cat_slot_value_layer(encoded_utterance, cat_slot_value_emb)
+        value_logits = self.cat_slot_value_layer(encoded_utterance, cat_slot_value_emb_reshaped)
 
         # Reshape to obtain the logits for all slots.
-        value_logits = value_logits.view(-1, self.MAX_NUM_CAT_SLOT, self.MAX_NUM_VALUE_PER_CAT_SLOT)
+        value_logits = value_logits.view(-1, max_num_slots, max_num_values)
 
         # Mask out logits for padded slots and values because they will be softmaxed
         cat_slot_values_mask, negative_logits = self._get_mask(
-            value_logits, self.MAX_NUM_VALUE_PER_CAT_SLOT, num_categorical_slot_values
+            value_logits, max_num_values, num_categorical_slot_values
         )
 
         value_logits = torch.where(cat_slot_values_mask, value_logits, negative_logits)
