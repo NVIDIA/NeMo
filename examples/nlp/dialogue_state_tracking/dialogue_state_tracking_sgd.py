@@ -266,22 +266,6 @@ dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 
 
 def create_pipeline(dataset_split='train'):
-    # if args.train_schema_emb:
-    #     schema_datalayer = nemo_nlp.nm.data_layers.BertInferDataLayer(
-    #             dataset_type=nemo_nlp.data.SchemaEmbeddingDataset,
-    #             dataset_params={
-    #                 "schema_config": schema_config,
-    #                 "tokenizer": tokenizer,
-    #                 "input_file": os.path.join(args.data_dir, dataset_split, "schema.json"),
-    #             },
-    #             shuffle=False,
-    #         )
-
-    #     input_ids, input_mask, input_type_ids = schema_datalayer()
-    #     schema_embeddings = pretrained_bert_model(
-    #                 input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-    #             )
-
     datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
         dataset_split=dataset_split,
         schema_emb_processor=schema_preprocessor,
@@ -323,6 +307,7 @@ def create_pipeline(dataset_split='train'):
             # req_slot_emb=data.req_slot_emb,
             # intent_embeddings=data.intent_emb,
             req_num_slots=data.num_slots,
+            service_id=data.service_id,
         )
     else:
         (
@@ -423,9 +408,7 @@ os.makedirs(prediction_dir, exist_ok=True)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(
-        x, y, schema_preprocessor, args.eval_dataset
-    ),
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y, schema_preprocessor, args.eval_dataset),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x,
         input_json_files,
@@ -435,7 +418,7 @@ eval_callback = nemo.core.EvaluatorCallback(
         output_metric_file,
         args.state_tracker,
         args.debug_mode,
-        schema_preprocessor
+        schema_preprocessor,
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,

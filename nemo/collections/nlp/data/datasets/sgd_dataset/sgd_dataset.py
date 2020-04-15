@@ -27,7 +27,7 @@ class SGDDataset(Dataset):
     def __getitem__(self, idx):
         ex = self.features[idx]
         service_id = ex.service_schema.service_id
-    
+
         example = [
             np.array(ex.example_id_num),
             np.array(service_id),

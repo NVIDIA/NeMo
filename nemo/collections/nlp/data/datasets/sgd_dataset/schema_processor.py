@@ -91,7 +91,7 @@ class SchemaPreprocessor:
             all_schema_json_paths.append(os.path.join(data_dir, dataset_split, "schema.json"))
         self.schemas = schema.Schema(all_schema_json_paths)
 
-        if not os.path.exists(self.schema_embedding_file) or overwrite_schema_emb_files or self.is_trainable:
+        if not os.path.exists(self.schema_embedding_file) or overwrite_schema_emb_files:
             # Generate the schema embeddings if needed or specified
             logging.info(f"Start generating the schema embeddings.")
             dataset_params = {

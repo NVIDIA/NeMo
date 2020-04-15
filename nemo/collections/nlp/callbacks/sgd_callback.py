@@ -130,7 +130,7 @@ def eval_epochs_done_callback(
     output_metric_file,
     state_tracker,
     eval_debug,
-    schema_emb_preprocessor
+    schema_emb_preprocessor,
 ):
     # added for debugging
     in_domain_services = get_in_domain_services(
@@ -144,7 +144,7 @@ def eval_epochs_done_callback(
         schema_json_file=os.path.join(data_dir, eval_dataset, "schema.json"),
         state_tracker=state_tracker,
         eval_debug=eval_debug,
-        in_domain_services=in_domain_services
+        in_domain_services=in_domain_services,
     )
     metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file)
     return metrics
