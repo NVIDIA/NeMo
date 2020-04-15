@@ -262,9 +262,6 @@ class SchemaEmbeddingDataset(Dataset):
         """
         Populate all schema embeddings with BERT embeddings.
         """
-        import pdb
-
-        pdb.set_trace()
         completed_services = set()
         batch_size, seq_len, hidden_size = hidden_states[0].shape
 

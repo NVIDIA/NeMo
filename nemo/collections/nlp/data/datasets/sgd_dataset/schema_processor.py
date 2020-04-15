@@ -138,5 +138,5 @@ class SchemaPreprocessor:
     def get_service_names_to_id_dict(self):
         return self.schemas._services_vocab
 
-    def get_ids_to_service_names_dict(self, dataset):
+    def get_ids_to_service_names_dict(self):
         return self.schemas._services_id_to_vocab

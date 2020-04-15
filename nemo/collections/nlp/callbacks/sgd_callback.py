@@ -124,6 +124,8 @@ def combine_predictions_in_example(predictions, batch_size):
 def eval_epochs_done_callback(
     global_vars,
     input_json_files,
+    eval_dataset,
+    data_dir,
     prediction_dir,
     output_metric_file,
     state_tracker,
@@ -131,7 +133,6 @@ def eval_epochs_done_callback(
     schema_emb_preprocessor
 ):
     # added for debugging
-    data_dir = 
     in_domain_services = get_in_domain_services(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
     )
@@ -140,10 +141,10 @@ def eval_epochs_done_callback(
         global_vars['predictions'],
         input_json_files,
         prediction_dir,
+        schema_json_file=os.path.join(data_dir, eval_dataset, "schema.json"),
         state_tracker=state_tracker,
         eval_debug=eval_debug,
-        in_domain_services=in_domain_services,
-        schemas=schema_emb_preprocessor.schemas
+        in_domain_services=in_domain_services
     )
     metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file)
     return metrics

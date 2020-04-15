@@ -181,7 +181,7 @@ class SGDModel(TrainableNM):
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         
         """
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, num_intents)
 
         logit_req_slot_status, req_slot_mask = self._get_requested_slots(

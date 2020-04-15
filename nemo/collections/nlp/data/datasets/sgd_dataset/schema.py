@@ -118,26 +118,29 @@ class ServiceSchema(object):
         return self._categorical_slot_value_ids[slot][value]
 
 
-logging.setLevel(10)
-
-
 class Schema(object):
     """Wrapper for schemas for all services in a dataset."""
 
-    def __init__(self, list_of_schema_json_paths):
+    def __init__(self, schema_json_paths):
         # Load the schema from the json file.
-        all_schemas = []
-        completed_services = []
-        for schema_json_path in list_of_schema_json_paths:
-            with open(schema_json_path, "r") as f:
-                schemas = json.load(f)
+        if isinstance(schema_json_paths, str):
+            with open(schema_json_paths, "r") as f:
+                all_schemas = json.load(f)
                 f.close()
-                logging.debug("Num of services in %s: %s", schema_json_path, len(schemas))
+        else:
+            # load multiple schemas from the list of the json files
+            all_schemas = []
+            completed_services = []
+            for schema_json_path in schema_json_paths:
+                with open(schema_json_path, "r") as f:
+                    schemas = json.load(f)
+                    f.close()
+                    logging.debug("Num of services in %s: %s", schema_json_path, len(schemas))
 
-            for service in schemas:
-                if service['service_name'] not in completed_services:
-                    completed_services.append(service['service_name'])
-                    all_schemas.append(service)
+                for service in schemas:
+                    if service['service_name'] not in completed_services:
+                        completed_services.append(service['service_name'])
+                        all_schemas.append(service)
 
         self._services = sorted(schema["service_name"] for schema in all_schemas)
         self._services_vocab = {v: k for k, v in enumerate(self._services)}

@@ -429,6 +429,8 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x,
         input_json_files,
+        args.eval_dataset,
+        args.data_dir,
         prediction_dir,
         output_metric_file,
         args.state_tracker,
