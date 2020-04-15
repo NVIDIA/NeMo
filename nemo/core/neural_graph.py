@@ -16,7 +16,7 @@
 # limitations under the License.
 # =============================================================================
 
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from typing import Dict, Optional
 
 from nemo.core import OperationMode
@@ -68,7 +68,7 @@ class NeuralGraph(NeuralInterface):
         # "Modules" - list of modules constituting "nodes" in a given graph.
         self._modules = {}
         # "Steps": order of the  execution of modules in a graph.
-        self._steps = []
+        self._steps = OrderedDict()
 
     def __call__(self, **kwargs):
         """
@@ -97,10 +97,8 @@ class NeuralGraph(NeuralInterface):
         # Get input and output ports definitions.
         input_port_defs = self.input_ports
 
-        # "Copy" all the operations from the previous graph. TODO better!
-        for step in self._steps:
-            self._app_state.active_graph.record_step(*step)
-        # print(self._steps)
+        # "Nest" this graph into active graph.
+        self._app_state.active_graph.copy(self)
 
         ###### PROCESS INPUTS. ######
         # Iterate through all passed parameters.
@@ -236,6 +234,16 @@ class NeuralGraph(NeuralInterface):
         return self._bound_outputs
 
     @property
+    def modules(self):
+        """ Returns modules. """
+        return self._modules
+
+    @property
+    def steps(self):
+        """ Returns steps. """
+        return self._steps
+
+    @property
     def operation_mode(self):
         """ Returns operation mode. """
         return self._operation_mode
@@ -295,7 +303,7 @@ class NeuralGraph(NeuralInterface):
             desc += " * `{}` ({})\n".format(key, value)
         return desc
 
-    def record_step(self, module, inputs):
+    def record_step(self, module):
         """
             Records the operation (module plus passed inputs) on a list.
         """
@@ -305,8 +313,8 @@ class NeuralGraph(NeuralInterface):
         # Add module to list of modules.
         self._modules[module.name] = module
 
-        # Add step.
-        self._steps.append([module, inputs])
+        # Add step - store the module name.
+        self._steps[len(self._steps)] = module.name
 
     # def bind_input(self, port_name, port_definition, bound_module):
     #    # print("Binding input: `{}`: def = `{}` value = NONE".format(port_name, port_definition))
@@ -317,6 +325,25 @@ class NeuralGraph(NeuralInterface):
     #    self._bound_input_tensors[port_name] = None
     #    # Additionally, remember the bound module
     #    self._bound_input_modules[port_name] = bound_module
+
+    def copy(self, graph):
+        """
+            Method copies a graph: modules, steps, topology (tensors).
+
+            Args:
+                graph: Graph to be copied (is "nested" in this graph).
+        """
+        # "Copy" modules.
+        for key,module in graph.modules.items():
+                self._modules[key] = module
+    
+        # "Copy" steps, i.e. append them to the list, following the original order.
+        for key, step in graph.steps.items():
+            # Add step - store the module name.
+            self._steps[len(self._steps)] = step
+
+        # Copy tensors - those will produce "real" copies of the objects.
+
 
     def bind_outputs(self, tensors_list):
         """ Binds the output tensors.

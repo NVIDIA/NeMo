@@ -455,7 +455,7 @@ class NeuralModule(NeuralInterface):
         output_port_defs = self.output_ports
 
         # Record the operation (i.e. add a single module).
-        self._app_state.active_graph.record_step(self, kwargs.items())
+        self._app_state.active_graph.record_step(self)
 
         ###### PROCESS INPUTS. ######
         # Iterate through all passed parameters.

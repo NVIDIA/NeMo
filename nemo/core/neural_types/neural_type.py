@@ -28,6 +28,7 @@ from typing import Optional, Tuple
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 from nemo.core.neural_types.elements import *
+from nemo.utils.app_state import AppState
 from nemo.utils.module_port import ModulePort
 
 
@@ -210,7 +211,11 @@ class NmTensor(NeuralType):
             of arguments which were sent to producer to create this
         """
         super(NmTensor, self).__init__(axes=ntype.axes, elements_type=ntype.elements_type, optional=ntype.optional)
-        self._producer = producer
+        # producer is None: a special case present in some of the unit tests.
+        if producer is None:
+            self._producer_name = "None"
+        else:    
+            self._producer_name = producer.name
         self._producer_args = producer_args
         self._output_port_name = name
         self._uuid = str(uuid.uuid4())
@@ -223,7 +228,7 @@ class NmTensor(NeuralType):
         Returns:
           NeuralModule object which produced this NmTensor.
         """
-        return self._producer
+        return AppState().modules[self._producer_name]
 
     @property
     def producer_name(self):
@@ -231,7 +236,7 @@ class NmTensor(NeuralType):
         Returns:
             Name of the producer of the tensor.
         """
-        return self._producer.name
+        return self._producer_name
 
     @property
     def producer_port(self):
@@ -239,7 +244,7 @@ class NmTensor(NeuralType):
         Returns:
           A tuple containing producer name and corresponding output port name.
         """
-        return ModulePort(self._producer.name, self._output_port_name)
+        return ModulePort(self._producer_name, self._output_port_name)
 
     @property
     def consumers_ports(self):
@@ -267,6 +272,14 @@ class NmTensor(NeuralType):
             Neural Type associated with this NmTensor.
         """
         return NeuralType(axes=self.axes, elements_type=self.elements_type, optional=self.optional)
+
+
+    def copy(self):
+        """
+        Returns:
+            A copy of the current the current 
+        """
+        return 1
 
     # def serialize(self):
     #    """
@@ -309,9 +322,9 @@ class NmTensor(NeuralType):
         Returns:
           str: unique name
         """
-        if self._producer is None:
+        if self._producer_name is None:
             raise ValueError("This NmTensor does not have a unique name")
-        return f"{self._output_port_name}~~~{self.producer.name}~~~{self._uuid}"
+        return f"{self._output_port_name}~~~{self._producer_name}~~~{self._uuid}"
 
 
 class NeuralTypeError(Exception):
