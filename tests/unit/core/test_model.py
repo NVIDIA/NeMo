@@ -22,24 +22,7 @@ from unittest import TestCase
 import pytest
 from ruamel.yaml import YAML
 
-from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.collections.asr.models import QuartzNet
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    AxisKind,
-    AxisKindAbstract,
-    AxisType,
-    ChannelType,
-    ElementType,
-    MelSpectrogramType,
-    MFCCSpectrogramType,
-    NeuralPortNmTensorMismatchError,
-    NeuralType,
-    NeuralTypeComparisonResult,
-    SpectrogramType,
-    VoidType,
-)
 
 
 @pytest.mark.usefixtures("neural_factory")
@@ -58,3 +41,24 @@ class NeMoModelsTests(TestCase):
         )
         self.assertTrue(model.num_weights > 0)
         self.assertEqual(len(model.modules), 3)
+
+    @pytest.mark.unit
+    def test_quartznet_nemo_file_export_and_import(self):
+        yaml = YAML(typ="safe")
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../examples/asr/configs/jasper_an4.yaml"))
+        ) as file:
+            model_definition = yaml.load(file)
+        model = QuartzNet(
+            preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
+            encoder_params=model_definition['JasperEncoder'],
+            decoder_params=model_definition['JasperDecoderForCTC'],
+        )
+        nemo_file = "deleteme.nemo"
+        try:
+            model.export(nemo_file)
+            self.assertTrue(os.path.exists(nemo_file))
+            new_qn = QuartzNet.from_pretrained(model_info=nemo_file)
+            self.assertEqual(model.num_weights, new_qn.num_weights)
+        finally:
+            os.remove(nemo_file)

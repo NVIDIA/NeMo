@@ -88,8 +88,9 @@ class QuartzNet(NeMoModel):
         log_probs = self._decoder(encoder_output=encoded)
         return log_probs, encoded_len
 
-    def export(self, output_file: str, deployment: bool = False) -> str:
-        pass
+    def export(self, output_file_name: str, output_folder: str = None, deployment: bool = False) -> str:
+        if not deployment:
+            super().export(output_file_name=output_file_name, output_folder=output_folder, deployment=deployment)
 
     @property
     def input_ports(self) -> Optional[Dict[str, NeuralType]]:
@@ -135,28 +136,28 @@ class QuartzNet(NeMoModel):
         result.append(zhbase)
         return result
 
-    @staticmethod
-    def from_pretrained(model_info) -> Optional[NeuralModule]:
+    @classmethod
+    def from_pretrained(cls, model_info, local_rank=0) -> Optional[NeuralModule]:
         # Create destination folder:
         logging.warning("THIS METHOD IS NOT DONE YET")
-        nfname = f".nemo_files/NEMO_{nemo.__version__}/{str(model_info)}"
-        home_folder = Path.home()
-        dest_dir = os.path.join(home_folder, nfname)
+        if model_info.endswith(".nemo"):
+            return super().from_pretrained(model_info=model_info)
+        else:
+            nfname = f".nemo_files/NEMO_{nemo.__version__}/{str(model_info)}"
+            home_folder = Path.home()
+            dest_dir = os.path.join(home_folder, nfname)
 
-        url = "https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/"
-        maybe_download_from_cloud(url=url, filename="JasperEncoder-STEP-243800.pt", dest_dir=dest_dir)
-        maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
-        maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
-        maybe_download_from_cloud(
-            url="https://nemo-public.s3.us-east-2.amazonaws.com/", filename="qn.yaml", dest_dir=dest_dir
-        )
-        logging.info("Instantiating model from pre-trained checkpoint")
-        qn = QuartzNet.import_from_config(config_file=os.path.join(dest_dir, "qn.yaml"))
-        logging.info("Model instantiated with pre-trained weights")
-        return qn
-
-    def deploy_to_jarvis(self, output: str):
-        logging.warning("THIS METHOD IS NOT DONE YET")
+            url = "https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/"
+            maybe_download_from_cloud(url=url, filename="JasperEncoder-STEP-243800.pt", dest_dir=dest_dir)
+            maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
+            maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
+            maybe_download_from_cloud(
+                url="https://nemo-public.s3.us-east-2.amazonaws.com/", filename="qn.yaml", dest_dir=dest_dir
+            )
+            logging.info("Instantiating model from pre-trained checkpoint")
+            qn = QuartzNet.import_from_config(config_file=os.path.join(dest_dir, "qn.yaml"))
+            logging.info("Model instantiated with pre-trained weights")
+            return qn
 
     @property
     def modules(self) -> Iterable[NeuralModule]:

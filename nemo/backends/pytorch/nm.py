@@ -185,7 +185,7 @@ class NonTrainableNM(NeuralModule):
     def save_to(self, path: str):
         pass
 
-    def restore_from(self, path: str):
+    def restore_from(self, path: str, local_rank: int = 0):
         pass
 
     def freeze(self, weights: Set[str] = None):
