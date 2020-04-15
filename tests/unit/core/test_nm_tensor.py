@@ -83,33 +83,33 @@ class TestNmTensor:
         # Check tensor x producer and consumers.
         p = x.producer_port
         cs = x.consumers_ports
-        assert p.name == "source"
-        assert p.port == "x"
+        assert p.module_name == "source"
+        assert p.port_name == "x"
         assert len(cs) == 1
-        assert cs[0].name == "tm"
-        assert cs[0].port == "x"
+        assert cs[0].module_name == "tm"
+        assert cs[0].port_name == "x"
 
         # Check tensor y producer and consumers.
         p = y.producer_port
         cs = y.consumers_ports
-        assert p.name == "source"
-        assert p.port == "y"
+        assert p.module_name == "source"
+        assert p.port_name == "y"
         assert len(cs) == 2
-        assert cs[0].name == "loss"
-        assert cs[0].port == "target"
-        assert cs[1].name == "loss2"
-        assert cs[1].port == "target"
+        assert cs[0].module_name == "loss"
+        assert cs[0].port_name == "target"
+        assert cs[1].module_name == "loss2"
+        assert cs[1].port_name == "target"
 
         # Check tensor y_pred producer and consumers.
         p = y_pred.producer_port
         cs = y_pred.consumers_ports
-        assert p.name == "tm"
-        assert p.port == "y_pred"
+        assert p.module_name == "tm"
+        assert p.port_name == "y_pred"
         assert len(cs) == 2
-        assert cs[0].name == "loss"
-        assert cs[0].port == "predictions"
-        assert cs[1].name == "loss2"
-        assert cs[1].port == "predictions"
+        assert cs[0].module_name == "loss"
+        assert cs[0].port_name == "predictions"
+        assert cs[1].module_name == "loss2"
+        assert cs[1].port_name == "predictions"
 
     @pytest.mark.unit
     def test_nm_tensors_types(self):

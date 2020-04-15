@@ -21,15 +21,14 @@ __all__ = [
     'NeuralTypeError',
     'NeuralPortNameMismatchError',
     'NeuralPortNmTensorMismatchError',
-    'CanNotInferResultNeuralType',
 ]
 import uuid
-from collections import namedtuple
 from typing import Optional, Tuple
 
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 from nemo.core.neural_types.elements import *
+from nemo.utils.module_port import ModulePort
 
 
 class NeuralType(object):
@@ -113,6 +112,15 @@ class NeuralType(object):
         else:
             return NeuralTypeComparisonResult.INCOMPATIBLE
 
+    def compare_and_raise_error(self, parent_type_name, port_name, second_object):
+        """ Method compares definition of one type with another and raises an error if not compatible. """
+        type_comatibility = self.compare(second_object)
+        if (
+            type_comatibility != NeuralTypeComparisonResult.SAME
+            and type_comatibility != NeuralTypeComparisonResult.GREATER
+        ):
+            raise NeuralPortNmTensorMismatchError(parent_type_name, port_name, self, second_object, type_comatibility)
+
     @staticmethod
     def __check_sanity(axes):
         # check that list come before any tensor dimension
@@ -188,9 +196,6 @@ class NeuralType(object):
                 return 3
 
 
-ModulePort = namedtuple('ModulePort', ["name", "port"])
-
-
 class NmTensor(NeuralType):
     """Class representing data which flows between NeuralModules' ports.
     It also has a type of NeuralType represented by inheriting from NeuralType
@@ -244,16 +249,16 @@ class NmTensor(NeuralType):
         """
         return self._consumers_ports
 
-    def add_consumer(self, module, input_port_name):
+    def add_consumer(self, module_name, input_port_name):
         """
         Adds tensor "consumer".
 
         Args:
-            module: Module that accepts the tensor as input.
+            module_name: Name of the module that accepts the tensor as input.
             input_port_name: Name of the module's input port.
 
         """
-        self._consumers_ports.append(ModulePort(module.name, input_port_name))
+        self._consumers_ports.append(ModulePort(module_name, input_port_name))
 
     @property
     def type(self):
@@ -319,20 +324,15 @@ class NeuralPortNameMismatchError(NeuralTypeError):
     """Exception raised when neural module is called with incorrect port
     names."""
 
-    def __init__(self, message):
-        self.message = message
+    def __init__(self, input_port_name):
+        self.message = "Wrong input port name: {0}".format(input_port_name)
 
 
 class NeuralPortNmTensorMismatchError(NeuralTypeError):
     """Exception raised when a port is fed with a NmTensor of incompatible
     type."""
 
-    def __init__(self, message):
-        self.message = message
-
-
-class CanNotInferResultNeuralType(NeuralTypeError):
-    """Exception raised when NeuralType of output can not be inferred."""
-
-    def __init__(self, message):
-        self.message = message
+    def __init__(self, class_name, port_name, first_type, second_type, type_comatibility):
+        self.message = "\nIn {}. \nPort: {} and a NmTensor it was fed are \n".format(class_name, port_name)
+        self.message += "of incompatible neural types:\n\n{} \n\n and \n\n{}".format(first_type, second_type)
+        self.message += "\n\nType comparison result: {}".format(type_comatibility)

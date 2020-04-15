@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 # =============================================================================
 # Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
@@ -15,16 +16,12 @@
 # limitations under the License.
 # =============================================================================
 
-from .nemo_logging import Logger as _Logger
-from .nemo_logging import LogMode as logging_mode
+__all__ = [
+    'ModulePort',
+]
 
-logging = _Logger()
+from collections import namedtuple
 
-from .argparse import NemoArgParser
-from .exp_logging import ExpManager, get_logger
-from .helpers import *
-from nemo.utils.app_state import AppState
-from nemo.utils.object_registry import ObjectRegistry
-from nemo.utils.module_port import ModulePort
-from nemo.utils.bound_inputs import BoundInputs, BoundInput
-from nemo.utils.bound_outputs import BoundOutputs
+# Tuple used for storing "module name" and its "port name".
+# (used in NmTensor's producer/consumer, port binding etc.).
+ModulePort = namedtuple('ModulePort', ["module_name", "port_name"])

@@ -22,7 +22,9 @@ import nemo
 
 
 class Singleton(type):
-    """ Implementation of a generic singleton meta-class. """
+    """ Implementation of a generic, tread-safe singleton meta-class.
+        Can be used as meta-class, i.e. will create 
+    """
 
     # List of instances - one per class.
     __instances = {}
@@ -61,8 +63,9 @@ class AppState(metaclass=Singleton):
             self._device = nemo.core.DeviceType.GPU
         else:
             self._device = device
-        # Create registers.
+        # Create module registry.
         self._module_registry = nemo.utils.ObjectRegistry("module")
+        # Create graph manager (registry with some additional functionality).
         self._neural_graph_manager = nemo.core.NeuralGraphManager()
 
     @property

@@ -30,16 +30,12 @@ from ruamel.yaml import YAML
 
 from nemo.core import NeuralGraph, NeuralModuleFactory, OperationMode
 from nemo.core.neural_interface import NeuralInterface
-from nemo.core.neural_types import (
-    NeuralPortNameMismatchError,
-    NeuralPortNmTensorMismatchError,
-    NeuralType,
-    NeuralTypeComparisonResult,
-    NmTensor,
-)
+from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
+from nemo.utils.bound_inputs import BoundInput
 from nemo.utils.decorators.deprecated import deprecated
+from nemo.utils.module_port import ModulePort
 
 YAML = YAML(typ='safe')
 
@@ -449,11 +445,11 @@ class NeuralModule(NeuralInterface):
         Returns:
           NmTensor object or tuple of NmTensor objects
         """
+        # print(" Neural Module:__call__")
 
         # Set the operation mode of the outer graph.
         self.operation_mode = self._app_state.active_graph.operation_mode
 
-        # print(" Neural Module:__call__")
         # Get input and output ports definitions - potentially depending on the operation mode!
         input_port_defs = self.input_ports
         output_port_defs = self.output_ports
@@ -461,44 +457,61 @@ class NeuralModule(NeuralInterface):
         # Record the operation (i.e. add a single module).
         self._app_state.active_graph.record_step(self, kwargs.items())
 
+        ###### PROCESS INPUTS. ######
         # Iterate through all passed parameters.
         for port_name, port_content in kwargs.items():
-            # make sure that passed arguments correspond to input port names
+            # Make sure that passed arguments corresponds to one of the input port names.
             if port_name not in input_port_defs.keys():
-                raise NeuralPortNameMismatchError("Wrong input port name: {0}".format(port_name))
+                raise NeuralPortNameMismatchError(port_name)
+
+            # Ok, at that point the input can be one of three types:
+            # * NeuralGraph -> bind port using the default name and type.
+            # * BoundInput -> check definition, if ok bind port
+            # * NmTensor -> check definition, add self as a "consumer" of a tensor (produced by other module).
 
             # Check what was actually passed.
-            if isinstance(port_content, NeuralGraph):
-                # Bind this input port to a neural graph.
+            if type(port_content) is NeuralGraph:
+                # Make sure that port_content is the currently active graph!
+                if port_content is not self._app_state.active_graph:
+                    raise ConnectionError("Ports can be bound only by passing the active graph object!")
+                # Create an alias so the logic will be more clear.
+                active_graph = port_content
 
-                # TODO: make sure that port_content ==  self._app_state.active_graph ?????
-                if port_content != self._app_state.active_graph:
-                    raise ConnectionError("Cannot bind ports of one graph with a different graph!")
-                port_content.bind_input(port_name, input_port_defs[port_name], self)
-                # It is "compatible by definition";), so we don't have to check this port further.
-            else:  # : port_content is a neural module.
+                # Copy the  port "definition" (i.e. is NeuralType) using the same port name.
+                active_graph.input_ports[port_name] = input_port_defs[port_name]
+
+                # Bind the neural graph input port, i.e. remember that a given graph port should pass data
+                # to THIS module (when it finally will be connected).
+                active_graph.input_ports[port_name].bind([ModulePort(self.name, port_name)])
+
+                # Please note that there are no "consumers" here - this is a "pure" binding.
+
+            elif type(port_content) is BoundInput:
+
                 # Compare input port definition with the received definition.
-                input_port = input_port_defs[port_name]
-                type_comatibility = input_port.compare(port_content)
-                if (
-                    type_comatibility != NeuralTypeComparisonResult.SAME
-                    and type_comatibility != NeuralTypeComparisonResult.GREATER
-                ):
-                    raise NeuralPortNmTensorMismatchError(
-                        "\n\nIn {0}. \n"
-                        "Port: {1} and a NmTensor it was fed are \n"
-                        "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-                        "\n\nType comparison result: {4}".format(
-                            self.__class__.__name__,
-                            port_name,
-                            input_port_defs[port_name],
-                            port_content,
-                            type_comatibility,
-                        )
-                    )
-                # Ok, we have checked the input, let's "consume" it.
-                port_content.add_consumer(self, port_name)
+                input_port_defs[port_name].compare_and_raise_error(
+                    self.__class__.__name__, port_name, port_content.type
+                )
 
+                # Bind the neural graph input port, i.e. remember that a given graph port should pass data
+                # to THIS module (when it finally will be connected).
+                port_content.bind([ModulePort(self.name, port_name)])
+
+                # Please note that there are no "consumers" here - this is a "pure" binding.
+
+            elif type(port_content) is NmTensor:
+                # Compare input port definition with the received definition.
+                input_port_defs[port_name].compare_and_raise_error(self.__class__.__name__, port_name, port_content)
+
+                # Ok, can connect, add self (module) as "consumer" to the input tensor.
+                port_content.add_consumer(self.name, port_name)
+
+            else:
+                raise TypeError(
+                    "Input '{}' can be of one of three types: NeuralGraph, BoundInput or NmTensor".format(port_name)
+                )
+
+        ###### PRODUCE OUTPUTS. ######
         # Create output tensors.
         if len(output_port_defs) == 1:
             # Get port name and type.
@@ -509,7 +522,7 @@ class NeuralModule(NeuralInterface):
             results = NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
 
             # Bind the "default" output ports.
-            self._app_state.active_graph.bind_default_outputs([results])
+            self._app_state.active_graph.bind_outputs([results])
         else:
             # Create output tensors.
             output_tensors = []
@@ -523,8 +536,8 @@ class NeuralModule(NeuralInterface):
             # Create the returned tuple object.
             results = result_type(*output_tensors)
 
-            # Bind the "default" output ports.
-            self._app_state.active_graph.bind_default_outputs(output_tensors)
+            # Bind the output tensors.
+            self._app_state.active_graph.bind_outputs(output_tensors)
 
         # Return the results.
         return results

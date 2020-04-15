@@ -23,16 +23,20 @@ from nemo.utils import logging
 
 class BoundOutputs(MutableMapping):
     '''
-        A specialized dictionary that contains bound outputs.
-        In fact stores two lists of bound tensors ("default" and "manual"), and accesses them following the logic:
-        1) Record all output tensors as "default"
-        2) If user doesn't set any outputs manually, use the default.
+        A specialized dictionary that contains bound outputs of a Neural Graph.
+        In fact stores three lists of bound tensors:
+            - "all" output tensors of all modules within a graph,
+            - "default" output tensors with default keys taken from outputs of modules (might result in
+            overwriting some keys), and
+            - "manual" used for specifying the subset of output tensors, each with a new/different key
+        When accessing the output tensors, it returns the "manual" tensors. If "manual" tensors are not defined,
+        will return/work on "default" tensors.
     '''
 
     def __init__(self):
-        """ Initializes two dictionaries. """
+        """ Initializes three (empty) dictionaries. """
         # This dictionary stores list of output tensors of all modules, one key per
-        # This will generate a "all output tensors" dictionary, where the key is name of "producer" module, 
+        # This will generate a "all output tensors" dictionary, where the key is name of "producer" module,
         # and the value contains all produced tensors.
         self._all_tensors = {}
 
@@ -76,8 +80,8 @@ class BoundOutputs(MutableMapping):
         else:  # Use default dict.
             return len(self._default_tensors)
 
-    def bind_defaults(self, tensors_list):
-        """ Binds default output tensors.
+    def bind(self, tensors_list):
+        """ Binds the output tensors.
 
             Args:
                 tensors_list: List of tensors to be added.
@@ -103,7 +107,7 @@ class BoundOutputs(MutableMapping):
 
     @property
     def all(self):
-        """ Returns dictionary of dictionary of output tensors. """
+        """ Returns dictionary of all output tensors. """
         return self._all_tensors
 
     @property
