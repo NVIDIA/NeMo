@@ -15,29 +15,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import nemo
-from nemo import logging
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
-from ..jasper import JasperEncoder, JasperDecoderForCTC
+
+import nemo
 from ..audio_preprocessing import AudioPreprocessor, SpectrogramAugmentation
-from nemo.core import JarvisModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
+from ..jasper import JasperDecoderForCTC, JasperEncoder
+from nemo import logging
+from nemo.core import NeMoModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
 from nemo.utils import maybe_download_from_cloud
 
-class QuartzNet(JarvisModel):
+
+class QuartzNet(NeMoModel):
     def __init__(
         self,
         preprocessor_params: Dict,
         encoder_params: Dict,
         decoder_params: Dict,
         spec_augment_params: Optional[Dict] = None,
+        train: bool = True,
     ):
         super().__init__()
         preprocessor, _ = NeuralModule._import_from_config_dict(preprocessor_params)
         encoder, _ = NeuralModule._import_from_config_dict(encoder_params)
         decoder, _ = NeuralModule._import_from_config_dict(decoder_params)
+        self.__train = train
         if spec_augment_params is not None:
-            spec_augment, _ = NeuralModule._import_from_config_dict(spec_augment_params)
+            if train:
+                spec_augment, _ = NeuralModule._import_from_config_dict(spec_augment_params)
+            else:
+                logging.warning(
+                    "Spec Augmentation should not be used in evaluation or inference. Dropping Spec Augment module"
+                )
+                spec_augment = None
         else:
             spec_augment = None
 
@@ -72,13 +82,13 @@ class QuartzNet(JarvisModel):
         processed_signal, p_length = self._preprocessor(
             input_signal=kwargs['audio_signal'], length=kwargs['a_sig_length']
         )
-        if self._spec_augmentation is not None:
+        if self._spec_augmentation is not None and self.__train:
             processed_signal = self._spec_augmentation(input_spec=processed_signal)
         encoded, encoded_len = self._encoder(audio_signal=processed_signal, length=p_length)
         log_probs = self._decoder(encoder_output=encoded)
         return log_probs, encoded_len
 
-    def deploy_to_jarvis(self, output: str):
+    def export(self, output_file: str, deployment: bool = False) -> str:
         pass
 
     @property
@@ -119,10 +129,7 @@ class QuartzNet(JarvisModel):
             parameters='',
         )
         zhbase = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5-Zh-BASE",
-            location="",
-            description="",
-            parameters='',
+            pretrained_model_name="QuartzNet15x5-Zh-BASE", location="", description="", parameters='',
         )
         result.append(enbase)
         result.append(zhbase)
@@ -137,18 +144,12 @@ class QuartzNet(JarvisModel):
         dest_dir = os.path.join(home_folder, nfname)
 
         url = "https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/"
-        maybe_download_from_cloud(url=url,
-                                  filename="JasperEncoder-STEP-243800.pt",
-                                  dest_dir=dest_dir)
-        maybe_download_from_cloud(url=url,
-                                  filename="JasperDecoderForCTC-STEP-243800.pt",
-                                  dest_dir=dest_dir)
-        maybe_download_from_cloud(url=url,
-                                  filename="JasperDecoderForCTC-STEP-243800.pt",
-                                  dest_dir=dest_dir)
-        maybe_download_from_cloud(url="https://nemo-public.s3.us-east-2.amazonaws.com/",
-                                  filename="qn.yaml",
-                                  dest_dir=dest_dir)
+        maybe_download_from_cloud(url=url, filename="JasperEncoder-STEP-243800.pt", dest_dir=dest_dir)
+        maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
+        maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
+        maybe_download_from_cloud(
+            url="https://nemo-public.s3.us-east-2.amazonaws.com/", filename="qn.yaml", dest_dir=dest_dir
+        )
         logging.info("Instantiating model from pre-trained checkpoint")
         qn = QuartzNet.import_from_config(config_file=os.path.join(dest_dir, "qn.yaml"))
         logging.info("Model instantiated with pre-trained weights")
@@ -156,7 +157,6 @@ class QuartzNet(JarvisModel):
 
     def deploy_to_jarvis(self, output: str):
         logging.warning("THIS METHOD IS NOT DONE YET")
-
 
     @property
     def modules(self) -> Iterable[NeuralModule]:

@@ -12,6 +12,7 @@ import wget
 import nemo
 from nemo.utils import logging
 
+
 def rgetattr(obj, attr, *args):
     def _getattr(obj, attr):
         return getattr(obj, attr, *args)
@@ -133,7 +134,7 @@ def maybe_download_from_cloud(url, filename, dest_dir=None) -> str:
         checkpoints are
         else - empty string
     """
-    #try:
+    # try:
     if dest_dir is None:
         nfname = ".nemo_files"
         # check if ~/.nemo_files exists, if not - create
