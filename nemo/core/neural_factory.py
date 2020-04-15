@@ -136,7 +136,7 @@ class Actions(ABC):
                 batch_size
             stop_on_nan_loss: (default: False) If set to True, the training
                 will stop if loss=nan or inf. If set to False, the training
-                will continue. Note that if apex is not used, or if
+                will continue. Note that if apex.amp is not used, or if
                 optimization level is O0, training will stop regardless.
 
         Returns:
