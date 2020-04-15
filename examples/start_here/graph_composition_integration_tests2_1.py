@@ -23,10 +23,10 @@ from nemo.utils import logging
 
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantiate the necessary neural modules.
-dl = RealFunctionDataLayer(n=100, batch_size=32)
-m1 = TaylorNet(dim=4)
-m2 = TaylorNet(dim=4)
-loss = MSELoss()
+dl = RealFunctionDataLayer(n=100, batch_size=32, name="dl")
+m1 = TaylorNet(dim=4, name="m1")
+m2 = TaylorNet(dim=4, name="m2")
+loss = MSELoss(name="loss")
 
 logging.info(
     "This example shows how one can nest one graph into another - with manual binding of selected output ports."
@@ -38,13 +38,15 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
     prediction1 = m1(x=x)
     prediction2 = m2(x=x)
     # Manually bind the selected output ports.
-    g1.output_ports["x"] = x
-    g1.output_ports["t"] = t
-    g1.output_ports["prediction"] = prediction1
+    g1.output_ports["ix"] = x
+    g1.output_ports["te"] = t
+    g1.output_ports["prediction"] = prediction2
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g11:
+with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g2:
     x1, t1, p1 = g1()
     lss = loss(predictions=p1, target=t1)
+
+import pdb; pdb.set_trace()
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(

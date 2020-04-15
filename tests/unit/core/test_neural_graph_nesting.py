@@ -108,6 +108,7 @@ class TestNeuralGraphNesting:
             with NeuralGraph(operation_mode=OperationMode.both):
                 _, _ = inference()
 
+    @pytest.mark.unit
     def test_output_ports_binding(self):
         # Create modules.
         data_source = RealFunctionDataLayer(n=100, batch_size=1)

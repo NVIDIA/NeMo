@@ -40,9 +40,9 @@ class TestBoundOutputs:
         # Test default binding.
         bound_outputs = BoundOutputs()
 
-        bound_outputs.bind_defaults([x, y])
-        bound_outputs.bind_defaults([y_pred])
-        bound_outputs.bind_defaults([lss])
+        bound_outputs.bind([x, y])
+        bound_outputs.bind([y_pred])
+        bound_outputs.bind([lss])
 
         # Delete not allowed.
         with pytest.raises(NotImplementedError):

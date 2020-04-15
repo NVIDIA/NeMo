@@ -183,9 +183,16 @@ class NeuralGraph(NeuralInterface):
         ###### PRODUCE OUTPUTS. ######
         # This part is different from Neural Module.
         # Now the goal is NOT to create NEW "tensors", but to return the BOUND ones!
+        # Still, those must be bound in the outer (active) graph.
         if len(self._bound_outputs) == 1:
             # Return the single tensor.
             results = next(iter(self._bound_outputs.values()))
+
+            # "Copy" all the tensors from the nested graph. TODO COPY??
+            # Bind the "default" output ports.
+            self._app_state.active_graph.bind_outputs([results])
+
+
         else:
             # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
             output_class_name = f'{self.__class__.__name__}Output'
