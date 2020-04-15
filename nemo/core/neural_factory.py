@@ -135,9 +135,9 @@ class Actions(ABC):
                 "algorithmic" batch size per GPU/worker = batches_per_step*
                 batch_size
             stop_on_nan_loss: (default: False) If set to True, the training
-                will stop if loss=nan. If set to False, the training will
-                continue, but the gradients will be zeroed before next
-                mini-batch.
+                will stop if loss=nan or inf. If set to False, the training
+                will continue. Note that if apex is not used, or if
+                optimization level is O0, training will stop regardless.
 
         Returns:
             None

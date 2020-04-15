@@ -96,6 +96,7 @@ class PtActions(Actions):
         self._modules = set()
         self.cache = None
         self.amp_initialized = False
+        self.nan_or_inf = False
 
     @property
     def modules(self):
@@ -515,6 +516,18 @@ class PtActions(Actions):
                 #         self.local_rank, world_size
                 #     )
                 # )
+
+                # Check if we should terminate due to NaN/inf on any workers
+                # We use dtype=int because nccl backend doesn't support torch.bool
+                nan_inf_tensor = torch.tensor(self.nan_or_inf, dtype=int).cuda()
+                nan_inf_results = []
+                for ind in range(world_size):
+                    nan_inf_results.append(torch.empty_like(nan_inf_tensor))
+                torch.distributed.all_gather(nan_inf_results, nan_inf_tensor)
+                for nan_inf in nan_inf_results:
+                    if nan_inf:
+                        raise ValueError('Terminating due to previous NaN or inf.')
+
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
                         dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
@@ -1356,29 +1369,25 @@ class PtActions(Actions):
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
-                nan = False
                 for tensor in curr_tensors_to_optimize:
                     if (
                         torch.isnan(registered_tensors[tensor.unique_name]).any()
                         or torch.isinf(registered_tensors[tensor.unique_name]).any()
                     ):
-                        if stop_on_nan_loss:
-                            raise ValueError('Loss is NaN or inf - exiting')
-                        logging.warning('Loss is NaN or inf')
-                        curr_optimizer.zero_grad()
-                        nan = True
-                        break
+                        if (
+                            (stop_on_nan_loss)
+                            or (self._optim_level not in AmpOptimizations)
+                            or (self._optim_level == Optimization.mxprO0)
+                        ):
+                            # Set flag here and terminate at next eval step (to avoid desync and hanging).
+                            self.nan_or_inf = True
+                            logging.warning('Loss is NaN or inf, will terminate at next eval step')
+                        else:
+                            logging.warning('Loss is NaN or inf, continuing training')
                     final_loss += registered_tensors[tensor.unique_name]
-                if nan:
-                    continue
+
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
-                        if torch.isnan(scaled_loss).any() or torch.isinf(scaled_loss).any():
-                            if stop_on_nan_loss:
-                                raise ValueError('Loss is NaN or inf -' ' exiting')
-                            logging.warning('WARNING: Loss is NaN or inf')
-                            curr_optimizer.zero_grad()
-                            continue
                         if disable_allreduce:
                             with ExitStack() as stack:
                                 for mod in self.get_DDP_modules(curr_call_chain):
