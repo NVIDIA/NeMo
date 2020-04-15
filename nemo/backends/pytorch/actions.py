@@ -1381,7 +1381,9 @@ class PtActions(Actions):
                         ):
                             # Set flag here and terminate at next eval step (to avoid desync and hanging).
                             self.nan_or_inf = True
-                            logging.warning('Loss is NaN or inf, will terminate at next eval step')
+                            logging.warning(
+                                'Loss is NaN or inf at step %d, will terminate at next eval step', self.step
+                            )
                         else:
                             logging.warning('Loss is NaN or inf, continuing training')
                     final_loss += registered_tensors[tensor.unique_name]
