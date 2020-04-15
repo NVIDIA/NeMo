@@ -97,6 +97,8 @@ parser.add_argument(
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
+parser.add_argument("--eval_step_freq", default=-1, type=int, help="Frequency of evaluation")
+parser.add_argument("--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation")
 parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")
 
 args = parser.parse_args()
@@ -239,7 +241,8 @@ if "eval" in args.mode:
         user_iter_callback=lambda x, y: eval_iter_callback(x, y),
         user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
         tb_writer=nf.tb_writer,
-        eval_step=steps_per_epoch,
+        eval_step=args.eval_step_freq,
+        eval_epoch=args.eval_epoch_freq,
     )
     callbacks.append(eval_callback)
 

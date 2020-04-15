@@ -40,6 +40,7 @@ parser.add_argument("--bert_config", default=None, type=str)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
+parser.add_argument("--num_output_layers", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
@@ -64,6 +65,8 @@ parser.add_argument(
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
+parser.add_argument('--eval_step_freq', default=-1, type=int, help='Frequency of evaluation')
+parser.add_argument('--eval_epoch_freq', default=1, type=int, help='Frequency of evaluation')
 parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
@@ -90,7 +93,11 @@ data_desc = TextClassificationDataDesc(data_dir=args.data_dir, modes=[args.train
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
-    hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
+    hidden_size=hidden_size,
+    num_classes=data_desc.num_labels,
+    dropout=args.fc_dropout,
+    num_layers=args.num_output_layers,
+    log_softmax=False,
 )
 
 if args.bert_checkpoint:
@@ -108,7 +115,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_
     logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if is_training else False
-
     data_layer = nemo_nlp.nm.data_layers.BertTextClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
@@ -174,7 +180,8 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=args.eval_step_freq,
+    eval_epoch=args.eval_epoch_freq,
 )
 
 # Create callback to save checkpoints

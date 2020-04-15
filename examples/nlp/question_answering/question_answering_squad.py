@@ -204,7 +204,10 @@ def parse_args():
     )
     parser.add_argument("--train_step_freq", default=100, type=int, help="Frequency of printing training loss")
     parser.add_argument(
-        "--eval_step_freq", default=500, type=int, help="Frequency of evaluation during training on evaluation data"
+        "--eval_step_freq", default=-1, type=int, help="Frequency of evaluation during training on evaluation data"
+    )
+    parser.add_argument(
+        "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation during training on evaluation data"
     )
     parser.add_argument(
         "--version_2_with_negative",
@@ -430,6 +433,7 @@ if __name__ == "__main__":
                 ),
                 tb_writer=nf.tb_writer,
                 eval_step=args.eval_step_freq,
+                eval_epoch=args.eval_epoch_freq,
             )
             callbacks.append(eval_callback)
 

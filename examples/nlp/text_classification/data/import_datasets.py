@@ -76,24 +76,30 @@ def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'd
             return lines
 
     outfiles = {}
+    label_mapping = {}
+    out_label_mapping = open(os.path.join(target_dir, 'label_mapping.tsv'), 'w')
     for mode in modes:
         outfiles[mode] = open(os.path.join(target_dir, mode + '.tsv'), 'w')
         outfiles[mode].write('sentence\tlabel\n')
         input_file = os.path.join(source_dir, naming_map[mode])
         lines = _read_tsv(input_file)
-        label = "False"
         for line in lines:
+            label = "False"
             text = line[1]
             if mode != "test":
                 label = line[2]
                 if label == "True":
                     label = line[3]
-
             if uncased:
                 text = text.lower()
+            if label not in label_mapping:
+                out_label_mapping.write(f'{label}\t{len(label_mapping)}\n')
+                label_mapping[label] = len(label_mapping)
+            label = label_mapping[label]
             outfiles[mode].write(f'{text}\t{label}\n')
     for mode in modes:
         outfiles[mode].close()
+    out_label_mapping.close()
 
 
 def process_thucnews(infold, outfold):
