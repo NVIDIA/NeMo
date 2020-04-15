@@ -96,7 +96,6 @@ class PtActions(Actions):
         self._modules = set()
         self.cache = None
         self.amp_initialized = False
-        self.nan_or_inf = False
 
     @property
     def modules(self):
@@ -516,17 +515,6 @@ class PtActions(Actions):
                 #         self.local_rank, world_size
                 #     )
                 # )
-
-                # Check if we should terminate due to NaN/inf on any workers
-                # We use dtype=int because nccl backend doesn't support torch.bool
-                nan_inf_tensor = torch.tensor(self.nan_or_inf, dtype=int).cuda()
-                nan_inf_results = []
-                for ind in range(world_size):
-                    nan_inf_results.append(torch.empty_like(nan_inf_tensor))
-                torch.distributed.all_gather(nan_inf_results, nan_inf_tensor)
-                for nan_inf in nan_inf_results:
-                    if nan_inf:
-                        raise ValueError('Terminating due to previous NaN or inf.')
 
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
@@ -1072,6 +1060,22 @@ class PtActions(Actions):
                 output_example=output_example,
             )
 
+    def _check_nan_or_inf(self, placement_gpu, nan_or_inf, steps_per_nan_check=None):
+        # Note that nan_or_inf only gets set if stop_on_nan loss is True, or if using O0/not using apex.amp.
+        if not placement_gpu:
+            return
+        if steps_per_nan_check is None or self.step % steps_per_nan_check == 0:
+            world_size = dist.get_world_size()
+            # We use dtype=int because nccl backend doesn't support torch.bool
+            nan_inf_tensor = torch.tensor(nan_or_inf, dtype=int).cuda()
+            nan_inf_results = []
+            for _ in range(world_size):
+                nan_inf_results.append(torch.empty_like(nan_inf_tensor))
+            dist.all_gather(nan_inf_results, nan_inf_tensor)
+            for nan_inf in nan_inf_results:
+                if nan_inf:
+                    raise ValueError('Terminating due to previous NaN or inf.')
+
     def train(
         self,
         tensors_to_optimize,
@@ -1081,6 +1085,7 @@ class PtActions(Actions):
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
+        steps_per_nan_check=100,
         synced_batchnorm=False,
         synced_batchnorm_groupsize=0,
         gradient_predivide=False,
@@ -1203,7 +1208,8 @@ class PtActions(Actions):
                 )
 
         dataNM = training_loop[0][2][0][0]
-        if dataNM.placement == DeviceType.AllGpu:
+        placement_gpu = dataNM.placement == DeviceType.AllGpu
+        if placement_gpu:
             # if len(training_loop) > 1:
             #     raise NotImplementedError(
             #         "Distributed training does nor work with multiple "
@@ -1307,6 +1313,8 @@ class PtActions(Actions):
         # Do action start callbacks
         self._perform_on_action_start(callbacks=callbacks)
 
+        nan_or_inf = False
+
         # MAIN TRAINING LOOP
         # iteration over epochs
         while num_epochs is None or self.epoch_num < num_epochs:
@@ -1379,10 +1387,12 @@ class PtActions(Actions):
                             or (self._optim_level not in AmpOptimizations)
                             or (self._optim_level == Optimization.mxprO0)
                         ):
-                            # Set flag here and terminate at next eval step (to avoid desync and hanging).
-                            self.nan_or_inf = True
+                            # Set flag here and terminate at next all_gather check.
+                            nan_or_inf = True
                             logging.warning(
-                                'Loss is NaN or inf at step %d, will terminate at next eval step', self.step
+                                'Loss is NaN or inf at step %d, will terminate within the'
+                                ' next steps_per_nan_check steps',
+                                self.step,
                             )
                         else:
                             logging.warning('Loss is NaN or inf, continuing training')
@@ -1416,6 +1426,9 @@ class PtActions(Actions):
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
+                # Check if we should terminate due to NaN/inf on any workers.
+                self._check_nan_or_inf(placement_gpu, nan_or_inf, steps_per_nan_check=steps_per_nan_check)
+
                 batch_counter += 1
 
                 if batch_counter == batches_per_step:
@@ -1434,6 +1447,10 @@ class PtActions(Actions):
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)
             self.epoch_num += 1
+
+        # Check again if we should stop on NaN/inf
+        self._check_nan_or_inf(placement_gpu, nan_or_inf)
+
         self._perform_on_action_end(callbacks=callbacks)
 
     def infer(
