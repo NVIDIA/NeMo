@@ -16,7 +16,7 @@
 # limitations under the License.
 
 """This file contains NeuralModule and NmTensor classes."""
-__all__ = ['WeightShareTransform', 'NeuralModule', 'NeMoModel', 'PretrainedModelInfo', 'JarvisModel']
+__all__ = ['WeightShareTransform', 'NeuralModule', 'NeMoModel', 'PretrainedModelInfo']
 
 import collections
 import uuid
@@ -733,15 +733,11 @@ class NeMoModel(NeuralModule):
     def from_pretrained(model_info) -> NeuralModule:
         pass
 
+    @abstractmethod
+    def export(self, output_file: str, deployment: bool = False) -> str:
+        pass
+
     @property
     @abstractmethod
     def modules(self) -> Iterable[NeuralModule]:
-        pass
-
-
-class JarvisModel(NeMoModel):
-    """This is a kind of NeMoModel which can be exported to Jarvis for deployment"""
-
-    @abstractmethod
-    def deploy_to_jarvis(self, output: str):
         pass
