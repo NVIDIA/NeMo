@@ -254,7 +254,6 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
     task_name=args.task_name,
     dstc8_data_dir=args.data_dir,
     dialogues_example_dir=args.dialogues_example_dir,
-    schema_config=schema_config,
     tokenizer=tokenizer,
     schema_emb_processor=schema_preprocessor,
     overwrite_dial_files=args.overwrite_dial_files,
@@ -299,7 +298,7 @@ def create_pipeline(dataset_split='train'):
         num_categorical_slot_values=data.num_categorical_slot_values,
         num_intents=data.num_intents,
         req_num_slots=data.num_slots,
-        service_id=data.service_id,
+        service_ids=data.service_id,
     )
 
     if dataset_split == 'train':
@@ -322,10 +321,9 @@ def create_pipeline(dataset_split='train'):
             noncategorical_slot_value_start=data.noncategorical_slot_value_start,
             noncategorical_slot_value_end=data.noncategorical_slot_value_end,
         )
-        steps_per_epoch = math.ceil(len(datalayer) / (args.train_batch_size * args.num_gpus))
-        return steps_per_epoch, [loss]
+        tensors = [loss]
     else:
-        eval_tensors = [
+        tensors = [
             data.example_id_num,
             data.service_id,
             data.is_real_example,
@@ -346,12 +344,14 @@ def create_pipeline(dataset_split='train'):
             data.noncategorical_slot_status,
             data.num_noncategorical_slots,
         ]
-        return eval_tensors
+
+    steps_per_epoch = math.ceil(len(datalayer) / (args.train_batch_size * args.num_gpus))
+    return steps_per_epoch, tensors
 
 
 steps_per_epoch, train_tensors = create_pipeline()
 logging.info(f'Steps per epoch: {steps_per_epoch}')
-eval_tensors = create_pipeline(dataset_split=args.eval_dataset)
+_, eval_tensors = create_pipeline(dataset_split=args.eval_dataset)
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(

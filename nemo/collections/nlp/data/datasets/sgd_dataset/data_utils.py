@@ -70,17 +70,15 @@ class Dstc8DataProcessor(object):
         task_name,
         dstc8_data_dir,
         dialogues_example_dir,
-        schema_config,
         tokenizer,
         schema_emb_processor,
         overwrite_dial_files=False,
     ):
-
         self.dstc8_data_dir = dstc8_data_dir
         self.dialogues_examples_dir = dialogues_example_dir
 
         self._task_name = task_name
-        self.schema_config = schema_config
+        self.schema_config = schema_emb_processor.schema_config
 
         train_file_range = FILE_RANGES[task_name]["train"]
         dev_file_range = FILE_RANGES[task_name]["dev"]
@@ -93,7 +91,7 @@ class Dstc8DataProcessor(object):
         }
 
         self._tokenizer = tokenizer
-        self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]
+        self._max_seq_length = self.schema_config["MAX_SEQ_LENGTH"]
 
         self.dial_files = {}
 

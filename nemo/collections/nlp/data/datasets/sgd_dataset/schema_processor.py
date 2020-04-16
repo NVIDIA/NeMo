@@ -65,6 +65,7 @@ class SchemaPreprocessor:
         overwrite_schema_emb_files,
         bert_ckpt_dir,
         nf,
+        datasets=['train', 'test', 'dev'],
         mode='baseline',
         is_trainable=False,
     ):
@@ -81,7 +82,15 @@ class SchemaPreprocessor:
         # self.MAX_NUM_INTENT = config["MAX_NUM_INTENT"]
 
         self.is_trainable = is_trainable
-        self.datasets = ['train', 'test', 'dev']
+        self.datasets = datasets
+
+        for dataset_split in ['train', 'test', 'dev']:
+            if dataset_split not in self.datasets:
+                logging.warning(
+                    'WARNING: %s set was not included and won\'t be processed. Services from this dataset split '
+                    + 'won\'t be supported',
+                    dataset_split,
+                )
         os.makedirs(schema_embedding_dir, exist_ok=True)
 
         tokenizer_type = type(tokenizer.tokenizer).__name__

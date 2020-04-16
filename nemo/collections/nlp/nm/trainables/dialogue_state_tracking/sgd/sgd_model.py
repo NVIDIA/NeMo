@@ -83,7 +83,7 @@ class SGDModel(TrainableNM):
             "num_categorical_slot_values": NeuralType(('B', 'T'), LengthsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "req_num_slots": NeuralType(('B'), LengthsType()),
-            "service_id": NeuralType(('B'), ChannelType()),
+            "service_ids": NeuralType(('B'), ChannelType()),
         }
 
     @property
@@ -192,19 +192,19 @@ class SGDModel(TrainableNM):
         num_categorical_slot_values,
         num_intents,
         req_num_slots,
-        service_id,
+        service_ids,
     ):
         """
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         
         """
         batch_size, emb_dim = encoded_utterance.size()
-        intent_embeddings = self.intents_emb(service_id).view(batch_size, -1, emb_dim)
-        cat_slot_emb = self.cat_slot_emb(service_id).view(batch_size, -1, emb_dim)
+        intent_embeddings = self.intents_emb(service_ids).view(batch_size, -1, emb_dim)
+        cat_slot_emb = self.cat_slot_emb(service_ids).view(batch_size, -1, emb_dim)
         max_number_cat_slots = cat_slot_emb.shape[1]
-        cat_slot_value_emb = self.cat_slot_value_emb(service_id).view(batch_size, max_number_cat_slots, -1, emb_dim)
-        noncat_slot_emb = self.noncat_slot_emb(service_id).view(batch_size, -1, emb_dim)
-        req_slot_emb = self.req_slot_emb(service_id).view(batch_size, -1, emb_dim)
+        cat_slot_value_emb = self.cat_slot_value_emb(service_ids).view(batch_size, max_number_cat_slots, -1, emb_dim)
+        noncat_slot_emb = self.noncat_slot_emb(service_ids).view(batch_size, -1, emb_dim)
+        req_slot_emb = self.req_slot_emb(service_ids).view(batch_size, -1, emb_dim)
 
         logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, num_intents)
 
