@@ -160,29 +160,6 @@ class Dstc8DataProcessor(object):
         logging.info(f'Finished creating the examples from {len(dialogs)} dialogues.')
         return examples
 
-    # def _save_schemas(self, dataset):
-    #     if dataset not in self.schema_pkl_files:
-    #         raise ValueError(
-    #             f"{dataset} schema was not processed. Re-initialize Dstc8DataProcessor and add {dataset} dataset to datasets arg."
-    #         )
-    #     with open(self.schema_pkl_files[dataset], "wb") as f:
-    #         pickle.dump(self._schemas[dataset], f)
-    #         f.close()
-
-    # def get_service_names_to_id_dict(self, dataset):
-    #     if dataset not in self._schemas:
-    #         raise ValueError(
-    #             f"Schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files and add {dataset} dataset to Dstc8DataProcessor"
-    #         )
-    #     return self._schemas[dataset]._services_vocab
-
-    # def get_ids_to_service_names_dict(self, dataset):
-    #     if dataset not in self._schemas:
-    #         raise ValueError(
-    #             f"Schema not available for {dataset} dataset. Rerun with flag --overwrite_dial_files and add {dataset} dataset to Dstc8DataProcessor"
-    #         )
-    #     return self._schemas[dataset]._services_id_to_vocab
-
     def _create_examples_from_dialog(self, dialog, schemas, dataset):
         """Create examples for every turn in the dialog."""
         dialog_id = dialog["dialogue_id"]
