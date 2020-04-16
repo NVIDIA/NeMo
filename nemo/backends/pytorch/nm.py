@@ -44,12 +44,16 @@ class TrainableNM(NeuralModule, nn.Module):
         # Store pretrained model name (to be removed/changed)
         self._pretrained_model_name = pretrained_model_name
 
-    def __call__(self, *input, force_pt=False, **kwargs):
+    def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
         if pt_call:
             return nn.Module.__call__(self, *input, **kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)
+
+    @abstractmethod
+    def forward(self, *input, **kwargs):
+        raise NotImplementedError
 
     @t.jit.ignore
     def get_weights(self):
@@ -129,20 +133,23 @@ class TrainableNM(NeuralModule, nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-class NonTrainableNM(NeuralModule):
+class NonTrainableNM(NeuralModule, nn.Module):
     def __init__(self):
         NeuralModule.__init__(self)  # For NeuralModule API
+        nn.Module.__init__(self)  # For PyTorch API
         self._device = get_cuda_device(self.placement)
 
-    def __call__(self, force_pt=False, *input, **kwargs):
-        pt_call = len(input) > 0 or force_pt
+    def __call__(self, *input, **kwargs):
+    # def __call__(self, force_pt=False, *input, **kwargs):
+        pt_call = len(input) > 0 #or force_pt
         if pt_call:
             with t.no_grad():
                 return self.forward(*input, **kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)
 
-    def forward(self, *input):
+    @abstractmethod
+    def forward(self, *input, **kwargs):
         """Defines the computation performed at every call.
 
         Should be overridden by all subclasses.
@@ -150,7 +157,7 @@ class NonTrainableNM(NeuralModule):
         raise NotImplementedError
 
     def get_weights(self) -> Optional[Dict[(str, bool)]]:
-        None
+        return None
 
     def set_weights(
         self,
@@ -381,7 +388,7 @@ class LossNM(NeuralModule):
     @abstractmethod
     def _loss_function(self, **kwargs):
         pass
-
+############################
     def __call__(self, force_pt=False, *input, **kwargs):
         if force_pt:
             return self._loss_function(**kwargs)
