@@ -183,6 +183,7 @@ class SGDModel(TrainableNM):
             self.req_slot_emb.weight.data.copy_(
                 torch.from_numpy(np.stack(schema_embeddings['req_slot_emb']).reshape(num_services, -1))
             )
+
             self.to(self._device)
 
     def forward(

@@ -318,7 +318,7 @@ def write_predictions_to_file(
     output_dir: The directory where output json files will be created.
   """
     nemo.logging.info(f"Writing predictions to {output_dir} started.")
-   
+
     # Index all predictions.
     all_predictions = {}
     for idx, prediction in enumerate(predictions):

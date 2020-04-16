@@ -183,6 +183,7 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+logging.info(args)
 
 if args.debug_mode:
     logging.setLevel(10)
@@ -277,7 +278,6 @@ def create_pipeline(dataset_split='train'):
     )
 
     data = datalayer()
-    # datalayer.dataset[0]
 
     # Encode the utterances using BERT.
     token_embeddings = pretrained_bert_model(
@@ -301,11 +301,6 @@ def create_pipeline(dataset_split='train'):
             utterance_mask=data.utterance_mask,
             num_categorical_slot_values=data.num_categorical_slot_values,
             num_intents=data.num_intents,
-            # cat_slot_emb=data.cat_slot_emb,
-            # cat_slot_value_emb=data.cat_slot_value_emb,
-            # noncat_slot_emb=data.noncat_slot_emb,
-            # req_slot_emb=data.req_slot_emb,
-            # intent_embeddings=data.intent_emb,
             req_num_slots=data.num_slots,
             service_id=data.service_id,
         )
