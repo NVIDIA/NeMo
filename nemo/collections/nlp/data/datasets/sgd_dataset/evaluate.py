@@ -90,6 +90,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services):
     service_schemas: A dict mapping service name to the schema for the service.
     in_domain_services: The set of services which are present in the training
       set.
+    schemas: Schemas with information for all services
 
   Returns:
     A dict mapping a metric collection name to a dict containing the values

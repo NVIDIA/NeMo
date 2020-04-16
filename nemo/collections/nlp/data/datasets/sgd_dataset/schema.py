@@ -122,6 +122,10 @@ class Schema(object):
     """Wrapper for schemas for all services in a dataset."""
 
     def __init__(self, schema_json_paths):
+        """
+        TODO fix:
+        schema_json_paths: list of .json path to schema files of a single str with path to the json file.
+        """
         # Load the schema from the json file.
         if isinstance(schema_json_paths, str):
             with open(schema_json_paths, "r") as f:

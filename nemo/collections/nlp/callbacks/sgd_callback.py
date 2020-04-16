@@ -141,28 +141,28 @@ def eval_epochs_done_callback(
         global_vars['predictions'],
         input_json_files,
         prediction_dir,
-        schema_json_file=os.path.join(data_dir, eval_dataset, "schema.json"),
+        schemas=schema_emb_preprocessor.schemas,
         state_tracker=state_tracker,
         eval_debug=eval_debug,
         in_domain_services=in_domain_services,
     )
-    metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file)
+    metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file, schema_emb_preprocessor.schemas)
     return metrics
 
 
-def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file):
+def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file, schemas):
 
     in_domain_services = get_in_domain_services(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
     )
-
+    
     with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:
         eval_services = {}
         list_services = json.load(f)
         for service in list_services:
             eval_services[service["service_name"]] = service
         f.close()
-
+    import pdb; pdb.set_trace()
     dataset_ref = get_dataset_as_dict(os.path.join(data_dir, eval_dataset, "dialogues_*.json"))
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
 

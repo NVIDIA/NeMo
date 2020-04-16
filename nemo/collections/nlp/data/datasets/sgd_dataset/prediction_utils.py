@@ -305,7 +305,7 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
 
 
 def write_predictions_to_file(
-    predictions, input_json_files, output_dir, schema_json_file, state_tracker, eval_debug, in_domain_services
+    predictions, input_json_files, output_dir, schemas, state_tracker, eval_debug, in_domain_services
 ):
     """Write the predicted dialogues as json files.
 
@@ -314,11 +314,11 @@ def write_predictions_to_file(
       the predict method in the estimator.
     input_json_files: A list of json paths containing the dialogues to run
       inference on.
-    schema_json_file: Path for the json file containing the schemas.
+    schemas: Schemas to all services in the dst dataset (train, dev and test splits).
     output_dir: The directory where output json files will be created.
   """
     nemo.logging.info(f"Writing predictions to {output_dir} started.")
-    schemas = schema.Schema(schema_json_file)
+   
     # Index all predictions.
     all_predictions = {}
     for idx, prediction in enumerate(predictions):
