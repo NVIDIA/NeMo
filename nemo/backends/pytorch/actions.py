@@ -4,7 +4,9 @@ import importlib
 import itertools
 import json
 import os
+import onnx
 from collections import defaultdict
+from collections import OrderedDict
 from contextlib import ExitStack
 from pathlib import Path
 from typing import List, Optional
@@ -920,7 +922,8 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
+    def __module_export(module, output, d_format: DeploymentFormat,
+                        input_example=None, output_example=None, onnx_opset=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -960,15 +963,15 @@ class PtActions(Actions):
         # We need to change __call__ method. Note that this will change the
         # whole class, not just this object! Which is why we need to repair it
         # in the finally block
-        type(module).__call__ = torch.nn.Module.__call__
+        # type(module).__call__ = torch.nn.Module.__call__
 
         # Reset standard instance field - making the file (probably) lighter.
-        module._init_params = None
-        module._placement = None
-        module._factory = None
-        module._device = None
+        # module._init_params = None
+        # module._placement = None
+        # module._factory = None
+        # module._device = None
 
-        module.eval()
+        # module.eval()
         try:
             if d_format == DeploymentFormat.TORCHSCRIPT:
                 if input_example is None:
@@ -987,11 +990,11 @@ class PtActions(Actions):
                         output_example = module.forward(*input_example)
                     else:
                         output_example = module.forward(input_example)
-                with torch.jit.optimized_execution(True):
-                    jitted_model = torch.jit.trace(module, input_example)
+                # with torch.jit.optimized_execution(True):
+                #     jitted_model = torch.jit.trace(module, input_example)
 
                 torch.onnx.export(
-                    jitted_model,
+                    module, #jitted_model,
                     input_example,
                     output,
                     input_names=input_names,
@@ -1000,16 +1003,16 @@ class PtActions(Actions):
                     export_params=True,
                     do_constant_folding=True,
                     dynamic_axes=dynamic_axes,
-                    opset_version=11,
-                    example_outputs=output_example,
+                    opset_version = 11 if onnx_opset is None else onnx_opset,
+                    # example_outputs=output_example,
                 )
-                # fn = output + ".readable"
-                # with open(fn, 'w') as f:
-                #     tempModel = onnx.load(output)
-                #     onnx.save(tempModel, output + ".copy")
-                #     onnx.checker.check_model(tempModel)
-                #     pgraph = onnx.helper.printable_graph(tempModel.graph)
-                #     f.write(pgraph)
+                fn = output + ".readable"
+                with open(fn, 'w') as f:
+                    tempModel = onnx.load(output)
+                    onnx.save(tempModel, output + ".copy")
+                    onnx.checker.check_model(tempModel)
+                    pgraph = onnx.helper.printable_graph(tempModel.graph)
+                    f.write(pgraph)
 
             elif d_format == DeploymentFormat.PYTORCH:
                 torch.save(module.state_dict(), output)
@@ -1020,19 +1023,20 @@ class PtActions(Actions):
                 raise NotImplementedError(f"Not supported deployment format: {d_format}")
         except Exception as e:  # nopep8
             logging.error(f'module export failed for {module} ' f'with exception {e}')
-        finally:
-
-            def __old_call__(self, force_pt=False, *input, **kwargs):
-                pt_call = len(input) > 0 or force_pt
-                if pt_call:
-                    return nn.Module.__call__(self, *input, **kwargs)
-                else:
-                    return NeuralModule.__call__(self, **kwargs)
-
-            type(module).__call__ = __old_call__
+#         finally:
+# ##################
+#             def __old_call__(self, force_pt=False, *input, **kwargs):
+#                 pt_call = len(input) > 0 or force_pt
+#                 if pt_call:
+#                     return nn.Module.__call__(self, *input, **kwargs)
+#                 else:
+#                     return NeuralModule.__call__(self, **kwargs)
+#
+#             type(module).__call__ = __old_call__
 
     @staticmethod
-    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
+    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None,
+                          output_example=None, onnx_opset=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1052,6 +1056,7 @@ class PtActions(Actions):
                 d_format=d_format,
                 input_example=input_example,
                 output_example=output_example,
+                onnx_opset=onnx_opset
             )
 
     def train(

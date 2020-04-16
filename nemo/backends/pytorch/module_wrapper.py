@@ -39,7 +39,7 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
 
     def train(self):
         return self._pt_module.train()
-
+######################
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
         if pt_call:

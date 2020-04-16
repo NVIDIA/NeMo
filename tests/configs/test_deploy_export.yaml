@@ -1,6 +1,6 @@
 TaylorNet:
     header:
-        full_spec: nemo.backends.pytorch.tutorials.TaylorNet
+        full_spec: nemo.backends.pytorch.tutorials.toys.TaylorNet
     init_params:
         dim: 4
 
