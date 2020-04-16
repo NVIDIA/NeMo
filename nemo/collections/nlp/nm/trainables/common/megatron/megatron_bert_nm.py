@@ -30,6 +30,8 @@ import os
 
 import sys
 sys.path.append('/home/ebakhturina/megatron-lm')
+import torch 
+
 from megatron.model.language_model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
@@ -84,16 +86,18 @@ class MegatronBERT(TrainableNM):
             raise ValueError (f'Config file not found at {config}')
         with open(config) as json_file:
             config = json.load(json_file)
+
         megatron_args = {"num_layers": config['num-layers'],
                          "hidden_size": config['hidden-size'],
                          "num_attention_heads": config['num-attention-heads'], 
                          "max_position_embeddings": config['max-seq-length'],
-                         "padded_vocab_size": config['vocab-size']}
+                        #  "padded_vocab_size": config['vocab-size'],
+                         "tokenizer_type": 'BertWordPieceLowerCase'}
         
         initialize_megatron(None, megatron_args)
         init_method = init_method_normal(init_method_std)
           
-        self.language_model, _ = get_language_model(
+        self.language_model, self._language_model_key = get_language_model(
             attention_mask_func=bert_attention_mask_func,
             num_tokentypes=num_tokentypes,
             add_pooler=False,
@@ -116,20 +120,48 @@ class MegatronBERT(TrainableNM):
 
 
     def forward(self, input_ids, attention_mask, token_type_ids):
-        import sys
-        sys.path.append('/home/ebakhturina/scripts')
-        from mem_report import mem_report
-        import nemo
-        nemo.logging.info(f'INSIDE before forward: {mem_report()}')
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype)
         position_ids = bert_position_ids(input_ids)
-        nemo.logging.info(f'INSIDE after ext_att_mask: {mem_report()}')
         
         sequence_output = self.language_model(input_ids,
                                               position_ids,
                                               extended_attention_mask,
                                               tokentype_ids=token_type_ids)
-
-        nemo.logging.info(f'INSIDE after forward: {mem_report()}')
         return sequence_output
+
+    # def restore_from(self, path, local_rank=0):
+    #     # original_load = args.load
+    #     # args.load = args.pretrained_checkpoint
+    #     # _ = load_checkpoint(model, None, None)
+    #     # args.load = original_load
+    #     state_dict = torch.load(path, map_location='cpu')
+    #     self.language_model.load_state_dict(state_dict[self._language_model_key], strict=strict)
+    #     # self.language_model.load_state_dict(torch.load(path, map_location="cpu")['model'][self._language_model_key])
+
+
+# def state_dict_for_save_checkpoint(self, destination=None, prefix='',
+#                                        keep_vars=False):
+
+#         state_dict_ = {}
+#         state_dict_[self._language_model_key] \
+#             = self.language_model.state_dict_for_save_checkpoint(
+#                 destination=destination, prefix=prefix, keep_vars=keep_vars)
+#         state_dict_[self._qa_head_key] \
+#             = self.qa_head.state_dict_for_save_checkpoint(
+#                 destination=destination, prefix=prefix, keep_vars=keep_vars)
+
+#         return state_dict_
+
+
+#     def load_state_dict(self, state_dict, strict=True):
+
+#         self.language_model.load_state_dict(
+#             state_dict[self._language_model_key], strict=strict)
+#         if self._qa_head_key in state_dict:
+#             self.qa_head.load_state_dict(state_dict[self._qa_head_key],
+#                                          strict=strict)
+#         else:
+#             print_rank_0('***WARNING*** could not find '
+#                          'question answering head in the '
+#                          'checkpoint, initializing to random.')

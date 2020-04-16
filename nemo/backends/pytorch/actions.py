@@ -393,13 +393,6 @@ class PtActions(Actions):
     def __nm_graph_forward_pass(
         self, call_chain, registered_tensors, mode=ModelMode.train, use_cache=False,
     ):  
-        import sys
-        sys.path.append('/home/ebakhturina/scripts')
-        from mem_report import mem_report
-        import nemo
-        use_cache = False
-        in_cache = False
-        nemo.logging.info(f'before forward: {mem_report()}')
         for ind in range(1, len(call_chain)):
             if use_cache:
                 in_cache = True
@@ -460,7 +453,6 @@ class PtActions(Actions):
                     registered_tensors[t_name] = t_tensor
                 else:
                     raise ValueError("A NMTensor was produced twice in " f"the same DAG. {t_name}")
-        nemo.logging.info(f'after forward: {mem_report()}')
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):
