@@ -51,7 +51,8 @@ class SchemaPreprocessor:
             the dialogue examples overwrite_schema_emb_file,
         bert_ckpt_dir (str) - Directory containing pre-trained BERT checkpoint
         nf - NeuralModuleFactory
-        mode(str): 
+        mode(str): Schema embeddings initialization mode, baseline is ['CLS'] token embeddings
+        from the last BERT layer
     """
 
     def __init__(
@@ -83,8 +84,13 @@ class SchemaPreprocessor:
         self.datasets = ['train', 'test', 'dev']
         os.makedirs(schema_embedding_dir, exist_ok=True)
 
+        tokenizer_type = type(tokenizer.tokenizer).__name__
+        vocab_size = getattr(tokenizer, "vocab_size", 0)
         self.schema_embedding_file = os.path.join(
-            schema_embedding_dir, f"{'_'.join(self.datasets)}_pretrained_schema_embedding.npy"
+            schema_embedding_dir,
+            "{}_{}_{}_{}_pretrained_schema_embedding.npy".format(
+                '_'.join(self.datasets), mode, tokenizer_type, vocab_size
+            ),
         )
         all_schema_json_paths = []
         for dataset_split in self.datasets:

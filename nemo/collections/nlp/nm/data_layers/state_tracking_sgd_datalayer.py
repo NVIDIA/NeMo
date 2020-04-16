@@ -60,17 +60,11 @@ class SGDDataLayer(TextDataLayer):
             "requested_slot_status": NeuralType(('B', 'T'), LabelsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "intent_status": NeuralType(('B'), LabelsType()),
-            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType(), optional=True),
-            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "intent_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
         }
 
     def __init__(
         self,
         dataset_split,
-        schema_emb_processor,
         dialogues_processor,
         dataset_type=SGDDataset,
         shuffle=False,
@@ -81,7 +75,6 @@ class SGDDataLayer(TextDataLayer):
 
         dataset_params = {
             'dataset_split': dataset_split,
-            'schema_emb_processor': schema_emb_processor,
             'dialogues_processor': dialogues_processor,
         }
         super().__init__(

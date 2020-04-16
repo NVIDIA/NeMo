@@ -269,7 +269,6 @@ dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 def create_pipeline(dataset_split='train'):
     datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
         dataset_split=dataset_split,
-        schema_emb_processor=schema_preprocessor,
         dialogues_processor=dialogues_processor,
         batch_size=args.train_batch_size,
         shuffle=not args.no_shuffle if dataset_split == 'train' else False,
@@ -284,49 +283,24 @@ def create_pipeline(dataset_split='train'):
         input_ids=data.utterance_ids, attention_mask=data.utterance_mask, token_type_ids=data.utterance_segment,
     )
     encoded_utterance, token_embeddings = encoder(hidden_states=token_embeddings)
-
-    if args.train_schema_emb:
-        (
-            logit_intent_status,
-            logit_req_slot_status,
-            req_slot_mask,
-            logit_cat_slot_status,
-            logit_cat_slot_value,
-            logit_noncat_slot_status,
-            logit_noncat_slot_start,
-            logit_noncat_slot_end,
-        ) = model(
-            encoded_utterance=encoded_utterance,
-            token_embeddings=token_embeddings,
-            utterance_mask=data.utterance_mask,
-            num_categorical_slot_values=data.num_categorical_slot_values,
-            num_intents=data.num_intents,
-            req_num_slots=data.num_slots,
-            service_id=data.service_id,
-        )
-    else:
-        (
-            logit_intent_status,
-            logit_req_slot_status,
-            req_slot_mask,
-            logit_cat_slot_status,
-            logit_cat_slot_value,
-            logit_noncat_slot_status,
-            logit_noncat_slot_start,
-            logit_noncat_slot_end,
-        ) = model(
-            encoded_utterance=encoded_utterance,
-            token_embeddings=token_embeddings,
-            utterance_mask=data.utterance_mask,
-            num_categorical_slot_values=data.num_categorical_slot_values,
-            num_intents=data.num_intents,
-            cat_slot_emb=data.cat_slot_emb,
-            cat_slot_value_emb=data.cat_slot_value_emb,
-            noncat_slot_emb=data.noncat_slot_emb,
-            req_slot_emb=data.req_slot_emb,
-            req_num_slots=data.num_slots,
-            intent_embeddings=data.intent_emb,
-        )
+    (
+        logit_intent_status,
+        logit_req_slot_status,
+        req_slot_mask,
+        logit_cat_slot_status,
+        logit_cat_slot_value,
+        logit_noncat_slot_status,
+        logit_noncat_slot_start,
+        logit_noncat_slot_end,
+    ) = model(
+        encoded_utterance=encoded_utterance,
+        token_embeddings=token_embeddings,
+        utterance_mask=data.utterance_mask,
+        num_categorical_slot_values=data.num_categorical_slot_values,
+        num_intents=data.num_intents,
+        req_num_slots=data.num_slots,
+        service_id=data.service_id,
+    )
 
     if dataset_split == 'train':
         loss = dst_loss(

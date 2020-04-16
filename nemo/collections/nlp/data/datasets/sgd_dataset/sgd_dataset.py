@@ -16,10 +16,8 @@ class SGDDataset(Dataset):
     TODO
     """
 
-    def __init__(self, dataset_split, schema_emb_processor, dialogues_processor):
+    def __init__(self, dataset_split, dialogues_processor):
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        self.trainable_schema_emb = schema_emb_processor.is_trainable
-        self.schema_embeddings = schema_emb_processor.get_schema_embeddings()
 
     def __len__(self):
         return len(self.features)
@@ -28,7 +26,7 @@ class SGDDataset(Dataset):
         ex = self.features[idx]
         service_id = ex.service_schema.service_id
 
-        example = [
+        return (
             np.array(ex.example_id_num),
             np.array(service_id),
             np.array(ex.is_real_example, dtype=int),
@@ -49,15 +47,4 @@ class SGDDataset(Dataset):
             np.array(ex.requested_slot_status, dtype=np.float32),
             np.array(ex.num_intents),
             np.array(ex.intent_status),
-        ]
-
-        if not self.trainable_schema_emb:
-            return example + [
-                np.array(self.schema_embeddings['cat_slot_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_embeddings['cat_slot_value_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_embeddings['noncat_slot_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_embeddings['req_slot_emb'][service_id], dtype=np.float32),
-                np.array(self.schema_embeddings['intent_emb'][service_id], dtype=np.float32),
-            ]
-
-        return example
+        )

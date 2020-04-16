@@ -83,12 +83,7 @@ class SGDModel(TrainableNM):
             "num_categorical_slot_values": NeuralType(('B', 'T'), LengthsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "req_num_slots": NeuralType(('B'), LengthsType()),
-            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType(), optional=True),
-            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "intent_embeddings": NeuralType(('B', 'T', 'C'), EmbeddedTextType(), optional=True),
-            "service_id": NeuralType(('B'), ChannelType(), optional=True),
+            "service_id": NeuralType(('B'), ChannelType()),
         }
 
     @property
@@ -150,41 +145,44 @@ class SGDModel(TrainableNM):
         self.noncat_activation = F.gelu
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
 
-        self.schema_emb_is_trainable = schema_emb_processor.is_trainable
         config = schema_emb_processor.schema_config
-        if self.schema_emb_is_trainable:
-            num_services = len(schema_emb_processor.schemas.services)
-            # schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split
-            self.intents_emb = nn.Embedding(num_services, config["MAX_NUM_INTENT"] * embedding_dim)
-            self.cat_slot_emb = nn.Embedding(num_services, config["MAX_NUM_CAT_SLOT"] * embedding_dim)
-            self.cat_slot_value_emb = nn.Embedding(
-                num_services, config["MAX_NUM_CAT_SLOT"] * config["MAX_NUM_VALUE_PER_CAT_SLOT"] * embedding_dim
-            )
-            self.noncat_slot_emb = nn.Embedding(num_services, config["MAX_NUM_NONCAT_SLOT"] * embedding_dim)
-            self.req_slot_emb = nn.Embedding(
-                num_services, (config["MAX_NUM_CAT_SLOT"] + config["MAX_NUM_NONCAT_SLOT"]) * embedding_dim
-            )
+        num_services = len(schema_emb_processor.schemas.services)
+        self.intents_emb = nn.Embedding(num_services, config["MAX_NUM_INTENT"] * embedding_dim)
+        self.cat_slot_emb = nn.Embedding(num_services, config["MAX_NUM_CAT_SLOT"] * embedding_dim)
+        self.cat_slot_value_emb = nn.Embedding(
+            num_services, config["MAX_NUM_CAT_SLOT"] * config["MAX_NUM_VALUE_PER_CAT_SLOT"] * embedding_dim
+        )
+        self.noncat_slot_emb = nn.Embedding(num_services, config["MAX_NUM_NONCAT_SLOT"] * embedding_dim)
+        self.req_slot_emb = nn.Embedding(
+            num_services, (config["MAX_NUM_CAT_SLOT"] + config["MAX_NUM_NONCAT_SLOT"]) * embedding_dim
+        )
 
-            schema_embeddings = schema_emb_processor.get_schema_embeddings()
-            # embed = nn.Embedding(num_embeddings, embedding_dim)
-            # # pretrained_weight is a numpy matrix of shape (num_embeddings, embedding_dim)
-            self.intents_emb.weight.data.copy_(
-                torch.from_numpy(np.stack(schema_embeddings['intent_emb']).reshape(num_services, -1))
-            )
-            self.cat_slot_emb.weight.data.copy_(
-                torch.from_numpy(np.stack(schema_embeddings['cat_slot_emb']).reshape(num_services, -1))
-            )
-            self.cat_slot_value_emb.weight.data.copy_(
-                torch.from_numpy(np.stack(schema_embeddings['cat_slot_value_emb']).reshape(num_services, -1))
-            )
-            self.noncat_slot_emb.weight.data.copy_(
-                torch.from_numpy(np.stack(schema_embeddings['noncat_slot_emb']).reshape(num_services, -1))
-            )
-            self.req_slot_emb.weight.data.copy_(
-                torch.from_numpy(np.stack(schema_embeddings['req_slot_emb']).reshape(num_services, -1))
-            )
+        # initialize schema embeddings from the BERT generated embeddings
+        schema_embeddings = schema_emb_processor.get_schema_embeddings()
+        self.intents_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['intent_emb']).reshape(num_services, -1))
+        )
+        self.cat_slot_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['cat_slot_emb']).reshape(num_services, -1))
+        )
+        self.cat_slot_value_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['cat_slot_value_emb']).reshape(num_services, -1))
+        )
+        self.noncat_slot_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['noncat_slot_emb']).reshape(num_services, -1))
+        )
+        self.req_slot_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['req_slot_emb']).reshape(num_services, -1))
+        )
 
-            self.to(self._device)
+        if not schema_emb_processor.is_trainable:
+            self.intents_emb.weight.requires_grad = False
+            self.cat_slot_emb.weight.requires_grad = False
+            self.cat_slot_value_emb.weight.requires_grad = False
+            self.noncat_slot_emb.weight.requires_grad = False
+            self.req_slot_emb.weight.requires_grad = False
+
+        self.to(self._device)
 
     def forward(
         self,
@@ -194,28 +192,19 @@ class SGDModel(TrainableNM):
         num_categorical_slot_values,
         num_intents,
         req_num_slots,
-        cat_slot_emb=None,
-        cat_slot_value_emb=None,
-        noncat_slot_emb=None,
-        req_slot_emb=None,
-        intent_embeddings=None,
-        schema_embeddings=None,
-        service_id=None,
+        service_id,
     ):
         """
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         
         """
-        if self.schema_emb_is_trainable:
-            batch_size, emb_dim = encoded_utterance.size()
-            intent_embeddings = self.intents_emb(service_id).view(batch_size, -1, emb_dim)
-            cat_slot_emb = self.cat_slot_emb(service_id).view(batch_size, -1, emb_dim)
-            max_number_cat_slots = cat_slot_emb.shape[1]
-            cat_slot_value_emb = self.cat_slot_value_emb(service_id).view(
-                batch_size, max_number_cat_slots, -1, emb_dim
-            )
-            noncat_slot_emb = self.noncat_slot_emb(service_id).view(batch_size, -1, emb_dim)
-            req_slot_emb = self.req_slot_emb(service_id).view(batch_size, -1, emb_dim)
+        batch_size, emb_dim = encoded_utterance.size()
+        intent_embeddings = self.intents_emb(service_id).view(batch_size, -1, emb_dim)
+        cat_slot_emb = self.cat_slot_emb(service_id).view(batch_size, -1, emb_dim)
+        max_number_cat_slots = cat_slot_emb.shape[1]
+        cat_slot_value_emb = self.cat_slot_value_emb(service_id).view(batch_size, max_number_cat_slots, -1, emb_dim)
+        noncat_slot_emb = self.noncat_slot_emb(service_id).view(batch_size, -1, emb_dim)
+        req_slot_emb = self.req_slot_emb(service_id).view(batch_size, -1, emb_dim)
 
         logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, num_intents)
 
