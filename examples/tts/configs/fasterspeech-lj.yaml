@@ -1,32 +1,19 @@
 model: "FasterSpeech"
-sample_rate: &sample_rate 24000
-n_mels: &n_mels 64
+sample_rate: &sample_rate 22050
+n_mels: &n_mels 80
 labels: [
   # Space
     ' ',
-  # string.ascii_lowercase
+  # string.ascii_letters
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
   # Punctuation
-    "'",
+    ',', '.', '!', '?', ';', ':', '-', '/',
+    '"', "'", '(', ')', '[', ']', '{', '}',
 ]
-#labels: [
-#  # Space
-#    ' ',
-#  # string.ascii_letters
-#  # Big letters are't used by now!
-#    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-#    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-#    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-#    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-#  # Punctuation
-#    ',', '.', '!', '?', ';', ':', '-', '/',
-#    '"', "'", '(', ')', '[', ']', '{', '}',
-#]
 
 FasterSpeechDataLayer_train:
     sample_rate: *sample_rate
-#    max_duration: 20.0  # ~= -30h. This wasn't applied for inferred durations.
     normalize_transcripts: true
     trim_silence: true
     drop_last: true
@@ -39,25 +26,15 @@ FasterSpeechDataLayer_eval:
     drop_last: false
     shuffle: false
 
-#AudioToMelSpectrogramPreprocessor:
-#    window_size: 0.02
-#    window_stride: 0.01
-#    window: 'hann'
-#    normalize: null
-#    n_fft: 512
-#    features: *n_mels
-#    dither: 0.0
-#    pad_to: 16
-#    sample_rate: *sample_rate
-#    stft_conv: true
-#    preemph: null
-AudioToMelSpectrogramPreprocessor:
-    sample_rate: *sample_rate  # 24k for LibriTTS
-    window_size: 0.02  # Because "n_window_size" below is set.
-    window_stride: 0.01  # Because "n_window_size" below is set.
+AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
+    sample_rate: *sample_rate
+    window_size: null  # Because "n_window_size" below is set.
+    window_stride: null  # Because "n_window_size" below is set.
+    n_window_size: 1024
+    n_window_stride: 256
     window: 'hann'
     normalize: null  # Seems like it's bad for TTS.
-    n_fft: 512
+    n_fft: 1024
     preemph: null
     features: *n_mels  # 80 works good for TTS.
     lowfreq: 0
@@ -71,31 +48,9 @@ AudioToMelSpectrogramPreprocessor:
     stft_conv: true
     pad_value: -11.52
     mag_power: 1.0  # People use 1.0 for TTS for some reason.
-#AudioToMelSpectrogramPreprocessor:
-#    sample_rate: *sample_rate  # 24k for LibriTTS
-#    window_size: null  # Because "n_window_size" below is set.
-#    window_stride: null  # Because "n_window_size" below is set.
-#    n_window_size: 1024
-#    n_window_stride: 256
-#    window: 'hann'
-#    normalize: null  # Seems like it's bad for TTS.
-#    n_fft: 1024
-#    preemph: null
-#    features: *n_mels  # 80 works good for TTS.
-#    lowfreq: 0
-#    highfreq: null
-#    log: true
-#    log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
-#    log_zero_guard_value: 1e-05
-#    dither: 0.0
-#    pad_to: 16
-#    frame_splicing: 1
-#    stft_conv: true
-#    pad_value: -11.52
-#    mag_power: 1.0  # People use 1.0 for TTS for some reason.
 
 LenSampler:
-    max_len: 1100  # Able to fit 64 batch size with around this number.
+    max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happens.
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
 JasperEncoder:
@@ -114,19 +69,10 @@ JasperEncoder:
             residual: true  # Non-Residual
             separable: true
 
-        # 3 x 256 x (7=>11)
+        # 3 x 256 x 5
         -   filters: 256
             repeat: 5
-            kernel: [7]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 256
-            repeat: 5
-            kernel: [9]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -135,45 +81,26 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [11]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
-        # 3 x 512 x (15=>19)
-        -   filters: 512
+        -   filters: 256
             repeat: 5
-            kernel: [15]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
+        # 3 x 512 x 5
         -   filters: 512
             repeat: 5
-            kernel: [17]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 512
-            repeat: 5
-            kernel: [19]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        # 3 x 512 x (21=>25)
-        -   filters: 512
-            repeat: 5
-            kernel: [21]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -182,7 +109,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [23]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
@@ -191,17 +118,45 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [25]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0
             residual: true
             separable: true
 
-        # 1 x 512 x 3
+        # 3 x 512 x 5
+        -   filters: 512
+            repeat: 5
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 5
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 5
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: true
+            separable: true
+
+        # 1 x 512 x 5
         -   filters: 512
             repeat: 1
-            kernel: [29]
+            kernel: [5]
             stride: [1]
             dilation: [1]
             dropout: 0.0

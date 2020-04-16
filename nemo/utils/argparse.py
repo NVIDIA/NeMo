@@ -70,10 +70,11 @@ class NemoArgParser(argparse.ArgumentParser):
         self.add_argument(
             "--optimizer",
             type=str,
-            choices=["sgd", "adam", "fused_adam", "adam_w", "novograd", "lamb",],
+            choices=["sgd", "adam", "fused_adam", "adam_w", "novograd", "lamb"],
             help="optimizer",
         )
         self.add_argument("--weight_decay", type=float, default=0.0, help="weight decay")
+        self.add_argument('--grad_norm_clip', type=float, help="grad norm clip")
         self.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
         # self.add_argument("--momentum", type=float,
         #                   help="SGD momentum")
@@ -135,3 +136,7 @@ class NemoArgParser(argparse.ArgumentParser):
         self.add_argument(
             "--checkpoint_save_freq", default=1000, type=int, help="checkpoint frequency, steps",
         )
+
+        self.add_argument('--wdb_project', type=str, help="WanDB run project")
+        self.add_argument('--wdb_name', type=str, help="WanDB run name")
+        self.add_argument('--wdb_tags', type=str, nargs="*", default=[], help="WanDB run tags")

@@ -127,8 +127,8 @@ class FasterSpeechGraph:
         blank_id, labels = len(labels), labels + ['<BLANK>']
 
         self.train_dl = nemo_tts.FasterSpeechDataLayer(
-            manifests=args.train_dataset,
-            durs_file=args.train_durs,
+            data=args.train_dataset,
+            durs=args.train_durs,
             labels=labels,
             durs_type=args.durs_type,
             batch_size=args.batch_size,
@@ -142,8 +142,8 @@ class FasterSpeechGraph:
         self.eval_dls = {}
         for name, eval_dataset, eval_durs1 in zip(args.eval_names, args.eval_datasets, args.eval_durs):
             self.eval_dls[name] = nemo_tts.FasterSpeechDataLayer(
-                manifests=eval_dataset,
-                durs_file=eval_durs1,
+                data=eval_dataset,
+                durs=eval_durs1,
                 labels=labels,
                 durs_type=args.durs_type,
                 batch_size=args.eval_batch_size,

@@ -10,10 +10,15 @@ if [ ! -f setup.py ]; then
   exit 1
 fi
 
+if [[ -z $WANDB_TOKEN ]]; then
+  echo "Please, provide WanDB token."
+  exit 1
+fi
+
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 IMAGE="nvidian/pytorch:19.12-py3"
 GPU_MEM=32     # Default is 32.
-NUM_GPU=8      # Default is 8.
+NUM_GPU=1      # Default is 8.
 OPT=O0         # Default is O0.
 WS=stan        # Workspace name.
 WORKSPACE=/ws  # Workspace mount point.
@@ -35,36 +40,30 @@ ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
 script=examples/tts/fasterspeech.py
-config=examples/tts/configs/fasterspeech.yaml
+config=examples/tts/configs/fasterspeech-lj.yaml
+# One epoch is around 200 iterations.
 read -r -d '' cmd <<EOF
 nvidia-smi \
-&& apt-get update && apt-get install -y libsndfile1 \
-&& pip install -U librosa \
+&& apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
+&& pip install -U wandb && wandb login ${WANDB_TOKEN} \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
 --amp_opt_level=${OPT} \
---work_dir=${RESULT} \
 --model_config=${config} \
---tensorboard_dir=${WORKSPACE}/tb/mels/${id} \
---train_dataset=/manifests/libritts/train-all.json \
---train_durs=/data/librimeta/durs/libritts_original-qn15x5_24k/train-all_full-pad.npy \
---train_speakers=/data/librimeta/speaker-embs/train-all.npy \
---eval_names dev-clean dev-other test-clean test-other \
+--train_freq=20 \
+--eval_freq=200 \
+--warmup=300 \
+--work_dir=${RESULT} \
+--wdb_name=${name_id} \
+--wdb_tags=ljspeech,mel,opt \
+--train_dataset=/data/ljspeech/train.json \
+--train_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/train.npy \
+--eval_names eval \
 --eval_datasets \
-/manifests/libritts/dev-clean.json \
-/manifests/libritts/dev-other.json \
-/manifests/libritts/test-clean.json \
-/manifests/libritts/test-other.json \
+/data/ljspeech/eval.json \
 --eval_durs \
-/data/librimeta/durs/libritts_original-qn15x5_24k/dev-clean_full-pad.npy \
-/data/librimeta/durs/libritts_original-qn15x5_24k/dev-other_full-pad.npy \
-/data/librimeta/durs/libritts_original-qn15x5_24k/test-clean_full-pad.npy \
-/data/librimeta/durs/libritts_original-qn15x5_24k/test-other_full-pad.npy \
---eval_speakers \
-/data/librimeta/speaker-embs/dev-clean.npy \
-/data/librimeta/speaker-embs/dev-other.npy \
-/data/librimeta/speaker-embs/test-clean.npy \
-/data/librimeta/speaker-embs/test-other.npy
+/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy \
+--sampler_type=default
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -74,8 +73,7 @@ ngc batch run \
   --ace nv-us-west-2 \
   --instance dgx1v."${GPU_MEM}"g."${NUM_GPU}".norm \
   --result "${RESULT}" \
-  --datasetid 58106:/data/libritts \
-  --datasetid 58404:/manifests/libritts \
+  --datasetid 59558:/data/ljspeech \
   --datasetid 59319:/data/librimeta \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

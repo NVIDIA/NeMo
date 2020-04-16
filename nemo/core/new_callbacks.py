@@ -27,6 +27,8 @@ from typing import Any, Dict, Mapping, Optional
 
 import numpy as np
 import torch
+import wandb
+from torch.utils import tensorboard as pt_tb
 
 import nemo
 from nemo.core import callbacks as nemo_callbacks
@@ -54,10 +56,11 @@ class Metric(abc.ABC):
 
         return None
 
-    def log(self, tb_writer, step, prefix, final_output=None) -> None:
+    def log(self, prefix, step, final_output=None) -> None:
         # Default "str -> float" dict log
         for key, val in (final_output or {}).items():
-            tb_writer.add_scalar(f'{prefix}/{key}', val, step)
+            # tb_writer.add_scalar(f'{prefix}/{key}', val, step)
+            wandb.log({f'{prefix}/{key}': val}, step=step)
 
     def __call__(self, tensors):
         self.clear()
@@ -113,16 +116,7 @@ def metric_by(name) -> Metric:
 
 
 class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
-    def __init__(self, tensors, metrics, freq, tb_writer, mu=0.99, prefix='train', local_rank=None):
-        if (local_rank is None and tb_writer is None) or (
-            local_rank is not None and local_rank != 0 and tb_writer is not None
-        ):
-            raise ValueError(
-                "Only logging to Tensorboard in single process is supported for now (tb_writer=%s, local_rank=%s).",
-                repr(tb_writer),
-                str(local_rank),
-            )
-
+    def __init__(self, tensors, metrics, freq, mu=0.99, prefix='train'):
         self._cache = collections.defaultdict(float)
 
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
@@ -145,7 +139,7 @@ class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
             for metric in metrics:
                 final_output = metric.final()
                 # No `mu` discounting for TB, it's already there.
-                metric.log(tb_writer, step, prefix, final_output)
+                metric.log(prefix, step, final_output)
                 metric.clear()
 
                 if isinstance(final_output, dict):
@@ -161,21 +155,12 @@ class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
             print_func=print_func,
             log_to_tb_func=log_to_tb_func,
             step_freq=freq,
-            tb_writer=tb_writer,
+            tb_writer=pt_tb.SummaryWriter(),  # Fake TB
         )
 
 
 class EvalLogger(nemo_callbacks.EvaluatorCallback):
-    def __init__(self, tensors, metrics, freq, tb_writer, prefix='eval', local_rank=None):
-        if (local_rank is None and tb_writer is None) or (
-            local_rank is not None and local_rank != 0 and tb_writer is not None
-        ):
-            raise ValueError(
-                "Only logging to Tensorboard in single process is supported for now (tb_writer=%s, local_rank=%s).",
-                repr(tb_writer),
-                str(local_rank),
-            )
-
+    def __init__(self, tensors, metrics, freq, prefix='eval'):
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
         for metric in metrics:
             metric.clear()
@@ -199,7 +184,7 @@ class EvalLogger(nemo_callbacks.EvaluatorCallback):
             output = {}
             for metric in metrics:
                 final_output = metric.final()
-                metric.log(tb_writer, step, prefix, final_output)
+                metric.log(prefix, step, final_output)
                 metric.clear()
 
                 if isinstance(final_output, dict):
@@ -212,7 +197,7 @@ class EvalLogger(nemo_callbacks.EvaluatorCallback):
             eval_tensors=list(tensors.values()),
             user_iter_callback=user_iter_callback,
             user_epochs_done_callback=lambda _: dict(),  # Not None.
-            tb_writer=tb_writer,
+            tb_writer=pt_tb.SummaryWriter(),  # Fake TB
             tb_writer_func=tb_writer_func,
             eval_step=freq,
         )

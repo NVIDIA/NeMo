@@ -68,15 +68,22 @@ class _Ops:
 
 
 class FasterSpeechDataset:
-    def __init__(self, audio_dataset, durs_file, durs_type='full-pad', speaker_table=None, speaker_embs=None):
+    def __init__(
+        self, audio_dataset, durs_file, durs_type='full-pad', speakers=None, speaker_table=None, speaker_embs=None,
+    ):
         self._audio_dataset = audio_dataset
         self._durs = np.load(durs_file, allow_pickle=True)
         self._durs_type = durs_type
-        self._speakers = None
-        self._speaker_embs = None
+
+        self._speakers, self._speakers_table, self._speaker_embs = None, None, None
+
+        if speakers is not None:
+            self._speakers = np.load(speakers, allow_pickle=True)
 
         if speaker_table is not None:
-            self._speakers = {sid: i for i, sid in enumerate(pd.read_csv(speaker_table, sep='\t').index)}
+            self._speakers_table = {sid: i for i, sid in enumerate(pd.read_csv(speaker_table, sep='\t').index)}
+
+        if speaker_embs is not None:
             self._speaker_embs = np.load(speaker_embs, allow_pickle=True)
 
     def __getitem__(self, index):
@@ -93,8 +100,13 @@ class FasterSpeechDataset:
         else:
             raise ValueError("Wrong durations handling type.")
 
+        if self._speakers_table is not None:
+            example['speaker'] = self._speakers_table[speaker]
+
         if self._speakers is not None:
-            example['speaker'] = self._speakers[speaker]
+            example['speaker_emb'] = torch.tensor(self._speakers[id_])
+
+        if self._speaker_embs is not None:
             example['speaker_emb'] = torch.tensor(self._speaker_embs[example['speaker']])
 
         return example
@@ -176,10 +188,11 @@ class FasterSpeechDataLayer(DataLayerNM):
 
     def __init__(
         self,
-        manifests,
-        durs_file,
+        data,
+        durs,
         labels,
         durs_type='full-pad',
+        speakers=None,
         speaker_table=None,
         speaker_embs=None,
         batch_size=32,
@@ -204,7 +217,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         # Set up dataset.
         self._featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=None)
         dataset_params = {
-            'manifest_filepath': manifests,
+            'manifest_filepath': data,
             'labels': labels,
             'featurizer': self._featurizer,
             'max_duration': max_duration,
@@ -218,7 +231,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             'add_speaker': True,
         }
         audio_dataset = AudioDataset(**dataset_params)
-        self._dataset = FasterSpeechDataset(audio_dataset, durs_file, durs_type, speaker_table, speaker_embs)
+        self._dataset = FasterSpeechDataset(audio_dataset, durs, durs_type, speakers, speaker_table, speaker_embs)
         self._durs_type = durs_type
         self._pad_id = pad_id
         self._blank_id = blank_id
@@ -290,6 +303,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         speaker, speaker_emb = None, None
         if 'speaker' in batch:
             speaker = torch.tensor(batch['speaker'], dtype=torch.long)
+        if 'speaker_emb' in batch:
             speaker_emb = _Ops.merge(batch['speaker_emb'], dtype=torch.float)
 
         assert audio is None or audio.shape[-1] == audio_len.max()
@@ -344,24 +358,29 @@ class FasterSpeech(nemo_nm.TrainableNM):
         jasper_kwargs: Dict[str, Any],
         d_out: int,
         d_speaker_emb: Optional[int] = None,
-        d_speaker: Optional[int] = None,
+        d_speaker_x: Optional[int] = None,
+        d_speaker_o: Optional[int] = None,
     ):
         super().__init__()
 
         # Embedding for input text
         self.text_emb = nn.Embedding(n_vocab, d_char, padding_idx=pad_id).to(self._device)
+        self.text_emb.weight.data.uniform_(-1, 1)
 
         # Embedding for speaker
-        if d_speaker_emb is not None and d_speaker_emb != d_speaker:
-            self.speaker_in = nn.Linear(d_speaker_emb, d_speaker).to(self._device)
+        if d_speaker_emb is not None:
+            self.speaker_in = nn.Linear(d_speaker_emb, d_speaker_x).to(self._device)
+            self.speaker_out = nn.Linear(d_speaker_emb, d_speaker_o).to(self._device)
         else:
-            self.speaker_in = None
+            self.speaker_in, self.speaker_out = None, None
 
         jasper_params = jasper_kwargs['jasper']
         d_enc_out = jasper_params[-1]["filters"]
-        self.jasper = nemo_asr.JasperEncoder(feat_in=d_char + int(d_speaker or 0), **jasper_kwargs).to(self._device)
+        d_x = d_char + (int(d_speaker_x or 0) if d_speaker_emb else 0)
+        self.jasper = nemo_asr.JasperEncoder(feat_in=d_x, **jasper_kwargs).to(self._device)
 
-        self.out = nn.Conv1d(d_enc_out, d_out, kernel_size=1, bias=True).to(self._device)
+        d_o = d_enc_out + (int(d_speaker_o or 0) if d_speaker_emb else 0)
+        self.out = nn.Conv1d(d_o, d_out, kernel_size=1, bias=True).to(self._device)
 
     def forward(self, text=None, text_mask=None, text_rep=None, text_rep_mask=None, speaker_emb=None):
         if text_rep is not None:
@@ -371,22 +390,28 @@ class FasterSpeech(nemo_nm.TrainableNM):
         x_len = text_mask.sum(-1)
 
         if speaker_emb is not None:
-            # BZ => BS
+            speaker_x = speaker_emb
             if self.speaker_in is not None:
-                speaker_x = self.speaker_in(speaker_emb)
-            else:
-                speaker_x = speaker_emb
+                speaker_x = self.speaker_in(speaker_x)
 
             speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
             x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
 
-        pred, pred_len = self.jasper(x.transpose(-1, -2), x_len, force_pt=True)
-        assert x.shape[1] == pred.shape[-1]  # Time
-        assert torch.equal(x_len, pred_len)
+        o, o_len = self.jasper(x.transpose(-1, -2), x_len, force_pt=True)
+        assert x.shape[1] == o.shape[-1]  # Time
+        assert torch.equal(x_len, o_len)
 
-        pred = self.out(pred).transpose(-1, -2)  # BTO
+        if speaker_emb is not None:
+            speaker_o = speaker_emb
+            if self.speaker_out is not None:
+                speaker_o = self.speaker_out(speaker_o)
 
-        return pred, pred_len
+            speaker_o = speaker_o.unsqueeze(-1).repeat([1, 1, o.shape[-1]])  # BS => BST
+            o = torch.cat([o, speaker_o], dim=1)  # stack([BOT, BST]) = B(O + S)T
+
+        o = self.out(o).transpose(-1, -2)  # BTO
+
+        return o, o_len
 
 
 class LenSampler(NonTrainableNM):

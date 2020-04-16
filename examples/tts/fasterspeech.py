@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import itertools
 import math
 import os
 from typing import Any, Mapping
@@ -20,6 +21,7 @@ from typing import Any, Mapping
 import librosa
 import numpy as np
 import torch
+import wandb
 from ruamel import yaml
 
 import nemo
@@ -38,21 +40,25 @@ def parse_args():
         conflict_handler='resolve',  # For parents common flags.
     )
     parser.set_defaults(
-        # `x = 30000`
+        # `x = 30000` for LibriTTS
         amp_opt_level='O0',
         model_config='configs/fasterspeech.yaml',
         batch_size=64,
-        eval_batch_size=32,
+        eval_batch_size=64,
         train_freq=300,  # 1/100x
         eval_freq=3000,  # 1/10x (Sampling process may take time.)
         optimizer='novograd',
         weight_decay=1e-6,
+        grad_norm_clip=1.0,
         warmup=3000,
-        num_epochs=150,  # Couple of epochs for testing.
+        num_epochs=100,  # Couple of epochs for testing.
         lr=1e-2,  # Goes good with Adam.
         min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
         checkpoint_save_freq=10000,  # 1/3x
+        wdb_project='fast-tts',
+        wdb_name='test',
+        wdb_tags=['test', 'to-delete'],
     )
 
     # Required: train_dataset
@@ -60,17 +66,21 @@ def parse_args():
 
     # Durations from ASR CTC Model
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
-    parser.add_argument('--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations")
-    parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type.")
+    parser.add_argument('--eval_durs', type=str, nargs='*', default=[], help="Eval datasets durations")
+    parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type")
 
     # Speakers
-    parser.add_argument('--speaker_table', type=str, required=True, help="LibriTTS speakers TSV table file")
-    parser.add_argument('--speaker_embs', type=str, required=True, help="LibriTTS speakers embeddings")
-    parser.add_argument('--d_speaker_emb', type=int, default=256, help="Size of speaker embedding")
-    parser.add_argument('--d_speaker', type=int, default=64, help="Size of speaker embedding projection")
+    parser.add_argument('--train_speakers', type=str, help="Train speakers vectors npy file")
+    parser.add_argument('--eval_speakers', type=str, nargs='*', default=[], help="Eval speakers vectors npy file")
+    parser.add_argument('--speaker_table', type=str, help="LibriTTS speakers TSV table file")
+    parser.add_argument('--speaker_embs', type=str, help="LibriTTS speakers embeddings")
+    parser.add_argument('--d_speaker_emb', type=int, help="Size of speaker embedding")
+    parser.add_argument('--d_speaker_x', type=int, default=128, help="Size of pre speaker embedding projection")
+    parser.add_argument('--d_speaker_o', type=int, default=128, help="Size of post speaker embedding projection")
 
     # Model
-    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
+    parser.add_argument('--d_char', type=int, default=128, help="Size of input char embedding")
+    parser.add_argument('--sampler_type', type=str, choices=['default', 'super-smart'], default='super-smart', help="")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
@@ -145,21 +155,23 @@ class AudioInspector(nemo.core.Metric):
 
         self._samples = audios, mels_true, mels_pred
 
-    def log(self, tb_writer, step, prefix, samples=None) -> None:
+    def log(self, prefix, step, samples=None) -> None:
         if not (step >= self._warmup and step - self._last_logged >= self._log_step):
             # Don't met conditions yet.
             return
 
         def log_audio(key, signal):
-            tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._featurizer.sample_rate)
+            # tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._featurizer.sample_rate)
+            wandb.log({key: wandb.Audio(signal, sample_rate=self._featurizer.sample_rate)}, step=step)
 
         def log_mel(key, mel):
-            tb_writer.add_image(
-                tag=key,
-                img_tensor=nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel),
-                global_step=step,
-                dataformats='HWC',
-            )
+            # tb_writer.add_image(
+            #     tag=key,
+            #     img_tensor=nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel),
+            #     global_step=step,
+            #     dataformats='HWC',
+            # )
+            wandb.log({key: wandb.Image(nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel))}, step=step)
 
         logging.info("Start vocoding and logging process for %s on step %s...", prefix, step)
         for i, (audio, mel_true, mel_pred) in enumerate(zip(*self._samples)):
@@ -184,27 +196,31 @@ class FasterSpeechGraph:
         blank_id, labels = len(labels), labels + ['<BLANK>']
 
         self.train_dl = nemo_tts.FasterSpeechDataLayer(
-            manifests=args.train_dataset,
-            durs_file=args.train_durs,
+            data=args.train_dataset,
+            durs=args.train_durs,
             labels=labels,
             durs_type=args.durs_type,
+            speakers=args.train_speakers,
             speaker_table=args.speaker_table,
             speaker_embs=args.speaker_embs,
             batch_size=args.batch_size,
             pad_id=pad_id,
             blank_id=blank_id,
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-            sampler_type='super-smart',  # Promises around 0.9 mask usage on average.
+            sampler_type=args.sampler_type,  # 'super-smart' promises around 0.9 mask usage on average.
             **config.FasterSpeechDataLayer_train,  # Including sample rate.
         )
 
         self.eval_dls = {}
-        for name, eval_dataset, eval_durs1 in zip(args.eval_names, args.eval_datasets, args.eval_durs):
+        for name, eval_dataset, eval_durs1, eval_speakers1 in itertools.zip_longest(
+            args.eval_names, args.eval_datasets, args.eval_durs, args.eval_speakers, fillvalue=None,
+        ):
             self.eval_dls[name] = nemo_tts.FasterSpeechDataLayer(
-                manifests=eval_dataset,
-                durs_file=eval_durs1,
+                data=eval_dataset,
+                durs=eval_durs1,
                 labels=labels,
                 durs_type=args.durs_type,
+                speakers=eval_speakers1,
                 speaker_table=args.speaker_table,
                 speaker_embs=args.speaker_embs,
                 batch_size=args.eval_batch_size,
@@ -225,8 +241,11 @@ class FasterSpeechGraph:
             jasper_kwargs=config.JasperEncoder,
             d_out=config.n_mels,
             d_speaker_emb=args.d_speaker_emb,
-            d_speaker=args.d_speaker,
+            d_speaker_x=args.d_speaker_x,
+            d_speaker_o=args.d_speaker_o,
         )
+        if args.local_rank is None or args.local_rank == 0:
+            wandb.watch(self.model, log='all')
 
         self.loss = nemo_tts.FasterSpeechMelLoss(reduction=args.loss_reduction)
 
@@ -241,22 +260,29 @@ class FasterSpeechGraph:
         )
         output = self.model(text_rep=sample.text_rep, text_rep_mask=sample.text_rep_mask, speaker_emb=data.speaker_emb)
         train_loss = self.loss(mel_true=sample.mel_true, mel_pred=output.pred, text_rep_mask=sample.text_rep_mask)
-        callbacks.append(
-            nemo.core.TrainLogger(
-                tensors=dict(
-                    loss=train_loss,
-                    mask=sample.text_rep_mask,
-                    audio=data.audio,
-                    audio_len=data.audio_len,
-                    mel_true=sample.mel_true,
-                    mel_pred=output.pred,
-                    mel_len=sample.mel_len,
+        callbacks.extend(
+            [
+                nemo.core.TrainLogger(
+                    tensors=dict(
+                        loss=train_loss,
+                        mask=sample.text_rep_mask,
+                        audio=data.audio,
+                        audio_len=data.audio_len,
+                        mel_true=sample.mel_true,
+                        mel_pred=output.pred,
+                        mel_len=sample.mel_len,
+                    ),
+                    metrics=[
+                        'loss',
+                        'mask-usage',
+                        AudioInspector(
+                            self.preprocessor, shuffle=True, warmup=2 * args.eval_freq, log_step=2 * args.eval_freq
+                        ),
+                    ],
+                    freq=args.train_freq,
                 ),
-                metrics=['loss', 'mask-usage', AudioInspector(self.preprocessor, shuffle=True)],
-                freq=args.train_freq,
-                tb_writer=engine.tb_writer,
-                local_rank=args.local_rank,
-            )
+                nemo.core.WandbCallback(update_freq=args.train_freq),
+            ]
         )
 
         # Eval
@@ -277,11 +303,14 @@ class FasterSpeechGraph:
                         mel_pred=output.pred,
                         mel_len=mel_len,
                     ),
-                    metrics=['loss', AudioInspector(self.preprocessor)],
+                    metrics=[
+                        'loss',
+                        AudioInspector(
+                            preprocessor=self.preprocessor, warmup=2 * args.eval_freq, log_step=2 * args.eval_freq,
+                        ),
+                    ],
                     freq=args.eval_freq,
-                    tb_writer=engine.tb_writer,
                     prefix=name,
-                    local_rank=args.local_rank,
                 )
             )
 
@@ -301,20 +330,26 @@ def main():
         optimization_level=args.amp_opt_level,
         cudnn_benchmark=args.cudnn_benchmark,
         log_dir=args.work_dir,
-        tensorboard_dir=args.tensorboard_dir,
-        create_tb_writer=True,
+        # tensorboard_dir=args.tensorboard_dir,
+        # create_tb_writer=True,
         files_to_copy=[args.model_config, __file__],
     )
-    # noinspection PyProtectedMember
-    logging.info('Engine: %s', vars(engine._exp_manager))
+    logging.info('Engine: %s', vars(engine._exp_manager))  # noqa
 
     yaml_loader = yaml.YAML(typ='safe')
     with open(args.model_config) as f:
         config = argparse.Namespace(**yaml_loader.load(f))
     logging.info('Config: %s', config)
 
-    graph = FasterSpeechGraph(args, engine, config)
+    if args.local_rank is None or args.local_rank == 0:
+        wandb.init(
+            name=args.wdb_name,
+            config=dict(args=vars(args), engine=vars(engine._exp_manager), config=vars(config)),  # noqa
+            project=args.wdb_project,
+            tags=args.wdb_tags,
+        )
 
+    graph = FasterSpeechGraph(args, engine, config)
     loss, callbacks = graph.build(args, engine)
 
     total_steps = (
@@ -326,7 +361,11 @@ def main():
         tensors_to_optimize=[loss],
         optimizer=args.optimizer,
         optimization_params=dict(
-            num_epochs=args.num_epochs, max_steps=total_steps, lr=args.lr, weight_decay=args.weight_decay,
+            num_epochs=args.num_epochs,
+            max_steps=total_steps,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            grad_norm_clip=args.grad_norm_clip,
         ),
         callbacks=callbacks,
         lr_policy=lr_policies.CosineAnnealing(total_steps=total_steps, min_lr=args.min_lr, warmup_steps=args.warmup),
