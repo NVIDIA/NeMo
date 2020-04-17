@@ -163,6 +163,43 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
             yield from batches[b_i]
 
 
+def durs_aug(b, d, p=0.05):
+    """Changes blanks/durs balance sightly."""
+
+    def split2(x):
+        xl = np.random.binomial(x, p)
+        return xl, x - xl
+
+    def split3(x):
+        xl, xm = split2(x)
+        xr, xm = split2(xm)
+        return xl, xm, xr
+
+    n, m = len(b), len(d)
+
+    new_b, new_d = np.zeros_like(b), d.copy()
+    for i in range(len(b)):
+        bl, bm, br = split3(b[i])
+
+        new_b[i] += bm
+
+        if i > 0:
+            new_d[i - 1] += bl
+        else:
+            new_b[i] += bl
+
+        if i < m:
+            new_d[i] += br
+        else:
+            new_b[i] += br
+
+    assert len(new_b) == len(b)
+    assert len(new_d) == len(d)
+    assert sum(new_b) + sum(new_d) == sum(b) + sum(d)
+
+    return new_b, new_d
+
+
 class FasterSpeechDataLayer(DataLayerNM):
     """Data Layer for Faster Speech model.
 
@@ -192,6 +229,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         durs,
         labels,
         durs_type='full-pad',
+        durs_aug_p=0.0,
         speakers=None,
         speaker_table=None,
         speaker_embs=None,
@@ -233,6 +271,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         audio_dataset = AudioDataset(**dataset_params)
         self._dataset = FasterSpeechDataset(audio_dataset, durs, durs_type, speakers, speaker_table, speaker_embs)
         self._durs_type = durs_type
+        self._durs_aug_p = durs_aug_p
         self._pad_id = pad_id
         self._blank_id = blank_id
         self._space_id = labels.index(' ')
@@ -291,6 +330,14 @@ class FasterSpeechDataLayer(DataLayerNM):
 
             # `dur`
             blank, dur = batch['blank'], batch['dur']
+
+            # Aug
+            new_blank, new_dur = [], []
+            for b, d in zip(blank, dur):
+                new_b, new_d = durs_aug(b.numpy(), d.numpy(), p=self._durs_aug_p)
+                new_blank.append(torch.tensor(new_b))
+                new_dur.append(torch.tensor(new_d))
+
             dur = _Ops.merge([_Ops.interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
         else:
             raise ValueError("Wrong durations handling type.")

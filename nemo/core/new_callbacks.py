@@ -116,7 +116,7 @@ def metric_by(name) -> Metric:
 
 
 class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
-    def __init__(self, tensors, metrics, freq, mu=0.99, prefix='train'):
+    def __init__(self, tensors, metrics, freq, mu=1.0, prefix='train'):
         self._cache = collections.defaultdict(float)
 
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]

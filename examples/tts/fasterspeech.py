@@ -14,6 +14,7 @@
 
 import argparse
 import itertools
+import datetime
 import math
 import os
 from typing import Any, Mapping
@@ -57,7 +58,7 @@ def parse_args():
         work_dir='work',
         checkpoint_save_freq=10000,  # 1/3x
         wdb_project='fast-tts',
-        wdb_name='test',
+        wdb_name='test_' + str(datetime.datetime.now()).replace(' ', '_'),
         wdb_tags=['test', 'to-delete'],
     )
 
@@ -276,7 +277,7 @@ class FasterSpeechGraph:
                         'loss',
                         'mask-usage',
                         AudioInspector(
-                            self.preprocessor, shuffle=True, warmup=2 * args.eval_freq, log_step=2 * args.eval_freq
+                            self.preprocessor, shuffle=True, warmup=5 * args.eval_freq, log_step=5 * args.eval_freq
                         ),
                     ],
                     freq=args.train_freq,
@@ -306,7 +307,7 @@ class FasterSpeechGraph:
                     metrics=[
                         'loss',
                         AudioInspector(
-                            preprocessor=self.preprocessor, warmup=2 * args.eval_freq, log_step=2 * args.eval_freq,
+                            preprocessor=self.preprocessor, warmup=5 * args.eval_freq, log_step=5 * args.eval_freq,
                         ),
                     ],
                     freq=args.eval_freq,
