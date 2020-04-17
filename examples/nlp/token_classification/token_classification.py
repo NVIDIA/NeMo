@@ -318,7 +318,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, label_ids, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=250,
+    eval_step=steps_per_epoch,
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
@@ -331,7 +331,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[train_loss],
-    callbacks=[train_callback],
+    callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
