@@ -44,16 +44,15 @@ class TrainableNM(NeuralModule, nn.Module):
         # Store pretrained model name (to be removed/changed)
         self._pretrained_model_name = pretrained_model_name
 
-    def __call__(self, force_pt=False, *input, **kwargs):
-        pt_call = len(input) > 0 or force_pt
+    def __call__(self, force_pt: bool = False, *input, **kwargs):
+        pt_call = len(input) > 0 or \
+            force_pt if isinstance(force_pt, bool) else force_pt is not None
+        if not isinstance(force_pt, bool):
+            input = (force_pt, *input,)
         if pt_call:
             return nn.Module.__call__(self, *input, **kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)
-
-    @abstractmethod
-    def forward(self, *input, **kwargs):
-        raise NotImplementedError
 
     @t.jit.ignore
     def get_weights(self):
@@ -139,9 +138,11 @@ class NonTrainableNM(NeuralModule, nn.Module):
         nn.Module.__init__(self)  # For PyTorch API
         self._device = get_cuda_device(self.placement)
 
-    def __call__(self, *input, **kwargs):
-    # def __call__(self, force_pt=False, *input, **kwargs):
-        pt_call = len(input) > 0 #or force_pt
+    def __call__(self, force_pt: bool = False, *input, **kwargs):
+        pt_call = len(input) > 0 or \
+            force_pt if isinstance(force_pt, bool) else force_pt is not None
+        if not isinstance(force_pt, bool):
+            input = (force_pt, *input,)
         if pt_call:
             with t.no_grad():
                 return self.forward(*input, **kwargs)
@@ -388,8 +389,9 @@ class LossNM(NeuralModule):
     @abstractmethod
     def _loss_function(self, **kwargs):
         pass
-############################
+
     def __call__(self, force_pt=False, *input, **kwargs):
+        force_pt = force_pt if isinstance(force_pt, bool) else False
         if force_pt:
             return self._loss_function(**kwargs)
         else:

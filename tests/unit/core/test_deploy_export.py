@@ -17,7 +17,6 @@
 
 import copy
 import os
-import librosa
 import types
 from collections import OrderedDict
 from pathlib import Path
@@ -27,7 +26,6 @@ import numpy as np
 # git clone git@github.com:microsoft/onnxruntime.git
 # cd onnxruntime
 #
-# -*- coding: utf-8 -*-
 # ./build.sh --update --build --config RelWithDebInfo  --build_shared_lib --parallel \
 #     --cudnn_home /usr/lib/x86_64-linux-gnu --cuda_home /usr/local/cuda \
 #     --tensorrt_home .../TensorRT --use_tensorrt --enable_pybind --build_wheel
@@ -36,17 +34,12 @@ import numpy as np
 import onnxruntime as ort
 import pytest
 import torch
-from ruamel.yaml import YAML
 
 import nemo
-import nemo.collections.asr as nemo_asr
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 import nemo.collections.tts as nemo_tts
-# from nemo.collections.tts.parts.waveglow import WaveGlow
-
-from glow import load_and_setup_model
-# import nemo.collections.tts.parts.waveglow as glow
+from nemo.collections.tts.parts.glow import load_and_setup_model
 
 from nemo import logging
 from nemo.core import DeploymentFormat as DF
@@ -90,6 +83,7 @@ def convert_conv_1d_to_2d(conv1d):
     conv2d.bias.data = conv1d.bias.data
     return conv2d
 
+
 def convert_WN_1d_to_2d_(WN):
     """
     Modifies the WaveNet like affine coupling layer in-place to use 2-d convolutions
@@ -117,6 +111,7 @@ def convert_convinv_1d_to_2d(convinv):
                              1, bias=False)
     conv2d.weight.data[:,:,:,0] = convinv.W_inverse.data
     return conv2d
+
 
 def convert_1d_to_2d_(glow):
     """
@@ -203,44 +198,33 @@ class TestDeployExport:
         if out.exists():
             os.remove(out)
 
-        # module.eval()
-        module.waveglow.train(False)
-
-        # for name, mdl in module.waveglow.named_children():
-        #     print(name, " <=====> ", mdl)
-
-        # torch.manual_seed(10)
+        module.eval()
         if isinstance(input_example, OrderedDict):
             outputs_fwd = module.forward(*tuple(input_example.values()))
         elif isinstance(input_example, tuple): #or isinstance(input_example, list)
             outputs_fwd = module.forward(*input_example)
         elif input_example is not None:
-            outputs_fwd = module.waveglow.infer(input_example)
+            outputs_fwd = module.forward(input_example)
         else:
             outputs_fwd = None
 
         deploy_input_example = (
             tuple(input_example.values()) if isinstance(input_example, OrderedDict) else input_example
         )
-        deploy_output_example = (
-            outputs_fwd[0] if isinstance(outputs_fwd, tuple) else outputs_fwd
-        )
         self.nf.deployment_export(
             module=module,
             output=out_name,
             input_example=deploy_input_example,
             d_format=mode,
-            # output_example=outputs_fwd, #deploy_output_example,
-            output_example=deploy_output_example,
+            output_example=None,
             onnx_opset = onnx_opset
         )
 
-        tol = 5.0e-3
         assert out.exists() == True
 
         if mode == DF.TRTONNX:
 
-            data_loader = DefaultDataLoader(10)
+            data_loader = DefaultDataLoader()
             loader_cache = DataLoaderCache(data_loader)
             profile_shapes = OrderedDict()
             names = list(module.input_ports) + list(module.output_ports)
@@ -287,20 +271,21 @@ class TestDeployExport:
                 logging.debug("Runner Inputs: {:}".format(input_metadata))
                 feed_dict = loader_cache.load(iteration=0, input_metadata=input_metadata, input_example=input_example)
                 inputs = dict()
-                input_names = list(input_metadata.keys())
+                input_names = list(module.input_ports)
+
                 for i in range(len(input_names)):
                     input_name = input_names[i]
                     if input_name in module._disabled_deployment_input_ports:
                         continue
-                    inputs[input_name] = (
-                        input_example[input_name].cpu().numpy()
-                        if isinstance(input_example, OrderedDict)
-                        else (
-                            input_example[i].cpu().numpy()
-                            if isinstance(input_example, tuple)
-                            else input_example.cpu().numpy()
-                        )
-                    )
+
+                    if isinstance(input_example, OrderedDict):
+                        for key in input_example.keys():
+                            if key in input_name:
+                                inputs[input_name] = input_example[key].cpu().numpy()
+                    elif isinstance(input_example, tuple):
+                        inputs[input_name] = input_example[i].cpu().numpy()
+                    else:
+                        inputs[input_name] = input_example.cpu().numpy()
 
                 out_dict = active_runner.infer(feed_dict=feed_dict, output=outputs_fwd)
                 for ov in out_dict.values():
@@ -325,13 +310,10 @@ class TestDeployExport:
                 if len(inpex) == len(input_example):
                     break
             inpex = tuple(inpex)
-            torch.manual_seed(10)
             outputs_fwd = module.forward(*inpex)
 
         elif mode == DF.ONNX:
-            # module.eval()
             # Must recompute because *module* might be different now
-            # torch.manual_seed(10)
             if isinstance(input_example, OrderedDict):
                 outputs_fwd = module.forward(*tuple(input_example.values()))
             elif isinstance(input_example, tuple):  # or isinstance(input_example, list)
@@ -354,37 +336,24 @@ class TestDeployExport:
                     continue
                 ort_name = input_name
                 for node_arg in ort_inputs:
-                    if node_arg.name[:len(input_name)] == input_name:
+                    if input_name in node_arg.name:
                         ort_name = node_arg.name
                         break
 
-                inputs[ort_name] = (
-                    input_example[input_name].cpu().numpy()
-                    if isinstance(input_example, OrderedDict)
-                    else (
-                        input_example[i].cpu().numpy()
-                        if isinstance(input_example, tuple)
-                        else input_example.cpu().numpy()
-                    )
-                )
+                if isinstance(input_example, OrderedDict):
+                    for key in input_example.keys():
+                        if key in ort_name:
+                            inputs[ort_name] = input_example[key].cpu().numpy()
+                elif isinstance(input_example, tuple):
+                    inputs[ort_name] = input_example[i].cpu().numpy()
+                else:
+                    inputs[ort_name] = input_example.cpu().numpy()
 
-            output_names = list(module.output_ports.keys())
-            output_names = output_names[0]
-
-            # try:
+            output_names = None
             outputs_scr = ort_session.run(output_names, inputs)
-
-            # except ort.capi.onnxruntime_pybind11_state.InvalidArgument as e:
-            #     for node_arg in ort_inputs:
-            #         print(node_arg.name)
-
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
         elif mode == DF.TORCHSCRIPT:
             tscr = torch.jit.load(out_name)
-            # if isinstance(module, nemo.backends.pytorch.tutorials.TaylorNet):
-            #     input_example = torch.randn(4, 1).cuda()
-            # outputs_fwd = module.forward(input_example)
-            torch.manual_seed(10)
             outputs_scr = (
                 tscr.forward(*tuple(input_example.values()))
                 if isinstance(input_example, OrderedDict)
@@ -396,25 +365,12 @@ class TestDeployExport:
             )
         elif mode == DF.PYTORCH:
             module.load_state_dict(torch.load(out_name))
-            # module.eval()
-            torch.manual_seed(10)
             if isinstance(input_example, OrderedDict):
                 outputs_scr = module.forward(*tuple(input_example.values()))
             elif isinstance(input_example, tuple) or isinstance(input_example, list):
                 outputs_scr = module.forward(*input_example)
             else:
                 outputs_scr = module.forward(input_example)
-
-            #
-            #     outputs_scr = (
-            #     module.forward(*tuple(input_example.values()))
-            #     if isinstance(input_example, OrderedDict)
-            #     else (
-            #         module.forward(*input_example)
-            #         if isinstance(input_example, tuple) or isinstance(input_example, list)
-            #         else module.forward(input_example)
-            #     )
-            # )
 
         outputs_scr = (
             outputs_scr[0] if isinstance(outputs_scr, tuple) or isinstance(outputs_scr, list) else outputs_scr
@@ -423,8 +379,11 @@ class TestDeployExport:
             outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
         )
 
-        # print("outputs_scr\n", str(outputs_scr)[:200])
-        # print("outputs_fwd\n", str(outputs_fwd)[:200])
+        # print(outputs_scr.numel(), " outputs_scr\n", str(outputs_scr)[:200])
+        # print(outputs_fwd.numel(), " outputs_fwd\n", str(outputs_fwd)[:200])
+
+        n = outputs_fwd.numel()
+        tol = 5.0e-3 if n < 10000 else (5.0e-2 if n < 100000 else (5.0e-1))
 
         assert (outputs_scr - outputs_fwd).norm(p=2) < tol
 
@@ -436,28 +395,28 @@ class TestDeployExport:
     @pytest.mark.parametrize(
         "input_example, module_name, df_type, onnx_opset",
         [
-            # # TaylorNet export tests.
-            # (torch.randn(4, 1).cuda(), "TaylorNet", DF.PYTORCH, None),
-            # # TokenClassifier export tests.
-            # (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.ONNX, 9),
-            # (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TORCHSCRIPT, None),
-            # (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.PYTORCH, None),
-            # pytest.param(torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TRTONNX, 9, marks=requires_trt),
-            # # JasperDecoderForCTC export tests.
-            # (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.ONNX, 11),
-            # (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TORCHSCRIPT, None),
-            # (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.PYTORCH, None),
-            # pytest.param(torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TRTONNX, 11, marks=requires_trt),
-            # # JasperEncoder export tests.
-            # (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.ONNX, 11),
-            # (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TORCHSCRIPT, None),
-            # (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.PYTORCH, None),
-            # pytest.param(torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TRTONNX, 11, marks=requires_trt),
-            # # QuartznetEncoder export tests.
-            # (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.ONNX, 11),
-            # (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TORCHSCRIPT, None),
-            # (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.PYTORCH, None),
-            # pytest.param(torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TRTONNX, 11, marks=requires_trt),
+            # TaylorNet export tests.
+            (torch.randn(4, 1).cuda(), "TaylorNet", DF.PYTORCH, None),
+            # TokenClassifier export tests.
+            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.ONNX, 9),
+            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TORCHSCRIPT, None),
+            (torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.PYTORCH, None),
+            pytest.param(torch.randn(16, 16, 512).cuda(), "TokenClassifier", DF.TRTONNX, 9, marks=requires_trt),
+            # JasperDecoderForCTC export tests.
+            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.ONNX, 11),
+            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TORCHSCRIPT, None),
+            (torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.PYTORCH, None),
+            pytest.param(torch.randn(34, 1024, 1).cuda(), "JasperDecoderForCTC", DF.TRTONNX, 11, marks=requires_trt),
+            # JasperEncoder export tests.
+            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.ONNX, 11),
+            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TORCHSCRIPT, None),
+            (torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.PYTORCH, None),
+            pytest.param(torch.randn(16, 64, 256).cuda(), "JasperEncoder", DF.TRTONNX, 11, marks=requires_trt),
+            # QuartznetEncoder export tests.
+            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.ONNX, 11),
+            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TORCHSCRIPT, None),
+            (torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.PYTORCH, None),
+            pytest.param(torch.randn(16, 64, 256).cuda(), "QuartznetEncoder", DF.TRTONNX, 11, marks=requires_trt),
         ],
     )
     def test_module_export(self, tmpdir, input_example, module_name, df_type, onnx_opset):
@@ -478,7 +437,8 @@ class TestDeployExport:
         tmp_file_name = str(tmpdir.mkdir("export").join(module_name))
         # Test export.
         self.__test_export_route(
-            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example, onnx_opset=onnx_opset
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
+            onnx_opset=onnx_opset
         )
 
     @pytest.mark.unit
@@ -486,7 +446,7 @@ class TestDeployExport:
     @pytest.mark.parametrize(
         "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
-    def OOtest_hf_bert(self, tmpdir, df_type):
+    def test_hf_bert(self, tmpdir, df_type):
         """ Tests BERT export.
 
             Args:
@@ -508,48 +468,19 @@ class TestDeployExport:
         self.__test_export_route(module=bert, out_name=tmp_file_name, mode=df_type,
                                  input_example=input_example, onnx_opset=11)
 
-
-    # @torch.no_grad()
-    # def test_waveglow(self):
-    #     vocoder_model_config = "examples/tts/configs/waveglow.yaml"
-    #     waveglow_sigma = 0.6
-    #
-    #     waveglow = nemo_tts.WaveGlowInferNM.import_from_config(
-    #         vocoder_model_config, "WaveGlowInferNM",
-    #         overwrite_params={
-    #             "sigma": waveglow_sigma,
-    #             "sample_rate": 16000,
-    #         }
-    #     )
-    #
-    #     torch.manual_seed(10)
-    #     mel_spectrogram=torch.rand(size=(4, 80, 10), dtype=torch.float).cuda()
-    #     # audio_inp=torch.rand(size=(4, 2560), dtype=torch.float).cuda()
-    #
-    #     #     [
-    #     #         ("mel_spectrogram", mel_spectrogram),
-    #     #         # ("audio", audio_inp),
-    #     #     ]
-    #     # )
-    #
-    #     self.__test_export_route(module=waveglow, #.inner_glow(),
-    #                              out_name="waveglow", mode=DF.ONNX, #TORCHSCRIPT,
-    #                              input_example = mel_spectrogram, onnx_opset=11) #[mel_spectrogram.cuda(), audio_inp.cuda()]) #
-
-
-
-    @torch.no_grad()
-    def test_waveglow(self):
-        # curl - LO
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.parametrize(
+        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
+    )
+    def test_waveglow(self, tmpdir, df_type):
         url = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ljs_256channels/versions/2/files/waveglow_256channels_ljs_v2.pt"
         ptfile = "./waveglow_256channels_ljs_v2.pt"
         if not Path(ptfile).is_file():
             urllib.request.urlretrieve(url, ptfile)
 
-        waveglow = load_and_setup_model(ptfile,
-            forward_is_infer=False)
+        waveglow = load_and_setup_model(ptfile, forward_is_infer=False)
 
-        output = "./waveglow.onnx"
         # 80 mel channels, 620 mel spectrograms ~ 7 seconds of speech
         mel = torch.randn(1, 80, 620).cuda()
         stride = 256 # value from waveglow upsample
@@ -567,14 +498,14 @@ class TestDeployExport:
             fType = types.MethodType
             waveglow.forward = fType(infer_onnx, waveglow)
             mel = mel.unsqueeze(3)
-            opset_version = 10 #11
 
-            torch.onnx.export(waveglow, (mel, z), output,
-                              opset_version=opset_version,
-                              do_constant_folding=True,
-                              input_names=["mel", "z"],
-                              output_names=["audio"],
-                              dynamic_axes={"mel":   {0: "batch_size", 2: "mel_seq"},
-                                            "z":     {0: "batch_size", 2: "z_seq"},
-                                            "audio": {0: "batch_size", 1: "audio_seq"}})
+            waveglow_nm = nemo_tts.WaveGlowInferNM(waveglow=waveglow)
 
+            input_example = OrderedDict([
+                    ("mel", mel),
+                    ("z", z)])
+            # Generate filename in the temporary directory.
+            tmp_file_name = str(tmpdir.mkdir("export").join("waveglow"))
+            # Test export.
+            self.__test_export_route(module=waveglow_nm, out_name=tmp_file_name, mode=df_type,
+                                     input_example=input_example, onnx_opset=11)
