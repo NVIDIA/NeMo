@@ -188,7 +188,7 @@ if not os.path.exists(args.data_dir):
 
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
-    local_rank=None,
+    local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
