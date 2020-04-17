@@ -45,8 +45,8 @@ The MultiWOZ dataset covers the following domains:
  3. attraction
  4. taxi
  5. train
- 6. hospital (Excluded from training by default)
- 7. police (Excluded from training by default)
+ 6. hospital
+ 7. police
 
 As well as the following slots:
  * inform (∗)
@@ -185,7 +185,10 @@ the `dialogue_state_tracking_trade.py`_ script with default parameters:
         --eval_file_prefix <test or dev>
 
 You may find the list of parameters in the example file and update them as see fits. \
-By default the script would train the model for 10 epochs on 1 single gpu.
+By default the script would train the model for 10 epochs on 1 single gpu. \
+The police and hospital domains are excluded from the training by default as they do not exist in the development set. \
+The list of the domains can get updated in the example.
+
 
 Evaluating Checkpoints
 ----------------------
@@ -203,12 +206,6 @@ you may run the same script by passing `--checkpoint_dir` and setting `--num_epo
         --eval_file_prefix <test or dev> \
         --eval_batch_size <batch size for evaluation> \
         --num_epochs 0
-
-You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 datasets on NGC:
-
-    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
-    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
-
 
 Metrics and Results
 -------------------
@@ -250,12 +247,14 @@ Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evalua
 | NeMo's Implementation of TRADE              | 49.78% | 97.06% | 50.44% | 97.15% | 47.77% | 96.82% | 50.85% | 97.21% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+--------+--------+
 
+You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ 2.1 datasets on NGC:
+
+    **MultiWOZ 2.0**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_0
+    **MultiWOZ 2.1**: https://ngc.nvidia.com/catalog/models/nvidia:trade___dialogue_state_tracker___multiwoz_2_1
 
 .. note::
     During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly \
-    predict special values for like **don't care** or **none** for the slots. \
-    The `process_multiwoz.py`_ script extracts that additional information from the dataset,
-    and the `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
+    predict special values for like **don't care** or **none** for the slots. The `process_multiwoz.py`_ script extracts the additional labels from the dataset and `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
 
 
 References

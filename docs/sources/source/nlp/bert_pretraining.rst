@@ -67,8 +67,8 @@ use the script ``examples/nlp/language_modeling/process_wiki_zh.py`` for preproc
 
 For already preprocessed data, we will be using a large dataset composed of Wikipedia and BookCorpus as in the original BERT paper.
 
-To download the dataset, go to `https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT <https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/LanguageModeling/BERT>`__
-and run the script ``./data/create_datasets_from_start.sh``.
+To download the dataset, go to `https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT#quick-start-guide <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/LanguageModeling/BERT#quick-start-guide>`__,
+follow steps 1-5 in the Quick-Start-Guide and run the script ``./data/create_datasets_from_start.sh`` inside the docker container.
 The downloaded folder should include a 2 sub folders with the prefix `lower_case_[0,1]_seq_len_128_max_pred_20_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5`
 and `lower_case_[0,1]_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5`, containing sequences of length 128 with a maximum of 20 masked tokens
 and sequences of length 512 with a maximum of 80 masked tokens respectively.

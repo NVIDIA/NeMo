@@ -27,25 +27,26 @@
 NVIDIA Neural Modules: NeMo
 ===========================
 
-NeMo is a toolkit for defining and building `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
+NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
-Goal of the NeMo toolkit is to make it possible for researchers to easily compose complex neural network architectures for conversational AI using reusable components. Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
-
+NeMo toolkit makes it possible for researchers to easily compose complex neural network architectures for conversational AI using reusable components - Neural Modules.
 **Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
 
+Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
+
 **Introduction**
 
-* Watch `this video <https://nvidia.github.io/NeMo/>`_ for a quick walk-through.
+* Watch `this video <https://drive.google.com/a/nvidia.com/file/d/1AcOmtx4n1BAWvPoyhE0thcQXdloGWb6q/view?usp=sharing>`_ for a quick walk-through.
 
-* Documentation (latest released version): https://nvidia.github.io/NeMo/
+* `Documentation (latest released version) <https://nvidia.github.io/NeMo/>`_ and `Documentation (master branch) <http://nemo-master-docs.s3-website.us-east-2.amazonaws.com/>`_
 
 * Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
 
-* Read NVIDIA `Developer Blog for Quartznet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
+* Read NVIDIA `Developer Blog for QuartzNet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
 
-* Recommended version to install is **0.9.0** via ``pip install nemo-toolkit``
+* Recommended version to install is **0.10.1** via ``pip install nemo-toolkit[all]``
 
 * Recommended NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_
 
@@ -55,7 +56,7 @@ The toolkit comes with extendable collections of pre-built modules for automatic
 Getting started
 ~~~~~~~~~~~~~~~
 
-THE LATEST STABLE VERSION OF NeMo is **0.9.0** (Available via PIP).
+THE LATEST STABLE VERSION OF NeMo is **0.10.1** (Available via PIP).
 
 **Requirements**
 
@@ -63,29 +64,77 @@ THE LATEST STABLE VERSION OF NeMo is **0.9.0** (Available via PIP).
 2) PyTorch 1.4.* with GPU support
 3) (optional, for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
-**NeMo Docker Container**
- NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ is now available.
 
-* Pull the docker: ``docker pull nvcr.io/nvidia/nemo:v0.9``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.9``
+Docker containers
+~~~~~~~~~~~~~~~~~
+
+**NeMo docker container**
+
+You can use NeMo's docker container with all dependencies pre-installed
+
+.. code-block:: bash
+
+    docker run --runtime=nvidia -it --rm -v --shm-size=16g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
+
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:20.01-py3``
-* Run: ``docker run --runtime=nvidia -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
+* Run:``docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
 * ``apt-get update && apt-get install -y libsndfile1``
-* ``pip install nemo_toolkit`` NeMo core
-* ``pip install nemo_asr`` NeMo ASR (Speech Recognition) collection
-* ``pip install nemo_nlp`` NeMo NLP (Natural Language Processing) collection
-* ``pip install nemo_tts`` NeMo TTS (Speech Synthesis) collection
+* ``pip install nemo_toolkit`` Installs NeMo core only.
+* ``pip install nemo_toolkit[all]`` Installs NeMo core and ALL collections
+* ``pip install nemo_toolkit[asr]`` Installs NeMo core and ASR (Speech Recognition) collection
+* ``pip install nemo_toolkit[nlp]`` Installs NeMo core and NLP (Natural Language Processing) collection
+* ``pip install nemo_toolkit[tts]`` Installs NeMo core and TTS (Speech Synthesis) collection
 
-See `examples/start_here` to get started with the simplest example. The folder `examples` contains several examples to get you started with various tasks in NLP and ASR.
+See `examples/start_here` to get started with the simplest example.
 
 **Tutorials**
 
 * `Speech recognition <https://nvidia.github.io/NeMo/asr/intro.html>`_
 * `Natural language processing <https://nvidia.github.io/NeMo/nlp/intro.html>`_
 * `Speech Synthesis <https://nvidia.github.io/NeMo/tts/intro.html>`_
+
+Pre-trained models
+~~~~~~~~~~~~~~~~~~
+
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| Modality   | Model                                                                                        | Trained on            |
++============+==============================================================================================+=======================+
+| ASR        | `QuartzNet15x5En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_quartznet15x5>`_ | LibriSpeech, WSJ,     |
+|            |                                                                                              | Mozilla Common Voice  |
+|            |                                                                                              | (en_1488_2019-12-10), |
+|            |                                                                                              | Fisher, Switchboard   |
+|            |                                                                                              | and Singapore English |
+|            |                                                                                              | National Speech       |
+|            |                                                                                              | Corpus                |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AISHELL-2 Mandarin    |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| NLP        | `BERT base uncased <https://ngc.nvidia.com/catalog/models/nvidia:bertbaseuncasedfornemo>`_   |English Wikipedia and  |
+|            |                                                                                              |BookCorpus dataset     |
+|            |                                                                                              |seq len <= 512         |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| NLP        | `BERT large uncased <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedfornemo>`_ |English Wikipedia and  |
+|            |                                                                                              |BookCorpus dataset     |
+|            |                                                                                              |seq len <= 512         |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| TTS        | `Tacotron2 <https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech>`_               |LJspeech               |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
+| TTS        | `WaveGlow <https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech>`_                 |LJspeech               |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
+|            |                                                                                              |                       |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
 
 
 DEVELOPMENT
@@ -120,7 +169,7 @@ This command runs unittests:
 .. code-block:: bash
 
     ./reinstall.sh
-    python pytest tests
+    pytest tests
 
 
 Citation
