@@ -39,9 +39,12 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
 
     def train(self):
         return self._pt_module.train()
-######################
-    def __call__(self, force_pt=False, *input, **kwargs):
-        pt_call = len(input) > 0 or force_pt
+
+    def __call__(self, force_pt: bool = False, *input, **kwargs):
+        pt_call = len(input) > 0 or \
+            force_pt if isinstance(force_pt, bool) else force_pt is not None
+        if not isinstance(force_pt, bool):
+            input = (force_pt, *input,)
         if pt_call:
             return self._pt_module.__call__(*input, **kwargs)
         else:

@@ -96,10 +96,6 @@ class NeuralModule(ABC):
         """
         return self._init_params
 
-    @abstractmethod
-    def forward(self, *input, **kwargs):
-        raise NotImplementedError
-
     def __extract_init_params(self):
         """
             Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
@@ -424,7 +420,7 @@ class NeuralModule(ABC):
     def pretrained_storage():
         return ''
 
-    def __call__(self, *input, **kwargs):
+    def __call__(self, **kwargs):
         """This method allows objects to be called with their port names
 
         Args:

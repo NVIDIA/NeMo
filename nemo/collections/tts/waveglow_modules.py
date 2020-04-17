@@ -1,5 +1,4 @@
 # Copyright (c) 2019 NVIDIA Corporation
-from abc import ABC, abstractmethod
 import librosa
 import numpy as np
 import torch
@@ -8,9 +7,7 @@ from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, TrainableNM, NonTrainableNM
 from nemo.collections.tts.parts.waveglow import WaveGlow
 from nemo.core.neural_types import *
-from nemo.core import NeuralModuleFactory
 from nemo.utils.decorators import add_port_docs
-from nemo.utils.helpers import get_cuda_device
 
 __all__ = ["WaveGlowNM", "WaveGlowInferNM", "WaveGlowLoss"]
 
@@ -73,7 +70,8 @@ class WaveGlowNM(TrainableNM):
 
     def __init__(
         self,
-        sample_rate: int,
+        waveglow=None,
+        sample_rate: int = 16000,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -90,7 +88,7 @@ class WaveGlowNM(TrainableNM):
             "n_channels": n_wn_channels,
             "kernel_size": wn_kernel_size,
         }
-        self.waveglow = WaveGlow(
+        self.waveglow = waveglow if waveglow else WaveGlow(
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
             n_group=n_group,
@@ -103,22 +101,12 @@ class WaveGlowNM(TrainableNM):
     def __str__(self):
         return "WaveGlowNM"
 
-    def forward(self, *input, **kwargs): #, mel_spectrogram, audio):
-        # This function should probably be split
-        # If training, it returns the predicted normal distribution
-        # Else it returns the predicted audio
+    def forward(self, *input, **kwargs):
+        input = (*input, *kwargs.values(),)
         if self.training:
-            #audio, log_s_list, log_det_W_list
-            return self.waveglow(input[0], input[1]) #mel_spectrogram, audio)
+            return self.waveglow(input[:2])
         else:
-            self.train(False)
-            return self.waveglow.infer(input[0])
-        #     audio = self.waveglow.infer(mel_spectrogram)
-        #     log_s_list = log_det_W_list = []
-        # return audio, log_s_list, log_det_W_list
-
-    # def inner_glow(self):
-    #     return self.waveglow
+            return self.waveglow.forward(input[:2])
 
 class WaveGlowInferNM(NonTrainableNM):
     """
@@ -151,38 +139,30 @@ class WaveGlowInferNM(NonTrainableNM):
             we sample z. Defaults to 0.6.
     """
 
-    @add_port_docs()
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {
-            # "mel_spectrogram": NeuralType(
-            #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
-            # )
             "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-
-            # "audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))
+            "z": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))
         }
 
-    @add_port_docs()
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        # return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
         return {"audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))}
-
-    # def __name__(self):
-    #     return "WaveGlowInferNM"
 
     def __str__(self):
         return "WaveGlowInferNM"
 
     def __init__(
         self,
-        *,
-        sample_rate: int,
+        waveglow=None,
+        sample_rate: int = 16000,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -194,27 +174,15 @@ class WaveGlowInferNM(NonTrainableNM):
         sigma: float = 0.6,
     ):
         NonTrainableNM.__init__(self)  # For NeuralModule API
-        # super(NonTrainableNM, self).__init__()
         self._sigma = sigma
         self.sample_rate = sample_rate  # Done in parent class
-        # super().__init__(
-        #     sample_rate=sample_rate,
-        #     n_mel_channels=n_mel_channels,
-        #     n_flows=n_flows,
-        #     n_group=n_group,
-        #     n_early_every=n_early_every,
-        #     n_early_size=n_early_size,
-        #     n_wn_layers=n_wn_layers,
-        #     n_wn_channels=n_wn_channels,
-        #     wn_kernel_size=wn_kernel_size,
-        # )
         self._removed_weight_norm = False
         wavenet_config = {
             "n_layers": n_wn_layers,
             "n_channels": n_wn_channels,
             "kernel_size": wn_kernel_size,
         }
-        self.waveglow = WaveGlow(
+        self.waveglow = waveglow if waveglow else WaveGlow(
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
             n_group=n_group,
@@ -222,10 +190,7 @@ class WaveGlowInferNM(NonTrainableNM):
             n_early_size=n_early_size,
             WN_config=wavenet_config,
         )
-        # self._factory = NeuralModuleFactory.get_default_factory()
-        # self.waveglow.to(get_cuda_device(self._factory.placement))
         self.waveglow.to(self._device)
-
 
     def setup_denoiser(self):
         with torch.no_grad():
@@ -242,19 +207,12 @@ class WaveGlowInferNM(NonTrainableNM):
         audio_denoised = librosa.core.istft(audio_spec_denoised * audio_angles)
         return audio_denoised, audio_spec_denoised
 
-    def forward(self, *input, **kwargs): #, mel_spectrogram, audio=None):
-        if not self._removed_weight_norm:
-            logging.info("remove WN")
-            self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
-            self._removed_weight_norm = True
-        # if self.waveglow.training:
-        #     raise ValueError("You are using the WaveGlow Infer Neural Module in training mode.")
+    def forward(self, *input, **kwargs):
         with torch.no_grad():
-            mel_spectrogram = input[0]
+            mel_spectrogram, z = input[:2]
             if isinstance(mel_spectrogram, tuple):
-                mel_spectrogram = mel_spectrogram[0]
-            audio = self.waveglow.infer(mel_spectrogram, sigma=self._sigma)
-        return audio
+                mel_spectrogram, z = mel_spectrogram[:2]
+            return self.waveglow.forward(mel_spectrogram, z, sigma=self._sigma)
 
 
 class WaveGlowLoss(LossNM):
