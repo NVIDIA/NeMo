@@ -61,16 +61,18 @@ def get_bert_special_tokens(bert_derivative):
     return MODEL_SPECIAL_TOKENS[bert_derivative]
 
 
-def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, special_tokens=None):
+def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, special_tokens=None, vocab_file=None):
     '''
     Args:
     tokenizer_name: sentencepiece or nemobert
-    pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
+    pretrained_mode_name ('str'): name of the pretrained model from the hugging face list or 'megatron',
         for example: bert-base-cased
         To see the list of pretrained models, use: nemo_nlp.nm.trainables.get_bert_models_list()
     tokenizer_model (path): only used for sentencepiece tokenizer
     special_tokens (dict): dict of special tokens (Optional)
     '''
+    if pretrained_model_name == 'megatron':
+        return nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(vocab_file=vocab_file, do_lower_case=True)
 
     if tokenizer_name == 'nemobert':
         tokenizer = nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(pretrained_model=pretrained_model_name)

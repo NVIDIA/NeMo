@@ -20,8 +20,8 @@ https://nvidia.github.io/NeMo/nlp/intro.html#named-entity-recognition
 """
 
 import argparse
-import os
 import json
+import os
 
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.utils.data_utils
@@ -154,7 +154,9 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
-parser.add_argument("--vocab-file", default=None, help="Path to the vocab file. Required for pretrained Megatron models")
+parser.add_argument(
+    "--vocab-file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
 
 # model arguments
 parser.add_argument(
@@ -162,7 +164,7 @@ parser.add_argument(
     default="bert-base-uncased",
     type=str,
     help="Name of the pre-trained model",
-    choices=['megatron'] + nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -199,28 +201,25 @@ output_file = f'{nf.work_dir}/output.txt'
 if args.pretrained_model_name == "megatron":
     if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
         raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
-    
-    model = nemo_nlp.nm.trainables.MegatronBERT(config=args.bert_config)
-    model.restore_from(args.bert_checkpoint)
-    #TODO add support for other tokenizers with Megatron
-    # tokenizer = nemo_nlp.data.MegatronTokenizer()
-    tokenizer = nemo_nlp.data.tokenizers.NemoBertTokenizer(vocab_file=args.vocab_file, do_lower_case=True)
+    model = nemo_nlp.nm.trainables.MegatronBERT(config_filename=args.bert_config)
 else:
     model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
     )
 
-    tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
-        tokenizer_name=args.tokenizer,
-        pretrained_model_name=args.pretrained_model_name,
-        tokenizer_model=args.tokenizer_model,
-    )
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+)
 
-    if args.bert_checkpoint is not None:
-        model.restore_from(args.bert_checkpoint)
-        logging.info(f"model restored from {args.bert_checkpoint}")
+if args.bert_checkpoint is not None:
+    model.restore_from(args.bert_checkpoint)
+    logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
+
 
 def create_pipeline(
     pad_label=args.none_label,

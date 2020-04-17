@@ -51,4 +51,4 @@ def get_bert_models_list():
     for model in MODELS:
         model_names = [x.pretrained_model_name for x in MODELS[model]['class'].list_pretrained_models()]
         huggingface_models.extend(model_names)
-    return huggingface_models
+    return huggingface_models + ['megatron']

@@ -392,7 +392,7 @@ class PtActions(Actions):
 
     def __nm_graph_forward_pass(
         self, call_chain, registered_tensors, mode=ModelMode.train, use_cache=False,
-    ):  
+    ):
         for ind in range(1, len(call_chain)):
             if use_cache:
                 in_cache = True
