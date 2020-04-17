@@ -76,7 +76,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
     freq_dict = {}
     label_frequencies = labels.most_common()
     for k, v in label_frequencies:
-        out.write(f'{k}\t{v / total}\n')
+        out.write(f'{k}\t\t{round(v/total,5)}\t\t{v}\n')
         if i < 3:
             logging.info(f'{i} item: {k}, {v} out of {total}, {v / total}.')
         i += 1

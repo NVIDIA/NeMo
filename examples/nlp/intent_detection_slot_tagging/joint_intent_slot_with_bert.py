@@ -176,7 +176,7 @@ def create_pipeline(num_samples=-1, batch_size=32, data_prefix='train', is_train
     total_loss = total_loss_fn(loss_1=intent_loss, loss_2=slot_loss)
 
     if is_training:
-        tensors_to_evaluate = [total_loss, intent_logits, slot_logits]
+        tensors_to_evaluate = [total_loss, intent_loss, slot_loss]
     else:
         tensors_to_evaluate = [
             intent_logits,
@@ -207,9 +207,13 @@ eval_tensors, _, _, eval_data_layer = create_pipeline(
 # Create callbacks for train and eval modes
 train_callback = SimpleLossLoggerCallback(
     tensors=train_tensors,
-    print_func=lambda x: logging.info(str(round(x[0].item(), 3))),
+    print_func=lambda x: logging.info(
+        f'Total Loss:{str(round(x[0].item(), 3))}, '
+        f'Intent Loss:{str(round(x[1].item(), 3))}, '
+        f'Slot Tagging Loss:{str(round(x[2].item(), 3))}'
+    ),
     tb_writer=nf.tb_writer,
-    get_tb_values=lambda x: [["loss", x[0]]],
+    get_tb_values=lambda x: [["total_loss", x[0]], ["intent_loss", x[1]], ["slot_loss", x[2]]],
     step_freq=train_steps_per_epoch,
 )
 

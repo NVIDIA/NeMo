@@ -35,7 +35,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m unit'
+        sh 'pytest -m "unit and not skipduringci"'
       }
     }
 
@@ -43,7 +43,7 @@ pipeline {
       when {
         anyOf{
           branch 'master'
-          changeRequest target: 'master' 
+          changeRequest target: 'master'
         }
       }
       steps {
@@ -53,7 +53,7 @@ pipeline {
 
     stage('L0: Integration Tests GPU') {
       steps {
-        sh 'pytest -m integration'
+        sh 'pytest -s -m "integration and not skipduringci"'
       }
     }
 
@@ -61,17 +61,17 @@ pipeline {
       when {
         anyOf{
           branch 'master'
-          changeRequest target: 'master' 
+          changeRequest target: 'master'
         }
       }
       steps {
-        sh 'pytest -m integration --cpu'
+        sh 'pytest -s -m integration --cpu'
       }
     }
 
     stage('L1: System Tests GPU') {
       steps {
-        sh 'pytest -m system'
+        sh 'pytest -m "system and not skipduringci"'
       }
     }
 
@@ -79,17 +79,11 @@ pipeline {
       when {
         anyOf{
           branch 'master'
-          changeRequest target: 'master' 
+          changeRequest target: 'master'
         }
       }
       steps {
         sh 'pytest -m system --cpu'
-      }
-    }
-
-    stage('LX: Unclassified Tests GPU') {
-      steps {
-        sh 'pytest -m unclassified'
       }
     }
 
@@ -123,14 +117,14 @@ pipeline {
         }
       }
       failFast true
-      parallel { 
+      parallel {
         stage('BERT on the fly preprocessing') {
           steps {
             sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=0 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wikitext-2/train.txt --eval_data /home/TestData/nlp/wikitext-2/valid.txt --work_dir outputs/bert_lm/wikitext2 --batch_size 64 --lr 0.01 --lr_policy CosineAnnealing --lr_warmup_proportion 0.05 --vocab_size 3200 --hidden_size 768 --intermediate_size 3072 --num_hidden_layers 6 --num_attention_heads 12 --hidden_act "gelu" --save_step_freq 200 data_text  --num_iters=300 --tokenizer sentence-piece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1 --dataset_name wikitext-2'
             sh 'cd examples/nlp/language_modeling && LOSS=$(cat outputs/bert_lm/wikitext2/log_globalrank-0_localrank-0.txt |   grep "Loss" |tail -n 1| awk \'{print \$7}\' | egrep -o "[0-9.]+" ) && echo $LOSS && if [ $(echo "$LOSS < 8.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/language_modeling/outputs/wikitext2 && rm -rf /home/TestData/nlp/wikitext-2/*.pkl && rm -rf /home/TestData/nlp/wikitext-2/bert'
           }
-        }        
+        }
         stage('BERT offline preprocessing') {
           steps {
             sh 'cd examples/nlp/language_modeling && CUDA_VISIBLE_DEVICES=1 python bert_pretraining.py --amp_opt_level O1 --train_data /home/TestData/nlp/wiki_book_mini/training --eval_data /home/TestData/nlp/wiki_book_mini/evaluation --work_dir outputs/bert_lm/wiki_book --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --save_step_freq 200 --num_gpus 1 --batches_per_step 1 --lr_policy SquareRootAnnealing --beta2 0.999 --beta1 0.9  --lr_warmup_proportion 0.01 --optimizer adam_w  --weight_decay 0.01  --lr 0.875e-4 data_preprocessed --num_iters 300'
@@ -211,14 +205,14 @@ pipeline {
       parallel {
         stage('BERT Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 200 --max_steps 50 --train_step_freq 5 --lr_policy WarmupAnnealing  --lr 5e-5 --do_lower_case --pretrained_model_name bert-base-uncased'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1 --batch_size 8 --save_step_freq 200 --max_steps 50 --train_step_freq 5 --lr_policy WarmupAnnealing  --lr 5e-5 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adam_w'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 10.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1 && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
         stage('BERT Squad v2.0') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 200 --train_step_freq 2 --max_steps 10 --lr_policy WarmupAnnealing  --lr 1e-5 --do_lower_case --version_2_with_negative --pretrained_model_name bert-base-uncased'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --work_dir outputs/squadv2 --batch_size 8 --save_step_freq 200 --train_step_freq 2 --max_steps 10 --lr_policy WarmupAnnealing  --lr 1e-5 --do_lower_case --version_2_with_negative --pretrained_model_name bert-base-uncased --optimizer adam_w'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv2/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 40.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv2 && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
@@ -234,7 +228,7 @@ pipeline {
         }
       }
       failFast true
-      parallel { 
+      parallel {
         stage('asr_processing') {
           steps {
             sh 'cd examples/nlp/asr_postprocessor && CUDA_VISIBLE_DEVICES=0 python asr_postprocessor.py --data_dir=/home/TestData/nlp/asr_postprocessor/pred_real --restore_from=/home/TestData/nlp/asr_postprocessor/bert-base-uncased_decoder.pt --max_steps=25 --batch_size=64'
@@ -244,7 +238,7 @@ pipeline {
         }
         stage('Roberta Squad v1.1') {
           steps {
-            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 5 --save_step_freq 200 --max_steps 50 --train_step_freq 5  --lr_policy WarmupAnnealing  --lr 1e-5 --pretrained_model_name roberta-base'
+            sh 'cd examples/nlp/question_answering && CUDA_VISIBLE_DEVICES=1 python question_answering_squad.py --no_data_cache --amp_opt_level O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --work_dir outputs/squadv1_roberta --batch_size 5 --save_step_freq 200 --max_steps 50 --train_step_freq 5  --lr_policy WarmupAnnealing  --lr 1e-5 --pretrained_model_name roberta-base --optimizer adam_w'
             sh 'cd examples/nlp/question_answering && FSCORE=$(cat outputs/squadv1_roberta/log_globalrank-0_localrank-0.txt |  grep "f1" |tail -n 1 |egrep -o "[0-9.]+"|tail -n 1 ) && echo $FSCORE && if [ $(echo "$FSCORE > 7.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
             sh 'rm -rf examples/nlp/question_answering/outputs/squadv1_roberta && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
@@ -278,7 +272,7 @@ pipeline {
       failFast true
         steps {
           sh 'cd examples/nlp/neural_machine_translation/ && CUDA_VISIBLE_DEVICES=0 python machine_translation_tutorial.py --max_steps 100'
-          sh 'rm -rf examples/nlp/neural_machine_translation/outputs'        
+          sh 'rm -rf examples/nlp/neural_machine_translation/outputs'
       }
     }
 
@@ -303,7 +297,7 @@ pipeline {
         }
         stage('Jasper AN4 O2') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=35 --test_after_training --work_dir=O2 --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python jasper_an4.py --amp_opt_level=O2 --num_epochs=35 --test_after_training --work_dir=O2 --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json --do_not_eval_at_start --eval_freq 1000'
           }
         }
       }
@@ -328,31 +322,27 @@ pipeline {
         }
       }
       failFast true
-      parallel {
-        stage('Jasper AN4 2 GPUs') {
-          steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --num_epochs=40 --batch_size=24 --work_dir=multi_gpu --test_after_training  --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json'
-          }
-        }
-      }
-    }
-    
-
-    stage('L2: TTS Tests') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
-      failFast true
       steps {
-        sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --max_steps=51 --model_config=configs/tacotron2.yaml --train_dataset=/home/TestData/an4_dataset/an4_train.json --amp_opt_level=O1 --eval_freq=50'
-        sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && echo $TTS_CHECKPOINT_DIR && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && echo $LOSS && if [ $(echo "$LOSS < 3.0" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
-        // sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
-        // sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
+        sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 jasper_an4.py --num_epochs=40 --batch_size=24 --work_dir=multi_gpu --test_after_training  --train_dataset=/home/TestData/an4_dataset/an4_train.json --eval_datasets=/home/TestData/an4_dataset/an4_val.json --do_not_eval_at_start  --eval_freq 1000'
       }
     }
+
+
+    // stage('L2: TTS Tests') {
+    //   when {
+    //     anyOf{
+    //       branch 'master'
+    //       changeRequest()
+    //     }
+    //   }
+    //   failFast true
+    //   steps {
+    //     sh 'cd examples/tts && CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 tacotron2.py --num_epochs=4 --model_config=configs/tacotron2.yaml --train_dataset=/home/TestData/an4_dataset/an4_train.json --amp_opt_level=O1 --eval_datasets=/home/TestData/an4_dataset/an4_val.json --eval_freq=100 --do_not_eval_at_start --decoder_force --eval_batch_size=48 --random_seed=0'
+    //     sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && echo $TTS_CHECKPOINT_DIR && LOSS=$(cat $TTS_CHECKPOINT_DIR/log_globalrank-0_localrank-0.txt | grep -o -E "Loss an4_val[ :0-9.]+" | grep -o -E "[0-9.]+" | tail -n 1) && echo $LOSS && if [ $(echo "$LOSS - 4.344909191131592 < 0.1" | bc -l) -eq 1 ]; then echo "SUCCESS" && exit 0; else echo "FAILURE" && exit 1; fi'
+    //     // sh 'cd examples/tts && TTS_CHECKPOINT_DIR=$(ls | grep "Tacotron2") && cp ../asr/multi_gpu/checkpoints/* $TTS_CHECKPOINT_DIR/checkpoints'
+    //     // sh 'CUDA_VISIBLE_DEVICES=0 python tacotron2_an4_test.py --model_config=configs/tacotron2.yaml --eval_dataset=/home/TestData/an4_dataset/an4_train.json --jasper_model_config=../asr/configs/jasper_an4.yaml --load_dir=$TTS_CHECKPOINT_DIR/checkpoints'
+    //   }
+    // }
 
   }
 

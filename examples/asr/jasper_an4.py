@@ -95,6 +95,7 @@ def create_dags(model_config_file, vocab, args, nf):
         user_epochs_done_callback=process_evaluation_epoch,
         eval_step=args.eval_freq,
         tb_writer=nf.tb_writer,
+        eval_at_start=not args.do_not_eval_at_start,
     )
     callbacks = [train_callback, checkpointer_callback, eval_callback]
 
@@ -126,6 +127,7 @@ def main():
     parser.add_argument("--momentum", type=float)
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.25, type=float)
+    parser.add_argument("--do_not_eval_at_start", action='store_true')
     parser.set_defaults(
         model_config="./configs/jasper_an4.yaml",
         train_dataset="~/TestData/an4_dataset/an4_train.json",
