@@ -122,40 +122,4 @@ class MegatronBERT(TrainableNM):
         return sequence_output
 
     def restore_from(self, path, local_rank=0):
-        # original_load = args.load
-        # args.load = args.pretrained_checkpoint
-        # _ = load_checkpoint(model, None, None)
-        # args.load = original_load
-
-        # import pdb; pdb.set_trace()
-        # self.language_model.load_state_dict(state_dict[self._language_model_key], strict=strict)
-
-        state_dict = torch.load(path, map_location='cpu')
         self.language_model.load_state_dict(torch.load(path, map_location="cpu")['model'][self._language_model_key])
-
-
-# def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-#                                        keep_vars=False):
-
-#         state_dict_ = {}
-#         state_dict_[self._language_model_key] \
-#             = self.language_model.state_dict_for_save_checkpoint(
-#                 destination=destination, prefix=prefix, keep_vars=keep_vars)
-#         state_dict_[self._qa_head_key] \
-#             = self.qa_head.state_dict_for_save_checkpoint(
-#                 destination=destination, prefix=prefix, keep_vars=keep_vars)
-
-#         return state_dict_
-
-
-#     def load_state_dict(self, state_dict, strict=True):
-
-#         self.language_model.load_state_dict(
-#             state_dict[self._language_model_key], strict=strict)
-#         if self._qa_head_key in state_dict:
-#             self.qa_head.load_state_dict(state_dict[self._qa_head_key],
-#                                          strict=strict)
-#         else:
-#             print_rank_0('***WARNING*** could not find '
-#                          'question answering head in the '
-#                          'checkpoint, initializing to random.')
