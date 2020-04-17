@@ -212,6 +212,7 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
     vocab_file=args.vocab_file,
+    do_lower_case=args.pretrained_model_name == 'megatron',
 )
 
 if args.bert_checkpoint is not None:
