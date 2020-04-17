@@ -2,7 +2,7 @@ import torch
 from torch.utils import data as pt_data
 
 import nemo
-from nemo.collections.nlp.data.datasets.sgd_dataset.SGDDataset import SGDDataset
+from nemo.collections.nlp.data.datasets.sgd_dataset.sgd_dataset import SGDDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, EmbeddedTextType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
@@ -60,17 +60,11 @@ class SGDDataLayer(TextDataLayer):
             "requested_slot_status": NeuralType(('B', 'T'), LabelsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "intent_status": NeuralType(('B'), LabelsType()),
-            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType()),
-            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "intent_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
         }
 
     def __init__(
         self,
         dataset_split,
-        schema_emb_processor,
         dialogues_processor,
         dataset_type=SGDDataset,
         shuffle=False,
@@ -81,7 +75,6 @@ class SGDDataLayer(TextDataLayer):
 
         dataset_params = {
             'dataset_split': dataset_split,
-            'schema_emb_processor': schema_emb_processor,
             'dialogues_processor': dialogues_processor,
         }
         super().__init__(

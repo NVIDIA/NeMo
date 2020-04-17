@@ -34,18 +34,17 @@ __all__ = ['SchemaEmbeddingDataset']
 
 
 class SchemaEmbeddingDataset(Dataset):
-    def __init__(self, schema_config, tokenizer, input_file):
+    def __init__(self, schema_config, tokenizer, schemas):
         """Generate the embeddings for a schema's elements.
 
         Args:
           tokenizer: BERT's wordpiece tokenizer.
-          estimator: Estimator object of BERT model.
           max_seq_length: Sequence length used for BERT model.
-          input_file: path to json schema
+          schemas: Schemas for all services in the datasets
         """
         self._tokenizer = tokenizer
         self.schema_config = schema_config
-        self.schemas = schema.Schema(input_file)
+        self.schemas = schemas
 
         input_features = self._get_input_features()
 

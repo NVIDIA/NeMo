@@ -6,6 +6,7 @@ Created on Sun Jan 26 20:56:22 2020
 @author: ebakhturina
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -81,12 +82,8 @@ class SGDModel(TrainableNM):
             "utterance_mask": NeuralType(('B', 'T'), ChannelType()),
             "num_categorical_slot_values": NeuralType(('B', 'T'), LengthsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
-            "cat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "cat_slot_value_emb": NeuralType(('B', 'T', 'C', 'C'), EmbeddedTextType()),
-            "noncat_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
-            "req_slot_emb": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
             "req_num_slots": NeuralType(('B'), LengthsType()),
-            "intent_embeddings": NeuralType(('B', 'T', 'C'), EmbeddedTextType()),
+            "service_ids": NeuralType(('B'), ChannelType()),
         }
 
     @property
@@ -112,7 +109,7 @@ class SGDModel(TrainableNM):
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, embedding_dim):
+    def __init__(self, embedding_dim, schema_emb_processor):
         """Get logits for elements by conditioning on utterance embedding.
 
         Args:
@@ -148,6 +145,45 @@ class SGDModel(TrainableNM):
         self.noncat_activation = F.gelu
         self.noncat_layer2 = nn.Linear(embedding_dim, 2).to(self._device)
 
+        config = schema_emb_processor.schema_config
+        num_services = len(schema_emb_processor.schemas.services)
+        self.intents_emb = nn.Embedding(num_services, config["MAX_NUM_INTENT"] * embedding_dim)
+        self.cat_slot_emb = nn.Embedding(num_services, config["MAX_NUM_CAT_SLOT"] * embedding_dim)
+        self.cat_slot_value_emb = nn.Embedding(
+            num_services, config["MAX_NUM_CAT_SLOT"] * config["MAX_NUM_VALUE_PER_CAT_SLOT"] * embedding_dim
+        )
+        self.noncat_slot_emb = nn.Embedding(num_services, config["MAX_NUM_NONCAT_SLOT"] * embedding_dim)
+        self.req_slot_emb = nn.Embedding(
+            num_services, (config["MAX_NUM_CAT_SLOT"] + config["MAX_NUM_NONCAT_SLOT"]) * embedding_dim
+        )
+
+        # initialize schema embeddings from the BERT generated embeddings
+        schema_embeddings = schema_emb_processor.get_schema_embeddings()
+        self.intents_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['intent_emb']).reshape(num_services, -1))
+        )
+        self.cat_slot_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['cat_slot_emb']).reshape(num_services, -1))
+        )
+        self.cat_slot_value_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['cat_slot_value_emb']).reshape(num_services, -1))
+        )
+        self.noncat_slot_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['noncat_slot_emb']).reshape(num_services, -1))
+        )
+        self.req_slot_emb.weight.data.copy_(
+            torch.from_numpy(np.stack(schema_embeddings['req_slot_emb']).reshape(num_services, -1))
+        )
+
+        if not schema_emb_processor.is_trainable:
+            self.intents_emb.weight.requires_grad = False
+            self.cat_slot_emb.weight.requires_grad = False
+            self.cat_slot_value_emb.weight.requires_grad = False
+            self.noncat_slot_emb.weight.requires_grad = False
+            self.req_slot_emb.weight.requires_grad = False
+
+        self.to(self._device)
+
     def forward(
         self,
         encoded_utterance,
@@ -155,17 +191,21 @@ class SGDModel(TrainableNM):
         utterance_mask,
         num_categorical_slot_values,
         num_intents,
-        cat_slot_emb,
-        cat_slot_value_emb,
-        noncat_slot_emb,
-        req_slot_emb,
         req_num_slots,
-        intent_embeddings,
+        service_ids,
     ):
         """
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         
         """
+        batch_size, emb_dim = encoded_utterance.size()
+        intent_embeddings = self.intents_emb(service_ids).view(batch_size, -1, emb_dim)
+        cat_slot_emb = self.cat_slot_emb(service_ids).view(batch_size, -1, emb_dim)
+        max_number_cat_slots = cat_slot_emb.shape[1]
+        cat_slot_value_emb = self.cat_slot_value_emb(service_ids).view(batch_size, max_number_cat_slots, -1, emb_dim)
+        noncat_slot_emb = self.noncat_slot_emb(service_ids).view(batch_size, -1, emb_dim)
+        req_slot_emb = self.req_slot_emb(service_ids).view(batch_size, -1, emb_dim)
+
         logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, num_intents)
 
         logit_req_slot_status, req_slot_mask = self._get_requested_slots(
@@ -233,8 +273,7 @@ class SGDModel(TrainableNM):
         status_logits = self.cat_slot_status_layer(encoded_utterance, cat_slot_emb)
 
         # Predict the goal value.
-        # Shape: (batch_size, max_categorical_slots, max_categorical_values,
-        # embedding_dim).
+        # Shape: (batch_size, max_categorical_slots, max_categorical_values, embedding_dim).
         _, max_num_slots, max_num_values, embedding_dim = cat_slot_value_emb.size()
         cat_slot_value_emb_reshaped = cat_slot_value_emb.view(-1, max_num_slots * max_num_values, embedding_dim)
 

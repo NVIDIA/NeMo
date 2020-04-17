@@ -6,6 +6,8 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 import numpy as np
 from torch.utils.data import Dataset
 
+from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
+
 __all__ = ['SGDDataset']
 
 
@@ -14,11 +16,8 @@ class SGDDataset(Dataset):
     TODO
     """
 
-    def __init__(
-        self, dataset_split, schema_emb_processor, dialogues_processor,
-    ):
+    def __init__(self, dataset_split, dialogues_processor):
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        self.schema_data_dict = schema_emb_processor.get_schema_embeddings(dataset_split)
 
     def __len__(self):
         return len(self.features)
@@ -26,6 +25,7 @@ class SGDDataset(Dataset):
     def __getitem__(self, idx):
         ex = self.features[idx]
         service_id = ex.service_schema.service_id
+
         return (
             np.array(ex.example_id_num),
             np.array(service_id),
@@ -47,9 +47,4 @@ class SGDDataset(Dataset):
             np.array(ex.requested_slot_status, dtype=np.float32),
             np.array(ex.num_intents),
             np.array(ex.intent_status),
-            np.array(self.schema_data_dict['cat_slot_emb'][service_id], dtype=np.float32),
-            np.array(self.schema_data_dict['cat_slot_value_emb'][service_id], dtype=np.float32),
-            np.array(self.schema_data_dict['noncat_slot_emb'][service_id], dtype=np.float32),
-            np.array(self.schema_data_dict['req_slot_emb'][service_id], dtype=np.float32),
-            np.array(self.schema_data_dict['intent_emb'][service_id], dtype=np.float32),
         )

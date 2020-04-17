@@ -17,6 +17,8 @@
 
 import json
 
+from nemo import logging
+
 __all__ = ['ServiceSchema', 'Schema']
 
 
@@ -119,18 +121,39 @@ class ServiceSchema(object):
 class Schema(object):
     """Wrapper for schemas for all services in a dataset."""
 
-    def __init__(self, schema_json_path):
+    def __init__(self, schema_json_paths):
+        """
+        TODO fix:
+        schema_json_paths: list of .json path to schema files of a single str with path to the json file.
+        """
         # Load the schema from the json file.
-        with open(schema_json_path, "r") as f:
-            schemas = json.load(f)
-            f.close()
-        self._services = sorted(schema["service_name"] for schema in schemas)
+        if isinstance(schema_json_paths, str):
+            with open(schema_json_paths, "r") as f:
+                all_schemas = json.load(f)
+                f.close()
+        else:
+            # load multiple schemas from the list of the json files
+            all_schemas = []
+            completed_services = []
+            for schema_json_path in schema_json_paths:
+                with open(schema_json_path, "r") as f:
+                    schemas = json.load(f)
+                    f.close()
+                    logging.debug("Num of services in %s: %s", schema_json_path, len(schemas))
+
+                for service in schemas:
+                    if service['service_name'] not in completed_services:
+                        completed_services.append(service['service_name'])
+                        all_schemas.append(service)
+
+        self._services = sorted(schema["service_name"] for schema in all_schemas)
         self._services_vocab = {v: k for k, v in enumerate(self._services)}
         self._services_id_to_vocab = {v: k for k, v in self._services_vocab.items()}
         service_schemas = {}
-        for schema in schemas:
+        for schema in all_schemas:
             service = schema["service_name"]
             service_schemas[service] = ServiceSchema(schema, service_id=self.get_service_id(service))
+
         self._service_schemas = service_schemas
 
     def get_service_id(self, service):
