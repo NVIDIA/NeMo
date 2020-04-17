@@ -45,10 +45,12 @@ class TrainableNM(NeuralModule, nn.Module):
         self._pretrained_model_name = pretrained_model_name
 
     def __call__(self, force_pt: bool = False, *input, **kwargs):
-        pt_call = len(input) > 0 or \
-            force_pt if isinstance(force_pt, bool) else force_pt is not None
+        pt_call = len(input) > 0 or force_pt if isinstance(force_pt, bool) else force_pt is not None
         if not isinstance(force_pt, bool):
-            input = (force_pt, *input,)
+            input = (
+                force_pt,
+                *input,
+            )
         if pt_call:
             return nn.Module.__call__(self, *input, **kwargs)
         else:
@@ -139,10 +141,12 @@ class NonTrainableNM(NeuralModule, nn.Module):
         self._device = get_cuda_device(self.placement)
 
     def __call__(self, force_pt: bool = False, *input, **kwargs):
-        pt_call = len(input) > 0 or \
-            force_pt if isinstance(force_pt, bool) else force_pt is not None
+        pt_call = len(input) > 0 or force_pt if isinstance(force_pt, bool) else force_pt is not None
         if not isinstance(force_pt, bool):
-            input = (force_pt, *input,)
+            input = (
+                force_pt,
+                *input,
+            )
         if pt_call:
             with t.no_grad():
                 return self.forward(*input, **kwargs)

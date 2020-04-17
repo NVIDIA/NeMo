@@ -926,8 +926,9 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(module, output, d_format: DeploymentFormat,
-                        input_example=None, output_example=None, onnx_opset=None):
+    def __module_export(
+        module, output, d_format: DeploymentFormat, input_example=None, output_example=None, onnx_opset=None
+    ):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -987,7 +988,7 @@ class PtActions(Actions):
                     export_params=True,
                     do_constant_folding=True,
                     dynamic_axes=dynamic_axes,
-                    opset_version = 11 if onnx_opset is None else onnx_opset,
+                    opset_version=11 if onnx_opset is None else onnx_opset,
                     example_outputs=output_example,
                 )
                 # fn = output + ".readable"
@@ -1009,8 +1010,9 @@ class PtActions(Actions):
             logging.error(f'module export failed for {module} ' f'with exception {e}')
 
     @staticmethod
-    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None,
-                          output_example=None, onnx_opset=None):
+    def deployment_export(
+        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None, onnx_opset=None
+    ):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1030,7 +1032,7 @@ class PtActions(Actions):
                 d_format=d_format,
                 input_example=input_example,
                 output_example=output_example,
-                onnx_opset=onnx_opset
+                onnx_opset=onnx_opset,
             )
 
     def _check_nan_or_inf(self, placement_gpu, nan_or_inf, steps_per_nan_check=None):

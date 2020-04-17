@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from nemo import logging
-from nemo.backends.pytorch.nm import LossNM, TrainableNM, NonTrainableNM
+from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
 from nemo.collections.tts.parts.waveglow import WaveGlow
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
@@ -88,13 +88,17 @@ class WaveGlowNM(TrainableNM):
             "n_channels": n_wn_channels,
             "kernel_size": wn_kernel_size,
         }
-        self.waveglow = waveglow if waveglow else WaveGlow(
-            n_mel_channels=n_mel_channels,
-            n_flows=n_flows,
-            n_group=n_group,
-            n_early_every=n_early_every,
-            n_early_size=n_early_size,
-            WN_config=wavenet_config,
+        self.waveglow = (
+            waveglow
+            if waveglow
+            else WaveGlow(
+                n_mel_channels=n_mel_channels,
+                n_flows=n_flows,
+                n_group=n_group,
+                n_early_every=n_early_every,
+                n_early_size=n_early_size,
+                WN_config=wavenet_config,
+            )
         )
         self.to(self._device)
 
@@ -102,11 +106,15 @@ class WaveGlowNM(TrainableNM):
         return "WaveGlowNM"
 
     def forward(self, *input, **kwargs):
-        input = (*input, *kwargs.values(),)
+        input = (
+            *input,
+            *kwargs.values(),
+        )
         if self.training:
             return self.waveglow(input[:2])
         else:
             return self.waveglow.forward(input[:2])
+
 
 class WaveGlowInferNM(NonTrainableNM):
     """
@@ -146,7 +154,7 @@ class WaveGlowInferNM(NonTrainableNM):
         """
         return {
             "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "z": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))
+            "z": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate)),
         }
 
     @property
@@ -182,13 +190,17 @@ class WaveGlowInferNM(NonTrainableNM):
             "n_channels": n_wn_channels,
             "kernel_size": wn_kernel_size,
         }
-        self.waveglow = waveglow if waveglow else WaveGlow(
-            n_mel_channels=n_mel_channels,
-            n_flows=n_flows,
-            n_group=n_group,
-            n_early_every=n_early_every,
-            n_early_size=n_early_size,
-            WN_config=wavenet_config,
+        self.waveglow = (
+            waveglow
+            if waveglow
+            else WaveGlow(
+                n_mel_channels=n_mel_channels,
+                n_flows=n_flows,
+                n_group=n_group,
+                n_early_every=n_early_every,
+                n_early_size=n_early_size,
+                WN_config=wavenet_config,
+            )
         )
         self.waveglow.to(self._device)
 
