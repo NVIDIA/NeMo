@@ -26,9 +26,11 @@
 # *****************************************************************************
 
 from collections.abc import Iterable
+
 import torch
-from torch.autograd import Variable
 import torch.nn.functional as F
+from torch.autograd import Variable
+
 
 @torch.jit.script
 def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
@@ -55,8 +57,8 @@ class WaveGlowLoss(torch.nn.Module):
                 log_s_total = log_s_total + torch.sum(log_s)
                 log_det_W_total += log_det_W_list[i]
 
-        loss = torch.sum(z*z)/(2*self.sigma*self.sigma) - log_s_total - log_det_W_total
-        return loss/(z.size(0)*z.size(1)*z.size(2))
+        loss = torch.sum(z * z) / (2 * self.sigma * self.sigma) - log_s_total - log_det_W_total
+        return loss / (z.size(0) * z.size(1) * z.size(2))
 
 
 class Invertible1x1Conv(torch.nn.Module):
@@ -129,7 +131,7 @@ class WN(torch.nn.Module):
         end.bias.data.zero_()
         self.end = end
 
-        cond_layer = torch.nn.Conv1d(n_mel_channels, 2*n_channels*n_layers, 1)
+        cond_layer = torch.nn.Conv1d(n_mel_channels, 2 * n_channels * n_layers, 1)
         self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
         for i in range(n_layers):
@@ -138,7 +140,6 @@ class WN(torch.nn.Module):
             in_layer = torch.nn.Conv1d(n_channels, 2 * n_channels, kernel_size, dilation=dilation, padding=padding,)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
-
 
             # last one is not necessary
             if i < n_layers - 1:
@@ -158,16 +159,17 @@ class WN(torch.nn.Module):
         spect = self.cond_layer(spect)
 
         for i in range(self.n_layers):
-            spect_offset = i*2*self.n_channels
+            spect_offset = i * 2 * self.n_channels
             acts = fused_add_tanh_sigmoid_multiply(
                 self.in_layers[i](audio),
-                spect[:,spect_offset:spect_offset+2*self.n_channels,:],
-                n_channels_tensor)
+                spect[:, spect_offset : spect_offset + 2 * self.n_channels, :],
+                n_channels_tensor,
+            )
 
             res_skip_acts = self.res_skip_layers[i](acts)
             if i < self.n_layers - 1:
-                audio = audio + res_skip_acts[:,:self.n_channels,:]
-                output = output + res_skip_acts[:,self.n_channels:,:]
+                audio = audio + res_skip_acts[:, : self.n_channels, :]
+                output = output + res_skip_acts[:, self.n_channels :, :]
             else:
                 output = output + res_skip_acts
 
@@ -180,10 +182,8 @@ class WaveGlow(torch.nn.Module):
     ):
         super(WaveGlow, self).__init__()
 
-        self.upsample = torch.nn.ConvTranspose1d(n_mel_channels,
-                                                 n_mel_channels,
-                                                 1024, stride=256)
-        assert(n_group % 2 == 0)
+        self.upsample = torch.nn.ConvTranspose1d(n_mel_channels, n_mel_channels, 1024, stride=256)
+        assert n_group % 2 == 0
         self.n_flows = n_flows
         self.n_group = n_group
         self.n_early_every = n_early_every
@@ -258,13 +258,9 @@ class WaveGlow(torch.nn.Module):
         spect = spect.contiguous().view(spect.size(0), spect.size(1), -1).permute(0, 2, 1)
 
         if spect.type() == 'torch.cuda.HalfTensor':
-            audio = torch.cuda.HalfTensor(spect.size(0),
-                                          self.n_remaining_channels,
-                                          spect.size(2)).normal_()
+            audio = torch.cuda.HalfTensor(spect.size(0), self.n_remaining_channels, spect.size(2)).normal_()
         else:
-            audio = torch.cuda.FloatTensor(spect.size(0),
-                                           self.n_remaining_channels,
-                                           spect.size(2)).normal_()
+            audio = torch.cuda.FloatTensor(spect.size(0), self.n_remaining_channels, spect.size(2)).normal_()
 
         audio = torch.autograd.Variable(sigma * audio)
 
@@ -286,7 +282,7 @@ class WaveGlow(torch.nn.Module):
                     z = torch.cuda.HalfTensor(spect.size(0), self.n_early_size, spect.size(2)).normal_()
                 else:
                     z = torch.cuda.FloatTensor(spect.size(0), self.n_early_size, spect.size(2)).normal_()
-                audio = torch.cat((sigma*z, audio),1)
+                audio = torch.cat((sigma * z, audio), 1)
 
         audio = audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1).data
         return audio
