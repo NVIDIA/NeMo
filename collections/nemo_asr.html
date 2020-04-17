@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo ASR collection &mdash; nemo 0.10.0 documentation</title>
+  <title>NeMo ASR collection &mdash; nemo 0.10.1 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.0
+                0.10.1
               </div>
             
           
@@ -178,7 +178,7 @@
 <p>This package contains Neural Modules responsible for ASR data layers.</p>
 <dl class="class">
 <dt id="nemo.collections.asr.data_layer.AudioToTextDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">AudioToTextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">manifest_filepath</em>, <em class="sig-param">labels</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">sample_rate=16000</em>, <em class="sig-param">int_values=False</em>, <em class="sig-param">bos_id=None</em>, <em class="sig-param">eos_id=None</em>, <em class="sig-param">pad_id=None</em>, <em class="sig-param">min_duration=0.1</em>, <em class="sig-param">max_duration=None</em>, <em class="sig-param">normalize_transcripts=True</em>, <em class="sig-param">trim_silence=False</em>, <em class="sig-param">load_audio=True</em>, <em class="sig-param">drop_last=False</em>, <em class="sig-param">shuffle=True</em>, <em class="sig-param">num_workers=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#AudioToTextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToTextDataLayer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">AudioToTextDataLayer</code><span class="sig-paren">(</span><em class="sig-param">manifest_filepath, labels, batch_size, sample_rate=16000, int_values=False, bos_id=None, eos_id=None, pad_id=None, min_duration=0.1, max_duration=None, normalize_transcripts=True, trim_silence=False, load_audio=True, drop_last=False, shuffle=True, num_workers=0, augmentor: Union[nemo.collections.asr.parts.perturb.AudioAugmentor, Dict[str, Dict[str, Any]], None] = None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#AudioToTextDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToTextDataLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
 <p>Data Layer for general ASR tasks.</p>
 <p>Module which reads ASR labeled data. It accepts comma-separated
@@ -234,6 +234,14 @@ Defaults to True.</p></li>
 <li><p><strong>num_workers</strong> (<em>int</em>) – See PyTorch DataLoader.
 Defaults to 0.</p></li>
 <li><p><strong>perturb_config</strong> (<em>dict</em>) – Currently disabled.</p></li>
+<li><p><strong>augmentor</strong> (<em>AudioAugmentor</em><em> or </em><em>dict</em>) – Optional AudioAugmentor or
+dictionary of str -&gt; kwargs (dict) which is parsed and used
+to initialize an AudioAugmentor.
+Note: It is crucial that each individual augmentation has
+a keyword <cite>prob</cite>, that defines a float probability in the
+the range [0, 1] of this augmentation being applied.
+If this keyword is not present, then the augmentation is
+disabled and a warning is logged.</p></li>
 </ul>
 </dd>
 </dl>
@@ -403,15 +411,15 @@ should return None.</p>
 
 <dl class="class">
 <dt id="nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">AudioToSpeechLabelDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*, manifest_filepath: str, labels: List[str], batch_size: int, sample_rate: int = 16000, int_values: bool = False, num_workers: int = 0, shuffle: bool = True, min_duration: Optional[float] = 0.1, max_duration: Optional[float] = None, trim_silence: bool = False, drop_last: bool = False, load_audio: bool = True, augmentor: Optional[Dict[str, Dict[str, Any]]] = None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#AudioToSpeechLabelDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.asr.data_layer.</code><code class="sig-name descname">AudioToSpeechLabelDataLayer</code><span class="sig-paren">(</span><em class="sig-param">*, manifest_filepath: str, labels: List[str], batch_size: int, sample_rate: int = 16000, int_values: bool = False, num_workers: int = 0, shuffle: bool = True, min_duration: Optional[float] = 0.1, max_duration: Optional[float] = None, trim_silence: bool = False, drop_last: bool = False, load_audio: bool = True, augmentor: Union[nemo.collections.asr.parts.perturb.AudioAugmentor, Dict[str, Dict[str, Any]], None] = None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/asr/data_layer.html#AudioToSpeechLabelDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.asr.data_layer.AudioToSpeechLabelDataLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
 <p>Data Layer for general speech classification.</p>
 <p>Module which reads speech recognition with target label. It accepts comma-separated
 JSON manifest files describing the correspondence between wav audio files
 and their target labels. JSON files should be of the following format:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_0</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_0</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">target_label_0</span><span class="p">}</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_0</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_0</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">target_label_0</span><span class="p">,</span> <span class="s2">&quot;offset&quot;</span><span class="p">:</span> <span class="n">offset_in_sec_0</span><span class="p">}</span>
 <span class="o">...</span>
-<span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_n</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_n</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">target_label_n</span><span class="p">}</span>
+<span class="p">{</span><span class="s2">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="n">path_to_wav_n</span><span class="p">,</span> <span class="s2">&quot;duration&quot;</span><span class="p">:</span> <span class="n">time_in_sec_n</span><span class="p">,</span> <span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">target_label_n</span><span class="p">,</span> <span class="s2">&quot;offset&quot;</span><span class="p">:</span> <span class="n">offset_in_sec_n</span><span class="p">}</span>
 </pre></div>
 </div>
 <dl class="field-list simple">
@@ -449,8 +457,9 @@ Defaults to False.</p></li>
 Defaults to True.</p></li>
 <li><p><strong>num_workers</strong> (<em>int</em>) – See PyTorch DataLoader.
 Defaults to 0.</p></li>
-<li><p><strong>augmentor</strong> (<em>dict</em>) – Optional dictionary of str -&gt; kwargs (dict)
-which is parsed and used to initialize an AudioAugmentor.
+<li><p><strong>augmenter</strong> (<em>AudioAugmentor</em><em> or </em><em>dict</em>) – Optional AudioAugmentor or
+dictionary of str -&gt; kwargs (dict) which is parsed and used
+to initialize an AudioAugmentor.
 Note: It is crucial that each individual augmentation has
 a keyword <cite>prob</cite>, that defines a float probability in the
 the range [0, 1] of this augmentation being applied.
