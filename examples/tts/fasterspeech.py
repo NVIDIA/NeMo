@@ -248,6 +248,7 @@ class FasterSpeechGraph:
         if args.local_rank is None or args.local_rank == 0:
             wandb.watch(self.model, log='all')
             wandb.config.total_weights = self.model.num_weights
+            nemo.logging.info('Total weights: %s', self.model.num_weights)
 
         self.loss = nemo_tts.FasterSpeechMelLoss(reduction=args.loss_reduction)
 
@@ -261,7 +262,13 @@ class FasterSpeechGraph:
             text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, mel_true=mel_true, mel_len=mel_len,
         )
         output = self.model(text_rep=sample.text_rep, text_rep_mask=sample.text_rep_mask, speaker_emb=data.speaker_emb)
-        train_loss = self.loss(mel_true=sample.mel_true, mel_pred=output.pred, text_rep_mask=sample.text_rep_mask)
+        train_loss = self.loss(
+            mel_true=sample.mel_true,
+            mel_pred=output.pred,
+            text_rep_mask=sample.text_rep_mask,
+            mel_len=sample.mel_len,
+            dur_true=data.dur,
+        )
         callbacks.extend(
             [
                 nemo.core.TrainLogger(
@@ -278,7 +285,7 @@ class FasterSpeechGraph:
                         'loss',
                         'mask-usage',
                         AudioInspector(
-                            self.preprocessor, shuffle=True, warmup=5 * args.eval_freq, log_step=5 * args.eval_freq
+                            self.preprocessor, shuffle=True, warmup=10 * args.eval_freq, log_step=10 * args.eval_freq
                         ),
                     ],
                     freq=args.train_freq,
@@ -294,7 +301,13 @@ class FasterSpeechGraph:
             output = self.model(
                 text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, speaker_emb=data.speaker_emb,
             )
-            loss = self.loss(mel_true=mel_true, mel_pred=output.pred, text_rep_mask=data.text_rep_mask,)
+            loss = self.loss(
+                mel_true=mel_true,
+                mel_pred=output.pred,
+                text_rep_mask=data.text_rep_mask,
+                mel_len=mel_len,
+                dur_true=data.dur,
+            )
             callbacks.append(
                 nemo.core.EvalLogger(
                     tensors=dict(
@@ -308,7 +321,7 @@ class FasterSpeechGraph:
                     metrics=[
                         'loss',
                         AudioInspector(
-                            preprocessor=self.preprocessor, warmup=5 * args.eval_freq, log_step=5 * args.eval_freq,
+                            preprocessor=self.preprocessor, warmup=10 * args.eval_freq, log_step=10 * args.eval_freq,
                         ),
                     ],
                     freq=args.eval_freq,

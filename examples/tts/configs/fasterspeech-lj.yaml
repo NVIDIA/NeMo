@@ -15,14 +15,14 @@ labels: [
 FasterSpeechDataLayer_train:
     sample_rate: *sample_rate
     normalize_transcripts: true
-    trim_silence: true
+    trim_silence: false
     drop_last: true
     shuffle: true
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
     normalize_transcripts: true
-    trim_silence: true
+    trim_silence: false
     drop_last: false
     shuffle: false
 

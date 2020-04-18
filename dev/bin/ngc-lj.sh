@@ -19,7 +19,7 @@ fi
 IMAGE="nvidian/pytorch:19.12-py3"
 GPU_MEM=32     # Default is 32.
 NUM_GPU=1      # Default is 8.
-OPT=O0         # Default is O0.
+OPT=O2         # Default is O0.
 WS=stan        # Workspace name.
 WORKSPACE=/ws  # Workspace mount point.
 RESULT=/result # Results dir.
@@ -62,8 +62,7 @@ nvidia-smi \
 --eval_datasets \
 /data/ljspeech/eval.json \
 --eval_durs \
-/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy \
---d_char=512
+/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
