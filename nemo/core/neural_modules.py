@@ -353,7 +353,7 @@ class NeuralModule(NeuralInterface):
         # Update parameters with additional ones.
         init_params.update(overwrite_params)
         # TODO: Add section name as default module name!
-        #if section_name is not None:
+        # if section_name is not None:
         #    init_params.update({"name": section_name})
 
         # Create and return the object.
@@ -530,7 +530,9 @@ class NeuralModule(NeuralInterface):
             # Create output tensors.
             output_tensors = []
             for out_name, out_type in output_port_defs.items():
-                output_tensors.append(NmTensor(producer=self, producer_args=kwargs, output_port_name=out_name, ntype=out_type,))
+                output_tensors.append(
+                    NmTensor(producer=self, producer_args=kwargs, output_port_name=out_name, ntype=out_type,)
+                )
 
             # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
             output_class_name = f'{self.__class__.__name__}Output'

@@ -95,6 +95,6 @@ class TestNeuralGraphs:
 
         # Tests output ports.
         assert len(g1.output_ports) == 3
-        assert g1.output_ports["x"].compare(x) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["y"].compare(t) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["y_pred"].compare(p) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["x"].compare(x) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["y"].compare(t) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["y_pred"].compare(p) == NeuralTypeComparisonResult.SAME

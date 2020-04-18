@@ -19,6 +19,7 @@
 import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
+from nemo.core import NeuralGraph
 from nemo.core.neural_types import NeuralTypeComparisonResult
 from nemo.utils.bound_outputs import BoundOutputs
 
@@ -32,13 +33,14 @@ class TestBoundOutputs:
         tn = TaylorNet(dim=4)
         loss = MSELoss()
 
-        # Create the graph by connnecting the modules.
-        x, y = data_source()
-        y_pred = tn(x=x)
-        lss = loss(predictions=y_pred, target=y)
+        with NeuralGraph() as g:
+            # Create the graph by connnecting the modules.
+            x, y = data_source()
+            y_pred = tn(x=x)
+            lss = loss(predictions=y_pred, target=y)
 
         # Test default binding.
-        bound_outputs = BoundOutputs()
+        bound_outputs = BoundOutputs(g.tensors)
 
         bound_outputs.bind([x, y])
         bound_outputs.bind([y_pred])

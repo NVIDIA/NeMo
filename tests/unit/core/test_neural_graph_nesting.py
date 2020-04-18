@@ -111,9 +111,9 @@ class TestNeuralGraphNesting:
     @pytest.mark.unit
     def test_output_ports_binding(self):
         # Create modules.
-        data_source = RealFunctionDataLayer(n=100, batch_size=1)
-        tn = TaylorNet(dim=4)
-        loss = MSELoss()
+        data_source = RealFunctionDataLayer(n=100, batch_size=1, name="tgn_ds")
+        tn = TaylorNet(dim=4, name="tgn_tn")
+        loss = MSELoss(name="tgn_loss")
 
         # Test default binding.
         with NeuralGraph(operation_mode=OperationMode.training) as g1:
@@ -123,10 +123,10 @@ class TestNeuralGraphNesting:
             lss = loss(predictions=y_pred, target=y)
 
         assert len(g1.output_ports) == 4
-        assert g1.output_ports["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports.tensors["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
 
         # Test manual binding.
         with g1:
@@ -134,8 +134,11 @@ class TestNeuralGraphNesting:
             g1.output_ports["my_loss"] = lss
 
         assert len(g1.output_ports) == 2
-        assert g1.output_ports["my_prediction"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        assert (
+            g1.output_ports.tensors["my_prediction"].compare(tn.output_ports["y_pred"])
+            == NeuralTypeComparisonResult.SAME
+        )
+        assert g1.output_ports.tensors["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_graph_nesting_topology_copy_one_module_defaults(self):
@@ -148,7 +151,7 @@ class TestNeuralGraphNesting:
 
         with NeuralGraph(operation_mode=OperationMode.training, name="t1_g2") as g2:
             xg2, tg2 = g1()
-
+        # import pdb;pdb.set_trace()
         # We expect that both graphs will have the same modes/steps.
         assert len(g1.steps) == len(g2.steps)
         assert g1.steps[0] == g2.steps[0]

@@ -26,8 +26,8 @@ import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import monitor_asr_train_progress
 from nemo.core import NeuralGraph
-from nemo.utils.app_state import AppState
 from nemo.utils import logging
+from nemo.utils.app_state import AppState
 
 nf = nemo.core.NeuralModuleFactory()
 app_state = AppState()
@@ -76,15 +76,19 @@ with NeuralGraph(name="training") as training:
     # Create the "implicit" training graph.
     o_audio_signal, o_audio_signal_len, o_transcript, o_transcript_len = data_layer()
     # Use Jasper module as any other neural module.
-    o_processed_signal, o_processed_signal_len, o_encoded, o_encoded_len, o_log_probs = Jasper(input_signal=o_audio_signal, length=o_audio_signal_len)
+    o_processed_signal, o_processed_signal_len, o_encoded, o_encoded_len, o_log_probs = Jasper(
+        input_signal=o_audio_signal, length=o_audio_signal_len
+    )
     o_predictions = greedy_decoder(log_probs=o_log_probs)
-    o_loss = ctc_loss(log_probs=o_log_probs, targets=o_transcript, input_length=o_encoded_len, target_length=o_transcript_len)
+    o_loss = ctc_loss(
+        log_probs=o_log_probs, targets=o_transcript, input_length=o_encoded_len, target_length=o_transcript_len
+    )
     tensors_to_evaluate = [o_loss, o_predictions, o_transcript, o_transcript_len]
 
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=tensors_to_evaluate, print_func=partial(monitor_asr_train_progress, labels=vocab)
 )
-#import pdb;pdb.set_trace()
+# import pdb;pdb.set_trace()
 nf.train(
     tensors_to_optimize=[o_loss],
     optimizer="novograd",

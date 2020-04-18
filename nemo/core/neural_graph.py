@@ -345,14 +345,12 @@ class NeuralGraph(NeuralInterface):
         # them only for ports that are already indicated as the "bound" ones in the inner graph.
         self.default_output_binding = False
 
-        # Now "copy" steps, i.e. append them to the list, following the original order.
-        # Moreover, actually execute each step.
+        # Now "copy" graph execution order and topology by actually executing each step of the nested graph.
         for _, module_name in inner_graph.steps.items():
-            # Add step - store the module name.
-            self._steps[len(self._steps)] = module_name
+            # Both module and step will be added by the modules' call().
 
             # Get the module.
-            module = self._modules[module_name]
+            module = inner_graph._modules[module_name]
 
             # Produce list of arguments that will be passed to a given modules.
             module_args = {}
@@ -383,7 +381,7 @@ class NeuralGraph(NeuralInterface):
                 # Now, the tensor is already produced in outer (i.e. this) graph!
                 module_args[input_port_name] = self.tensors[producer_name][producer_port_name]
 
-            #import pdb;pdb.set_trace()
+            # import pdb;pdb.set_trace()
             # Ok, now we have all keyword arguments. We can call() the module.
             # This will collect all the produced output tensors and add them to this graph.
             module(**module_args)

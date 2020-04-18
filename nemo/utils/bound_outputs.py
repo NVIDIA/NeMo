@@ -20,6 +20,7 @@ from collections.abc import MutableMapping
 
 from nemo.utils import logging
 
+
 class BoundOutput(object):
     """ A helper class represenging a single bound output. """
 
@@ -117,13 +118,16 @@ class BoundOutputs(MutableMapping):
                 tensors_list: List of tensors to be added.
         """
         for tensor in tensors_list:
-            # Use the name being combination of producer and port names.
-            name = tensor.producer_name + "_" + tensor.name
-            # Check the presence of the port name in "default" dictionary - this is rather impossible, but...
+            # Try to use the "default" name = output_port_name.
+            name = tensor.name
+            # Check the presence of the port name in "default" dictionary.
             if name in self._default_outputs.keys():
+                # Name present - use the name being combination of producer and port names.
+                name = tensor.producer_name + "_" + tensor.name
+
                 logging.warning(
-                    "Overwriting the already bound output port `{}` produced by `{}`".format(
-                        name, self._default_outputs[name].producer_name
+                    "Setting unigue name of the default output port `{}` produced by `{}` to `{}`".format(
+                        tensor.name, self._default_outputs[tensor.name]._producer_port.module_name, name
                     )
                 )
             # Still, "overwrite" it.

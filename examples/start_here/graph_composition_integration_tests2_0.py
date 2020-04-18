@@ -41,7 +41,7 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
     lssg2 = loss(predictions=pg2, target=tg2)
 
 
-#import pdb;pdb.set_trace()
+# import pdb;pdb.set_trace()
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
