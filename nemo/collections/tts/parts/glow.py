@@ -25,16 +25,16 @@
 #
 # *****************************************************************************
 import sys
-
+import pathlib
 import torch
 
-# These four are absolutely required for torch.load
+# These four are absolutely required for torch.load (Re: lgtm.com alert)
 from nemo.collections.tts.parts.waveglow import WN, Invertible1x1Conv, WaveGlow, WaveGlowLoss
 
 # This one is tricky. We download checkpoint from
 # https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ljs_256channels/versions/2/files/waveglow_256channels_ljs_v2.pt
 # and it wants 'glow' to be in PYTHONPATH
-sys.path.append('./nemo/collections/tts/parts')
+sys.path.append(str(pathlib.Path(__file__).parent.absolute()))
 
 
 def get_model(model_config, to_cuda):

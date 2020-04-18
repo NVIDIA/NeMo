@@ -977,9 +977,16 @@ class PtActions(Actions):
             elif d_format == DeploymentFormat.ONNX or d_format == DeploymentFormat.TRTONNX:
                 if input_example is None:
                     raise ValueError(f'Example input is None, but ONNX tracing was' f' attempted')
+                if output_example is None:
+                    if isinstance(input_example, tuple):
+                        output_example = module.forward(*input_example)
+                    else:
+                        output_example = module.forward(input_example)
+                with torch.jit.optimized_execution(True):
+                    jitted_model = torch.jit.trace(module, input_example)
 
                 torch.onnx.export(
-                    module,
+                    jitted_model,
                     input_example,
                     output,
                     input_names=input_names,

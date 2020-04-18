@@ -30,14 +30,23 @@ RUN apt-get update && \
     python-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# build trt open source plugins
+# install trt
 ENV PATH=$PATH:/usr/src/tensorrt/bin
 WORKDIR /tmp/trt-oss
-RUN git clone --recursive --branch release/7.0 https://github.com/NVIDIA/TensorRT.git && cd TensorRT && \
-     mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DTRT_LIB_DIR=/usr/lib/x86_64-linux-gnu/ -DTRT_BIN_DIR=`pwd` \
-    -DBUILD_PARSERS=OFF -DBUILD_SAMPLES=OFF -DBUILD_PLUGINS=ON -DGPU_ARCHS="70 75" && \
-    make -j nvinfer_plugin
+ARG NV_REPO=https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64
+
+RUN cd /tmp/trt-oss
+ARG DEB=libcudnn7_7.6.5.32-1+cuda10.2_amd64.deb
+RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
+ARG DEB=libnvinfer7_7.0.0-1+cuda10.2_amd64.deb
+RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
+ARG DEB=libnvinfer-plugin7_7.0.0-1+cuda10.2_amd64.deb
+RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
+ARG DEB=libnvonnxparsers7_7.0.0-1+cuda10.2_amd64.deb
+RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
+ARG DEB=python-libnvinfer_7.0.0-1+cuda10.2_amd64.deb
+RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
+RUN dpkg -i *.deb && cd ../.. && rm -rf /tmp/trt-oss
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -52,9 +61,6 @@ COPY . .
 FROM nemo-deps as nemo
 ARG NEMO_VERSION
 ARG BASE_IMAGE
-
-# copy oss trt plugins
-COPY --from=nemo-deps /tmp/trt-oss/TensorRT/build/libnvinfer_plugin.so* /usr/lib/x86_64-linux-gnu/
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
