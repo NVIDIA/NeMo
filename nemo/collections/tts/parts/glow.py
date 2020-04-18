@@ -24,8 +24,9 @@
 #  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # *****************************************************************************
-import sys
 import pathlib
+import sys
+
 import torch
 
 # These four are absolutely required for torch.load (Re: lgtm.com alert)
