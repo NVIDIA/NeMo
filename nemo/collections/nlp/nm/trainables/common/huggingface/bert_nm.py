@@ -161,6 +161,10 @@ class BERT(TrainableNM):
         return pretrained_models
 
     def forward(self, *input, **kwargs):
+        input = (
+            *input,
+            *kwargs.values(),
+        )
         input_ids = input[0]
         token_type_ids = input[1]
         attention_mask = input[2]
