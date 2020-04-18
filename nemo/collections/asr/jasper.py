@@ -399,7 +399,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
         mid2,embs = self.mid2(mid1),self.mid2[:2](mid1)
         out = self.final(mid2)
         
-        return out,embs
+        return out,emb1
 
 
 class JasperDecoderForSpkrClass_Covr(TrainableNM):

@@ -1,6 +1,6 @@
 model: "Jasper"
 sample_rate: &sample_rate 16000
-dropout: &drop 0.2
+dropout: &drop 0.5
 repeat:  &rep  2
 time_length: 8
 n_filters: &n_filters 512
