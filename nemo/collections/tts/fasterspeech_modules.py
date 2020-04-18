@@ -163,41 +163,71 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
             yield from batches[b_i]
 
 
-def durs_aug(b, d, p=0.05):
-    """Changes blanks/durs balance sightly."""
+class BDAugs:
+    """Different blanks/durs augs."""
 
-    def split2(x):
-        xl = np.random.binomial(x, p)
-        return xl, x - xl
+    @staticmethod
+    def shake(b, d, p=0.1):
+        """Changes blanks/durs balance sightly."""
 
-    def split3(x):
-        xl, xm = split2(x)
-        xr, xm = split2(xm)
-        return xl, xm, xr
+        b, d, total = b.copy(), d.copy(), sum(b) + sum(d)
 
-    n, m = len(b), len(d)
+        def split2(x):
+            xl = np.random.binomial(x, p)
+            return xl, x - xl
 
-    new_b, new_d = np.zeros_like(b), d.copy()
-    for i in range(len(b)):
-        bl, bm, br = split3(b[i])
+        def split3(x):
+            xl, xm = split2(x)
+            xr, xm = split2(xm)
+            return xl, xm, xr
 
-        new_b[i] += bm
+        n, m = len(b), len(d)
+        nb = np.zeros_like(b)
+        for i in range(len(b)):
+            bl, bm, br = split3(b[i])
 
-        if i > 0:
-            new_d[i - 1] += bl
-        else:
-            new_b[i] += bl
+            nb[i] += bm
 
-        if i < m:
-            new_d[i] += br
-        else:
-            new_b[i] += br
+            if i > 0:
+                d[i - 1] += bl
+            else:
+                nb[i] += bl
 
-    assert len(new_b) == len(b)
-    assert len(new_d) == len(d)
-    assert sum(new_b) + sum(new_d) == sum(b) + sum(d)
+            if i < m:
+                d[i] += br
+            else:
+                nb[i] += br
 
-    return new_b, new_d
+        b = nb
+        assert sum(b) + sum(d) == total
+
+        return b, d
+
+    @staticmethod
+    def zero_out(b, d, p=0.1):
+        """Zeros out some of the durs."""
+
+        b, d, total = b.copy(), d.copy(), sum(b) + sum(d)
+
+        mask = np.random.binomial(1, size=d.size, p=p).astype(bool)
+        b[:-1][mask] += d[mask]
+        d[mask] -= d[mask]
+
+        assert sum(b) + sum(d) == total
+
+        return b, d
+
+    @staticmethod
+    def compose(augs):
+        """Composes augs."""
+
+        def pipe(b, d, p=0.1):
+            for aug in augs:
+                b, d = aug(b, d, p=p)
+
+            return b, d
+
+        return pipe
 
 
 class FasterSpeechDataLayer(DataLayerNM):
@@ -229,7 +259,6 @@ class FasterSpeechDataLayer(DataLayerNM):
         durs,
         labels,
         durs_type='full-pad',
-        durs_aug_p=0.0,
         speakers=None,
         speaker_table=None,
         speaker_embs=None,
@@ -271,7 +300,6 @@ class FasterSpeechDataLayer(DataLayerNM):
         audio_dataset = AudioDataset(**dataset_params)
         self._dataset = FasterSpeechDataset(audio_dataset, durs, durs_type, speakers, speaker_table, speaker_embs)
         self._durs_type = durs_type
-        self._durs_aug_p = durs_aug_p
         self._pad_id = pad_id
         self._blank_id = blank_id
         self._space_id = labels.index(' ')
@@ -331,12 +359,13 @@ class FasterSpeechDataLayer(DataLayerNM):
             # `dur`
             blank, dur = batch['blank'], batch['dur']
 
-            # Aug
-            new_blank, new_dur = [], []
-            for b, d in zip(blank, dur):
-                new_b, new_d = durs_aug(b.numpy(), d.numpy(), p=self._durs_aug_p)
-                new_blank.append(torch.tensor(new_b))
-                new_dur.append(torch.tensor(new_d))
+            # # Aug
+            # new_blank, new_dur = [], []
+            # for b, d in zip(blank, dur):
+            #     new_b, new_d = BDAugs.shake(b.numpy(), d.numpy(), p=0.4)
+            #     new_blank.append(torch.tensor(new_b))
+            #     new_dur.append(torch.tensor(new_d))
+            # blank, dur = new_blank, new_dur
 
             dur = _Ops.merge([_Ops.interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
         else:
@@ -369,11 +398,6 @@ class FasterSpeechDataLayer(DataLayerNM):
     @property
     def data_iterator(self) -> Optional[torch.utils.data.DataLoader]:
         return self._dataloader
-
-    @property
-    def n_speakers(self):
-        # noinspection PyProtectedMember
-        return len(self._dataset._speaker_table)
 
 
 class FasterSpeech(nemo_nm.TrainableNM):
@@ -434,6 +458,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
             text, text_mask = text_rep, text_rep_mask
 
         x = self.text_emb(text)  # BT => BTE
+        # x = torch.cat([x, torch.flip(x, dims=[1])], dim=-1)  # BTE => BT[2E]
         x_len = text_mask.sum(-1)
 
         if speaker_emb is not None:
@@ -443,6 +468,8 @@ class FasterSpeech(nemo_nm.TrainableNM):
 
             speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
             x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
+
+        # x = F.dropout(x, 0.5, training=self.training)
 
         o, o_len = self.jasper(x.transpose(-1, -2), x_len, force_pt=True)
         assert x.shape[1] == o.shape[-1]  # Time

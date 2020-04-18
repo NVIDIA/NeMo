@@ -63,7 +63,7 @@ nvidia-smi \
 /data/ljspeech/eval.json \
 --eval_durs \
 /data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy \
---sampler_type=default
+--d_char=512
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------

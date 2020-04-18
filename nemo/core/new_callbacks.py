@@ -116,7 +116,7 @@ def metric_by(name) -> Metric:
 
 
 class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
-    def __init__(self, tensors, metrics, freq, mu=1.0, prefix='train'):
+    def __init__(self, tensors, metrics, freq, mu=1.0, prefix='train', warmup=None):
         self._cache = collections.defaultdict(float)
 
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
@@ -139,7 +139,8 @@ class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
             for metric in metrics:
                 final_output = metric.final()
                 # No `mu` discounting for TB, it's already there.
-                metric.log(prefix, step, final_output)
+                if warmup is None or step >= warmup:
+                    metric.log(prefix, step, final_output)
                 metric.clear()
 
                 if isinstance(final_output, dict):
@@ -160,7 +161,7 @@ class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
 
 
 class EvalLogger(nemo_callbacks.EvaluatorCallback):
-    def __init__(self, tensors, metrics, freq, prefix='eval'):
+    def __init__(self, tensors, metrics, freq, prefix='eval', warmup=None):
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
         for metric in metrics:
             metric.clear()
@@ -184,7 +185,8 @@ class EvalLogger(nemo_callbacks.EvaluatorCallback):
             output = {}
             for metric in metrics:
                 final_output = metric.final()
-                metric.log(prefix, step, final_output)
+                if warmup is None or step >= warmup:
+                    metric.log(prefix, step, final_output)
                 metric.clear()
 
                 if isinstance(final_output, dict):

@@ -60,107 +60,107 @@ JasperEncoder:
     # (Number of Layers) x (Number of Filters) x (Kernel Size)
     jasper:
         # First Layers
-        -   filters: 256
-            repeat: 3  # First repeat is 1.
+        -   filters: 512
+            repeat: 3  # First repeat was512 1.
             kernel: [5]  # Was 33 in Original QuartzNet15x5 (here and further).
             stride: [1]  # Was 2 in Original QuartzNet15x5.
             dilation: [1]
             dropout: 0.0
-            residual: true  # Non-Residual
+            residual: false  # Non-Residual
             separable: true
 
-        # 3 x 256 x 5
-        -   filters: 256
-            repeat: 5
-            kernel: [5]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 256
-            repeat: 5
-            kernel: [5]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 256
-            repeat: 5
-            kernel: [5]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        # 3 x 512 x 5
+        # 3 x 512 x (7=>11)
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [7]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.1
             residual: true
             separable: true
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [9]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.1
             residual: true
             separable: true
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [11]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.1
             residual: true
             separable: true
 
-        # 3 x 512 x 5
+        # 3 x 512 x (15=>19)
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [15]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
-            residual: true
-            separable: true
-
-        -   filters: 512
-            repeat: 5
-            kernel: [5]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
+            dropout: 0.1
             residual: true
             separable: true
 
         -   filters: 512
             repeat: 5
-            kernel: [5]
+            kernel: [17]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.1
             residual: true
             separable: true
 
-        # 1 x 512 x 5
+        -   filters: 512
+            repeat: 5
+            kernel: [19]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
+            separable: true
+
+        # 3 x 512 x (21=>25)
+        -   filters: 512
+            repeat: 5
+            kernel: [21]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 5
+            kernel: [23]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
+            separable: true
+
+        -   filters: 512
+            repeat: 5
+            kernel: [25]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.1
+            residual: true
+            separable: true
+
+        # 1 x 512 x 29
         -   filters: 512
             repeat: 1
-            kernel: [5]
+            kernel: [29]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
-            residual: true  # Non-Residual
+            dropout: 0.1
+            residual: true
             separable: true
 
         # Last Layer
@@ -169,5 +169,5 @@ JasperEncoder:
             kernel: [1]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.1
             residual: false  # Non-Residual

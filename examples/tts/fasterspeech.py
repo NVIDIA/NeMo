@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import argparse
-import itertools
 import datetime
+import itertools
 import math
 import os
 from typing import Any, Mapping
@@ -48,12 +48,12 @@ def parse_args():
         eval_batch_size=64,
         train_freq=300,  # 1/100x
         eval_freq=3000,  # 1/10x (Sampling process may take time.)
-        optimizer='novograd',
+        optimizer='adam',
         weight_decay=1e-6,
         grad_norm_clip=1.0,
         warmup=3000,
         num_epochs=100,  # Couple of epochs for testing.
-        lr=1e-2,  # Goes good with Adam.
+        lr=1e-3,  # Goes good with Adam.
         min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
         checkpoint_save_freq=10000,  # 1/3x
@@ -80,8 +80,8 @@ def parse_args():
     parser.add_argument('--d_speaker_o', type=int, default=128, help="Size of post speaker embedding projection")
 
     # Model
-    parser.add_argument('--d_char', type=int, default=128, help="Size of input char embedding")
-    parser.add_argument('--sampler_type', type=str, choices=['default', 'super-smart'], default='super-smart', help="")
+    parser.add_argument('--d_char', type=int, default=512, help="Size of input char embedding")
+    parser.add_argument('--sampler_type', type=str, choices=['default', 'super-smart'], default='default', help="")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
@@ -247,10 +247,11 @@ class FasterSpeechGraph:
         )
         if args.local_rank is None or args.local_rank == 0:
             wandb.watch(self.model, log='all')
+            wandb.config.total_weights = self.model.num_weights
 
         self.loss = nemo_tts.FasterSpeechMelLoss(reduction=args.loss_reduction)
 
-    def build(self, args, engine):
+    def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []
 
         # Train
@@ -315,9 +316,10 @@ class FasterSpeechGraph:
                 )
             )
 
-        callbacks.append(
-            nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq)
-        )
+        # No checkpointing at the moment, as NGC works unstable.
+        # callbacks.append(
+        #     nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq)
+        # )
 
         return train_loss, callbacks
 
@@ -331,8 +333,6 @@ def main():
         optimization_level=args.amp_opt_level,
         cudnn_benchmark=args.cudnn_benchmark,
         log_dir=args.work_dir,
-        # tensorboard_dir=args.tensorboard_dir,
-        # create_tb_writer=True,
         files_to_copy=[args.model_config, __file__],
     )
     logging.info('Engine: %s', vars(engine._exp_manager))  # noqa
@@ -349,15 +349,18 @@ def main():
             project=args.wdb_project,
             tags=args.wdb_tags,
         )
+        wandb.save(args.model_config)
 
     graph = FasterSpeechGraph(args, engine, config)
     loss, callbacks = graph.build(args, engine)
-
     total_steps = (
         args.max_steps
         if args.max_steps is not None
         else args.num_epochs * math.ceil(len(graph.train_dl) / (args.batch_size * engine.world_size))
     )
+    if args.local_rank is None or args.local_rank == 0:
+        wandb.config.total_steps = total_steps
+
     engine.train(
         tensors_to_optimize=[loss],
         optimizer=args.optimizer,
