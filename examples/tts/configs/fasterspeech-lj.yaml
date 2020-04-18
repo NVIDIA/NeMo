@@ -53,6 +53,8 @@ LenSampler:
     max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happens.
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
+# Globals
+dropout: &dropout 0.3
 JasperEncoder:
     activation: "relu"
     conv_mask: true
@@ -61,7 +63,7 @@ JasperEncoder:
     jasper:
         # First Layers
         -   filters: 512
-            repeat: 3  # First repeat was512 1.
+            repeat: 3  # First repeat was 1.
             kernel: [5]  # Was 33 in Original QuartzNet15x5 (here and further).
             stride: [1]  # Was 2 in Original QuartzNet15x5.
             dilation: [1]
@@ -75,7 +77,7 @@ JasperEncoder:
             kernel: [7]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -84,7 +86,7 @@ JasperEncoder:
             kernel: [9]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -93,7 +95,7 @@ JasperEncoder:
             kernel: [11]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -103,7 +105,7 @@ JasperEncoder:
             kernel: [15]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -112,7 +114,7 @@ JasperEncoder:
             kernel: [17]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -121,7 +123,7 @@ JasperEncoder:
             kernel: [19]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -131,7 +133,7 @@ JasperEncoder:
             kernel: [21]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -140,7 +142,7 @@ JasperEncoder:
             kernel: [23]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -149,7 +151,7 @@ JasperEncoder:
             kernel: [25]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -159,7 +161,7 @@ JasperEncoder:
             kernel: [29]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: true
             separable: true
 
@@ -169,5 +171,5 @@ JasperEncoder:
             kernel: [1]
             stride: [1]
             dilation: [1]
-            dropout: 0.1
+            dropout: *dropout
             residual: false  # Non-Residual

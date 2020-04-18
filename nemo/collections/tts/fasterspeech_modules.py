@@ -66,6 +66,12 @@ class _Ops:
         xy = F.pad(xy, pad=[0, 1], value=x[-1])
         return xy
 
+    @staticmethod
+    def pad16(x):
+        pad = [0, 0] * len(x.shape)
+        pad[-4] = ((16 - (x.shape[1] % 16)) % 16)
+        return F.pad(x, pad)
+
 
 class FasterSpeechDataset:
     def __init__(
@@ -469,7 +475,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
             speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
             x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
 
-        # x = F.dropout(x, 0.5, training=self.training)
+        x = _Ops.pad16(x)
 
         o, o_len = self.jasper(x.transpose(-1, -2), x_len, force_pt=True)
         assert x.shape[1] == o.shape[-1]  # Time
@@ -711,7 +717,7 @@ class FasterSpeechMelLoss(LossNM):
 
         loss = F.mse_loss(mel_pred, mel_true.transpose(-1, -2), reduction='none').mean(-1)
 
-        loss *= text_rep_mask.float()
+        loss *= _Ops.pad16(text_rep_mask).float()
         if self._reduction == 'all':
             loss = loss.sum() / text_rep_mask.sum()
         elif self._reduction == 'batch':

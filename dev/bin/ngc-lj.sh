@@ -53,6 +53,7 @@ nvidia-smi \
 --train_freq=20 \
 --eval_freq=200 \
 --warmup=300 \
+--num_epochs=100 \
 --work_dir=${RESULT} \
 --wdb_name=${name_id} \
 --wdb_tags=ljspeech,mel,opt \

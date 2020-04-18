@@ -44,8 +44,8 @@ def parse_args():
         # `x = 30000` for LibriTTS
         amp_opt_level='O0',
         model_config='configs/fasterspeech.yaml',
-        batch_size=64,
-        eval_batch_size=64,
+        batch_size=112,
+        eval_batch_size=112,
         train_freq=300,  # 1/100x
         eval_freq=3000,  # 1/10x (Sampling process may take time.)
         optimizer='adam',

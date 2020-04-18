@@ -94,8 +94,7 @@ class AudioPreprocessor(NonTrainableNM):
 
         processed_length = self.get_seq_len(length.float())
 
-        # TODO: Do we need this?
-        processed_signal = processed_signal[:, :, : processed_length.max().item()]
+        # processed_signal = processed_signal[:, :, : processed_length.max().item()]
 
         return processed_signal, processed_length
 
