@@ -17,6 +17,8 @@
 # limitations under the License.
 # =============================================================================
 
+import pdb
+
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
@@ -46,7 +48,8 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g2:
     x1, t1, p1 = g1()
     lss = loss(predictions=p1, target=t1)
 
-import pdb; pdb.set_trace()
+
+pdb.set_trace()
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(

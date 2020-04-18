@@ -46,7 +46,9 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
     # Add modules to graph.
     x, t = dl()
     # Incorporate modules from the existing graph.
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     p = g2(input=x)
     lss = loss(predictions=p, target=t)
 

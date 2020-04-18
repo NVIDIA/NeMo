@@ -29,16 +29,17 @@ from nemo.utils.module_port import ModulePort
 class BoundInput(object):
     """ A helper class represenging a single bound input. """
 
-    def __init__(self, type, modules=[]):
+    def __init__(self, type):
         """ 
         Initializes object.
 
         Args:
             type: a NeuralType object.
-            modules: a list of ModulePort tuples (module name, port name).
         """
+        # (Neural) Type of input.
         self._type = type
-        self._modules = modules
+        # List of ModulePort tuples to which this input links to (module name, port name).
+        self._consumers = []
 
     def bind(self, modules):
         """ Binds the modules to this "graph input".
@@ -47,7 +48,7 @@ class BoundInput(object):
                 modules: List of ModulePort tuples to be added.
         """
         for module in modules:
-            self._modules.append(module)
+            self._consumers.append(module)
 
     @property
     def type(self):
@@ -55,9 +56,9 @@ class BoundInput(object):
         return self._type
 
     @property
-    def modules(self):
+    def consumers_ports(self):
         """ Returns list of bound modules (i.e. (module name, port name) tupes) """
-        return self._modules
+        return self._consumers
 
 
 class BoundInputs(MutableMapping):
@@ -84,8 +85,8 @@ class BoundInputs(MutableMapping):
         #    raise TypeError("Port `{}` definition must be must be a NeuralType".format(key))
 
         # Ok, add definition to list of mapped (module, port)s.
-        # Note: for now, there are no mapped modules, thus [].
-        self._inputs[key] = BoundInput(type=value, modules=[])
+        # Note: for now, there are no mapped modules.
+        self._inputs[key] = BoundInput(type=value)
 
     def __getitem__(self, key):
         """ Returns bound input. """
@@ -107,3 +108,17 @@ class BoundInputs(MutableMapping):
         """ Property returns definitions of the input ports by extracting them on the fly from list. """
         # Extract port definitions (Neural Types) from the inputs list.
         return {k: v.type for k, v in self._inputs.items()}
+
+    def has_binding(self, module_name, port_name):
+        """ 
+            Checks if there is a binding leading to a given module and its given port. 
+
+            Returns:
+                key in the list of the (bound) input ports that leads to a given module/port or None if the binding was
+                not found.
+        """
+        for key, binding in self._inputs.items():
+            for (module, port) in binding.consumers_ports:
+                if module == module_name and port == port_name:
+                    return key
+        return None

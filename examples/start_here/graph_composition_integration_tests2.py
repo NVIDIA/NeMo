@@ -23,9 +23,9 @@ from nemo.utils import logging
 
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantiate the necessary neural modules.
-dl = RealFunctionDataLayer(n=100, batch_size=32)
-m2 = TaylorNet(dim=4)
-loss = MSELoss()
+dl = RealFunctionDataLayer(n=100, batch_size=32, name="dl")
+m2 = TaylorNet(dim=4, name="m2")
+loss = MSELoss(name="loss")
 
 logging.info(
     "This example shows how one can nest one graph into another - with binding of output ports."

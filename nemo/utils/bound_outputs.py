@@ -20,12 +20,35 @@ from collections.abc import MutableMapping
 
 from nemo.utils import logging
 
+class BoundOutput(object):
+    """ A helper class represenging a single bound output. """
+
+    def __init__(self, type, producer_port):
+        """ 
+        Initializes object.
+
+        Args:
+            type: a NeuralType object.
+            producer_port: a producer ModulePort tuple (module name, port name).
+        """
+        self._type = type
+        self._producer_port = producer_port
+
+    @property
+    def type(self):
+        """ Returns NeuralType of that output. """
+        return self._type
+
+    @property
+    def producer_port(self):
+        """ Returns producer port (module name, port name) tuple. """
+        return self._producer_port
+
 
 class BoundOutputs(MutableMapping):
     '''
         A specialized dictionary that contains bound outputs of a Neural Graph.
-        In fact stores three lists of bound tensors:
-            - "all" output tensors of all modules within a graph,
+        In fact stores two lists of bound tensors:
             - "default" output tensors with default keys taken from outputs of modules (might result in
             overwriting some keys), and
             - "manual" used for specifying the subset of output tensors, each with a new/different key
@@ -33,88 +56,102 @@ class BoundOutputs(MutableMapping):
         will return/work on "default" tensors.
     '''
 
-    def __init__(self):
-        """ Initializes three (empty) dictionaries. """
-        # This dictionary stores list of output tensors of all modules, one key per
-        # This will generate a "all output tensors" dictionary, where the key is name of "producer" module,
-        # and the value contains all produced tensors.
-        self._all_tensors = {}
+    def __init__(self, tensors_list):
+        """ Initializes two (empty) dictionaries. """
+
+        # List
+        self._tensors_list = tensors_list
 
         # This dictionary stores the output tensors collected during the "default" tensor recording.
         # As they are using the default port names, the second/next tensor published on the same port
         # will overwrite the old one (Warning).
-        self._default_tensors = {}
+        self._default_outputs = {}
 
         # This dictionary stores list of output tensors of module "manually" indicated by the user.
         # In this case tring to overwriting the existing ports with new tensors will be forbidden (Exception).
-        self._manual_tensors = {}
+        self._manual_outputs = {}
 
     def __setitem__(self, key, value):
-        """ This method is used to set the manual dictionary. """
-        if key in self._manual_tensors.keys():
+        """
+            This method is used to set the manual output - creates a BoundOutput item and adds it to the list.
+            
+            Args:
+                key: name of the output (port).
+                value: tensor that will be used to create BoundOutput.
+        """
+        # Make sure that user passed a NmTensor.
+        assert type(value).__name__ == "NmTensor"
+        if key in self._manual_outputs.keys():
             raise KeyError("Overwriting of a port `{}` that was previously manually bound is not allowed".format(key))
         # Ok, set output.
-        self._manual_tensors[key] = value
+        self._manual_outputs[key] = BoundOutput(value.type, value.producer_port)
 
     def __getitem__(self, key):
-        """ Returns output - depending whether there are some manual outputs or not. """
-        if len(self._manual_tensors) > 0:
-            return self._manual_tensors[key]
+        """ Returns BoundOutput - depending whether there are some manual outputs or not. """
+        if len(self._manual_outputs) > 0:
+            return self._manual_outputs[key]
         else:  # Use default dict.
-            return self._default_tensors[key]
+            return self._default_outputs[key]
 
     def __delitem__(self, key):
-        raise NotImplementedError("Deleting a bound output port is not allowed")
+        raise NotImplementedError("Deleting a bound output is not allowed")
 
     def __iter__(self):
         """ Iterates over the outputs - depending whether there are some manual outputs or not. """
-        if len(self._manual_tensors) > 0:
-            return iter(self._manual_tensors)
+        if len(self._manual_outputs) > 0:
+            return iter(self._manual_outputs)
         else:  # Use default dict.
-            return iter(self._default_tensors)
+            return iter(self._default_outputs)
 
     def __len__(self):
         """ Return number of outputs - depending whether there are some manual outputs or not. """
-        if len(self._manual_tensors) > 0:
-            return len(self._manual_tensors)
+        if len(self._manual_outputs) > 0:
+            return len(self._manual_outputs)
         else:  # Use default dict.
-            return len(self._default_tensors)
+            return len(self._default_outputs)
 
     def bind(self, tensors_list):
-        """ Binds the output tensors.
+        """ Binds the default outputs.
 
             Args:
                 tensors_list: List of tensors to be added.
         """
         for tensor in tensors_list:
-            # Check the presence of the port name in "default" dictionary.
-            name = tensor.name  # Use the default port name.
-            if name in self._default_tensors.keys():
+            # Use the name being combination of producer and port names.
+            name = tensor.producer_name + "_" + tensor.name
+            # Check the presence of the port name in "default" dictionary - this is rather impossible, but...
+            if name in self._default_outputs.keys():
                 logging.warning(
                     "Overwriting the already bound output port `{}` produced by `{}`".format(
-                        name, self._default_tensors[name].producer_name
+                        name, self._default_outputs[name].producer_name
                     )
                 )
-            # Still, overwrite it.
-            self._default_tensors[name] = tensor
-
-            # Add tensor to "all" tensors dictionary.
-            producer_name = tensor.producer_name
-            if producer_name not in self._all_tensors.keys():
-                self._all_tensors[producer_name] = []
-            # Add tensor.
-            self._all_tensors[producer_name].append(tensor)
-
-    @property
-    def all(self):
-        """ Returns dictionary of all output tensors. """
-        return self._all_tensors
+            # Still, "overwrite" it.
+            self._default_outputs[name] = BoundOutput(tensor.type, tensor.producer_port)
 
     @property
     def definitions(self):
-        """ Property returns definitions of the output ports by extracting them on the fly from the bound tensors. """
-        # Get the right tensor dictionary.
-        d = self._manual_tensors if len(self._manual_tensors) > 0 else self._default_tensors
+        """ Property returns definitions of the output ports by extracting them on the fly from the bound outputs. """
+        # Get the right output dictionary.
+        d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
-        # Extract port definitions (Neural Types) straight from tensors.
+        # Extract port definitions (Neural Types).
         return {k: v.type for k, v in d.items()}
+
+    @property
+    def tensors(self):
+        """ Property returns output tensors by extracting them on the fly from the bound outputs. """
+        # Get the right output dictionary.
+        d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
+
+        output_tensors = {}
+        # Get tensors by acessing the producer-ports.
+        for k, v in d.items():
+            producer_name = v.producer_port.module_name
+            producer_port_name = v.producer_port.port_name
+            # Find the right output tensor.
+            tensor = self._tensors_list[producer_name][producer_port_name]
+            # Add it to the dictionary.
+            output_tensors[k] = tensor
+
+        return output_tensors

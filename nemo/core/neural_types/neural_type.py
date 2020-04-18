@@ -29,7 +29,7 @@ from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 from nemo.core.neural_types.elements import *
 from nemo.utils.app_state import AppState
-from nemo.utils.module_port import ModulePort
+from nemo.utils.module_port import Connection, ModulePort
 
 
 class NeuralType(object):
@@ -202,7 +202,7 @@ class NmTensor(NeuralType):
     It also has a type of NeuralType represented by inheriting from NeuralType
     object."""
 
-    def __init__(self, producer, producer_args, name, ntype=None):
+    def __init__(self, producer, producer_args, output_port_name, ntype=None):
         """NmTensor constructor.
 
         Args:
@@ -214,10 +214,10 @@ class NmTensor(NeuralType):
         # producer is None: a special case present in some of the unit tests.
         if producer is None:
             self._producer_name = "None"
-        else:    
+        else:
             self._producer_name = producer.name
         self._producer_args = producer_args
-        self._output_port_name = name
+        self._output_port_name = output_port_name
         self._uuid = str(uuid.uuid4())
         # List of tuples (consumer name, input port name)
         self._consumers_ports = []
@@ -273,20 +273,14 @@ class NmTensor(NeuralType):
         """
         return NeuralType(axes=self.axes, elements_type=self.elements_type, optional=self.optional)
 
-
-    def copy(self):
+    def connections(self):
         """
-        Returns:
-            A copy of the current the current 
+            "Serializes" the tensor to a list of connections (producer/port, consumer/port).
         """
-        return 1
-
-    # def serialize(self):
-    #    """
-    #        Serializes tensor to a dictionary (yaml structure).
-    #    """
-    #    # serialize type.
-    #    return 1
+        connections = []
+        for cp in self._consumers_ports:
+            connections.append(Connection(self.producer_port, cp))
+        return connections
 
     # @classmethod
     # def deserialize(cls):

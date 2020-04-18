@@ -25,3 +25,8 @@ from collections import namedtuple
 # Tuple used for storing "module name" and its "port name".
 # (used in NmTensor's producer/consumer, port binding etc.).
 ModulePort = namedtuple('ModulePort', ["module_name", "port_name"])
+
+
+# Tuple used for connection between a single producer and a single consummer consumer.
+# (used in NmTensor's producer/consumer, port binding etc.).
+Connection = namedtuple('Connection', ["producer", "consumer"])

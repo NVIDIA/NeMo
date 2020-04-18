@@ -154,4 +154,3 @@ class TestNeuralGraphNesting:
         assert g1.steps[0] == g2.steps[0]
         assert len(g1) == len(g2)
         assert g1["t1_dl"] is g2["t1_dl"]
-        

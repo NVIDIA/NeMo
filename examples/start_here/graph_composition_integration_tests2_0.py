@@ -24,32 +24,29 @@ from nemo.utils import logging
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantiate the necessary neural modules.
 dl = RealFunctionDataLayer(n=100, batch_size=32, name="dl")
-fx = TaylorNet(dim=4, name="fx")
+m1 = TaylorNet(dim=4, name="m1")
 loss = MSELoss(name="loss")
 
 logging.info(
-    "This example shows how one can nest one graph into another - with binding of the input ports."
-    F" Please note that the nested graph can be used exatly like any other module"
-    F" In particular, note that the input port 'x' of the module `m2` is bound in graph 'g2'"
-    F" and then set to `x` returned by `dl` in the graph `g3`."
+    "This example shows how one can nest one graph into another - with manual binding of selected output ports."
+    F" Please note that the nested graph can be used exatly like any other module."
 )
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
-    # Add module to graph and bind it input port 'x'.
-    y = fx(x=g2)
+with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
+    xg1, tg1 = dl()
 
-# Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
-    # Add modules to graph.
-    x, t = dl()
-    # Incorporate modules from existing graph.
-    pred = g2(x=x)
-    lss = loss(predictions=pred, target=t)
+with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
+    xg2, tg2 = g1()
+    pg2 = m1(x=xg2)
+    lssg2 = loss(predictions=pg2, target=tg2)
+
+
+#import pdb;pdb.set_trace()
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+    tensors=[lssg2], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
 )
 
 # Invoke "train" action.
-nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
+nf.train([lssg2], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
