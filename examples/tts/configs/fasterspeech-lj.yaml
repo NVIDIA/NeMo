@@ -23,7 +23,7 @@ FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
     normalize_transcripts: true
     trim_silence: false
-    drop_last: false
+    drop_last: false  # Mind the BN.
     shuffle: false
 
 AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
@@ -55,6 +55,7 @@ LenSampler:
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
 # Globals
 dropout: &dropout 0.3
+separable: &separable true
 JasperEncoder:
     activation: "relu"
     conv_mask: true
@@ -69,7 +70,7 @@ JasperEncoder:
             dilation: [1]
             dropout: 0.0
             residual: false  # Non-Residual
-            separable: true
+            separable: *separable
 
         # 3 x 512 x (7=>11)
         -   filters: 512
@@ -79,7 +80,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         -   filters: 512
             repeat: 5
@@ -88,7 +89,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         -   filters: 512
             repeat: 5
@@ -97,7 +98,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         # 3 x 512 x (15=>19)
         -   filters: 512
@@ -107,7 +108,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         -   filters: 512
             repeat: 5
@@ -116,7 +117,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         -   filters: 512
             repeat: 5
@@ -125,7 +126,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         # 3 x 512 x (21=>25)
         -   filters: 512
@@ -135,7 +136,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         -   filters: 512
             repeat: 5
@@ -144,7 +145,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         -   filters: 512
             repeat: 5
@@ -153,7 +154,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         # 1 x 512 x 29
         -   filters: 512
@@ -163,7 +164,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: true
-            separable: true
+            separable: *separable
 
         # Last Layer
         -   filters: 1024

@@ -44,8 +44,8 @@ def parse_args():
         # `x = 30000` for LibriTTS
         amp_opt_level='O0',
         model_config='configs/fasterspeech.yaml',
-        batch_size=112,
-        eval_batch_size=112,
+        batch_size=64,
+        eval_batch_size=64,
         train_freq=300,  # 1/100x
         eval_freq=3000,  # 1/10x (Sampling process may take time.)
         optimizer='adam',
@@ -82,6 +82,7 @@ def parse_args():
     # Model
     parser.add_argument('--d_char', type=int, default=512, help="Size of input char embedding")
     parser.add_argument('--sampler_type', type=str, choices=['default', 'super-smart'], default='default', help="")
+    parser.add_argument('--eval_sampler_type', type=str, choices=['default', 'all'], default='all', help="")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     args = parser.parse_args()
@@ -228,6 +229,7 @@ class FasterSpeechGraph:
                 pad_id=pad_id,
                 blank_id=blank_id,
                 num_workers=max(int(os.cpu_count() / engine.world_size), 1),
+                sampler_type=args.eval_sampler_type,
                 **config.FasterSpeechDataLayer_eval,
             )
 
@@ -266,8 +268,6 @@ class FasterSpeechGraph:
             mel_true=sample.mel_true,
             mel_pred=output.pred,
             text_rep_mask=sample.text_rep_mask,
-            mel_len=sample.mel_len,
-            dur_true=data.dur,
         )
         callbacks.extend(
             [
@@ -305,8 +305,6 @@ class FasterSpeechGraph:
                 mel_true=mel_true,
                 mel_pred=output.pred,
                 text_rep_mask=data.text_rep_mask,
-                mel_len=mel_len,
-                dur_true=data.dur,
             )
             callbacks.append(
                 nemo.core.EvalLogger(
@@ -326,6 +324,7 @@ class FasterSpeechGraph:
                     ],
                     freq=args.eval_freq,
                     prefix=name,
+                    sampler_type=args.eval_sampler_type,
                 )
             )
 

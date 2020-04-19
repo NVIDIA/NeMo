@@ -161,7 +161,7 @@ class TrainLogger(nemo_callbacks.SimpleLossLoggerCallback):
 
 
 class EvalLogger(nemo_callbacks.EvaluatorCallback):
-    def __init__(self, tensors, metrics, freq, prefix='eval', warmup=None):
+    def __init__(self, tensors, metrics, freq, prefix='eval', warmup=None, sampler_type='default'):
         metrics = [metric_by(metric) if isinstance(metric, str) else metric for metric in metrics]
         for metric in metrics:
             metric.clear()
@@ -172,6 +172,9 @@ class EvalLogger(nemo_callbacks.EvaluatorCallback):
 
             del pt_tensors['IS_FROM_DIST_EVAL']
             kv_tensors = [argparse.Namespace(**dict(zip(tensors.keys(), ts))) for ts in zip(*pt_tensors.values())]
+
+            if sampler_type == 'all':
+                kv_tensors = kv_tensors[:1]  # All eval collected on each gpu.
 
             for metric in metrics:
                 for kv_tensors1 in kv_tensors:

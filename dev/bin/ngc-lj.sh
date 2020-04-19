@@ -17,7 +17,7 @@ fi
 
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=32     # Default is 32.
+GPU_MEM=16     # Default is 32.
 NUM_GPU=1      # Default is 8.
 OPT=O2         # Default is O0.
 WS=stan        # Workspace name.
@@ -50,10 +50,10 @@ nvidia-smi \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
 --amp_opt_level=${OPT} \
 --model_config=${config} \
---train_freq=20 \
---eval_freq=200 \
---warmup=300 \
---num_epochs=100 \
+--train_freq=$((NUM_GPU * 20)) \
+--eval_freq=$((NUM_GPU * 200)) \
+--warmup=$((NUM_GPU * 300)) \
+--num_epochs=$((NUM_GPU * 100)) \
 --work_dir=${RESULT} \
 --wdb_name=${name_id} \
 --wdb_tags=ljspeech,mel,opt \

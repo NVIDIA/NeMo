@@ -9,6 +9,7 @@ tests/data/asr
 .DS_Store
 bert.pt.json
 work
+runs
 fastspeech_output
 
 # Byte-compiled / optimized / DLL files

@@ -169,6 +169,11 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
             yield from batches[b_i]
 
 
+class AllSampler(torch.utils.data.distributed.DistributedSampler):
+    def __iter__(self):
+        return iter(list(range(self.total_size)))
+
+
 class BDAugs:
     """Different blanks/durs augs."""
 
@@ -314,7 +319,9 @@ class FasterSpeechDataLayer(DataLayerNM):
 
         sampler = None
         if self._placement == nemo.core.DeviceType.AllGpu:
-            if sampler_type == 'default':
+            if sampler_type == 'all':
+                sampler = AllSampler(self._dataset)
+            elif sampler_type == 'default':
                 sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
             elif sampler_type == 'super-smart':
                 sampler = SuperSmartSampler(
