@@ -1,6 +1,7 @@
 model: "FasterSpeech"
 sample_rate: &sample_rate 22050
 n_mels: &n_mels 80
+pad16: &pad16 false
 labels: [
   # Space
     ' ',
@@ -18,6 +19,7 @@ FasterSpeechDataLayer_train:
     trim_silence: false
     drop_last: true
     shuffle: true
+    sampler_type: 'default'  # SSS produces same 0.65 mask usage on average.
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -25,6 +27,7 @@ FasterSpeechDataLayer_eval:
     trim_silence: false
     drop_last: false  # Mind the BN.
     shuffle: false
+    sampler_type: 'all'  # Eval is single batch of 64.
 
 AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
     sample_rate: *sample_rate
@@ -52,8 +55,11 @@ AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
 LenSampler:
     max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happens.
 
+FasterSpeech:
+    d_char: 512
+    pad16: *pad16
+
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
-# Globals
 dropout: &dropout 0.0
 separable: &separable true
 JasperEncoder:
@@ -174,3 +180,7 @@ JasperEncoder:
             dilation: [1]
             dropout: *dropout
             residual: false  # Non-Residual
+
+FasterSpeechMelLoss:
+    reduction: 'all'
+    pad16: *pad16

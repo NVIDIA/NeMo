@@ -65,7 +65,7 @@ def parse_args():
     # Required: train_dataset
     # Optional: eval_names, eval_datasets
 
-    # Durations from ASR CTC Model
+    # Durations
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
     parser.add_argument('--eval_durs', type=str, nargs='*', default=[], help="Eval datasets durations")
     parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type")
@@ -78,12 +78,6 @@ def parse_args():
     parser.add_argument('--d_speaker_emb', type=int, help="Size of speaker embedding")
     parser.add_argument('--d_speaker_x', type=int, default=128, help="Size of pre speaker embedding projection")
     parser.add_argument('--d_speaker_o', type=int, default=128, help="Size of post speaker embedding projection")
-
-    # Model
-    parser.add_argument('--d_char', type=int, default=512, help="Size of input char embedding")
-    parser.add_argument('--sampler_type', type=str, choices=['default', 'super-smart'], default='default', help="")
-    parser.add_argument('--eval_sampler_type', type=str, choices=['default', 'all'], default='all', help="")
-    parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
     # Vocoder
     parser.add_argument('--waveglow_code', type=str, default='waveglow', help="Path to WaveGlow code")
@@ -234,7 +228,6 @@ class FasterSpeechGraph:
             pad_id=pad_id,
             blank_id=blank_id,
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-            sampler_type=args.sampler_type,  # 'super-smart' promises around 0.9 mask usage on average.
             **config.FasterSpeechDataLayer_train,  # Including sample rate.
         )
 
@@ -254,7 +247,6 @@ class FasterSpeechGraph:
                 pad_id=pad_id,
                 blank_id=blank_id,
                 num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-                sampler_type=args.eval_sampler_type,
                 **config.FasterSpeechDataLayer_eval,
             )
 
@@ -264,20 +256,20 @@ class FasterSpeechGraph:
 
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
-            d_char=args.d_char,
             pad_id=pad_id,
             jasper_kwargs=config.JasperEncoder,
             d_out=config.n_mels,
             d_speaker_emb=args.d_speaker_emb,
             d_speaker_x=args.d_speaker_x,
             d_speaker_o=args.d_speaker_o,
+            **config.FasterSpeech,
         )
         if args.local_rank is None or args.local_rank == 0:
             wandb.watch(self.model, log='all')
             wandb.config.total_weights = self.model.num_weights
             nemo.logging.info('Total weights: %s', self.model.num_weights)
 
-        self.loss = nemo_tts.FasterSpeechMelLoss(reduction=args.loss_reduction)
+        self.loss = nemo_tts.FasterSpeechMelLoss(**config.FasterSpeechMelLoss)
 
     def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []
@@ -350,7 +342,7 @@ class FasterSpeechGraph:
                     ],
                     freq=args.eval_freq,
                     prefix=name,
-                    sampler_type=args.eval_sampler_type,
+                    single_gpu=isinstance(eval_dl._dataloader.sampler, nemo_tts.LenSampler),  # noqa
                 )
             )
 

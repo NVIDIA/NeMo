@@ -453,6 +453,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
         d_speaker_emb: Optional[int] = None,
         d_speaker_x: Optional[int] = None,
         d_speaker_o: Optional[int] = None,
+        pad16: bool = False,
     ):
         super().__init__()
 
@@ -475,12 +476,14 @@ class FasterSpeech(nemo_nm.TrainableNM):
         d_o = d_enc_out + (int(d_speaker_o or 0) if d_speaker_emb else 0)
         self.out = nn.Conv1d(d_o, d_out, kernel_size=1, bias=True).to(self._device)
 
+        self._pad16 = pad16
+
     def forward(self, text=None, text_mask=None, text_rep=None, text_rep_mask=None, speaker_emb=None):
         if text_rep is not None:
             text, text_mask = text_rep, text_rep_mask
 
-        # pad16
-        text = _Ops.pad(text, value=self.text_emb.padding_idx)
+        if self._pad16:
+            text = _Ops.pad(text, value=self.text_emb.padding_idx)
 
         x = self.text_emb(text)  # BT => BTE
         # x = torch.cat([x, torch.flip(x, dims=[1])], dim=-1)  # BTE => BT[2E]
@@ -722,22 +725,27 @@ class FasterSpeechMelLoss(LossNM):
         """Returns definitions of module output ports."""
         return dict(loss=NeuralType(None))
 
-    def __init__(self, reduction='all'):
+    def __init__(self, reduction='all', pad16=False):
         super().__init__()
 
         self._reduction = reduction
+        self._pad16 = pad16
 
     def _loss_function(self, true, pred, mask, mel_len=None, dur_true=None):
         if mel_len is not None and dur_true is not None:
             if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, mask.sum(-1)):
                 raise ValueError("Wrong mel length calculation.")
 
-        loss = F.mse_loss(pred, _Ops.pad(true.transpose(-1, -2)), reduction='none').mean(-1)
+        true = true.transpose(-1, -2)
+        if self._pad16:
+            true = _Ops.pad(true)
 
-        # pad16
-        mask = _Ops.pad(mask)
+        loss = F.mse_loss(pred, true, reduction='none').mean(-1)
 
+        if self._pad16:
+            mask = _Ops.pad(mask)
         loss *= mask.float()
+
         if self._reduction == 'all':
             loss = loss.sum() / mask.sum()
         elif self._reduction == 'batch':
@@ -776,6 +784,8 @@ class WaveGlowInference:
             audio = self._model.infer(mel, sigma=self._sigma)
             if self._denoiser_strength > 0.0:
                 audio = self._denoiser(audio, self._denoiser_strength)
+
+            audio /= audio.max()
 
         audio = audio.squeeze().cpu().numpy()
 
