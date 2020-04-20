@@ -38,7 +38,7 @@ AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
     preemph: null
     features: *n_mels  # 80 works good for TTS.
     lowfreq: 0
-    highfreq: null
+    highfreq: 8000
     log: true
     log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
     log_zero_guard_value: 1e-05
@@ -54,7 +54,7 @@ LenSampler:
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
 # Globals
-dropout: &dropout 0.3
+dropout: &dropout 0.0
 separable: &separable true
 JasperEncoder:
     activation: "relu"

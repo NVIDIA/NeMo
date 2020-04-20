@@ -85,23 +85,38 @@ def parse_args():
     parser.add_argument('--eval_sampler_type', type=str, choices=['default', 'all'], default='all', help="")
     parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
 
+    # Vocoder
+    parser.add_argument('--waveglow_code', type=str, default='waveglow', help="Path to WaveGlow code")
+    parser.add_argument('--waveglow_checkpoint', type=str, required=True, help="Path to WaveGlow checkpoint")
+
     args = parser.parse_args()
 
     return args
 
 
 class AudioInspector(nemo.core.Metric):
-    def __init__(self, preprocessor, k=3, vocoder='griffin-lim', warmup=5000, log_step=5000, shuffle=False):
+    def __init__(
+        self,
+        preprocessor,
+        k=3,
+        warmup=5000,
+        log_step=5000,
+        shuffle=False,
+        waveglow_code=None,
+        waveglow_checkpoint=None,
+    ):
         super().__init__()
-
-        if vocoder != 'griffin-lim':
-            raise ValueError("Only griffin-lim supported at this point.")
 
         self._featurizer = preprocessor.featurizer
         self._k = k
         self._warmup = warmup
         self._log_step = log_step
         self._shuffle = shuffle
+
+        # WaveGlow
+        self._waveglow = None
+        if waveglow_code and waveglow_checkpoint:
+            self._waveglow = nemo_tts.WaveGlowInference(waveglow_code, waveglow_checkpoint)
 
         # Local
         self._samples = None
@@ -110,7 +125,7 @@ class AudioInspector(nemo.core.Metric):
         self._last_logged = -log_step  # Fake
         self._logged_true = False
 
-    def _mel_to_audio(self, mel):
+    def _griffinlim(self, mel):
         audio = librosa.feature.inverse.mel_to_audio(
             M=np.exp(mel),
             sr=self._featurizer.sample_rate,
@@ -121,6 +136,10 @@ class AudioInspector(nemo.core.Metric):
             power=self._featurizer.mag_power,
             n_iter=50,
         )
+        return np.clip(audio, -1, 1)
+
+    def _waveglow(self, mel):
+        audio = self._waveglow(mel)
         return np.clip(audio, -1, 1)
 
     def clear(self) -> None:
@@ -179,10 +198,14 @@ class AudioInspector(nemo.core.Metric):
         for i, (audio, mel_true, mel_pred) in enumerate(zip(*self._samples)):
             if self._shuffle or not self._logged_true:
                 log_audio(f'{prefix}/sample{i}_audio', audio)
-                log_audio(f'{prefix}/sample{i}_vocoded-true', self._mel_to_audio(mel_true))
+                log_audio(f'{prefix}/sample{i}_griffinlim-true', self._griffinlim(mel_true))
+                if self._waveglow:
+                    log_audio(f'{prefix}/sample{i}_waveglow-true', self._waveglow(mel_true))
                 log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
 
-            log_audio(f'{prefix}/sample{i}_vocoded-pred', self._mel_to_audio(mel_pred))
+            log_audio(f'{prefix}/sample{i}_griffinlim-pred', self._griffinlim(mel_pred))
+            if self._waveglow:
+                log_audio(f'{prefix}/sample{i}_waveglow-pred', self._waveglow(mel_pred))
             log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred)
         logging.info("End vocoding and logging process for %s on step %s.", prefix, step)
 
@@ -264,11 +287,7 @@ class FasterSpeechGraph:
             text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, mel_true=mel_true, mel_len=mel_len,
         )
         output = self.model(text_rep=sample.text_rep, text_rep_mask=sample.text_rep_mask, speaker_emb=data.speaker_emb)
-        train_loss = self.loss(
-            mel_true=sample.mel_true,
-            mel_pred=output.pred,
-            text_rep_mask=sample.text_rep_mask,
-        )
+        train_loss = self.loss(mel_true=sample.mel_true, mel_pred=output.pred, text_rep_mask=sample.text_rep_mask)
         callbacks.extend(
             [
                 nemo.core.TrainLogger(
@@ -285,10 +304,14 @@ class FasterSpeechGraph:
                         'loss',
                         'mask-usage',
                         AudioInspector(
-                            self.preprocessor, shuffle=True, warmup=10 * args.eval_freq, log_step=10 * args.eval_freq
+                            preprocessor=self.preprocessor,
+                            shuffle=True,
+                            warmup=30 * args.eval_freq,
+                            log_step=10 * args.eval_freq,
                         ),
                     ],
                     freq=args.train_freq,
+                    batch_p=args.batch_size / (len(self.train_dl) / engine.world_size),
                 ),
                 nemo.core.WandbCallback(update_freq=args.train_freq),
             ]
@@ -301,11 +324,7 @@ class FasterSpeechGraph:
             output = self.model(
                 text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, speaker_emb=data.speaker_emb,
             )
-            loss = self.loss(
-                mel_true=mel_true,
-                mel_pred=output.pred,
-                text_rep_mask=data.text_rep_mask,
-            )
+            loss = self.loss(mel_true=mel_true, mel_pred=output.pred, text_rep_mask=data.text_rep_mask)
             callbacks.append(
                 nemo.core.EvalLogger(
                     tensors=dict(
@@ -319,7 +338,11 @@ class FasterSpeechGraph:
                     metrics=[
                         'loss',
                         AudioInspector(
-                            preprocessor=self.preprocessor, warmup=10 * args.eval_freq, log_step=10 * args.eval_freq,
+                            preprocessor=self.preprocessor,
+                            warmup=30 * args.eval_freq,
+                            log_step=10 * args.eval_freq,
+                            waveglow_code=args.waveglow_code,
+                            waveglow_checkpoint=args.waveglow_checkpoint,
                         ),
                     ],
                     freq=args.eval_freq,

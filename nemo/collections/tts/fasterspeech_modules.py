@@ -14,6 +14,8 @@
 
 import argparse
 import math
+import os
+import sys
 import time
 from typing import Any, Dict, Optional
 
@@ -41,7 +43,14 @@ from nemo.core.neural_types import (
 )
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['FasterSpeechDataLayer', 'FasterSpeech', 'LenSampler', 'FasterSpeechDurLoss', 'FasterSpeechMelLoss']
+__all__ = [
+    'FasterSpeechDataLayer',
+    'FasterSpeech',
+    'LenSampler',
+    'FasterSpeechDurLoss',
+    'FasterSpeechMelLoss',
+    'WaveGlowInference',
+]
 
 
 class _Ops:
@@ -67,10 +76,10 @@ class _Ops:
         return xy
 
     @staticmethod
-    def pad16(x):
+    def pad16(x, value=0):
         pad = [0, 0] * len(x.shape)
-        pad[-4] = ((16 - (x.shape[1] % 16)) % 16)
-        return F.pad(x, pad)
+        pad[-3] = (16 - (x.shape[1] % 16)) % 16
+        return F.pad(x, pad, value=value)
 
 
 class FasterSpeechDataset:
@@ -470,6 +479,9 @@ class FasterSpeech(nemo_nm.TrainableNM):
         if text_rep is not None:
             text, text_mask = text_rep, text_rep_mask
 
+        # pad16
+        text = _Ops.pad16(text, value=self.text_emb.padding_idx)
+
         x = self.text_emb(text)  # BT => BTE
         # x = torch.cat([x, torch.flip(x, dims=[1])], dim=-1)  # BTE => BT[2E]
         x_len = text_mask.sum(-1)
@@ -481,8 +493,6 @@ class FasterSpeech(nemo_nm.TrainableNM):
 
             speaker_x = speaker_x.unsqueeze(1).repeat([1, x.shape[1], 1])  # BS => BTS
             x = torch.cat([x, speaker_x], dim=-1)  # stack([BTE, BTS]) = BT(E + S)
-
-        x = _Ops.pad16(x)
 
         o, o_len = self.jasper(x.transpose(-1, -2), x_len, force_pt=True)
         assert x.shape[1] == o.shape[-1]  # Time
@@ -724,7 +734,10 @@ class FasterSpeechMelLoss(LossNM):
 
         loss = F.mse_loss(mel_pred, mel_true.transpose(-1, -2), reduction='none').mean(-1)
 
-        loss *= _Ops.pad16(text_rep_mask).float()
+        # pad16
+        text_rep_mask = _Ops.pad16(text_rep_mask)
+
+        loss *= text_rep_mask.float()
         if self._reduction == 'all':
             loss = loss.sum() / text_rep_mask.sum()
         elif self._reduction == 'batch':
@@ -734,3 +747,36 @@ class FasterSpeechMelLoss(LossNM):
             raise ValueError("Wrong reduction.")
 
         return loss
+
+
+class WaveGlowInference:
+    def __init__(self, code, checkpoint, sigma=1.0, denoiser=0.1):
+        # One nasty little hack
+        sys.path.append(code)
+
+        nemo.logging.info("Loading WaveGlow from %s", checkpoint)
+        model = torch.load(checkpoint)['model']
+        model = model.remove_weightnorm(model).cuda()
+        model.eval()
+        self._model = model
+        self._sigma = sigma
+
+        self._denoiser = None
+        self._denoiser_strength = denoiser
+        if denoiser > 0.0:
+            from denoiser import Denoiser
+
+            self._denoiser = Denoiser(self._model).cuda()
+            self._denoiser.eval()
+
+    def __call__(self, mel):
+        mel = torch.tensor(mel, device='cuda').unsqueeze(0)
+
+        with torch.no_grad():
+            audio = self._model.infer(mel, sigma=self._sigma)
+            if self._denoiser_strength > 0.0:
+                audio = self._denoiser(audio, self._denoiser_strength)
+
+        audio = audio.squeeze().cpu().numpy()
+
+        return audio

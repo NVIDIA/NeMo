@@ -17,7 +17,7 @@ fi
 
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=16     # Default is 32.
+GPU_MEM=32     # Default is 32. Could be also 16 for <20M models with bs=64.
 NUM_GPU=1      # Default is 8.
 OPT=O2         # Default is O0.
 WS=stan        # Workspace name.
@@ -41,7 +41,7 @@ ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
 script=examples/tts/fasterspeech.py
 config=examples/tts/configs/fasterspeech-lj.yaml
-# One epoch is around 200 iterations.
+# One epoch is around 200 iterations. Total number of steps is 20400.
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
@@ -59,11 +59,10 @@ nvidia-smi \
 --wdb_tags=ljspeech,mel,opt \
 --train_dataset=/data/ljspeech/train.json \
 --train_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/train.npy \
---eval_names eval \
---eval_datasets \
-/data/ljspeech/eval.json \
---eval_durs \
-/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy
+--eval_names=eval \
+--eval_datasets=/data/ljspeech/eval.json \
+--eval_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy \
+--waveglow_checkpoint=/data/checkpoints/waveglow.pth
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -75,5 +74,6 @@ ngc batch run \
   --result "${RESULT}" \
   --datasetid 59558:/data/ljspeech \
   --datasetid 59319:/data/librimeta \
+  --datasetid 59662:/data/checkpoints \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"
