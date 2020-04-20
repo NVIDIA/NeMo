@@ -42,7 +42,7 @@ def parse_args():
     )
     parser.set_defaults(
         # `x = 30000` for LibriTTS
-        amp_opt_level='O0',
+        amp_opt_level='O0',  # O1/O2 works notably faster, O3 usually produces NaNs.
         model_config='configs/fasterspeech.yaml',
         batch_size=64,
         eval_batch_size=64,

@@ -58,10 +58,10 @@ nvidia-smi \
 --wdb_name=${name_id} \
 --wdb_tags=ljspeech,mel,opt \
 --train_dataset=/data/ljspeech/train.json \
---train_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/train.npy \
+--train_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen_all-1s/train.npy \
 --eval_names=eval \
 --eval_datasets=/data/ljspeech/eval.json \
---eval_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen/eval.npy \
+--eval_durs=/data/librimeta/durs/ljspeech_300epochs-qn15x5-eqlen_all-1s/eval.npy \
 --waveglow_checkpoint=/data/checkpoints/waveglow.pth
 EOF
 
