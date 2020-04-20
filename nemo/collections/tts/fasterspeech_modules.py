@@ -76,10 +76,10 @@ class _Ops:
         return xy
 
     @staticmethod
-    def pad16(x, value=0):
-        pad = [0, 0] * len(x.shape)
-        pad[-3] = (16 - (x.shape[1] % 16)) % 16
-        return F.pad(x, pad, value=value)
+    def pad(x, to=16, dim=1, value=0):
+        pads = [0, 0] * len(x.shape)
+        pads[-(2 * dim + 1)] = (to - (x.shape[dim] % to)) % to
+        return F.pad(x, pads, value=value)
 
 
 class FasterSpeechDataset:
@@ -480,7 +480,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
             text, text_mask = text_rep, text_rep_mask
 
         # pad16
-        text = _Ops.pad16(text, value=self.text_emb.padding_idx)
+        text = _Ops.pad(text, value=self.text_emb.padding_idx)
 
         x = self.text_emb(text)  # BT => BTE
         # x = torch.cat([x, torch.flip(x, dims=[1])], dim=-1)  # BTE => BT[2E]
@@ -735,7 +735,7 @@ class FasterSpeechMelLoss(LossNM):
         loss = F.mse_loss(pred, true.transpose(-1, -2), reduction='none').mean(-1)
 
         # pad16
-        mask = _Ops.pad16(mask)
+        mask = _Ops.pad(mask)
 
         loss *= mask.float()
         if self._reduction == 'all':
