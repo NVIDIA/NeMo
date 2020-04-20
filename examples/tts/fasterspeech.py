@@ -339,8 +339,9 @@ class FasterSpeechGraph:
                         'loss',
                         AudioInspector(
                             preprocessor=self.preprocessor,
+                            k=5,
                             warmup=30 * args.eval_freq,
-                            log_step=10 * args.eval_freq,
+                            log_step=20 * args.eval_freq,
                             waveglow_code=args.waveglow_code,
                             waveglow_checkpoint=args.waveglow_checkpoint,
                         ),

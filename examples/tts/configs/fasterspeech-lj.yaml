@@ -43,7 +43,7 @@ AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
     log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
     log_zero_guard_value: 1e-05
     dither: 0.0
-    pad_to: 16
+    pad_to: 1  # 16 would be better choice, but we pad manually in encoder/loss classes.
     frame_splicing: 1
     stft_conv: true
     pad_value: -11.52

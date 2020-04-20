@@ -732,7 +732,7 @@ class FasterSpeechMelLoss(LossNM):
             if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, mask.sum(-1)):
                 raise ValueError("Wrong mel length calculation.")
 
-        loss = F.mse_loss(pred, true.transpose(-1, -2), reduction='none').mean(-1)
+        loss = F.mse_loss(pred, _Ops.pad(true.transpose(-1, -2)), reduction='none').mean(-1)
 
         # pad16
         mask = _Ops.pad(mask)
