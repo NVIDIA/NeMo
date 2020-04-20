@@ -136,7 +136,7 @@ def parse_args():
         choices=["nemobert", "sentencepiece"],
         help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
-    parser.add_argument("--optimizer", default="fused_adam", type=str, help="Optimizer kind")
+    parser.add_argument("--optimizer", default="adam_w", type=str, help="Optimizer kind")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
     parser.add_argument("--lr", default=3e-5, type=float, help="The initial learning rate.")
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
