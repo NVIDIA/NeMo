@@ -70,12 +70,12 @@ JasperEncoder:
     jasper:
         # First Layers
         -   filters: 512
-            repeat: 3  # First repeat was 1.
-            kernel: [5]  # Was 33 in Original QuartzNet15x5 (here and further).
+            repeat: 3  # Was 1 in Original QuartzNet15x5.
+            kernel: [5]  # Was 33 in Original QuartzNet15x5.
             stride: [1]  # Was 2 in Original QuartzNet15x5.
             dilation: [1]
             dropout: 0.0
-            residual: false  # Non-Residual
+            residual: true  # Non-residual works a bit worse.
             separable: *separable
 
         # 3 x 512 x (7=>11)
@@ -179,7 +179,7 @@ JasperEncoder:
             stride: [1]
             dilation: [1]
             dropout: *dropout
-            residual: false  # Non-Residual
+            residual: true  # Non-residual works a bit worse.
 
 FasterSpeechMelLoss:
     reduction: 'all'

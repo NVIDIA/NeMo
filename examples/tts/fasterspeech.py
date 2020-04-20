@@ -98,6 +98,7 @@ class AudioInspector(nemo.core.Metric):
         shuffle=False,
         waveglow_code=None,
         waveglow_checkpoint=None,
+        waveglow_denoisers=(0.02, 0.1),
     ):
         super().__init__()
 
@@ -111,6 +112,7 @@ class AudioInspector(nemo.core.Metric):
         self._waveglow = None
         if waveglow_code and waveglow_checkpoint:
             self._waveglow = nemo_tts.WaveGlowInference(waveglow_code, waveglow_checkpoint)
+        self._waveglow_denoisers = waveglow_denoisers
 
         # Local
         self._samples = None
@@ -196,12 +198,14 @@ class AudioInspector(nemo.core.Metric):
                 log_audio(f'{prefix}/sample{i}_audio', audio)
                 log_audio(f'{prefix}/sample{i}_griffinlim-true', self._griffinlim(mel_true))
                 if self._waveglow:
-                    log_audio(f'{prefix}/sample{i}_waveglow-true', self._waveglow(mel_true, 0.1))
+                    for denoiser in self._waveglow_denoisers:
+                        log_audio(f'{prefix}/sample{i}_waveglow{denoiser}-true', self._waveglow(mel_true, denoiser))
                 log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
 
             log_audio(f'{prefix}/sample{i}_griffinlim-pred', self._griffinlim(mel_pred))
             if self._waveglow:
-                log_audio(f'{prefix}/sample{i}_waveglow-pred', self._waveglow(mel_pred, 0.1))
+                for denoiser in self._waveglow_denoisers:
+                    log_audio(f'{prefix}/sample{i}_waveglow{denoiser}-pred', self._waveglow(mel_pred, denoiser))
             log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred)
         logging.info("End vocoding and logging process for %s on step %s.", prefix, step)
 
@@ -300,8 +304,8 @@ class FasterSpeechGraph:
                         AudioInspector(
                             preprocessor=self.preprocessor,
                             shuffle=True,
-                            warmup=30 * args.eval_freq,
-                            log_step=10 * args.eval_freq,
+                            warmup=40 * args.eval_freq,
+                            log_step=20 * args.eval_freq,
                         ),
                     ],
                     freq=args.train_freq,
@@ -334,7 +338,7 @@ class FasterSpeechGraph:
                         AudioInspector(
                             preprocessor=self.preprocessor,
                             k=5,
-                            warmup=30 * args.eval_freq,
+                            warmup=40 * args.eval_freq,
                             log_step=20 * args.eval_freq,
                             waveglow_code=args.waveglow_code,
                             waveglow_checkpoint=args.waveglow_checkpoint,
