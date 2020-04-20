@@ -709,9 +709,9 @@ class FasterSpeechMelLoss(LossNM):
     def input_ports(self):
         """Returns definitions of module input ports."""
         return dict(
-            mel_true=NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            mel_pred=NeuralType(('B', 'T', 'D'), ChannelType()),
-            text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+            true=NeuralType(('B', 'D', 'T'), ChannelType()),  # 'BDT' - to fit mels directly.
+            pred=NeuralType(('B', 'T', 'D'), ChannelType()),
+            mask=NeuralType(('B', 'T'), MaskType()),
             mel_len=NeuralType(('B',), LengthsType(), optional=True),
             dur_true=NeuralType(('B', 'T'), LengthsType(), optional=True),
         )
@@ -727,21 +727,21 @@ class FasterSpeechMelLoss(LossNM):
 
         self._reduction = reduction
 
-    def _loss_function(self, mel_true, mel_pred, text_rep_mask, mel_len=None, dur_true=None):
+    def _loss_function(self, true, pred, mask, mel_len=None, dur_true=None):
         if mel_len is not None and dur_true is not None:
-            if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, text_rep_mask.sum(-1)):
+            if not torch.equal(mel_len, dur_true.sum(-1)) or not torch.equal(mel_len, mask.sum(-1)):
                 raise ValueError("Wrong mel length calculation.")
 
-        loss = F.mse_loss(mel_pred, mel_true.transpose(-1, -2), reduction='none').mean(-1)
+        loss = F.mse_loss(pred, true.transpose(-1, -2), reduction='none').mean(-1)
 
         # pad16
-        text_rep_mask = _Ops.pad16(text_rep_mask)
+        mask = _Ops.pad16(mask)
 
-        loss *= text_rep_mask.float()
+        loss *= mask.float()
         if self._reduction == 'all':
-            loss = loss.sum() / text_rep_mask.sum()
+            loss = loss.sum() / mask.sum()
         elif self._reduction == 'batch':
-            loss = loss.sum(-1) / text_rep_mask.sum(-1)
+            loss = loss.sum(-1) / mask.sum(-1)
             loss = loss.mean()
         else:
             raise ValueError("Wrong reduction.")

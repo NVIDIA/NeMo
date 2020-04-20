@@ -287,7 +287,7 @@ class FasterSpeechGraph:
             text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, mel_true=mel_true, mel_len=mel_len,
         )
         output = self.model(text_rep=sample.text_rep, text_rep_mask=sample.text_rep_mask, speaker_emb=data.speaker_emb)
-        train_loss = self.loss(mel_true=sample.mel_true, mel_pred=output.pred, text_rep_mask=sample.text_rep_mask)
+        train_loss = self.loss(true=sample.mel_true, pred=output.pred, mask=sample.text_rep_mask)
         callbacks.extend(
             [
                 nemo.core.TrainLogger(
@@ -324,7 +324,7 @@ class FasterSpeechGraph:
             output = self.model(
                 text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, speaker_emb=data.speaker_emb,
             )
-            loss = self.loss(mel_true=mel_true, mel_pred=output.pred, text_rep_mask=data.text_rep_mask)
+            loss = self.loss(true=mel_true, pred=output.pred, mask=data.text_rep_mask)
             callbacks.append(
                 nemo.core.EvalLogger(
                     tensors=dict(
