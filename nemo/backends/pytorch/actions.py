@@ -303,6 +303,7 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
                 )
             elif optimizer_class.lower() == "fused_adam":
+                logging.warning("FusedAdam works only with torch DDP or AMP optimization level > O0.")
                 optimizer = FusedAdam(
                     params=params_to_optimize,
                     lr=lr,
@@ -326,6 +327,7 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
+                logging.warning("FusedNovoGrad works only with torch DDP or AMP optimization level > O0.")
                 optimizer = FusedNovoGrad(
                     params_to_optimize,
                     lr=lr,
@@ -335,6 +337,7 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_lamb":
+                logging.warning("FusedLAMB works only with torch DDP or AMP optimization > O0.")
                 optimizer = FusedLAMB(params_to_optimize, lr=lr,)
             else:
                 raise ValueError("Unknown optimizer class: {0}".format(optimizer_class))
