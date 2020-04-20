@@ -46,7 +46,9 @@ class MegatronBERT(TrainableNM):
     from https://github.com/NVIDIA/Megatron-LM
 
     Args:
-        config_filename (str): path to model configuration file.
+        config_file (str): path to model configuration file.
+        vocab_file (str): path to vocabulary file.
+        tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
     @property
@@ -71,13 +73,16 @@ class MegatronBERT(TrainableNM):
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    def __init__(self, config_filename, init_method_std=0.02, num_tokentypes=2):
+    def __init__(self, config_file, vocab_file, tokenizer_type='BertWordPieceLowerCase', init_method_std=0.02, num_tokentypes=2):
 
         super().__init__()
 
-        if not os.path.exists(config_filename):
-            raise ValueError(f'Config file not found at {config_filename}')
-        with open(config_filename) as json_file:
+        if not os.path.exists(vocab_file):
+            raise ValueError(f'Vocab file not found at {vocab_file}')
+
+        if not os.path.exists(config_file):
+            raise ValueError(f'Config file not found at {config_file}')
+        with open(config_file) as json_file:
             config = json.load(json_file)
 
         megatron_args = {
@@ -85,7 +90,8 @@ class MegatronBERT(TrainableNM):
             "hidden_size": config['hidden-size'],
             "num_attention_heads": config['num-attention-heads'],
             "max_position_embeddings": config['max-seq-length'],
-            "tokenizer_type": 'BertWordPieceLowerCase',
+            "tokenizer_type": tokenizer_type,
+            "vocab_file": vocab_file
         }
 
         initialize_megatron(None, megatron_args)

@@ -137,6 +137,9 @@ def parse_args():
         help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
     parser.add_argument("--optimizer", default="adam_w", type=str, help="Optimizer kind")
+    parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+    )
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
     parser.add_argument("--lr", default=3e-5, type=float, help="The initial learning rate.")
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
@@ -335,17 +338,24 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    model = nemo_nlp.nm.trainables.get_huggingface_model(
-        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-    )
-
-    hidden_size = model.hidden_size
+    if args.pretrained_model_name == "megatron":
+        if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
+            raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
+        model = nemo_nlp.nm.trainables.MegatronBERT(config_file=args.bert_config, vocab_file=args.vocab_file)
+    else:
+        model = nemo_nlp.nm.trainables.get_huggingface_model(
+            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+        )
 
     tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
         tokenizer_name=args.tokenizer,
         pretrained_model_name=args.pretrained_model_name,
         tokenizer_model=args.tokenizer_model,
+        vocab_file=args.vocab_file,
+        do_lower_case=args.pretrained_model_name == 'megatron',
     )
+
+    hidden_size = model.hidden_size
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False

@@ -78,7 +78,7 @@ def get_tokenizer(
     tokenizer_model (path): only used for sentencepiece tokenizer
     special_tokens (dict): dict of special tokens (Optional)
     vocab_file (str): path to vocab file
-    do_lower_case (bool): (whether to apply lower cased)
+    do_lower_case (bool): (whether to apply lower cased) - only applicable when tokenizer is build with vocab file
     '''
     if pretrained_model_name == 'megatron':
         return nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(vocab_file=vocab_file, do_lower_case=True)
