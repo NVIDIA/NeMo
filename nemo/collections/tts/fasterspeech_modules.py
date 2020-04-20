@@ -758,7 +758,7 @@ class FasterSpeechMelLoss(LossNM):
 
 
 class WaveGlowInference:
-    def __init__(self, code, checkpoint, sigma=1.0, denoiser=0.1):
+    def __init__(self, code, checkpoint, sigma=1.0):
         # One nasty little hack
         sys.path.append(code)
 
@@ -769,21 +769,19 @@ class WaveGlowInference:
         self._model = model
         self._sigma = sigma
 
-        self._denoiser = None
-        self._denoiser_strength = denoiser
-        if denoiser > 0.0:
-            from denoiser import Denoiser
+        from denoiser import Denoiser
 
-            self._denoiser = Denoiser(self._model).cuda()
-            self._denoiser.eval()
+        denoiser = Denoiser(self._model).cuda()
+        denoiser.eval()
+        self._denoiser = denoiser
 
-    def __call__(self, mel):
+    def __call__(self, mel, denoiser=0.1):
         mel = torch.tensor(mel, device='cuda').unsqueeze(0)
 
         with torch.no_grad():
             audio = self._model.infer(mel, sigma=self._sigma)
-            if self._denoiser_strength > 0.0:
-                audio = self._denoiser(audio, self._denoiser_strength)
+            if denoiser > 0.0:
+                audio = self._denoiser(audio, denoiser)
 
             audio /= audio.max()
 

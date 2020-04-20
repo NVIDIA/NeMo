@@ -134,8 +134,8 @@ class AudioInspector(nemo.core.Metric):
         )
         return np.clip(audio, -1, 1)
 
-    def _waveglow(self, mel):
-        audio = self._waveglow(mel)
+    def _waveglow(self, mel, denoiser):
+        audio = self._waveglow(mel, denoiser)
         return np.clip(audio, -1, 1)
 
     def clear(self) -> None:
@@ -177,9 +177,9 @@ class AudioInspector(nemo.core.Metric):
             # Don't met conditions yet.
             return
 
-        def log_audio(key, signal):
+        def log_audio(key, audio):
             # tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._featurizer.sample_rate)
-            wandb.log({key: wandb.Audio(signal, sample_rate=self._featurizer.sample_rate)}, step=step)
+            wandb.log({key: wandb.Audio(audio, sample_rate=self._featurizer.sample_rate)}, step=step)
 
         def log_mel(key, mel):
             # tb_writer.add_image(
@@ -196,12 +196,12 @@ class AudioInspector(nemo.core.Metric):
                 log_audio(f'{prefix}/sample{i}_audio', audio)
                 log_audio(f'{prefix}/sample{i}_griffinlim-true', self._griffinlim(mel_true))
                 if self._waveglow:
-                    log_audio(f'{prefix}/sample{i}_waveglow-true', self._waveglow(mel_true))
+                    log_audio(f'{prefix}/sample{i}_waveglow-true', self._waveglow(mel_true, 0.1))
                 log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
 
             log_audio(f'{prefix}/sample{i}_griffinlim-pred', self._griffinlim(mel_pred))
             if self._waveglow:
-                log_audio(f'{prefix}/sample{i}_waveglow-pred', self._waveglow(mel_pred))
+                log_audio(f'{prefix}/sample{i}_waveglow-pred', self._waveglow(mel_pred, 0.1))
             log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred)
         logging.info("End vocoding and logging process for %s on step %s.", prefix, step)
 
