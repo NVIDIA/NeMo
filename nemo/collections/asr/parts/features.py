@@ -230,7 +230,7 @@ class FilterbankFeatures(nn.Module):
                 )
         self.log_zero_guard_type = log_zero_guard_type
 
-        self.sample_rate, self.window = sample_rate, window
+        self.sample_rate, self.window, self.fmin, self.fmax = sample_rate, window, lowfreq, highfreq
 
     def get_seq_len(self, seq_len):
         return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)

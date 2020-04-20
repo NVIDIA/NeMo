@@ -135,6 +135,8 @@ class AudioInspector(nemo.core.Metric):
             window=self._featurizer.window,
             power=self._featurizer.mag_power,
             n_iter=50,
+            fmin=self._featurizer.fmin,
+            fmax=self._featurizer.fmax,
         )
         return np.clip(audio, -1, 1)
 
