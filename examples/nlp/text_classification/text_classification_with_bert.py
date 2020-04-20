@@ -36,7 +36,23 @@ parser.add_argument(
     choices=nemo_nlp.nm.trainables.get_bert_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
@@ -78,13 +94,24 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+if args.pretrained_model_name == "megatron":
+    if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
+        raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
+    model = nemo_nlp.nm.trainables.MegatronBERT(config_file=args.bert_config, vocab_file=args.vocab_file)
+else:
+    model = nemo_nlp.nm.trainables.get_huggingface_model(
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+    )
+
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.pretrained_model_name == 'megatron',
 )
 
 hidden_size = model.hidden_size
-
-tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 data_desc = TextClassificationDataDesc(data_dir=args.data_dir, modes=[args.train_file_prefix, args.eval_file_prefix])
 

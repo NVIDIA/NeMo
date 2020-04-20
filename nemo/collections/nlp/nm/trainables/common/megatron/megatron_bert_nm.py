@@ -22,8 +22,6 @@ import os
 import sys
 
 import torch
-
-sys.path.append('/home/ebakhturina/megatron_public/Megatron-LM')
 from megatron import get_args
 from megatron.initialize import initialize_megatron
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
@@ -34,7 +32,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-
+sys.path.append('/home/ebakhturina/megatron_public/Megatron-LM')
 
 
 __all__ = ['MegatronBERT']
@@ -73,7 +71,9 @@ class MegatronBERT(TrainableNM):
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    def __init__(self, config_file, vocab_file, tokenizer_type='BertWordPieceLowerCase', init_method_std=0.02, num_tokentypes=2):
+    def __init__(
+        self, config_file, vocab_file, tokenizer_type='BertWordPieceLowerCase', init_method_std=0.02, num_tokentypes=2
+    ):
 
         super().__init__()
 
@@ -91,7 +91,7 @@ class MegatronBERT(TrainableNM):
             "num_attention_heads": config['num-attention-heads'],
             "max_position_embeddings": config['max-seq-length'],
             "tokenizer_type": tokenizer_type,
-            "vocab_file": vocab_file
+            "vocab_file": vocab_file,
         }
 
         initialize_megatron(None, megatron_args)
