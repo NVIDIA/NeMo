@@ -68,7 +68,7 @@ JasperEncoder:
 
     # (Number of Layers) x (Number of Filters) x (Kernel Size)
     jasper:
-        # First Layers
+        # Group 1: 1 x 512 x 3 (First Layer)
         -   filters: 512
             repeat: 3  # Was 1 in Original QuartzNet15x5.
             kernel: [3]  # 5 and 7 works a bit worse.
@@ -78,7 +78,16 @@ JasperEncoder:
             residual: true  # Non-residual works a bit worse.
             separable: *separable
 
-        # 3 x 512 x (7=>11)
+        # Group 2: 3 x 512 x (5,7,9)
+        -   filters: 512
+            repeat: 5
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
         -   filters: 512
             repeat: 5
             kernel: [7]
@@ -97,16 +106,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
-            repeat: 5
-            kernel: [11]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        # 3 x 512 x (15=>19)
+        # Group 3: 3 x 512 x (15=>19)
         -   filters: 512
             repeat: 5
             kernel: [15]
@@ -134,7 +134,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # 3 x 512 x (21=>25)
+        # Group 4: 3 x 512 x (21=>25)
         -   filters: 512
             repeat: 5
             kernel: [21]
@@ -162,7 +162,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # 1 x 512 x 29
+        # Group 5: 1 x 512 x 29 (Last Layer)
         -   filters: 512
             repeat: 1
             kernel: [29]
@@ -172,7 +172,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # Last Layer
+        # Last 1x1 Conv
         -   filters: 1024
             repeat: 1
             kernel: [1]

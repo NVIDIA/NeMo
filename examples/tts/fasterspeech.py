@@ -80,6 +80,8 @@ def parse_args():
     parser.add_argument('--d_speaker_o', type=int, default=128, help="Size of post speaker embedding projection")
 
     # Vocoder
+    parser.add_argument('--sample_warmup', type=int, default=3000, help="Audio sampling warmup")
+    parser.add_argument('--sample_freq', type=int, default=3000, help="Audio sampling freq")
     parser.add_argument('--waveglow_code', type=str, default='waveglow', help="Path to WaveGlow code")
     parser.add_argument('--waveglow_checkpoint', type=str, required=True, help="Path to WaveGlow checkpoint")
 
@@ -98,7 +100,7 @@ class AudioInspector(nemo.core.Metric):
         shuffle=False,
         waveglow_code=None,
         waveglow_checkpoint=None,
-        waveglow_denoisers=(0.02, 0.1),
+        waveglow_denoisers=(0.0, 0.02, 0.1),
     ):
         super().__init__()
 
@@ -304,8 +306,8 @@ class FasterSpeechGraph:
                         AudioInspector(
                             preprocessor=self.preprocessor,
                             shuffle=True,
-                            warmup=40 * args.eval_freq,
-                            log_step=20 * args.eval_freq,
+                            warmup=args.sample_warmup,
+                            log_step=args.sample_freq,
                         ),
                     ],
                     freq=args.train_freq,
@@ -338,8 +340,8 @@ class FasterSpeechGraph:
                         AudioInspector(
                             preprocessor=self.preprocessor,
                             k=5,
-                            warmup=40 * args.eval_freq,
-                            log_step=20 * args.eval_freq,
+                            warmup=args.sample_warmup,
+                            log_step=args.sample_freq,
                             waveglow_code=args.waveglow_code,
                             waveglow_checkpoint=args.waveglow_checkpoint,
                         ),
