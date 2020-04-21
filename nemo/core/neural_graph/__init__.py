@@ -16,8 +16,7 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core.neural_graph.neural_graph_manager import NeuralGraphManager
-from nemo.core.neural_graph.graph_inputs import GraphInputs, GraphInput
-from nemo.core.neural_graph.graph_outputs import GraphOutputs, GraphOutput
+from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
+from nemo.core.neural_graph.graph_outputs import GraphOutput, GraphOutputs
 from nemo.core.neural_graph.neural_graph import *
-
+from nemo.core.neural_graph.neural_graph_manager import NeuralGraphManager

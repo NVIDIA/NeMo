@@ -29,11 +29,11 @@ from typing import Dict, List, Optional, Set, Tuple
 from ruamel.yaml import YAML
 
 from nemo.core import NeuralGraph, NeuralModuleFactory, OperationMode
+from nemo.core.neural_graph.graph_inputs import GraphInput
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
-from nemo.core.neural_graph.graph_inputs import GraphInput
 from nemo.utils.decorators.deprecated import deprecated
 from nemo.utils.module_port import ModulePort
 

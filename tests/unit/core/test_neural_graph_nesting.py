@@ -134,10 +134,7 @@ class TestNeuralGraphNesting:
             g1.outputs["my_loss"] = lss
 
         assert len(g1.outputs) == 2
-        assert (
-            g1.output_tensors["my_prediction"].compare(tn.output_ports["y_pred"])
-            == NeuralTypeComparisonResult.SAME
-        )
+        assert g1.output_tensors["my_prediction"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
         assert g1.output_tensors["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit

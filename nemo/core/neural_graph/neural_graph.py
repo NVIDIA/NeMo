@@ -24,10 +24,10 @@ from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
 
 from nemo.core import OperationMode
-from nemo.core.neural_interface import NeuralInterface
-from nemo.core.neural_types import NeuralType, NeuralPortNameMismatchError, NmTensor
 from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
+from nemo.core.neural_interface import NeuralInterface
+from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 
 
 class NeuralGraph(NeuralInterface):
@@ -252,7 +252,6 @@ class NeuralGraph(NeuralInterface):
 
         # Add step - store the module name.
         self._steps[len(self._steps)] = module.name
-
 
     def nest(self, inner_graph, inner_graph_args):
         """
