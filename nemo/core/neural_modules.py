@@ -33,7 +33,7 @@ from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
-from nemo.utils.bound_inputs import BoundInput
+from nemo.core.neural_graph.graph_inputs import GraphInput
 from nemo.utils.decorators.deprecated import deprecated
 from nemo.utils.module_port import ModulePort
 
@@ -469,7 +469,7 @@ class NeuralModule(NeuralInterface):
 
             # Ok, at that point the input can be one of three types:
             # * NeuralGraph -> bind port using the default name and type.
-            # * BoundInput -> check definition, if ok bind port
+            # * GraphInput -> check definition, if ok bind port
             # * NmTensor -> check definition, add self as a "consumer" of a tensor (produced by other module).
 
             # Check what was actually passed.
@@ -481,15 +481,15 @@ class NeuralModule(NeuralInterface):
                 active_graph = port_content
 
                 # Copy the  port "definition" (i.e. is NeuralType) using the same port name.
-                active_graph.input_ports[port_name] = input_port_defs[port_name]
+                active_graph.inputs[port_name] = input_port_defs[port_name]
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
                 # to THIS module (when it finally will be connected).
-                active_graph.input_ports[port_name].bind([ModulePort(self.name, port_name)])
+                active_graph.inputs[port_name].bind([ModulePort(self.name, port_name)])
 
                 # Please note that there are no "consumers" here - this is a "pure" binding.
 
-            elif type(port_content) is BoundInput:
+            elif type(port_content) is GraphInput:
 
                 # Compare input port definition with the received definition.
                 input_port_defs[port_name].compare_and_raise_error(
@@ -511,7 +511,7 @@ class NeuralModule(NeuralInterface):
 
             else:
                 raise TypeError(
-                    "Input '{}' can be of one of three types: NeuralGraph, BoundInput or NmTensor".format(port_name)
+                    "Input '{}' can be of one of three types: NeuralGraph, GraphInput or NmTensor".format(port_name)
                 )
 
         ###### PRODUCE OUTPUTS. ######

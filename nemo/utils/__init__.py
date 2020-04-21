@@ -26,5 +26,3 @@ from .helpers import *
 from nemo.utils.app_state import AppState
 from nemo.utils.object_registry import ObjectRegistry
 from nemo.utils.module_port import ModulePort
-from nemo.utils.bound_inputs import BoundInputs, BoundInput
-from nemo.utils.bound_outputs import BoundOutputs

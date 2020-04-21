@@ -17,7 +17,7 @@
 # =============================================================================
 
 from nemo.core.neural_factory import OperationMode
-from nemo.core.neural_graph import NeuralGraph
+from nemo.core.neural_graph.neural_graph import NeuralGraph
 from nemo.utils.object_registry import ObjectRegistry
 
 

@@ -21,7 +21,7 @@ from collections.abc import MutableMapping
 from nemo.utils import logging
 
 
-class BoundOutput(object):
+class GraphOutput(object):
     """ A helper class represenging a single bound output. """
 
     def __init__(self, type, producer_port):
@@ -46,21 +46,21 @@ class BoundOutput(object):
         return self._producer_port
 
 
-class BoundOutputs(MutableMapping):
+class GraphOutputs(MutableMapping):
     '''
         A specialized dictionary that contains bound outputs of a Neural Graph.
-        In fact stores two lists of bound tensors:
-            - "default" output tensors with default keys taken from outputs of modules (might result in
+        In fact stores two lists of "outputs":
+            - "default" outputs with default keys taken from outputs of modules (might result in
             overwriting some keys), and
-            - "manual" used for specifying the subset of output tensors, each with a new/different key
-        When accessing the output tensors, it returns the "manual" tensors. If "manual" tensors are not defined,
-        will return/work on "default" tensors.
+            - "manual" used for specifying the subset of outputs, each with a new/different key
+        When accessing the outputs, it returns the "manual" outputs. If "manual" outputs are not defined,
+        will return/work on "default" outputs.
     '''
 
     def __init__(self, tensors_list):
         """ Initializes two (empty) dictionaries. """
 
-        # List
+        # List of tensors - passed from the external neural graph object.
         self._tensors_list = tensors_list
 
         # This dictionary stores the output tensors collected during the "default" tensor recording.
@@ -74,21 +74,21 @@ class BoundOutputs(MutableMapping):
 
     def __setitem__(self, key, value):
         """
-            This method is used to set the manual output - creates a BoundOutput item and adds it to the list.
+            This method is used to set the manual output - creates a GraphOutput item and adds it to the list.
             
             Args:
                 key: name of the output (port).
-                value: tensor that will be used to create BoundOutput.
+                value: tensor that will be used to create GraphOutput.
         """
         # Make sure that user passed a NmTensor.
         assert type(value).__name__ == "NmTensor"
         if key in self._manual_outputs.keys():
             raise KeyError("Overwriting of a port `{}` that was previously manually bound is not allowed".format(key))
         # Ok, set output.
-        self._manual_outputs[key] = BoundOutput(value.type, value.producer_port)
+        self._manual_outputs[key] = GraphOutput(value.type, value.producer_port)
 
     def __getitem__(self, key):
-        """ Returns BoundOutput - depending whether there are some manual outputs or not. """
+        """ Returns GraphOutput - depending whether there are some manual outputs or not. """
         if len(self._manual_outputs) > 0:
             return self._manual_outputs[key]
         else:  # Use default dict.
@@ -131,7 +131,7 @@ class BoundOutputs(MutableMapping):
                     )
                 )
             # Still, "overwrite" it.
-            self._default_outputs[name] = BoundOutput(tensor.type, tensor.producer_port)
+            self._default_outputs[name] = GraphOutput(tensor.type, tensor.producer_port)
 
     @property
     def definitions(self):

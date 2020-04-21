@@ -26,7 +26,7 @@ from nemo.utils.module_port import ModulePort
 # from nemo.core.neural_types import NeuralType
 
 
-class BoundInput(object):
+class GraphInput(object):
     """ A helper class represenging a single bound input. """
 
     def __init__(self, type):
@@ -61,7 +61,7 @@ class BoundInput(object):
         return self._consumers
 
 
-class BoundInputs(MutableMapping):
+class GraphInputs(MutableMapping):
     '''
         A specialized dictionary that contains bound inputs of a Neural Graph.
     '''
@@ -86,7 +86,7 @@ class BoundInputs(MutableMapping):
 
         # Ok, add definition to list of mapped (module, port)s.
         # Note: for now, there are no mapped modules.
-        self._inputs[key] = BoundInput(type=value)
+        self._inputs[key] = GraphInput(type=value)
 
     def __getitem__(self, key):
         """ Returns bound input. """

@@ -16,14 +16,18 @@
 # limitations under the License.
 # =============================================================================
 
+__all__ = [
+    'NeuralGraph',
+]
+
 from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
 
 from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
-from nemo.core.neural_types import NeuralPortNameMismatchError, NmTensor
-from nemo.utils.bound_inputs import BoundInput, BoundInputs
-from nemo.utils.bound_outputs import BoundOutputs
+from nemo.core.neural_types import NeuralType, NeuralPortNameMismatchError, NmTensor
+from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
+from nemo.core.neural_graph.graph_outputs import GraphOutputs
 
 
 class NeuralGraph(NeuralInterface):
@@ -61,10 +65,10 @@ class NeuralGraph(NeuralInterface):
         self._steps = OrderedDict()
 
         # Bound inputs.
-        self._bound_inputs = BoundInputs()
+        self._inputs = GraphInputs()
 
         # Bound outputs.
-        self._bound_outputs = BoundOutputs(self._all_tensors)
+        self._outputs = GraphOutputs(self._all_tensors)
 
         # Flag indicating whether the "default" output ports/tensors will be automatically bound.
         self.default_output_binding = True
@@ -106,35 +110,63 @@ class NeuralGraph(NeuralInterface):
         return results
 
     @property
-    def input_ports(self):
-        """Returns definitions of module input ports.
-
-        .. note::
-            This method is NOT returning the dictionary with definitions (like Neural Modules),
-            but the BoundInputs object.
-            This was required to enable user to bound inputs with the dict's __setitem__ construct.
+    def inputs(self):
+        """
+            Returns graph inputs.
 
         Returns:
-            A graph bound input ports.
+            A graph input.
         """
-        return self._bound_inputs
+        return self._inputs
 
     @property
-    def output_ports(self):
+    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
         """
-            Returns module output ports.
+            Returns definitions of graph input ports (dict of Neural Types).
 
         .. note::
-            This method is NOT returning the dictionary with definitions (like Neural Modules),
-            but the BoundOutputs object.
-            This was required to enable user to override the "default bound outputs"
-            with the dict's __setitem__ construct.
+            This method actually returns a dictionary with definitions (like Neural Modules).
+            In order to get access to actual graph inputs please call the inputs() method.
 
         Returns:
-            A graph bound output ports.
+            A graph input ports definitions.
+        """
+        return self._inputs.definitions
+
+    @property
+    def outputs(self):
+        """
+            Returns graph outputs.
+
+        Returns:
+            A graph outputs.
+        """
+        return self._outputs
+
+    @property
+    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
+        """
+            Returns definitions of module output ports (dict of Neural Types).
+
+        .. note::
+            This method actually returns a dictionary with definitions (like Neural Modules).
+            In order to get access to actual graph outpus please call the outputs() method.
+
+        Returns:
+            A graph output ports definitions.
             
         """
-        return self._bound_outputs
+        return self._outputs.definitions
+
+    @property
+    def output_tensors(self):
+        """
+            Returns graph output tensors.
+
+        Returns:
+            A graph output tensors.
+        """
+        return self._outputs.tensors
 
     @property
     def modules(self):
@@ -233,7 +265,7 @@ class NeuralGraph(NeuralInterface):
 
             # Analogically to NeuralModule, at that point the input can be one of three types:
             # * NeuralGraph -> bind port using the default name and type.
-            # * BoundInput -> check definition, if ok bind port.
+            # * GraphInput -> check definition, if ok bind port.
             # * NmTensor -> check definition, add self as a "consumer" of a tensor (produced by other module).
 
             # Check what was actually passed.
@@ -244,7 +276,7 @@ class NeuralGraph(NeuralInterface):
                     raise ConnectionError("Ports can be bound only by passing the active graph object!")
 
                 # This case: we are nesting one graph into another and must bind input port of one graph in another!
-                # So generally we will "copy" the BoundInput object, using the same name.
+                # So generally we will "copy" the GraphInput object, using the same name.
 
                 # Copy the port "definition" (i.e. is NeuralType) using the same port name.
                 # This might throw an exception if port with that name was already bound!
@@ -256,11 +288,11 @@ class NeuralGraph(NeuralInterface):
 
                 # Please note that there are no "consumers" here - this is a "pure" binding.
 
-            elif type(port_content) is BoundInput:
-                # Check if BoundInput belongs to the outer graph (i.e. self)!
+            elif type(port_content) is GraphInput:
+                # Check if GraphInput belongs to the outer graph (i.e. self)!
                 own_port = False
                 for port in self.input_ports.items():
-                    if port is BoundInput:
+                    if port is GraphInput:
                         own_port = True
                         break
                 if not own_port:
@@ -308,7 +340,7 @@ class NeuralGraph(NeuralInterface):
 
             else:
                 raise TypeError(
-                    "Input '{}' can be of one of three types: NeuralGraph, BoundInput or NmTensor".format(port_name)
+                    "Input '{}' can be of one of three types: NeuralGraph, GraphInput or NmTensor".format(port_name)
                 )
 
     def nest(self, inner_graph, inner_graph_args):
@@ -360,7 +392,7 @@ class NeuralGraph(NeuralInterface):
             # - checking if we have already tensors leading to that input (in outer graph).
             for input_port_name in module.input_ports.keys():
                 # Check if this port was bound in the inner graph.
-                key = inner_graph.input_ports.has_binding(module_name, input_port_name)
+                key = inner_graph.inputs.has_binding(module_name, input_port_name)
                 # If so, then we must pass whatever was passed to that port in the list of arguments.
                 if key is not None:
                     module_args[input_port_name] = inner_graph_args[key]
@@ -391,12 +423,12 @@ class NeuralGraph(NeuralInterface):
 
         # This part is different from Neural Module.
         # Now the goal is NOT to create NEW "tensors", but to return the BOUND ones!
-        # Still, those must be bound in the outer (active) graph.
+        # Still, those must be bound in the outer (active) graph, but using port names from the inner (nested) graph.
 
         # Get list of "the adequate output tensors".
         output_tensors = {}
         # Iterate through outputs of the inner graph.
-        for key, tensor in inner_graph._bound_outputs.tensors.items():
+        for key, tensor in inner_graph.output_tensors.items():
             # Find the tensors within this (outer) graph that are outpus by the same producer-port.
             producer_name = tensor.producer_name
             producer_port_name = tensor.name
@@ -409,7 +441,7 @@ class NeuralGraph(NeuralInterface):
 
             # Bind the "default" output ports of the inner graph as "default" output ports of this graph.
             # Call the bind() method of bound_outputs directly, as we already have the tensors in our graph.
-            self._bound_outputs.bind([results])
+            self.outputs.bind([results])
 
         else:
             # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
@@ -421,7 +453,7 @@ class NeuralGraph(NeuralInterface):
 
             # Bind the "default" output ports of the inner graph as "default" output ports of this graph.
             # Call the bind() method of bound_outputs directly, as we already have the tensors in our graph.
-            self._bound_outputs.bind(output_tensors.values())
+            self.outputs.bind(output_tensors.values())
 
         # Ok, now we can turn automatic binding on.
         self.default_output_binding = True
@@ -448,14 +480,14 @@ class NeuralGraph(NeuralInterface):
 
         # Bind the tensors as graph outputs.
         if self.default_output_binding:
-            self._bound_outputs.bind(tensors_list)
+            self.outputs.bind(tensors_list)
 
     @property
     def tensors(self):
         """ Returns the dictionary of all output tensors, aggregated by modules (key). """
         return self._all_tensors
 
-    def show_bound_inputs(self):
+    def show_inputs(self):
         print("bound input ports: ")
         # for key, value in self._bound_input_ports.items():
         #    print(" * `{}`: `{}` ({})".format(key, value, type(value)))
@@ -464,7 +496,7 @@ class NeuralGraph(NeuralInterface):
         # for key, value in self._bound_input_tensors.items():
         #    print(" * `{}`: `{}` ({})".format(key, value, type(value)))
 
-    def show_bound_outputs(self):
+    def show_outputs(self):
         print("bound (default) output ports: ")
         # for key, value in self._bound_output_ports_default.items():
         #    print(" * `{}`: `{}` ({})".format(key, value, type(value)))

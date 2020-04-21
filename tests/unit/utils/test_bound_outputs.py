@@ -21,11 +21,11 @@ import pytest
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import NeuralGraph
 from nemo.core.neural_types import NeuralTypeComparisonResult
-from nemo.utils.bound_outputs import BoundOutputs
+from nemo.core.neural_graph.graph_outputs import GraphOutputs
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestBoundOutputs:
+class TestGraphOutputs:
     @pytest.mark.unit
     def test_binding(self):
         # Create modules.
@@ -40,7 +40,7 @@ class TestBoundOutputs:
             lss = loss(predictions=y_pred, target=y)
 
         # Test default binding.
-        bound_outputs = BoundOutputs(g.tensors)
+        bound_outputs = GraphOutputs(g.tensors)
 
         bound_outputs.bind([x, y])
         bound_outputs.bind([y_pred])

@@ -36,9 +36,9 @@ logging.info(
 
 with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
     # Manually bind input port: "input" -> "x"
-    g2.input_ports["input"] = fx.input_ports["x"]
+    g2.inputs["input"] = fx.input_ports["x"]
     # Add module to graph and bind it input port 'x'.
-    y = fx(x=g2.input_ports["input"])
+    y = fx(x=g2.inputs["input"])
     # lss = loss(predictions=y, target=g2.input_ports["input"])
 
 # Build the training graph.
@@ -46,9 +46,6 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
     # Add modules to graph.
     x, t = dl()
     # Incorporate modules from the existing graph.
-    import pdb
-
-    pdb.set_trace()
     p = g2(input=x)
     lss = loss(predictions=p, target=t)
 
