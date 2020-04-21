@@ -452,10 +452,7 @@ class NeuralModule(NeuralInterface):
 
         # Set the operation mode of the outer graph.
         self.operation_mode = self._app_state.active_graph.operation_mode
-
-        # Get input and output ports definitions - potentially depending on the operation mode!
-        input_port_defs = self.input_ports
-        output_port_defs = self.output_ports
+        # The input and output ports definitions can potentially depend on the operation mode!
 
         # Record the operation (i.e. add a single module).
         self._app_state.active_graph.record_step(self)
@@ -464,12 +461,12 @@ class NeuralModule(NeuralInterface):
         # Iterate through all passed parameters.
         for port_name, port_content in kwargs.items():
             # Make sure that passed arguments corresponds to one of the input port names.
-            if port_name not in input_port_defs.keys():
+            if port_name not in self.input_ports.keys():
                 raise NeuralPortNameMismatchError(port_name)
 
-            # Ok, at that point the input can be one of three types:
+            # At that point the input can be one of three types:
             # * NeuralGraph -> bind port using the default name and type.
-            # * GraphInput -> check definition, if ok bind port
+            # * GraphInput -> check definition, if ok bind port.
             # * NmTensor -> check definition, add self as a "consumer" of a tensor (produced by other module).
 
             # Check what was actually passed.
@@ -480,41 +477,53 @@ class NeuralModule(NeuralInterface):
                 # Create an alias so the logic will be more clear.
                 active_graph = port_content
 
-                # Copy the  port "definition" (i.e. is NeuralType) using the same port name.
-                active_graph.inputs[port_name] = input_port_defs[port_name]
+                # This case: we are nesting one graph into another and must bind input port of one graph in another!
+                # So generally we must "copy" the of thus module to graog (the inverted logic!).
+
+                # Copy the port "definition" (i.e. is NeuralType) using the same port name.
+                active_graph.inputs[port_name] = self.input_ports[port_name]
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
-                # to THIS module (when it finally will be connected).
+                # to THIS module-port (when it finally will be connected).
                 active_graph.inputs[port_name].bind([ModulePort(self.name, port_name)])
 
-                # Please note that there are no "consumers" here - this is a "pure" binding.
+                # Please note that there are no "consumers" here - this is a "pure binding".
 
             elif type(port_content) is GraphInput:
 
+                # Check if GraphInput belongs to the active graph !
+                own_port = False
+                for port in self._app_state.active_graph.inputs.items():
+                    if port is GraphInput:
+                        own_port = True
+                        break
+                if not own_port:
+                    raise NeuralPortNameMismatchError(port_name)
+
                 # Compare input port definition with the received definition.
-                input_port_defs[port_name].compare_and_raise_error(
+                self.input_ports[port_name].compare_and_raise_error(
                     self.__class__.__name__, port_name, port_content.type
                 )
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
-                # to THIS module (when it finally will be connected).
+                # to THIS module-port (when it finally will be connected).
                 port_content.bind([ModulePort(self.name, port_name)])
 
-                # Please note that there are no "consumers" here - this is a "pure" binding.
+                # Please note that there are no "consumers" here - this is a "pure binding".
 
             elif type(port_content) is NmTensor:
                 # Compare input port definition with the received definition.
-                input_port_defs[port_name].compare_and_raise_error(self.__class__.__name__, port_name, port_content)
+                self.input_ports[port_name].compare_and_raise_error(self.__class__.__name__, port_name, port_content)
 
-                # Ok, can connect, add self (module) as "consumer" to the input tensor.
+                # Ok, the goal here is to actually "connect": add self (module) as "consumer" to the input tensor.
                 port_content.add_consumer(self.name, port_name)
-
             else:
                 raise TypeError(
-                    "Input '{}' can be of one of three types: NeuralGraph, GraphInput or NmTensor".format(port_name)
+                    "Input '{}' must be of one of three types: NeuralGraph, GraphInput or NmTensor".format(port_name)
                 )
 
         ###### PRODUCE OUTPUTS. ######
+        output_port_defs = self.output_ports
         # Create output tensors.
         if len(output_port_defs) == 1:
             # Get port name and type.

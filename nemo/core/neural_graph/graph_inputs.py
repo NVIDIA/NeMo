@@ -41,14 +41,14 @@ class GraphInput(object):
         # List of ModulePort tuples to which this input links to (module name, port name).
         self._consumers = []
 
-    def bind(self, modules):
-        """ Binds the modules to this "graph input".
+    def bind(self, module_ports):
+        """ Binds the (modules-ports) to this "graph input".
 
             Args:
-                modules: List of ModulePort tuples to be added.
+                module_ports: List of ModulePort tuples to be added.
         """
-        for module in modules:
-            self._consumers.append(module)
+        for module_port in module_ports:
+            self._consumers.append(module_port)
 
     @property
     def type(self):

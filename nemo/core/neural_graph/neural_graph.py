@@ -242,8 +242,8 @@ class NeuralGraph(NeuralInterface):
         """
             Records the operation (module plus passed inputs) on a list.
         """
-        # Check if module with that name already exists.
-        # TODO: Uncomment when we will refactor all examples so training/validation graphs won't be added
+        # Check if module with that name already exists - to avoid the potential loops (DAG).
+        # TODO: Uncomment after we will refactor all the examples, so training/validation graphs won't be added
         # to the "default" graph.
         # if module.name in self._modules.keys():
         #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
@@ -253,95 +253,6 @@ class NeuralGraph(NeuralInterface):
         # Add step - store the module name.
         self._steps[len(self._steps)] = module.name
 
-    def unused_input_processing(self):
-        """
-            Old implementation! To be deleted!!!! Wrrrrrr!!!
-        """
-        # Check inputs: iterate through all inputs passed to the inner graph.
-        for port_name, port_content in inner_graph_args.items():
-            # Make sure that passed arguments correspond to input port names.
-            if port_name not in inner_graph.input_ports.keys():
-                raise NeuralPortNameMismatchError(port_name)
-
-            # Analogically to NeuralModule, at that point the input can be one of three types:
-            # * NeuralGraph -> bind port using the default name and type.
-            # * GraphInput -> check definition, if ok bind port.
-            # * NmTensor -> check definition, add self as a "consumer" of a tensor (produced by other module).
-
-            # Check what was actually passed.
-            if type(port_content) is NeuralGraph:
-
-                # Make sure that port_content is the currently active graph, i.e. THIS GRAPH!
-                if port_content is not self:
-                    raise ConnectionError("Ports can be bound only by passing the active graph object!")
-
-                # This case: we are nesting one graph into another and must bind input port of one graph in another!
-                # So generally we will "copy" the GraphInput object, using the same name.
-
-                # Copy the port "definition" (i.e. is NeuralType) using the same port name.
-                # This might throw an exception if port with that name was already bound!
-                self.input_ports[port_name] = inner_graph.input_ports[port_name].type
-
-                # Remember that a given graph port should pass data to all "bound modules" of the "nested" graph
-                # (when it finally will be connected).
-                self.input_ports[port_name].bind(inner_graph.input_ports[port_name].modules)
-
-                # Please note that there are no "consumers" here - this is a "pure" binding.
-
-            elif type(port_content) is GraphInput:
-                # Check if GraphInput belongs to the outer graph (i.e. self)!
-                own_port = False
-                for port in self.input_ports.items():
-                    if port is GraphInput:
-                        own_port = True
-                        break
-                if not own_port:
-                    raise NeuralPortNameMismatchError(port_name)
-
-                # Compare input port definition with the received definition.
-                port_content.type.compare_and_raise_error(
-                    self.__class__.__name__, port_name, inner_graph.input_ports[port_name].type
-                )
-
-                # Remember that a given graph port should pass data to all "bound modules" of the "nested" graph
-                # (when it finally will be connected).
-                port_content[port_name].bind(inner_graph.input_ports[port_name].modules)
-
-                # Please note that there are no "consumers" here - this is a "pure" binding.
-
-            elif type(port_content) is NmTensor:
-
-                # Compare input port definition onf the inner graph with the received definition.
-                inner_graph.input_ports[port_name].type.compare_and_raise_error(
-                    self.__class__.__name__, port_name, port_content.type
-                )
-                # Note that this tensor is already! a part of this graph.
-                # (It has to be output of one of the previous modules.)
-                # So we can find it in: self._tensors
-
-                # Reaching that point means that we accepted input to a bound graph port.
-                # Need to connect it - "copy" all modules connected to this "bound input" as consumers.
-                for consumer in inner_graph.input_ports[port_name].modules:
-                    # Add consumer.
-                    port_content.add_consumer(consumer.module_name, consumer.port_name)
-
-                    # The current graph parsing requires us to update all outputs of
-                    # a module that "accepted" the input.
-                    # In other words: for every "consumer" we need to update all tensors it produced.
-                    # Update means changing the original producer_args for ALL TENSORS IN THE GRAPH produced by
-                    # this module.
-                    # producer_name = consumer.module_name
-                    # if producer_name in self._tensors.keys():
-                    #    # Get all tensor producer by this module.
-                    #    for output_tensor in self._tensors[producer_name]:
-                    #        # Set "input port value" to new content - which indicates tensor (and producer)
-                    #        # that will be used during graph backward traverse.
-                    #        output_tensor.producer_args[port_name] = port_content  # i.e. Tensor.
-
-            else:
-                raise TypeError(
-                    "Input '{}' can be of one of three types: NeuralGraph, GraphInput or NmTensor".format(port_name)
-                )
 
     def nest(self, inner_graph, inner_graph_args):
         """
@@ -351,7 +262,7 @@ class NeuralGraph(NeuralInterface):
                 inner_graph: Graph to be copied (will be "nested" in this (self) graph).
                 inner_graph_args: inputs passed to the graph call.
         """
-        # "Copy" modules.
+        # "Copy" the modules from nested graph.
         for key, module in inner_graph.modules.items():
             # Check if module with that name already exists.
             # TODO: Uncomment when we will refactor all examples so training/validation graphs won't be added

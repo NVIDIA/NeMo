@@ -122,23 +122,23 @@ class TestNeuralGraphNesting:
             y_pred = tn(x=x)
             lss = loss(predictions=y_pred, target=y)
 
-        assert len(g1.output_ports) == 4
-        assert g1.output_ports.tensors["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports.tensors["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports.tensors["y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports.tensors["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        assert len(g1.outputs) == 4
+        assert g1.output_tensors["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_tensors["y"].compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_tensors["y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_tensors["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
 
         # Test manual binding.
         with g1:
-            g1.output_ports["my_prediction"] = y_pred
-            g1.output_ports["my_loss"] = lss
+            g1.outputs["my_prediction"] = y_pred
+            g1.outputs["my_loss"] = lss
 
-        assert len(g1.output_ports) == 2
+        assert len(g1.outputs) == 2
         assert (
-            g1.output_ports.tensors["my_prediction"].compare(tn.output_ports["y_pred"])
+            g1.output_tensors["my_prediction"].compare(tn.output_ports["y_pred"])
             == NeuralTypeComparisonResult.SAME
         )
-        assert g1.output_ports.tensors["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_tensors["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_graph_nesting_topology_copy_one_module_defaults(self):
