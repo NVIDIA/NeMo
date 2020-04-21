@@ -41,7 +41,7 @@ ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
 script=examples/tts/fasterspeech.py
 config=examples/tts/configs/fasterspeech-lj.yaml
-# One epoch is around 200 iterations. Total number of steps is 20400.
+# One epoch is around 136 iterations. Total number of steps is 20400.
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
@@ -50,10 +50,11 @@ nvidia-smi \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
 --amp_opt_level=${OPT} \
 --model_config=${config} \
+--batch_size=96 \
 --train_freq=$((NUM_GPU * 20)) \
 --eval_freq=$((NUM_GPU * 200)) \
 --warmup=$((NUM_GPU * 300)) \
---num_epochs=$((NUM_GPU * 100)) \
+--num_epochs=$((NUM_GPU * 150)) \
 --work_dir=${RESULT} \
 --wdb_name=${name_id} \
 --wdb_tags=ljspeech,mel,opt \

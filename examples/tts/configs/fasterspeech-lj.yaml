@@ -71,7 +71,7 @@ JasperEncoder:
         # First Layers
         -   filters: 512
             repeat: 3  # Was 1 in Original QuartzNet15x5.
-            kernel: [5]  # Was 33 in Original QuartzNet15x5.
+            kernel: [3]  # 5 and 7 works a bit worse.
             stride: [1]  # Was 2 in Original QuartzNet15x5.
             dilation: [1]
             dropout: 0.0

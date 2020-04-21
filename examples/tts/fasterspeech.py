@@ -394,6 +394,7 @@ def main():
     )
     if args.local_rank is None or args.local_rank == 0:
         wandb.config.total_steps = total_steps
+        nemo.logging.info('Total steps: %s', total_steps)
 
     engine.train(
         tensors_to_optimize=[loss],

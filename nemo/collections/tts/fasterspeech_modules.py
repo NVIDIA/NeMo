@@ -763,7 +763,9 @@ class WaveGlowInference:
         sys.path.append(code)
 
         nemo.logging.info("Loading WaveGlow from %s", checkpoint)
-        model = torch.load(checkpoint)['model']
+        from convert_model import update_model
+
+        model = update_model(torch.load(checkpoint)['model'])
         model = model.remove_weightnorm(model).cuda()
         model.eval()
         self._model = model
