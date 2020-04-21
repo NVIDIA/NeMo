@@ -15,14 +15,18 @@
 """This package contains Neural Modules responsible for ASR data layers."""
 
 import copy
+import io
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+import webdataset as wd
 
 import nemo
+from .parts.collections import ASRAudioText
 from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
 from .parts.features import WaveformFeaturizer
+from .parts.parsers import make_parser
 from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
@@ -32,6 +36,7 @@ from nemo.utils.misc import pad_to
 
 __all__ = [
     'AudioToTextDataLayer',
+    'TarredAudioToTextDataLayer',
     'KaldiFeatureDataLayer',
     'TranscriptDataLayer',
     'AudioToSpeechLabelDataLayer',
@@ -338,6 +343,173 @@ transcript_n}
     @property
     def data_iterator(self):
         return self._dataloader
+
+
+class TarredAudioToTextDataLayer(DataLayerNM):
+    """Data Layer for general ASR tasks, where the audio files are tarred.
+
+    Module which reads ASR labeled data. It accepts a single comma-separated JSON manifest file, as well as the
+    path to a tarball that contains the wav files. Each line of the manifest should contain the information for one
+    audio file, including at least the transcript and name of the audio file (doesn't have to be exact, only the
+    basename must be the same).
+
+    Notice that a few arguments are different from the AudioToTextDataLayer; for example, shuffle (bool) has been
+    replaced by shuffle_n (int), and batch_size is not used.
+
+    Args:
+        audio_tar_filepath (str):
+        manifest_filepath (str): 
+        labels (list): List of characters that can be output by the ASR model.
+            For Jasper, this is the 28 character set {a-z '}. The CTC blank
+            symbol is automatically added later for models using ctc.
+        sample_rate (int): Target sampling rate for data. Audio files will be
+            resampled to sample_rate if it is not already.
+            Defaults to 16000.
+        int_values (bool): Bool indicating whether the audio file is saved as
+            int data or float data.
+            Defaults to False.
+        eos_id (id): Dataset parameter.
+            End of string symbol id used for seq2seq models.
+            Defaults to None.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        normalize_transcripts (bool): Dataset parameter.
+            Whether to use automatic text cleaning.
+            It is highly recommended to manually clean text for best results.
+            Defaults to True.
+        trim_silence (bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        load_audio (bool): Dataset parameter.
+            Controls whether the dataloader loads the audio signal and
+            transcript or just the transcript.
+            Defaults to True.
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
+        augmentor (AudioAugmentor or dict): Optional AudioAugmentor or
+            dictionary of str -> kwargs (dict) which is parsed and used
+            to initialize an AudioAugmentor.
+            Note: It is crucial that each individual augmentation has
+            a keyword `prob`, that defines a float probability in the
+            the range [0, 1] of this augmentation being applied.
+            If this keyword is not present, then the augmentation is
+            disabled and a warning is logged.
+    """
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and self._sample_rate is not None
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        audio_tar_filepath,
+        manifest_filepath,
+        labels,
+        batch_size,
+        sample_rate=16000,
+        int_values=False,
+        bos_id=None,
+        eos_id=None,
+        pad_id=None,
+        min_duration=0.1,
+        max_duration=None,
+        normalize_transcripts=True,
+        trim_silence=False,
+        shuffle_n=0,
+        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+    ):
+        super().__init__()
+        self._sample_rate = sample_rate
+
+        if augmentor is not None:
+            augmentor = _process_augmentations(augmentor)
+
+        self.collection = ASRAudioText(
+            manifests=manifest_filepath.split(','),
+            parser=make_parser(labels=labels, name='en', do_normalize=normalize_transcripts),
+            min_duration=min_duration,
+            max_duration=max_duration,
+            index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+        )
+
+        self.featurizer = WaveformFeaturizer(sample_rate=self._sample_rate, int_values=int_values, augmentor=augmentor)
+
+        self.trim = trim_silence
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+
+        # Put together WebDataset
+        self.dataset = (
+            wd.Dataset(audio_tar_filepath)
+            .shuffle(shuffle_n)
+            .rename(audio='wav', manifest_key='__key__')
+            .to_tuple('audio', 'manifest_key')
+            .map(self._build_sample)
+        )
+
+    def _build_sample(self, tup):
+        audio_bytes, audio_filename = tup
+
+        # Grab manifest entry from self.collection
+        file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+        manifest_idx = self.collection.mapping[file_id]
+        manifest_entry = self.collection[manifest_idx]
+
+        offset = manifest_entry.offset
+        if offset is None:
+            offset = 0
+
+        # Convert audio bytes to IO stream for processing (for SoundFile to read)
+        audio_filestream = io.BytesIO(audio_bytes)
+        features = self.featurizer.process(
+            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
+        )
+        audio_filestream.close()
+
+        # Audio features
+        f, fl = features, torch.tensor(features.shape[0]).long()
+
+        # Text features
+        t, tl = manifest_entry.text_tokens, len(manifest_entry.text_tokens)
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __len__(self):
+        return len(self.collection)
+
+    @property
+    def dataset(self):
+        return self.dataset
+
+    @property
+    def data_iterator(self):
+        return None
 
 
 class KaldiFeatureDataLayer(DataLayerNM):
