@@ -137,6 +137,9 @@ class BERT(TrainableNM):
         self.config = model.config
         self._hidden_size = model.config.hidden_size
 
+    def set_output_hidden_states(self, output_hidden_states):
+        self.bert.encoder.output_hidden_states = output_hidden_states
+
     @property
     def hidden_size(self):
         """
@@ -161,4 +164,12 @@ class BERT(TrainableNM):
         return pretrained_models
 
     def forward(self, input_ids, token_type_ids, attention_mask):
-        return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]
+        outputs = self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+
+        if self.bert.encoder.output_hidden_states:
+            import torch
+
+            return torch.mean(torch.cat(outputs[2][-4:]), 0).unsqueeze(0)
+        else:
+            return outputs[0]
+        # return self.bert(input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]

@@ -282,6 +282,8 @@ class SchemaEmbeddingDataset(Dataset):
             elif mode == 'last_layer_average':
                 # Obtain the encoding of the [CLS] token.
                 embedding = [round(float(x), 6) for x in np.mean(hidden_states[0][idx, :], 0).flat]
+            elif mode == 'last_4_layers_average':
+                embedding = [round(float(x), 6) for x in np.mean(hidden_states[0][idx, :], 0).flat]
             elif mode == 'baseline':
                 # Obtain the encoding of the [CLS] token.
                 embedding = [round(float(x), 6) for x in hidden_states[0][idx, 0, :].flat]

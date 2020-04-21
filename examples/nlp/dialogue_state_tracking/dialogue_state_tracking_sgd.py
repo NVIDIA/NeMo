@@ -168,7 +168,7 @@ parser.add_argument(
     "--schema_emb_init",
     type=str,
     default='baseline',
-    choices=['baseline', 'random', 'last_layer_average'],
+    choices=['baseline', 'random', 'last_layer_average', 'last_4_layers_average'],
     help="Specifies how schema embeddings are generated. Baseline uses ['CLS'] token",
 )
 parser.add_argument(
