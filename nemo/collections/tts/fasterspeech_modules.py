@@ -579,7 +579,14 @@ class FasterSpeechDurLoss(LossNM):
         return dict(loss=NeuralType(None))
 
     def __init__(
-        self, method='l2-log', num_classes=32, dmld_hidden=5, reduction='all', max_dur=500, xe_steps_coef=1.5,
+        self,
+        method='l2-log',
+        num_classes=32,
+        dmld_hidden=5,
+        reduction='all',
+        max_dur=500,
+        xe_steps_coef=1.5,
+        pad16=False,
     ):
         super().__init__()
 
@@ -587,6 +594,7 @@ class FasterSpeechDurLoss(LossNM):
         self._num_classes = num_classes
         self._dmld_hidden = dmld_hidden
         self._reduction = reduction
+        self._pad16 = pad16
 
         # Creates XE Steps classes.
         classes = np.arange(num_classes).tolist()

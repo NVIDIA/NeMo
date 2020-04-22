@@ -1,11 +1,10 @@
-model: "FasterSpeech"
+model: "FasterSpeech Durs Predictor (LJSpeech)"
 sample_rate: &sample_rate 22050
-n_mels: &n_mels 80
-pad16: &pad16 false
+pad16: &pad16 false  # True is not supported at the moment (just too complicated).
 labels: [
   # Space
     ' ',
-  # string.ascii_letters
+  # string.ascii_lowercase
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
   # Punctuation
@@ -19,7 +18,7 @@ FasterSpeechDataLayer_train:
     trim_silence: false
     drop_last: true
     shuffle: true
-    sampler_type: 'default'  # SSS produces same 0.65 mask usage on average.
+    sampler_type: 'default'  # SSS produces same 0.65 mask usage on average
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -29,57 +28,30 @@ FasterSpeechDataLayer_eval:
     shuffle: false
     sampler_type: 'all'  # Eval is single batch of 64.
 
-AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
-    sample_rate: *sample_rate
-    window_size: null  # Because "n_window_size" below is set.
-    window_stride: null  # Because "n_window_size" below is set.
-    n_window_size: 1024
-    n_window_stride: 256
-    window: 'hann'
-    normalize: null  # Seems like it's bad for TTS.
-    n_fft: 1024
-    preemph: null
-    features: *n_mels  # 80 works good for TTS.
-    lowfreq: 0
-    highfreq: 8000
-    log: true
-    log_zero_guard_type: 'clamp'  # 'clamp' just seems more reasonable.
-    log_zero_guard_value: 1e-05
-    dither: 0.0
-    pad_to: 1  # 16 would be better choice, but we pad manually in encoder/loss classes.
-    frame_splicing: 1
-    stft_conv: true
-    pad_value: -11.52
-    mag_power: 1.0  # People use 1.0 for TTS for some reason.
-
-LenSampler:
-    max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happens.
-
 FasterSpeech:
-    d_char: 512
+    d_char: 256
     pad16: *pad16
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
-dropout: &dropout 0.0
-separable: &separable true
+dropout: &dropout 0.0  # Having dropout more than 0.1 doesn't make sense for LJSpeech.
+separable: &separable true  # Non-separable one greatly increase number of weights.
 JasperEncoder:
     activation: "relu"
     conv_mask: true
 
     # (Number of Layers) x (Number of Filters) x (Kernel Size)
     jasper:
-        # Group 1: 1 x 512 x 3 (First Layer)
-        -   filters: 512
-            repeat: 3  # Was 1 in Original QuartzNet15x5.
-            kernel: [3]  # 5 and 7 works a bit worse.
-            stride: [1]  # Was 2 in Original QuartzNet15x5.
+        # Group 1: 3 x 256 x 5 (First Layer)
+        -   filters: 256
+            repeat: 1
+            kernel: [5]
+            stride: [1]
             dilation: [1]
-            dropout: 0.0
-            residual: true  # Non-residual works a bit worse.
+            dropout: *dropout
+            residual: true
             separable: *separable
 
-        # Group 2: 3 x 512 x (5,7,9)
-        -   filters: 512
+        -   filters: 256
             repeat: 5
             kernel: [5]
             stride: [1]
@@ -88,7 +60,17 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
+            repeat: 5
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
+        # Group 2: 3 x 256 x 7
+        -   filters: 256
             repeat: 5
             kernel: [7]
             stride: [1]
@@ -97,16 +79,53 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
             repeat: 5
-            kernel: [9]
+            kernel: [7]
             stride: [1]
             dilation: [1]
             dropout: *dropout
             residual: true
             separable: *separable
 
-        # Group 3: 3 x 512 x (15=>19)
+        -   filters: 256
+            repeat: 5
+            kernel: [7]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
+        # Group 3: 3 x 512 x 10
+        -   filters: 512
+            repeat: 5
+            kernel: [10]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
+        -   filters: 512
+            repeat: 5
+            kernel: [10]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
+        -   filters: 512
+            repeat: 5
+            kernel: [10]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
+        # Group 4: 3 x 512 x 15 (Last Layer)
         -   filters: 512
             repeat: 5
             kernel: [15]
@@ -118,7 +137,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [17]
+            kernel: [15]
             stride: [1]
             dilation: [1]
             dropout: *dropout
@@ -127,45 +146,7 @@ JasperEncoder:
 
         -   filters: 512
             repeat: 5
-            kernel: [19]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        # Group 4: 3 x 512 x (21=>25)
-        -   filters: 512
-            repeat: 5
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        -   filters: 512
-            repeat: 5
-            kernel: [23]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        -   filters: 512
-            repeat: 5
-            kernel: [25]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        # Group 5: 1 x 512 x 29 (Last Layer)
-        -   filters: 512
-            repeat: 1
-            kernel: [29]
+            kernel: [15]
             stride: [1]
             dilation: [1]
             dropout: *dropout
@@ -179,8 +160,11 @@ JasperEncoder:
             stride: [1]
             dilation: [1]
             dropout: *dropout
-            residual: true  # Non-residual works a bit worse.
+            residual: true
 
-FasterSpeechMelLoss:
+FasterSpeechDurLoss:
+    method: 'xe-steps'  # ['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps']
+    num_classes: 32  # 'n_classes' for dmld or xe (32 covers 98%)
+    dmld_hidden: 5  # 1/3 of d_hidden for dmld (log2(num_classes))
     reduction: 'all'
     pad16: *pad16

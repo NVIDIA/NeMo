@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import argparse
+import datetime
 import math
 import os
 from typing import Any, Mapping
 
 import torch
+import wandb
 from ruamel import yaml
 
 import nemo
@@ -30,48 +32,38 @@ logging = nemo.logging
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='FasterSpeech Training Pipeline.',
+        description='FasterSpeech Durs Predictor Training Pipeline',
         parents=[nm_argparse.NemoArgParser()],
         conflict_handler='resolve',  # For parents common flags.
     )
     parser.set_defaults(
-        # `x = 30000`
-        amp_opt_level='O0',
-        model_config='configs/fasterspeech_durations.yaml',
+        amp_opt_level='O0',  # O1/O2 works notably faster, O3 usually produces NaNs.
+        model_config='configs/fasterspeech-durs-lj.yaml',
         batch_size=64,
         eval_batch_size=64,
-        train_freq=300,  # 1/100x
-        eval_freq=3000,  # 10x train freq.
+        train_freq=300,
+        eval_freq=3000,  # 10x train freq
         optimizer='novograd',
         weight_decay=1e-6,
+        grad_norm_clip=1.0,
         warmup=3000,
-        num_epochs=150,  # Couple of epochs for testing.
-        lr=1e-2,  # Goes good with Adam.
+        num_epochs=100,  # Couple of epochs for testing.
+        lr=1e-2,  # Goes good with Novograd.
         min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
-        checkpoint_save_freq=10000,  # 1/3x
+        checkpoint_save_freq=10000,
+        wdb_project='fast-tts',
+        wdb_name='test_' + str(datetime.datetime.now()).replace(' ', '_'),
+        wdb_tags=['test', 'to-delete', 'durs'],
     )
 
     # Required: train_dataset
     # Optional: eval_names, eval_datasets
 
-    # Durations from ASR CTC Model
+    # Durations
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
-    parser.add_argument('--eval_durs', type=str, nargs="*", default=[], help="Eval datasets durations")
-    parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type.")
-
-    # Model
-    parser.add_argument('--d_char', type=int, default=64, help="Size of input char embedding")
-    parser.add_argument('--loss_dmld_hidden', type=int, default=5, help="1/3 of d_hidden for dmld (log2(num_classes)")
-    parser.add_argument('--loss_num_classes', type=int, default=32, help="'n_classes' for dmld or xe (32 covers 98%).")
-    parser.add_argument('--loss_reduction', type=str, choices=['batch', 'all'], default='all', help="Loss Reduction")
-    parser.add_argument(
-        '--loss_method',
-        type=str,
-        choices=['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps'],
-        default='xe-steps',
-        help="Method for Loss Calculation",
-    )
+    parser.add_argument('--eval_durs', type=str, nargs='*', default=[], help="Eval datasets durations")
+    parser.add_argument('--durs_type', type=str, choices=['pad', 'full-pad'], default='full-pad', help="Durs type")
 
     args = parser.parse_args()
 
@@ -136,7 +128,7 @@ class FasterSpeechGraph:
             blank_id=blank_id,
             load_audio=False,  # It's just durations predictor, so we won't need audio.
             num_workers=max(int(os.cpu_count() / engine.world_size), 1),
-            **config.FasterSpeechDataLayer_train,
+            **config.FasterSpeechDataLayer_train,  # Including sample rate.
         )
 
         self.eval_dls = {}
@@ -154,22 +146,22 @@ class FasterSpeechGraph:
                 **config.FasterSpeechDataLayer_eval,
             )
 
-        self.loss = nemo_tts.FasterSpeechDurLoss(
-            method=args.loss_method,
-            num_classes=args.loss_num_classes,
-            dmld_hidden=args.loss_dmld_hidden,
-            reduction=args.loss_reduction,
-        )
+        # Need to calculate 'd_out' for model.
+        self.loss = nemo_tts.FasterSpeechDurLoss(**config.FasterSpeechDurLoss)
 
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),
-            d_char=args.d_char,
             pad_id=pad_id,
             jasper_kwargs=config.JasperEncoder,
             d_out=self.loss.d_out,
+            **config.FasterSpeech,
         )
+        if args.local_rank is None or args.local_rank == 0:
+            wandb.watch(self.model, log='all')
+            wandb.config.total_weights = self.model.num_weights
+            nemo.logging.info('Total weights: %s', self.model.num_weights)
 
-    def build(self, args, engine):
+    def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []
         metrics = ['loss', DurMetric(self.loss.preprocessing)]
 
@@ -182,7 +174,7 @@ class FasterSpeechGraph:
                 tensors=dict(loss=train_loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
                 metrics=metrics,
                 freq=args.train_freq,
-                tb_writer=engine.tb_writer,
+                batch_p=args.batch_size / (len(self.train_dl) / engine.world_size),
             )
         )
 
@@ -196,8 +188,8 @@ class FasterSpeechGraph:
                     tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
                     metrics=metrics,
                     freq=args.eval_freq,
-                    tb_writer=engine.tb_writer,
                     prefix=name,
+                    single_gpu=isinstance(eval_dl._dataloader.sampler, nemo_tts.LenSampler),  # noqa
                 )
             )
 
@@ -217,32 +209,44 @@ def main():
         optimization_level=args.amp_opt_level,
         cudnn_benchmark=args.cudnn_benchmark,
         log_dir=args.work_dir,
-        tensorboard_dir=args.tensorboard_dir,
-        create_tb_writer=True,
         files_to_copy=[args.model_config, __file__],
     )
-    # noinspection PyProtectedMember
-    logging.info('Engine: %s', vars(engine._exp_manager))
+    logging.info('Engine: %s', vars(engine._exp_manager))  # noqa
 
     yaml_loader = yaml.YAML(typ='safe')
     with open(args.model_config) as f:
         config = argparse.Namespace(**yaml_loader.load(f))
     logging.info('Config: %s', config)
 
+    if args.local_rank is None or args.local_rank == 0:
+        wandb.init(
+            name=args.wdb_name,
+            config=dict(args=vars(args), engine=vars(engine._exp_manager), config=vars(config)),  # noqa
+            project=args.wdb_project,
+            tags=args.wdb_tags,
+        )
+        wandb.save(args.model_config)
+
     graph = FasterSpeechGraph(args, engine, config)
-
     loss, callbacks = graph.build(args, engine)
-
     total_steps = (
         args.max_steps
         if args.max_steps is not None
         else args.num_epochs * math.ceil(len(graph.train_dl) / (args.batch_size * engine.world_size))
     )
+    if args.local_rank is None or args.local_rank == 0:
+        wandb.config.total_steps = total_steps
+        nemo.logging.info('Total steps: %s', total_steps)
+
     engine.train(
         tensors_to_optimize=[loss],
         optimizer=args.optimizer,
         optimization_params=dict(
-            num_epochs=args.num_epochs, max_steps=total_steps, lr=args.lr, weight_decay=args.weight_decay,
+            num_epochs=args.num_epochs,
+            max_steps=total_steps,
+            lr=args.lr,
+            weight_decay=args.weight_decay,
+            grad_norm_clip=args.grad_norm_clip,
         ),
         callbacks=callbacks,
         lr_policy=lr_policies.CosineAnnealing(total_steps=total_steps, min_lr=args.min_lr, warmup_steps=args.warmup),

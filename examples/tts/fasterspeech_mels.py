@@ -36,18 +36,17 @@ logging = nemo.logging
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='FasterSpeech Training Pipeline.',
+        description='FasterSpeech Mels Predictor Training Pipeline',
         parents=[nm_argparse.NemoArgParser()],
         conflict_handler='resolve',  # For parents common flags.
     )
     parser.set_defaults(
-        # `x = 30000` for LibriTTS
         amp_opt_level='O0',  # O1/O2 works notably faster, O3 usually produces NaNs.
-        model_config='configs/fasterspeech.yaml',
+        model_config='configs/fasterspeech-mels-lj.yaml',
         batch_size=64,
         eval_batch_size=64,
-        train_freq=300,  # 1/100x
-        eval_freq=3000,  # 1/10x (Sampling process may take time.)
+        train_freq=300,
+        eval_freq=3000,  # 10x train freq (Sampling process may take time.)
         optimizer='adam',
         weight_decay=1e-6,
         grad_norm_clip=1.0,
@@ -56,10 +55,10 @@ def parse_args():
         lr=1e-3,  # Goes good with Adam.
         min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
-        checkpoint_save_freq=10000,  # 1/3x
+        checkpoint_save_freq=10000,
         wdb_project='fast-tts',
         wdb_name='test_' + str(datetime.datetime.now()).replace(' ', '_'),
-        wdb_tags=['test', 'to-delete'],
+        wdb_tags=['test', 'to-delete', 'mels'],
     )
 
     # Required: train_dataset
@@ -352,10 +351,9 @@ class FasterSpeechGraph:
                 )
             )
 
-        # No checkpointing at the moment, as NGC works unstable.
-        # callbacks.append(
-        #     nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq)
-        # )
+        callbacks.append(
+            nemo.core.CheckpointCallback(folder=engine.checkpoint_dir, step_freq=args.checkpoint_save_freq)
+        )
 
         return train_loss, callbacks
 
