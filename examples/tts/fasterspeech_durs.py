@@ -172,13 +172,16 @@ class FasterSpeechGraph:
         data = self.train_dl()
         output = self.model(text=data.text, text_mask=data.text_mask)
         train_loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
-        callbacks.append(
-            nemo.core.TrainLogger(
-                tensors=dict(loss=train_loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
-                metrics=metrics,
-                freq=args.train_freq,
-                batch_p=args.batch_size / (len(self.train_dl) / engine.world_size),
-            )
+        callbacks.extend(
+            [
+                nemo.core.TrainLogger(
+                    tensors=dict(loss=train_loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
+                    metrics=metrics,
+                    freq=args.train_freq,
+                    batch_p=args.batch_size / (len(self.train_dl) / engine.world_size),
+                ),
+                nemo.core.WandbCallback(update_freq=args.train_freq),
+            ]
         )
 
         # Eval
