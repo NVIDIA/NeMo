@@ -45,6 +45,7 @@ parser.add_argument(
     type=str,
     help="The output directory where the model prediction and checkpoints will be written.",
 )
+parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=5, type=int)
@@ -69,70 +70,6 @@ parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
-parser.add_argument("--optimizer_kind", default="adam", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--data_dir", default="/data", type=str)
-parser.add_argument("--fc_dropout", default=0.5, type=float)
-parser.add_argument("--num_fc_layers", default=2, type=int)
-parser.add_argument("--ignore_start_end", action='store_false')
-parser.add_argument("--ignore_extra_tokens", action='store_false')
-parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
-parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
-parser.add_argument(
-    "--pretrained_model_name",
-    default="bert-base-uncased",
-    type=str,
-    help="Name of the pre-trained model",
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
-)
-parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
-parser.add_argument(
-    "--tokenizer_model",
-    default=None,
-    type=str,
-    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
-)
-parser.add_argument(
-    "--tokenizer",
-    default="nemobert",
-    type=str,
-    choices=["nemobert", "sentencepiece"],
-    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
-)
-parser.add_argument(
-    "--work_dir",
-    default='output',
-    type=str,
-    help="The output directory where the model prediction and checkpoints will be written.",
-)
-parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
-parser.add_argument(
-    "--save_epoch_freq",
-    default=1,
-    type=int,
-    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
-)
-parser.add_argument(
-    "--save_step_freq",
-    default=-1,
-    type=int,
-    help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
-)
-parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
-parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")
-
-parser = argparse.ArgumentParser(description="Token classification with pretrained BERT")
-parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--batch_size", default=8, type=int)
-parser.add_argument("--max_seq_length", default=128, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=5, type=int)
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=5e-5, type=float)
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--weight_decay", default=0, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 
 # task specific arguments
