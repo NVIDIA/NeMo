@@ -145,7 +145,7 @@ class AudioDataset(Dataset):
     "/path/to/audio.txt", "duration": 23.147}
     ...
     {"audio_filepath": "/path/to/audio.wav", "text": "the
-    transcription", offset": 301.75, "duration": 0.82, "utt":
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
 
     Args:
@@ -202,7 +202,14 @@ class AudioDataset(Dataset):
     def __getitem__(self, index):
         sample = self.collection[index]
         if self.load_audio:
-            features = self.featurizer.process(sample.audio_file, offset=0, duration=sample.duration, trim=self.trim,)
+            offset = sample.offset
+
+            if offset is None:
+                offset = 0
+
+            features = self.featurizer.process(
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
+            )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
             f, fl = None, None

@@ -46,7 +46,7 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 
 * Read NVIDIA `Developer Blog for QuartzNet ASR model <https://devblogs.nvidia.com/develop-smaller-speech-recognition-models-with-nvidias-nemo-framework/>`_
 
-* Recommended version to install is **0.10.0** via ``pip install nemo-toolkit[all]``
+* Recommended version to install is **0.10.1** via ``pip install nemo-toolkit[all]``
 
 * Recommended NVIDIA `NGC NeMo Toolkit container <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_
 
@@ -56,7 +56,7 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 Getting started
 ~~~~~~~~~~~~~~~
 
-THE LATEST STABLE VERSION OF NeMo is **0.10.0** (Available via PIP).
+THE LATEST STABLE VERSION OF NeMo is **0.10.1** (Available via PIP).
 
 **Requirements**
 
@@ -64,6 +64,17 @@ THE LATEST STABLE VERSION OF NeMo is **0.10.0** (Available via PIP).
 2) PyTorch 1.4.* with GPU support
 3) (optional, for best performance) NVIDIA APEX. Install from here: https://github.com/NVIDIA/apex
 
+
+Docker containers
+~~~~~~~~~~~~~~~~~
+
+**NeMo docker container**
+
+You can use NeMo's docker container with all dependencies pre-installed
+
+.. code-block:: bash
+
+    docker run --runtime=nvidia -it --rm -v --shm-size=16g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/nemo:v0.10
 
 
 If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catalog/containers/nvidia:pytorch>`_ follow these instructions

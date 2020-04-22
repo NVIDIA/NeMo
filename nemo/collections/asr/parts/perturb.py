@@ -32,7 +32,7 @@ class SpeedPerturbation(Perturbation):
         speed_rate = self._rng.uniform(self._min_rate, self._max_rate)
         if speed_rate <= 0:
             raise ValueError("speed_rate should be greater than zero.")
-        logging.debug("speed: %f", speed_rate)
+        # logging.debug("speed: %f", speed_rate)
         data._samples = librosa.effects.time_stretch(data._samples, speed_rate)
 
 
@@ -44,7 +44,7 @@ class GainPerturbation(Perturbation):
 
     def perturb(self, data):
         gain = self._rng.uniform(self._min_gain_dbfs, self._max_gain_dbfs)
-        logging.debug("gain: %d", gain)
+        # logging.debug("gain: %d", gain)
         data._samples = data._samples * (10.0 ** (gain / 20.0))
 
 
@@ -55,9 +55,10 @@ class ImpulsePerturbation(Perturbation):
 
     def perturb(self, data):
         impulse_record = self._rng.sample(self._manifest.data, 1)[0]
-        impulse = AudioSegment.from_file(impulse_record['audio_filepath'], target_sr=data.sample_rate)
+        impulse = AudioSegment.from_file(impulse_record.audio_file, target_sr=data.sample_rate)
         # logging.debug("impulse: %s", impulse_record['audio_filepath'])
-        data._samples = signal.fftconvolve(data.samples, impulse.samples, "full")
+        impulse_norm = (impulse.samples-min(impulse.samples))/(max(impulse.samples)-min(impulse.samples))
+        data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
 
 
 class ShiftPerturbation(Perturbation):
@@ -72,7 +73,7 @@ class ShiftPerturbation(Perturbation):
             # TODO: do something smarter than just ignore this condition
             return
         shift_samples = int(shift_ms * data.sample_rate // 1000)
-        logging.debug("shift: %s", shift_samples)
+        # logging.debug("shift: %s", shift_samples)
         if shift_samples < 0:
             data._samples[-shift_samples:] = data._samples[:shift_samples]
             data._samples[:-shift_samples] = 0
@@ -97,7 +98,6 @@ class NoisePerturbation(Perturbation):
         noise = AudioSegment.from_file(noise_record.audio_file, target_sr=data.sample_rate)
         noise_gain_db = min(data.rms_db - noise.rms_db - snr_db, self._max_gain_db)
         # logging.debug("noise: %s %s %s", snr_db, noise_gain_db, noise_record.audio_file)
-
         # if noise.duration < data.duration:
         #     noise.pad(data._samples.shape[0] - noise._samples.shape[0], symmetric=True)
 
@@ -166,6 +166,15 @@ perturbation_types = {
     "white_noise": WhiteNoisePerturbation,
     "echo": EchoPerturbation,
 }
+
+
+def register_perturbation(name: str, perturbation: Perturbation):
+    if name in perturbation_types.keys():
+        raise KeyError(
+            f"Perturbation with the name {name} exists. " f"Type of perturbation : {perturbation_types[name]}."
+        )
+
+    perturbation_types[name] = perturbation
 
 
 class AudioAugmentor(object):

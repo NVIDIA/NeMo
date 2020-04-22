@@ -303,7 +303,14 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
                 )
             elif optimizer_class.lower() == "fused_adam":
-                optimizer = FusedAdam(params=params_to_optimize, lr=lr)
+                if not FusedAdam:
+                    raise ValueError("FusedAdam works only with torch DDP.")
+                optimizer = FusedAdam(
+                    params=params_to_optimize,
+                    lr=lr,
+                    weight_decay=optimization_params.get("weight_decay", 0.0),
+                    betas=optimization_params.get("betas", (0.9, 0.999)),
+                )
             elif optimizer_class.lower() == "adam_w":
                 optimizer = AdamW(
                     params=params_to_optimize,
@@ -321,6 +328,8 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
+                if not FusedNovoGrad:
+                    raise ValueError("FusedNovoGrad works only with torch DDP.")
                 optimizer = FusedNovoGrad(
                     params_to_optimize,
                     lr=lr,
@@ -330,11 +339,15 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_lamb":
+                if not FusedLAMB:
+                    raise ValueError("FusedLAMB works only with torch DDP.")
                 optimizer = FusedLAMB(params_to_optimize, lr=lr,)
             else:
                 raise ValueError("Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
+                if not LARC:
+                    raise ValueError("LARC works only with torch DDP.")
                 logging.info("Enabling larc")
                 optimizer = LARC(optimizer, trust_coefficient=optimization_params.get("larc_eta", 2e-2),)
         else:
@@ -510,6 +523,7 @@ class PtActions(Actions):
                 #         self.local_rank, world_size
                 #     )
                 # )
+
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
                         dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
@@ -1054,6 +1068,22 @@ class PtActions(Actions):
                 output_example=output_example,
             )
 
+    def _check_nan_or_inf(self, placement_gpu, nan_or_inf, steps_per_nan_check=None):
+        # Note that nan_or_inf only gets set if stop_on_nan loss is True, or if using O0/not using apex.amp.
+        if not placement_gpu:
+            return
+        if steps_per_nan_check is None or self.step % steps_per_nan_check == 0:
+            world_size = dist.get_world_size()
+            # We use dtype=int because nccl backend doesn't support torch.bool
+            nan_inf_tensor = torch.tensor(nan_or_inf, dtype=int).cuda()
+            nan_inf_results = []
+            for _ in range(world_size):
+                nan_inf_results.append(torch.empty_like(nan_inf_tensor))
+            dist.all_gather(nan_inf_results, nan_inf_tensor)
+            for nan_inf in nan_inf_results:
+                if nan_inf:
+                    raise ValueError('Terminating due to previous NaN or inf.')
+
     def train(
         self,
         tensors_to_optimize,
@@ -1063,6 +1093,7 @@ class PtActions(Actions):
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
+        steps_per_nan_check=100,
         synced_batchnorm=False,
         synced_batchnorm_groupsize=0,
         gradient_predivide=False,
@@ -1185,7 +1216,8 @@ class PtActions(Actions):
                 )
 
         dataNM = training_loop[0][2][0][0]
-        if dataNM.placement == DeviceType.AllGpu:
+        placement_gpu = dataNM.placement == DeviceType.AllGpu
+        if placement_gpu:
             # if len(training_loop) > 1:
             #     raise NotImplementedError(
             #         "Distributed training does nor work with multiple "
@@ -1289,6 +1321,8 @@ class PtActions(Actions):
         # Do action start callbacks
         self._perform_on_action_start(callbacks=callbacks)
 
+        nan_or_inf = False
+
         # MAIN TRAINING LOOP
         # iteration over epochs
         while num_epochs is None or self.epoch_num < num_epochs:
@@ -1351,29 +1385,29 @@ class PtActions(Actions):
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
-                nan = False
                 for tensor in curr_tensors_to_optimize:
                     if (
                         torch.isnan(registered_tensors[tensor.unique_name]).any()
                         or torch.isinf(registered_tensors[tensor.unique_name]).any()
                     ):
-                        if stop_on_nan_loss:
-                            raise ValueError('Loss is NaN or inf - exiting')
-                        logging.warning('Loss is NaN or inf')
-                        curr_optimizer.zero_grad()
-                        nan = True
-                        break
+                        if (
+                            (stop_on_nan_loss)
+                            or (self._optim_level not in AmpOptimizations)
+                            or (self._optim_level == Optimization.mxprO0)
+                        ):
+                            # Set flag here and terminate at next all_gather check.
+                            nan_or_inf = True
+                            logging.warning(
+                                'Loss is NaN or inf at step %d, will terminate within the'
+                                ' next steps_per_nan_check steps',
+                                self.step,
+                            )
+                        else:
+                            logging.warning('Loss is NaN or inf, continuing training')
                     final_loss += registered_tensors[tensor.unique_name]
-                if nan:
-                    continue
+
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
-                        if torch.isnan(scaled_loss).any() or torch.isinf(scaled_loss).any():
-                            if stop_on_nan_loss:
-                                raise ValueError('Loss is NaN or inf -' ' exiting')
-                            logging.warning('WARNING: Loss is NaN or inf')
-                            curr_optimizer.zero_grad()
-                            continue
                         if disable_allreduce:
                             with ExitStack() as stack:
                                 for mod in self.get_DDP_modules(curr_call_chain):
@@ -1400,6 +1434,9 @@ class PtActions(Actions):
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
+                # Check if we should terminate due to NaN/inf on any workers.
+                self._check_nan_or_inf(placement_gpu, nan_or_inf, steps_per_nan_check=steps_per_nan_check)
+
                 batch_counter += 1
 
                 if batch_counter == batches_per_step:
@@ -1418,6 +1455,10 @@ class PtActions(Actions):
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)
             self.epoch_num += 1
+
+        # Check again if we should stop on NaN/inf
+        self._check_nan_or_inf(placement_gpu, nan_or_inf)
+
         self._perform_on_action_end(callbacks=callbacks)
 
     def infer(
