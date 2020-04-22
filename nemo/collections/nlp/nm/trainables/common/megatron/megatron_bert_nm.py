@@ -32,6 +32,7 @@ from megatron.model.utils import init_method_normal, scaled_init_method_normal
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.core import DeviceType
 from nemo.utils.decorators import add_port_docs
 
 
@@ -94,7 +95,7 @@ class MegatronBERT(TrainableNM):
             "vocab_file": vocab_file,
         }
 
-        initialize_megatron(None, megatron_args)
+        initialize_megatron(None, megatron_args, ignore_unknown_args=True)
         init_method = init_method_normal(init_method_std)
 
         self.language_model, self._language_model_key = get_language_model(
@@ -130,4 +131,15 @@ class MegatronBERT(TrainableNM):
         return sequence_output
 
     def restore_from(self, path, local_rank=0):
-        self.language_model.load_state_dict(torch.load(path, map_location="cpu")['model'][self._language_model_key])
+        if self.placement == DeviceType.AllGpu:
+            load_device = f"cuda:{local_rank}"
+        else:
+            load_device = self._device
+        
+        state_dict = torch.load(path, map_location=load_device)
+
+        # to load from Megatron pretrained checkpoint
+        if 'model' in state_dict:
+            self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+        else:
+            self.load_state_dict(state_dict)
