@@ -41,8 +41,7 @@ ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
 script=examples/tts/fasterspeech_durs.py
 config=examples/tts/configs/fasterspeech-durs-lj.yaml
-# (default) Single GPU biggest bs is 144. One epoch is around 91 iterations. Total number of steps is 10010.
-# Multi-GPU biggest bs is 96. One epoch is around _ iterations. Total number of steps is _.
+# (default) Single GPU biggest bs is 512. One epoch is around 26 iterations. Total number of steps is 2600.
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
@@ -51,11 +50,11 @@ nvidia-smi \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
 --amp_opt_level=${OPT} \
 --model_config=${config} \
---batch_size=144 \
---train_freq=20 \
---eval_freq=200 \
---warmup=150 \
---num_epochs=110 \
+--batch_size=512 \
+--train_freq=5 \
+--eval_freq=50 \
+--warmup=50 \
+--num_epochs=100 \
 --work_dir=${RESULT} \
 --wdb_name=${name_id} \
 --wdb_tags=ljspeech,durs,opt \

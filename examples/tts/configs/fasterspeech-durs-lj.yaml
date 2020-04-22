@@ -41,10 +41,10 @@ JasperEncoder:
 
     # (Number of Layers) x (Number of Filters) x (Kernel Size)
     jasper:
-        # Group 1: 3 x 256 x 5 (First Layer)
+        # Group 1: 3 x 256 x [3,5,7] (First Group)
         -   filters: 256
             repeat: 1
-            kernel: [5]
+            kernel: [3]
             stride: [1]
             dilation: [1]
             dropout: *dropout
@@ -62,14 +62,14 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [5]
+            kernel: [7]
             stride: [1]
             dilation: [1]
             dropout: *dropout
             residual: true
             separable: *separable
 
-        # Group 2: 3 x 256 x 7
+        # Group 2: 3 x 256 x [7,9,11]
         -   filters: 256
             repeat: 5
             kernel: [7]
@@ -81,7 +81,7 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [7]
+            kernel: [9]
             stride: [1]
             dilation: [1]
             dropout: *dropout
@@ -90,61 +90,33 @@ JasperEncoder:
 
         -   filters: 256
             repeat: 5
-            kernel: [7]
+            kernel: [11]
             stride: [1]
             dilation: [1]
             dropout: *dropout
             residual: true
             separable: *separable
 
-        # Group 3: 3 x 512 x 10
-        -   filters: 512
+        # Group 3: 3 x 512 x [11,13,15] (Last Group)
+        -   filters: 256
             repeat: 5
-            kernel: [10]
+            kernel: [11]
             stride: [1]
             dilation: [1]
             dropout: *dropout
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
             repeat: 5
-            kernel: [10]
+            kernel: [13]
             stride: [1]
             dilation: [1]
             dropout: *dropout
             residual: true
             separable: *separable
 
-        -   filters: 512
-            repeat: 5
-            kernel: [10]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        # Group 4: 3 x 512 x 15 (Last Layer)
-        -   filters: 512
-            repeat: 5
-            kernel: [15]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        -   filters: 512
-            repeat: 5
-            kernel: [15]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        -   filters: 512
+        -   filters: 256
             repeat: 5
             kernel: [15]
             stride: [1]
@@ -154,7 +126,7 @@ JasperEncoder:
             separable: *separable
 
         # Last 1x1 Conv
-        -   filters: 1024
+        -   filters: 512
             repeat: 1
             kernel: [1]
             stride: [1]

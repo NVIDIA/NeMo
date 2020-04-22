@@ -29,6 +29,8 @@ from nemo.utils import lr_policies
 
 logging = nemo.logging
 
+MODEL_WEIGHTS_UPPER_BOUND = 6_000_000
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -43,12 +45,12 @@ def parse_args():
         eval_batch_size=64,
         train_freq=300,
         eval_freq=3000,  # 10x train freq
-        optimizer='novograd',
+        optimizer='adam',
         weight_decay=1e-6,
         grad_norm_clip=1.0,
         warmup=3000,
         num_epochs=100,  # Couple of epochs for testing.
-        lr=1e-2,  # Goes good with Novograd.
+        lr=1e-3,  # Goes good with Adam.
         min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work',
         checkpoint_save_freq=10000,
@@ -160,6 +162,7 @@ class FasterSpeechGraph:
             wandb.watch(self.model, log='all')
             wandb.config.total_weights = self.model.num_weights
             nemo.logging.info('Total weights: %s', self.model.num_weights)
+            assert self.model.num_weights < MODEL_WEIGHTS_UPPER_BOUND
 
     def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []
