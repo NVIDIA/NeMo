@@ -187,7 +187,6 @@ class TestNeuralGraphNesting:
             # And different tensors (as those are "internally produced tensors"!)
             assert g1.output_tensors[inter_port] is not g2.output_tensors[outer_port]
 
-
     @pytest.mark.unit
     def test_graph_nesting4_1_topology_copy_one_module_manual_outputs_bound_only_in_inner(self):
         """
@@ -226,7 +225,6 @@ class TestNeuralGraphNesting:
             assert g1.outputs[inter_port] is not g2.outputs[outer_port]
             # And different tensors (as those are "internally produced tensors"!)
             assert g1.output_tensors[inter_port] is not g2.output_tensors[outer_port]
-
 
     @pytest.mark.unit
     def test_graph_nesting5_topology_copy_one_module_default_inputs(self):
@@ -328,7 +326,6 @@ class TestNeuralGraphNesting:
         assert g2.output_tensors["y_pred"] is y_pred2
         assert y_pred1 is not y_pred2
 
-
     @pytest.mark.unit
     def test_graph_nesting7_topology_copy_one_module_all_manual_connect(self):
         """
@@ -339,7 +336,6 @@ class TestNeuralGraphNesting:
         tn = TaylorNet(dim=4, name="tgn7_tn")
         loss = MSELoss(name="tgn7_loss")
 
-
         # Create the "inner graph".
         with NeuralGraph(operation_mode=OperationMode.training, name="tgn7_g1") as g1:
             # Copy the input type.
@@ -348,7 +344,6 @@ class TestNeuralGraphNesting:
             y_pred1 = tn(x=g1.inputs["inner_x"])
             # Manually bind the output port.
             g1.outputs["inner_y_pred"] = y_pred1
-
 
         # Create the "outer graph".
         with NeuralGraph(operation_mode=OperationMode.training, name="tgn7_g2") as g2:
@@ -399,7 +394,6 @@ class TestNeuralGraphNesting:
         assert len(g2.outputs) == 1
         assert g2.output_ports["outer_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
         assert g2.output_tensors["outer_loss"] is lss
-
 
     @pytest.mark.unit
     def test_graph_nesting8_topology_copy_two_modules(self):
@@ -452,7 +446,6 @@ class TestNeuralGraphNesting:
         # Analogically with "loss".
         assert g2.tensors["tgn8_loss"]["loss"] == lss2
 
-
     @pytest.mark.unit
     def test_graph_nesting9_topology_copy_whole_graph(self):
         """
@@ -496,7 +489,10 @@ class TestNeuralGraphNesting:
         assert g2.tensors["tgn9_ds"]["x"].type.compare(ds.output_ports["x"]) == NeuralTypeComparisonResult.SAME
         assert g2.tensors["tgn9_ds"]["y"].type.compare(ds.output_ports["y"]) == NeuralTypeComparisonResult.SAME
         # Internally the name "y_pred" is used, not the "bound output name": "inner_y_pred"!
-        assert g2.tensors["tgn9_tn"]["y_pred"].type.compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert (
+            g2.tensors["tgn9_tn"]["y_pred"].type.compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        )
         # Analogically with "loss".
-        assert g2.tensors["tgn9_loss"]["loss"].type.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
-        
+        assert (
+            g2.tensors["tgn9_loss"]["loss"].type.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        )

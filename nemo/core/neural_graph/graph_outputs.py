@@ -111,7 +111,7 @@ class GraphOutputs(MutableMapping):
         else:  # Use default dict.
             return len(self._default_outputs)
 
-    def bind(self, tensors_list, port_names = None):
+    def bind(self, tensors_list, port_names=None):
         """ Binds the default outputs.
 
             Args:
