@@ -35,7 +35,7 @@ class TestNeuralGraphNesting:
             Tests whether invalid nesting (i.e. nesting of graphs with incompatible modes) throw exeptions.
         """
         # Instantiate the necessary neural modules.
-        dl = RealFunctionDataLayer(n=100, batch_size=4)
+        dl = RealFunctionDataLayer(n=10, batch_size=1)
 
         with NeuralGraph(operation_mode=OperationMode.both):
             _, _ = dl()
@@ -187,6 +187,47 @@ class TestNeuralGraphNesting:
             # And different tensors (as those are "internally produced tensors"!)
             assert g1.output_tensors[inter_port] is not g2.output_tensors[outer_port]
 
+
+    @pytest.mark.unit
+    def test_graph_nesting4_1_topology_copy_one_module_manual_outputs_bound_only_in_inner(self):
+        """
+            Test whether when nesting of one graph into another will result in copy of the graph topology (tensors).
+            Case: binding of outputs, manual port names - only in the inner graph.
+            Testing whether outputs of outer graph have the manually bound names.
+        """
+
+        dl = RealFunctionDataLayer(n=10, batch_size=1, name="tgn41_dl")
+
+        # Create the "inner graph".
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgn41_g1") as g1:
+            xg1, tg1 = dl()
+            # Set port binding manually, with different names - and their number!
+            g1.outputs["inner_x"] = xg1
+            g1.outputs["inner_t"] = tg1
+
+        # Create the "outer graph".
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgn41_g2") as g2:
+            # Get them as a tuple.
+            outputs = g1()
+
+        # Retrieve tensors from tuple.
+        assert outputs._fields[0] == "inner_x"
+        assert outputs._fields[1] == "inner_t"
+        xg2 = outputs.inner_x
+        tg2 = outputs.inner_t
+
+        # Make sure that outer graph has objects of the same names
+        assert len(g1.outputs) == len(g2.outputs)
+        for inter_port, outer_port in [("inner_x", "inner_x"), ("inner_t", "inner_t")]:
+            # Definitions are the same: test two "paths" of accessing the type.
+            assert g1.output_ports[inter_port].compare(g2.output_ports[outer_port]) == NeuralTypeComparisonResult.SAME
+            assert g1.outputs[inter_port].type.compare(g2.outputs[outer_port].type) == NeuralTypeComparisonResult.SAME
+            # At the same time - those have to be two different port objects!
+            assert g1.outputs[inter_port] is not g2.outputs[outer_port]
+            # And different tensors (as those are "internally produced tensors"!)
+            assert g1.output_tensors[inter_port] is not g2.output_tensors[outer_port]
+
+
     @pytest.mark.unit
     def test_graph_nesting5_topology_copy_one_module_default_inputs(self):
         """
@@ -286,3 +327,75 @@ class TestNeuralGraphNesting:
         assert g1.output_tensors["y_pred"] is y_pred1
         assert g2.output_tensors["y_pred"] is y_pred2
         assert y_pred1 is not y_pred2
+
+
+    @pytest.mark.unit
+    def test_graph_nesting7_topology_copy_one_module_all_manual_connect(self):
+        """
+            Test whether when nesting of one graph into another will result in copy of the graph topology (tensors).
+            Case: manual binding of inputs and outputs, connects to other modules.
+        """
+        ds = RealFunctionDataLayer(n=100, batch_size=1, name="tgn7_ds")
+        tn = TaylorNet(dim=4, name="tgn7_tn")
+        loss = MSELoss(name="tgn7_loss")
+
+
+        # Create the "inner graph".
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgn7_g1") as g1:
+            # Copy the input type.
+            g1.inputs["inner_x"] = tn.input_ports["x"]
+            # Manually bind the input port.
+            y_pred1 = tn(x=g1.inputs["inner_x"])
+            # Manually bind the output port.
+            g1.outputs["inner_y_pred"] = y_pred1
+
+
+        # Create the "outer graph".
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgn7_g2") as g2:
+            x, y = ds()
+            y_pred2 = g1(inner_x=x)
+            lss = loss(predictions=y_pred2, target=y)
+
+        # Check steps.
+        assert len(g2.steps) == 3
+        assert g2.steps[1] == g1.steps[0]
+
+        # Make sure that the modules are the same.
+        assert len(g2) == 3
+        assert g2["tgn7_tn"] is g1["tgn7_tn"]
+
+        # Make sure that inputs are ok.
+        assert len(g2.inputs) == 0
+
+        # Check outputs.
+        assert len(g2.outputs) == 4
+        assert g2.output_ports["x"].compare(ds.output_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert g2.output_ports["y"].compare(ds.output_ports["y"]) == NeuralTypeComparisonResult.SAME
+        assert g2.output_ports["loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        # The manually bound name!
+        assert g2.output_ports["inner_y_pred"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+
+        # Check the output tensors.
+        assert len(g2.output_tensors) == 4
+        assert g2.output_tensors["x"] == x
+        assert g2.output_tensors["y"] == y
+        assert g2.output_tensors["loss"] == lss
+        # The manually bound name!
+        assert g2.output_tensors["inner_y_pred"] == y_pred2
+
+        # Check the "internal tensors".
+        assert y_pred2 is not y_pred1
+        assert g2.tensors["tgn7_ds"]["x"] == x
+        assert g2.tensors["tgn7_ds"]["y"] == y
+        assert g2.tensors["tgn7_loss"]["loss"] == lss
+        # Internally the name "y_pred" is used, not the "bound output name": "inner_y_pred"!
+        assert g2.tensors["tgn7_tn"]["y_pred"] == y_pred2
+
+        # Update g2: manually bound only one output.
+        with g2:
+            g2.outputs["outer_loss"] = lss
+
+        # Make sure that outputs are ok.
+        assert len(g2.outputs) == 1
+        assert g2.output_ports["outer_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        assert g2.output_tensors["outer_loss"] is lss

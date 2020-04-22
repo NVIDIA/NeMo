@@ -34,7 +34,7 @@ class TestNeuralGraphs:
             Also tests modules access.
         """
         # Create modules.
-        dl = RealFunctionDataLayer(n=100, batch_size=4, name="dl")
+        dl = RealFunctionDataLayer(n=10, batch_size=1, name="dl")
         fx = TaylorNet(dim=4, name="fx")
         loss = MSELoss(name="loss")
 
@@ -62,7 +62,7 @@ class TestNeuralGraphs:
     def test_explicit_graph_manual_activation(self):
         """  Tests initialization of an `explicit` graph using `manual` activation. """
         # Create modules.
-        dl = RealFunctionDataLayer(n=100, batch_size=4)
+        dl = RealFunctionDataLayer(n=10, batch_size=1)
         fx = TaylorNet(dim=4)
 
         # Create the g0 graph.
@@ -85,7 +85,7 @@ class TestNeuralGraphs:
     @pytest.mark.unit
     def test_default_output_ports(self):
         """ Tests automatic binding of default output ports. """
-        dl = RealFunctionDataLayer(n=10000, batch_size=128)
+        dl = RealFunctionDataLayer(n=10, batch_size=1)
         m2 = TaylorNet(dim=4)
         loss = MSELoss()
 
@@ -95,6 +95,6 @@ class TestNeuralGraphs:
 
         # Tests output ports.
         assert len(g1.output_ports) == 3
-        assert g1.output_ports.tensors["x"].compare(x) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports.tensors["y"].compare(t) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports.tensors["y_pred"].compare(p) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["x"].compare(x) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["y"].compare(t) == NeuralTypeComparisonResult.SAME
+        assert g1.output_ports["y_pred"].compare(p) == NeuralTypeComparisonResult.SAME

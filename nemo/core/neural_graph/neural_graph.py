@@ -347,11 +347,13 @@ class NeuralGraph(NeuralInterface):
 
         if len(output_tensors) == 1:
             # Return a single tensor.
-            results = next(iter(output_tensors.values()))
+            key = list(output_tensors)[0]
+            results = output_tensors[key]
 
             # Bind the "default" output ports of the inner graph as "default" output ports of this graph.
             # Call the bind() method of bound_outputs directly, as we already have the tensors in our graph.
-            self.outputs.bind([results])
+            # But: Use output port name of the inner graph!
+            self.outputs.bind([results], [key])
 
         else:
             # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
@@ -363,7 +365,8 @@ class NeuralGraph(NeuralInterface):
 
             # Bind the "default" output ports of the inner graph as "default" output ports of this graph.
             # Call the bind() method of bound_outputs directly, as we already have the tensors in our graph.
-            self.outputs.bind(output_tensors.values())
+            # But: Use output port name of the inner graph!
+            self.outputs.bind(output_tensors.values(), output_tensors.keys())
 
         # Ok, now we can turn automatic binding on.
         self.default_output_binding = True

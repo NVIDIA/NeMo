@@ -111,15 +111,18 @@ class GraphOutputs(MutableMapping):
         else:  # Use default dict.
             return len(self._default_outputs)
 
-    def bind(self, tensors_list):
+    def bind(self, tensors_list, port_names = None):
         """ Binds the default outputs.
 
             Args:
                 tensors_list: List of tensors to be added.
+                port_names: List of port names (visible outside). If None: using internal tensor "output port names".
         """
-        for tensor in tensors_list:
-            # Try to use the "default" name = output_port_name.
-            name = tensor.name
+        # Set names.
+        if port_names is None:
+            port_names = [tensor.name for tensor in tensors_list]
+
+        for name, tensor in zip(port_names, tensors_list):
             # Check the presence of the port name in "default" dictionary.
             if name in self._default_outputs.keys():
                 # Name present - use the name being combination of producer and port names.
