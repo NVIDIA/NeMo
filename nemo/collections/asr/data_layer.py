@@ -355,7 +355,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
     basename must be the same).
 
     Notice that a few arguments are different from the AudioToTextDataLayer; for example, shuffle (bool) has been
-    replaced by shuffle_n (int), and batch_size is not used.
+    replaced by shuffle_n (int).
 
     Args:
         audio_tar_filepath (str):
@@ -363,6 +363,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         labels (list): List of characters that can be output by the ASR model.
             For Jasper, this is the 28 character set {a-z '}. The CTC blank
             symbol is automatically added later for models using ctc.
+        batch_size (int): batch size
         sample_rate (int): Target sampling rate for data. Audio files will be
             resampled to sample_rate if it is not already.
             Defaults to 16000.
@@ -394,6 +395,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
+        num_workers (int): See PyTorch DataLoader. Defaults to 0.
         augmentor (AudioAugmentor or dict): Optional AudioAugmentor or
             dictionary of str -> kwargs (dict) which is parsed and used
             to initialize an AudioAugmentor.
@@ -426,6 +428,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         audio_tar_filepath,
         manifest_filepath,
         labels,
+        batch_size,
         sample_rate=16000,
         int_values=False,
         bos_id=None,
@@ -436,6 +439,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         normalize_transcripts=True,
         trim_silence=False,
         shuffle_n=0,
+        num_workers=0,
         augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
     ):
         super().__init__()
@@ -457,6 +461,12 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         self.trim = trim_silence
         self.eos_id = eos_id
         self.bos_id = bos_id
+
+        # Used in creating a sampler (in Actions).
+        self._batch_size = batch_size
+        self._num_workers = num_workers
+        pad_id = 0 if pad_id is None else pad_id
+        self.collate_fn = partial(seq_collate_fn, token_pad_value=pad_id)
 
         # Put together WebDataset
         self._dataset = (

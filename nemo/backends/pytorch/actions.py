@@ -1298,13 +1298,17 @@ class PtActions(Actions):
         else:
             if t_dataset is not None:
                 train_sampler = None
-                train_dataloader = torch.utils.data.DataLoader(
-                    dataset=t_dataset,
-                    sampler=None,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
-                    shuffle=dataNM.shuffle,
-                )
+                dataloader_params = {
+                    'dataset': t_dataset,
+                    'sampler': None,
+                    'num_workers': dataNM.num_workers,
+                    'batch_size': dataNM.batch_size,
+                    'shuffle': dataNM.shuffle,
+                }
+                if hasattr(dataNM, 'collate_fn'):
+                    dataloader_params['collate_fn'] = dataNM.collate_fn
+
+                train_dataloader = torch.utils.data.DataLoader(**dataloader_params)
             else:
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None
