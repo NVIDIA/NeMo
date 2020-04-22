@@ -19,6 +19,7 @@
 from collections import namedtuple
 from collections.abc import MutableMapping
 
+from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.module_port import ModulePort
 
@@ -80,13 +81,16 @@ class GraphInputs(MutableMapping):
         """
         if key in self._inputs.keys():
             raise KeyError("Overwriting definition of a previously bound port `{}` is not allowed".format(key))
-        # Make sure that a proper NeuralType definition was passed here.
-        # if type(value) is not NeuralType:
-        #    raise TypeError("Port `{}` definition must be must be a NeuralType".format(key))
 
+        # Make sure that a proper NeuralType definition was passed here.
+        if isinstance(value, NeuralType):
+            val_type = value
+        elif isinstance(value, GraphInput):
+            val_type = value.type
+            raise TypeError("Port `{}` definition must be must be a NeuralType or GraphInput type".format(key))
         # Ok, add definition to list of mapped (module, port)s.
-        # Note: for now, there are no mapped modules.
-        self._inputs[key] = GraphInput(type=value)
+        # Note: for now, there are no mapped modules, so copy only (neural) type.
+        self._inputs[key] = GraphInput(type=val_type)
 
     def __getitem__(self, key):
         """ Returns bound input. """

@@ -493,8 +493,8 @@ class NeuralModule(NeuralInterface):
 
                 # Check if GraphInput belongs to the active graph !
                 own_port = False
-                for port in self._app_state.active_graph.inputs.items():
-                    if port is GraphInput:
+                for gcontent in self._app_state.active_graph.inputs.values():
+                    if gcontent is port_content:
                         own_port = True
                         break
                 if not own_port:

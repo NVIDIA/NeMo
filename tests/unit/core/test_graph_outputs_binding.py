@@ -19,7 +19,7 @@
 import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
-from nemo.core import NeuralGraph
+from nemo.core import NeuralGraph, OperationMode
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_types import NeuralTypeComparisonResult
 
@@ -27,7 +27,7 @@ from nemo.core.neural_types import NeuralTypeComparisonResult
 @pytest.mark.usefixtures("neural_factory")
 class TestGraphOutputs:
     @pytest.mark.unit
-    def test_binding(self):
+    def test_graph_outputs1_binding(self):
         # Create modules.
         data_source = RealFunctionDataLayer(n=100, batch_size=1)
         tn = TaylorNet(dim=4)
@@ -76,3 +76,43 @@ class TestGraphOutputs:
 
         with pytest.raises(KeyError):
             _ = defs["x"]
+
+    @pytest.mark.unit
+    def test_graph_outputs2_binding(self):
+        # Create modules.
+        data_source = RealFunctionDataLayer(n=100, batch_size=1, name="tgo2_ds")
+        tn = TaylorNet(dim=4, name="tgo2_tn")
+        loss = MSELoss(name="tgo2_loss")
+
+        # Test default binding.
+        with NeuralGraph(operation_mode=OperationMode.training) as g1:
+            # Create the graph by connnecting the modules.
+            x, y = data_source()
+            y_pred = tn(x=x)
+            lss = loss(predictions=y_pred, target=y)
+
+        assert len(g1.outputs) == 4
+        # Test ports.
+        for (module, port, tensor) in [
+            (data_source, "x", x),
+            (data_source, "y", y),
+            (tn, "y_pred", y_pred),
+            (loss, "loss", lss),
+        ]:
+            # Compare definitions - from outputs.
+            assert g1.outputs[port].type.compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
+            # Compare definitions - from output_ports.
+            assert g1.output_ports[port].compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
+            # Compare definitions - from output_tensors.
+            assert g1.output_tensors[port].compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
+            # Make sure that tensor was bound, i.e. iput refers to the same object instance!
+            assert g1.output_tensors[port] is tensor
+
+        # Test manual binding.
+        with g1:
+            g1.outputs["my_prediction"] = y_pred
+            g1.outputs["my_loss"] = lss
+
+        assert len(g1.outputs) == 2
+        assert g1.output_tensors["my_prediction"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert g1.output_tensors["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
