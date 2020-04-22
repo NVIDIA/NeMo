@@ -16,6 +16,7 @@
 
 import copy
 import io
+import os
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
@@ -425,7 +426,6 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         audio_tar_filepath,
         manifest_filepath,
         labels,
-        batch_size,
         sample_rate=16000,
         int_values=False,
         bos_id=None,
@@ -445,7 +445,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
             augmentor = _process_augmentations(augmentor)
 
         self.collection = ASRAudioText(
-            manifests=manifest_filepath.split(','),
+            manifests_files=manifest_filepath.split(','),
             parser=make_parser(labels=labels, name='en', do_normalize=normalize_transcripts),
             min_duration=min_duration,
             max_duration=max_duration,
@@ -459,12 +459,12 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         self.bos_id = bos_id
 
         # Put together WebDataset
-        self.dataset = (
+        self._dataset = (
             wd.Dataset(audio_tar_filepath)
             .shuffle(shuffle_n)
-            .rename(audio='wav', manifest_key='__key__')
-            .to_tuple('audio', 'manifest_key')
-            .map(self._build_sample)
+            .rename(audio='wav', key='__key__')
+            .to_tuple('audio', 'key')
+            .map(f=self._build_sample)
         )
 
     def _build_sample(self, tup):
@@ -505,7 +505,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
 
     @property
     def dataset(self):
-        return self.dataset
+        return self._dataset
 
     @property
     def data_iterator(self):

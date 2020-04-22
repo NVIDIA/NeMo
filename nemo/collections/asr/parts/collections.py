@@ -94,7 +94,7 @@ class AudioText(_Collection):
         max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
-        index_by_filename: bool = False,
+        index_by_file_id: bool = False,
     ):
         """Instantiates audio-text manifest with filters and preprocessing.
 
