@@ -23,7 +23,7 @@ import sys
 
 import torch
 
-sys.path.append('/home/ebakhturina/megatron_public/Megatron-LM')
+sys.path.append('path_to/Megatron-LM')
 from megatron import get_args
 from megatron.initialize import initialize_megatron
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
