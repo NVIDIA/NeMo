@@ -19,6 +19,7 @@ FasterSpeechDataLayer_train:
     drop_last: true
     shuffle: true
     sampler_type: 'default'  # SSS produces same 0.65 mask usage on average
+    aug: False
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -27,6 +28,7 @@ FasterSpeechDataLayer_eval:
     drop_last: false  # Mind the BN.
     shuffle: false
     sampler_type: 'all'  # Eval is single batch of 64.
+    aug: False
 
 FasterSpeech:
     d_char: 64
@@ -135,8 +137,10 @@ JasperEncoder:
             residual: true
 
 FasterSpeechDurLoss:
-    method: 'xe-steps'  # ['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps']
+    method: 'xe'  # ['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps']
     num_classes: 32  # 'n_classes' for dmld or xe (32 covers 98%)
     dmld_hidden: 5  # 1/3 of d_hidden for dmld (log2(num_classes))
     reduction: 'all'
+    max_dur: 500
+    xe_steps_coef: 1.5
     pad16: *pad16

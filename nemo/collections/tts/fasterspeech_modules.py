@@ -298,6 +298,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         shuffle=True,
         num_workers=0,
         sampler_type='default',
+        aug=False,
     ):
         super().__init__()
 
@@ -325,6 +326,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         self._space_id = labels.index(' ')
         self._sample_rate = sample_rate
         self._load_audio = load_audio
+        self._aug = aug
 
         sampler = None
         if self._placement == nemo.core.DeviceType.AllGpu:
@@ -381,13 +383,14 @@ class FasterSpeechDataLayer(DataLayerNM):
             # `dur`
             blank, dur = batch['blank'], batch['dur']
 
-            # # Aug
-            # new_blank, new_dur = [], []
-            # for b, d in zip(blank, dur):
-            #     new_b, new_d = BDAugs.shake(b.numpy(), d.numpy(), p=0.4)
-            #     new_blank.append(torch.tensor(new_b))
-            #     new_dur.append(torch.tensor(new_d))
-            # blank, dur = new_blank, new_dur
+            # Aug
+            if self._aug:
+                new_blank, new_dur = [], []
+                for b, d in zip(blank, dur):
+                    new_b, new_d = BDAugs.shake(b.numpy(), d.numpy(), p=0.1)
+                    new_blank.append(torch.tensor(new_b))
+                    new_dur.append(torch.tensor(new_d))
+                blank, dur = new_blank, new_dur
 
             dur = _Ops.merge([_Ops.interleave(b, d) for b, d in zip(blank, dur)], dtype=torch.long)
         else:
@@ -667,9 +670,9 @@ class FasterSpeechDurLoss(LossNM):
         elif self._method == 'l2':
             return 1
         elif self._method == 'dmld-log':
-            return 3 * self._args.loss_dmld_hidden
+            return 3 * self._dmld_hidden
         elif self._method == 'dmld':
-            return 3 * self._args.loss_dmld_hidden
+            return 3 * self._dmld_hidden
         elif self._method == 'xe':
             return self._num_classes
         elif self._method == 'xe-steps':
@@ -687,9 +690,9 @@ class FasterSpeechDurLoss(LossNM):
             dur_pred = nemo_tts.parts.dmld_sample(tensors.dur_pred)
 
             # [-1, 1] => [0, log(num_classes)]
-            dur_pred = (dur_pred + 1) / 2 * math.log(self._loss_dmld_num_classes)
+            dur_pred = (dur_pred + 1) / 2 * math.log(self._num_classes)
             # [0, log(num_classes)] => [0, num_classes - 1]
-            dur_pred = torch.clamp(dur_pred.exp() - 1, max=self._loss_dmld_num_classes - 1)
+            dur_pred = torch.clamp(dur_pred.exp() - 1, max=self._num_classes - 1)
         elif self._method == 'dmld':
             dur_pred = nemo_tts.parts.dmld_sample(tensors.dur_pred)
 
