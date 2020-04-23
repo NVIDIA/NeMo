@@ -303,6 +303,8 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
                 )
             elif optimizer_class.lower() == "fused_adam":
+                if not FusedAdam:
+                    raise ValueError("FusedAdam works only with torch DDP.")
                 optimizer = FusedAdam(
                     params=params_to_optimize,
                     lr=lr,
@@ -326,6 +328,8 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
+                if not FusedNovoGrad:
+                    raise ValueError("FusedNovoGrad works only with torch DDP.")
                 optimizer = FusedNovoGrad(
                     params_to_optimize,
                     lr=lr,
@@ -335,11 +339,15 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_lamb":
+                if not FusedLAMB:
+                    raise ValueError("FusedLAMB works only with torch DDP.")
                 optimizer = FusedLAMB(params_to_optimize, lr=lr,)
             else:
                 raise ValueError("Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
+                if not LARC:
+                    raise ValueError("LARC works only with torch DDP.")
                 logging.info("Enabling larc")
                 optimizer = LARC(optimizer, trust_coefficient=optimization_params.get("larc_eta", 2e-2),)
         else:
