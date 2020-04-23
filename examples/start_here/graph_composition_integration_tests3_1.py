@@ -56,3 +56,6 @@ callback = SimpleLossLoggerCallback(
 
 # Invoke "train" action.
 nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
+
+# Serialize graph
+print(g2.serialize())

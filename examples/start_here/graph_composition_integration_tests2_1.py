@@ -39,17 +39,15 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
     x, t = dl()
     prediction1 = m1(x=x)
     prediction2 = m2(x=x)
-    # Manually bind the selected output ports.
-    g1.output_ports["ix"] = x
-    g1.output_ports["te"] = t
-    g1.output_ports["prediction"] = prediction2
+    # Manually bind the selected outputs.
+    g1.outputs["ix"] = x
+    g1.outputs["te"] = t
+    g1.outputs["prediction"] = prediction2
 
 with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g2:
     x1, t1, p1 = g1()
     lss = loss(predictions=p1, target=t1)
 
-
-pdb.set_trace()
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
@@ -58,3 +56,10 @@ callback = SimpleLossLoggerCallback(
 
 # Invoke "train" action.
 nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
+
+# Serialize graph
+serialized_g1 = g1.serialize()
+print()
+
+# Deserialize graph.
+g3 = NeuralGraph.deserialize(serialized_g1)

@@ -162,3 +162,21 @@ class GraphOutputs(MutableMapping):
             output_tensors[k] = tensor
 
         return output_tensors
+
+    def serialize(self):
+        """ Method responsible for serialization of the graph outputs.
+
+            Returns:
+                List containing mappings (module.output_port -> output).
+        """
+        serialized_outputs = {"default": [], "manual":[]}
+
+        # Serialize both dictionaries - for now.
+        for d, name  in [(self._default_outputs, "default"), (self._manual_outputs, "manual")]:
+            # Iterate through "bindings".
+            for key, binding in d.items():
+                # Serialize: module.port -> output.
+                source = binding.producer_port.module_name + "." + binding.producer_port.port_name
+                serialized_outputs[name].append(source + "->" + key)
+        # Return the result.
+        return serialized_outputs

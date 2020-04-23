@@ -393,6 +393,19 @@ class NeuralGraph(NeuralInterface):
         """
         self._app_state.active_graph = None
 
+    def export_to_config(self, config_file):
+        """ Exports the neural graph to a file.
+        
+            Args:
+                config_file: Name (and path) of the config file (YML) to be written to.
+        """
+        # Create a dictionary where we will add the whole information.
+        config = {self.name: {}}
+        # Get shortcut.
+        graph = config[self.name]
+        # Serialize modules.
+        graph["modules"] = self.__serialize_modules()
+
     def serialize(self):
         """ Method serializes the whole graph.
 
@@ -415,7 +428,10 @@ class NeuralGraph(NeuralInterface):
         serialized_graph["connections"] = self.__serialize_connections()
 
         # Serialize graph (bound) inputs.
+        serialized_graph["inputs"] = self._inputs.serialize()
+
         # Serialize graph (bound) outputs.
+        serialized_graph["outputs"] = self._outputs.serialize()
 
         # Return the dictionary.
         return serialized_graph
@@ -426,9 +442,17 @@ class NeuralGraph(NeuralInterface):
             Returns:
                 Dictionary containing description of the whole graph.        
         """
-        # Only version and full_spec - for now.
+        # Generate full_spec of the class.
         full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
         header = {"nemo_core_version": nemo_version, "full_spec": full_spec}
+        # Add operation mode.
+        if self._operation_mode == OperationMode.training:
+            header["operation_mode"] = "training"
+        if self._operation_mode == OperationMode.inference:
+            header["operation_mode"] = "inference"
+        else:
+            header["operation_mode"] = "both"
+        # Return header.
         return header
 
     def __serialize_modules(self):
@@ -472,18 +496,10 @@ class NeuralGraph(NeuralInterface):
                     serialized_connections.append(source + "->" + target)
         return serialized_connections
 
-    def export_to_config(self, config_file):
-        """ Exports the neural graph to a file.
-        
-            Args:
-                config_file: Name (and path) of the config file (YML) to be written to.
-        """
-        # Create a dictionary where we will add the whole information.
-        config = {self.name: {}}
-        # Get shortcut.
-        graph = config[self.name]
-        # Serialize modules.
-        graph["modules"] = self.__serialize_modules()
+    @classmethod
+    def deserialize(cls, configuration, reuse_existing_modules=False, overwrite_params={}):
+        pass
+
 
     @classmethod
     def import_from_config(cls, config_file, reuse_existing_modules=False, overwrite_params={}):

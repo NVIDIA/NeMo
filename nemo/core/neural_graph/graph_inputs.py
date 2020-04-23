@@ -126,3 +126,20 @@ class GraphInputs(MutableMapping):
                 if module == module_name and port == port_name:
                     return key
         return None
+
+
+    def serialize(self):
+        """ Method responsible for serialization of the graph inputs.
+
+            Returns:
+                List containing mappings (input -> module.input_port).
+        """
+        serialized_inputs = []
+        # Iterate through "bindings".
+        for key, binding in self._inputs.items():
+            for (module, port) in binding.consumers_ports:
+                # Serialize: input -> module.port.
+                target = module + "." + port
+                serialized_inputs.append(key + "->" + target)
+        # Return the result.
+        return serialized_inputs
