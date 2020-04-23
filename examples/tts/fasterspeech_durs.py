@@ -56,7 +56,7 @@ def parse_args():
         checkpoint_save_freq=10000,
         wdb_project='fast-tts',
         wdb_name='test_' + str(datetime.datetime.now()).replace(' ', '_'),
-        wdb_tags=['test', 'to-delete', 'durs'],
+        wdb_tags=['durs', 'test', 'to-delete'],
     )
 
     # Required: train_dataset

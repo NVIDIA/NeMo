@@ -18,7 +18,7 @@ fi
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 # NGC
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=32         # Default is 32.
+GPU_MEM=16         # Default is 32.
 NUM_GPU=1          # Default is 8.
 OPT=O2             # Default is O0.
 WS=stan            # Workspace name

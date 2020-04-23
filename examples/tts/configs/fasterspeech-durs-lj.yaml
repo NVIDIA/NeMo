@@ -29,11 +29,11 @@ FasterSpeechDataLayer_eval:
     sampler_type: 'all'  # Eval is single batch of 64.
 
 FasterSpeech:
-    d_char: 256
+    d_char: 64
     pad16: *pad16
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
-dropout: &dropout 0.0  # Having dropout more than 0.1 doesn't make sense for LJSpeech.
+dropout: &dropout 0.1  # Having dropout more than 0.1 doesn't make sense for LJSpeech.
 separable: &separable true  # Non-separable one greatly increase number of weights.
 JasperEncoder:
     activation: "relu"
@@ -97,7 +97,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # Group 3: 3 x 512 x [11,13,15] (Last Group)
+        # Group 3: 3 x 256 x [11,13,15] (Last Group)
         -   filters: 256
             repeat: 5
             kernel: [11]
