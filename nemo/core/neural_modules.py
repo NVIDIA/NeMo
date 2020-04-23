@@ -292,7 +292,6 @@ class NeuralModule(NeuralInterface):
         # In this case configuration = init parameters.
         return self._init_params
 
-
     @classmethod
     def __validate_config_file(cls, config_file, section_name=None):
         """
@@ -365,11 +364,7 @@ class NeuralModule(NeuralInterface):
             Returns:
                 Instance of the created NeuralModule object.
         """
-        logging.info(
-            "Loading configuration of a new Neural Module from the `{}` file".format(
-                config_file
-            )
-        )
+        logging.info("Loading configuration of a new Neural Module from the `{}` file".format(config_file))
         # Validate the content of the configuration file (its header).
         loaded_config = cls.__validate_config_file(config_file, section_name)
 
@@ -400,17 +395,13 @@ class NeuralModule(NeuralInterface):
         """
         # Deserialize header - get object class.
         module_class = cls.__deserialize_header(configuration["header"])
-        
+
         # Get init parameters.
         init_params = cls._deserialize_configuration(configuration["init_params"])
 
         # Create and return the object.
         obj = module_class(**init_params)
-        logging.info(
-            "Instantiated a new Neural Module named `{}` of type `{}`".format(
-                obj.name, type(obj).__name__
-            )
-        )
+        logging.info("Instantiated a new Neural Module named `{}` of type `{}`".format(obj.name, type(obj).__name__))
         return obj
 
     @classmethod
@@ -430,7 +421,6 @@ class NeuralModule(NeuralInterface):
         # print(mod_obj)
 
         return mod_obj
-
 
     @classmethod
     def _deserialize_configuration(cls, init_params):

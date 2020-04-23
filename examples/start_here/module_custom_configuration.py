@@ -59,7 +59,7 @@ class CustomTaylorNet(TaylorNet):
             init_to_export["status"] = 0
         else:
             init_to_export["status"] = 1
-        
+
         # Return serialized parameters.
         return init_to_export
 
@@ -75,7 +75,7 @@ class CustomTaylorNet(TaylorNet):
                 A "deserialized" list with init parameters.
         """
         deserialized_params = {}
-        
+
         # "Deserialize" dim.
         deserialized_params["dim"] = init_params["dim"]
 

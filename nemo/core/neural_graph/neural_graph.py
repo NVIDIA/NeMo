@@ -23,12 +23,12 @@ __all__ = [
 from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
 
-from nemo.package_info import __version__ as nemo_version
 from nemo.core import OperationMode
 from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
+from nemo.package_info import __version__ as nemo_version
 
 
 class NeuralGraph(NeuralInterface):
@@ -244,13 +244,12 @@ class NeuralGraph(NeuralInterface):
         # to the "default" graph.
         # if module.name in self._modules.keys() and self._modules[module.name] is not module:
         #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
-        
-        # Add module to list of modules.  
+
+        # Add module to list of modules.
         self._modules[module.name] = module
 
         # Add step - store the module name.
         self._steps[len(self._steps)] = module.name
-
 
     def bind_outputs(self, tensors_list):
         """ Binds the output tensors.
@@ -420,7 +419,6 @@ class NeuralGraph(NeuralInterface):
 
         # Return the dictionary.
         return serialized_graph
-        
 
     def __serialize_header(self):
         """ Private method responsible for serializing the graph header.
@@ -430,10 +428,7 @@ class NeuralGraph(NeuralInterface):
         """
         # Only version and full_spec - for now.
         full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
-        header = {
-            "nemo_core_version": nemo_version,
-            "full_spec": full_spec
-        }
+        header = {"nemo_core_version": nemo_version, "full_spec": full_spec}
         return header
 
     def __serialize_modules(self):
@@ -509,7 +504,6 @@ class NeuralGraph(NeuralInterface):
                 Instance of the created NeuralGraph object.
         """
         pass
-
 
     def __str__(self):
         """ Prints a nice summary. """
