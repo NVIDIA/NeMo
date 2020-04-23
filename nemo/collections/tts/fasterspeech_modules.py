@@ -387,7 +387,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             if self._aug:
                 new_blank, new_dur = [], []
                 for b, d in zip(blank, dur):
-                    new_b, new_d = BDAugs.shake(b.numpy(), d.numpy(), p=0.1)
+                    new_b, new_d = BDAugs.shake(b.numpy(), d.numpy(), p=0.05)
                     new_blank.append(torch.tensor(new_b))
                     new_dur.append(torch.tensor(new_d))
                 blank, dur = new_blank, new_dur

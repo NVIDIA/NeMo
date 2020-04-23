@@ -80,10 +80,14 @@ class DurMetric(nemo.core.Metric):
 
         self._ss, self._hit0, self._hit1, self._hit2, self._hit3, self._total = (None,) * 6
         self._hit10m, self._total10m = None, None
+        self._durs_hit, self._durs_total = None, None
+        self._blanks_hit, self._blanks_total = None, None
 
     def clear(self) -> None:
         self._ss, self._hit0, self._hit1, self._hit2, self._hit3, self._total = 0, 0, 0, 0, 0, 0
         self._hit10m, self._total10m = 0, 0
+        self._durs_hit, self._durs_total = 0, 0
+        self._blanks_hit, self._blanks_total = 0, 0
 
     def batch(self, tensors) -> None:
         tensors = self._preprocessing(tensors)
@@ -102,6 +106,10 @@ class DurMetric(nemo.core.Metric):
             self._total += prefix
             self._hit10m += ((dur_true1 == dur_pred1) & (dur_true1 >= 10)).sum().item()
             self._total10m += (dur_true1 >= 10).sum().item()
+            self._durs_hit += (dur_true1 == dur_pred1)[1::2].sum().item()
+            self._durs_total += prefix // 2
+            self._blanks_hit += (dur_true1 == dur_pred1)[::2].sum().item()
+            self._blanks_total += (prefix // 2) + 1
 
     def final(self) -> Any:
         mse = self._ss / self._total
@@ -110,8 +118,10 @@ class DurMetric(nemo.core.Metric):
         d2 = self._hit2 / self._total * 100
         d3 = self._hit3 / self._total * 100
         acc10m = self._hit10m / self._total10m * 100
+        durs_acc = self._durs_hit / self._durs_total * 100
+        blanks_acc = self._blanks_hit / self._blanks_total * 100
 
-        return dict(mse=mse, acc=acc, d1=d1, d2=d2, d3=d3, acc10m=acc10m)
+        return dict(mse=mse, acc=acc, d1=d1, d2=d2, d3=d3, acc10m=acc10m, durs_acc=durs_acc, blanks_acc=blanks_acc)
 
 
 class FasterSpeechGraph:
