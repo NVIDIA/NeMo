@@ -57,7 +57,8 @@ class ImpulsePerturbation(Perturbation):
         impulse_record = self._rng.sample(self._manifest.data, 1)[0]
         impulse = AudioSegment.from_file(impulse_record.audio_file, target_sr=data.sample_rate)
         # logging.debug("impulse: %s", impulse_record['audio_filepath'])
-        data._samples = signal.fftconvolve(data.samples, impulse.samples, "full")
+        impulse_norm = (impulse.samples - min(impulse.samples)) / (max(impulse.samples) - min(impulse.samples))
+        data._samples = signal.fftconvolve(data._samples, impulse_norm, "same")
 
 
 class ShiftPerturbation(Perturbation):
