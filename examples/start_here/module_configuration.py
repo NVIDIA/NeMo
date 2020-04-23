@@ -28,7 +28,7 @@ nf = NeuralModuleFactory(placement=DeviceType.CPU)
 dl = RealFunctionDataLayer(n=100, f_name="cos", x_lo=-1, x_hi=1, batch_size=128)
 
 # Instantiate a simple feed-forward, single layer neural network.
-fx = TaylorNet(dim=4)
+fx = TaylorNet(dim=4, name="fx")
 
 # Instantitate loss.
 mse_loss = MSELoss()
@@ -37,7 +37,7 @@ mse_loss = MSELoss()
 fx.export_to_config("/tmp/taylor_net.yml")
 
 # Create a second instance, using the parameters loaded from the previously created configuration.
-fx2 = NeuralModule.import_from_config("/tmp/taylor_net.yml")
+fx2 = NeuralModule.import_from_config("/tmp/taylor_net.yml", name="fx2")
 
 # Create a graph by connecting the outputs with inputs of modules.
 x, y = dl()

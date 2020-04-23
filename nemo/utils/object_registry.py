@@ -109,7 +109,13 @@ class ObjectRegistry(WeakSet):
         raise KeyError("A {} with name `{}` don't exists!".format(self._base_type_name, key))
 
     def __eq__(self, other):
-        """ Checks if two resitrys have similar content. """
+        """ Checks if two registers have the same content. """
         if not isinstance(other, WeakSet):
             return False
         return super().__eq__(other)
+
+    def summary(self):
+        """ Returns a summary of objects on the list. """
+        summary = "Objects:\n"
+        for obj in self.items():
+            summary += " * {} ({})\n".format(obj.name, type(obj).__name)

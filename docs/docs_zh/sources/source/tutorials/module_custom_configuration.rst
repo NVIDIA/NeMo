@@ -49,8 +49,8 @@
 请注意，基类 :class:`NeuralModule` 提供了一些保护方法供我们使用, \
 其中，最重要的是:
 
- * :meth:`_create_config_header()` 生成合适的 header, 以及 \
- * :meth:`_validate_config_file()` 验证加载的配置文件 (检查 header 内容)。
+ * :meth:`__serialize_header()` 生成合适的 header, 以及 \
+ * :meth:`__validate_config_file()` 验证加载的配置文件 (检查 header 内容)。
 
 
 .. note::

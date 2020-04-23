@@ -184,8 +184,52 @@ class NeuralModule(NeuralInterface):
         # Well, seems that everything is ok.
         return True
 
-    def _create_config_header(self):
-        """ A protected method that create a header stored later in the configuration file. """
+    def export_to_config(self, config_file):
+        """
+            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+            Raises a ValueError exception in case then parameters coudn't be exported.
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+        """
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Serialize the module.
+        to_export = self.serialize()
+
+        # All parameters are ok, let's export.
+        with open(abs_path_file, 'w') as outfile:
+            YAML.dump(to_export, outfile)
+
+        logging.info(
+            "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
+        )
+
+    def serialize(self):
+        """ A method serializing the whole Neural module (into a dictionary).
+            
+            Returns:
+                Dictionary containing a "serialized" module.
+        """
+        # Create a dictionary representing the serialized object.
+        serialized_module = {}
+
+        # Add "header" with module "specification".
+        serialized_module["header"] = self.__serialize_header()
+
+        # Add init parameters.
+        serialized_module["init_params"] = self._serialize_configuration()
+
+        # Return dictionary.
+        return serialized_module
+
+    def __serialize_header(self):
+        """ A protected method that creates a header stored later in the configuration file.
+            
+            Returns:
+                Dictionary containing a header with module specification.
+        """
 
         # Get module "full specification".
         module_full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
@@ -227,13 +271,16 @@ class NeuralModule(NeuralInterface):
         }
         return header
 
-    def export_to_config(self, config_file):
+    def _serialize_configuration(self):
         """
-            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+            A function that serializes the module "configuration (i.e. init parameters) to a dictionary.
             Raises a ValueError exception in case then parameters coudn't be exported.
 
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
+            ..note:
+                Thus functions should be overloaded when writing a custom module import/export.
+
+            Returns:
+                a "serialized" dictionary with module configuration.
         """
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
@@ -242,30 +289,12 @@ class NeuralModule(NeuralInterface):
                 F"or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and "
                 F"`import_from_config()` methods for your custom Module class."
             )
+        # In this case configuration = init parameters.
+        return self._init_params
 
-        # Greate an absolute path.
-        abs_path_file = path.expanduser(config_file)
-
-        # Create the dictionary to be exported.
-        to_export = {}
-
-        # Add "header" with module "specification".
-        to_export["header"] = self._create_config_header()
-
-        # Add init parameters.
-        to_export["init_params"] = self._init_params
-        # print(to_export)
-
-        # All parameters are ok, let's export.
-        with open(abs_path_file, 'w') as outfile:
-            YAML.dump(to_export, outfile)
-
-        logging.info(
-            "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
-        )
 
     @classmethod
-    def _validate_config_file(cls, config_file, section_name=None):
+    def __validate_config_file(cls, config_file, section_name=None):
         """
             Class method validating whether the config file has a proper content (sections, specification etc.).
             Raises an ImportError exception when config file is invalid or
@@ -319,7 +348,7 @@ class NeuralModule(NeuralInterface):
         return loaded_config
 
     @classmethod
-    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
+    def import_from_config(cls, config_file, section_name=None, name=None, overwrite_params={}):
         """
             Class method importing the configuration file.
             Raises an ImportError exception when config file is invalid or
@@ -330,40 +359,95 @@ class NeuralModule(NeuralInterface):
 
                 section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
 
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
-                parameters loaded from the configuration file
+                overwrite_init_params: Dictionary containing parameters that will be added to or overwrite (!)
+                the default init parameters loaded from the configuration file (the module "init_params" section).
 
             Returns:
                 Instance of the created NeuralModule object.
         """
+        logging.info(
+            "Loading configuration of a new Neural Module from the `{}` file".format(
+                config_file
+            )
+        )
         # Validate the content of the configuration file (its header).
-        loaded_config = cls._validate_config_file(config_file, section_name)
+        loaded_config = cls.__validate_config_file(config_file, section_name)
 
+        # Update parameters with additional ones.
+        loaded_config["init_params"].update(overwrite_params)
+
+        # Override module name in init_params using the logic:
+        #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
+        #  * name (if None) overrides init_params.name
+        if name is not None:
+            loaded_config["init_params"]["name"] = name
+
+        # "Deserialize" the module.
+        obj = cls.deserialize(loaded_config)
+
+        return obj
+
+    @classmethod
+    def deserialize(cls, configuration):
+        """
+            Class method instantianting the neural module object based on the configuration (dictionary).
+
+            Args:
+                configuration: Dictionary containing proper "header" and "init_params" sections.
+
+            Returns:
+                Instance of the created NeuralModule object.
+        """
+        # Deserialize header - get object class.
+        module_class = cls.__deserialize_header(configuration["header"])
+        
+        # Get init parameters.
+        init_params = cls._deserialize_configuration(configuration["init_params"])
+
+        # Create and return the object.
+        obj = module_class(**init_params)
+        logging.info(
+            "Instantiated a new Neural Module named `{}` of type `{}`".format(
+                obj.name, type(obj).__name__
+            )
+        )
+        return obj
+
+    @classmethod
+    def __deserialize_header(cls, header):
+        """ Method deserializes the header and extracts the module class.
+            
+            Returns:
+                Class of the module to be created.
+        """
         # Parse the "full specification".
-        spec_list = loaded_config["header"]["full_spec"].split(".")
+        spec_list = header["full_spec"].split(".")
 
-        # Get object class from "full specification".
+        # Get module class from the "full specification".
         mod_obj = __import__(spec_list[0])
         for spec in spec_list[1:]:
             mod_obj = getattr(mod_obj, spec)
         # print(mod_obj)
 
-        # Get init parameters.
-        init_params = loaded_config["init_params"]
-        # Update parameters with additional ones.
-        init_params.update(overwrite_params)
-        # TODO: Add section name as default module name!
-        # if section_name is not None:
-        #    init_params.update({"name": section_name})
+        return mod_obj
 
-        # Create and return the object.
-        obj = mod_obj(**init_params)
-        logging.info(
-            "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
-                spec_list[-1], config_file
-            )
-        )
-        return obj
+
+    @classmethod
+    def _deserialize_configuration(cls, init_params):
+        """
+            A function that deserializes the module "configuration (i.e. init parameters).
+
+            ..note:
+                Thus functions should be overloaded when writing a custom module import/export.
+
+            Args:
+                init_params: List of init parameters loaded from the file.
+
+            Returns:
+                A "deserialized" list with init parameters.
+        """
+        # In this case configuration = init parameters.
+        return init_params
 
     @deprecated(version=0.11)
     @staticmethod

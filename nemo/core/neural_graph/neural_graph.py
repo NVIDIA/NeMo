@@ -78,9 +78,10 @@ class NeuralGraph(NeuralInterface):
             This method "nests" one existing neural graph into another one.
             Also checks if all inputs were provided and properly connects them.
 
-        """
-        # print(" Neural Graph {} __call__".format(self._name))
+            Args:
+                kwargs: keyword arguments containing dictionary of (input_port_name, port_content).
 
+        """
         # Test operation modes of the nested graphs.
         outer_mode = self._app_state.active_graph.operation_mode
         inner_mode = self.operation_mode
@@ -108,150 +109,6 @@ class NeuralGraph(NeuralInterface):
 
         # Return output tensors.
         return results
-
-    @property
-    def inputs(self):
-        """
-            Returns graph inputs.
-
-        Returns:
-            A graph input.
-        """
-        return self._inputs
-
-    @property
-    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """
-            Returns definitions of graph input ports (dict of Neural Types).
-
-        .. note::
-            This method actually returns a dictionary with definitions (like Neural Modules).
-            In order to get access to actual graph inputs please call the inputs() method.
-
-        Returns:
-            A graph input ports definitions.
-        """
-        return self._inputs.definitions
-
-    @property
-    def outputs(self):
-        """
-            Returns graph outputs.
-
-        Returns:
-            A graph outputs.
-        """
-        return self._outputs
-
-    @property
-    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """
-            Returns definitions of module output ports (dict of Neural Types).
-
-        .. note::
-            This method actually returns a dictionary with definitions (like Neural Modules).
-            In order to get access to actual graph outpus please call the outputs() method.
-
-        Returns:
-            A graph output ports definitions.
-            
-        """
-        return self._outputs.definitions
-
-    @property
-    def output_tensors(self):
-        """
-            Returns graph output tensors.
-
-        Returns:
-            A graph output tensors.
-        """
-        return self._outputs.tensors
-
-    @property
-    def modules(self):
-        """ Returns modules. """
-        return self._modules
-
-    @property
-    def steps(self):
-        """ Returns steps. """
-        return self._steps
-
-    @property
-    def operation_mode(self):
-        """ Returns operation mode. """
-        return self._operation_mode
-
-    def __enter__(self):
-        """ 
-            Activates this graph.
-        
-            Returns:
-                The graph object.
-        """
-        self._app_state.active_graph = self
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        """
-            Deactivates the current graph.
-        """
-        self._app_state.active_graph = None
-
-    def activate(self):
-        """ 
-            Activates this graph.
-        """
-        self._app_state.active_graph = self
-
-    def deactivate(self):
-        """
-            Deactivates the current graph.
-        """
-        self._app_state.active_graph = None
-
-    def __str__(self):
-        """ Prints a nice summary. """
-        # TODO: a nice summary. ;)
-        desc = "`{}` ({}):\n".format(self.name, len(self._steps))
-        for op in self._steps:
-            desc = desc + "  {}\n".format(type(op[0]).__name__)
-        return desc
-
-    def __getitem__(self, key):
-        """ Returns module given its name (name of the variable).
-
-            Args:
-                key: Name of the variable.
-        """
-        if key not in self._modules.keys():
-            raise KeyError("Neural Graph doesn't contain a module named {}".format(key))
-        return self._modules[key]
-
-    def __len__(self):
-        return len(self._modules)
-
-    def list_modules(self):
-        desc = "{} ({}):\n".format(self.name, len(self))
-        for key, value in self._modules.items():
-            desc += " * `{}` ({})\n".format(key, value)
-        return desc
-
-    def record_step(self, module):
-        """
-            Records the operation (module plus passed inputs) on a list.
-        """
-        # Check if module with that name already exists - to avoid the potential loops (DAG).
-        # TODO: Uncomment after we will refactor all the examples, so training/validation graphs won't be added
-        # to the "default" graph.
-        # if module.name in self._modules.keys():
-        #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
-        # Add module to list of modules.
-        self._modules[module.name] = module
-
-        # Add step - store the module name.
-        self._steps[len(self._steps)] = module.name
 
     def nest(self, inner_graph, inner_graph_args):
         """
@@ -374,6 +231,26 @@ class NeuralGraph(NeuralInterface):
         # Return the results.
         return results
 
+    def record_step(self, module):
+        """
+            Records the operation (module plus passed inputs) on a list.
+
+            Args:
+                module: Neural modules added to a given graph.
+        """
+        # Check if module with that name already exists - to avoid potential loops (DAG).
+        # TODO: Uncomment after we will refactor all the examples, so training/validation graphs won't be added
+        # to the "default" graph.
+        # if module.name in self._modules.keys() and self._modules[module.name] is not module:
+        #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
+        
+        # Add module to list of modules.  
+        self._modules[module.name] = module
+
+        # Add step - store the module name.
+        self._steps[len(self._steps)] = module.name
+
+
     def bind_outputs(self, tensors_list):
         """ Binds the output tensors.
 
@@ -396,9 +273,190 @@ class NeuralGraph(NeuralInterface):
             self.outputs.bind(tensors_list)
 
     @property
+    def inputs(self):
+        """
+            Returns graph inputs.
+
+        Returns:
+            A graph input.
+        """
+        return self._inputs
+
+    @property
+    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
+        """
+            Returns definitions of graph input ports (dict of Neural Types).
+
+        .. note::
+            This method actually returns a dictionary with definitions (like Neural Modules).
+            In order to get access to actual graph inputs please call the inputs() method.
+
+        Returns:
+            A graph input ports definitions.
+        """
+        return self._inputs.definitions
+
+    @property
+    def outputs(self):
+        """
+            Returns graph outputs.
+
+        Returns:
+            A graph outputs.
+        """
+        return self._outputs
+
+    @property
+    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
+        """
+            Returns definitions of module output ports (dict of Neural Types).
+
+        .. note::
+            This method actually returns a dictionary with definitions (like Neural Modules).
+            In order to get access to actual graph outpus please call the outputs() method.
+
+        Returns:
+            A graph output ports definitions.
+            
+        """
+        return self._outputs.definitions
+
+    @property
+    def output_tensors(self):
+        """
+            Returns graph output tensors.
+
+        Returns:
+            A graph output tensors.
+        """
+        return self._outputs.tensors
+
+    @property
+    def modules(self):
+        """ Returns modules. """
+        return self._modules
+
+    def __getitem__(self, key):
+        """ Returns module given its name (name of the variable).
+
+            Args:
+                key: Name of the variable.
+        """
+        if key not in self._modules.keys():
+            raise KeyError("Neural Graph doesn't contain a module named {}".format(key))
+        return self._modules[key]
+
+    def __len__(self):
+        """ Returns number of modules (vertices) in a given graph. """
+        return len(self._modules)
+
+    @property
+    def steps(self):
+        """ Returns steps. """
+        return self._steps
+
+    @property
     def tensors(self):
-        """ Returns the dictionary of all output tensors, aggregated by modules (key). """
+        """ Returns the (double) dictionary of all output tensors, aggregated by modules (key) and (output) port name. """
         return self._all_tensors
+
+    @property
+    def operation_mode(self):
+        """ Returns operation mode. """
+        return self._operation_mode
+
+    def __enter__(self):
+        """ 
+            Activates this graph.
+        
+            Returns:
+                The graph object.
+        """
+        self._app_state.active_graph = self
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        """
+            Deactivates the current graph.
+        """
+        self._app_state.active_graph = None
+
+    def activate(self):
+        """ 
+            Activates this graph.
+        """
+        self._app_state.active_graph = self
+
+    def deactivate(self):
+        """
+            Deactivates the current graph.
+        """
+        self._app_state.active_graph = None
+
+    def ___serialize_header(self):
+        """ Method serializes the graph header. """
+        # Only version and full_spec - for now.
+        full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
+        header = {
+            "nemo_core_version": nemo_version,
+            "full_spec": full_spec
+        }
+        return header
+
+    def __serialize_modules(self):
+        """ Method serializes the modules present in the graph. """
+        d = {}
+        for name, module in self._modules.items():
+            d = 1
+
+    def export_to_config(self, config_file):
+        """ Exports the neural graph to a file.
+        
+            Args:
+                config_file: Name (and path) of the config file (YML) to be written to.
+        """
+        # Create a dictionary where we will add the whole information.
+        config = {self.name: {}}
+        # Get shortcut.
+        graph = config[self.name]
+        # Serialize modules.
+        graph["modules"] = self.__serialize_modules()
+
+    @classmethod
+    def import_from_config(cls, config_file, reuse_existing_modules=False, overwrite_params={}):
+        """
+            Class method importing the neural graph from the configuration file.
+            Raises an ImportError exception when config file is invalid.
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+
+                reuse_existing_modules: If the modules with (name, type, init_params) are already created, import will
+                connect to them instead of creating new instances.
+
+                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
+                parameters loaded from the configuration file
+
+            Returns:
+                Instance of the created NeuralGraph object.
+        """
+        pass
+
+
+    def __str__(self):
+        """ Prints a nice summary. """
+        # TODO: a nice summary. ;)
+        desc = "`{}` ({}):\n".format(self.name, len(self._steps))
+        for op in self._steps:
+            desc = desc + "  {}\n".format(type(op[0]).__name__)
+        return desc
+
+    def list_modules(self):
+        """ Lists modules. """
+        desc = "{} ({}):\n".format(self.name, len(self._modules))
+        for key, value in self._modules.items():
+            desc += " * `{}` ({})\n".format(key, value)
+        return desc
 
     def show_inputs(self):
         print("bound input ports: ")

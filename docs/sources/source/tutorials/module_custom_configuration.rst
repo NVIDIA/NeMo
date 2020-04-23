@@ -49,8 +49,8 @@ Analogically, we must overload the :meth:`import_from_config()` method:
 Please note that the base :class:`NeuralModule` class provides several protected methods that we used, \
 with most important being:
 
- * :meth:`_create_config_header()` generating the appropriate header, and \
- * :meth:`_validate_config_file()` validating the loaded configuration file (checking the header content).
+ * :meth:`__serialize_header()` generating the appropriate header, and \
+ * :meth:`__validate_config_file()` validating the loaded configuration file (checking the header content).
 
 
 .. note::

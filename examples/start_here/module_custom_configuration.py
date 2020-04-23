@@ -40,81 +40,47 @@ class CustomTaylorNet(TaylorNet):
         super().__init__(dim)
         logging.info("Status: {}".format(status))
 
-    def export_to_config(self, config_file):
+    def _serialize_configuration(self):
         """
-            A custom method exporting configuration to a YAML file.
-
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-        """
-
-        # Greate an absolute path.
-        abs_path_file = path.expanduser(config_file)
-
-        # Create the dictionary to be exported.
-        to_export = {}
-
-        # Add "header" with module "specification".
-        to_export["header"] = self._create_config_header()
-
-        # Add init parameters.
-        to_export["init_params"] = self._init_params
-
-        # Custom processing of the status.
-        if to_export["init_params"]["status"] == Status.success:
-            to_export["init_params"]["status"] = 0
-        else:
-            to_export["init_params"]["status"] = 1
-
-        # All parameters are ok, let's export.
-        with open(abs_path_file, 'w') as outfile:
-            yaml.dump(to_export, outfile)
-
-        logging.info(
-            "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
-        )
-
-    @classmethod
-    def import_from_config(cls, config_file, section_name=None, overwrite_params={}):
-        """
-            A custom method importing the YAML configuration file.
-            Raises an ImportError exception when config file is invalid or
-            incompatible (when called from a particular class).
-
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
-
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
-                parameters loaded from the configuration file
+            A custom method serializing the configuration to a YAML file.
 
             Returns:
-                Instance of the created NeuralModule object.
+                a "serialized" dictionary with module configuration.
         """
 
-        # Validate the content of the configuration file (its header).
-        loaded_config = cls._validate_config_file(config_file, section_name)
+        # Create the dictionary to be exported.
+        init_to_export = {}
 
-        # Get init parameters.
-        init_params = loaded_config["init_params"]
-        # Update parameters with additional ones.
-        init_params.update(overwrite_params)
+        # "Serialize dim.
+        init_to_export["dim"] = self._init_params["dim"]
 
-        # Custom processing of the status.
+        # Custom "serialization" of the status.
+        if self._init_params["status"] == Status.success:
+            init_to_export["status"] = 0
+        else:
+            init_to_export["status"] = 1
+        
+        # Return serialized params.
+        return init_to_export
+
+    @classmethod
+    def _deserialize_configuration(cls, init_params):
+        """
+            A function that deserializes the module "configuration (i.e. init parameters).
+
+            Args:
+                init_params: List of init parameters loaded from the YAML file.
+
+            Returns:
+                A "deserialized" list with init parameters.
+        """
+        # Custom "deserialization" of the status.
         if init_params["status"] == 0:
             init_params["status"] = Status.success
         else:
             init_params["status"] = Status.error
 
-        # Create and return the object.
-        obj = CustomTaylorNet(**init_params)
-        logging.info(
-            "Instantiated a new Neural Module of type `{}` using configuration loaded from the `{}` file".format(
-                "CustomTaylorNet", config_file
-            )
-        )
-        return obj
+        return init_params
 
 
 # Run on CPU.
