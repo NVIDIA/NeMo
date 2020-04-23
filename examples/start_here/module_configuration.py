@@ -37,11 +37,11 @@ mse_loss = MSELoss()
 fx.export_to_config("/tmp/taylor_net.yml")
 
 # Create a second instance, using the parameters loaded from the previously created configuration.
-fx2 = NeuralModule.import_from_config("/tmp/taylor_net.yml", name="fx2")
+fx2 = NeuralModule.import_from_config("/tmp/taylor_net.yml")
 
 # Create a graph by connecting the outputs with inputs of modules.
 x, y = dl()
-# Please note that in the graph are using the "second" instance.
+# Please note that in the graph we are using the "second" instance.
 p = fx2(x=x)
 loss = mse_loss(predictions=p, target=y)
 

@@ -23,6 +23,7 @@ __all__ = [
 from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
 
+from nemo.package_info import __version__ as nemo_version
 from nemo.core import OperationMode
 from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
@@ -393,8 +394,40 @@ class NeuralGraph(NeuralInterface):
         """
         self._app_state.active_graph = None
 
-    def ___serialize_header(self):
-        """ Method serializes the graph header. """
+    def serialize(self):
+        """ Method serializes the whole graph.
+
+            Returns:
+                Dictionary containing description of the whole graph.
+        """
+        # Create a dictionary representing the serialized object.
+        serialized_graph = {}
+
+        # Add "header" with module "specification".
+        serialized_graph["header"] = self.__serialize_header()
+
+        # Add modules.
+        serialized_graph["modules"] = self.__serialize_modules()
+
+        # Add steps.
+        serialized_graph["steps"] = self.__serialize_steps()
+
+        # Add connectinos.
+        serialized_graph["connections"] = self.__serialize_connections()
+
+        # Serialize graph (bound) inputs.
+        # Serialize graph (bound) outputs.
+
+        # Return the dictionary.
+        return serialized_graph
+        
+
+    def __serialize_header(self):
+        """ Private method responsible for serializing the graph header.
+
+            Returns:
+                Dictionary containing description of the whole graph.        
+        """
         # Only version and full_spec - for now.
         full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
         header = {
@@ -404,10 +437,45 @@ class NeuralGraph(NeuralInterface):
         return header
 
     def __serialize_modules(self):
-        """ Method serializes the modules present in the graph. """
-        d = {}
+        """ Private method responsible for serializing the modules present in the graph.
+
+            Returns:
+                Dictionary containing description of all graph modules.
+        """
+        serialized_modules = {}
         for name, module in self._modules.items():
-            d = 1
+            serialized_modules[name] = module.serialize()
+        return serialized_modules
+
+    def __serialize_steps(self):
+        """ Private method responsible for serializing the steps (order of module executions).
+
+            Returns:
+                Dictionary containing description of the steps.
+        """
+        serialized_steps = {}
+        for no, module_name in self._steps.items():
+            serialized_steps[no] = module_name
+        return serialized_steps
+
+    def __serialize_connections(self):
+        """ Private method responsible for serializing the connections in the graph.
+
+            Returns:
+                List containing "connections" between modules.
+        """
+        serialized_connections = []
+        # Iterate through "tensor modules".
+        for tensors in self._all_tensors.values():
+            # Iterate through "tensor output ports".
+            for tensor in tensors.values():
+                # "Transform" tensor to the list of connections.
+                for c in tensor.connections():
+                    # Serialize!
+                    source = c.producer.module_name + "." + c.producer.port_name
+                    target = c.consumer.module_name + "." + c.producer.port_name
+                    serialized_connections.append(source + "->" + target)
+        return serialized_connections
 
     def export_to_config(self, config_file):
         """ Exports the neural graph to a file.

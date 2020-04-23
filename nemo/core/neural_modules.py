@@ -221,7 +221,7 @@ class NeuralModule(NeuralInterface):
         # Add init parameters.
         serialized_module["init_params"] = self._serialize_configuration()
 
-        # Return dictionary.
+        # Return the dictionary.
         return serialized_module
 
     def __serialize_header(self):

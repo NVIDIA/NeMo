@@ -51,7 +51,7 @@ class CustomTaylorNet(TaylorNet):
         # Create the dictionary to be exported.
         init_to_export = {}
 
-        # "Serialize dim.
+        # "Serialize" dim.
         init_to_export["dim"] = self._init_params["dim"]
 
         # Custom "serialization" of the status.
@@ -60,7 +60,7 @@ class CustomTaylorNet(TaylorNet):
         else:
             init_to_export["status"] = 1
         
-        # Return serialized params.
+        # Return serialized parameters.
         return init_to_export
 
     @classmethod
@@ -74,13 +74,19 @@ class CustomTaylorNet(TaylorNet):
             Returns:
                 A "deserialized" list with init parameters.
         """
+        deserialized_params = {}
+        
+        # "Deserialize" dim.
+        deserialized_params["dim"] = init_params["dim"]
+
         # Custom "deserialization" of the status.
         if init_params["status"] == 0:
-            init_params["status"] = Status.success
+            deserialized_params["status"] = Status.success
         else:
-            init_params["status"] = Status.error
+            deserialized_params["status"] = Status.error
 
-        return init_params
+        # Return deserialized parameters.
+        return deserialized_params
 
 
 # Run on CPU.
@@ -104,7 +110,7 @@ fx2 = CustomTaylorNet.import_from_config("/tmp/custom_taylor_net.yml")
 
 # Create a graph by connecting the outputs with inputs of modules.
 x, y = dl()
-# Please note that in the graph are using the "second" instance.
+# Please note that in the graph we are using the "second" instance.
 p = fx2(x=x)
 loss = mse_loss(predictions=p, target=y)
 
