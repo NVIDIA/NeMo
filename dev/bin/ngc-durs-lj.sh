@@ -45,10 +45,11 @@ ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
 script=examples/tts/fasterspeech_durs.py
 config=examples/tts/configs/fasterspeech-durs-lj.yaml
-# [1GPU,16G] Biggest bs is 256. One epoch is around 51 iterations. Total number of steps is 5100.
-# [1GPU,32G] Biggest bs is 512. One epoch is around 26 iterations. Total number of steps is 2600.
-batch_size=$((GPU_MEM * 16))
-total_steps=$((((DATASET_SIZE / batch_size) + 1) * NUM_EPOCHS))
+# [1GPU,16G] Biggest bs is 352. One epoch is around 38 iterations. Total number of steps is 3800.
+# [1GPU,32G] Biggest bs is 704. One epoch is around 19 iterations. Total number of steps is 1900.
+# [8GPU,32G] Biggest bs is 704. One epoch is around 3 iterations. Total number of steps is 300.
+batch_size=$((GPU_MEM * 22))
+total_steps=$((((DATASET_SIZE / (batch_size * NUM_GPU)) + 1) * NUM_EPOCHS))
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
@@ -58,8 +59,8 @@ nvidia-smi \
 --amp_opt_level=${OPT} \
 --model_config=${config} \
 --batch_size=${batch_size} \
---train_freq=$((total_steps / 500)) \
---eval_freq=$((total_steps / 50)) \
+--train_freq=10 \
+--eval_freq=100 \
 --warmup=$((total_steps / 50)) \
 --num_epochs=${NUM_EPOCHS} \
 --work_dir=${RESULT} \

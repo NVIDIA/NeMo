@@ -159,7 +159,7 @@ class FasterSpeechGraph:
             )
 
         # Need to calculate 'd_out' for model.
-        self.loss = nemo_tts.FasterSpeechDurLoss(**config.FasterSpeechDurLoss)
+        self.loss = nemo_tts.FasterSpeechDursLoss(**config.FasterSpeechDursLoss)
 
         self.model = nemo_tts.FasterSpeech(
             n_vocab=len(labels),

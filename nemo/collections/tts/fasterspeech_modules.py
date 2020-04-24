@@ -47,8 +47,8 @@ __all__ = [
     'FasterSpeechDataLayer',
     'FasterSpeech',
     'LenSampler',
-    'FasterSpeechDurLoss',
-    'FasterSpeechMelLoss',
+    'FasterSpeechDursLoss',
+    'FasterSpeechMelsLoss',
     'WaveGlowInference',
 ]
 
@@ -562,7 +562,7 @@ class LenSampler(NonTrainableNM):
         return text_rep, text_rep_mask, mel_true, mel_len
 
 
-class FasterSpeechDurLoss(LossNM):
+class FasterSpeechDursLoss(LossNM):
     """Neural Module Wrapper for Faster Speech Dur Loss."""
 
     @property
@@ -715,7 +715,7 @@ class FasterSpeechDurLoss(LossNM):
         return tensors
 
 
-class FasterSpeechMelLoss(LossNM):
+class FasterSpeechMelsLoss(LossNM):
     """Neural Module Wrapper for Faster Speech Mel Loss."""
 
     @property

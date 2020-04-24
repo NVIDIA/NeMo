@@ -181,6 +181,6 @@ JasperEncoder:
             dropout: *dropout
             residual: true  # Non-residual works a bit worse.
 
-FasterSpeechMelLoss:
+FasterSpeechMelsLoss:
     reduction: 'all'
     pad16: *pad16

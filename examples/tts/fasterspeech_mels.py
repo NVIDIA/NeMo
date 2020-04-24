@@ -274,7 +274,7 @@ class FasterSpeechGraph:
             wandb.config.total_weights = self.model.num_weights
             nemo.logging.info('Total weights: %s', self.model.num_weights)
 
-        self.loss = nemo_tts.FasterSpeechMelLoss(**config.FasterSpeechMelLoss)
+        self.loss = nemo_tts.FasterSpeechMelsLoss(**config.FasterSpeechMelsLoss)
 
     def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []

@@ -43,7 +43,7 @@ JasperEncoder:
 
     # (Number of Layers) x (Number of Filters) x (Kernel Size)
     jasper:
-        # Group 1: 3 x 256 x [3,5,7] (First Group)
+        # First 3x3 Conv
         -   filters: 256
             repeat: 1
             kernel: [3]
@@ -53,6 +53,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
+        # 5 x 256 x [5, 7, 9, 11, 13]
         -   filters: 256
             repeat: 5
             kernel: [5]
@@ -62,16 +63,6 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 256
-            repeat: 5
-            kernel: [7]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        # Group 2: 3 x 256 x [7,9,11]
         -   filters: 256
             repeat: 5
             kernel: [7]
@@ -99,28 +90,9 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # Group 3: 3 x 256 x [11,13,15] (Last Group)
-        -   filters: 256
-            repeat: 5
-            kernel: [11]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
         -   filters: 256
             repeat: 5
             kernel: [13]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        -   filters: 256
-            repeat: 5
-            kernel: [15]
             stride: [1]
             dilation: [1]
             dropout: *dropout
@@ -136,7 +108,7 @@ JasperEncoder:
             dropout: *dropout
             residual: true
 
-FasterSpeechDurLoss:
+FasterSpeechDursLoss:
     method: 'xe'  # ['l2-log', 'l2', 'dmld-log', 'dmld', 'xe', 'xe-steps']
     num_classes: 32  # 'n_classes' for dmld or xe (32 covers 98%)
     dmld_hidden: 5  # 1/3 of d_hidden for dmld (log2(num_classes))
