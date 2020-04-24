@@ -28,8 +28,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
-from nemo.core import NeuralGraph, NeuralModuleFactory, OperationMode
-from nemo.core.neural_graph.graph_inputs import GraphInput
+from nemo.core import NeuralModuleFactory, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
@@ -345,32 +344,40 @@ class NeuralModule(NeuralInterface):
         # Get init parameters.
         init_params = cls._deserialize_configuration(configuration["init_params"])
 
-        # Create and return the object.
-        obj = module_class(**init_params)
-        logging.info("Instantiated a new Neural Module named `{}` of type `{}`".format(obj.name, type(obj).__name__))
-        
-        return obj
+        # Create the module instance.
+        new_module = module_class(**init_params)
+        logging.info(
+            "Instantiated a new Neural Module named `{}` of type `{}`".format(
+                new_module.name, type(new_module).__name__
+            )
+        )
+
+        # Return the module instance.
+        return new_module
 
     @classmethod
-    def __deserialize_header(cls, header):
+    def __deserialize_header(cls, serialized_header):
         """ Method deserializes the header and extracts the module class.
             
+            Args:
+                serialized_header: Dictionary containing module header.
+
             Returns:
                 Class of the module to be created.
         """
         # Parse the "full specification".
-        spec_list = header["full_spec"].split(".")
+        spec_list = serialized_header["full_spec"].split(".")
 
         # Get module class from the "full specification".
         mod_obj = __import__(spec_list[0])
         for spec in spec_list[1:]:
             mod_obj = getattr(mod_obj, spec)
-        # print(mod_obj)
 
+        # Return "class".
         return mod_obj
 
     @classmethod
-    def _deserialize_configuration(cls, init_params):
+    def _deserialize_configuration(cls, serialized_init_params):
         """
             A function that deserializes the module "configuration (i.e. init parameters).
 
@@ -378,13 +385,13 @@ class NeuralModule(NeuralInterface):
                 Thus functions should be overloaded when writing a custom module import/export.
 
             Args:
-                init_params: List of init parameters loaded from the file.
+                serialized_init_params: List of init parameters loaded from the file.
 
             Returns:
                 A "deserialized" list with init parameters.
         """
         # In this case configuration = init parameters.
-        return init_params
+        return serialized_init_params
 
     @classmethod
     def __validate_config_file(cls, config_file, section_name=None):
@@ -545,7 +552,7 @@ class NeuralModule(NeuralInterface):
             # * NmTensor -> check definition, add self as a "consumer" of a tensor (produced by other module).
 
             # Check what was actually passed.
-            if type(port_content) is NeuralGraph:
+            if type(port_content).__name__ == "NeuralGraph":
                 # Make sure that port_content is the currently active graph!
                 if port_content is not self._app_state.active_graph:
                     raise ConnectionError("Ports can be bound only by passing the active graph object!")
@@ -564,7 +571,7 @@ class NeuralModule(NeuralInterface):
 
                 # Please note that there are no "consumers" here - this is a "pure binding".
 
-            elif type(port_content) is GraphInput:
+            elif type(port_content).__name__ == "GraphInput":
 
                 # Check if GraphInput belongs to the active graph !
                 own_port = False

@@ -24,12 +24,14 @@ from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
 
 from nemo.core import OperationMode
-from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
+from nemo.core.neural_modules import NeuralModule
+from nemo.core.neural_graph.graph_inputs import GraphInputs
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
-
+from nemo.utils import logging
+from nemo.utils.module_port import ModulePort, Connection
 
 class NeuralGraph(NeuralInterface):
     """
@@ -448,7 +450,7 @@ class NeuralGraph(NeuralInterface):
         # Add operation mode.
         if self._operation_mode == OperationMode.training:
             header["operation_mode"] = "training"
-        if self._operation_mode == OperationMode.inference:
+        elif self._operation_mode == OperationMode.inference:
             header["operation_mode"] = "inference"
         else:
             header["operation_mode"] = "both"
@@ -497,12 +499,7 @@ class NeuralGraph(NeuralInterface):
         return serialized_connections
 
     @classmethod
-    def deserialize(cls, configuration, reuse_existing_modules=False, overwrite_params={}):
-        pass
-
-
-    @classmethod
-    def import_from_config(cls, config_file, reuse_existing_modules=False, overwrite_params={}):
+    def import_from_config(cls, config_file, reuse_existing_modules=False, overwrite_params={}, name=None):
         """
             Class method importing the neural graph from the configuration file.
             Raises an ImportError exception when config file is invalid.
@@ -516,10 +513,216 @@ class NeuralGraph(NeuralInterface):
                 overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
                 parameters loaded from the configuration file
 
+                name: Name of the new graph (optional, DEFAULT: NONE)
+
             Returns:
                 Instance of the created NeuralGraph object.
         """
+        logging.info("Loading configuration of a new Neural Graph from the `{}` file".format(config_file))
+
+        # TODO: validate the content of the configuration file (its header).
+        loaded_config = []  # cls.__validate_config_file(config_file, section_name)
+        # TODO: overwrite params.
+
+        # "Deserialize" the graph.
+        new_graph = cls.deserialize(loaded_config, reuse_existing_modules, name)
+
+        return new_graph
+
+    @classmethod
+    def deserialize(cls, configuration, reuse_existing_modules=False, name=None):
+        """
+            Class method creating a graph instance by deserializing the provided configuratino.
+
+            Args:
+                configuration: Dictionary containing serialized graph.
+
+                reuse_existing_modules: If the modules with (name, type, init_params) are already created, import will
+                connect to them instead of creating new instances.
+
+            Returns:
+                Instance of the created NeuralGraph object.
+        """
+        # Deserialize header and get object class.
+        operation_mode = cls.__deserialize_header(configuration["header"])
+
+        # Create the graph instance.
+        new_graph = NeuralGraph(operation_mode=operation_mode, name=name)
+        logging.info(
+            "Instantiated a new Neural Graph named `{}` with mode `{}`".format(
+                new_graph.name, new_graph.operation_mode
+            )
+        )
+        # Deserialize modules.
+        modules = new_graph.__deserialize_modules(configuration["modules"], reuse_existing_modules)
+
+        # Deserialize steps.
+        steps = new_graph.__deserialize_steps(configuration["steps"])
+
+        # Deserialize the connections between modules.
+        connnections = new_graph.__deserialize_connections(configuration["connections"])
+
+        # TODO Deserialize input bindings.
+        # new_graph.__deserialize_inputs(configuration["inputs"])
+
+        # Now we have to execute the graph, following the steps and connections.
+
+
+        # TODO: deserialize output bindings.
+
+        # Return the graph instance.
+        return new_graph
+
+    @classmethod
+    def __deserialize_header(cls, serialized_header):
+        """ Private class method deserializing the header and extracts the general information.
+            
+            Args:
+                serialized_header: Dictionary containing graph header.
+
+            Returns:
+                Operation mode.
+        """
+        # Parse the "full specification" - do not need that now.
+        # spec_list = serialized_header["full_spec"].split(".")
+
+        # Get operation mode.
+        if serialized_header["operation_mode"] == "training":
+            operation_mode = OperationMode.training
+        elif header["operation_mode"] == "inference":
+            operation_mode = OperationMode.inference
+        else:
+            operation_mode = OperationMode.both
+
+        # Return the mode.
+        return operation_mode
+
+    def __deserialize_modules(self, serialized_modules, reuse_existing_modules):
+        """ Private method deserializing the modules present in the graph.
+
+            Args:
+                serialized_modules: Dictionary containing graph modules.
+
+            Returns:
+                Dictionary of modules.
+        """
+        modules = {}
+        for name, module_params in serialized_modules.items():
+            # Check if module already exists.
+            if self._app_state.modules.has(name):
+                # Check if we can reuse the existing modules.
+                if reuse_existing_modules:
+                    modules[name] = self._app_state.modules[name]
+                else:
+                    raise KeyError("A module with name `{}` already exists!".format(name))
+            else:
+                # Ok, create a new module.
+                modules[name] = NeuralModule.deserialize(module_params)
+        # Ok, done.
+        return modules
+
+    def __deserialize_steps(self, serialized_steps):
+        """ Private method deserializing the steps (order of module executions).
+
+            Args:
+                serialized_steps: Dictionary containing serialized steps.
+
+            Returns:
+                Odered dict with steps.
+        """
+        steps = OrderedDict()
+        for i in range(len(serialized_steps)):
+            steps[i] = serialized_steps[i]
+        # Ok, done.
+        return steps
+
+    def __deserialize_connections(self, serialized_connections):
+        """ Private method deserializing the connections in the graph.
+
+            Args:
+                serialized_steps: Dictionary containing serialized connections.
+
+            Returns:
+                List of connections, in a format enabling graph traversing.
+        """
+        connections = []
+        # Deserialize connections one by one.
+        for c in serialized_connections:
+            # Deserialize!
+            [producer,consumer] = c.split("->")
+            [producer_name, producer_port_name] = producer.split(".")
+            [consumer_name, consumer_port_name] = consumer.split(".")
+            producer_mp = ModulePort(producer_name, producer_port_name)
+            consumer_mp = ModulePort(consumer_name, consumer_port_name)
+            # Add connection.
+            connections.append(Connection(producer_mp, consumer_mp))
+        # Ok, done.
+        return connections
+
+    def __execute_and_create_tensors(self, steps, modules, connections, inputs):
+        """ Method creates (internal) tensors of the graph by executing it following the order. """
+
+        # Activate this graph, so all the tensors will be added to this !
+        self.activate()
+
+        # We need to disable the binding of "defeault" ports on per module basis - we will "manually" produce
+        # them only for ports that are already indicated as the "bound" ones in the inner graph.
+        self.default_output_binding = False
+
+        # Now "copy" graph execution order and topology by actually executing each step of the nested graph.
+        for _, module_name in steps.items():
+            # Both module and step will be added by the modules' call().
+
+            # Get the module.
+            module = modules[module_name]
+
+            # Produce list of arguments that will be passed to a given module.
+            module_args = {}
+            # Do it by:
+            # - harvesing input port names of a given module,
+            # - checking if the input was not bound (in the inner graph),
+            # - checking if we have already tensors leading to that input (in outer graph).
+            for input_port_name in module.input_ports.keys():
+                # Check if this port was bound in the inner graph.
+                key = inputs.has_binding(module_name, input_port_name)
+
+                # If so, then we must pass the binding!
+                if key is not None:
+                    module_args[input_port_name] = new_graph.inputs[key]
+                    continue
+
+                # Else: find a tensor that should be passed to the given module's input.
+                # Search for producer/port that we should use.
+                for connection in connections:
+                    if (
+                        connection.consumer.module_name == module_name
+                        and connection.consumer.port_name == input_port_name
+                    ):
+                        # Got the connection!
+                        producer_name = connection.producer.module_name
+                        producer_port_name = connection.producer.port_name
+                        break
+                # Now, the tensor is already produced in outer (i.e. this) graph!
+                module_args[input_port_name] = self.tensors[producer_name][producer_port_name]
+
+            # import pdb;pdb.set_trace()
+            # Ok, now we have all keyword arguments. We can call() the module.
+            # This will collect all the produced output tensors and add them to this graph.
+            module(**module_args)
+
+
+
+    def __deserialize_inputs(self, serialized_inputs):
+        """ Private method deserializing the bound graph inputs.
+
+            Args:
+                serialized_steps: Dictionary containing serialized inputs.
+        """
+        # TODO!
         pass
+
+
+
 
     def __str__(self):
         """ Prints a nice summary. """

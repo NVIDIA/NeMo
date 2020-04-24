@@ -23,9 +23,9 @@ from nemo.utils import logging
 
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantiate the necessary neural modules.
-dl = RealFunctionDataLayer(n=100, batch_size=32)
-fx = TaylorNet(dim=4)
-loss = MSELoss()
+dl = RealFunctionDataLayer(n=100, batch_size=32, name="real_function_dl")
+fx = TaylorNet(dim=4, name="taylor_net")
+loss = MSELoss(name="mse_loss")
 
 logging.info(
     "This example shows how one can nest one graph into another - with binding of the input ports."
@@ -34,19 +34,20 @@ logging.info(
     F" and then set to `x` returned by `dl` in the graph `g3`."
 )
 
-with NeuralGraph(operation_mode=OperationMode.training, name="g2") as g2:
+with NeuralGraph(operation_mode=OperationMode.training, name="model") as model:
     # Manually bind input port: "input" -> "x"
-    g2.inputs["input"] = fx.input_ports["x"]
+    model.inputs["input"] = fx.input_ports["x"]
     # Add module to graph and bind it input port 'x'.
-    y = fx(x=g2.inputs["input"])
-    # lss = loss(predictions=y, target=g2.input_ports["input"])
+    y = fx(x=model.inputs["input"])
+    # Manual output bind.
+    model.outputs["output"] = y
 
 # Build the training graph.
-with NeuralGraph(operation_mode=OperationMode.training, name="g3") as g3:
+with NeuralGraph(operation_mode=OperationMode.training, name="training") as training:
     # Add modules to graph.
     x, t = dl()
-    # Incorporate modules from the existing graph.
-    p = g2(input=x)
+    # Incorporate modules from the existing "model" graph.
+    p = model(input=x)
     lss = loss(predictions=p, target=t)
 
 # SimpleLossLoggerCallback will print loss values to console.
@@ -58,4 +59,6 @@ callback = SimpleLossLoggerCallback(
 nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
 
 # Serialize graph
-print(g2.serialize())
+print(model.serialize())
+
+print(training.serialize())

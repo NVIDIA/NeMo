@@ -54,9 +54,8 @@ class ObjectRegistry(WeakSet):
             unique_name = self.__generate_unique_name()
         else:
             # Check if name is unique.
-            for obj in self:
-                if obj.name == name:
-                    raise NameError("A {} with name `{}` already exists!".format(self._base_type_name, name))
+            if self.has(name):
+                raise NameError("A {} with name `{}` already exists!".format(self._base_type_name, name))
             # Ok, it is unique.
             unique_name = name
 
@@ -65,6 +64,15 @@ class ObjectRegistry(WeakSet):
 
         # Return the name.
         return unique_name
+
+    def has(self, name):
+        """ Check if registry stores object with a given name. """
+        for obj in self:
+            if obj.name == name:
+                return True
+        # Else:
+        return False
+    
 
     def __generate_unique_name(self):
         """
@@ -75,17 +83,13 @@ class ObjectRegistry(WeakSet):
         """
         # Iterate through numbers.
         postfix = 0
-        name_unique = False
-        while not name_unique:
+        while True:
             # Generate name.
             new_name = self._base_type_name + str(postfix)
-            name_unique = True
             # Check uniqueneess.
-            for obj in self:
-                if obj.name == new_name:
-                    # Sadly name is not unique.
-                    name_unique = False
-                    break
+            if not self.has(new_name):
+                # Ok, got a unique name!
+                break
             # Increment index.
             postfix += 1
         return new_name

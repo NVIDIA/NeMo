@@ -169,10 +169,10 @@ class GraphOutputs(MutableMapping):
             Returns:
                 List containing mappings (module.output_port -> output).
         """
-        serialized_outputs = {"default": [], "manual":[]}
+        serialized_outputs = {"default": [], "manual": []}
 
         # Serialize both dictionaries - for now.
-        for d, name  in [(self._default_outputs, "default"), (self._manual_outputs, "manual")]:
+        for d, name in [(self._default_outputs, "default"), (self._manual_outputs, "manual")]:
             # Iterate through "bindings".
             for key, binding in d.items():
                 # Serialize: module.port -> output.

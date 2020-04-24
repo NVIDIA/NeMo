@@ -127,7 +127,6 @@ class GraphInputs(MutableMapping):
                     return key
         return None
 
-
     def serialize(self):
         """ Method responsible for serialization of the graph inputs.
 

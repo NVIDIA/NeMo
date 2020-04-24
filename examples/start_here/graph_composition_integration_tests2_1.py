@@ -44,22 +44,36 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
     g1.outputs["te"] = t
     g1.outputs["prediction"] = prediction2
 
+# Serialize graph
+serialized_g1 = g1.serialize()
+print(serialized_g1)
+
+# Delete everything!
+del g1
+del dl
+del m1
+del m2
+del loss
+
+# Deserialize graph.
+g1_copy = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=False, name="g1_copy")
+
 with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g2:
-    x1, t1, p1 = g1()
+    x1, t1, p1 = g1_copy()
     lss = loss(predictions=p1, target=t1)
+    # Manual output.
+    g2.outputs["loss"] = lss
 
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
-    tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
+    tensors=[g2.output_tensors["loss"]], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
 )
 
 # Invoke "train" action.
-nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
-
-# Serialize graph
-serialized_g1 = g1.serialize()
-print()
-
-# Deserialize graph.
-g3 = NeuralGraph.deserialize(serialized_g1)
+nf.train(
+    [g2.output_tensors["loss"]],
+    callbacks=[callback],
+    optimization_params={"num_epochs": 2, "lr": 0.0003},
+    optimizer="sgd",
+)
