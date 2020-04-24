@@ -24,14 +24,15 @@ from collections import OrderedDict, namedtuple
 from typing import Dict, Optional
 
 from nemo.core import OperationMode
-from nemo.core.neural_modules import NeuralModule
 from nemo.core.neural_graph.graph_inputs import GraphInputs
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_interface import NeuralInterface
+from nemo.core.neural_modules import NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
-from nemo.utils.module_port import ModulePort, Connection
+from nemo.utils.module_port import Connection, ModulePort
+
 
 class NeuralGraph(NeuralInterface):
     """
@@ -567,7 +568,6 @@ class NeuralGraph(NeuralInterface):
 
         # Now we have to execute the graph, following the steps and connections.
 
-
         # TODO: deserialize output bindings.
 
         # Return the graph instance.
@@ -649,7 +649,7 @@ class NeuralGraph(NeuralInterface):
         # Deserialize connections one by one.
         for c in serialized_connections:
             # Deserialize!
-            [producer,consumer] = c.split("->")
+            [producer, consumer] = c.split("->")
             [producer_name, producer_port_name] = producer.split(".")
             [consumer_name, consumer_port_name] = consumer.split(".")
             producer_mp = ModulePort(producer_name, producer_port_name)
@@ -710,8 +710,6 @@ class NeuralGraph(NeuralInterface):
             # This will collect all the produced output tensors and add them to this graph.
             module(**module_args)
 
-
-
     def __deserialize_inputs(self, serialized_inputs):
         """ Private method deserializing the bound graph inputs.
 
@@ -720,9 +718,6 @@ class NeuralGraph(NeuralInterface):
         """
         # TODO!
         pass
-
-
-
 
     def __str__(self):
         """ Prints a nice summary. """

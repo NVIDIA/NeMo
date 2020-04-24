@@ -72,7 +72,6 @@ class ObjectRegistry(WeakSet):
                 return True
         # Else:
         return False
-    
 
     def __generate_unique_name(self):
         """
