@@ -471,7 +471,7 @@ class TestDeployExport:
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize(
-        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH]  # , pytest.param(DF.TRTONNX, marks=requires_trt)]
+        "df_type", [ DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
     )
     def test_waveglow(self, tmpdir, df_type):
         url = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ljs_256channels/versions/2/files/waveglow_256channels_ljs_v2.pt"
