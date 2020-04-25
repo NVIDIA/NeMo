@@ -33,6 +33,8 @@ from nemo.utils import lr_policies
 
 logging = nemo.logging
 
+MODEL_WEIGHTS_UPPER_BOUND = 10_000_000
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -270,9 +272,11 @@ class FasterSpeechGraph:
             **config.FasterSpeech,
         )
         if args.local_rank is None or args.local_rank == 0:
-            wandb.watch(self.model, log='all')
+            # There is a bug in WanDB with logging gradients.
+            # wandb.watch(self.model, log='all')
             wandb.config.total_weights = self.model.num_weights
             nemo.logging.info('Total weights: %s', self.model.num_weights)
+            assert self.model.num_weights < MODEL_WEIGHTS_UPPER_BOUND
 
         self.loss = nemo_tts.FasterSpeechMelsLoss(**config.FasterSpeechMelsLoss)
 

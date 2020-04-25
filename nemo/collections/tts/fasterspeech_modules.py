@@ -377,8 +377,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             text = _Ops.merge(text, value=self._pad_id, dtype=torch.long)
 
             # `text_mask`
-            # noinspection PyTypeChecker
-            text_mask = _Ops.make_mask([text_len * 2 + 1 for text_len in batch['text_len']])
+            text_mask = _Ops.make_mask([text_len * 2 + 1 for text_len in batch['text_len']])  # noqa
 
             # `dur`
             blank, dur = batch['blank'], batch['dur']
@@ -610,6 +609,11 @@ class FasterSpeechDursLoss(LossNM):
         if self._method == 'xe-steps':
             nemo.logging.info('XE Steps Classes: %s', str(classes))
 
+        w = torch.arange(num_classes, dtype=torch.float, device=self._device)
+        w = (w + 1).log() + 1
+        w /= w.sum()
+        self._weights = w
+
     def _loss_function(self, dur_true, dur_pred, text_mask):
         if self._method.startswith('l2'):
             if dur_pred.shape[-1] != 1:
@@ -640,7 +644,9 @@ class FasterSpeechDursLoss(LossNM):
             # [0, inf] => [0, num_classes - 1]
             dur_true = torch.clamp(dur_true, max=self._num_classes - 1)
 
-            loss = F.cross_entropy(input=dur_pred.transpose(1, 2), target=dur_true, reduction='none')
+            loss = F.cross_entropy(
+                input=dur_pred.transpose(1, 2), target=dur_true, reduction='none', weight=self._weights,
+            )
         elif self._method == 'xe-steps':
             # [0, inf] => [0, xe-steps-num-classes - 1]
             classes = torch.tensor(self._xe_steps_classes, device=dur_pred.device)
@@ -769,16 +775,21 @@ class FasterSpeechMelsLoss(LossNM):
 
 
 class WaveGlowInference:
-    def __init__(self, code, checkpoint, sigma=1.0):
+    def __init__(self, code, checkpoint, sigma=1.0, fp16=False):
         # One nasty little hack
         sys.path.append(code)
 
-        nemo.logging.info("Loading WaveGlow from %s", checkpoint)
+        # nemo.logging.info("Loading WaveGlow from %s", checkpoint)
         from convert_model import update_model
 
         model = update_model(torch.load(checkpoint)['model'])
         model = model.remove_weightnorm(model).cuda()
         model.eval()
+        self._fp16 = fp16
+        if fp16:
+            from apex import amp
+
+            model, _ = amp.initialize(model, [], opt_level='O3')
         self._model = model
         self._sigma = sigma
 
@@ -790,6 +801,8 @@ class WaveGlowInference:
 
     def __call__(self, mel, denoiser=0.1):
         mel = torch.tensor(mel, device='cuda').unsqueeze(0)
+        if self._fp16:
+            mel = mel.half()
 
         with torch.no_grad():
             audio = self._model.infer(mel, sigma=self._sigma)

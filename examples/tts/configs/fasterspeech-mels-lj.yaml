@@ -56,7 +56,7 @@ LenSampler:
     max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happens.
 
 FasterSpeech:
-    d_char: 512
+    d_char: 256
     pad16: *pad16
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
@@ -66,10 +66,10 @@ JasperEncoder:
     activation: "relu"
     conv_mask: true
 
-    # (Number of Layers) x (Number of Filters) x (Kernel Size)
+    # (Number of Layers) x (Number of Repeats) x (Number of Filters) x (Kernel Sizes)
     jasper:
-        # Group 1: 1 x 512 x 3 (First Layer)
-        -   filters: 512
+        # First 3x3 Conv: 1 x 3 x 256 x 3
+        -   filters: 256
             repeat: 3  # Was 1 in Original QuartzNet15x5.
             kernel: [3]  # 5 and 7 works a bit worse.
             stride: [1]  # Was 2 in Original QuartzNet15x5.
@@ -78,8 +78,8 @@ JasperEncoder:
             residual: true  # Non-residual works a bit worse.
             separable: *separable
 
-        # Group 2: 3 x 512 x (5,7,9)
-        -   filters: 512
+        # Block 1: 3 x 5 x 256 x [5, 7, 9]
+        -   filters: 256
             repeat: 5
             kernel: [5]
             stride: [1]
@@ -88,7 +88,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
             repeat: 5
             kernel: [7]
             stride: [1]
@@ -97,7 +97,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
             repeat: 5
             kernel: [9]
             stride: [1]
@@ -106,8 +106,8 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # Group 3: 3 x 512 x (15=>19)
-        -   filters: 512
+        # Block 2: 3 x 5 x 256 x [15, 17, 19]
+        -   filters: 256
             repeat: 5
             kernel: [15]
             stride: [1]
@@ -116,7 +116,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
             repeat: 5
             kernel: [17]
             stride: [1]
@@ -125,7 +125,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        -   filters: 512
+        -   filters: 256
             repeat: 5
             kernel: [19]
             stride: [1]
@@ -134,7 +134,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # Group 4: 3 x 512 x (21=>25)
+        # Block 3: 3 x 5 x 512 x [21, 23, 25] (Last Block)
         -   filters: 512
             repeat: 5
             kernel: [21]
@@ -156,16 +156,6 @@ JasperEncoder:
         -   filters: 512
             repeat: 5
             kernel: [25]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        # Group 5: 1 x 512 x 29 (Last Layer)
-        -   filters: 512
-            repeat: 1
-            kernel: [29]
             stride: [1]
             dilation: [1]
             dropout: *dropout

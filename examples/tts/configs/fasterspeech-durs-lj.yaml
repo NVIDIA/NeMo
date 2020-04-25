@@ -1,6 +1,6 @@
 model: "FasterSpeech Durs Predictor (LJSpeech)"
 sample_rate: &sample_rate 22050
-pad16: &pad16 false  # True is not supported at the moment (just too complicated).
+pad16: &pad16 false  # True is not supported at the moment (just too complicated for different losses).
 labels: [
   # Space
     ' ',
@@ -18,7 +18,7 @@ FasterSpeechDataLayer_train:
     trim_silence: false
     drop_last: true
     shuffle: true
-    sampler_type: 'default'  # SSS produces same 0.65 mask usage on average
+    sampler_type: 'default'  # 'super-smart' makes sense for distributed training.
     aug: False
 
 FasterSpeechDataLayer_eval:
@@ -27,7 +27,7 @@ FasterSpeechDataLayer_eval:
     trim_silence: false
     drop_last: false  # Mind the BN.
     shuffle: false
-    sampler_type: 'all'  # Eval is single batch of 64.
+    sampler_type: 'all'  # Eval/Test are too small for distributed evaluation.
     aug: False
 
 FasterSpeech:
@@ -41,7 +41,7 @@ JasperEncoder:
     activation: "relu"
     conv_mask: true
 
-    # (Number of Layers) x (Number of Filters) x (Kernel Size)
+    # (Number of Layers) x (Number of Repeats) x (Number of Filters) x (Kernel Size)
     jasper:
         # First 3x3 Conv
         -   filters: 256
@@ -53,7 +53,7 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # 5 x 256 x [5, 7, 9, 11, 13]
+        # 5 x 5 x 256 x [5, 7, 9, 11, 13]
         -   filters: 256
             repeat: 5
             kernel: [5]

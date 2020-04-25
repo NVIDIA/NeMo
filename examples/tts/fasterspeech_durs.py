@@ -29,7 +29,7 @@ from nemo.utils import lr_policies
 
 logging = nemo.logging
 
-MODEL_WEIGHTS_UPPER_BOUND = 6_000_000
+MODEL_WEIGHTS_UPPER_BOUND = 5_000_000
 
 
 def parse_args():
