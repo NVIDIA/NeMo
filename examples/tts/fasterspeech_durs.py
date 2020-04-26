@@ -16,9 +16,8 @@ import argparse
 import datetime
 import math
 import os
-from typing import Any, Mapping
+from typing import Any
 
-import torch
 import wandb
 from ruamel import yaml
 
@@ -29,7 +28,7 @@ from nemo.utils import lr_policies
 
 logging = nemo.logging
 
-MODEL_WEIGHTS_UPPER_BOUND = 5_000_000
+MODEL_WEIGHTS_UPPER_BOUND = 3_000_000
 
 
 def parse_args():
@@ -99,7 +98,7 @@ class DurMetric(nemo.core.Metric):
             assert dur_true1.shape == dur_true1.shape
 
             self._ss += ((dur_true1 - dur_pred1) ** 2).sum().item()
-            self._hit0 += (dur_true1 == dur_pred1).sum().item()
+            self._hit0 += (dur_true1 == dur_pred1).sum().item()  # noqa
             self._hit1 += ((dur_true1 - dur_pred1).abs() <= 1).sum().item()
             self._hit2 += ((dur_true1 - dur_pred1).abs() <= 2).sum().item()
             self._hit3 += ((dur_true1 - dur_pred1).abs() <= 3).sum().item()

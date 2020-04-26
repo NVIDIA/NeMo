@@ -17,11 +17,9 @@ import datetime
 import itertools
 import math
 import os
-from typing import Any, Mapping
 
 import librosa
 import numpy as np
-import torch
 import wandb
 from ruamel import yaml
 
@@ -56,7 +54,7 @@ def parse_args():
         num_epochs=100,  # Couple of epochs for testing.
         lr=1e-3,  # Goes good with Adam.
         min_lr=1e-5,  # Goes good with cosine policy.
-        work_dir='work',
+        work_dir='work/' + str(datetime.datetime.now()).replace(' ', '_'),
         checkpoint_save_freq=10000,
         wdb_project='fast-tts',
         wdb_name='test_' + str(datetime.datetime.now()).replace(' ', '_'),
@@ -182,7 +180,7 @@ class AudioInspector(nemo.core.Metric):
             # Don't met conditions yet.
             return
 
-        def log_audio(key, audio):
+        def log_audio(key, audio):  # noqa
             # tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._featurizer.sample_rate)
             wandb.log({key: wandb.Audio(audio, sample_rate=self._featurizer.sample_rate)}, step=step)
 
@@ -308,6 +306,7 @@ class FasterSpeechGraph:
                         'mask-usage',
                         AudioInspector(
                             preprocessor=self.preprocessor,
+                            k=1,
                             shuffle=True,
                             warmup=args.sample_warmup,
                             log_step=args.sample_freq,

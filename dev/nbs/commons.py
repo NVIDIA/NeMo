@@ -1,3 +1,6 @@
+"""Commons functions for nbs."""
+
+
 def adjust_durs(b, d):
     """Shares 1s with durs."""
     b, d, t = b.copy(), d.copy(), sum(b) + sum(d)
@@ -22,8 +25,8 @@ def adjust_durs(b, d):
                     b[r] -= 1
                     break
 
-                if l >= 0 and b[l] == 0:
-                    l -= 1
+                if l >= 0 and b[l] == 0:  # noqa
+                    l -= 1  # noqa
 
                 if r < len(b) and b[r] == 0:
                     r += 1

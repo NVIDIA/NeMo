@@ -39,7 +39,7 @@ dropout: &dropout 0.1  # Having dropout more than 0.1 doesn't make sense for LJS
 separable: &separable true  # Non-separable one greatly increase number of weights.
 JasperEncoder:
     activation: "relu"
-    conv_mask: true
+    conv_mask: true  # Mind the MaskedConv1d implementation.
 
     # (Number of Layers) x (Number of Repeats) x (Number of Filters) x (Kernel Size)
     jasper:

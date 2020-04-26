@@ -19,7 +19,8 @@ FasterSpeechDataLayer_train:
     trim_silence: false
     drop_last: true
     shuffle: true
-    sampler_type: 'default'  # SSS produces same 0.65 mask usage on average.
+    sampler_type: 'default'  # 'super-smart' makes sense for distributed training.
+    aug: true
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -27,7 +28,8 @@ FasterSpeechDataLayer_eval:
     trim_silence: false
     drop_last: false  # Mind the BN.
     shuffle: false
-    sampler_type: 'all'  # Eval is single batch of 64.
+    sampler_type: 'all'  # Eval/Test are too small for distributed evaluation.
+    aug: false
 
 AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
     sample_rate: *sample_rate
@@ -64,7 +66,7 @@ dropout: &dropout 0.0  # Having dropout more than 0.1 doesn't make sense for LJS
 separable: &separable true  # Non-separable one greatly increase number of weights.
 JasperEncoder:
     activation: "relu"
-    conv_mask: true
+    conv_mask: true  # Mind the MaskedConv1d implementation.
 
     # (Number of Layers) x (Number of Repeats) x (Number of Filters) x (Kernel Sizes)
     jasper:
@@ -106,7 +108,16 @@ JasperEncoder:
             residual: true
             separable: *separable
 
-        # Block 2: 3 x 5 x 256 x [15, 17, 19]
+        # Block 2: 3 x 5 x 256 x [13, 15, 17]
+        -   filters: 256
+            repeat: 5
+            kernel: [13]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+
         -   filters: 256
             repeat: 5
             kernel: [15]
@@ -119,15 +130,6 @@ JasperEncoder:
         -   filters: 256
             repeat: 5
             kernel: [17]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-
-        -   filters: 256
-            repeat: 5
-            kernel: [19]
             stride: [1]
             dilation: [1]
             dropout: *dropout

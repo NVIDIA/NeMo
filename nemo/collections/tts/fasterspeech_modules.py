@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import math
-import os
 import sys
-import time
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -130,7 +127,7 @@ class FasterSpeechDataset:
         return len(self._audio_dataset)
 
 
-class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
+class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):  # noqa
     def __init__(self, *args, **kwargs):
         self.lengths = kwargs.pop('lengths')
         self.batch_size = kwargs.pop('batch_size')
@@ -171,14 +168,14 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):
             batches.append(indices[i : i + self.batch_size])
 
         g = torch.Generator()
-        g.manual_seed(self.epoch)
+        g.manual_seed(self.epoch)  # noqa
         b_indices = torch.randperm(len(batches), generator=g).tolist()
 
         for b_i in b_indices:
             yield from batches[b_i]
 
 
-class AllSampler(torch.utils.data.distributed.DistributedSampler):
+class AllSampler(torch.utils.data.distributed.DistributedSampler):  # noqa
     def __iter__(self):
         return iter(list(range(self.total_size)))
 
@@ -187,7 +184,7 @@ class BDAugs:
     """Different blanks/durs augs."""
 
     @staticmethod
-    def shake(b, d, p=0.1):
+    def shake_blanks(b, d, p=0.1):
         """Changes blanks/durs balance sightly."""
 
         b, d, total = b.copy(), d.copy(), sum(b) + sum(d)
@@ -219,6 +216,36 @@ class BDAugs:
                 nb[i] += br
 
         b = nb
+        assert sum(b) + sum(d) == total
+
+        return b, d
+
+    @staticmethod
+    def shake_all(b, d, p=0.025):
+        """Changes all ints slightly."""
+
+        b, d, total = b.copy(), d.copy(), sum(b) + sum(d)
+
+        def split2(x, p):  # noqa
+            xl = np.minimum(np.random.binomial(32, p, size=x.shape), x)
+            return xl, x - xl
+
+        def split3(x, p):  # noqa
+            xl, xm = split2(x, p)
+            xr, xm = split2(xm, p)
+            return xl, xm, xr
+
+        bl, bm, br = split3(b, p)
+        dl, dm, dr = split3(d, p)
+
+        b = bm
+        b[0] += bl[0]
+        b[1:] += dr
+        b[:-1] += dl
+        b[-1] += br[-1]
+
+        d = dm + bl[1:] + br[:-1]
+
         assert sum(b) + sum(d) == total
 
         return b, d
@@ -333,7 +360,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             if sampler_type == 'all':
                 sampler = AllSampler(self._dataset)
             elif sampler_type == 'default':
-                sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
+                sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)  # noqa
             elif sampler_type == 'super-smart':
                 sampler = SuperSmartSampler(
                     dataset=self._dataset,
@@ -343,7 +370,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             else:
                 raise ValueError("Invalid sample type.")
 
-        self._dataloader = torch.utils.data.DataLoader(
+        self._dataloader = torch.utils.data.DataLoader(  # noqa
             dataset=self._dataset,
             batch_size=batch_size,
             collate_fn=self._collate,
@@ -386,7 +413,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             if self._aug:
                 new_blank, new_dur = [], []
                 for b, d in zip(blank, dur):
-                    new_b, new_d = BDAugs.shake(b.numpy(), d.numpy(), p=0.05)
+                    new_b, new_d = BDAugs.shake_all(b.numpy(), d.numpy(), p=0.025)
                     new_blank.append(torch.tensor(new_b))
                     new_dur.append(torch.tensor(new_d))
                 blank, dur = new_blank, new_dur
@@ -416,11 +443,11 @@ class FasterSpeechDataLayer(DataLayerNM):
         return len(self._dataset)
 
     @property
-    def dataset(self) -> Optional[torch.utils.data.Dataset]:
+    def dataset(self) -> Optional[torch.utils.data.Dataset]:  # noqa
         return None
 
     @property
-    def data_iterator(self) -> Optional[torch.utils.data.DataLoader]:
+    def data_iterator(self) -> Optional[torch.utils.data.DataLoader]:  # noqa
         return self._dataloader
 
 
@@ -604,15 +631,15 @@ class FasterSpeechDursLoss(LossNM):
         while c < max_dur:
             k *= xe_steps_coef
             c += k
-            classes.append(int(c))
+            classes.append(int(c))  # noqa
         self._xe_steps_classes = classes
         if self._method == 'xe-steps':
             nemo.logging.info('XE Steps Classes: %s', str(classes))
 
-        w = torch.arange(num_classes, dtype=torch.float, device=self._device)
-        w = (w + 1).log() + 1
-        w /= w.sum()
-        self._weights = w
+        # w = torch.arange(num_classes, dtype=torch.float, device=self._device)
+        # w = (w + 1).log() + 1
+        # w /= w.sum()
+        self._weights = None
 
     def _loss_function(self, dur_true, dur_pred, text_mask):
         if self._method.startswith('l2'):
@@ -780,7 +807,7 @@ class WaveGlowInference:
         sys.path.append(code)
 
         # nemo.logging.info("Loading WaveGlow from %s", checkpoint)
-        from convert_model import update_model
+        from convert_model import update_model  # noqa
 
         model = update_model(torch.load(checkpoint)['model'])
         model = model.remove_weightnorm(model).cuda()
@@ -793,7 +820,7 @@ class WaveGlowInference:
         self._model = model
         self._sigma = sigma
 
-        from denoiser import Denoiser
+        from denoiser import Denoiser  # noqa
 
         denoiser = Denoiser(self._model).cuda()
         denoiser.eval()
