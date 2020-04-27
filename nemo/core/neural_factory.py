@@ -416,6 +416,11 @@ class NeuralModuleFactory(object):
         # Create trainer
         self._trainer = self._get_trainer(tb_writer=self._tb_writer)
 
+        # Create the nmtensor_naming_dict
+        # which contains a mapping of str to NMTensor.unique_name
+        self._nmtensor_naming_dict = {"loss": None}  # Reserve keyname of 'loss'
+        self._nmtensor_name_set = set("loss")  # Create a set of all tensor names to check for name collisions
+
         if set_default:
             NeuralModuleFactory.set_default_factory(self)
 
@@ -740,6 +745,24 @@ class NeuralModuleFactory(object):
                         "another process indicated a failure"
                     )
 
+    def rename_NmTensor(self, tensor: NmTensor, new_name: str):
+        """ TODO
+        """
+        # Find old name if exists
+        old_name = tensor.unique_name
+        for custom_name, unique_name in self._nmtensor_naming_dict:
+            if unique_name == tensor.unique_name:
+                old_name = custom_name
+
+        if old_name != tensor.unique_name:
+            self._nmtensor_name_set.remove(old_name)
+            del self._nmtensor_naming_dict[old_name]
+
+        if new_name in self._nmtensor_name_set:
+            raise KeyError(f"{new_name} already exists in current graph. Please use a unique name")
+        self._nmtensor_naming_dict["new_name"] = tensor.unique_name
+        self._nmtensor_name_set.add(new_name)
+
     @property
     def world_size(self):
         return self._world_size
@@ -772,3 +795,7 @@ class NeuralModuleFactory(object):
     @property
     def global_rank(self):
         return self._global_rank
+
+    @property
+    def nmtensor_naming_dict(self):
+        return self._nmtensor_naming_dict

@@ -464,33 +464,9 @@ class NeuralModule(ABC):
                     )
                 )
 
-            # if first_input_nmtensor_type is None:
-            #     first_input_nmtensor_type = NeuralType(tgv._axis2type)
-            # else:
-            #     if first_input_nmtensor_type._axis2type is None:
-            #         input_nmtensors_are_of_same_type = True
-            #     else:
-            #         input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(
-            #             tgv
-            #         ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)
-            # if not (
-            #     type_comatibility == NeuralTypeComparisonResult.SAME
-            #     or type_comatibility == NeuralTypeComparisonResult.GREATER
-            # ):
-            #     raise NeuralPortNmTensorMismatchError(
-            #         "\n\nIn {0}. \n"
-            #         "Port: {1} and a NmTensor it was fed are \n"
-            #         "of incompatible neural types:\n\n{2} \n\n and \n\n{3}"
-            #         "\n\nType comparison result: {4}".format(
-            #             self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,
-            #         )
-            #     )
-            # if type_comatibility == NeuralTypeComparisonResult.LESS:
-            #     print('Types were raised')
-
-        if len(output_port_defs) == 1:
-            out_name = list(output_port_defs)[0]
-            out_type = output_port_defs[out_name]
+        result = []
+        for out_port, n_type in output_port_defs.items():
+            out_type = n_type
             if out_type is None:
                 if input_nmtensors_are_of_same_type:
                     out_type = first_input_nmtensor_type
@@ -498,29 +474,17 @@ class NeuralModule(ABC):
                     raise CanNotInferResultNeuralType(
                         "Can't infer output neural type. Likely your inputs are of different type."
                     )
-            return NmTensor(producer=self, producer_args=kwargs, name=out_name, ntype=out_type,)
-        else:
-            result = []
-            for out_port, n_type in output_port_defs.items():
-                out_type = n_type
-                if out_type is None:
-                    if input_nmtensors_are_of_same_type:
-                        out_type = first_input_nmtensor_type
-                    else:
-                        raise CanNotInferResultNeuralType(
-                            "Can't infer output neural type. Likely your inputs are of different type."
-                        )
-                result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type,))
+            result.append(NmTensor(producer=self, producer_args=kwargs, name=out_port, ntype=out_type))
 
-            # Creating ad-hoc class for returning from module's forward pass.
-            output_class_name = f'{self.__class__.__name__}Output'
-            field_names = list(output_port_defs)
-            result_type = collections.namedtuple(typename=output_class_name, field_names=field_names,)
+        # Creating ad-hoc class for returning from module's forward pass.
+        output_class_name = f'{self.__class__.__name__}Output'
+        field_names = list(output_port_defs)
+        result_type = collections.namedtuple(typename=output_class_name, field_names=field_names)
 
-            # Tie tuple of output tensors with corresponding names.
-            result = result_type(*result)
+        # Tie tuple of output tensors with corresponding names.
+        result = result_type(*result)
 
-            return result
+        return result
 
     def __str__(self):
         return self.__class__.__name__

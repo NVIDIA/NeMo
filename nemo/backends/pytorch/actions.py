@@ -452,7 +452,7 @@ class PtActions(Actions):
                 if t_name not in registered_tensors:
                     registered_tensors[t_name] = t_tensor
                 else:
-                    raise ValueError("A NMTensor was produced twice in " f"the same DAG. {t_name}")
+                    raise ValueError("A NMTensor was produced twice in the same DAG. {t_name}")
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):

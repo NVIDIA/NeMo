@@ -36,6 +36,44 @@ except (ImportError, ModuleNotFoundError):
 
 logging = nemo.logging
 
+class NeMoCallback(ABC):
+    def on_action_start(self, state):
+        pass
+
+    def on_action_end(self, state):
+        pass
+
+    def on_epoch_start(self, state):
+        pass
+
+    def on_epoch_end(self, state):
+        pass
+
+    def on_iteration_start(self, state):
+        pass
+
+    def on_iteration_end(self, state):
+        pass
+
+
+class SimpleLossLogger(NeMoCallback):
+    def __init__(self, step_freq=100):
+        #Step_freq: how often logs are printed
+        self.step_freq = step_freq
+
+    # def on_optimizer_step_stop(self, state, tensors_to_log=[“loss”]):
+    #     #tensors_to_log: List of keys into state that will be logged
+
+    def on_iteration_start(self, state, tensors_to_log=["loss"]):
+        if state["step"] % self.step_freq == 0:
+            for tensor_key in tensors_to_log:
+                try:
+                    tensor = state["tensors"][tensor_key]
+                    logging.info("%s: %s", tensor_key, tensor)
+                except KeyError:
+                    raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. ",
+                                   f"Current state tensors include {state['tensors'].keys()}")
+
 
 class ActionCallback(ABC):
     """Abstract interface for callbacks.
