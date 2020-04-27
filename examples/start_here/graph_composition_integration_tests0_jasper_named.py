@@ -76,7 +76,7 @@ with NeuralGraph(operation_mode=OperationMode.both) as Jasper:
 serialized_jasper = Jasper.serialize()
 print("Serialized:\n", serialized_jasper)
 
-# 'connections': 
+# 'connections':
 #   * ['module1.processed_signal->module2.processed_signal',
 #   * 'module1.processed_length->module2.processed_length',
 #   * 'module2.outputs->module3.outputs'],

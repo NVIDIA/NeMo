@@ -49,10 +49,10 @@ serialized_g1 = g1.serialize()
 print("Serialized:\n", serialized_g1)
 
 # Delete everything!
-#del g1
-#del dl
-#del m1
-#del m2
+# del g1
+# del dl
+# del m1
+# del m2
 
 # Deserialize graph.
 g1_copy = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=True, name="g1_copy")

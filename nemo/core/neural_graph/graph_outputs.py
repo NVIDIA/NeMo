@@ -188,7 +188,6 @@ class GraphOutputs(MutableMapping):
         # Return the result.
         return serialized_outputs
 
-
     def deserialize(self, serialized_outputs, modules):
         """ 
             Method responsible for deserialization of graph outputs.
@@ -218,5 +217,3 @@ class GraphOutputs(MutableMapping):
             # TODO: check neural types.
 
         # Done.
-
-

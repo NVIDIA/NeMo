@@ -48,8 +48,8 @@ serialized_model = model.serialize()
 print("Serialized:\n", serialized_model)
 
 # Delete everything!
-#del model
-#del fx
+# del model
+# del fx
 
 # Deserialize graph.
 model_copy = NeuralGraph.deserialize(serialized_model, reuse_existing_modules=True, name="model_copy")
@@ -74,5 +74,5 @@ callback = SimpleLossLoggerCallback(
 nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
 
 # Serialize graph
-#print(model.serialize())
-#print(training.serialize())
+# print(model.serialize())
+# print(training.serialize())

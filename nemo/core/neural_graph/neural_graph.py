@@ -144,7 +144,6 @@ class NeuralGraph(NeuralInterface):
             for t in tensors.values():
                 inner_connections.extend(t.connections())
 
-
         # We need to disable the binding of "defeault" ports on per module basis - we will "manually" produce
         # them only for ports that are already indicated as the "bound" ones in the inner graph.
         self.default_output_binding = False
@@ -700,17 +699,17 @@ class NeuralGraph(NeuralInterface):
                 # Check if this port was bound in the inner graph.
                 key = inputs.has_binding(module_name, input_port_name)
 
-                #import pdb;pdb.set_trace()
+                # import pdb;pdb.set_trace()
                 # If so, then we must pass the binding!
                 if key is not None:
                     # Copy the port "definition" (i.e. is NeuralType) using the same port name.
                     self.inputs[key] = inputs[key]
-                    
+
                     # Pass this object to module input argument.
                     module_args[input_port_name] = self.inputs[key]
 
                 # Else: find a tensor that should be passed to the given module's input.
-                else: 
+                else:
                     # Search for producer/port that we should use.
                     for connection in connections:
                         if (
@@ -736,8 +735,7 @@ class NeuralGraph(NeuralInterface):
         self.deactivate()
 
         # Ok, now we can turn automatic binding on.
-        #self.default_output_binding = True
-
+        # self.default_output_binding = True
 
     def __str__(self):
         """ Prints a nice summary. """
