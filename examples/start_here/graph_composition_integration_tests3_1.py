@@ -34,7 +34,8 @@ logging.info(
     F" and then set to `x` returned by `dl` in the graph `g3`."
 )
 
-with NeuralGraph(operation_mode=OperationMode.training, name="model") as model:
+# Create "model".
+with NeuralGraph(operation_mode=OperationMode.both, name="model") as model:
     # Manually bind input port: "input" -> "x"
     model.inputs["input"] = fx.input_ports["x"]
     # Add module to graph and bind it input port 'x'.
@@ -42,12 +43,26 @@ with NeuralGraph(operation_mode=OperationMode.training, name="model") as model:
     # Manual output bind.
     model.outputs["output"] = y
 
+# Serialize graph
+serialized_model = model.serialize()
+print("Serialized:\n", serialized_model)
+
+# Delete everything!
+#del model
+#del fx
+
+# Deserialize graph.
+model_copy = NeuralGraph.deserialize(serialized_model, reuse_existing_modules=True, name="model_copy")
+
+serialized_model_copy = model_copy.serialize()
+print("Deserialized:\n", serialized_model_copy)
+
 # Build the training graph.
 with NeuralGraph(operation_mode=OperationMode.training, name="training") as training:
     # Add modules to graph.
     x, t = dl()
     # Incorporate modules from the existing "model" graph.
-    p = model(input=x)
+    p = model_copy(input=x)
     lss = loss(predictions=p, target=t)
 
 # SimpleLossLoggerCallback will print loss values to console.
@@ -59,6 +74,5 @@ callback = SimpleLossLoggerCallback(
 nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 2, "lr": 0.0003}, optimizer="sgd")
 
 # Serialize graph
-print(model.serialize())
-
-print(training.serialize())
+#print(model.serialize())
+#print(training.serialize())

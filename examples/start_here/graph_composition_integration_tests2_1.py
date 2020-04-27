@@ -46,17 +46,19 @@ with NeuralGraph(operation_mode=OperationMode.training, name="g1") as g1:
 
 # Serialize graph
 serialized_g1 = g1.serialize()
-print(serialized_g1)
+print("Serialized:\n", serialized_g1)
 
 # Delete everything!
-del g1
-del dl
-del m1
-del m2
-del loss
+#del g1
+#del dl
+#del m1
+#del m2
 
 # Deserialize graph.
-g1_copy = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=False, name="g1_copy")
+g1_copy = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=True, name="g1_copy")
+serialized_g1_copy = g1_copy.serialize()
+print("Deserialized:\n", serialized_g1_copy)
+
 
 with NeuralGraph(operation_mode=OperationMode.training, name="g1.1") as g2:
     x1, t1, p1 = g1_copy()

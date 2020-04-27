@@ -19,6 +19,7 @@
 from collections.abc import MutableMapping
 
 from nemo.utils import logging
+from nemo.utils.module_port import ModulePort
 
 
 class GraphOutput(object):
@@ -169,14 +170,53 @@ class GraphOutputs(MutableMapping):
             Returns:
                 List containing mappings (module.output_port -> output).
         """
-        serialized_outputs = {"default": [], "manual": []}
+        serialized_outputs = {"outputs": []}
 
-        # Serialize both dictionaries - for now.
-        for d, name in [(self._default_outputs, "default"), (self._manual_outputs, "manual")]:
-            # Iterate through "bindings".
-            for key, binding in d.items():
-                # Serialize: module.port -> output.
-                source = binding.producer_port.module_name + "." + binding.producer_port.port_name
-                serialized_outputs[name].append(source + "->" + key)
+        # Get the right output dictionary.
+        if len(self._manual_outputs) > 0:
+            serialized_outputs["type"] = "manual"
+            d = self._manual_outputs
+        else:
+            serialized_outputs["type"] = "default"
+            d = self._default_outputs
+
+        # Iterate through "bindings".
+        for key, binding in d.items():
+            # Serialize: module.port -> output.
+            source = binding.producer_port.module_name + "." + binding.producer_port.port_name
+            serialized_outputs["outputs"].append(source + "->" + key)
         # Return the result.
         return serialized_outputs
+
+
+    def deserialize(self, serialized_outputs, modules):
+        """ 
+            Method responsible for deserialization of graph outputs.
+
+            Args:
+                serialized_outputs: A list of serialized outputs in the form of ("module.output_port->key")
+                modules: List of modules required for neural type copying/checking.
+        """
+        # Check type.
+        if serialized_outputs["type"] == "default":
+            # We do not need to deserialize.
+            # self._default_outputs will be recorded automatically during graph execution.
+            # TODO: check neural types.
+            return
+
+        # Iterate through serialized inputs one by one.
+        for i in serialized_outputs["outputs"]:
+            # Deserialize!
+            [producer, key] = i.split("->")
+            [producer_name, producer_port_name] = producer.split(".")
+
+            # Get neural type from module output port definition.
+            n_type = modules[producer_name].output_ports[producer_port_name]
+            # Create a new input.
+            go = GraphOutput(n_type, ModulePort(producer_name, producer_port_name))
+            self._manual_outputs[key] = go
+            # TODO: check neural types.
+
+        # Done.
+
+

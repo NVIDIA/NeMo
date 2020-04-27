@@ -46,8 +46,12 @@ class GraphInput(object):
         """ Binds the (modules-ports) to this "graph input".
 
             Args:
-                module_ports: List of ModulePort tuples to be added.
+                module_ports: A single ModulePort OR a list of ModulePort tuples to be added.
         """
+        # Handle both single port and lists of ports to be bound.
+        if type(module_ports) is not list:
+            module_ports = [module_ports]
+        # Interate through "consumers" on the list and add them to bound input.
         for module_port in module_ports:
             self._consumers.append(module_port)
 
@@ -87,6 +91,7 @@ class GraphInputs(MutableMapping):
             val_type = value
         elif isinstance(value, GraphInput):
             val_type = value.type
+        else:
             raise TypeError("Port `{}` definition must be must be a NeuralType or GraphInput type".format(key))
         # Ok, add definition to list of mapped (module, port)s.
         # Note: for now, there are no mapped modules, so copy only (neural) type.
@@ -142,3 +147,35 @@ class GraphInputs(MutableMapping):
                 serialized_inputs.append(key + "->" + target)
         # Return the result.
         return serialized_inputs
+
+    @classmethod
+    def deserialize(cls, serialized_inputs, modules, definitions_only=False):
+        """ 
+            Class method responsible for deserialization of graph inputs.
+
+            Args:
+                serialized_inputs: A list of serialized inputs in the form of ("input->module.input_port")
+                modules: List of modules required for neural type copying/checking.
+                definitions_only: deserializes/checks only the definitions, without binding the consumers.
+
+            Returns:
+                Dictionary with deserialized inputs.
+        """
+        inputs = GraphInputs()
+        # Iterate through serialized inputs one by one.
+        for i in serialized_inputs:
+            # Deserialize!
+            [key, consumer] = i.split("->")
+            [consumer_name, consumer_port_name] = consumer.split(".")
+            # Add the input.
+            if key not in inputs.keys():
+                # Get neural type from module input port definition.
+                n_type = modules[consumer_name].input_ports[consumer_port_name]
+                # Create a new input.
+                inputs[key] = n_type
+            # Optionally, also bind the "consumers".
+            if not definitions_only:
+                # Bound input.
+                inputs[key].bind(ModulePort(consumer_name, consumer_port_name))
+        # Done.
+        return inputs

@@ -144,6 +144,7 @@ class NeuralGraph(NeuralInterface):
             for t in tensors.values():
                 inner_connections.extend(t.connections())
 
+
         # We need to disable the binding of "defeault" ports on per module basis - we will "manually" produce
         # them only for ports that are already indicated as the "bound" ones in the inner graph.
         self.default_output_binding = False
@@ -258,8 +259,11 @@ class NeuralGraph(NeuralInterface):
         """ Binds the output tensors.
 
             Args:
-                tensors_list: List of tensors to be bound.
+                tensors_list: A single tensor OR a List of tensors to be bound.
         """
+        # Handle both single port and lists of ports to be bound.
+        if type(tensors_list) is not list:
+            tensors_list = [tensors_list]
         # Add tensors list to of tensors.
         for tensor in tensors_list:
             # Add tensor to "all" tensors dictionary.
@@ -495,7 +499,7 @@ class NeuralGraph(NeuralInterface):
                 for c in tensor.connections():
                     # Serialize!
                     source = c.producer.module_name + "." + c.producer.port_name
-                    target = c.consumer.module_name + "." + c.producer.port_name
+                    target = c.consumer.module_name + "." + c.consumer.port_name
                     serialized_connections.append(source + "->" + target)
         return serialized_connections
 
@@ -561,14 +565,16 @@ class NeuralGraph(NeuralInterface):
         steps = new_graph.__deserialize_steps(configuration["steps"])
 
         # Deserialize the connections between modules.
-        connnections = new_graph.__deserialize_connections(configuration["connections"])
+        connections = new_graph.__deserialize_connections(configuration["connections"])
 
-        # TODO Deserialize input bindings.
-        # new_graph.__deserialize_inputs(configuration["inputs"])
+        # Deserialize input bindings - return it in an external entity.
+        inputs = GraphInputs.deserialize(configuration["inputs"], modules)
+
+        # Deserialize "manual" output bindings.
+        new_graph._outputs.deserialize(configuration["outputs"], modules)
 
         # Now we have to execute the graph, following the steps and connections.
-
-        # TODO: deserialize output bindings.
+        new_graph.__execute_and_create_tensors(steps, modules, connections, inputs)
 
         # Return the graph instance.
         return new_graph
@@ -589,7 +595,7 @@ class NeuralGraph(NeuralInterface):
         # Get operation mode.
         if serialized_header["operation_mode"] == "training":
             operation_mode = OperationMode.training
-        elif header["operation_mode"] == "inference":
+        elif serialized_header["operation_mode"] == "inference":
             operation_mode = OperationMode.inference
         else:
             operation_mode = OperationMode.both
@@ -660,14 +666,22 @@ class NeuralGraph(NeuralInterface):
         return connections
 
     def __execute_and_create_tensors(self, steps, modules, connections, inputs):
-        """ Method creates (internal) tensors of the graph by executing it following the order. """
+        """ Method creates (internal) tensors of the graph by executing it following the order and using 
+            the provided connections and inputs.
 
+            Args:
+                steps: 
+                modules
+                connections
+                inputs
+        
+        """
         # Activate this graph, so all the tensors will be added to this !
         self.activate()
 
         # We need to disable the binding of "defeault" ports on per module basis - we will "manually" produce
         # them only for ports that are already indicated as the "bound" ones in the inner graph.
-        self.default_output_binding = False
+        # self.default_output_binding = False
 
         # Now "copy" graph execution order and topology by actually executing each step of the nested graph.
         for _, module_name in steps.items():
@@ -686,38 +700,44 @@ class NeuralGraph(NeuralInterface):
                 # Check if this port was bound in the inner graph.
                 key = inputs.has_binding(module_name, input_port_name)
 
+                #import pdb;pdb.set_trace()
                 # If so, then we must pass the binding!
                 if key is not None:
-                    module_args[input_port_name] = new_graph.inputs[key]
-                    continue
+                    # Copy the port "definition" (i.e. is NeuralType) using the same port name.
+                    self.inputs[key] = inputs[key]
+                    
+                    # Pass this object to module input argument.
+                    module_args[input_port_name] = self.inputs[key]
 
                 # Else: find a tensor that should be passed to the given module's input.
-                # Search for producer/port that we should use.
-                for connection in connections:
-                    if (
-                        connection.consumer.module_name == module_name
-                        and connection.consumer.port_name == input_port_name
-                    ):
-                        # Got the connection!
-                        producer_name = connection.producer.module_name
-                        producer_port_name = connection.producer.port_name
-                        break
-                # Now, the tensor is already produced in outer (i.e. this) graph!
-                module_args[input_port_name] = self.tensors[producer_name][producer_port_name]
+                else: 
+                    # Search for producer/port that we should use.
+                    for connection in connections:
+                        if (
+                            connection.consumer.module_name == module_name
+                            and connection.consumer.port_name == input_port_name
+                        ):
+                            # Got the connection!
+                            producer_name = connection.producer.module_name
+                            producer_port_name = connection.producer.port_name
+                            break
+                    # Now, the tensor is already produced in outer (i.e. this) graph!
+                    module_args[input_port_name] = self.tensors[producer_name][producer_port_name]
+                # End: for
 
-            # import pdb;pdb.set_trace()
             # Ok, now we have all keyword arguments. We can call() the module.
             # This will collect all the produced output tensors and add them to this graph.
             module(**module_args)
 
-    def __deserialize_inputs(self, serialized_inputs):
-        """ Private method deserializing the bound graph inputs.
+        # At that point we have all modules, steps and tensors added to outer (self) graph.
+        # Now we have to prepare the outputs.
 
-            Args:
-                serialized_steps: Dictionary containing serialized inputs.
-        """
-        # TODO!
-        pass
+        # Deactivate graph.
+        self.deactivate()
+
+        # Ok, now we can turn automatic binding on.
+        #self.default_output_binding = True
+
 
     def __str__(self):
         """ Prints a nice summary. """

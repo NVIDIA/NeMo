@@ -567,7 +567,7 @@ class NeuralModule(NeuralInterface):
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
                 # to THIS module-port (when it finally will be connected).
-                active_graph.inputs[port_name].bind([ModulePort(self.name, port_name)])
+                active_graph.inputs[port_name].bind(ModulePort(self.name, port_name))
 
                 # Please note that there are no "consumers" here - this is a "pure binding".
 
@@ -589,7 +589,7 @@ class NeuralModule(NeuralInterface):
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
                 # to THIS module-port (when it finally will be connected).
-                port_content.bind([ModulePort(self.name, port_name)])
+                port_content.bind(ModulePort(self.name, port_name))
 
                 # Please note that there are no "consumers" here - this is a "pure binding".
 
@@ -616,7 +616,7 @@ class NeuralModule(NeuralInterface):
             results = NmTensor(producer=self, producer_args=kwargs, output_port_name=out_name, ntype=out_type,)
 
             # Bind the "default" output ports.
-            self._app_state.active_graph.bind_outputs([results])
+            self._app_state.active_graph.bind_outputs(results)
         else:
             # Create output tensors.
             output_tensors = []
