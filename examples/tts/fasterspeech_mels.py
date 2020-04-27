@@ -393,7 +393,7 @@ def main():
     total_steps = (
         args.max_steps
         if args.max_steps is not None
-        else args.num_epochs * math.ceil(len(graph.train_dl) / (args.batch_size * engine.world_size))
+        else args.num_epochs * math.floor(len(graph.train_dl) / (args.batch_size * engine.world_size))
     )
     if args.local_rank is None or args.local_rank == 0:
         wandb.config.total_steps = total_steps

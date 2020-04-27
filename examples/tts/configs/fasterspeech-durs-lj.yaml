@@ -19,7 +19,7 @@ FasterSpeechDataLayer_train:
     drop_last: true
     shuffle: true
     sampler_type: 'default'  # 'super-smart' makes sense for distributed training.
-    aug: False
+    bd_aug: false
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -28,7 +28,7 @@ FasterSpeechDataLayer_eval:
     drop_last: false  # Mind the BN.
     shuffle: false
     sampler_type: 'all'  # Eval/Test are too small for distributed evaluation.
-    aug: False
+    bd_aug: false
 
 FasterSpeech:
     d_char: 64
@@ -39,7 +39,7 @@ dropout: &dropout 0.1  # Having dropout more than 0.1 doesn't make sense for LJS
 separable: &separable true  # Non-separable one greatly increase number of weights.
 JasperEncoder:
     activation: "relu"
-    conv_mask: true  # Mind the MaskedConv1d implementation.
+    conv_mask: false  # Mind the MaskedConv1d implementation: it's too slow for training and inference.
 
     # (Number of Layers) x (Number of Repeats) x (Number of Filters) x (Kernel Size)
     jasper:

@@ -184,13 +184,26 @@ class BDAugs:
     """Different blanks/durs augs."""
 
     @staticmethod
-    def shake_blanks(b, d, p=0.1):
-        """Changes blanks/durs balance sightly."""
+    def _split(d):
+        return np.array(d[::2]), np.array(d[1::2])
+
+    @staticmethod
+    def _merge(b, d):
+        result = []
+        for b1, d1 in zip(b, d):
+            result.extend([b1, d1])
+
+        result.append(b[-1])
+        return np.array(result)
+
+    @classmethod
+    def shake_biased(cls, b, d, p=0.1):
+        """Biased binomial shake."""
 
         b, d, total = b.copy(), d.copy(), sum(b) + sum(d)
 
         def split2(x):
-            xl = np.random.binomial(x, p)
+            xl = np.random.binomial(x, p, size=x.shape)
             return xl, x - xl
 
         def split3(x):
@@ -198,53 +211,30 @@ class BDAugs:
             xr, xm = split2(xm)
             return xl, xm, xr
 
-        n, m = len(b), len(d)
-        nb = np.zeros_like(b)
-        for i in range(len(b)):
-            bl, bm, br = split3(b[i])
+        bdl, bdm, bdr = split3(cls._merge(b, d))
+        bd = bdm + np.roll(bdl, -1) + np.roll(bdr, +1)
+        b, d = cls._split(bd)
 
-            nb[i] += bm
-
-            if i > 0:
-                d[i - 1] += bl
-            else:
-                nb[i] += bl
-
-            if i < m:
-                d[i] += br
-            else:
-                nb[i] += br
-
-        b = nb
         assert sum(b) + sum(d) == total
 
         return b, d
 
-    @staticmethod
-    def shake_all(b, d, p=0.025):
-        """Changes all ints slightly."""
-
+    @classmethod
+    def shake_unbiased(cls, b, d, p=0.1):
         b, d, total = b.copy(), d.copy(), sum(b) + sum(d)
 
-        def split2(x, p):  # noqa
-            xl = np.minimum(np.random.binomial(32, p, size=x.shape), x)
+        def split2(x, mm):
+            xl = np.random.binomial(np.minimum(x, mm), p, size=x.shape)
             return xl, x - xl
 
-        def split3(x, p):  # noqa
-            xl, xm = split2(x, p)
-            xr, xm = split2(xm, p)
+        def split3(x):
+            xl, xm = split2(x, np.roll(x, +1))
+            xr, xm = split2(xm, np.roll(x, -1))
             return xl, xm, xr
 
-        bl, bm, br = split3(b, p)
-        dl, dm, dr = split3(d, p)
-
-        b = bm
-        b[0] += bl[0]
-        b[1:] += dr
-        b[:-1] += dl
-        b[-1] += br[-1]
-
-        d = dm + bl[1:] + br[:-1]
+        bdl, bdm, bdr = split3(cls._merge(b, d))
+        bd = bdm + np.roll(bdl, -1) + np.roll(bdr, +1)
+        b, d = cls._split(bd)
 
         assert sum(b) + sum(d) == total
 
@@ -325,7 +315,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         shuffle=True,
         num_workers=0,
         sampler_type='default',
-        aug=False,
+        bd_aug=False,
     ):
         super().__init__()
 
@@ -353,7 +343,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         self._space_id = labels.index(' ')
         self._sample_rate = sample_rate
         self._load_audio = load_audio
-        self._aug = aug
+        self._bd_aug = bd_aug
 
         sampler = None
         if self._placement == nemo.core.DeviceType.AllGpu:
@@ -410,10 +400,16 @@ class FasterSpeechDataLayer(DataLayerNM):
             blank, dur = batch['blank'], batch['dur']
 
             # Aug
-            if self._aug:
+            if self._bd_aug:
+                if isinstance(self._bd_aug, str):
+                    name, p = self._bd_aug.split('|')
+                else:
+                    name, p = 'shake_biased', '0.1'
+                aug = lambda b, d: getattr(BDAugs, name)(b, d, p)  # noqa
+
                 new_blank, new_dur = [], []
                 for b, d in zip(blank, dur):
-                    new_b, new_d = BDAugs.shake_all(b.numpy(), d.numpy(), p=0.025)
+                    new_b, new_d = aug(b.numpy(), d.numpy())
                     new_blank.append(torch.tensor(new_b))
                     new_dur.append(torch.tensor(new_d))
                 blank, dur = new_blank, new_dur

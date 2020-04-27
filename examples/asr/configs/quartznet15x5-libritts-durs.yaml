@@ -1,10 +1,12 @@
 model: "QuartzNet"
-sample_rate: &sample_rate 24000
+#sample_rate: &sample_rate 24000
+sample_rate: &sample_rate 22050
 n_mels: &n_mels 64
 
 AudioToTextDataLayer:
     max_duration: 20.0  # ~= -30h. This wasn't applied for inferred durations.
     trim_silence: true
+    normalize_transcripts: true
 
     train:
         shuffle: true
@@ -64,7 +66,7 @@ JasperEncoder:
             kernel: [33]
             stride: [1]  # Was 2 in original version.
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: false
             separable: true
 
@@ -73,7 +75,7 @@ JasperEncoder:
             kernel: [33]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -82,7 +84,7 @@ JasperEncoder:
             kernel: [33]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -91,7 +93,7 @@ JasperEncoder:
             kernel: [33]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -100,7 +102,7 @@ JasperEncoder:
             kernel: [39]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -109,7 +111,7 @@ JasperEncoder:
             kernel: [39]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -118,7 +120,7 @@ JasperEncoder:
             kernel: [39]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -127,7 +129,7 @@ JasperEncoder:
             kernel: [51]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -136,7 +138,7 @@ JasperEncoder:
             kernel: [51]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -145,7 +147,7 @@ JasperEncoder:
             kernel: [51]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -154,7 +156,7 @@ JasperEncoder:
             kernel: [63]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -163,7 +165,7 @@ JasperEncoder:
             kernel: [63]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -172,7 +174,7 @@ JasperEncoder:
             kernel: [63]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -181,7 +183,7 @@ JasperEncoder:
             kernel: [75]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: true
             separable: true
 
@@ -190,7 +192,7 @@ JasperEncoder:
             kernel: [1]
             stride: [1]
             dilation: [1]
-            dropout: 0.0
+            dropout: 0.2
             residual: false
 
 labels: [
@@ -198,8 +200,8 @@ labels: [
     ' ',
   # string.ascii_letters
   # Big letters is fake classes because of normalization.
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+#    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+#    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
   # Punctuation

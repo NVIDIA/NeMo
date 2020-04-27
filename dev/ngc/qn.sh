@@ -39,18 +39,17 @@ read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
+&& pip install -U wandb && wandb login ${WANDB_TOKEN} \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
---num_epochs=300 \
+--num_epochs=1000 \
 --eval_batch_size=32 \
 --model_config=${config} \
 --checkpoint_dir=${RESULT} \
 --checkpoint_save_freq=10000 \
---train_dataset=/manifests/libritts/train-all.json \
+--train_dataset=/data/ljspeech/split3/train.json \
 --eval_datasets \
-/manifests/libritts/dev-clean.json \
-/manifests/libritts/dev-other.json \
-/manifests/libritts/test-clean.json \
-/manifests/libritts/test-other.json
+/data/ljspeech/split3/eval.json \
+/data/ljspeech/split3/test.json
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------
@@ -61,6 +60,7 @@ ngc batch run \
   --instance dgx1v."${GPU_MEM}"g."${NUM_GPU}".norm \
   --result "${RESULT}" \
   --datasetid 58106:/data/libritts \
+  --datasetid 59943:/data/ljspeech \
   --datasetid 58404:/manifests/libritts \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

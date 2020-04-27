@@ -30,9 +30,9 @@ CONFIG=examples/tts/configs/fasterspeech-mels-lj.yaml
 # LJSpeech
 DATASET_SIZE=12500 # Train
 NUM_EPOCHS=100     # Total number of epochs
-BATCH_SIZE=64      # [1GPU,16G]: 196 its/e
-#BATCH_SIZE=144     # [1GPU,32G]: 87 its/e
-#BATCH_SIZE=96      # [8GPU,32G]: 131 its/e
+BATCH_SIZE=64      # [1GPU,16G]: 195 its/e
+#BATCH_SIZE=144     # [1GPU,32G]: 86 its/e
+#BATCH_SIZE=96      # [8GPU,32G]: 130 its/e
 
 # ---------------------------------------------------- SAVE STATE ----------------------------------------------------
 echo "Updating source code..."
@@ -51,7 +51,7 @@ rsync -r . "${tmp_dir}" --exclude .git --filter=":- .gitignore"
 ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
-total_steps=$((((DATASET_SIZE / (BATCH_SIZE * NUM_GPU)) + 1) * NUM_EPOCHS))
+total_steps=$(((DATASET_SIZE / (BATCH_SIZE * NUM_GPU)) * NUM_EPOCHS))
 eval_freq=100  # Fixed.
 read -r -d '' cmd <<EOF
 nvidia-smi \
@@ -66,7 +66,7 @@ nvidia-smi \
 --eval_freq=${eval_freq} \
 --warmup=$((total_steps / 50)) \
 --num_epochs=${NUM_EPOCHS} \
---sample_warmup=$((BATCH_SIZE - 2 * eval_freq)) \
+--sample_warmup=$((total_steps - 2 * eval_freq)) \
 --sample_freq=$((2 * eval_freq)) \
 --work_dir=${RESULT} \
 --wdb_name=${name_id} \

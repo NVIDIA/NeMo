@@ -18,22 +18,30 @@ fi
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
 # NGC
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=16         # Default is 32.
-NUM_GPU=1          # Default is 8.
-OPT=O2             # Default is O0.
-WS=stan            # Workspace name
-WORKSPACE=/ws      # Workspace mount point
-RESULT=/result     # Results dir
+GPU_MEM=16     # Default is 32.
+NUM_GPU=1      # Default is 8.
+OPT=O2         # Default is O0.
+WS=stan        # Workspace name
+WORKSPACE=/ws  # Workspace mount point
+RESULT=/result # Results dir
+# Script
+SCRIPT=examples/tts/fasterspeech_durs.py
+CONFIG=examples/tts/configs/fasterspeech-durs-lj.yaml
 # LJSpeech
-DATASET_SIZE=13036 # Train
+DATASET_SIZE=12500 # Train
 NUM_EPOCHS=100     # Total number of epochs
+BATCH_SIZE=352     # [1GPU,16G]: 35 its/e
+#BATCH_SIZE=704      # [1GPU,32G]: 17 its/e
+#BATCH_SIZE=704      # [8GPU,32G]: 2 its/e
 
 # ---------------------------------------------------- SAVE STATE ----------------------------------------------------
 echo "Updating source code..."
 # Choose run id.
+script_id=$(basename "$0")
+script_id=${script_id%.*}
 name_id=$1
 num_id=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13)
-id=durs-lj_"${name_id}"_"${num_id}"
+id="${script_id}"_"${name_id}"_"${num_id}"
 # Choose tmp dir to save current state of the project.
 tmp_dir=/tmp/nemos/"${id}"
 echo "Tmp dir: ${tmp_dir}"
@@ -43,24 +51,19 @@ rsync -r . "${tmp_dir}" --exclude .git --filter=":- .gitignore"
 ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
-script=examples/tts/fasterspeech_durs.py
-config=examples/tts/configs/fasterspeech-durs-lj.yaml
-# [1GPU,16G] Biggest bs is 352. One epoch is around 38 iterations. Total number of steps is 3800.
-# [1GPU,32G] Biggest bs is 704. One epoch is around 19 iterations. Total number of steps is 1900.
-# [8GPU,32G] Biggest bs is 704. One epoch is around 3 iterations. Total number of steps is 300.
-batch_size=$((GPU_MEM * 22))
-total_steps=$((((DATASET_SIZE / (batch_size * NUM_GPU)) + 1) * NUM_EPOCHS))
+total_steps=$(((DATASET_SIZE / (BATCH_SIZE * NUM_GPU)) * NUM_EPOCHS))
+eval_freq=100 # Fixed.
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && pip install -U wandb && wandb login ${WANDB_TOKEN} \
-&& python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
+&& python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${SCRIPT} \
 --amp_opt_level=${OPT} \
---model_config=${config} \
---batch_size=${batch_size} \
+--model_config=${CONFIG} \
+--batch_size=${BATCH_SIZE} \
 --train_freq=10 \
---eval_freq=100 \
+--eval_freq=${eval_freq} \
 --warmup=$((total_steps / 50)) \
 --num_epochs=${NUM_EPOCHS} \
 --work_dir=${RESULT} \

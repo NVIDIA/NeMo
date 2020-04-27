@@ -20,7 +20,7 @@ FasterSpeechDataLayer_train:
     drop_last: true
     shuffle: true
     sampler_type: 'default'  # 'super-smart' makes sense for distributed training.
-    aug: true
+    bd_aug: 'shake_biased|0.0'  # I believe model should still learn something when we shake durs a bit.
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -29,7 +29,7 @@ FasterSpeechDataLayer_eval:
     drop_last: false  # Mind the BN.
     shuffle: false
     sampler_type: 'all'  # Eval/Test are too small for distributed evaluation.
-    aug: false
+    bd_aug: false
 
 AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
     sample_rate: *sample_rate
@@ -55,7 +55,7 @@ AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
     mag_power: 1.0  # People use 1.0 for TTS for some reason.
 
 LenSampler:
-    max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happens.
+    max_len: 1100  # Max LJSpeech dur is 10.10sec, so it's never happen.
 
 FasterSpeech:
     d_char: 256
@@ -66,7 +66,7 @@ dropout: &dropout 0.0  # Having dropout more than 0.1 doesn't make sense for LJS
 separable: &separable true  # Non-separable one greatly increase number of weights.
 JasperEncoder:
     activation: "relu"
-    conv_mask: true  # Mind the MaskedConv1d implementation.
+    conv_mask: false  # Mind the MaskedConv1d implementation: it's too slow for training and inference.
 
     # (Number of Layers) x (Number of Repeats) x (Number of Filters) x (Kernel Sizes)
     jasper:
@@ -76,7 +76,7 @@ JasperEncoder:
             kernel: [3]  # 5 and 7 works a bit worse.
             stride: [1]  # Was 2 in Original QuartzNet15x5.
             dilation: [1]
-            dropout: 0.0
+            dropout: *dropout
             residual: true  # Non-residual works a bit worse.
             separable: *separable
 
