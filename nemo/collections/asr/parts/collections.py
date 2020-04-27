@@ -79,13 +79,16 @@ class FromFileText(Text):
 class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='AudioTextEntity', field_names='audio_file duration text_tokens',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='AudioTextEntity', field_names='audio_file duration text_tokens offset',
+    )
 
     def __init__(
         self,
         audio_files: List[str],
         durations: List[float],
         texts: List[str],
+        offsets: List[str],
         parser: parsers.CharParser,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -98,6 +101,7 @@ class AudioText(_Collection):
             audio_files: List of audio files.
             durations: List of float durations.
             texts: List of raw text transcripts.
+            offsets: List of duration offsets or None.
             parser: Instance of `CharParser` to convert string to tokens.
             min_duration: Minimum duration to keep entry with (default: None).
             max_duration: Maximum duration to keep entry with (default: None).
@@ -107,7 +111,7 @@ class AudioText(_Collection):
 
         output_type = self.OUTPUT_TYPE
         data, duration_filtered, num_filtered, total_duration = [], 0.0, 0, 0.0
-        for audio_file, duration, text in zip(audio_files, durations, texts):
+        for audio_file, duration, text, offset in zip(audio_files, durations, texts, offsets):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -126,7 +130,7 @@ class AudioText(_Collection):
                 continue
 
             total_duration += duration
-            data.append(output_type(audio_file, duration, text_tokens))
+            data.append(output_type(audio_file, duration, text_tokens, offset))
 
             # Max number of entities filter.
             if len(data) == max_number:
@@ -154,25 +158,27 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        audio_files, durations, texts = [], [], []
+        audio_files, durations, texts, offsets = [], [], [], []
         for item in manifest.item_iter(manifests_files):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             texts.append(item['text'])
+            offsets.append(item['offset'])
 
-        super().__init__(audio_files, durations, texts, *args, **kwargs)
+        super().__init__(audio_files, durations, texts, offsets, *args, **kwargs)
 
 
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label',)
+    OUTPUT_TYPE = collections.namedtuple(typename='SpeechLabelEntity', field_names='audio_file duration label offset',)
 
     def __init__(
         self,
         audio_files: List[str],
         durations: List[float],
         labels: List[Union[int, str]],
+        offsets: List[Optional[float]],
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
@@ -184,6 +190,7 @@ class SpeechLabel(_Collection):
             audio_files: List of audio files.
             durations: List of float durations.
             labels: List of labels.
+            offsets: List of offsets or None.
             min_duration: Minimum duration to keep entry with (default: None).
             max_duration: Maximum duration to keep entry with (default: None).
             max_number: Maximum number of samples to collect.
@@ -192,7 +199,7 @@ class SpeechLabel(_Collection):
 
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        for audio_file, duration, command in zip(audio_files, durations, labels):
+        for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -202,7 +209,7 @@ class SpeechLabel(_Collection):
                 duration_filtered += duration
                 continue
 
-            data.append(output_type(audio_file, duration, command))
+            data.append(output_type(audio_file, duration, command, offset))
 
             # Max number of entities filter.
             if len(data) == max_number:
@@ -230,14 +237,15 @@ class ASRSpeechLabel(SpeechLabel):
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
-        audio_files, durations, labels = [], [], []
+        audio_files, durations, labels, offsets = [], [], [], []
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             labels.append(item['label'])
+            offsets.append(item['offset'])
 
-        super().__init__(audio_files, durations, labels, *args, **kwargs)
+        super().__init__(audio_files, durations, labels, offsets, *args, **kwargs)
 
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)

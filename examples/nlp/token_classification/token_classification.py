@@ -42,7 +42,7 @@ parser.add_argument("--num_epochs", default=5, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--weight_decay", default=0, type=float)
+parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
@@ -52,6 +52,7 @@ parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
     "--pretrained_model_name",
     default="bert-base-uncased",
@@ -113,7 +114,7 @@ nf = nemo.core.NeuralModuleFactory(
     log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=True,
+    add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
 logging.info(args)
@@ -250,5 +251,5 @@ nf.train(
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
 )
