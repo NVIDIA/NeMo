@@ -303,7 +303,9 @@ class NeuralModule(NeuralInterface):
 
                 section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
 
-                overwrite_init_params: Dictionary containing parameters that will be added to or overwrite (!)
+                name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
+
+                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
                 the default init parameters loaded from the configuration file (the module "init_params" section).
 
             Returns:
@@ -313,33 +315,39 @@ class NeuralModule(NeuralInterface):
         # Validate the content of the configuration file (its header).
         loaded_config = cls.__validate_config_file(config_file, section_name)
 
-        # Update parameters with additional ones.
-        loaded_config["init_params"].update(overwrite_params)
-
-        # Override module name in init_params using the logic:
-        #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
-        #  * name (if None) overrides init_params.name
-        if name is not None:
-            loaded_config["init_params"]["name"] = name
-
         # "Deserialize" the module.
-        obj = cls.deserialize(loaded_config)
+        obj = cls.deserialize(loaded_config, name, overwrite_params)
 
         return obj
 
     @classmethod
-    def deserialize(cls, configuration):
+    def deserialize(cls, configuration, name=None, overwrite_params={}):
         """
             Class method instantianting the neural module object based on the configuration (dictionary).
 
             Args:
                 configuration: Dictionary containing proper "header" and "init_params" sections.
 
+                name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
+
+                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
+                the default init parameters loaded from the configuration file (the module "init_params" section).
+
             Returns:
                 Instance of the created NeuralModule object.
         """
         # Deserialize header - get object class.
         module_class = cls.__deserialize_header(configuration["header"])
+
+        # Update parameters with additional ones.
+        configuration["init_params"].update(overwrite_params)
+
+        # Override module name in init_params using the logic:
+        #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
+        #  * name (if None) overrides init_params.name
+        if name is not None:
+            configuration["init_params"]["name"] = name
+
 
         # Get init parameters.
         init_params = cls._deserialize_configuration(configuration["init_params"])
