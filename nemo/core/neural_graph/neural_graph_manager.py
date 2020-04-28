@@ -29,6 +29,12 @@ class NeuralGraphManager(ObjectRegistry):
         super().__init__("graph")
         self._active_graph = None
 
+    def __eq__(self, other):
+        """ Checks if two managers have the same content. """
+        if not isinstance(other, ObjectRegistry):
+            return False
+        return super().__eq__(other)
+
     def summary(self):
         """ Prints a nice summary. """
         # TODO: a nicer summary. ;)
