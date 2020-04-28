@@ -15,13 +15,13 @@ and extend it by those methods. But first, let us define a simple :class:`Status
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 31-33
+   :lines: 28-30
 
 Now let us define the :class:`CustomTaylorNet` Neural Module class:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 36-41
+   :lines: 33-38
 
 
 In order to properly handle the export of the :class:`Status` enum we must implement a custom function \
@@ -29,7 +29,7 @@ In order to properly handle the export of the :class:`Status` enum we must imple
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 43-64
+   :lines: 49-61
 
 
 Note that the configuration is actually a dictionary consisting of two sections:
@@ -44,7 +44,7 @@ Analogically, we must overload the :meth:`_deserialize_configuration()` method:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 66-89
+   :lines: 63-86
 
 .. note::
     It is worth emphasizing that the :meth:`_deserialize_configuration()` is a class method, 
@@ -56,13 +56,13 @@ Now we can simply create an instance and export its configuration by calling:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 98-99,104-105
+   :lines: 95-96,101-102
 
 And instantiate a second by loading that configuration:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 107-109
+   :lines: 104-106
 
 As a result we will see that the new object has set the status to the same value as the original one:
 

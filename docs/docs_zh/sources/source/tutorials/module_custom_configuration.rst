@@ -15,13 +15,13 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 31-33
+   :lines: 28-30
 
 现在让我们定义 :class:`CustomTaylorNet` 神经模块类:
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 36-41
+   :lines: 33-38
 
 
 为了能处理好 :class:`Status` enum 的导出功能，我们必须实现自定义函数 \
@@ -29,7 +29,7 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 43-64
+   :lines: 40-61
 
 
 注意配置实际上是一个字典，包含了两个部分:
@@ -44,7 +44,7 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 66-89
+   :lines: 63-86
 
 .. note::
     再强调一下 :meth:`_deserialize_configuration()` 是类的方法，实际上返回 \
@@ -55,13 +55,13 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 98-99,104-105
+   :lines: 95-96,101-102
 
 通过加载这个配置，初始化第二个实例:
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 107-109
+   :lines: 104-106
 
 从结果中我们可以看到新的对象把状态都设置成了原来那个对象的值:
 
