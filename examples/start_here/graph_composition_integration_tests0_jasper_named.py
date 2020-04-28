@@ -102,7 +102,7 @@ serialized_jasper_copy = jasper_copy.serialize()
 print("Deserialized:\n", serialized_jasper_copy)
 assert serialized_jasper == serialized_jasper_copy
 
-with NeuralGraph(name="training") as training:
+with NeuralGraph(name="training") as training_graph:
     # Create the "implicit" training graph.
     o_audio_signal, o_audio_signal_len, o_transcript, o_transcript_len = data_layer()
     # Use Jasper module as any other neural module.
@@ -114,13 +114,17 @@ with NeuralGraph(name="training") as training:
         log_probs=o_log_probs, targets=o_transcript, input_length=o_encoded_len, target_length=o_transcript_len
     )
     tensors_to_evaluate = [o_loss, o_predictions, o_transcript, o_transcript_len]
+    # Set graph output.
+    training_graph.outputs["o_loss"] = o_loss
+    # training_graph.outputs["o_predictions"] = o_predictions # DOESN'T WORK?!?
 
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=tensors_to_evaluate, print_func=partial(monitor_asr_train_progress, labels=vocab)
 )
 # import pdb;pdb.set_trace()
 nf.train(
-    tensors_to_optimize=[o_loss],
+    #tensors_to_optimize=[o_loss, o_predictions], # DOESN'T WORK?!?
+    training_graph=training_graph,
     optimizer="novograd",
     callbacks=[train_callback],
     optimization_params={"num_epochs": 50, "lr": 0.01},

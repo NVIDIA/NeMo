@@ -148,7 +148,12 @@ class GraphOutputs(MutableMapping):
 
     @property
     def tensors(self):
-        """ Property returns output tensors by extracting them on the fly from the bound outputs. """
+        """
+            Property returns output tensors by extracting them on the fly from the bound outputs.
+
+            Returns:
+                Dictionary of tensors in the format (output-name: tensor).
+        """
         # Get the right output dictionary.
         d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
@@ -161,8 +166,33 @@ class GraphOutputs(MutableMapping):
             tensor = self._tensors_list[producer_name][producer_port_name]
             # Add it to the dictionary.
             output_tensors[k] = tensor
-
+        # Return the result.
         return output_tensors
+
+    @property
+    def tensor_list(self):
+        """
+            Property returns output tensors by extracting them on the fly from the bound outputs.
+            
+            Returns:
+                List of tensors.
+
+        """
+        # Get the right output dictionary.
+        d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
+
+        output_tensor_list = []
+        # Get tensors by acessing the producer-ports.
+        for k, v in d.items():
+            producer_name = v.producer_port.module_name
+            producer_port_name = v.producer_port.port_name
+            # Find the right output tensor.
+            tensor = self._tensors_list[producer_name][producer_port_name]
+            # Add it to the list.
+            output_tensor_list.append(tensor)
+        # Return the result.
+        return output_tensor_list
+
 
     def serialize(self):
         """ Method responsible for serialization of the graph outputs.

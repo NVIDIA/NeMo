@@ -1087,7 +1087,8 @@ class PtActions(Actions):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
@@ -1100,6 +1101,18 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        # Analyse the arguments passed to train.
+        if tensors_to_optimize is None and training_graph is None:
+            raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
+        if tensors_to_optimize is not None and training_graph is not None:
+            raise ValueError(
+                "One of the `tensors_to_optimize` or `training_graph` values must be passed to the train() function"
+            )
+        # Finally, unify.
+        if training_graph is not None:
+            # To keep the "compatibility with old NeMo": get output tensors.
+            tensors_to_optimize = training_graph.outputs.tensor_list
+
         if gradient_predivide:
             logging.error(
                 "gradient_predivide is currently disabled, and is under consideration for removal in future versions. "

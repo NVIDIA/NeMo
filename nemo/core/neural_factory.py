@@ -565,7 +565,8 @@ class NeuralModuleFactory(object):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
@@ -583,6 +584,7 @@ class NeuralModuleFactory(object):
             self.reset_trainer()
         return self._trainer.train(
             tensors_to_optimize=tensors_to_optimize,
+            training_graph=training_graph,
             optimizer=optimizer,
             optimization_params=optimization_params,
             callbacks=callbacks,
