@@ -87,8 +87,9 @@ class TestSpeechCommandsPytorch(TestCase):
             perturb.WhiteNoisePerturbation(min_level=-90, max_level=-46),
             perturb.ShiftPerturbation(min_shift_ms=-5.0, max_shift_ms=5.0),
             perturb.TimeStretchPerturbation(min_speed_rate=0.9, max_speed_rate=1.1),
-            perturb.SpeedPerturbation(sr=self.featurizer_config['sample_rate'],
-                                      min_speed_rate=0.9, max_speed_rate=1.1)
+            perturb.SpeedPerturbation(
+                sr=self.featurizer_config['sample_rate'], min_speed_rate=0.9, max_speed_rate=1.1
+            ),
         ]
 
         # Execute perturbations with 100% probability
@@ -185,8 +186,9 @@ class TestSpeechCommandsPytorch(TestCase):
         if installed_torchaudio:
             to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(n_fft=400, window=None)
             to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
-            time_stretch_augment = nemo_asr.TimeStretchAugmentation(self.featurizer_config['sample_rate'],
-                                                                    probability=1.0)
+            time_stretch_augment = nemo_asr.TimeStretchAugmentation(
+                self.featurizer_config['sample_rate'], probability=1.0
+            )
 
         to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
 
