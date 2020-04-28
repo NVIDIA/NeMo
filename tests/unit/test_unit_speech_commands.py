@@ -185,6 +185,8 @@ class TestSpeechCommandsPytorch(TestCase):
         if installed_torchaudio:
             to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(n_fft=400, window=None)
             to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
+            time_stretch_augment = nemo_asr.TimeStretchAugmentation(self.featurizer_config['sample_rate'],
+                                                                    probability=1.0)
 
         to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
 
@@ -198,6 +200,7 @@ class TestSpeechCommandsPytorch(TestCase):
             if installed_torchaudio:
                 spec = to_spectrogram.forward(input_signals, seq_lengths)
                 mfcc = to_mfcc.forward(input_signals, seq_lengths)
+                ts_input_signals = time_stretch_augment.forward(input_signals, seq_lengths)
 
             # Check that number of features is what we expect
             self.assertTrue(melspec[0].shape[1] == 50)
@@ -205,3 +208,7 @@ class TestSpeechCommandsPytorch(TestCase):
             if installed_torchaudio:
                 self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
                 self.assertTrue(mfcc[0].shape[1] == 15)
+
+                timesteps = ts_input_signals[0].shape[1]
+                self.assertTrue(timesteps <= int(1.1 * self.featurizer_config['sample_rate']))
+                self.assertTrue(timesteps >= int(0.9 * self.featurizer_config['sample_rate']))
