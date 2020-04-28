@@ -103,8 +103,8 @@ class NeuralModule(NeuralInterface):
         # Get names of arguments of the original module init method.
         init_keys = getfullargspec(type(self).__init__).args
 
-        #(Pdb) localvars
-        #{'self': <nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer
+        # (Pdb) localvars
+        # {'self': <nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer
         # object at 0x7f6642a50610>, 'batch_size': 1, 'f_name': 'sin',
         # 'n': 100, 'x_lo': -4, 'x_hi': 4, 'name': 'tgs1_dl',
         #'__class__': <class 'nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer'>}

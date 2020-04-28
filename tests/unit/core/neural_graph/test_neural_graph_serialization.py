@@ -17,11 +17,13 @@
 # limitations under the License.
 # =============================================================================
 
-import pytest
 import time
+
+import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import EvaluatorCallback, NeuralGraph, OperationMode
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestNeuralGraphSerialization:
@@ -69,5 +71,3 @@ class TestNeuralGraphSerialization:
         # Deserialize graph - without reusing modules not allowed.
         with pytest.raises(KeyError):
             _ = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=False)
-
-

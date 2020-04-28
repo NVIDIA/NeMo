@@ -19,7 +19,7 @@
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
-from nemo.utils import logging, AppState
+from nemo.utils import AppState, logging
 
 nf = NeuralModuleFactory(placement=DeviceType.CPU)
 # Instantiate the necessary neural modules.
@@ -53,7 +53,7 @@ del m1
 del m2
 
 print(AppState().modules.summary())
-assert len(AppState().modules) == 1 # only the "loss" module
+assert len(AppState().modules) == 1  # only the "loss" module
 
 # Deserialize graph.
 g1_copy = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=False, name="g1_copy")
