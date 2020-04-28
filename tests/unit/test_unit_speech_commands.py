@@ -117,8 +117,8 @@ class TestSpeechCommandsPytorch(TestCase):
             xp_min = rng.randn(xp.shape[0]) * min_range
 
             # Compute z statistic
-            z_max = (xp.mean() - xp_max.mean()) / np.sqrt(np.square(xp.std()) - np.square(xp_max.std()))
-            z_min = (xp.mean() - xp_min.mean()) / np.sqrt(np.square(xp.std()) - np.square(xp_min.std()))
+            z_max = (xp.mean() - xp_max.mean()) / np.sqrt(np.square(xp.std()) + np.square(xp_max.std()))
+            z_min = (xp.mean() - xp_min.mean()) / np.sqrt(np.square(xp.std()) + np.square(xp_min.std()))
             self.assertTrue(z_max < 0.01)
             self.assertTrue(z_min < 0.01)
 
