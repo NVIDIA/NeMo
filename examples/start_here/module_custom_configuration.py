@@ -18,9 +18,6 @@
 # =============================================================================
 
 from enum import Enum
-from os import path
-
-from ruamel import yaml
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import DeviceType, NeuralModuleFactory, SimpleLossLoggerCallback

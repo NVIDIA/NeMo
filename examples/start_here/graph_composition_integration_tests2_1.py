@@ -17,8 +17,6 @@
 # limitations under the License.
 # =============================================================================
 
-import pdb
-
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging

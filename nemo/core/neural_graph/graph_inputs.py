@@ -16,7 +16,6 @@
 # limitations under the License.
 # =============================================================================
 
-from collections import namedtuple
 from collections.abc import MutableMapping
 
 from nemo.core.neural_types import NeuralType
