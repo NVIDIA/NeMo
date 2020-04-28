@@ -21,7 +21,10 @@ __all__ = [
 ]
 
 from collections import OrderedDict, namedtuple
+from os import path
 from typing import Dict, Optional
+
+from ruamel.yaml import YAML
 
 from nemo.core import OperationMode
 from nemo.core.neural_graph.graph_inputs import GraphInputs
@@ -32,6 +35,8 @@ from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTe
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
 from nemo.utils.module_port import Connection, ModulePort
+
+YAML = YAML(typ='safe')
 
 
 class NeuralGraph(NeuralInterface):
@@ -405,12 +410,19 @@ class NeuralGraph(NeuralInterface):
             Args:
                 config_file: Name (and path) of the config file (YML) to be written to.
         """
-        # Create a dictionary where we will add the whole information.
-        config = {self.name: {}}
-        # Get shortcut.
-        graph = config[self.name]
-        # Serialize modules.
-        graph["modules"] = self.__serialize_modules()
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Serialize the graph.
+        to_export = self.serialize()
+
+        # All parameters are ok, let's export.
+        with open(abs_path_file, 'w') as outfile:
+            YAML.dump(to_export, outfile)
+
+        logging.info(
+            "Configuration of graph `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
+        )
 
     def serialize(self):
         """ Method serializes the whole graph.
@@ -524,14 +536,56 @@ class NeuralGraph(NeuralInterface):
         """
         logging.info("Loading configuration of a new Neural Graph from the `{}` file".format(config_file))
 
-        # TODO: validate the content of the configuration file (its header).
-        loaded_config = []  # cls.__validate_config_file(config_file, section_name)
-        # TODO: overwrite params.
+        # Validate the content of the configuration file (its header).
+        loaded_config = cls.__validate_config_file(config_file)
+        # TODO: overwrite params?
 
         # "Deserialize" the graph.
         new_graph = cls.deserialize(loaded_config, reuse_existing_modules, name)
 
+        # Return the object.
         return new_graph
+
+    @classmethod
+    def __validate_config_file(cls, config_file):
+        """
+            Class method validating whether the config file has a proper content (sections, specification etc.).
+            Raises an ImportError exception when config file is invalid or
+            incompatible (when called from a particular class).
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+
+            Returns:
+                A loaded configuration file (dictionary).
+        """
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Open the config file.
+        with open(abs_path_file, 'r') as stream:
+            loaded_config = YAML.load(stream)
+
+        # Check sections.
+        for section_name in ["header", "modules", "steps", "connections", "inputs", "outputs"]:
+            if section_name not in loaded_config.keys():
+                raise ImportError(
+                    "The loaded config `{}` doesn't contain the required `{}` section".format(
+                        config_file, section_name
+                    )
+                )
+
+        # Parse the "full specification".
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+
+        # Check if config contains definition of Neural Graph.
+        if spec_list[-1] != "NeuralGraph":
+            txt = "The loaded file `{}` contains configuration of ".format(config_file)
+            txt = txt + "`{}` thus cannot be used for instantiation of Neural Graph".format(spec_list[-1])
+            raise ImportError(txt)
+
+        # Success - return the loaded configuration.
+        return loaded_config
 
     @classmethod
     def deserialize(cls, configuration, reuse_existing_modules=False, name=None):

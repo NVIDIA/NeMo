@@ -17,12 +17,10 @@
 # limitations under the License.
 # =============================================================================
 
-import time
-
 import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
-from nemo.core import EvaluatorCallback, NeuralGraph, OperationMode
+from nemo.core import NeuralGraph, OperationMode
 
 
 @pytest.mark.usefixtures("neural_factory")

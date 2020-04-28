@@ -224,7 +224,7 @@ class NeuralModule(NeuralInterface):
             YAML.dump(to_export, outfile)
 
         logging.info(
-            "Configuration of module {} ({}) exported to {}".format(self._uuid, type(self).__name__, abs_path_file)
+            "Configuration of module `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
         )
 
     def serialize(self):
@@ -334,13 +334,69 @@ class NeuralModule(NeuralInterface):
                 Instance of the created NeuralModule object.
         """
         logging.info("Loading configuration of a new Neural Module from the `{}` file".format(config_file))
+
         # Validate the content of the configuration file (its header).
         loaded_config = cls.__validate_config_file(config_file, section_name)
 
         # "Deserialize" the module.
         obj = cls.deserialize(loaded_config, name, overwrite_params)
 
+        # Return the new module.
         return obj
+
+    @classmethod
+    def __validate_config_file(cls, config_file, section_name=None):
+        """
+            Class method validating whether the config file has a proper content (sections, specification etc.).
+            Raises an ImportError exception when config file is invalid or
+            incompatible (when called from a particular class).
+
+            Args:
+                config_file: path (absolute or relative) and name of the config file (YML)
+
+                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+
+            Returns:
+                A loaded configuration file (dictionary).
+        """
+        # Greate an absolute path.
+        abs_path_file = path.expanduser(config_file)
+
+        # Open the config file.
+        with open(abs_path_file, 'r') as stream:
+            loaded_config = YAML.load(stream)
+
+        # Check section.
+        if section_name is not None:
+            if section_name not in loaded_config:
+                raise ImportError(
+                    "The loaded config `{}` doesn't contain the indicated `{}` section".format(
+                        config_file, section_name
+                    )
+                )
+            # Section exists - use only it for configuration.
+            loaded_config = loaded_config[section_name]
+
+        # Make sure that the config is valid.
+        if "header" not in loaded_config:
+            raise ImportError("The loaded config `{}` doesn't contain the `header` section".format(config_file))
+
+        if "init_params" not in loaded_config:
+            raise ImportError("The loaded config `{}` doesn't contain the `init_params` section".format(config_file))
+
+        # Parse the "full specification".
+        spec_list = loaded_config["header"]["full_spec"].split(".")
+
+        # Check if config contains data of a compatible class.
+        if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
+            txt = "The loaded file `{}` contains configuration of ".format(config_file)
+            txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
+                spec_list[-1], cls.__name__
+            )
+            raise ImportError(txt)
+
+        # Success - return configuration.
+        return loaded_config
 
     @classmethod
     def deserialize(cls, configuration, name=None, overwrite_params={}):
@@ -421,60 +477,6 @@ class NeuralModule(NeuralInterface):
         """
         # In this case configuration = init parameters.
         return serialized_init_params
-
-    @classmethod
-    def __validate_config_file(cls, config_file, section_name=None):
-        """
-            Class method validating whether the config file has a proper content (sections, specification etc.).
-            Raises an ImportError exception when config file is invalid or
-            incompatible (when called from a particular class).
-
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
-
-            Returns:
-                A loaded configuration file (dictionary).
-        """
-        # Greate an absolute path.
-        abs_path_file = path.expanduser(config_file)
-
-        # Open the config file.
-        with open(abs_path_file, 'r') as stream:
-            loaded_config = YAML.load(stream)
-
-        # Check section.
-        if section_name is not None:
-            if section_name not in loaded_config:
-                raise ImportError(
-                    "The loaded config `{}` doesn't contain the indicated `{}` section".format(
-                        config_file, section_name
-                    )
-                )
-            # Section exists - use only it for configuration.
-            loaded_config = loaded_config[section_name]
-
-        # Make sure that the config is valid.
-        if "header" not in loaded_config:
-            raise ImportError("The loaded config `{}` doesn't contain the `header` section".format(config_file))
-
-        if "init_params" not in loaded_config:
-            raise ImportError("The loaded config `{}` doesn't contain the `init_params` section".format(config_file))
-
-        # Parse the "full specification".
-        spec_list = loaded_config["header"]["full_spec"].split(".")
-
-        # Check if config contains data of a compatible class.
-        if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
-            txt = "The loaded file `{}` contains configuration of ".format(config_file)
-            txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
-                spec_list[-1], cls.__name__
-            )
-            raise ImportError(txt)
-
-        # Success - return configuration.
-        return loaded_config
 
     @deprecated(version=0.11)
     @staticmethod
