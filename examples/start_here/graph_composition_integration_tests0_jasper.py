@@ -50,14 +50,14 @@ vocab = config['labels']
 
 # Create neural modules.
 data_layer = nemo_asr.AudioToTextDataLayer.deserialize(
-    config["AudioToTextDataLayer_train"],
-    overwrite_params={"manifest_filepath": train_manifest, "batch_size": 16},
+    config["AudioToTextDataLayer_train"], overwrite_params={"manifest_filepath": train_manifest, "batch_size": 16},
 )
 
 data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.deserialize(config["AudioToMelSpectrogramPreprocessor"])
 
 jasper_encoder = nemo_asr.JasperEncoder.deserialize(config["JasperEncoder"])
-jasper_decoder = nemo_asr.JasperDecoderForCTC.deserialize(config["JasperDecoderForCTC"], overwrite_params={"num_classes": len(vocab)}
+jasper_decoder = nemo_asr.JasperDecoderForCTC.deserialize(
+    config["JasperDecoderForCTC"], overwrite_params={"num_classes": len(vocab)}
 )
 ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
 greedy_decoder = nemo_asr.GreedyCTCDecoder()
@@ -89,7 +89,7 @@ print("Serialized:\n", serialized_jasper)
 # Delete everything - aside of jasper encoder, just as a test! ;)
 del Jasper
 del data_preprocessor
-# del jasper_encoder # 
+# del jasper_encoder #
 del jasper_decoder
 
 # Deserialize graph.

@@ -348,7 +348,6 @@ class NeuralModule(NeuralInterface):
         if name is not None:
             configuration["init_params"]["name"] = name
 
-
         # Get init parameters.
         init_params = cls._deserialize_configuration(configuration["init_params"])
 
