@@ -72,7 +72,6 @@ class TestNeuralGraphSerialization:
         with pytest.raises(KeyError):
             _ = NeuralGraph.deserialize(serialized_g1, reuse_existing_modules=False)
 
-
     @pytest.mark.unit
     def test_graph_serialization_2_simple_graph_output_binding(self):
         """ 
@@ -92,7 +91,7 @@ class TestNeuralGraphSerialization:
         g1.outputs["ix"] = x
         g1.outputs["te"] = t
         g1.outputs["prediction"] = prediction1
-        
+
         # Serialize graph
         serialized_g1 = g1.serialize()
 
@@ -119,7 +118,7 @@ class TestNeuralGraphSerialization:
             y = tn(x=model.inputs["input"])
             # Manual output bind.
             model.outputs["output"] = y
-        
+
         # Serialize the "model".
         serialized_model1 = model.serialize()
 
@@ -157,7 +156,7 @@ class TestNeuralGraphSerialization:
         del model
 
         # Deserialize the "model copy".
-        model_copy = NeuralGraph.deserialize(serialized_model, name="model_copy")        
+        model_copy = NeuralGraph.deserialize(serialized_model, name="model_copy")
 
         # Build the "training graph" - using the model copy.
         with NeuralGraph(operation_mode=OperationMode.training, name="training") as training:
@@ -169,7 +168,7 @@ class TestNeuralGraphSerialization:
 
         # Serialize the "training graph".
         serialized_training = training.serialize()
-        
+
         # Delete everything.
         del dl
         del loss
