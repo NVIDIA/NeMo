@@ -15,21 +15,21 @@ and extend it by those methods. But first, let us define a simple :class:`Status
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 33-35
+   :lines: 31-33
 
 Now let us define the :class:`CustomTaylorNet` Neural Module class:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 38-43
+   :lines: 36-41
 
 
 In order to properly handle the export of the :class:`Status` enum we must implement a custom function \
-:meth:`export_to_config()`:
+:meth:`_serialize_configuration()`:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 45-76
+   :lines: 43-64
 
 
 Note that the configuration is actually a dictionary consisting of two sections:
@@ -40,35 +40,29 @@ Note that the configuration is actually a dictionary consisting of two sections:
 Those parameters are stored in the protected ``self._init_params``  field of the base :class:`NeuralModule` class.
 It is assumed that (aside of this use-case) the user won't access nor use them directly.
 
-Analogically, we must overload the :meth:`import_from_config()` method:
+Analogically, we must overload the :meth:`_deserialize_configuration()` method:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 79-119
-
-Please note that the base :class:`NeuralModule` class provides several protected methods that we used, \
-with most important being:
-
- * :meth:`__serialize_header()` generating the appropriate header, and \
- * :meth:`__validate_config_file()` validating the loaded configuration file (checking the header content).
-
+   :lines: 66-89
 
 .. note::
-    It is once again worth emphasizing that the :meth:`import_from_config()` is a class method, actually returning a \
-    new object instance - in this case of the hardcoded :class:`CustomTaylorNet` type.
+    It is worth emphasizing that the :meth:`_deserialize_configuration()` is a class method, 
+    analogically to public :meth:`import_from_config()` and :meth:`deserialize()` methods
+    that return a new object instance - in this case of the hardcoded :class:`CustomTaylorNet` type.
 
 
 Now we can simply create an instance and export its configuration by calling:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 128-129,134-135
+   :lines: 98-99,104-105
 
 And instantiate a second by loading that configuration:
 
 .. literalinclude:: ../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 137-139
+   :lines: 107-109
 
 As a result we will see that the new object has set the status to the same value as the original one:
 
