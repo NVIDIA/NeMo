@@ -517,9 +517,11 @@ class PtActions(Actions):
                 # )
 
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
-                    )
+                    sampler = None
+                    if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
+                        sampler = torch.utils.data.distributed.DistributedSampler(
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
+                        )
                     dataloader_params = {
                         'dataset': dl_nm.dataset,
                         'sampler': sampler,
@@ -690,9 +692,11 @@ class PtActions(Actions):
                 #     )
                 # )
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
-                    )
+                    sampler = None
+                    if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
+                        sampler = torch.utils.data.distributed.DistributedSampler(
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
+                        )
                     dataloader_params = {
                         'dataset': dl_nm.dataset,
                         'sampler': sampler,
@@ -1228,9 +1232,11 @@ class PtActions(Actions):
             #         "optimizers")
             logging.info("Doing distributed training")
             if t_dataset is not None:
-                train_sampler = torch.utils.data.distributed.DistributedSampler(
-                    dataset=t_dataset, shuffle=dataNM.shuffle
-                )
+                train_sampler = None
+                if not isinstance(t_dataset, torch.utils.data.IterableDataset):
+                    train_sampler = torch.utils.data.distributed.DistributedSampler(
+                        dataset=t_dataset, shuffle=dataNM.shuffle
+                    )
                 dataloader_params = {
                     'dataset': t_dataset,
                     'sampler': train_sampler,
