@@ -118,7 +118,11 @@ class ObjectRegistry(WeakSet):
         return super().__eq__(other)
 
     def summary(self):
-        """ Returns a summary of objects on the list. """
+        """
+            Returns:
+                A summary of the objects on the list.
+        """
         summary = "Objects:\n"
-        for obj in self.items():
-            summary += " * {} ({})\n".format(obj.name, type(obj).__name)
+        for obj in self:
+            summary += " * {} ({})\n".format(obj.name, type(obj).__name__)
+        return summary

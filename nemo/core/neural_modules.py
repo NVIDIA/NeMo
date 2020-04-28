@@ -103,22 +103,44 @@ class NeuralModule(NeuralInterface):
         # Get names of arguments of the original module init method.
         init_keys = getfullargspec(type(self).__init__).args
 
+        #(Pdb) localvars
+        #{'self': <nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer
+        # object at 0x7f6642a50610>, 'batch_size': 1, 'f_name': 'sin',
+        # 'n': 100, 'x_lo': -4, 'x_hi': 4, 'name': 'tgs1_dl',
+        #'__class__': <class 'nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer'>}
+
         # Remove self.
         if "self" in init_keys:
             init_keys.remove("self")
 
-        # Create list of params.
-        init_params = {}.fromkeys(init_keys)
+        # Create a list of params and initialize it with a special value.
+        init_params = {}.fromkeys(init_keys, "__UNSET__")
+        no_of_unset = len(init_params)
 
         # Retrieve values of those params from the call list.
+        # Do it by removing and analysing the calls from stack one by one.
         for frame in stack()[1:]:
+            # Get call "context".
             localvars = getargvalues(frame[0]).locals
-            # print("localvars: ", localvars)
+            # Check if we are in the "context" of the class call.
+            if "__class__" not in localvars.keys():
+                continue
+            # Check if this is the context of the current "class".
+            if type(localvars["self"]).__name__ != localvars["__class__"].__name__:
+                # If own class is not equal to the call context class.
+                continue
+            # Ok, got the actual __init__() call!!
+            # Copy the keys.
             for key in init_keys:
-                # Found the variable!
-                if key in localvars.keys():
+                # Found the variable - and it is still unset!
+                if key in localvars.keys() and init_params[key] == "__UNSET__":
                     # Save the value.
                     init_params[key] = localvars[key]
+                    no_of_unset -= 1
+            # That should set all the init_params!
+            assert no_of_unset == 0
+            # Ok, we can terminate.
+            break
 
         # Return parameters.
         return init_params
