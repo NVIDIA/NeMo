@@ -86,6 +86,9 @@ class TestSpeechCommandsPytorch(TestCase):
         perturbations = [
             perturb.WhiteNoisePerturbation(min_level=-90, max_level=-46),
             perturb.ShiftPerturbation(min_shift_ms=-5.0, max_shift_ms=5.0),
+            perturb.TimeStretchPerturbation(min_speed_rate=0.9, max_speed_rate=1.1),
+            perturb.SpeedPerturbation(sr=self.featurizer_config['sample_rate'],
+                                      min_speed_rate=0.9, max_speed_rate=1.1)
         ]
 
         # Execute perturbations with 100% probability
