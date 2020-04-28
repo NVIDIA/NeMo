@@ -101,7 +101,7 @@ class ObjectRegistry(WeakSet):
             key: Object name.
 
         Returns:
-            Associated .
+            Object associated with the key.
         """
         # Search for an object with a given name.
         for obj in self:
