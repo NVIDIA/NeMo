@@ -123,7 +123,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 )
 # import pdb;pdb.set_trace()
 nf.train(
-    #tensors_to_optimize=[o_loss, o_predictions], # DOESN'T WORK?!?
+    # tensors_to_optimize=[o_loss, o_predictions], # DOESN'T WORK?!?
     training_graph=training_graph,
     optimizer="novograd",
     callbacks=[train_callback],

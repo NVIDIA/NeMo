@@ -193,7 +193,6 @@ class GraphOutputs(MutableMapping):
         # Return the result.
         return output_tensor_list
 
-
     def serialize(self):
         """ Method responsible for serialization of the graph outputs.
 
