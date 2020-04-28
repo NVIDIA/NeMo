@@ -33,7 +33,9 @@ from abc import abstractmethod
 
 import numpy as np
 import torch
+from packaging import version
 
+import nemo
 from .parts.features import FilterbankFeatures
 from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM
@@ -46,6 +48,9 @@ try:
     import torchaudio.transforms
     import torchaudio.functional
 
+    TORCHAUDIO_VERSION = version.parse(torchaudio.__version__)
+    TORCHAUDIO_VERSION_MIN = version.parse('0.5')
+
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
@@ -54,6 +59,9 @@ try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
     warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
+
+
+logging = nemo.logging
 
 
 class AudioPreprocessor(NonTrainableNM):
@@ -753,7 +761,10 @@ class TimeStretchAugmentation(NonTrainableNM):
         n_fft: int = 512,
     ):
         """
-        Time-stretch an audio series by a fixed rate while preserving pitch.
+        Time-stretch a batch of audio series by a fixed rate while preserving pitch.
+
+        Note that while the speed rate is sampled independently for every batch,
+        all samples of that batch will be augmented by the same speed rate.
 
         Note:
         This is a simplified implementation, intended primarily for reference and pedagogical purposes.
@@ -789,6 +800,17 @@ class TimeStretchAugmentation(NonTrainableNM):
                 "torchaudio is not installed but is necessary for "
                 "TimeStretchAugmentation. We recommend you try "
                 "installing it from conda for the PyTorch version you have."
+            )
+
+        # Check torchaudio version; inform user of potential issue
+        if TORCHAUDIO_VERSION < TORCHAUDIO_VERSION_MIN:
+            logging.error(
+                "Current installed version of `torchaudio` %s is less than the recommended minimum "
+                "version of %s. Please note that this may cause deadlocks when using distributed "
+                "data parallel training. Please follow the instructions at https://github.com/pytorch/audio "
+                "to update torchaudio.",
+                str(TORCHAUDIO_VERSION),
+                str(TORCHAUDIO_VERSION_MIN),
             )
 
         self._sample_rate = sample_rate
