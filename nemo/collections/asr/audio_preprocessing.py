@@ -773,7 +773,7 @@ class TimeStretchAugmentation(NonTrainableNM):
                 will be sampled uniformly.
                 Note: If a positive integer is provided and the resultant discretized
                 range of rates contains the value '1.0', then those samples with rate=1.0,
-                will not be augmented at all and simply skipped. This is to unnecessary
+                will not be augmented at all and simply skipped. This is to avoid unnecessary
                 augmentation and increase computation time. Effective augmentation chance
                 in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
                 where `prob` is the global probability of a sample being augmented.
