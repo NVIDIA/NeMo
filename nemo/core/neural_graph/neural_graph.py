@@ -188,10 +188,10 @@ class NeuralGraph(NeuralInterface):
                     ):
                         # Got the connection!
                         bumped_step = connection.producer.step_number + step_bump
-                        #producer_name = connection.producer.module_name
+                        # producer_name = connection.producer.module_name
                         producer_port_name = connection.producer.port_name
                         break
-                #import pdb;pdb.set_trace() 
+                # import pdb;pdb.set_trace()
                 # Now, the tensor is already produced in outer (i.e. this) graph!
                 module_args[input_port_name] = self.tensors[bumped_step][producer_port_name]
 
@@ -212,7 +212,7 @@ class NeuralGraph(NeuralInterface):
         for key, tensor in inner_graph.output_tensors.items():
             # Find the tensors within this (outer) graph that are outputs by the same producer-port.
             bumped_step = tensor.producer_step_number + step_bump
-            #producer_name = tensor.producer_name
+            # producer_name = tensor.producer_name
             producer_port_name = tensor.name
             # Get adequate tensor from "outer graph" (self).
             output_tensors[key] = self.tensors[bumped_step][producer_port_name]
@@ -278,9 +278,7 @@ class NeuralGraph(NeuralInterface):
     def step_number(self):
         """ Returns:
                 Last step number. """
-        return len(self._steps) -1
-
-    
+        return len(self._steps) - 1
 
     def bind_outputs(self, tensors_list):
         """

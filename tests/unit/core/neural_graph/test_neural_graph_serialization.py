@@ -289,7 +289,7 @@ class TestNeuralGraphSerialization:
             lss = loss(predictions=p2, target=t)
 
         # Make sure all connections are there!
-        assert len(graph.tensor_list) == 5 
+        assert len(graph.tensor_list) == 5
         # 4 would mean that we have overwritten the "p1" (tn->y_pred) tensor!
 
         # Serialize the graph.
@@ -302,7 +302,6 @@ class TestNeuralGraphSerialization:
         # Must be the same.
         assert serialized_graph == serialized_graph2
 
-        #import pdb;pdb.set_trace()
-        #print("1: \n",serialized_graph)
+        # import pdb;pdb.set_trace()
+        # print("1: \n",serialized_graph)
         # print("2: \n",serialized_graph2)
-

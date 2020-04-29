@@ -127,7 +127,9 @@ class GraphOutputs(MutableMapping):
             # Check the presence of the port name in "default" dictionary.
             if name in self._default_outputs.keys():
                 # Name present - use the name being combination of producer and port names.
-                name = str(tensor.producer_step_number) + "_" + tensor.producer_name + "_" + tensor.name #last = port name
+                name = (
+                    str(tensor.producer_step_number) + "_" + tensor.producer_name + "_" + tensor.name
+                )  # last = port name
 
                 logging.warning(
                     "Setting unigue name of the default output port `{}` produced in step {} by `{}` to `{}`".format(

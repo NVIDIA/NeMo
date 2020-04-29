@@ -25,7 +25,7 @@ from collections import namedtuple
 
 # Tuple used for storing "step number", "module name" and "port name".
 # (used in NmTensor's producer/consumer, port binding etc.).
-# Module name is redundant, as it can be recovered from the step number. 
+# Module name is redundant, as it can be recovered from the step number.
 StepModulePort = namedtuple('StepModulePort', ["step_number", "module_name", "port_name"])
 
 

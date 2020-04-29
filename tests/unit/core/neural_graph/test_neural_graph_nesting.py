@@ -181,7 +181,9 @@ class TestNeuralGraphNesting:
         for inter_port, outer_port in [("inner_x", "outer_x")]:
             # Definitions are the same: test two "paths" of accessing the type.
             assert g1.output_ports[inter_port].compare(g2.output_ports[outer_port]) == NeuralTypeComparisonResult.SAME
-            assert g1.outputs[inter_port].ntype.compare(g2.outputs[outer_port].ntype) == NeuralTypeComparisonResult.SAME
+            assert (
+                g1.outputs[inter_port].ntype.compare(g2.outputs[outer_port].ntype) == NeuralTypeComparisonResult.SAME
+            )
             # At the same time - those have to be two different port objects!
             assert g1.outputs[inter_port] is not g2.outputs[outer_port]
             # And different tensors (as those are "internally produced tensors"!)
@@ -220,7 +222,9 @@ class TestNeuralGraphNesting:
         for inter_port, outer_port in [("inner_x", "inner_x"), ("inner_t", "inner_t")]:
             # Definitions are the same: test two "paths" of accessing the type.
             assert g1.output_ports[inter_port].compare(g2.output_ports[outer_port]) == NeuralTypeComparisonResult.SAME
-            assert g1.outputs[inter_port].ntype.compare(g2.outputs[outer_port].ntype) == NeuralTypeComparisonResult.SAME
+            assert (
+                g1.outputs[inter_port].ntype.compare(g2.outputs[outer_port].ntype) == NeuralTypeComparisonResult.SAME
+            )
             # At the same time - those have to be two different port objects!
             assert g1.outputs[inter_port] is not g2.outputs[outer_port]
             # And different tensors (as those are "internally produced tensors"!)
@@ -494,10 +498,6 @@ class TestNeuralGraphNesting:
         assert g2.tensors[0]["x"].ntype.compare(ds.output_ports["x"]) == NeuralTypeComparisonResult.SAME
         assert g2.tensors[0]["y"].ntype.compare(ds.output_ports["y"]) == NeuralTypeComparisonResult.SAME
         # Internally the name "y_pred" is used, not the "bound output name": "inner_y_pred"!
-        assert (
-            g2.tensors[1]["y_pred"].ntype.compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
-        )
+        assert g2.tensors[1]["y_pred"].ntype.compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
         # Analogically with "loss".
-        assert (
-            g2.tensors[2]["loss"].ntype.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
-        )
+        assert g2.tensors[2]["loss"].ntype.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
