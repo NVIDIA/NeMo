@@ -513,7 +513,8 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
         that was filtered out (e.g. for duration).
         """
-        class TarredAudioFilter():
+
+        class TarredAudioFilter:
             def __init__(self, collection):
                 self.iterator = iterator
                 self.collection = collection
