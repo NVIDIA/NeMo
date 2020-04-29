@@ -1,3 +1,4 @@
+braceexpand
 frozendict
 inflect
 kaldi-io

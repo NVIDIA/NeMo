@@ -504,10 +504,35 @@ class TarredAudioToTextDataLayer(DataLayerNM):
             .shuffle(shuffle_n)
             .rename(audio='wav', key='__key__')
             .to_tuple('audio', 'key')
+            .pipe(self._filter)
             .map(f=self._build_sample)
         )
 
+    def _filter(self, iterator):
+        """Used to remove samples that have been filtered out by ASRAudioText already.
+        Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
+        that was filtered out (e.g. for duration).
+        """
+        class TarredAudioFilter():
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                while True:
+                    audio_bytes, audio_filename = next(self.iterator)
+                    file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+                    if file_id in self.collection.mapping:
+                        return audio_bytes, audio_filename
+
+        return TarredAudioFilter(self.collection)
+
     def _build_sample(self, tup):
+        """Builds the training sample by combining the data from the WebDataset with the manifest info.
+        """
         audio_bytes, audio_filename = tup
 
         # Grab manifest entry from self.collection
