@@ -31,7 +31,7 @@ from nemo.core.neural_graph.graph_inputs import GraphInputs
 from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import NeuralModule
-from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
+from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
 from nemo.utils.module_port import Connection, ModulePort
@@ -732,9 +732,9 @@ class NeuralGraph(NeuralInterface):
         # Activate this graph, so all the tensors will be added to this !
         self.activate()
 
-        # We need to disable the binding of "defeault" ports on per module basis - we will "manually" produce
-        # them only for ports that are already indicated as the "bound" ones in the inner graph.
-        # self.default_output_binding = False
+        # We need to disable the binding of "defeault" ports on per module basis.
+        # We will "manually" produce (e.g. deserialize) them outside of this function.
+        self.default_output_binding = False
 
         # Now "copy" graph execution order and topology by actually executing each step of the nested graph.
         for _, module_name in steps.items():
@@ -789,14 +789,14 @@ class NeuralGraph(NeuralInterface):
         self.deactivate()
 
         # Ok, now we can turn automatic binding on.
-        # self.default_output_binding = True
+        self.default_output_binding = True
 
-    def __str__(self):
+    def summary(self):
         """ Prints a nice summary. """
         # TODO: a nice summary. ;)
         desc = "`{}` ({}):\n".format(self.name, len(self._steps))
-        for op in self._steps:
-            desc = desc + "  {}\n".format(type(op[0]).__name__)
+        for num, op in self._steps.items():
+            desc = desc + " {}. {}\n".format(num, type(op[0]).__name__)
         return desc
 
     def list_modules(self):

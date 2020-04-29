@@ -227,10 +227,11 @@ class GraphOutputs(MutableMapping):
         """
         # Check type.
         if serialized_outputs["type"] == "default":
-            # We do not need to deserialize.
-            # self._default_outputs will be recorded automatically during graph execution.
-            # TODO: check neural types.
-            return
+            # We still need to deserialize.
+            # Use-case: deserialization of a graph with nested graph with bound output.
+            d = self._default_outputs
+        else:
+            d = self._manual_outputs
 
         # Iterate through serialized inputs one by one.
         for i in serialized_outputs["outputs"]:
@@ -242,7 +243,6 @@ class GraphOutputs(MutableMapping):
             n_type = modules[producer_name].output_ports[producer_port_name]
             # Create a new input.
             go = GraphOutput(n_type, ModulePort(producer_name, producer_port_name))
-            self._manual_outputs[key] = go
-            # TODO: check neural types.
+            d[key] = go
 
         # Done.

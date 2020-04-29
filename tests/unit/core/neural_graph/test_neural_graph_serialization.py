@@ -128,40 +128,135 @@ class TestNeuralGraphSerialization:
         assert serialized_model1 == serialized_model2
 
     @pytest.mark.unit
-    def test_graph_serialization_4_serialize_graph_after_nesting(self):
+    def test_graph_serialization_4_serialize_graph_after_nesting_with_default_binding_reuse_modules(self):
         """ 
-            Tests whether serialization of a simple graph with input and output binding works.
+            Tests whether serialization works in the case when we serialize a graph after a different graph
+            was nested in it, with additionally bound input and output binding works (default port names).
         """
         # Instantiate the necessary neural modules.
-        dl = RealFunctionDataLayer(n=100, batch_size=1)
-        tn = TaylorNet(dim=4)
-        loss = MSELoss()
+        dl = RealFunctionDataLayer(n=100, batch_size=1, name="tgs4_dl")
+        tn = TaylorNet(dim=4, name="tgs4_tn")
+        loss = MSELoss(name="tgs4_loss")
 
         # Create "model".
         with NeuralGraph(operation_mode=OperationMode.both, name="model") as model:
+            # Add module to graph and bind it input port 'x'.
+            y = tn(x=model)
+            # NOTE: For some reason after this call both the "tgs4_tn" and "model" objects
+            # remains on the module/graph registries.
+            # (So somewhere down there remains a strong reference to module or graph).
+            # This happens ONLY when passing graph as argument!
+            # (Check out the next test which actually removes module and graph!).
+            # Still, that is not an issue, as we do not expect the users
+            # to delete and recreate modules in their "normal" applications.
+
+        # Build the "training graph" - using the model copy.
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgs4_training") as training:
+            # Add modules to graph.
+            x, t = dl()
+            # Incorporate modules from the existing "model" graph.
+            p = model(x=x)
+            lss = loss(predictions=p, target=t)
+
+        # Serialize the "training graph".
+        serialized_training = training.serialize()
+
+        # Create the second graph - deserialize withoput "module reusing".
+        training2 = NeuralGraph.deserialize(serialized_training, reuse_existing_modules=True)
+        serialized_training2 = training2.serialize()
+
+        # Must be the same.
+        assert serialized_training == serialized_training2
+
+
+    @pytest.mark.unit
+    def test_graph_serialization_5_serialize_graph_after_nesting_without_reusing(self):
+        """ 
+            Tests whether serialization works in the case when we serialize a graph after a different graph
+            was nested in it, with additionally bound input and output binding works (default port names).
+        """
+        # Instantiate the necessary neural modules.
+        dl = RealFunctionDataLayer(n=100, batch_size=1, name="tgs5_dl")
+        tn = TaylorNet(dim=4, name="tgs511_tn")
+        loss = MSELoss(name="tgs5_loss")
+
+        #from nemo.utils.app_state import AppState
+        #import pdb; pdb.set_trace() 
+        #print(AppState().modules.summary())
+
+        # Create "model".
+        with NeuralGraph(operation_mode=OperationMode.both, name="tgs5_model") as model:
+            # Manually bind input port: "input" -> "x"
+            model.inputs["input"] = tn.input_ports["x"]
+            # Add module to graph and bind it input port 'x'.
+            y = tn(x=model.inputs["input"])
+            # Use the default output name.
+
+        # Build the "training graph" - using the model copy.
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgs5_training") as training:
+            # Add modules to graph.
+            x, t = dl()
+            # Incorporate modules from the existing "model" graph.
+            p = model(input=x)
+            lss = loss(predictions=p, target=t)
+
+        # Serialize the "training graph".
+        serialized_training = training.serialize()
+
+        # Delete everything.
+        del dl
+        del tn
+        del loss
+        del model
+        del training
+
+        # Create the second graph - deserialize withoput "module reusing".
+        training2 = NeuralGraph.deserialize(serialized_training)
+        serialized_training2 = training2.serialize()
+
+        # import pdb;pdb.set_trace()
+        # print("1: \n",serialized_training)
+        # print("2: \n",serialized_training2)
+
+        # Must be the same.
+        assert serialized_training == serialized_training2
+
+    @pytest.mark.unit
+    def test_graph_serialization_6_serialize_graph_after_nesting_with_manual_binding(self):
+        """ 
+            Tests whether serialization works in the case when we serialize a graph after a different graph
+            was nested in it, with additionally bound input and output binding works (manual port names).
+        """
+        # Instantiate the necessary neural modules.
+        dl = RealFunctionDataLayer(n=100, batch_size=1, name="tgs6_dl")
+        tn = TaylorNet(dim=4, name="tgs6_tn")
+        loss = MSELoss(name="tgs6_loss")
+
+        # Create "model".
+        with NeuralGraph(operation_mode=OperationMode.both, name="tgs6_model") as model:
             # Manually bind input port: "input" -> "x"
             model.inputs["input"] = tn.input_ports["x"]
             # Add module to graph and bind it input port 'x'.
             y = tn(x=model.inputs["input"])
             # Manual output bind.
-            # model.outputs["output"] = y # BUG!
+            model.outputs["output"] = y
 
         # Serialize "model".
         serialized_model = model.serialize()
 
         # Delete model-related stuff.
-        del tn
         del model
+        del tn
 
         # Deserialize the "model copy".
-        model_copy = NeuralGraph.deserialize(serialized_model, name="model_copy")
+        model_copy = NeuralGraph.deserialize(serialized_model, name="tgs6_model_copy")
 
         # Build the "training graph" - using the model copy.
-        with NeuralGraph(operation_mode=OperationMode.training, name="training") as training:
+        with NeuralGraph(operation_mode=OperationMode.training, name="tgs6_training") as training:
             # Add modules to graph.
             x, t = dl()
             # Incorporate modules from the existing "model" graph.
-            p = model_copy(input=x)
+            p = model_copy(input=x) # Note: this output should actually be named "output", not "y_pred"!
             lss = loss(predictions=p, target=t)
 
         # Serialize the "training graph".
