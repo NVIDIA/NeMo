@@ -62,49 +62,40 @@ jasper_decoder = nemo_asr.JasperDecoderForCTC.deserialize(
 ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
 greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-# Create the Jasper composite module.
+# Create the Jasper "model".
 with NeuralGraph(operation_mode=OperationMode.both) as Jasper:
-    i_processed_signal, i_processed_signal_len = data_preprocessor(input_signal=Jasper, length=Jasper)  # Bind inputs.
+    # Copy one input port definitions - using "user" port names.
+    Jasper.inputs["input"] = data_preprocessor.input_ports["input_signal"]
+    # Bind selected inputs - bind other using the default port name.
+    i_processed_signal, i_processed_signal_len = data_preprocessor(input_signal=Jasper.inputs["input"], length=Jasper)
     i_encoded, i_encoded_len = jasper_encoder(audio_signal=i_processed_signal, length=i_processed_signal_len)
-    i_log_probs = jasper_decoder(encoder_output=i_encoded)  # All output ports are bind (for now!)
+    i_log_probs = jasper_decoder(encoder_output=i_encoded)
+    # Bind selected outputs - using "user" port names.
+    Jasper.outputs["log_probs"] = i_log_probs
+    Jasper.outputs["encoded_len"] = i_encoded_len
 
 # Serialize graph
 serialized_jasper = Jasper.serialize()
 print("Serialized:\n", serialized_jasper)
 
-# 'connections':
-#   * ['module1.processed_signal->module2.processed_signal',
-#   * 'module1.processed_length->module2.processed_length',
-#   * 'module2.outputs->module3.outputs'],
-# 'inputs':
-#   * ['input_signal->module1.input_signal',
-#   * 'length->module1.length'],
-# 'outputs':
-#   * {'outputs': ['module1.processed_signal->processed_signal',
-#   * 'module1.processed_length->processed_length',
-#   * 'module2.outputs->outputs',
-#   * 'module2.encoded_lengths->encoded_lengths',
-#   * 'module3.output->output']
-
-# Delete everything - aside of jasper encoder, just as a test! ;)
+# Delete everything - aside of jasper encoder, just as a test to show that reusing work! ;)
 del Jasper
 del data_preprocessor
 # del jasper_encoder #
 del jasper_decoder
 
-# Deserialize graph.
+# Deserialize graph - copy of the JASPER "model".
 jasper_copy = NeuralGraph.deserialize(serialized_jasper, reuse_existing_modules=True, name="jasper_copy")
 serialized_jasper_copy = jasper_copy.serialize()
 print("Deserialized:\n", serialized_jasper_copy)
 assert serialized_jasper == serialized_jasper_copy
 
+# Create the "training" graph.
 with NeuralGraph(name="training") as training_graph:
     # Create the "implicit" training graph.
     o_audio_signal, o_audio_signal_len, o_transcript, o_transcript_len = data_layer()
     # Use Jasper module as any other neural module.
-    o_processed_signal, o_processed_signal_len, o_encoded, o_encoded_len, o_log_probs = jasper_copy(
-        input_signal=o_audio_signal, length=o_audio_signal_len
-    )
+    o_log_probs, o_encoded_len = jasper_copy(input=o_audio_signal, length=o_audio_signal_len)
     o_predictions = greedy_decoder(log_probs=o_log_probs)
     o_loss = ctc_loss(
         log_probs=o_log_probs, targets=o_transcript, input_length=o_encoded_len, target_length=o_transcript_len

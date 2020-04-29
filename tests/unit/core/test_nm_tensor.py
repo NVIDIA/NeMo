@@ -81,8 +81,8 @@ class TestNmTensor:
         lss2 = loss2(predictions=y_pred, target=y)
 
         # Check tensor x producer and consumers.
-        p = x.producer_port
-        cs = x.consumers_ports
+        p = x.producer_step_module_port
+        cs = x.consumers
         assert p.module_name == "source"
         assert p.port_name == "x"
         assert len(cs) == 1
@@ -90,8 +90,8 @@ class TestNmTensor:
         assert cs[0].port_name == "x"
 
         # Check tensor y producer and consumers.
-        p = y.producer_port
-        cs = y.consumers_ports
+        p = y.producer_step_module_port
+        cs = y.consumers
         assert p.module_name == "source"
         assert p.port_name == "y"
         assert len(cs) == 2
@@ -101,8 +101,8 @@ class TestNmTensor:
         assert cs[1].port_name == "target"
 
         # Check tensor y_pred producer and consumers.
-        p = y_pred.producer_port
-        cs = y_pred.consumers_ports
+        p = y_pred.producer_step_module_port
+        cs = y_pred.consumers
         assert p.module_name == "tm"
         assert p.port_name == "y_pred"
         assert len(cs) == 2
@@ -127,7 +127,7 @@ class TestNmTensor:
         lss = loss(predictions=y_pred, target=y)
 
         # Check types.
-        assert x.type.compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
-        assert y.type.compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
-        assert y_pred.type.compare(trainable_module.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
-        assert lss.type.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+        assert x.ntype.compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert y.ntype.compare(data_source.output_ports["y"]) == NeuralTypeComparisonResult.SAME
+        assert y_pred.ntype.compare(trainable_module.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
+        assert lss.ntype.compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
