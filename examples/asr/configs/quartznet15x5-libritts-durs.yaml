@@ -28,7 +28,7 @@ AudioToTextDataLayer:
 
 # This config is a result of taking good TTS one and adjust it to ASR training.
 AudioToMelSpectrogramPreprocessor:
-#    sample_rate: *sample_rate  # 24k for LibriTTS
+    #    sample_rate: *sample_rate  # 24k for LibriTTS
     window_size: null  # Because "n_window_size" below is set.
     window_stride: null  # Because "n_window_size" below is set.
     n_window_size: 512
@@ -59,131 +59,131 @@ JasperEncoder:
     activation: "relu"
     conv_mask: true
 
-    # Copied from 12x1.
+    # Copied from 12x5.
     jasper:
         -   filters: 256
             repeat: 1
             kernel: [33]
-            stride: [1]  # Was 2 in original version.
+            stride: [2]  # Was 2 in original version.
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: false
             separable: true
 
         -   filters: 256
-            repeat: 1
+            repeat: 5
             kernel: [33]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 256
-            repeat: 1
+            repeat: 5
             kernel: [33]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 256
-            repeat: 1
+            repeat: 5
             kernel: [33]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 256
-            repeat: 1
+            repeat: 5
             kernel: [39]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 256
-            repeat: 1
+            repeat: 5
             kernel: [39]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 256
-            repeat: 1
+            repeat: 5
             kernel: [39]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [51]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [51]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [51]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [63]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [63]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [63]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
         -   filters: 512
-            repeat: 1
+            repeat: 5
             kernel: [75]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: true
             separable: true
 
@@ -192,7 +192,7 @@ JasperEncoder:
             kernel: [1]
             stride: [1]
             dilation: [1]
-            dropout: 0.2
+            dropout: 0.0
             residual: false
 
 labels: [
@@ -200,8 +200,8 @@ labels: [
     ' ',
   # string.ascii_letters
   # Big letters is fake classes because of normalization.
-#    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-#    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+      'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
   # Punctuation

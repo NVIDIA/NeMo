@@ -20,7 +20,7 @@ FasterSpeechDataLayer_train:
     drop_last: true
     shuffle: true
     sampler_type: 'default'  # 'super-smart' makes sense for distributed training.
-    bd_aug: 'shake_biased|0.0'  # I believe model should still learn something when we shake durs a bit.
+    bd_aug: false  # I believe model should still learn something when we shake durs a bit.
 
 FasterSpeechDataLayer_eval:
     sample_rate: *sample_rate
@@ -28,7 +28,8 @@ FasterSpeechDataLayer_eval:
     trim_silence: false
     drop_last: false  # Mind the BN.
     shuffle: false
-    sampler_type: 'all'  # Eval/Test are too small for distributed evaluation.
+    # Eval/Test are too small for distributed evaluation. Also, we can't collect python objects using torch dist.
+    sampler_type: 'all'
     bd_aug: false
 
 AudioToMelSpectrogramPreprocessor:  # Full good-TTS config.
@@ -60,6 +61,7 @@ LenSampler:
 FasterSpeech:
     d_char: 256
     pad16: *pad16
+    poly_span: true  # Gives a little boost, sounds a little bit better.
 
 # QuartzNet15x5 without 2x First Stride and Jasper's kernel sizes
 dropout: &dropout 0.0  # Having dropout more than 0.1 doesn't make sense for LJSpeech.

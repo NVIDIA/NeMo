@@ -183,6 +183,7 @@ class AudioDataset(Dataset):
         load_audio=True,
         parser='en',
         add_id=False,
+        add_text_raw=False,
         add_speaker=False,
     ):
         self.collection = collections.ASRAudioText(
@@ -201,6 +202,7 @@ class AudioDataset(Dataset):
         self.bos_id = bos_id
         self.load_audio = load_audio
         self._add_id = add_id
+        self._add_text_raw = add_text_raw
         self._add_speaker = add_speaker
 
     def __getitem__(self, index):
@@ -227,6 +229,9 @@ class AudioDataset(Dataset):
             tl += 1
 
         output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+        if self._add_text_raw:
+            output = (sample.text_raw,) + output
 
         if self._add_id:
             output = (sample.id,) + output

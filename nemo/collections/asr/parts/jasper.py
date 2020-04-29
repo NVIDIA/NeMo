@@ -139,7 +139,7 @@ class MaskedConv1d(nn.Module):
         ) / self.conv.stride[0] + 1
 
     def forward(self, x, lens):
-        if self.use_mask and self.training:
+        if self.use_mask:
             lens = lens.to(dtype=torch.long)
             max_len = x.size(2)
             mask = torch.arange(max_len).to(lens.device).expand(len(lens), max_len) >= lens.unsqueeze(1)

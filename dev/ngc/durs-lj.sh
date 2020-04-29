@@ -52,7 +52,6 @@ ngc workspace upload "${WS}" --source "${tmp_dir}" --destination nemos/"${id}"
 
 # -------------------------------------------------- CHOOSE COMMAND --------------------------------------------------
 total_steps=$(((DATASET_SIZE / (BATCH_SIZE * NUM_GPU)) * NUM_EPOCHS))
-eval_freq=100 # Fixed.
 read -r -d '' cmd <<EOF
 nvidia-smi \
 && apt-get update && apt-get install -y libsndfile1 && pip install -U librosa \
@@ -62,8 +61,9 @@ nvidia-smi \
 --amp_opt_level=${OPT} \
 --model_config=${CONFIG} \
 --batch_size=${BATCH_SIZE} \
+--eval_batch_size=${BATCH_SIZE} \
 --train_freq=10 \
---eval_freq=${eval_freq} \
+--eval_freq=100 \
 --warmup=$((total_steps / 50)) \
 --num_epochs=${NUM_EPOCHS} \
 --work_dir=${RESULT} \

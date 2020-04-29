@@ -1,5 +1,20 @@
 """Commons functions for nbs."""
 
+import numpy as np
+
+
+def merge(b, d):
+    result = []
+    for b1, d1 in zip(b, d):
+        result.extend([b1, d1])
+
+    result.append(b[-1])
+    return np.array(result)
+
+
+def split(durs):
+    return np.array(durs[::2]), np.array(durs[1::2])
+
 
 def adjust_durs(b, d):
     """Shares 1s with durs."""

@@ -64,6 +64,8 @@ def parse_args():
     # Required: train_dataset
     # Optional: eval_names, eval_datasets
 
+    parser.add_argument('--doubling', action='store_true', help="True if apply doubling.")
+
     # Durations
     parser.add_argument('--train_durs', type=str, required=True, help="Train dataset durations directory path.")
     parser.add_argument('--eval_durs', type=str, nargs='*', default=[], help="Eval datasets durations")
@@ -173,41 +175,42 @@ class AudioInspector(nemo.core.Metric):
             mel = mel1.cpu().detach().numpy()[:, : mel_len1.cpu().numpy().item()]
             mels_pred.append(mel)
 
-        self._samples = audios, mels_true, mels_pred
+        texts_raw = tensors.text_raw[: self._k]
+
+        self._samples = audios, mels_true, mels_pred, texts_raw
 
     def log(self, prefix, step, samples=None) -> None:
         if not (step >= self._warmup and step - self._last_logged >= self._log_step):
             # Don't met conditions yet.
             return
 
-        def log_audio(key, audio):  # noqa
-            # tb_writer.add_audio(key, torch.tensor(signal).unsqueeze(0), step, self._featurizer.sample_rate)
-            wandb.log({key: wandb.Audio(audio, sample_rate=self._featurizer.sample_rate)}, step=step)
+        def log_audio(key, audio, text_raw):  # noqa
+            wandb.log({key: wandb.Audio(audio, sample_rate=self._featurizer.sample_rate, caption=text_raw)}, step=step)
 
-        def log_mel(key, mel):
-            # tb_writer.add_image(
-            #     tag=key,
-            #     img_tensor=nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel),
-            #     global_step=step,
-            #     dataformats='HWC',
-            # )
-            wandb.log({key: wandb.Image(nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel))}, step=step)
+        def log_mel(key, mel, text_raw):  # noqa
+            wandb.log(
+                {key: wandb.Image(nemo_tts.parts.helpers.plot_spectrogram_to_numpy(mel), caption=text_raw)}, step=step
+            )
 
         logging.info("Start vocoding and logging process for %s on step %s...", prefix, step)
-        for i, (audio, mel_true, mel_pred) in enumerate(zip(*self._samples)):
+        for i, (audio, mel_true, mel_pred, text_raw) in enumerate(zip(*self._samples)):
             if self._shuffle or not self._logged_true:
-                log_audio(f'{prefix}/sample{i}_audio', audio)
-                log_audio(f'{prefix}/sample{i}_griffinlim-true', self._griffinlim(mel_true))
+                log_audio(f'{prefix}/sample{i}_audio', audio, text_raw)
+                log_audio(f'{prefix}/sample{i}_griffinlim-true', self._griffinlim(mel_true), text_raw)
                 if self._waveglow:
                     for denoiser in self._waveglow_denoisers:
-                        log_audio(f'{prefix}/sample{i}_waveglow{denoiser}-true', self._waveglow(mel_true, denoiser))
-                log_mel(f'{prefix}/sample{i}_mel-true', mel_true)
+                        log_audio(
+                            f'{prefix}/sample{i}_waveglow{denoiser}-true', self._waveglow(mel_true, denoiser), text_raw
+                        )
+                log_mel(f'{prefix}/sample{i}_mel-true', mel_true, text_raw)
 
-            log_audio(f'{prefix}/sample{i}_griffinlim-pred', self._griffinlim(mel_pred))
+            log_audio(f'{prefix}/sample{i}_griffinlim-pred', self._griffinlim(mel_pred), text_raw)
             if self._waveglow:
                 for denoiser in self._waveglow_denoisers:
-                    log_audio(f'{prefix}/sample{i}_waveglow{denoiser}-pred', self._waveglow(mel_pred, denoiser))
-            log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred)
+                    log_audio(
+                        f'{prefix}/sample{i}_waveglow{denoiser}-pred', self._waveglow(mel_pred, denoiser), text_raw
+                    )
+            log_mel(f'{prefix}/sample{i}_mel-pred', mel_pred, text_raw)
         logging.info("End vocoding and logging process for %s on step %s.", prefix, step)
 
         # At this point, we already logged true stuff at least once.
@@ -267,6 +270,7 @@ class FasterSpeechGraph:
             d_speaker_emb=args.d_speaker_emb,
             d_speaker_x=args.d_speaker_x,
             d_speaker_o=args.d_speaker_o,
+            doubling=args.doubling,
             **config.FasterSpeech,
         )
         if args.local_rank is None or args.local_rank == 0:
@@ -276,7 +280,7 @@ class FasterSpeechGraph:
             nemo.logging.info('Total weights: %s', self.model.num_weights)
             assert self.model.num_weights < MODEL_WEIGHTS_UPPER_BOUND
 
-        self.loss = nemo_tts.FasterSpeechMelsLoss(**config.FasterSpeechMelsLoss)
+        self.loss = nemo_tts.FasterSpeechMelsLoss(**config.FasterSpeechMelsLoss, doubling=args.doubling)
 
     def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []
@@ -287,8 +291,14 @@ class FasterSpeechGraph:
         sample = self.sampler(
             text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, mel_true=mel_true, mel_len=mel_len,
         )
-        output = self.model(text_rep=sample.text_rep, text_rep_mask=sample.text_rep_mask, speaker_emb=data.speaker_emb)
-        train_loss = self.loss(true=sample.mel_true, pred=output.pred, mask=sample.text_rep_mask)
+        output = self.model(
+            text=data.text,  # W/O len sampling.
+            text_rep=sample.text_rep,
+            text_rep_mask=sample.text_rep_mask,
+            speaker_emb=data.speaker_emb,
+            dur=data.dur,  # W/O len sampling.
+        )
+        train_loss = self.loss(true=sample.mel_true, pred=output.pred, mask=sample.text_rep_mask, mel_len=mel_len)
         callbacks.extend(
             [
                 nemo.core.TrainLogger(
@@ -300,6 +310,7 @@ class FasterSpeechGraph:
                         mel_true=sample.mel_true,
                         mel_pred=output.pred,
                         mel_len=sample.mel_len,
+                        text_raw=data.text_raw,
                     ),
                     metrics=[
                         'loss',
@@ -324,9 +335,13 @@ class FasterSpeechGraph:
             data = eval_dl()
             mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
             output = self.model(
-                text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, speaker_emb=data.speaker_emb,
+                text=data.text,
+                text_rep=data.text_rep,
+                text_rep_mask=data.text_rep_mask,
+                speaker_emb=data.speaker_emb,
+                dur=data.dur,
             )
-            loss = self.loss(true=mel_true, pred=output.pred, mask=data.text_rep_mask)
+            loss = self.loss(true=mel_true, pred=output.pred, mask=data.text_rep_mask, mel_len=mel_len)
             callbacks.append(
                 nemo.core.EvalLogger(
                     tensors=dict(
@@ -336,6 +351,7 @@ class FasterSpeechGraph:
                         mel_true=mel_true,
                         mel_pred=output.pred,
                         mel_len=mel_len,
+                        text_raw=data.text_raw,
                     ),
                     metrics=[
                         'loss',

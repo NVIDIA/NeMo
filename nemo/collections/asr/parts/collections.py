@@ -78,7 +78,7 @@ class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioTextEntity', field_names='id audio_file duration text_tokens offset speaker',
+        typename='AudioTextEntity', field_names='id audio_file duration text_tokens offset text_raw speaker',
     )
 
     def __init__(
@@ -138,7 +138,7 @@ class AudioText(_Collection):
 
             total_duration += duration
 
-            data.append(output_type(id_, audio_file, duration, text_tokens, speaker))
+            data.append(output_type(id_, audio_file, duration, text_tokens, text, speaker))
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 self.mapping[file_id] = len(data) - 1

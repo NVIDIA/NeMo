@@ -527,6 +527,11 @@ class PtActions(Actions):
                         # where we will all_gather tensor sizes
                         tensor_on_worker = registered_e_tensors[key]
 
+                        if not isinstance(tensor_on_worker, torch.Tensor):  # For string and other.
+                            if self.global_rank == 0:
+                                values_dict[key] = [tensor_on_worker] + ([None] * (world_size - 1))
+                            continue
+
                         # https://github.com/pytorch/pytorch/issues/24137
                         is_bool = False
                         if tensor_on_worker.dtype == torch.bool:

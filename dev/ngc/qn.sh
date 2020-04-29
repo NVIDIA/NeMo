@@ -41,12 +41,12 @@ nvidia-smi \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && pip install -U wandb && wandb login ${WANDB_TOKEN} \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${script} \
---num_epochs=1000 \
+--num_epochs=150 \
 --eval_batch_size=32 \
 --model_config=${config} \
 --checkpoint_dir=${RESULT} \
 --checkpoint_save_freq=10000 \
---train_dataset=/data/ljspeech/split3/train.json \
+--train_dataset=/data/ljspeech/split3/train.json,/manifests/libritts-22k/train-all.json \
 --eval_datasets \
 /data/ljspeech/split3/eval.json \
 /data/ljspeech/split3/test.json
@@ -62,5 +62,7 @@ ngc batch run \
   --datasetid 58106:/data/libritts \
   --datasetid 59943:/data/ljspeech \
   --datasetid 58404:/manifests/libritts \
+  --datasetid 58462:/data/libritts-22k \
+  --datasetid 58490:/manifests/libritts-22k \
   --workspace "${WS}":"${WORKSPACE}" \
   --commandline "${cmd}"

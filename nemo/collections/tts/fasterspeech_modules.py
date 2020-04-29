@@ -52,7 +52,8 @@ __all__ = [
 
 class _Ops:
     @staticmethod
-    def merge(tensors, value=0.0, dtype=torch.float):
+    def merge(tensors, value=0, dtype=None):
+        dtype = tensors[0].dtype if dtype is None else dtype
         max_len = max(tensor.shape[0] for tensor in tensors)
         new_tensors = []
         for tensor in tensors:
@@ -99,8 +100,8 @@ class FasterSpeechDataset:
             self._speaker_embs = np.load(speaker_embs, allow_pickle=True)
 
     def __getitem__(self, index):
-        id_, audio, audio_len, text, text_len, speaker = self._audio_dataset[index]
-        example = dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len)
+        id_, text_raw, audio, audio_len, text, text_len, speaker = self._audio_dataset[index]
+        example = dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len, text_raw=text_raw)
 
         if self._durs_type == 'pad':
             dur = self._durs[id_]
@@ -177,7 +178,7 @@ class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):  # noq
 
 class AllSampler(torch.utils.data.distributed.DistributedSampler):  # noqa
     def __iter__(self):
-        return iter(list(range(self.total_size)))
+        return iter(list(range(len(self.dataset))))
 
 
 class BDAugs:
@@ -286,6 +287,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             dur=NeuralType(('B', 'T'), LengthsType()),
             text_rep=NeuralType(('B', 'T'), LengthsType()),
             text_rep_mask=NeuralType(('B', 'T'), MaskType()),
+            text_raw=NeuralType(),
             speaker=NeuralType(('B',), EmbeddedTextType(), optional=True),
             speaker_emb=NeuralType(('B', 'T'), EncodedRepresentation(), optional=True),
         )
@@ -333,6 +335,7 @@ class FasterSpeechDataLayer(DataLayerNM):
             'eos_id': eos_id,
             'load_audio': load_audio,
             'add_id': True,
+            'add_text_raw': True,
             'add_speaker': True,
         }
         audio_dataset = AudioDataset(**dataset_params)
@@ -423,6 +426,8 @@ class FasterSpeechDataLayer(DataLayerNM):
         )
         text_rep_mask = _Ops.make_mask(dur.sum(-1))
 
+        text_raw = batch['text_raw']
+
         speaker, speaker_emb = None, None
         if 'speaker' in batch:
             speaker = torch.tensor(batch['speaker'], dtype=torch.long)
@@ -433,7 +438,7 @@ class FasterSpeechDataLayer(DataLayerNM):
         assert text.shape == text_mask.shape, f'{text.shape} vs {text_mask.shape}'
         assert text.shape == dur.shape, f'{text.shape} vs {dur.shape}'
 
-        return audio, audio_len, text, text_mask, dur, text_rep, text_rep_mask, speaker, speaker_emb
+        return audio, audio_len, text, text_mask, dur, text_rep, text_rep_mask, text_raw, speaker, speaker_emb
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -445,6 +450,55 @@ class FasterSpeechDataLayer(DataLayerNM):
     @property
     def data_iterator(self) -> Optional[torch.utils.data.DataLoader]:  # noqa
         return self._dataloader
+
+
+class PolySpanEmb(nn.Module):
+    def __init__(self, emb):
+        super().__init__()
+
+        self._emb = emb
+
+    def forward(self, text, dur):
+        lefts, rights = self._generate_sides(text)
+        lefts = self._emb(self._generate_text_rep(lefts, dur))
+        rights = self._emb(self._generate_text_rep(rights, dur))
+
+        left_c = self._generate_left_c(dur).unsqueeze_(-1)  # noqa
+
+        x = left_c * lefts + (1 - left_c) * rights  # noqa
+
+        return x
+
+    def _generate_sides(self, text):
+        lefts = F.pad(text[:, :-1], [1, 0, 0, 0], value=self._emb.padding_idx)
+        lefts[:, 1::2] = text[:, 1::2]
+        rights = F.pad(text[:, 1:], [0, 1, 0, 0], value=self._emb.padding_idx)
+        rights[:, 1::2] = text[:, 1::2]
+
+        return lefts, rights
+
+    @staticmethod
+    def _generate_text_rep(text, dur):
+        text_rep = []
+        for t, d in zip(text, dur):
+            text_rep.append(torch.repeat_interleave(t, d))
+
+        text_rep = _Ops.merge(text_rep)
+
+        return text_rep
+
+    def _generate_left_c(self, dur):
+        x = F.pad(torch.cumsum(dur, dim=-1)[:, :-1], [1, 0], value=0)
+        pos_cm = self._generate_text_rep(x, dur)
+        mask = self._generate_text_rep(torch.ones_like(dur), dur)
+        ones_cm = torch.cumsum(mask, dim=1)
+        totals = self._generate_text_rep(dur, dur) + 1
+
+        left_c = (ones_cm - pos_cm) * mask
+        left_c = left_c.to(dtype=self._emb.weight.dtype)
+        left_c = 1.0 - left_c / totals  # noqa
+
+        return left_c
 
 
 class FasterSpeech(nemo_nm.TrainableNM):
@@ -460,6 +514,7 @@ class FasterSpeech(nemo_nm.TrainableNM):
             text_rep=NeuralType(('B', 'T'), LengthsType(), optional=True),
             text_rep_mask=NeuralType(('B', 'T'), MaskType(), optional=True),
             speaker_emb=NeuralType(('B', 'T'), EncodedRepresentation(), optional=True),
+            dur=NeuralType(('B', 'T'), LengthsType(), optional=True),
         )
 
     @property
@@ -479,12 +534,18 @@ class FasterSpeech(nemo_nm.TrainableNM):
         d_speaker_x: Optional[int] = None,
         d_speaker_o: Optional[int] = None,
         pad16: bool = False,
+        poly_span: bool = False,
+        doubling: bool = False,
     ):
         super().__init__()
 
         # Embedding for input text
         self.text_emb = nn.Embedding(n_vocab, d_char, padding_idx=pad_id).to(self._device)
         self.text_emb.weight.data.uniform_(-1, 1)
+
+        # PolySpan
+        self.ps = PolySpanEmb(self.text_emb)
+        self._poly_span = poly_span
 
         # Embedding for speaker
         if d_speaker_emb is not None:
@@ -499,20 +560,23 @@ class FasterSpeech(nemo_nm.TrainableNM):
         self.jasper = nemo_asr.JasperEncoder(feat_in=d_x, **jasper_kwargs).to(self._device)
 
         d_o = d_enc_out + (int(d_speaker_o or 0) if d_speaker_emb else 0)
-        self.out = nn.Conv1d(d_o, d_out, kernel_size=1, bias=True).to(self._device)
+        self.out = nn.Conv1d(d_o, d_out * (1 + int(doubling)), kernel_size=1, bias=True).to(self._device)
 
         self._pad16 = pad16
+        self._doubling = doubling
 
-    def forward(self, text=None, text_mask=None, text_rep=None, text_rep_mask=None, speaker_emb=None):
-        if text_rep is not None:
-            text, text_mask = text_rep, text_rep_mask
+    def forward(self, text=None, text_mask=None, text_rep=None, text_rep_mask=None, speaker_emb=None, dur=None):
+        if self._poly_span:
+            # Do not support pad16 yet. Do we really need it though?
+            x, x_len = self.ps(text, dur), dur.sum(-1)
+        else:
+            if text_rep is not None:
+                text, text_mask = text_rep, text_rep_mask
 
-        if self._pad16:
-            text = _Ops.pad(text, value=self.text_emb.padding_idx)
+            if self._pad16:
+                text = _Ops.pad(text, value=self.text_emb.padding_idx)
 
-        x = self.text_emb(text)  # BT => BTE
-        # x = torch.cat([x, torch.flip(x, dims=[1])], dim=-1)  # BTE => BT[2E]
-        x_len = text_mask.sum(-1)
+            x, x_len = self.text_emb(text), text_mask.sum(-1)
 
         if speaker_emb is not None:
             speaker_x = speaker_emb
@@ -535,6 +599,9 @@ class FasterSpeech(nemo_nm.TrainableNM):
             o = torch.cat([o, speaker_o], dim=1)  # stack([BOT, BST]) = B(O + S)T
 
         o = self.out(o).transpose(-1, -2)  # BTO
+
+        if self._doubling:
+            o = o.reshape(o.shape[0], -1, o.shape[-1] // 2)  # Time doubles.
 
         return o, o_len
 
@@ -765,11 +832,12 @@ class FasterSpeechMelsLoss(LossNM):
         """Returns definitions of module output ports."""
         return dict(loss=NeuralType(None))
 
-    def __init__(self, reduction='all', pad16=False):
+    def __init__(self, reduction='all', pad16=False, doubling=False):
         super().__init__()
 
         self._reduction = reduction
         self._pad16 = pad16
+        self._doubling = doubling
 
     def _loss_function(self, true, pred, mask, mel_len=None, dur_true=None):
         if mel_len is not None and dur_true is not None:
@@ -779,11 +847,16 @@ class FasterSpeechMelsLoss(LossNM):
         true = true.transpose(-1, -2)
         if self._pad16:
             true = _Ops.pad(true)
+        if self._doubling:
+            true = _Ops.pad(true, to=2)
 
         loss = F.mse_loss(pred, true, reduction='none').mean(-1)
 
         if self._pad16:
             mask = _Ops.pad(mask)
+        if self._doubling:
+            mask = _Ops.make_mask(mel_len)
+            mask = _Ops.pad(mask, to=2)
         loss *= mask.float()
 
         if self._reduction == 'all':
@@ -822,7 +895,7 @@ class WaveGlowInference:
         denoiser.eval()
         self._denoiser = denoiser
 
-    def __call__(self, mel, denoiser=0.1):
+    def __call__(self, mel, denoiser=0.1, norm=True):
         mel = torch.tensor(mel, device='cuda').unsqueeze(0)
         if self._fp16:
             mel = mel.half()
@@ -832,6 +905,7 @@ class WaveGlowInference:
             if denoiser > 0.0:
                 audio = self._denoiser(audio, denoiser)
 
+        if norm:
             audio /= audio.max()
 
         audio = audio.squeeze().cpu().numpy()
