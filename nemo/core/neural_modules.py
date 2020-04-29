@@ -34,7 +34,7 @@ from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTe
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
 from nemo.utils.decorators.deprecated import deprecated
-from nemo.utils.module_port import ModulePort
+from nemo.utils.connection import StepModulePort
 
 YAML = YAML(typ='safe')
 
@@ -568,7 +568,7 @@ class NeuralModule(NeuralInterface):
         # The input and output ports definitions can potentially depend on the operation mode!
 
         # Record the operation (i.e. add a single module).
-        self._app_state.active_graph.record_step(self)
+        step_number = self._app_state.active_graph.record_step(self)
 
         ###### PROCESS INPUTS. ######
         # Iterate through all passed parameters.
@@ -598,7 +598,7 @@ class NeuralModule(NeuralInterface):
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
                 # to THIS module-port (when it finally will be connected).
-                active_graph.inputs[port_name].bind(ModulePort(self.name, port_name))
+                active_graph.inputs[port_name].bind(StepModulePort(step_number, self.name, port_name))
 
                 # Please note that there are no "consumers" here - this is a "pure binding".
 
@@ -620,7 +620,7 @@ class NeuralModule(NeuralInterface):
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data
                 # to THIS module-port (when it finally will be connected).
-                port_content.bind(ModulePort(self.name, port_name))
+                port_content.bind(StepModulePort(step_number, self.name, port_name))
 
                 # Please note that there are no "consumers" here - this is a "pure binding".
 
@@ -629,7 +629,7 @@ class NeuralModule(NeuralInterface):
                 self.input_ports[port_name].compare_and_raise_error(self.__class__.__name__, port_name, port_content)
 
                 # Ok, the goal here is to actually "connect": add self (module) as "consumer" to the input tensor.
-                port_content.add_consumer(self.name, port_name)
+                port_content.add_consumer(StepModulePort(step_number, self.name, port_name))
             else:
                 raise TypeError(
                     "Input '{}' must be of one of three types: NeuralGraph, GraphInput or NmTensor".format(port_name)

@@ -34,7 +34,7 @@ from nemo.core.neural_modules import NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
-from nemo.utils.module_port import Connection, ModulePort
+from nemo.utils.connection import Connection, StepModulePort
 
 YAML = YAML(typ='safe')
 
@@ -127,6 +127,9 @@ class NeuralGraph(NeuralInterface):
                 inner_graph: Graph to be copied (will be "nested" in this (self) graph).
                 inner_graph_args: inputs passed to the graph call.
         """
+        # Remember the number of "already present steps".
+        step_bump = len(self.steps)
+
         # "Copy" the modules from nested graph.
         for key, module in inner_graph.modules.items():
             # Check if module with that name already exists.
@@ -154,7 +157,7 @@ class NeuralGraph(NeuralInterface):
         self.default_output_binding = False
 
         # Now "copy" graph execution order and topology by actually executing each step of the nested graph.
-        for _, module_name in inner_graph.steps.items():
+        for step_number, module_name in inner_graph.steps.items():
             # Both module and step will be added by the modules' call().
 
             # Get the module.
@@ -168,7 +171,7 @@ class NeuralGraph(NeuralInterface):
             # - checking if we have already tensors leading to that input (in outer graph).
             for input_port_name in module.input_ports.keys():
                 # Check if this port was bound in the inner graph.
-                key = inner_graph.inputs.has_binding(module_name, input_port_name)
+                key = inner_graph.inputs.has_binding(step_number, input_port_name)
                 # If so, then we must pass whatever was passed to that port in the list of arguments.
                 if key is not None:
                     module_args[input_port_name] = inner_graph_args[key]
@@ -179,17 +182,19 @@ class NeuralGraph(NeuralInterface):
                 # Search for producer/port that we should use.
                 for connection in inner_connections:
                     if (
-                        connection.consumer.module_name == module_name
+                        connection.consumer.step_number == step_number
+                        and connection.consumer.module_name == module_name
                         and connection.consumer.port_name == input_port_name
                     ):
                         # Got the connection!
-                        producer_name = connection.producer.module_name
+                        bumped_step = connection.producer.step_number + step_bump
+                        #producer_name = connection.producer.module_name
                         producer_port_name = connection.producer.port_name
                         break
+                #import pdb;pdb.set_trace() 
                 # Now, the tensor is already produced in outer (i.e. this) graph!
-                module_args[input_port_name] = self.tensors[producer_name][producer_port_name]
+                module_args[input_port_name] = self.tensors[bumped_step][producer_port_name]
 
-            # import pdb;pdb.set_trace()
             # Ok, now we have all keyword arguments. We can call() the module.
             # This will collect all the produced output tensors and add them to this graph.
             module(**module_args)
@@ -205,11 +210,12 @@ class NeuralGraph(NeuralInterface):
         output_tensors = {}
         # Iterate through outputs of the inner graph.
         for key, tensor in inner_graph.output_tensors.items():
-            # Find the tensors within this (outer) graph that are outpus by the same producer-port.
-            producer_name = tensor.producer_name
+            # Find the tensors within this (outer) graph that are outputs by the same producer-port.
+            bumped_step = tensor.producer_step_number + step_bump
+            #producer_name = tensor.producer_name
             producer_port_name = tensor.name
             # Get adequate tensor from "outer graph" (self).
-            output_tensors[key] = self.tensors[producer_name][producer_port_name]
+            output_tensors[key] = self.tensors[bumped_step][producer_port_name]
 
         if len(output_tensors) == 1:
             # Return a single tensor.
@@ -246,21 +252,39 @@ class NeuralGraph(NeuralInterface):
 
             Args:
                 module: Neural modules added to a given graph.
-        """
-        # Check if module with that name already exists - to avoid potential loops (DAG).
-        # TODO: Uncomment after we will refactor all the examples, so training/validation graphs won't be added
-        # to the "default" graph.
-        # if module.name in self._modules.keys() and self._modules[module.name] is not module:
-        #    raise KeyError("Neural Graph already contains a module named {}".format(module.name))
 
-        # Add module to list of modules.
-        self._modules[module.name] = module
+            Returns:
+                Step number.
+        """
+        # The solution allows loops in the graph.
+        # This also means that module with that name can already be present in the graph.
+        if module.name in self._modules.keys():
+            # Check if this is the same module.
+            if self._modules[module.name] is not module:
+                raise KeyError("Neural Graph already contains a different module with name `{}`!".format(module.name))
+
+        else:
+            # Add module to list of modules.
+            self._modules[module.name] = module
 
         # Add step - store the module name.
-        self._steps[len(self._steps)] = module.name
+        step_number = len(self._steps)
+        self._steps[step_number] = module.name
+
+        # Return the current step number.
+        return step_number
+
+    @property
+    def step_number(self):
+        """ Returns:
+                Last step number. """
+        return len(self._steps) -1
+
+    
 
     def bind_outputs(self, tensors_list):
-        """ Binds the output tensors.
+        """
+            Binds the output tensors.
 
             Args:
                 tensors_list: A single tensor OR a List of tensors to be bound.
@@ -268,16 +292,17 @@ class NeuralGraph(NeuralInterface):
         # Handle both single port and lists of ports to be bound.
         if type(tensors_list) is not list:
             tensors_list = [tensors_list]
-        # Add tensors list to of tensors.
+
+        # Add tensors to list of list of tensors.
         for tensor in tensors_list:
             # Add tensor to "all" tensors dictionary.
-            producer_name = tensor.producer_name
-            if producer_name not in self._all_tensors.keys():
-                self._all_tensors[producer_name] = {}
+            step_number = tensor.producer_step_number
+            if step_number not in self._all_tensors.keys():
+                self._all_tensors[step_number] = {}
 
             port_name = tensor.name
             # Add tensor.
-            self._all_tensors[producer_name][port_name] = tensor
+            self._all_tensors[step_number][port_name] = tensor
 
         # Bind the tensors as graph outputs.
         if self.default_output_binding:
@@ -533,9 +558,10 @@ class NeuralGraph(NeuralInterface):
                 # "Transform" tensor to the list of connections.
                 for c in tensor.connections():
                     # Serialize!
-                    source = c.producer.module_name + "." + c.producer.port_name
-                    target = c.consumer.module_name + "." + c.consumer.port_name
-                    serialized_connections.append(source + "->" + target)
+                    source = str(c.producer.step_number) + "." + c.producer.module_name + "." + c.producer.port_name
+                    target = str(c.consumer.step_number) + "." + c.consumer.module_name + "." + c.consumer.port_name
+                    ntype_str = str(tensor.ntype)
+                    serialized_connections.append(source + "->" + target + " | " + ntype_str)
         return serialized_connections
 
     @classmethod
@@ -642,7 +668,7 @@ class NeuralGraph(NeuralInterface):
         steps = new_graph.__deserialize_steps(configuration["steps"])
 
         # Deserialize the connections between modules.
-        connections = new_graph.__deserialize_connections(configuration["connections"])
+        connections = new_graph.__deserialize_connections(configuration["connections"], modules)
 
         # Deserialize input bindings - return it in an external entity.
         inputs = GraphInputs.deserialize(configuration["inputs"], modules)
@@ -719,11 +745,12 @@ class NeuralGraph(NeuralInterface):
         # Ok, done.
         return steps
 
-    def __deserialize_connections(self, serialized_connections):
+    def __deserialize_connections(self, serialized_connections, modules):
         """ Private method deserializing the connections in the graph.
 
             Args:
                 serialized_steps: Dictionary containing serialized connections.
+                modules: List of modules.
 
             Returns:
                 List of connections, in a format enabling graph traversing.
@@ -732,13 +759,19 @@ class NeuralGraph(NeuralInterface):
         # Deserialize connections one by one.
         for c in serialized_connections:
             # Deserialize!
-            [producer, consumer] = c.split("->")
-            [producer_name, producer_port_name] = producer.split(".")
-            [consumer_name, consumer_port_name] = consumer.split(".")
-            producer_mp = ModulePort(producer_name, producer_port_name)
-            consumer_mp = ModulePort(consumer_name, consumer_port_name)
+            [producer, consumer_type] = c.split("->")
+            [consumer, ntype_str] = consumer_type.split(" | ")
+            [producer_step, producer_name, producer_port_name] = producer.split(".")
+            [consumer_step, consumer_name, consumer_port_name] = consumer.split(".")
+            producer_mp = StepModulePort(int(producer_step), producer_name, producer_port_name)
+            consumer_mp = StepModulePort(int(consumer_step), consumer_name, consumer_port_name)
+            # Get tensor type.
+            ntype = modules[producer_name].output_ports[producer_port_name]
+            # Validate if neural type is ok.
+            assert ntype_str == str(ntype)
+
             # Add connection.
-            connections.append(Connection(producer_mp, consumer_mp))
+            connections.append(Connection(producer_mp, consumer_mp, ntype))
         # Ok, done.
         return connections
 
@@ -747,10 +780,10 @@ class NeuralGraph(NeuralInterface):
             the provided connections and inputs.
 
             Args:
-                steps: 
-                modules
-                connections
-                inputs
+                steps: List of steps to be executed.
+                modules: List of modules.
+                connections: List of connections.
+                inputs: List of "bound inputs"
         
         """
         # Activate this graph, so all the tensors will be added to this !
@@ -761,7 +794,7 @@ class NeuralGraph(NeuralInterface):
         self.default_output_binding = False
 
         # Now "copy" graph execution order and topology by actually executing each step of the nested graph.
-        for _, module_name in steps.items():
+        for step, module_name in steps.items():
             # Both module and step will be added by the modules' call().
 
             # Get the module.
@@ -775,7 +808,7 @@ class NeuralGraph(NeuralInterface):
             # - checking if we have already tensors leading to that input (in outer graph).
             for input_port_name in module.input_ports.keys():
                 # Check if this port was bound in the inner graph.
-                key = inputs.has_binding(module_name, input_port_name)
+                key = inputs.has_binding(step, input_port_name)
 
                 # import pdb;pdb.set_trace()
                 # If so, then we must pass the binding!
@@ -791,15 +824,17 @@ class NeuralGraph(NeuralInterface):
                     # Search for producer/port that we should use.
                     for connection in connections:
                         if (
-                            connection.consumer.module_name == module_name
+                            connection.consumer.step_number == step
+                            and connection.consumer.module_name == module_name
                             and connection.consumer.port_name == input_port_name
                         ):
                             # Got the connection!
-                            producer_name = connection.producer.module_name
+                            producer_step_number = connection.producer.step_number
+                            # producer_name = connection.producer.module_name
                             producer_port_name = connection.producer.port_name
                             break
                     # Now, the tensor is already produced in outer (i.e. this) graph!
-                    module_args[input_port_name] = self.tensors[producer_name][producer_port_name]
+                    module_args[input_port_name] = self.tensors[producer_step_number][producer_port_name]
                 # End: for
 
             # Ok, now we have all keyword arguments. We can call() the module.

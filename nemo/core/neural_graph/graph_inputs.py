@@ -20,10 +20,7 @@ from collections.abc import MutableMapping
 
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.module_port import ModulePort
-
-# Actually this throws error as module dependency is: core depends on utils :]
-# from nemo.core.neural_types import NeuralType
+from nemo.utils.connection import StepModulePort
 
 
 class GraphInput(object):
@@ -38,21 +35,21 @@ class GraphInput(object):
         """
         # (Neural) Type of input.
         self._type = type
-        # List of ModulePort tuples to which this input links to (module name, port name).
+        # List of StepModulePort tuples to which this input links to (step number, module name, port name).
         self._consumers = []
 
-    def bind(self, module_ports):
-        """ Binds the (modules-ports) to this "graph input".
+    def bind(self, step_module_ports):
+        """ Binds the (step-module-ports) to this "graph input".
 
             Args:
-                module_ports: A single ModulePort OR a list of ModulePort tuples to be added.
+                step_module_ports: A single StepModulePort OR a list of StepModulePort tuples to be added.
         """
         # Handle both single port and lists of ports to be bound.
-        if type(module_ports) is not list:
-            module_ports = [module_ports]
+        if type(step_module_ports) is not list:
+            step_module_ports = [step_module_ports]
         # Interate through "consumers" on the list and add them to bound input.
-        for module_port in module_ports:
-            self._consumers.append(module_port)
+        for smp in step_module_ports:
+            self._consumers.append(smp)
 
     @property
     def type(self):
@@ -60,8 +57,11 @@ class GraphInput(object):
         return self._type
 
     @property
-    def consumers_ports(self):
-        """ Returns list of bound modules (i.e. (module name, port name) tupes) """
+    def consumers(self):
+        """ 
+            Returns:
+                List of bound modules i.e. (step number, module name, port name) tupes.
+        """
         return self._consumers
 
 
@@ -117,45 +117,47 @@ class GraphInputs(MutableMapping):
         # Extract port definitions (Neural Types) from the inputs list.
         return {k: v.type for k, v in self._inputs.items()}
 
-    def has_binding(self, module_name, port_name):
+    def has_binding(self, step_number: int, port_name):
         """ 
-            Checks if there is a binding leading to a given module and its given port. 
+            Checks if there is a binding leading to a given step number (module) and its given port. 
+            (module name is redundant, thus skipped in this test).
 
             Returns:
-                key in the list of the (bound) input ports that leads to a given module/port or None if the binding was
-                not found.
+                key in the list of the (bound) input ports that leads to a given step (module)/port
+                or None if the binding was not found.
         """
         for key, binding in self._inputs.items():
-            for (module, port) in binding.consumers_ports:
-                if module == module_name and port == port_name:
+            for (step, _, port) in binding.consumers:
+                if step == step_number and port == port_name:
                     return key
+        # Binding not found.
         return None
 
     def serialize(self):
         """ Method responsible for serialization of the graph inputs.
 
             Returns:
-                List containing mappings (input -> module.input_port).
+                List containing mappings (input -> step.module.input_port).
         """
         serialized_inputs = []
         # Iterate through "bindings".
         for key, binding in self._inputs.items():
-            for (module, port) in binding.consumers_ports:
-                # Serialize: input -> module.port.
-                target = module + "." + port
+            for (step, module, port) in binding.consumers:
+                # Serialize: input -> step.module.port.
+                # TODO: add module name.
+                target = str(step) + "." + module + "." + port
                 serialized_inputs.append(key + "->" + target)
         # Return the result.
         return serialized_inputs
 
     @classmethod
-    def deserialize(cls, serialized_inputs, modules, definitions_only=False):
+    def deserialize(cls, serialized_inputs, modules):
         """ 
             Class method responsible for deserialization of graph inputs.
 
             Args:
                 serialized_inputs: A list of serialized inputs in the form of ("input->module.input_port")
                 modules: List of modules required for neural type copying/checking.
-                definitions_only: deserializes/checks only the definitions, without binding the consumers.
 
             Returns:
                 Dictionary with deserialized inputs.
@@ -165,16 +167,14 @@ class GraphInputs(MutableMapping):
         for i in serialized_inputs:
             # Deserialize!
             [key, consumer] = i.split("->")
-            [consumer_name, consumer_port_name] = consumer.split(".")
+            [consumer_step, consumer_name, consumer_port_name] = consumer.split(".")
             # Add the input.
             if key not in inputs.keys():
                 # Get neural type from module input port definition.
                 n_type = modules[consumer_name].input_ports[consumer_port_name]
                 # Create a new input.
                 inputs[key] = n_type
-            # Optionally, also bind the "consumers".
-            if not definitions_only:
-                # Bound input.
-                inputs[key].bind(ModulePort(consumer_name, consumer_port_name))
+            # Bind the "consumers".
+            inputs[key].bind(StepModulePort(int(consumer_step), consumer_name, consumer_port_name))
         # Done.
         return inputs

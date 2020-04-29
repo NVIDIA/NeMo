@@ -29,7 +29,7 @@ from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 from nemo.core.neural_types.elements import *
 from nemo.utils.app_state import AppState
-from nemo.utils.module_port import Connection, ModulePort
+from nemo.utils.connection import Connection, StepModulePort
 
 
 class NeuralType(object):
@@ -219,8 +219,10 @@ class NmTensor(NeuralType):
         self._producer_args = producer_args
         self._output_port_name = output_port_name
         self._uuid = str(uuid.uuid4())
-        # List of tuples (consumer name, input port name)
-        self._consumers_ports = []
+        # Remember step at which this tensor was created.
+        self._step_number = AppState().active_graph.step_number
+        # List of tuples (step number, module name, input port name)
+        self._consumers = []
 
     @property
     def producer(self):
@@ -239,34 +241,41 @@ class NmTensor(NeuralType):
         return self._producer_name
 
     @property
-    def producer_port(self):
+    def producer_step_number(self):
         """
         Returns:
-          A tuple containing producer name and corresponding output port name.
+            Step number indicating when the tensor was produced.
+            (It also indicates who produced the tensor.)
         """
-        return ModulePort(self._producer_name, self._output_port_name)
+        return self._step_number
 
     @property
-    def consumers_ports(self):
+    def producer_step_module_port(self):
         """
         Returns:
-          A list of tuples containing consumer name and corresponding input port names.
+          A tuple containing step number, module name and corresponding output port name.
         """
-        return self._consumers_ports
+        return StepModulePort(self._step_number, self._producer_name, self._output_port_name)
 
-    def add_consumer(self, module_name, input_port_name):
+    @property
+    def consumers(self):
         """
-        Adds tensor "consumer".
+        Returns:
+          A list of tuples containing consumer step number, module name and corresponding input port names.
+        """
+        return self._consumers
+
+    def add_consumer(self, step_module_port):
+        """
+        Adds the "consumer" to tensor.
 
         Args:
-            module_name: Name of the module that accepts the tensor as input.
-            input_port_name: Name of the module's input port.
-
+            step_port: Step number, module name and module's input port.
         """
-        self._consumers_ports.append(ModulePort(module_name, input_port_name))
+        self._consumers.append(step_module_port)
 
     @property
-    def type(self):
+    def ntype(self):
         """
         Returns:
             Neural Type associated with this NmTensor.
@@ -275,19 +284,13 @@ class NmTensor(NeuralType):
 
     def connections(self):
         """
-            "Serializes" the tensor to a list of connections (producer/port, consumer/port).
+            "Serializes" the tensor to a list of connections (step/producer/port, step/consumer/port).
+
         """
         connections = []
-        for cp in self._consumers_ports:
-            connections.append(Connection(self.producer_port, cp))
+        for con_mod_port in self._consumers:
+            connections.append(Connection(self.producer_step_module_port, con_mod_port, self.ntype))
         return connections
-
-    # @classmethod
-    # def deserialize(cls):
-    #    """
-    #        Deserializes tensor from a dictionary (yaml structure).
-    #    """
-    #    return 2
 
     @property
     def producer_args(self):

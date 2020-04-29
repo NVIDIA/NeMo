@@ -259,7 +259,7 @@ class TestNeuralGraphSerialization:
         del model_copy
         del training
 
-        # Create the second graph - deserialize withoput "module reusing".
+        # Create the second graph - deserialize without "module reusing".
         training2 = NeuralGraph.deserialize(serialized_training)
         serialized_training2 = training2.serialize()
 
@@ -289,11 +289,20 @@ class TestNeuralGraphSerialization:
             lss = loss(predictions=p2, target=t)
 
         # Make sure all connections are there!
-        # assert len(graph.tensor_list) == 5 # TODO! NOT TRUE!!
+        assert len(graph.tensor_list) == 5 
+        # 4 would mean that we have overwritten the "p1" (tn->y_pred) tensor!
 
         # Serialize the graph.
-        # serialized_graph = graph.serialize()
+        serialized_graph = graph.serialize()
 
-        # import pdb;pdb.set_trace()
-        # print("1: \n",serialized_graph)
-        # print("2: \n",serialized_training2)
+        # Create the second graph - deserialize with "module reusing".
+        graph2 = NeuralGraph.deserialize(serialized_graph, reuse_existing_modules=True)
+        serialized_graph2 = graph2.serialize()
+
+        # Must be the same.
+        assert serialized_graph == serialized_graph2
+
+        #import pdb;pdb.set_trace()
+        #print("1: \n",serialized_graph)
+        # print("2: \n",serialized_graph2)
+

@@ -51,6 +51,8 @@ class TestGraphOutputs:
             del bound_outputs["loss"]
 
         assert len(bound_outputs) == 4
+        assert len(bound_outputs.tensors) == 4
+        assert len(bound_outputs.tensor_list) == 4
 
         defs = bound_outputs.definitions
         assert defs["x"].compare(data_source.output_ports["x"]) == NeuralTypeComparisonResult.SAME
@@ -100,7 +102,7 @@ class TestGraphOutputs:
             (loss, "loss", lss),
         ]:
             # Compare definitions - from outputs.
-            assert g1.outputs[port].type.compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
+            assert g1.outputs[port].ntype.compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
             # Compare definitions - from output_ports.
             assert g1.output_ports[port].compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
             # Compare definitions - from output_tensors.

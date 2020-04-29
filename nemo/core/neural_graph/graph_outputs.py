@@ -19,32 +19,32 @@
 from collections.abc import MutableMapping
 
 from nemo.utils import logging
-from nemo.utils.module_port import ModulePort
+from nemo.utils.connection import StepModulePort
 
 
 class GraphOutput(object):
     """ A helper class represenging a single bound output. """
 
-    def __init__(self, type, producer_port):
+    def __init__(self, ntype, producer_step_module_port):
         """ 
         Initializes object.
 
         Args:
             type: a NeuralType object.
-            producer_port: a producer ModulePort tuple (module name, port name).
+            producer_step_module_port: a producer StepModulePort tuple (step number (module name), port name).
         """
-        self._type = type
-        self._producer_port = producer_port
+        self._ntype = ntype
+        self._producer_step_module_port = producer_step_module_port
 
     @property
-    def type(self):
+    def ntype(self):
         """ Returns NeuralType of that output. """
-        return self._type
+        return self._ntype
 
     @property
-    def producer_port(self):
-        """ Returns producer port (module name, port name) tuple. """
-        return self._producer_port
+    def producer_step_module_port(self):
+        """ Returns producer step port (step number (module), port name) tuple. """
+        return self._producer_step_module_port
 
 
 class GraphOutputs(MutableMapping):
@@ -86,7 +86,7 @@ class GraphOutputs(MutableMapping):
         if key in self._manual_outputs.keys():
             raise KeyError("Overwriting of a port `{}` that was previously manually bound is not allowed".format(key))
         # Ok, set output.
-        self._manual_outputs[key] = GraphOutput(value.type, value.producer_port)
+        self._manual_outputs[key] = GraphOutput(value.ntype, value.producer_step_module_port)
 
     def __getitem__(self, key):
         """ Returns GraphOutput - depending whether there are some manual outputs or not. """
@@ -127,15 +127,15 @@ class GraphOutputs(MutableMapping):
             # Check the presence of the port name in "default" dictionary.
             if name in self._default_outputs.keys():
                 # Name present - use the name being combination of producer and port names.
-                name = tensor.producer_name + "_" + tensor.name
+                name = str(tensor.producer_step_number) + "_" + tensor.producer_name + "_" + tensor.name #last = port name
 
                 logging.warning(
-                    "Setting unigue name of the default output port `{}` produced by `{}` to `{}`".format(
-                        tensor.name, self._default_outputs[tensor.name]._producer_port.module_name, name
+                    "Setting unigue name of the default output port `{}` produced in step {} by `{}` to `{}`".format(
+                        tensor.name, tensor.producer_step_number, tensor.producer_name, name
                     )
                 )
             # Still, "overwrite" it.
-            self._default_outputs[name] = GraphOutput(tensor.type, tensor.producer_port)
+            self._default_outputs[name] = GraphOutput(tensor.ntype, tensor.producer_step_module_port)
 
     @property
     def definitions(self):
@@ -144,7 +144,7 @@ class GraphOutputs(MutableMapping):
         d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
         # Extract port definitions (Neural Types).
-        return {k: v.type for k, v in d.items()}
+        return {k: v.ntype for k, v in d.items()}
 
     @property
     def tensors(self):
@@ -160,10 +160,10 @@ class GraphOutputs(MutableMapping):
         output_tensors = {}
         # Get tensors by acessing the producer-ports.
         for k, v in d.items():
-            producer_name = v.producer_port.module_name
-            producer_port_name = v.producer_port.port_name
+            producer_step = v.producer_step_module_port.step_number
+            producer_port_name = v.producer_step_module_port.port_name
             # Find the right output tensor.
-            tensor = self._tensors_list[producer_name][producer_port_name]
+            tensor = self._tensors_list[producer_step][producer_port_name]
             # Add it to the dictionary.
             output_tensors[k] = tensor
         # Return the result.
@@ -184,10 +184,10 @@ class GraphOutputs(MutableMapping):
         output_tensor_list = []
         # Get tensors by acessing the producer-ports.
         for k, v in d.items():
-            producer_name = v.producer_port.module_name
-            producer_port_name = v.producer_port.port_name
+            producer_step = v.producer_step_module_port.step_number
+            producer_port_name = v.producer_step_module_port.port_name
             # Find the right output tensor.
-            tensor = self._tensors_list[producer_name][producer_port_name]
+            tensor = self._tensors_list[producer_step][producer_port_name]
             # Add it to the list.
             output_tensor_list.append(tensor)
         # Return the result.
@@ -212,7 +212,8 @@ class GraphOutputs(MutableMapping):
         # Iterate through "bindings".
         for key, binding in d.items():
             # Serialize: module.port -> output.
-            source = binding.producer_port.module_name + "." + binding.producer_port.port_name
+            smp = binding.producer_step_module_port
+            source = str(smp.step_number) + "." + smp.module_name + "." + smp.port_name
             serialized_outputs["outputs"].append(source + "->" + key)
         # Return the result.
         return serialized_outputs
@@ -237,12 +238,12 @@ class GraphOutputs(MutableMapping):
         for i in serialized_outputs["outputs"]:
             # Deserialize!
             [producer, key] = i.split("->")
-            [producer_name, producer_port_name] = producer.split(".")
+            [step_number, producer_name, producer_port_name] = producer.split(".")
 
             # Get neural type from module output port definition.
             n_type = modules[producer_name].output_ports[producer_port_name]
             # Create a new input.
-            go = GraphOutput(n_type, ModulePort(producer_name, producer_port_name))
+            go = GraphOutput(n_type, StepModulePort(int(step_number), producer_name, producer_port_name))
             d[key] = go
 
         # Done.
