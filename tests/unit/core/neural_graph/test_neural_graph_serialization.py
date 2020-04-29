@@ -128,7 +128,7 @@ class TestNeuralGraphSerialization:
         assert serialized_model1 == serialized_model2
 
     @pytest.mark.unit
-    def test_graph_serialization_4_serialize_graph_after_nesting_with_default_binding_reuse_modules(self):
+    def test_graph_serialization_4_graph_after_nesting_with_default_binding_reuse_modules(self):
         """ 
             Tests whether serialization works in the case when we serialize a graph after a different graph
             was nested in it, with additionally bound input and output binding works (default port names).
@@ -168,9 +168,8 @@ class TestNeuralGraphSerialization:
         # Must be the same.
         assert serialized_training == serialized_training2
 
-
     @pytest.mark.unit
-    def test_graph_serialization_5_serialize_graph_after_nesting_without_reusing(self):
+    def test_graph_serialization_5_graph_after_nesting_without_reusing(self):
         """ 
             Tests whether serialization works in the case when we serialize a graph after a different graph
             was nested in it, with additionally bound input and output binding works (default port names).
@@ -179,10 +178,6 @@ class TestNeuralGraphSerialization:
         dl = RealFunctionDataLayer(n=100, batch_size=1, name="tgs5_dl")
         tn = TaylorNet(dim=4, name="tgs511_tn")
         loss = MSELoss(name="tgs5_loss")
-
-        #from nemo.utils.app_state import AppState
-        #import pdb; pdb.set_trace() 
-        #print(AppState().modules.summary())
 
         # Create "model".
         with NeuralGraph(operation_mode=OperationMode.both, name="tgs5_model") as model:
@@ -214,15 +209,11 @@ class TestNeuralGraphSerialization:
         training2 = NeuralGraph.deserialize(serialized_training)
         serialized_training2 = training2.serialize()
 
-        # import pdb;pdb.set_trace()
-        # print("1: \n",serialized_training)
-        # print("2: \n",serialized_training2)
-
         # Must be the same.
         assert serialized_training == serialized_training2
 
     @pytest.mark.unit
-    def test_graph_serialization_6_serialize_graph_after_nesting_with_manual_binding(self):
+    def test_graph_serialization_6_graph_after_nesting_with_manual_binding(self):
         """ 
             Tests whether serialization works in the case when we serialize a graph after a different graph
             was nested in it, with additionally bound input and output binding works (manual port names).
@@ -256,7 +247,7 @@ class TestNeuralGraphSerialization:
             # Add modules to graph.
             x, t = dl()
             # Incorporate modules from the existing "model" graph.
-            p = model_copy(input=x) # Note: this output should actually be named "output", not "y_pred"!
+            p = model_copy(input=x)  # Note: this output should actually be named "output", not "y_pred"!
             lss = loss(predictions=p, target=t)
 
         # Serialize the "training graph".
@@ -272,9 +263,38 @@ class TestNeuralGraphSerialization:
         training2 = NeuralGraph.deserialize(serialized_training)
         serialized_training2 = training2.serialize()
 
-        # import pdb;pdb.set_trace()
-        # print("1: \n",serialized_training)
-        # print("2: \n",serialized_training2)
-
         # Must be the same.
         assert serialized_training == serialized_training2
+
+    @pytest.mark.unit
+    def test_graph_serialization_7_arbitrary_graph_with_loops(self):
+        """ 
+            Tests whether serialization works in the case when we serialize a graph after a different graph
+            was nested in it, with additionally bound input and output binding works (manual port names).
+        """
+        # Instantiate the necessary neural modules.
+        dl = RealFunctionDataLayer(n=100, batch_size=1, name="dl")
+        tn = TaylorNet(dim=4, name="tn")
+        loss = MSELoss(name="loss")
+
+        # Build a graph with a loop.
+        with NeuralGraph(name="graph") as graph:
+            # Add modules to graph.
+            x, t = dl()
+            # First call to TN.
+            p1 = tn(x=x)
+            # Second call to TN.
+            p2 = tn(x=p1)
+            # Take output of second, pass it to loss.
+            lss = loss(predictions=p2, target=t)
+
+        # Make sure all connections are there!
+        #assert len(graph.tensor_list) == 5 # TODO! NOT TRUE!!
+
+        # Serialize the graph.
+        #serialized_graph = graph.serialize()
+
+        #import pdb;pdb.set_trace()
+        #print("1: \n",serialized_graph)
+        # print("2: \n",serialized_training2)
+

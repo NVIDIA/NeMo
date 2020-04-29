@@ -368,9 +368,33 @@ class NeuralGraph(NeuralInterface):
 
     @property
     def tensors(self):
-        """ Returns the (double) dictionary of all output tensors, aggregated by modules (key) and (output) port name. """
+        """
+            Property returning a (double) dictionary of all output tensors.
+
+            Returns:
+                Dictionary of tensors in the format [module_name][output_port_name].
+        
+         """
         return self._all_tensors
 
+    @property
+    def tensor_list(self):
+        """
+            Property returning output tensors by extracting them on the fly from the bound outputs.
+            
+            Returns:
+                List of tensors.
+
+        """
+        tensor_list = []
+        # Get tensors by acessing the producer-ports.
+        for tensors_per_module in self._all_tensors.values():
+            for tensor in tensors_per_module.values():
+                # Add it to the list.
+                tensor_list.append(tensor)
+        # Return the result.
+        return tensor_list
+        
     @property
     def operation_mode(self):
         """ Returns operation mode. """
