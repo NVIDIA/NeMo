@@ -289,12 +289,11 @@ class TestNeuralGraphSerialization:
             lss = loss(predictions=p2, target=t)
 
         # Make sure all connections are there!
-        #assert len(graph.tensor_list) == 5 # TODO! NOT TRUE!!
+        # assert len(graph.tensor_list) == 5 # TODO! NOT TRUE!!
 
         # Serialize the graph.
-        #serialized_graph = graph.serialize()
+        # serialized_graph = graph.serialize()
 
-        #import pdb;pdb.set_trace()
-        #print("1: \n",serialized_graph)
+        # import pdb;pdb.set_trace()
+        # print("1: \n",serialized_graph)
         # print("2: \n",serialized_training2)
-

@@ -394,7 +394,7 @@ class NeuralGraph(NeuralInterface):
                 tensor_list.append(tensor)
         # Return the result.
         return tensor_list
-        
+
     @property
     def operation_mode(self):
         """ Returns operation mode. """
