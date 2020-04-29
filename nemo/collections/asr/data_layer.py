@@ -20,12 +20,15 @@ import os
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
+import braceexpand
 import torch
 import webdataset as wd
 
 import nemo
 from .parts.collections import ASRAudioText
-from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
+from .parts.dataset import (AudioDataset, AudioLabelDataset,
+                            KaldiFeatureDataset, TranscriptDataset,
+                            seq_collate_fn)
 from .parts.features import WaveformFeaturizer
 from .parts.parsers import make_parser
 from .parts.perturb import AudioAugmentor, perturbation_types
@@ -350,16 +353,25 @@ class TarredAudioToTextDataLayer(DataLayerNM):
     """Data Layer for general ASR tasks, where the audio files are tarred.
 
     Module which reads ASR labeled data. It accepts a single comma-separated JSON manifest file, as well as the
-    path to a tarball that contains the wav files. Each line of the manifest should contain the information for one
+    path(s) to the tarball(s) with the wav files. Each line of the manifest should contain the information for one
     audio file, including at least the transcript and name of the audio file (doesn't have to be exact, only the
     basename must be the same).
+
+    Valid formats for the audio_tar_filepaths argument include (1) a single string that can be brace-expanded,
+    e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or (2) a list of file paths that will not be
+    brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...]. See the WebDataset documentation for more information
+    about accepted data and input formats.
+
+    If using torch.distributed, the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but we will continue.
 
     Notice that a few arguments are different from the AudioToTextDataLayer; for example, shuffle (bool) has been
     replaced by shuffle_n (int).
 
     Args:
-        audio_tar_filepath (str):
-        manifest_filepath (str): 
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
         labels (list): List of characters that can be output by the ASR model.
             For Jasper, this is the 28 character set {a-z '}. The CTC blank
             symbol is automatically added later for models using ctc.
@@ -425,7 +437,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
 
     def __init__(
         self,
-        audio_tar_filepath,
+        audio_tar_filepaths,
         manifest_filepath,
         labels,
         batch_size,
@@ -468,9 +480,27 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         pad_id = 0 if pad_id is None else pad_id
         self.collate_fn = partial(seq_collate_fn, token_pad_value=pad_id)
 
+        # Check for distributed and partition shards accordingly
+        if torch.distributed.is_initialized():
+            global_rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+
+            if isinstance(audio_tar_filepaths, str):
+                audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
+
+            if len(audio_tar_filepaths) % world_size != 0:
+                logging.warning(
+                    f"Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible "
+                    f"by number of distributed workers ({world_size})."
+                )
+
+            begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
+            end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
+            audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
+
         # Put together WebDataset
         self._dataset = (
-            wd.Dataset(audio_tar_filepath)
+            wd.Dataset(audio_tar_filepaths)
             .shuffle(shuffle_n)
             .rename(audio='wav', key='__key__')
             .to_tuple('audio', 'key')
