@@ -813,6 +813,10 @@ class TimeStretchAugmentation(NonTrainableNM):
                 str(TORCHAUDIO_VERSION_MIN),
             )
 
+        min_rate = min(min_speed_rate, max_speed_rate)
+        if min_rate < 0.0:
+            raise ValueError("Minimum sampling rate modifier must be > 0.")
+
         self._sample_rate = sample_rate
         self.probability = float(probability)
         self.min_rate = float(min_speed_rate)
@@ -844,9 +848,6 @@ class TimeStretchAugmentation(NonTrainableNM):
         # Skip perturbation in case of identity speed rate
         if speed_rate == 1.0:
             return input_signal, length
-
-        if speed_rate <= 0:
-            raise ValueError("speed_rate should be greater than zero.")
 
         features = self._stft(input_signal, self._n_fft, self._hop_length)
         features = self._phase_vocoder(features, speed_rate)
