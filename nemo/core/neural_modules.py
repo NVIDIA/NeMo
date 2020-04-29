@@ -615,7 +615,7 @@ class NeuralModule(NeuralInterface):
 
                 # Compare input port definition with the received definition.
                 self.input_ports[port_name].compare_and_raise_error(
-                    self.__class__.__name__, port_name, port_content.type
+                    self.__class__.__name__, port_name, port_content.ntype
                 )
 
                 # Bind the neural graph input port, i.e. remember that a given graph port should pass data

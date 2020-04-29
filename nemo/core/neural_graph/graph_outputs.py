@@ -58,11 +58,16 @@ class GraphOutputs(MutableMapping):
         will return/work on "default" outputs.
     '''
 
-    def __init__(self, tensors_list):
-        """ Initializes two (empty) dictionaries. """
+    def __init__(self, tensors_ref):
+        """
+            Initializes two (empty) dictionaries. 
 
-        # List of tensors - passed from the external neural graph object.
-        self._tensors_list = tensors_list
+            Args:
+                tensors_ref - reference to neural graph's tensor (dict of dict).
+        """
+
+        # Tensors[step][output_port_name] passed from the external neural graph object.
+        self._tensors_ref = tensors_ref
 
         # This dictionary stores the output tensors collected during the "default" tensor recording.
         # As they are using the default port names, the second/next tensor published on the same port
@@ -112,18 +117,18 @@ class GraphOutputs(MutableMapping):
         else:  # Use default dict.
             return len(self._default_outputs)
 
-    def bind(self, tensors_list, port_names=None):
+    def bind(self, tensors_ref, port_names=None):
         """ Binds the default outputs.
 
             Args:
-                tensors_list: List of tensors to be added.
+                tensors_ref: List of tensors to be added.
                 port_names: List of port names (visible outside). If None: using internal tensor "output port names".
         """
         # Set names.
         if port_names is None:
-            port_names = [tensor.name for tensor in tensors_list]
+            port_names = [tensor.name for tensor in tensors_ref]
 
-        for name, tensor in zip(port_names, tensors_list):
+        for name, tensor in zip(port_names, tensors_ref):
             # Check the presence of the port name in "default" dictionary.
             if name in self._default_outputs.keys():
                 # Name present - use the name being combination of producer and port names.
@@ -165,7 +170,7 @@ class GraphOutputs(MutableMapping):
             producer_step = v.producer_step_module_port.step_number
             producer_port_name = v.producer_step_module_port.port_name
             # Find the right output tensor.
-            tensor = self._tensors_list[producer_step][producer_port_name]
+            tensor = self._tensors_ref[producer_step][producer_port_name]
             # Add it to the dictionary.
             output_tensors[k] = tensor
         # Return the result.
@@ -189,7 +194,7 @@ class GraphOutputs(MutableMapping):
             producer_step = v.producer_step_module_port.step_number
             producer_port_name = v.producer_step_module_port.port_name
             # Find the right output tensor.
-            tensor = self._tensors_list[producer_step][producer_port_name]
+            tensor = self._tensors_ref[producer_step][producer_port_name]
             # Add it to the list.
             output_tensor_list.append(tensor)
         # Return the result.
@@ -199,9 +204,9 @@ class GraphOutputs(MutableMapping):
         """ Method responsible for serialization of the graph outputs.
 
             Returns:
-                List containing mappings (module.output_port -> output).
+                List containing mappings (step.module.output_port -> output | ntype).
         """
-        serialized_outputs = {"outputs": []}
+        serialized_outputs = {"mappings": []}
 
         # Get the right output dictionary.
         if len(self._manual_outputs) > 0:
@@ -211,12 +216,15 @@ class GraphOutputs(MutableMapping):
             serialized_outputs["type"] = "default"
             d = self._default_outputs
 
-        # Iterate through "bindings".
+        # Iterate through "bindings" (GraphOutputs).
         for key, binding in d.items():
-            # Serialize: module.port -> output.
+            # Serialize: step.module.port -> output | ntype.
             smp = binding.producer_step_module_port
             source = str(smp.step_number) + "." + smp.module_name + "." + smp.port_name
-            serialized_outputs["outputs"].append(source + "->" + key)
+            # Get type.
+            ntype_str = str(binding.ntype)
+            # Serialize!
+            serialized_outputs["mappings"].append(source + "->" + key + " | " + ntype_str)
         # Return the result.
         return serialized_outputs
 
@@ -225,7 +233,7 @@ class GraphOutputs(MutableMapping):
             Method responsible for deserialization of graph outputs.
 
             Args:
-                serialized_outputs: A list of serialized outputs in the form of ("module.output_port->key")
+                serialized_outputs: A list of serialized outputs in the form of ("step.module.output_port->key | ntype")
                 modules: List of modules required for neural type copying/checking.
         """
         # Check type.
@@ -237,15 +245,19 @@ class GraphOutputs(MutableMapping):
             d = self._manual_outputs
 
         # Iterate through serialized inputs one by one.
-        for i in serialized_outputs["outputs"]:
+        for i in serialized_outputs["mappings"]:
             # Deserialize!
-            [producer, key] = i.split("->")
+            [producer, key_ntype] = i.split("->")
+            [key, ntype_str] = key_ntype.split(" | ")
             [step_number, producer_name, producer_port_name] = producer.split(".")
-
             # Get neural type from module output port definition.
-            n_type = modules[producer_name].output_ports[producer_port_name]
+            ntype = modules[producer_name].output_ports[producer_port_name]
+
+            # Make sure the graph bound port type matches the deserialized type.
+            assert ntype_str == str(ntype)
+
             # Create a new input.
-            go = GraphOutput(n_type, StepModulePort(int(step_number), producer_name, producer_port_name))
+            go = GraphOutput(ntype, StepModulePort(int(step_number), producer_name, producer_port_name))
             d[key] = go
 
         # Done.

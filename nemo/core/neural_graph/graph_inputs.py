@@ -26,7 +26,7 @@ from nemo.utils.connection import StepModulePort
 class GraphInput(object):
     """ A helper class represenging a single bound input. """
 
-    def __init__(self, type):
+    def __init__(self, ntype):
         """ 
         Initializes object.
 
@@ -34,7 +34,7 @@ class GraphInput(object):
             type: a NeuralType object.
         """
         # (Neural) Type of input.
-        self._type = type
+        self._ntype = ntype
         # List of StepModulePort tuples to which this input links to (step number, module name, port name).
         self._consumers = []
 
@@ -52,9 +52,9 @@ class GraphInput(object):
             self._consumers.append(smp)
 
     @property
-    def type(self):
+    def ntype(self):
         """ Returns NeuralType of that input. """
-        return self._type
+        return self._ntype
 
     @property
     def consumers(self):
@@ -71,7 +71,9 @@ class GraphInputs(MutableMapping):
     '''
 
     def __init__(self):
-        """ Initializes the mapping. """
+        """
+            Initializes an empty dictionary.
+        """
         self._inputs = {}
 
     def __setitem__(self, key, value):
@@ -89,12 +91,12 @@ class GraphInputs(MutableMapping):
         if isinstance(value, NeuralType):
             val_type = value
         elif isinstance(value, GraphInput):
-            val_type = value.type
+            val_type = value.ntype
         else:
             raise TypeError("Port `{}` definition must be must be a NeuralType or GraphInput type".format(key))
         # Ok, add definition to list of mapped (module, port)s.
         # Note: for now, there are no mapped modules, so copy only (neural) type.
-        self._inputs[key] = GraphInput(type=val_type)
+        self._inputs[key] = GraphInput(ntype=val_type)
 
     def __getitem__(self, key):
         """ Returns bound input. """
@@ -115,7 +117,7 @@ class GraphInputs(MutableMapping):
     def definitions(self):
         """ Property returns definitions of the input ports by extracting them on the fly from list. """
         # Extract port definitions (Neural Types) from the inputs list.
-        return {k: v.type for k, v in self._inputs.items()}
+        return {k: v.ntype for k, v in self._inputs.items()}
 
     def has_binding(self, step_number: int, port_name):
         """ 
@@ -140,13 +142,15 @@ class GraphInputs(MutableMapping):
                 List containing mappings (input -> step.module.input_port).
         """
         serialized_inputs = []
-        # Iterate through "bindings".
+        # Iterate through "bindings" (GraphInputs).
         for key, binding in self._inputs.items():
+            # Get type.
+            ntype_str = str(binding.ntype)
             for (step, module, port) in binding.consumers:
-                # Serialize: input -> step.module.port.
-                # TODO: add module name.
+                # Serialize: input -> step.module.port | ntype
                 target = str(step) + "." + module + "." + port
-                serialized_inputs.append(key + "->" + target)
+                # Serialize!
+                serialized_inputs.append(key + "->" + target + " | " + ntype_str)
         # Return the result.
         return serialized_inputs
 
@@ -166,14 +170,18 @@ class GraphInputs(MutableMapping):
         # Iterate through serialized inputs one by one.
         for i in serialized_inputs:
             # Deserialize!
-            [key, consumer] = i.split("->")
+            [key, consumer_ntype] = i.split("->")
+            [consumer, ntype_str] = consumer_ntype.split(" | ")
             [consumer_step, consumer_name, consumer_port_name] = consumer.split(".")
             # Add the input.
             if key not in inputs.keys():
                 # Get neural type from module input port definition.
-                n_type = modules[consumer_name].input_ports[consumer_port_name]
+                ntype = modules[consumer_name].input_ports[consumer_port_name]
+                # Make sure the graph bound  port type matches the deserialized type.
+                assert ntype_str == str(ntype)
+
                 # Create a new input.
-                inputs[key] = n_type
+                inputs[key] = ntype
             # Bind the "consumers".
             inputs[key].bind(StepModulePort(int(consumer_step), consumer_name, consumer_port_name))
         # Done.
