@@ -26,9 +26,7 @@ import webdataset as wd
 
 import nemo
 from .parts.collections import ASRAudioText
-from .parts.dataset import (AudioDataset, AudioLabelDataset,
-                            KaldiFeatureDataset, TranscriptDataset,
-                            seq_collate_fn)
+from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
 from .parts.features import WaveformFeaturizer
 from .parts.parsers import make_parser
 from .parts.perturb import AudioAugmentor, perturbation_types

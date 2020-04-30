@@ -17,8 +17,8 @@ from .beam_search_decoder import BeamSearchDecoderWithLM
 from .data_layer import (
     AudioToSpeechLabelDataLayer,
     AudioToTextDataLayer,
-    TarredAudioToTextDataLayer,
     KaldiFeatureDataLayer,
+    TarredAudioToTextDataLayer,
     TranscriptDataLayer,
 )
 from .greedy_ctc_decoder import GreedyCTCDecoder
