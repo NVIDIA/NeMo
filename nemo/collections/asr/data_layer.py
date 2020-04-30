@@ -400,10 +400,6 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         trim_silence (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        load_audio (bool): Dataset parameter.
-            Controls whether the dataloader loads the audio signal and
-            transcript or just the transcript.
-            Defaults to True.
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
