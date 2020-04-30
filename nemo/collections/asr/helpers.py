@@ -257,12 +257,12 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
 
     eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
     batch_sizes = global_vars['batchsize']
-    total_num_samples = torch.tensor(batch_sizes).sum().float()
+    total_num_samples = torch.tensor(batch_sizes).sum().double()
 
     topk_accs = []
     for k in top_k:
         correct_counts = torch.tensor(global_vars[f'CorrectCount@{k}'])
-        topk_acc = correct_counts.sum() / total_num_samples
+        topk_acc = correct_counts.sum().double() / total_num_samples
         topk_accs.append(topk_acc)
 
     if tag is None:
