@@ -20,7 +20,7 @@ from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
-from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback, NeMoCallback
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback, SimpleLossLoggerCallback
 from nemo.core.neural_factory import Actions, OperationMode, Optimization, TrainingState
 from nemo.core.neural_types import *
 from nemo.utils.helpers import get_checkpoint_from_dir

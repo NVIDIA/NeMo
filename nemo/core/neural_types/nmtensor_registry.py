@@ -15,7 +15,7 @@
 # =============================================================================
 
 
-class NmTensorNameRegistry():
+class NmTensorNameRegistry:
     def __init__(self):
         """
             Constructor. Initializes the manager. Sets active graph to None.

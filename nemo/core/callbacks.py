@@ -59,7 +59,7 @@ class NeMoCallback(ABC):
 
 class SimpleLossLogger(NeMoCallback):
     def __init__(self, step_freq=100, tensors_to_log=["loss"]):
-        #Step_freq: how often logs are printed
+        # Step_freq: how often logs are printed
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
 

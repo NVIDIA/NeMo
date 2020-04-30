@@ -85,7 +85,7 @@ class DeviceType(Enum):
     AllGpu = 3
 
 
-class TrainingState():
+class TrainingState:
     def __init__(self):
         tensor_naming_registery = AppState().tensor_names
         self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
