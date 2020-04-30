@@ -283,12 +283,15 @@ class Actions(ABC):
                     callback.action = self
 
     def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
+        self, callbacks=None, registered_tensors=None, final_loss=None,
     ):
         # if self.local_rank is None or self.local_rank == 0:
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback._registered_tensors = registered_tensors
+                if isinstance(callback, ActionCallback):
+                    callback._registered_tensors = registered_tensors
+                else:  # For now, we can use the old callback function. In the future we should improve this
+                    self.training_state.tensor_dict["loss"] = final_loss
 
 
 def _str_to_opt_level(opt_str: str) -> Optimization:

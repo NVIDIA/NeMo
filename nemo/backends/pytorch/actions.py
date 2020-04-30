@@ -1462,7 +1462,7 @@ class PtActions(Actions):
                     batch_counter = 0
                     # Register iteration end with callbacks
                     self._update_callbacks(
-                        callbacks=callbacks, registered_tensors=self.training_state.tensor_dict,
+                        callbacks=callbacks, registered_tensors=self.training_state.tensor_dict, final_loss=final_loss
                     )
                     self._perform_on_iteration_end(callbacks=callbacks)
                     self.step += 1

@@ -86,8 +86,10 @@ def create_dags(model_config_file, vocab, args, nf):
     #     tb_writer=nf.tb_writer,
     # )
 
-    loss.rename("test")
-    train_callback = nemo.core.SimpleLossLogger(tensors_to_log=["test"])
+    # loss.rename("test")
+    # train_callback = nemo.core.SimpleLossLogger(tensors_to_log=["test"])
+
+    train_callback = nemo.core.SimpleLossLogger()
 
     # checkpointer_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.checkpoint_save_freq)
 

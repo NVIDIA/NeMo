@@ -25,7 +25,7 @@ class NmTensorNameRegistry:
         # Create the nmtensor_naming_dict
         # which contains a mapping of str to NMTensor.unique_name
         self._nmtensor_naming_dict = {"loss": "loss"}  # Reserve keyname of 'loss'
-        self._nmtensor_uniname_set = set()
+        self._nmtensor_uniname_set = set(["loss"])
 
     # def summary(self):
     #     """ Prints a nice summary. """
