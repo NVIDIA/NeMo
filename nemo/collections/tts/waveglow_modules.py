@@ -207,7 +207,7 @@ class WaveGlowInferNM(WaveGlowNM):
         audio_denoised = librosa.core.istft(audio_spec_denoised * audio_angles)
         return audio_denoised, audio_spec_denoised
 
-    def forward(self, *args):
+    def forward(self, mel_spectrogram, z):
         if not self._removed_weight_norm:
             logging.info("remove WN")
             self.waveglow = remove_weightnorm(self.waveglow)
@@ -215,7 +215,7 @@ class WaveGlowInferNM(WaveGlowNM):
         if self.training:
             raise ValueError("You are using the WaveGlow Infer Neural Module in training mode.")
         with torch.no_grad():
-            return self.waveglow.forward(args)[0]
+            return self.waveglow.forward((mel_spectrogram, z,))[0]
 
 
 class WaveGlowLoss(LossNM):
