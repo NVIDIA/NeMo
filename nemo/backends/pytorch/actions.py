@@ -934,9 +934,7 @@ class PtActions(Actions):
                         self.modules.add(module[0])
 
     @staticmethod
-    def __module_export(
-        module, output, d_format: DeploymentFormat, input_example=None, output_example=None, onnx_opset=None
-    ):
+    def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
         # Check if output already exists
         destination = Path(output)
         if destination.exists():
@@ -972,7 +970,21 @@ class PtActions(Actions):
         # Make a deep copy of init parameters.
         init_params_copy = copy.deepcopy(module._init_params)
 
+        # Reset standard instance field - making the file (probably) lighter.
+        module._init_params = None
+        module._placement = None
+        module._factory = None
+        module._device = None
+
+        module.eval()
         try:
+            # # Remove NeMo-related things from the module
+            # # We need to change __call__ method. Note that this will change the
+            # # whole class, not just this object! Which is why we need to repair it
+            # # in the finally block
+            __orig_call__ = type(module).__call__
+            type(module).__call__ = torch.nn.Module.__call__
+
             if d_format == DeploymentFormat.TORCHSCRIPT:
                 if input_example is None:
                     # Route 1 - via torch.jit.script
@@ -998,12 +1010,12 @@ class PtActions(Actions):
                     input_example,
                     output,
                     input_names=input_names,
-                    output_names=None,
+                    output_names=output_names,
                     verbose=False,
                     export_params=True,
                     do_constant_folding=True,
                     dynamic_axes=dynamic_axes,
-                    opset_version=11 if onnx_opset is None else onnx_opset,
+                    opset_version=11,
                     example_outputs=output_example,
                 )
                 # fn = output + ".readable"
@@ -1023,11 +1035,11 @@ class PtActions(Actions):
                 raise NotImplementedError(f"Not supported deployment format: {d_format}")
         except Exception as e:  # nopep8
             logging.error(f'module export failed for {module} ' f'with exception {e}')
+        finally:
+            type(module).__call__ = __orig_call__
 
     @staticmethod
-    def deployment_export(
-        module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None, onnx_opset=None
-    ):
+    def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
         """Exports Neural Module instance for deployment.
 
         Args:
@@ -1047,7 +1059,6 @@ class PtActions(Actions):
                 d_format=d_format,
                 input_example=input_example,
                 output_example=output_example,
-                onnx_opset=onnx_opset,
             )
 
     def _check_nan_or_inf(self, placement_gpu, nan_or_inf, steps_per_nan_check=None):

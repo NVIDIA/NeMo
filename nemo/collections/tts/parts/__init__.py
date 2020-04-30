@@ -1,6 +1,5 @@
 from .datasets import AudioOnlyDataset
 from .fastspeech import FastSpeechDataset
-from .glow import load_and_setup_model
 from .helpers import (
     tacotron2_eval_log_to_tb_func,
     tacotron2_log_to_tb_func,
@@ -21,7 +20,6 @@ __all__ = [
     'Decoder',
     'Postnet',
     'WaveGlow',
-    'load_and_setup_model',
     'waveglow_log_to_tb_func',
     'waveglow_process_eval_batch',
     'waveglow_eval_log_to_tb_func',

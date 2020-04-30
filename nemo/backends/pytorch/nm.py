@@ -44,13 +44,8 @@ class TrainableNM(NeuralModule, nn.Module):
         # Store pretrained model name (to be removed/changed)
         self._pretrained_model_name = pretrained_model_name
 
-    def __call__(self, force_pt: bool = False, *input, **kwargs):
-        pt_call = len(input) > 0 or force_pt if isinstance(force_pt, bool) else force_pt is not None
-        if not isinstance(force_pt, bool):
-            input = (
-                force_pt,
-                *input,
-            )
+    def __call__(self, *input, force_pt=False, **kwargs):
+        pt_call = len(input) > 0 or force_pt
         if pt_call:
             return nn.Module.__call__(self, *input, **kwargs)
         else:
@@ -134,27 +129,20 @@ class TrainableNM(NeuralModule, nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-class NonTrainableNM(NeuralModule, nn.Module):
+class NonTrainableNM(NeuralModule):
     def __init__(self):
         NeuralModule.__init__(self)  # For NeuralModule API
-        nn.Module.__init__(self)  # For PyTorch API
         self._device = get_cuda_device(self.placement)
 
-    def __call__(self, force_pt: bool = False, *input, **kwargs):
-        pt_call = len(input) > 0 or force_pt if isinstance(force_pt, bool) else force_pt is not None
-        if not isinstance(force_pt, bool):
-            input = (
-                force_pt,
-                *input,
-            )
+    def __call__(self, force_pt=False, *input, **kwargs):
+        pt_call = len(input) > 0 or force_pt
         if pt_call:
             with t.no_grad():
                 return self.forward(*input, **kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)
 
-    @abstractmethod
-    def forward(self, *input, **kwargs):
+    def forward(self, *input):
         """Defines the computation performed at every call.
 
         Should be overridden by all subclasses.
@@ -162,7 +150,7 @@ class NonTrainableNM(NeuralModule, nn.Module):
         raise NotImplementedError
 
     def get_weights(self) -> Optional[Dict[(str, bool)]]:
-        return None
+        None
 
     def set_weights(
         self,
@@ -395,7 +383,6 @@ class LossNM(NeuralModule):
         pass
 
     def __call__(self, force_pt=False, *input, **kwargs):
-        force_pt = force_pt if isinstance(force_pt, bool) else False
         if force_pt:
             return self._loss_function(**kwargs)
         else:

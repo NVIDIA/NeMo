@@ -1,4 +1,5 @@
 # ! /usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
@@ -17,7 +18,6 @@
 
 import copy
 import os
-import types
 from collections import OrderedDict
 from pathlib import Path
 import urllib.request
@@ -39,7 +39,6 @@ import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.trainables.common.token_classification_nm
 import nemo.collections.tts as nemo_tts
-from nemo.collections.tts.parts.glow import load_and_setup_model
 
 from nemo import logging
 from nemo.core import DeploymentFormat as DF
@@ -72,125 +71,10 @@ requires_trt = pytest.mark.skipif(
 )
 
 
-def convert_conv_1d_to_2d(conv1d):
-    conv2d = torch.nn.Conv2d(
-        conv1d.weight.size(1),
-        conv1d.weight.size(0),
-        (conv1d.weight.size(2), 1),
-        stride=(conv1d.stride[0], 1),
-        dilation=(conv1d.dilation[0], 1),
-        padding=(conv1d.padding[0], 0),
-    )
-    conv2d.weight.data[:, :, :, 0] = conv1d.weight.data
-    conv2d.bias.data = conv1d.bias.data
-    return conv2d
-
-
-def convert_WN_1d_to_2d_(WN):
-    """
-    Modifies the WaveNet like affine coupling layer in-place to use 2-d convolutions
-    """
-    WN.start = convert_conv_1d_to_2d(WN.start)
-    WN.end = convert_conv_1d_to_2d(WN.end)
-
-    for i in range(len(WN.in_layers)):
-        WN.in_layers[i] = convert_conv_1d_to_2d(WN.in_layers[i])
-
-    for i in range(len(WN.res_skip_layers)):
-        WN.res_skip_layers[i] = convert_conv_1d_to_2d(WN.res_skip_layers[i])
-
-    # for i in range(len(WN.res_skip_layers)):
-    WN.cond_layer = convert_conv_1d_to_2d(WN.cond_layer)
-
-
-def convert_convinv_1d_to_2d(convinv):
-    """
-    Takes an invertible 1x1 1-d convolution and returns a 2-d convolution that does
-    the inverse
-    """
-    conv2d = torch.nn.Conv2d(convinv.W_inverse.size(1), convinv.W_inverse.size(0), 1, bias=False)
-    conv2d.weight.data[:, :, :, 0] = convinv.W_inverse.data
-    return conv2d
-
-
-def convert_1d_to_2d_(glow):
-    """
-    Caffe2 and TensorRT don't seem to support 1-d convolutions or properly
-    convert ONNX exports with 1d convolutions to 2d convolutions yet, so we
-    do the conversion to 2-d convolutions before ONNX export
-    """
-    # Convert upsample to 2d
-    upsample = torch.nn.ConvTranspose2d(
-        glow.upsample.weight.size(0),
-        glow.upsample.weight.size(1),
-        (glow.upsample.weight.size(2), 1),
-        stride=(glow.upsample.stride[0], 1),
-    )
-    upsample.weight.data[:, :, :, 0] = glow.upsample.weight.data
-    upsample.bias.data = glow.upsample.bias.data
-    glow.upsample = upsample.cuda()
-
-    # Convert WN to 2d
-    for WN in glow.WN:
-        convert_WN_1d_to_2d_(WN)
-
-    # Convert invertible conv to 2d
-    for i in range(len(glow.convinv)):
-        glow.convinv[i] = convert_convinv_1d_to_2d(glow.convinv[i])
-
-    glow.cuda()
-
-
-def infer_onnx(self, spect, z, sigma=0.9):
-    spect = self.upsample(spect)
-    # trim conv artifacts. maybe pad spec to kernel multiple
-    time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
-    spect = spect[:, :, :-time_cutoff]
-
-    length_spect_group = spect.size(2) // 8
-    mel_dim = 80
-    batch_size = spect.size(0)
-
-    spect = torch.squeeze(spect, 3)
-    spect = spect.view((batch_size, mel_dim, length_spect_group, self.n_group))
-    spect = spect.permute(0, 2, 1, 3)
-    spect = spect.contiguous()
-    spect = spect.view((batch_size, length_spect_group, self.n_group * mel_dim))
-    spect = spect.permute(0, 2, 1)
-    spect = torch.unsqueeze(spect, 3)
-    spect = spect.contiguous()
-
-    audio = z[:, : self.n_remaining_channels, :, :]
-    z = z[:, self.n_remaining_channels : self.n_group, :, :]
-    audio = sigma * audio
-
-    for k in reversed(range(self.n_flows)):
-        n_half = int(audio.size(1) / 2)
-        audio_0 = audio[:, :n_half, :, :]
-        audio_1 = audio[:, n_half : (n_half + n_half), :, :]
-
-        output = self.WN[k]((audio_0, spect))
-        s = output[:, n_half : (n_half + n_half), :, :]
-        b = output[:, :n_half, :, :]
-        audio_1 = (audio_1 - b) / torch.exp(s)
-        audio = torch.cat([audio_0, audio_1], 1)
-
-        audio = self.convinv[k](audio)
-
-        if k % self.n_early_every == 0 and k > 0:
-            audio = torch.cat((z[:, : self.n_early_size, :, :], audio), 1)
-            z = z[:, self.n_early_size : self.n_group, :, :]
-
-    audio = torch.squeeze(audio, 3)
-    audio = audio.permute(0, 2, 1).contiguous().view(batch_size, (length_spect_group * self.n_group))
-
-    return audio
-
-
 @pytest.mark.usefixtures("neural_factory")
 class TestDeployExport:
     @torch.no_grad()
-    def __test_export_route(self, module, out_name, mode, input_example=None, onnx_opset=None):
+    def __test_export_route(self, module, out_name, mode, input_example=None):
         # select correct extension based on the output format
         ext = {DF.ONNX: ".onnx", DF.TRTONNX: ".trt.onnx", DF.PYTORCH: ".pt", DF.TORCHSCRIPT: ".ts"}.get(mode, ".onnx")
         out = Path(f"{out_name}{ext}")
@@ -200,9 +84,10 @@ class TestDeployExport:
             os.remove(out)
 
         module.eval()
+        torch.manual_seed(1)
         if isinstance(input_example, OrderedDict):
             outputs_fwd = module.forward(*tuple(input_example.values()))
-        elif isinstance(input_example, tuple):  # or isinstance(input_example, list)
+        elif isinstance(input_example, tuple):
             outputs_fwd = module.forward(*input_example)
         elif input_example is not None:
             outputs_fwd = module.forward(input_example)
@@ -217,8 +102,7 @@ class TestDeployExport:
             output=out_name,
             input_example=deploy_input_example,
             d_format=mode,
-            output_example=None,
-            onnx_opset=onnx_opset,
+            output_example=outputs_fwd,
         )
 
         assert out.exists() == True
@@ -272,8 +156,7 @@ class TestDeployExport:
                 logging.debug("Runner Inputs: {:}".format(input_metadata))
                 feed_dict = loader_cache.load(iteration=0, input_metadata=input_metadata, input_example=input_example)
                 inputs = dict()
-                input_names = list(module.input_ports)
-
+                input_names = list(input_metadata.keys())
                 for i in range(len(input_names)):
                     input_name = input_names[i]
                     if input_name in module._disabled_deployment_input_ports:
@@ -329,26 +212,24 @@ class TestDeployExport:
             ort_session = ort.InferenceSession(out_name, sess_options, ['CUDAExecutionProvider'])
             print('Execution Providers: ', ort_session.get_providers())
             inputs = dict()
-            input_names = list(module.input_ports)
+            input_names = (
+                list(input_example.keys())
+                if isinstance(input_example, OrderedDict)
+                else list(module.input_ports.keys())
+            )
             ort_inputs = ort_session.get_inputs()
-            for i in range(len(input_names)):
-                input_name = input_names[i]
-                if input_name in module._disabled_deployment_input_ports:
-                    continue
-                ort_name = input_name
-                for node_arg in ort_inputs:
-                    if input_name in node_arg.name:
-                        ort_name = node_arg.name
-                        break
 
-                if isinstance(input_example, OrderedDict):
-                    for key in input_example.keys():
-                        if key in ort_name:
-                            inputs[ort_name] = input_example[key].cpu().numpy()
-                elif isinstance(input_example, tuple):
-                    inputs[ort_name] = input_example[i].cpu().numpy()
-                else:
-                    inputs[ort_name] = input_example.cpu().numpy()
+            for node_arg in ort_inputs:
+                ort_name = node_arg.name
+                for input_name in input_names:
+                    if input_name in ort_name or ort_name in input_name:
+                        break
+                if ort_name not in inputs:
+                    inputs[ort_name] = (
+                        input_example[input_name].cpu().numpy()
+                        if isinstance(input_example, OrderedDict)
+                        else input_example.cpu().numpy()
+                    )
 
             output_names = None
             outputs_scr = ort_session.run(output_names, inputs)
@@ -378,9 +259,6 @@ class TestDeployExport:
             outputs_fwd[0] if isinstance(outputs_fwd, tuple) or isinstance(outputs_fwd, list) else outputs_fwd
         )
 
-        # print(outputs_scr.numel(), " outputs_scr\n", str(outputs_scr)[:200])
-        # print(outputs_fwd.numel(), " outputs_fwd\n", str(outputs_fwd)[:200])
-
         n = outputs_fwd.numel()
         tol = 5.0e-3 if n < 10000 else (5.0e-2 if n < 100000 else (5.0e-1))
 
@@ -392,33 +270,33 @@ class TestDeployExport:
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize(
-        "input_example, module_name, df_type, onnx_opset",
+        "input_example, module_name, df_type",
         [
             # TaylorNet export tests.
-            (torch.randn(4, 1), "TaylorNet", DF.PYTORCH, None),
+            (torch.randn(4, 1), "TaylorNet", DF.PYTORCH),
             # TokenClassifier export tests.
-            (torch.randn(16, 16, 512), "TokenClassifier", DF.ONNX, 9),
-            (torch.randn(16, 16, 512), "TokenClassifier", DF.TORCHSCRIPT, None),
-            (torch.randn(16, 16, 512), "TokenClassifier", DF.PYTORCH, None),
-            pytest.param(torch.randn(16, 16, 512), "TokenClassifier", DF.TRTONNX, 9, marks=requires_trt),
+            (torch.randn(16, 16, 512), "TokenClassifier", DF.ONNX),
+            (torch.randn(16, 16, 512), "TokenClassifier", DF.TORCHSCRIPT),
+            (torch.randn(16, 16, 512), "TokenClassifier", DF.PYTORCH),
+            pytest.param(torch.randn(16, 16, 512), "TokenClassifier", DF.TRTONNX, marks=requires_trt),
             # JasperDecoderForCTC export tests.
-            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.ONNX, 11),
-            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.TORCHSCRIPT, None),
-            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.PYTORCH, None),
-            pytest.param(torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.TRTONNX, 11, marks=requires_trt),
+            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.ONNX),
+            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.TORCHSCRIPT),
+            (torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.PYTORCH),
+            pytest.param(torch.randn(34, 1024, 1), "JasperDecoderForCTC", DF.TRTONNX, marks=requires_trt),
             # JasperEncoder export tests.
-            (torch.randn(16, 64, 256), "JasperEncoder", DF.ONNX, 11),
-            (torch.randn(16, 64, 256), "JasperEncoder", DF.TORCHSCRIPT, None),
-            (torch.randn(16, 64, 256), "JasperEncoder", DF.PYTORCH, None),
-            pytest.param(torch.randn(16, 64, 256), "JasperEncoder", DF.TRTONNX, 11, marks=requires_trt),
+            (torch.randn(16, 64, 256), "JasperEncoder", DF.ONNX),
+            (torch.randn(16, 64, 256), "JasperEncoder", DF.TORCHSCRIPT),
+            (torch.randn(16, 64, 256), "JasperEncoder", DF.PYTORCH),
+            pytest.param(torch.randn(16, 64, 256), "JasperEncoder", DF.TRTONNX, marks=requires_trt),
             # QuartznetEncoder export tests.
-            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.ONNX, 11),
-            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.TORCHSCRIPT, None),
-            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.PYTORCH, None),
-            pytest.param(torch.randn(16, 64, 256), "QuartznetEncoder", DF.TRTONNX, 11, marks=requires_trt),
+            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.ONNX),
+            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.TORCHSCRIPT),
+            (torch.randn(16, 64, 256), "QuartznetEncoder", DF.PYTORCH),
+            pytest.param(torch.randn(16, 64, 256), "QuartznetEncoder", DF.TRTONNX, marks=requires_trt),
         ],
     )
-    def test_module_export(self, tmpdir, input_example, module_name, df_type, onnx_opset):
+    def test_module_export(self, tmpdir, input_example, module_name, df_type):
         """ Tests the module export.
 
             Args:
@@ -437,14 +315,12 @@ class TestDeployExport:
         input_example = input_example.cuda() if input_example is not None else input_example
         # Test export.
         self.__test_export_route(
-            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example, onnx_opset=onnx_opset
+            module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example,
         )
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize(
-        "df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
-    )
+    @pytest.mark.parametrize("df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH])
     def test_hf_bert(self, tmpdir, df_type):
         """ Tests BERT export.
 
@@ -464,47 +340,30 @@ class TestDeployExport:
         # Generate filename in the temporary directory.
         tmp_file_name = str(tmpdir.mkdir("export").join("bert"))
         # Test export.
-        self.__test_export_route(
-            module=bert, out_name=tmp_file_name, mode=df_type, input_example=input_example, onnx_opset=11
-        )
+        self.__test_export_route(module=bert, out_name=tmp_file_name, mode=df_type, input_example=input_example)
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize(
-        "df_type", [ DF.TORCHSCRIPT, DF.PYTORCH, pytest.param(DF.TRTONNX, marks=requires_trt)]
-    )
+    @pytest.mark.parametrize("df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH])
     def test_waveglow(self, tmpdir, df_type):
-        url = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ljs_256channels/versions/2/files/waveglow_256channels_ljs_v2.pt"
-        ptfile = "./waveglow_256channels_ljs_v2.pt"
+        url = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ljspeech/versions/2/files/WaveGlowNM.pt"
+        ptfile = "./WaveGlowNM.pt"
         if not Path(ptfile).is_file():
             urllib.request.urlretrieve(url, ptfile)
 
-        waveglow = load_and_setup_model(ptfile)
+        module = nemo_tts.WaveGlowInferNM(sample_rate=22050)
+        module.load_state_dict(torch.load(ptfile))
+        module.eval()
+        module.cuda()
 
-        # 80 mel channels, 620 mel spectrograms ~ 7 seconds of speech
-        mel = torch.randn(1, 80, 620).cuda()
+        torch.manual_seed(1)
+        mel = torch.randn(1, 80, 96).cuda()
         stride = 256  # value from waveglow upsample
         n_group = 8
         z_size2 = (mel.size(2) * stride) // n_group
-        z = torch.randn(1, n_group, z_size2, 1).cuda()
-        sigma_infer = 1.0
+        z = torch.randn(1, z_size2).cuda()
 
-        with torch.no_grad():
-            # run inference to force calculation of inverses
-            waveglow.infer(mel, sigma=sigma_infer)
+        input_example = OrderedDict([("mel_spectrogram", mel), ("z", z)])
+        tmp_file_name = str(tmpdir.mkdir("export").join("waveglow"))
 
-            # export to ONNX
-            convert_1d_to_2d_(waveglow)
-            fType = types.MethodType
-            waveglow.forward = fType(infer_onnx, waveglow)
-            mel = mel.unsqueeze(3)
-
-            waveglow_nm = nemo_tts.WaveGlowInferNM(waveglow=waveglow)
-
-            input_example = OrderedDict([("mel", mel), ("z", z)])
-            # Generate filename in the temporary directory.
-            tmp_file_name = str(tmpdir.mkdir("export").join("waveglow"))
-            # Test export.
-            self.__test_export_route(
-                module=waveglow_nm, out_name=tmp_file_name, mode=df_type, input_example=input_example, onnx_opset=11
-            )
+        self.__test_export_route(module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example)
