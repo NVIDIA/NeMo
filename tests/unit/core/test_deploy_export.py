@@ -352,9 +352,8 @@ class TestDeployExport:
             urllib.request.urlretrieve(url, ptfile)
 
         module = nemo_tts.WaveGlowInferNM(sample_rate=22050)
-        module.load_state_dict(torch.load(ptfile))
+        module.restore_from(ptfile)
         module.eval()
-        module.cuda()
 
         torch.manual_seed(1)
         mel = torch.randn(1, 80, 96).cuda()
