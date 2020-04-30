@@ -17,13 +17,10 @@
 # TarredAudioToTextDataLayer.
 
 import argparse
-import io
 import json
 import os
 import random
 import tarfile
-
-import scipy.io.wavfile as wavfile
 
 parser = argparse.ArgumentParser(
     description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
