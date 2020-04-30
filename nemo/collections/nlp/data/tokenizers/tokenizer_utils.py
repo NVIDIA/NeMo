@@ -86,7 +86,9 @@ def get_tokenizer(
         if lower_case != do_lower_case:
             logging.info('Setting do_lower_case flag to %s', lower_case)
             do_lower_case = lower_case
-        return nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(vocab_file=vocab_file, do_lower_case=do_lower_case)
+        return nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(
+            vocab_file=vocab_file, do_lower_case=do_lower_case
+        )
 
     if tokenizer_name == 'nemobert':
         tokenizer = nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(

@@ -44,4 +44,3 @@ MODELS = {
     'roberta': {'default': 'roberta-base', 'class': Roberta},
     'albert': {'default': 'albert-base-v2', 'class': Albert},
 }
-

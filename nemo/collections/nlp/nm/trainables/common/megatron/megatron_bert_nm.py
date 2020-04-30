@@ -22,6 +22,7 @@ import sys
 import torch
 
 sys.path.append('path_to/Megatron-LM')
+
 from megatron import get_args
 from megatron.initialize import initialize_megatron
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
@@ -29,9 +30,10 @@ from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.core import DeviceType
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
+
 
 
 __all__ = ['MegatronBERT']
@@ -71,7 +73,13 @@ class MegatronBERT(TrainableNM):
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
-        self, model_name, config_file, vocab_file, tokenizer_type='BertWordPieceLowerCase', init_method_std=0.02, num_tokentypes=2
+        self,
+        model_name,
+        config_file,
+        vocab_file,
+        tokenizer_type='BertWordPieceLowerCase',
+        init_method_std=0.02,
+        num_tokentypes=2,
     ):
 
         super().__init__()
@@ -133,7 +141,7 @@ class MegatronBERT(TrainableNM):
             load_device = f"cuda:{local_rank}"
         else:
             load_device = self._device
-        
+
         state_dict = torch.load(path, map_location=load_device)
 
         # to load from Megatron pretrained checkpoint

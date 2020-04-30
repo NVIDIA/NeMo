@@ -89,11 +89,11 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
 parser.add_argument(
-        "--do_lower_case",
-        action='store_true',
-        help="Whether to lower case the input text. True for uncased models, False for cased models. " +
-        "For tokenizer only applicable when tokenizer is build with vocab file",
-    )
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "For tokenizer only applicable when tokenizer is build with vocab file",
+)
 parser.add_argument(
     "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
 )
@@ -127,7 +127,9 @@ nf = nemo.core.NeuralModuleFactory(
 if 'megatron' in args.pretrained_model_name:
     if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
         raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
-    model = nemo_nlp.nm.trainables.MegatronBERT(model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file)
+    model = nemo_nlp.nm.trainables.MegatronBERT(
+        model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file
+    )
 else:
     model = nemo_nlp.nm.trainables.get_huggingface_model(
         bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
@@ -138,7 +140,7 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
     vocab_file=args.vocab_file,
-    do_lower_case=args.do_lower_case
+    do_lower_case=args.do_lower_case,
 )
 
 if args.bert_checkpoint:

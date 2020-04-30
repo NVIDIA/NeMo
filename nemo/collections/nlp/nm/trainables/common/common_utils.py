@@ -18,6 +18,7 @@ __all__ = ['get_bert_models_list']
 
 from nemo.collections.nlp.nm.trainables.common.huggingface.huggingface_utils import MODELS
 
+
 def get_bert_models_list():
     '''
     Return the list of support HuggingFace and Megatron-LM models
