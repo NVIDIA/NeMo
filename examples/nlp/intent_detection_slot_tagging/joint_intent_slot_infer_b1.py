@@ -32,19 +32,58 @@ parser = argparse.ArgumentParser(description='Single query inference for intent 
 parser.add_argument("--query", required=True, type=str)
 parser.add_argument("--data_dir", default='data/atis', type=str)
 parser.add_argument("--checkpoint_dir", required=True, help="path to your checkpoint folder", type=str)
-parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str)
-parser.add_argument("--bert_config", default=None, type=str)
-parser.add_argument("--do_lower_case", action='store_false')
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
+parser.add_argument(
+        "--do_lower_case",
+        action='store_true',
+        help="Whether to lower case the input text. True for uncased models, False for cased models. " +
+        "Only applicable when tokenizer is build with vocab file",
+)
 parser.add_argument("--max_seq_length", default=64, type=int)
 
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch)
 
-pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+if 'megatron' in args.pretrained_model_name:
+    if not (args.bert_config and args.vocab_file):
+        raise FileNotFoundError("Config file and vocabulary file should be provided for Megatron models.")
+    pretrained_bert_model = nemo_nlp.nm.trainables.MegatronBERT(model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file)
+else:
+    pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+    )
+
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case
 )
-tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
 hidden_size = pretrained_bert_model.hidden_size
 

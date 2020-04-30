@@ -50,6 +50,15 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
+parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
+parser.add_argument(
+        "--do_lower_case",
+        action='store_true',
+        help="Whether to lower case the input text. True for uncased models, False for cased models. " +
+        "Only applicable when tokenizer is build with vocab file",
+)
 parser.add_argument("--none_label", default='O', type=str)
 parser.add_argument(
     "--queries",
@@ -104,20 +113,24 @@ punct_labels_dict = get_vocab(args.punct_labels_dict)
 
 capit_labels_dict = get_vocab(args.capit_labels_dict)
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo.collections.nlp.BERT.list_pretrained_models()
-"""
-pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-)
+if 'megatron' in args.pretrained_model_name:
+    if not (args.bert_config and args.vocab_file):
+        raise FileNotFoundError("Config file and vocabulary file should be provided for Megatron models.")
+    model = nemo_nlp.nm.trainables.MegatronBERT(model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file)
+else:
+    model = nemo_nlp.nm.trainables.get_huggingface_model(
+        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+    )
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case
 )
-hidden_size = pretrained_bert_model.hidden_size
+
+hidden_size = model.hidden_size
 
 data_layer = BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
@@ -136,7 +149,7 @@ capit_classifier = nemo_nlp.nm.trainables.TokenClassifier(
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
 punct_logits = punct_classifier(hidden_states=hidden_states)
 capit_logits = capit_classifier(hidden_states=hidden_states)

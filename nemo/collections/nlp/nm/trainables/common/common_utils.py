@@ -14,10 +14,16 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.common.huggingface import *
-from nemo.collections.nlp.nm.trainables.common.megatron import *
-from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *
-from nemo.collections.nlp.nm.trainables.common.token_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.transformer import *
-from nemo.collections.nlp.nm.trainables.common.common_utils import *
+__all__ = ['get_bert_models_list']
+
+from nemo.collections.nlp.nm.trainables.common.huggingface.huggingface_utils import MODELS
+
+def get_bert_models_list():
+    '''
+    Return the list of support HuggingFace and Megatron-LM models
+    '''
+    huggingface_models = []
+    for model in MODELS:
+        model_names = [x.pretrained_model_name for x in MODELS[model]['class'].list_pretrained_models()]
+        huggingface_models.extend(model_names)
+    return ['megatron-uncased'] + huggingface_models

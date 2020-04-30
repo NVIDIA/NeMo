@@ -53,6 +53,12 @@ parser.add_argument(
     type=str,
     help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
 )
+parser.add_argument(
+        "--do_lower_case",
+        action='store_true',
+        help="Whether to lower case the input text. True for uncased models, False for cased models. " +
+        "For tokenizer only applicable when tokenizer is build with vocab file",
+    )
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
@@ -71,7 +77,6 @@ parser.add_argument(
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
-parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 parser.add_argument(
     "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
@@ -94,10 +99,10 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-if args.pretrained_model_name == "megatron":
+if 'megatron' in args.pretrained_model_name:
     if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
         raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
-    model = nemo_nlp.nm.trainables.MegatronBERT(config_file=args.bert_config, vocab_file=args.vocab_file)
+    model = nemo_nlp.nm.trainables.MegatronBERT(model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file)
 else:
     model = nemo_nlp.nm.trainables.get_huggingface_model(
         bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
@@ -108,7 +113,7 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
     vocab_file=args.vocab_file,
-    do_lower_case=args.pretrained_model_name == 'megatron',
+    do_lower_case=args.do_lower_case
 )
 
 hidden_size = model.hidden_size

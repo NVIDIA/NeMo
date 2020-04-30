@@ -18,7 +18,7 @@ from nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm import Albe
 from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
 from nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm import Roberta
 
-__all__ = ['MODELS', 'get_huggingface_model', 'get_bert_models_list']
+__all__ = ['MODELS', 'get_huggingface_model']
 
 
 def get_huggingface_model(pretrained_model_name, bert_config=None):
@@ -45,10 +45,3 @@ MODELS = {
     'albert': {'default': 'albert-base-v2', 'class': Albert},
 }
 
-
-def get_bert_models_list():
-    huggingface_models = []
-    for model in MODELS:
-        model_names = [x.pretrained_model_name for x in MODELS[model]['class'].list_pretrained_models()]
-        huggingface_models.extend(model_names)
-    return huggingface_models + ['megatron']

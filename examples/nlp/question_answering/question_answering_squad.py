@@ -338,12 +338,10 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    if args.pretrained_model_name == "megatron":
+    if 'megatron' in args.pretrained_model_name:
         if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
-            raise FileNotFoundError(
-                "Config file, checkpoint and vocabulary file should be provided for Megatron models."
-            )
-        model = nemo_nlp.nm.trainables.MegatronBERT(config_file=args.bert_config, vocab_file=args.vocab_file)
+            raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
+        model = nemo_nlp.nm.trainables.MegatronBERT(model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file)
     else:
         model = nemo_nlp.nm.trainables.get_huggingface_model(
             bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
@@ -354,7 +352,7 @@ if __name__ == "__main__":
         pretrained_model_name=args.pretrained_model_name,
         tokenizer_model=args.tokenizer_model,
         vocab_file=args.vocab_file,
-        do_lower_case=args.pretrained_model_name == 'megatron',
+        do_lower_case=args.do_lower_case
     )
 
     hidden_size = model.hidden_size

@@ -1,7 +1,5 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,7 +71,7 @@ class MegatronBERT(TrainableNM):
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
-        self, config_file, vocab_file, tokenizer_type='BertWordPieceLowerCase', init_method_std=0.02, num_tokentypes=2
+        self, model_name, config_file, vocab_file, tokenizer_type='BertWordPieceLowerCase', init_method_std=0.02, num_tokentypes=2
     ):
 
         super().__init__()

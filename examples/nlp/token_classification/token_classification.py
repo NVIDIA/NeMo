@@ -94,6 +94,18 @@ parser.add_argument(
 parser.add_argument(
     "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
 )
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+        "--do_lower_case",
+        action='store_true',
+        help="Whether to lower case the input text. True for uncased models, False for cased models. " +
+        "Only applicable when tokenizer is build with vocab file",
+)
 
 # model arguments
 parser.add_argument(
@@ -105,12 +117,6 @@ parser.add_argument(
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
-parser.add_argument(
-    "--tokenizer_model",
-    default=None,
-    type=str,
-    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
-)
 
 args = parser.parse_args()
 logging.info(args)
@@ -135,10 +141,10 @@ nf = nemo.core.NeuralModuleFactory(
 
 output_file = f'{nf.work_dir}/output.txt'
 
-if args.pretrained_model_name == "megatron":
+if 'megatron' in args.pretrained_model_name:
     if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
         raise FileNotFoundError("Config file, checkpoint and vocabulary file should be provided for Megatron models.")
-    model = nemo_nlp.nm.trainables.MegatronBERT(config_file=args.bert_config, vocab_file=args.vocab_file)
+    model = nemo_nlp.nm.trainables.MegatronBERT(model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file)
 else:
     model = nemo_nlp.nm.trainables.get_huggingface_model(
         bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
@@ -149,7 +155,7 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
     vocab_file=args.vocab_file,
-    do_lower_case=args.pretrained_model_name == 'megatron',
+    do_lower_case=args.do_lower_case
 )
 
 if args.bert_checkpoint is not None:
@@ -248,6 +254,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=args.loss_step_freq,
     tb_writer=nf.tb_writer,
 )
 
