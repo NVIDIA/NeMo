@@ -606,7 +606,7 @@ class NeuralModuleFactory(object):
         )
 
     def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None, onnx_opset=None
+        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 
@@ -625,7 +625,6 @@ class NeuralModuleFactory(object):
             d_format=d_format,
             input_example=input_example,
             output_example=output_example,
-            onnx_opset=onnx_opset,
         )
 
     def infer(

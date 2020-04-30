@@ -4,8 +4,8 @@ import numpy as np
 import torch
 
 from nemo import logging
-from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
-from nemo.collections.tts.parts.waveglow import WaveGlow
+from nemo.backends.pytorch.nm import LossNM, TrainableNM
+from nemo.collections.tts.parts.waveglow import WaveGlow, remove_weightnorm
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
@@ -70,8 +70,7 @@ class WaveGlowNM(TrainableNM):
 
     def __init__(
         self,
-        waveglow=None,
-        sample_rate: int = 16000,
+        sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -88,35 +87,29 @@ class WaveGlowNM(TrainableNM):
             "n_channels": n_wn_channels,
             "kernel_size": wn_kernel_size,
         }
-        self.waveglow = (
-            waveglow
-            if waveglow
-            else WaveGlow(
-                n_mel_channels=n_mel_channels,
-                n_flows=n_flows,
-                n_group=n_group,
-                n_early_every=n_early_every,
-                n_early_size=n_early_size,
-                WN_config=wavenet_config,
-            )
+        self.waveglow = WaveGlow(
+            n_mel_channels=n_mel_channels,
+            n_flows=n_flows,
+            n_group=n_group,
+            n_early_every=n_early_every,
+            n_early_size=n_early_size,
+            WN_config=wavenet_config,
         )
         self.to(self._device)
 
-    def __str__(self):
-        return "WaveGlowNM"
-
-    def forward(self, *input, **kwargs):
-        input = (
-            *input,
-            *kwargs.values(),
-        )
+    def forward(self, mel_spectrogram, audio):
+        # This function should probably be split
+        # If training, it returns the predicted normal distribution
+        # Else it returns the predicted audio
         if self.training:
-            return self.waveglow(input[:2])
+            audio, log_s_list, log_det_W_list = self.waveglow((mel_spectrogram, audio))
         else:
-            return self.waveglow.forward(input[:2])
+            audio = self.waveglow.infer(mel_spectrogram)
+            log_s_list = log_det_W_list = []
+        return audio, log_s_list, log_det_W_list
 
 
-class WaveGlowInferNM(NonTrainableNM):
+class WaveGlowInferNM(WaveGlowNM):
     """
     WaveGlowInferNM is the inference Neural Module for WaveGlowNM. This NM is
     meant to be used during inference. Keep in mind, the inference module
@@ -153,8 +146,10 @@ class WaveGlowInferNM(NonTrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "z": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate)),
+            # "mel_spectrogram": NeuralType(
+            #     {0: AxisType(BatchTag), 1: AxisType(MelSpectrogramSignalTag), 2: AxisType(TimeTag),}
+            # )
+            "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType())
         }
 
     @property
@@ -162,6 +157,7 @@ class WaveGlowInferNM(NonTrainableNM):
     def output_ports(self):
         """Returns definitions of module output ports.
         """
+        # return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
         return {"audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))}
 
     def __str__(self):
@@ -169,8 +165,8 @@ class WaveGlowInferNM(NonTrainableNM):
 
     def __init__(
         self,
-        waveglow=None,
-        sample_rate: int = 16000,
+        *,
+        sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -181,28 +177,20 @@ class WaveGlowInferNM(NonTrainableNM):
         wn_kernel_size: int = 3,
         sigma: float = 0.6,
     ):
-        NonTrainableNM.__init__(self)  # For NeuralModule API
         self._sigma = sigma
-        self.sample_rate = sample_rate  # Done in parent class
-        self._removed_weight_norm = False
-        wavenet_config = {
-            "n_layers": n_wn_layers,
-            "n_channels": n_wn_channels,
-            "kernel_size": wn_kernel_size,
-        }
-        self.waveglow = (
-            waveglow
-            if waveglow
-            else WaveGlow(
-                n_mel_channels=n_mel_channels,
-                n_flows=n_flows,
-                n_group=n_group,
-                n_early_every=n_early_every,
-                n_early_size=n_early_size,
-                WN_config=wavenet_config,
-            )
+        # self.sample_rate = sample_rate  # Done in parent class
+        super().__init__(
+            sample_rate=sample_rate,
+            n_mel_channels=n_mel_channels,
+            n_flows=n_flows,
+            n_group=n_group,
+            n_early_every=n_early_every,
+            n_early_size=n_early_size,
+            n_wn_layers=n_wn_layers,
+            n_wn_channels=n_wn_channels,
+            wn_kernel_size=wn_kernel_size,
         )
-        self.waveglow.to(self._device)
+        self._removed_weight_norm = False
 
     def setup_denoiser(self):
         with torch.no_grad():
@@ -219,12 +207,15 @@ class WaveGlowInferNM(NonTrainableNM):
         audio_denoised = librosa.core.istft(audio_spec_denoised * audio_angles)
         return audio_denoised, audio_spec_denoised
 
-    def forward(self, *input, **kwargs):
+    def forward(self, *args):
+        if not self._removed_weight_norm:
+            logging.info("remove WN")
+            self.waveglow = remove_weightnorm(self.waveglow)
+            self._removed_weight_norm = True
+        if self.training:
+            raise ValueError("You are using the WaveGlow Infer Neural Module in training mode.")
         with torch.no_grad():
-            mel_spectrogram, z = input[:2]
-            if isinstance(mel_spectrogram, tuple):
-                mel_spectrogram, z = mel_spectrogram[:2]
-            return self.waveglow.forward(mel_spectrogram, z, sigma=self._sigma)
+            return self.waveglow.forward(args)[0]
 
 
 class WaveGlowLoss(LossNM):
