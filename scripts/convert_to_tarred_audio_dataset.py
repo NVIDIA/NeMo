@@ -47,7 +47,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--shuffle",
-    default=False,
+    action='store_true',
     help="Whether or not to randomly shuffle the samples in the manifest before tarring/sharding.",
 )
 args = parser.parse_args()
@@ -94,6 +94,7 @@ def main():
             entries.append(json.loads(line))
 
     if shuffle:
+        print("Shuffling...")
         random.shuffle(entries)
 
     # Create shards and updated manifest entries
@@ -101,6 +102,8 @@ def main():
     for i in range(num_shards):
         start_idx = (len(entries) // num_shards) * i
         end_idx = start_idx + (len(entries) // num_shards)
+        if i == num_shards - 1:
+            end_idx = len(entries)  # Last shard gets the leftovers.
         print(f"Shard {i} will have {end_idx - start_idx} entries.")
 
         create_shard(entries[start_idx:end_idx], target_dir, new_entries, i)
