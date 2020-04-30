@@ -24,7 +24,7 @@ class NmTensorNameRegistry():
         """
         # Create the nmtensor_naming_dict
         # which contains a mapping of str to NMTensor.unique_name
-        self._nmtensor_naming_dict = {"loss": None}  # Reserve keyname of 'loss'
+        self._nmtensor_naming_dict = {"loss": "loss"}  # Reserve keyname of 'loss'
         self._nmtensor_uniname_set = set()
 
     # def summary(self):
@@ -34,7 +34,12 @@ class NmTensorNameRegistry():
     #         desc = desc + "`{}`: {}\n".format(graph.name, graph)
     #     return desc
 
-    def register(self, tensor: NmTensor):
+    @property
+    def unique_names(self):
+        return self._nmtensor_uniname_set
+
+    # def register(self, tensor: NmTensor):
+    def register(self, tensor):
         """TODO
         """
 
@@ -45,12 +50,13 @@ class NmTensorNameRegistry():
         # Finally, add object to the set.
         self._nmtensor_uniname_set.add(tensor.unique_name)
 
-    def rename_NmTensor(self, tensor: NmTensor, new_name: str):
+    # def rename_NmTensor(self, tensor: NmTensor, new_name: str):
+    def rename_NmTensor(self, tensor, new_name: str):
         """ TODO
         """
         # Find old name if exists
         old_name = tensor.unique_name
-        for custom_name, unique_name in self._nmtensor_naming_dict:
+        for custom_name, unique_name in self._nmtensor_naming_dict.items():
             if unique_name == tensor.unique_name:
                 old_name = custom_name
 
@@ -59,7 +65,7 @@ class NmTensorNameRegistry():
 
         if new_name in self._nmtensor_naming_dict:
             raise KeyError(f"{new_name} already exists in current graph. Please use a unique name")
-        self._nmtensor_naming_dict["new_name"] = tensor.unique_name
+        self._nmtensor_naming_dict[new_name] = tensor.unique_name
 
     def __getitem__(self, key):
         """

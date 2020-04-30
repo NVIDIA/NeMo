@@ -44,7 +44,16 @@ class AppState(metaclass=Singleton):
         # Create graph manager (registry with some additional functionality).
         self._neural_graph_manager = nemo.core.NeuralGraphManager()
         # Create NmTensor registry
-        self._module_registry = nemo.core.neural_types.NmTensorNameRegistry()
+        self._nmtensor_name_registry = nemo.core.neural_types.NmTensorNameRegistry()
+
+    @property
+    def tensor_names(self):
+        """ Property returning the existing modules.
+
+            Returns:
+                Existing modules (a set object).
+        """
+        return self._nmtensor_name_registry
 
     @property
     def modules(self):

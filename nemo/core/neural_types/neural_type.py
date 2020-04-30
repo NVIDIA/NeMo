@@ -223,6 +223,7 @@ class NmTensor(NeuralType):
         self._step_number = AppState().active_graph.step_number
         # List of tuples (step number, module name, input port name)
         self._consumers = []
+        AppState().tensor_names.register(self)
 
     @property
     def producer(self):
@@ -322,6 +323,11 @@ class NmTensor(NeuralType):
         if self._producer_name is None:
             raise ValueError("This NmTensor does not have a unique name")
         return f"{self._output_port_name}~~~{self._producer_name}~~~{self._uuid}"
+
+    def rename(self, new_name):
+        """TODO
+        """
+        AppState().tensor_names.rename_NmTensor(self, new_name)
 
 
 class NeuralTypeError(Exception):
