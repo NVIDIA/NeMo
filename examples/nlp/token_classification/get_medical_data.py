@@ -23,7 +23,7 @@ import subprocess
 from nemo import logging
 
 URL = {
-    'bc5cdr': 'https://github.com/ncbi-nlp/BLUE_Benchmark/releases/download/0.1/bert_data.zip',
+    'bc5cdr': 'https://drive.google.com/uc?id=1OletxmPYNkz2ltOr9pyT0b0iBtUWxslh',
     'ncbi': 'https://drive.google.com/uc?id=1OletxmPYNkz2ltOr9pyT0b0iBtUWxslh',
 }
 
@@ -46,19 +46,12 @@ def __maybe_download_file(destination: str, dataset: str):
             os.makedirs(tmp_unzip)
         else:
             subprocess.run(['rm', '-rf', tmp_unzip])
-        if parent_source == "bc5cdr":
-            subprocess.run(['wget', '-O', tmp_zip, download_url])
-        elif parent_source == "ncbi":
-            subprocess.run(['gdown', '-O', tmp_zip, download_url])
+        subprocess.run(['gdown', '-O', tmp_zip, download_url])
         subprocess.run(['unzip', tmp_zip, '-d', tmp_unzip])
 
-        if parent_source == "bc5cdr":
-            subprocess.run(
-                ['mv', os.path.join(tmp_unzip, f"bert_data/{parent_source.upper()}/{child_source}"), destination]
-            )
-        elif parent_source == "ncbi":
-            subprocess.run(['mv', os.path.join(tmp_unzip, f"{parent_source.upper()}-{child_source}"), destination])
-
+        subprocess.run(['mv', os.path.join(tmp_unzip, f"{parent_source.upper()}-{child_source}"), destination])
+        if os.path.exists(os.path.join(destination, "devel.tsv")):
+            subprocess.run(['mv', os.path.join(destination, "devel.tsv"), os.path.join(destination, "dev.tsv")])
         subprocess.run(['rm', '-rf', tmp_zip])
         subprocess.run(['rm', '-rf', tmp_unzip])
     else:
