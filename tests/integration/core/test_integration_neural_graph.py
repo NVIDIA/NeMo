@@ -24,28 +24,13 @@ from nemo.core import NeuralGraph
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestNeuralGraph:
-    @pytest.mark.integration
-    def test_implicit_default_graph(self):
-        """ Tests integration of a `default` (implicit) graph. """
-        # Create modules.
-        dl = RealFunctionDataLayer(n=100, batch_size=4)
-        fx = TaylorNet(dim=4)
-        loss = MSELoss()
-
-        # This will create a default (implicit) graph: "training".
-        x, t = dl()
-        p = fx(x=x)
-        lss = loss(predictions=p, target=t)
-
-        # Instantiate an optimizer to perform the `train` action.
-        optimizer = PtActions()
-        # Invoke "train" action - perform single forward-backard step.
-        optimizer.train([lss], optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
-
+class TestNeuralGraphTrainAction:
     @pytest.mark.integration
     def test_explicit_graph(self):
-        """  Tests integration of an `explicit` graph and decoupling of graph creation from its activation. """
+        """
+            Tests the integration of an `explicit` graph and decoupling of graph creation from its activation.
+            Additionally checks whether user can pass NG instance to train().
+        """
         # Create modules.
         dl = RealFunctionDataLayer(n=100, batch_size=4)
         fx = TaylorNet(dim=4)
@@ -59,8 +44,20 @@ class TestNeuralGraph:
             x, t = dl()
             p = fx(x=x)
             lss = loss(predictions=p, target=t)
+            # Bind the loss output.
+            g0.outputs["loss"] = lss
 
         # Instantiate an optimizer to perform the `train` action.
         optimizer = PtActions()
-        # Invoke "train" action - perform single forward-backard step.
-        optimizer.train([lss], optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
+
+        # Make sure user CANNOT pass training graph and tensors_to_optimize.
+        with pytest.raises(ValueError):
+            optimizer.train(
+                tensors_to_optimize=lss,
+                training_graph=g0,
+                optimization_params={"max_steps": 1, "lr": 0.0003},
+                optimizer="sgd",
+            )
+
+        # But user can invoke "train" action using graph only.
+        optimizer.train(training_graph=g0, optimization_params={"max_steps": 1, "lr": 0.0003}, optimizer="sgd")
