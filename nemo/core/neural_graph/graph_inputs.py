@@ -39,8 +39,10 @@ class GraphInput(object):
         # List of StepModulePort tuples to which this input links to (step number, module name, port name).
         self._consumers = []
 
-    def bind(self, step_module_ports: StepModulePort):
+    def bind(self, step_module_ports: Union[StepModulePort, List[StepModulePort]]):
         """ Binds the (step-module-ports) to this "graph input".
+            Add "consumers" of this graph input (modules attached to this port),
+            so when one actually will pass the NmTensor, those modules will be connected.
 
             Args:
                 step_module_ports: A single StepModulePort OR a list of StepModulePort tuples to be added.
