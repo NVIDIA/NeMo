@@ -17,7 +17,9 @@
 # =============================================================================
 
 from collections.abc import MutableMapping
+from typing import Any, Dict, List, Optional
 
+from nemo.core.neural_types import NeuralType, NmTensor
 from nemo.utils import logging
 from nemo.utils.connection import StepModulePort
 
@@ -25,24 +27,27 @@ from nemo.utils.connection import StepModulePort
 class GraphOutput(object):
     """ A helper class represenging a single bound output. """
 
-    def __init__(self, ntype, producer_step_module_port):
+    def __init__(self, ntype: NeuralType, producer_step_module_port: StepModulePort):
         """ 
         Initializes object.
 
         Args:
-            type: a NeuralType object.
+            ntype: a NeuralType object.
             producer_step_module_port: a producer StepModulePort tuple (step number (module name), port name).
         """
         self._ntype = ntype
         self._producer_step_module_port = producer_step_module_port
 
     @property
-    def ntype(self):
-        """ Returns NeuralType of that output. """
+    def ntype(self) -> NeuralType:
+        """ 
+            Returns:
+                NeuralType of a given output.
+        """
         return self._ntype
 
     @property
-    def producer_step_module_port(self):
+    def producer_step_module_port(self) -> StepModulePort:
         """ Returns producer step port (step number (module), port name) tuple. """
         return self._producer_step_module_port
 
@@ -104,21 +109,28 @@ class GraphOutputs(MutableMapping):
         raise NotImplementedError("Deleting a bound output is not allowed")
 
     def __iter__(self):
-        """ Iterates over the outputs - depending whether there are some manual outputs or not. """
+        """
+            Returns:
+                Iterator over the outputs - depending whether there are some manual outputs or not.
+        """
         if len(self._manual_outputs) > 0:
             return iter(self._manual_outputs)
         else:  # Use default dict.
             return iter(self._default_outputs)
 
-    def __len__(self):
-        """ Return number of outputs - depending whether there are some manual outputs or not. """
+    def __len__(self) -> int:
+        """
+            Returns:
+                The number of outputs - depending whether there are some manual outputs or not.
+        """
         if len(self._manual_outputs) > 0:
             return len(self._manual_outputs)
         else:  # Use default dict.
             return len(self._default_outputs)
 
-    def bind(self, tensors_ref, port_names=None):
-        """ Binds the default outputs.
+    def bind(self, tensors_ref: List[NmTensor], port_names: Optional[str] = None):
+        """
+            Binds the "default" outputs.
 
             Args:
                 tensors_ref: List of tensors to be added.
@@ -145,8 +157,13 @@ class GraphOutputs(MutableMapping):
             self._default_outputs[name] = GraphOutput(tensor.ntype, tensor.producer_step_module_port)
 
     @property
-    def definitions(self):
-        """ Property returns definitions of the output ports by extracting them on the fly from the bound outputs. """
+    def definitions(self) -> Dict[str, GraphOutput]:
+        """
+            Property returns definitions of the output ports by extracting them on the fly from the bound outputs.
+            
+            Returns:
+                Dictionary of neural types associated with bound outputs.
+        """
         # Get the right output dictionary.
         d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
@@ -154,7 +171,7 @@ class GraphOutputs(MutableMapping):
         return {k: v.ntype for k, v in d.items()}
 
     @property
-    def tensors(self):
+    def tensors(self) -> Dict[str, NmTensor]:
         """
             Property returns output tensors by extracting them on the fly from the bound outputs.
 
@@ -177,7 +194,7 @@ class GraphOutputs(MutableMapping):
         return output_tensors
 
     @property
-    def tensor_list(self):
+    def tensor_list(self) -> List[NmTensor]:
         """
             Property returns output tensors by extracting them on the fly from the bound outputs.
             
@@ -200,7 +217,7 @@ class GraphOutputs(MutableMapping):
         # Return the result.
         return output_tensor_list
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         """ Method responsible for serialization of the graph outputs.
 
             Returns:
@@ -228,7 +245,7 @@ class GraphOutputs(MutableMapping):
         # Return the result.
         return serialized_outputs
 
-    def deserialize(self, serialized_outputs, modules):
+    def deserialize(self, serialized_outputs: Dict[str, Any], modules: Dict[str, 'NeuralModule']):
         """ 
             Method responsible for deserialization of graph outputs.
 

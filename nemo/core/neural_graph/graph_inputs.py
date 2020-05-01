@@ -17,6 +17,7 @@
 # =============================================================================
 
 from collections.abc import MutableMapping
+from typing import Any, Dict, List, Optional, Union
 
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
@@ -26,19 +27,19 @@ from nemo.utils.connection import StepModulePort
 class GraphInput(object):
     """ A helper class represenging a single bound input. """
 
-    def __init__(self, ntype):
+    def __init__(self, ntype: NeuralType):
         """ 
         Initializes object.
 
         Args:
-            type: a NeuralType object.
+            ntype: a NeuralType object.
         """
         # (Neural) Type of input.
         self._ntype = ntype
         # List of StepModulePort tuples to which this input links to (step number, module name, port name).
         self._consumers = []
 
-    def bind(self, step_module_ports):
+    def bind(self, step_module_ports: StepModulePort):
         """ Binds the (step-module-ports) to this "graph input".
 
             Args:
@@ -52,12 +53,15 @@ class GraphInput(object):
             self._consumers.append(smp)
 
     @property
-    def ntype(self):
-        """ Returns NeuralType of that input. """
+    def ntype(self) -> NeuralType:
+        """
+            Returns:
+                NeuralType of a given input.
+        """
         return self._ntype
 
     @property
-    def consumers(self):
+    def consumers(self) -> List[StepModulePort]:
         """ 
             Returns:
                 List of bound modules i.e. (step number, module name, port name) tupes.
@@ -76,50 +80,72 @@ class GraphInputs(MutableMapping):
         """
         self._inputs = {}
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Union[NeuralType, GraphInput]):
         """
             This method is used to "create" a bound input, i.e. copy definition from indicated module input port.
 
             Args:
                 key: name of the input port of the Neural Graph.
-                value: NeuralType that will be set.
+                value: NeuralType (or GraphInput) that will be set.
+            
+            Raises:
+                KeyError: Definition of a previously bound port is not allowed.
+                TypeError: Port definition must be must be a NeuralType or GraphInput type.
         """
-        if key in self._inputs.keys():
-            raise KeyError("Overwriting definition of a previously bound port `{}` is not allowed".format(key))
-
         # Make sure that a proper NeuralType definition was passed here.
         if isinstance(value, NeuralType):
-            val_type = value
+            ntype = value
         elif isinstance(value, GraphInput):
-            val_type = value.ntype
+            ntype = value.ntype
         else:
             raise TypeError("Port `{}` definition must be must be a NeuralType or GraphInput type".format(key))
-        # Ok, add definition to list of mapped (module, port)s.
-        # Note: for now, there are no mapped modules, so copy only (neural) type.
-        self._inputs[key] = GraphInput(ntype=val_type)
 
-    def __getitem__(self, key):
+        if key in self._inputs.keys():
+            if self._inputs[key].ntype == ntype:
+                raise KeyError("Overwriting definition of a previously bound port `{}` is not allowed".format(key))
+            # Else: do nothing.
+        else:
+            # Ok, add definition to list of mapped (module, port)s.
+            # Note: for now, there are no mapped modules, so copy only the (neural) type.
+            self._inputs[key] = GraphInput(ntype=ntype)
+
+    def __getitem__(self, key: str) -> GraphInput:
         """ Returns bound input. """
         return self._inputs[key]
 
-    def __delitem__(self, key):
-        raise NotImplementedError("Deleting a bound input port is not allowed")
+    def __delitem__(self, key: str):
+        """
+            Raises:
+                NotImplementedError as deletion of a bound input port is not allowed.
+        """
+        raise NotImplementedError("Deletion of a bound input port is not allowed")
 
     def __iter__(self):
-        """ Iterates over the bound inputs. """
+        """ 
+            Returns:
+                Iterator over the dict of bound inputs.
+        """
         return iter(self._inputs)
 
-    def __len__(self):
-        """ Return number of bound inputs. """
+    def __len__(self) -> int:
+        """
+            Return:
+                The number of bound inputs.
+        """
         return len(self._inputs)
 
     @property
-    def definitions(self):
-        """ Property returns definitions of the input ports by extracting them on the fly from list. """
+    def definitions(self) -> Dict[str, NeuralType]:
+        """
+            Property returns definitions of the input ports by extracting them on the fly from list.
+            
+            Returns:
+                Dictionary of neural types associated with bound inputs.
+        """
         # Extract port definitions (Neural Types) from the inputs list.
         return {k: v.ntype for k, v in self._inputs.items()}
 
-    def has_binding(self, step_number: int, port_name):
+    def has_binding(self, step_number: int, port_name: str) -> Optional[str]:
         """ 
             Checks if there is a binding leading to a given step number (module) and its given port. 
             (module name is redundant, thus skipped in this test).
@@ -135,7 +161,7 @@ class GraphInputs(MutableMapping):
         # Binding not found.
         return None
 
-    def serialize(self):
+    def serialize(self) -> List[str]:
         """ Method responsible for serialization of the graph inputs.
 
             Returns:
@@ -155,7 +181,7 @@ class GraphInputs(MutableMapping):
         return serialized_inputs
 
     @classmethod
-    def deserialize(cls, serialized_inputs, modules):
+    def deserialize(cls, serialized_inputs: List[str], modules: Dict[str, 'NeuralModule']):
         """ 
             Class method responsible for deserialization of graph inputs.
 

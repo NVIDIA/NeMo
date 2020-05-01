@@ -25,4 +25,3 @@ from .exp_logging import ExpManager, get_logger
 from .helpers import *
 from nemo.utils.app_state import AppState
 from nemo.utils.object_registry import ObjectRegistry
-from nemo.utils.connection import *

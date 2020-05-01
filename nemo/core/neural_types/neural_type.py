@@ -23,7 +23,7 @@ __all__ = [
     'NeuralPortNmTensorMismatchError',
 ]
 import uuid
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
@@ -233,7 +233,7 @@ class NmTensor(NeuralType):
         return AppState().modules[self._producer_name]
 
     @property
-    def producer_name(self):
+    def producer_name(self) -> str:
         """
         Returns:
             Name of the producer of the tensor.
@@ -241,7 +241,7 @@ class NmTensor(NeuralType):
         return self._producer_name
 
     @property
-    def producer_step_number(self):
+    def producer_step_number(self) -> int:
         """
         Returns:
             Step number indicating when the tensor was produced.
@@ -250,7 +250,7 @@ class NmTensor(NeuralType):
         return self._step_number
 
     @property
-    def producer_step_module_port(self):
+    def producer_step_module_port(self) -> StepModulePort:
         """
         Returns:
           A tuple containing step number, module name and corresponding output port name.
@@ -258,14 +258,14 @@ class NmTensor(NeuralType):
         return StepModulePort(self._step_number, self._producer_name, self._output_port_name)
 
     @property
-    def consumers(self):
+    def consumers(self) -> List[StepModulePort]:
         """
         Returns:
           A list of tuples containing consumer step number, module name and corresponding input port names.
         """
         return self._consumers
 
-    def add_consumer(self, step_module_port):
+    def add_consumer(self, step_module_port: StepModulePort):
         """
         Adds the "consumer" to tensor.
 

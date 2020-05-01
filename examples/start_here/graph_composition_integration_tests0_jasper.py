@@ -74,9 +74,12 @@ with NeuralGraph(operation_mode=OperationMode.both) as Jasper:
     Jasper.outputs["log_probs"] = i_log_probs
     Jasper.outputs["encoded_len"] = i_encoded_len
 
+# Print the summary.
+logging.info(Jasper.summary())
+
 # Serialize graph
 serialized_jasper = Jasper.serialize()
-print("Serialized:\n", serialized_jasper)
+# print("Serialized:\n", serialized_jasper)
 
 # Delete everything - aside of jasper encoder, just as a test to show that reusing work! ;)
 del Jasper
@@ -87,7 +90,7 @@ del jasper_decoder
 # Deserialize graph - copy of the JASPER "model".
 jasper_copy = NeuralGraph.deserialize(serialized_jasper, reuse_existing_modules=True, name="jasper_copy")
 serialized_jasper_copy = jasper_copy.serialize()
-print("Deserialized:\n", serialized_jasper_copy)
+# print("Deserialized:\n", serialized_jasper_copy)
 assert serialized_jasper == serialized_jasper_copy
 
 # Create the "training" graph.
@@ -103,6 +106,9 @@ with NeuralGraph(name="training") as training_graph:
     # Set graph output.
     training_graph.outputs["o_loss"] = o_loss
     # training_graph.outputs["o_predictions"] = o_predictions # DOESN'T WORK?!?
+
+# Print the summary.
+logging.info(training_graph.summary())
 
 tensors_to_evaluate = [o_loss, o_predictions, o_transcript, o_transcript_len]
 train_callback = nemo.core.SimpleLossLoggerCallback(

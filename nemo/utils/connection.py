@@ -16,10 +16,6 @@
 # limitations under the License.
 # =============================================================================
 
-__all__ = [
-    'StepModulePort',
-    'Connection',
-]
 
 from collections import namedtuple
 

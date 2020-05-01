@@ -24,7 +24,7 @@ from collections import namedtuple
 from enum import Enum
 from inspect import getargvalues, getfullargspec, stack
 from os import path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
@@ -58,7 +58,7 @@ class NeuralModule(NeuralInterface):
 
     def __init__(self, name=None):
         # Initialize the inferface.
-        super().__init__(name)
+        super().__init__()
 
         # Retrieve dictionary of parameters (keys, values) passed to init.
         self._init_params = self.__extract_init_params()
@@ -83,7 +83,7 @@ class NeuralModule(NeuralInterface):
         self._opt_level = self._factory.optim_level
 
     @property
-    def init_params(self) -> Optional[Dict]:
+    def init_params(self) -> Dict[str, Any]:
         """
             Property returning parameters used to instantiate the module.
 
@@ -92,7 +92,7 @@ class NeuralModule(NeuralInterface):
         """
         return self._init_params
 
-    def __extract_init_params(self):
+    def __extract_init_params(self) -> Dict[str, Any]:
         """
             Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
             (also indirectly) from the Neural Module class.
@@ -102,12 +102,6 @@ class NeuralModule(NeuralInterface):
         """
         # Get names of arguments of the original module init method.
         init_keys = getfullargspec(type(self).__init__).args
-
-        # (Pdb) localvars
-        # {'self': <nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer
-        # object at 0x7f6642a50610>, 'batch_size': 1, 'f_name': 'sin',
-        # 'n': 100, 'x_lo': -4, 'x_hi': 4, 'name': 'tgs1_dl',
-        #'__class__': <class 'nemo.backends.pytorch.tutorials.toys.RealFunctionDataLayer'>}
 
         # Remove self.
         if "self" in init_keys:
@@ -145,7 +139,7 @@ class NeuralModule(NeuralInterface):
         # Return parameters.
         return init_params
 
-    def __validate_params(self, params):
+    def __validate_params(self, params: Dict[str, Any]) -> bool:
         """
             Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
             or (lists of)+ primitive types.
@@ -171,7 +165,7 @@ class NeuralModule(NeuralInterface):
         # Return the result.
         return ok
 
-    def __is_of_allowed_type(self, var):
+    def __is_of_allowed_type(self, var) -> bool:
         """
             A recursive function that checks if a given variable is of allowed type.
 
@@ -205,13 +199,15 @@ class NeuralModule(NeuralInterface):
         # Well, seems that everything is ok.
         return True
 
-    def export_to_config(self, config_file):
+    def export_to_config(self, config_file: str):
         """
             A function that exports module "configuration" (i.e. init parameters) to a YAML file.
-            Raises a ValueError exception in case then parameters coudn't be exported.
 
             Args:
                 config_file: path (absolute or relative) and name of the config file (YML)
+
+            Raises:
+                ValueError: An error occurred and  parameters coudn't be exported.
         """
         # Greate an absolute path.
         abs_path_file = path.expanduser(config_file)
@@ -227,7 +223,7 @@ class NeuralModule(NeuralInterface):
             "Configuration of module `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
         )
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         """ A method serializing the whole Neural module (into a dictionary).
             
             Returns:
@@ -245,7 +241,7 @@ class NeuralModule(NeuralInterface):
         # Return the dictionary.
         return serialized_module
 
-    def __serialize_header(self):
+    def __serialize_header(self) -> Dict[str, Any]:
         """ A protected method that creates a header stored later in the configuration file.
             
             Returns:
@@ -292,7 +288,7 @@ class NeuralModule(NeuralInterface):
         }
         return header
 
-    def _serialize_configuration(self):
+    def _serialize_configuration(self) -> Dict[str, Any]:
         """
             A function that serializes the module "configuration (i.e. init parameters) to a dictionary.
             Raises a ValueError exception in case then parameters coudn't be exported.
@@ -301,7 +297,7 @@ class NeuralModule(NeuralInterface):
                 Thus functions should be overloaded when writing a custom module import/export.
 
             Returns:
-                a "serialized" dictionary with module configuration.
+                A "serialized" dictionary with module configuration.
         """
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
@@ -314,7 +310,9 @@ class NeuralModule(NeuralInterface):
         return self._init_params
 
     @classmethod
-    def import_from_config(cls, config_file, section_name=None, name=None, overwrite_params={}):
+    def import_from_config(
+        cls, config_file: str, section_name: str = None, name: str = None, overwrite_params: Dict = {}
+    ) -> 'NeuralModule':
         """
             Class method importing the configuration file.
             Raises an ImportError exception when config file is invalid or
@@ -345,7 +343,7 @@ class NeuralModule(NeuralInterface):
         return obj
 
     @classmethod
-    def __validate_config_file(cls, config_file, section_name=None):
+    def __validate_config_file(cls, config_file: str, section_name: str = None) -> Dict[str, Any]:
         """
             Class method validating whether the config file has a proper content (sections, specification etc.).
             Raises an ImportError exception when config file is invalid or
@@ -399,7 +397,9 @@ class NeuralModule(NeuralInterface):
         return loaded_config
 
     @classmethod
-    def deserialize(cls, configuration, name=None, overwrite_params={}):
+    def deserialize(
+        cls, configuration: str, name: str = None, overwrite_params: Dict[str, Any] = {}
+    ) -> 'NeuralModule':
         """
             Class method instantianting the neural module object based on the configuration (dictionary).
 
@@ -441,7 +441,7 @@ class NeuralModule(NeuralInterface):
         return new_module
 
     @classmethod
-    def __deserialize_header(cls, serialized_header):
+    def __deserialize_header(cls, serialized_header: Dict[str, Any]):
         """ Method deserializes the header and extracts the module class.
             
             Args:
@@ -462,7 +462,7 @@ class NeuralModule(NeuralInterface):
         return mod_obj
 
     @classmethod
-    def _deserialize_configuration(cls, serialized_init_params):
+    def _deserialize_configuration(cls, serialized_init_params: Dict[str, Any]):
         """
             A function that deserializes the module "configuration (i.e. init parameters).
 
@@ -489,7 +489,7 @@ class NeuralModule(NeuralInterface):
 
     @property
     @abstractmethod
-    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
+    def input_ports(self) -> Dict[str, NeuralType]:
         """Returns definitions of module input ports
 
         Returns:
@@ -498,7 +498,7 @@ class NeuralModule(NeuralInterface):
 
     @property
     @abstractmethod
-    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
+    def output_ports(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports
 
         Returns:
@@ -506,7 +506,7 @@ class NeuralModule(NeuralInterface):
         """
 
     @property
-    def _disabled_deployment_input_ports(self) -> Optional[Set[str]]:
+    def _disabled_deployment_input_ports(self) -> Set[str]:
         """Returns names of input ports that will not be included in an export
 
         Returns:
@@ -515,7 +515,7 @@ class NeuralModule(NeuralInterface):
         return set([])
 
     @property
-    def _disabled_deployment_output_ports(self) -> Optional[Set[str]]:
+    def _disabled_deployment_output_ports(self) -> Set[str]:
         """Returns names of output ports that will not be included in an export
 
         Returns:

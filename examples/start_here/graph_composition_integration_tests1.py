@@ -35,8 +35,9 @@ with NeuralGraph(operation_mode=OperationMode.training) as g0:
     lss = loss(predictions=p, target=t)
     # Manual bind.
     g0.output_ports["output"] = lss
-# print(g0.output_ports)
-# print(g0.output_ports["x"])
+
+# Print the summary.
+logging.info(g0.summary())
 
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(

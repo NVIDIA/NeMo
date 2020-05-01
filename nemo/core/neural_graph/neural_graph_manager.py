@@ -30,21 +30,28 @@ class NeuralGraphManager(ObjectRegistry):
         self._active_graph = None
 
     def __eq__(self, other):
-        """ Checks if two managers have the same content. """
+        """
+            Checks if two managers have the same content.
+            Args:
+                other: A second manager object.
+        """
         if not isinstance(other, ObjectRegistry):
             return False
         return super().__eq__(other)
 
-    def summary(self):
-        """ Prints a nice summary. """
+    def summary(self) -> str:
+        """
+            Returns:
+                A summary of the graphs on the list.
+        """
         # TODO: a nicer summary. ;)
-        desc = ""
+        desc = "List of graphs:"
         for graph in self:
             desc = desc + "`{}`: {}\n".format(graph.name, graph)
         return desc
 
     @property
-    def active_graph(self):
+    def active_graph(self) -> NeuralGraph:
         """
             Property returns the active graph. If there is no active graph, creates a new one.
 
@@ -63,7 +70,7 @@ class NeuralGraphManager(ObjectRegistry):
         return self._active_graph
 
     @active_graph.setter
-    def active_graph(self, graph):
+    def active_graph(self, graph: NeuralGraph):
         """
             Property sets the active graph.
 

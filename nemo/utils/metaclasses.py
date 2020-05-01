@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.****
 
-__all__ = [
-    "Singleton",
-]
-
 import threading
 
 
@@ -30,7 +26,7 @@ class Singleton(type):
     __lock = threading.Lock()
 
     def __call__(cls, *args, **kwargs):
-        """ Returns singleton instance.A thread safe implementation. """
+        """ Returns singleton instance. A thread safe implementation. """
         if cls not in cls.__instances:
             # Enter critical section.
             with cls.__lock:
