@@ -27,10 +27,8 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import monitor_asr_train_progress
 from nemo.core import NeuralGraph, OperationMode
 from nemo.utils import logging
-from nemo.utils.app_state import AppState
 
 nf = nemo.core.NeuralModuleFactory()
-app_state = AppState()
 
 logging.info(
     "This example shows how one can build a Jasper model using the explicit graph."
