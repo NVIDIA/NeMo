@@ -199,6 +199,12 @@ def parse_args():
         type=int,
         help="Frequency of saving checkpoint '-1' - epoch checkpoint won't be saved",
     )
+    parser.add_argument(
+        "--save_step_freq",
+        default=-1,
+        type=int,
+        help="Frequency of saving checkpoint '-1' - epoch checkpoint won't be saved",
+    )
     parser.add_argument("--train_step_freq", default=100, type=int, help="Frequency of printing training loss")
     parser.add_argument(
         "--eval_step_freq", default=500, type=int, help="Frequency of evaluation during training on evaluation data"
