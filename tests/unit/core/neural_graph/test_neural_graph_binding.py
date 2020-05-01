@@ -27,7 +27,7 @@ from nemo.core.neural_types import NeuralTypeComparisonResult
 @pytest.mark.usefixtures("neural_factory")
 class TestGraphOutputs:
     @pytest.mark.unit
-    def test_graph_outputs1_binding(self):
+    def test_graph_outputs_binding1(self):
         # Create modules.
         data_source = RealFunctionDataLayer(n=100, batch_size=1)
         tn = TaylorNet(dim=4)
@@ -47,7 +47,7 @@ class TestGraphOutputs:
         bound_outputs.bind([lss])
 
         # Delete not allowed.
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(TypeError):
             del bound_outputs["loss"]
 
         assert len(bound_outputs) == 4
@@ -68,7 +68,7 @@ class TestGraphOutputs:
         bound_outputs["my_loss"] = lss
 
         # Delete not allowed.
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(TypeError):
             del bound_outputs["my_prediction"]
 
         assert len(bound_outputs) == 2
@@ -80,7 +80,7 @@ class TestGraphOutputs:
             _ = defs["x"]
 
     @pytest.mark.unit
-    def test_graph_outputs2_binding(self):
+    def test_graph_outputs_binding2(self):
         # Create modules.
         data_source = RealFunctionDataLayer(n=100, batch_size=1, name="tgo2_ds")
         tn = TaylorNet(dim=4, name="tgo2_tn")
@@ -111,10 +111,52 @@ class TestGraphOutputs:
             assert g1.output_tensors[port] is tensor
 
         # Test manual binding.
-        with g1:
-            g1.outputs["my_prediction"] = y_pred
-            g1.outputs["my_loss"] = lss
+        g1.outputs["my_prediction"] = y_pred
+        g1.outputs["my_loss"] = lss
 
         assert len(g1.outputs) == 2
         assert g1.output_tensors["my_prediction"].compare(tn.output_ports["y_pred"]) == NeuralTypeComparisonResult.SAME
         assert g1.output_tensors["my_loss"].compare(loss.output_ports["loss"]) == NeuralTypeComparisonResult.SAME
+
+        # Finally, make sure that the user cannot "bind" "output_ports"!
+        with pytest.raises(TypeError):
+            g1.output_ports["my_prediction"] = y_pred
+
+
+    @pytest.mark.unit
+    def test_graph_inputs_binding1_default(self):
+        # Create modules.
+        tn = TaylorNet(dim=4, name="tgi1_tn")
+        loss = MSELoss(name="tgi1_loss")
+
+        # Test default binding.
+        with NeuralGraph() as g1:
+            y_pred = tn(x=g1)
+            lss = loss(predictions=y_pred, target=g1)
+
+        assert len(g1.inputs) == 2
+        assert g1.input_ports["x"].compare(tn.input_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert g1.input_ports["target"].compare(loss.input_ports["target"]) == NeuralTypeComparisonResult.SAME
+
+    @pytest.mark.unit
+    def test_graph_inputs_binding2_manual(self):
+        # Create modules.
+        tn = TaylorNet(dim=4, name="tgi1_tn")
+        loss = MSELoss(name="tgi1_loss")
+
+        # Test "manual" binding.
+        with NeuralGraph() as g1:
+            # Bind the "x" input to tn.
+            g1.inputs["i"] = tn.input_ports["x"]
+            y_pred = tn(x=g1.inputs["i"])
+            # Bing the "target" input to loss.
+            g1.inputs["t"] = loss.input_ports["target"]
+            lss = loss(predictions=y_pred, target=g1.inputs["t"])
+
+        assert len(g1.inputs) == 2
+        assert g1.input_ports["i"].compare(tn.input_ports["x"]) == NeuralTypeComparisonResult.SAME
+        assert g1.input_ports["t"].compare(loss.input_ports["target"]) == NeuralTypeComparisonResult.SAME
+
+        # Finally, make sure that the user cannot "bind" "input_ports"!
+        with pytest.raises(TypeError):
+            g1.input_ports["my_prediction"] = y_pred

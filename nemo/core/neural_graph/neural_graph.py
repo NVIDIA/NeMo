@@ -114,12 +114,12 @@ class NeuralGraph(NeuralInterface):
                 raise NeuralPortNameMismatchError(port_name)
 
         # "Nest" this graph into an active graph.
-        results = self._app_state.active_graph.nest(self, kwargs)
+        results = self._app_state.active_graph.__nest(self, kwargs)
 
         # Return output tensors.
         return results
 
-    def nest(self, inner_graph: 'NeuralGraph', inner_graph_args):
+    def __nest(self, inner_graph: 'NeuralGraph', inner_graph_args):
         """
             Method nests (copies) a graph: modules, steps, topology (tensors).
 
@@ -324,7 +324,7 @@ class NeuralGraph(NeuralInterface):
             Returns definitions of graph input ports (dict of Neural Types).
 
         .. note::
-            This method actually returns a dictionary with definitions (like Neural Modules).
+            This method actually returns an immutable  dictionary with port types (like Neural Modules).
             In order to get access to actual graph inputs please call the inputs() method.
 
         Returns:
@@ -348,7 +348,7 @@ class NeuralGraph(NeuralInterface):
             Returns definitions of module output ports (dict of Neural Types).
 
         .. note::
-            This method actually returns a dictionary with definitions (like Neural Modules).
+            This method actually returns an immutable dictionary with port types (like Neural Modules).
             In order to get access to actual graph outpus please call the outputs() method.
 
         Returns:
@@ -916,7 +916,7 @@ class NeuralGraph(NeuralInterface):
         for output in outputs["mappings"]:
             desc += "    * {}\n".format(output)
         # Line "decorator".
-        desc += 120 * '=' + "\n"
+        desc += 120 * '='
 
         # Return the result.
         return desc

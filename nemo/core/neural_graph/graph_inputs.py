@@ -19,6 +19,8 @@
 from collections.abc import MutableMapping
 from typing import Dict, List, Optional, Union
 
+from frozendict import frozendict
+
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.connection import StepModulePort
@@ -112,15 +114,20 @@ class GraphInputs(MutableMapping):
             self._inputs[key] = GraphInput(ntype=ntype)
 
     def __getitem__(self, key: str) -> GraphInput:
-        """ Returns bound input. """
+        """
+            Returns the bound input associated with the given key.
+
+            Args:
+                key: Name of the bound input.
+        """
         return self._inputs[key]
 
     def __delitem__(self, key: str):
         """
             Raises:
-                NotImplementedError as deletion of a bound input port is not allowed.
+                TypeError as deletion of a bound input port is not allowed.
         """
-        raise NotImplementedError("Deletion of a bound input port is not allowed")
+        raise TypeError("Deletion of a bound input port is not allowed")
 
     def __iter__(self):
         """ 
@@ -140,12 +147,16 @@ class GraphInputs(MutableMapping):
     def definitions(self) -> Dict[str, NeuralType]:
         """
             Property returns definitions of the input ports by extracting them on the fly from list.
+
+            ..info:
+                This property actually returns a FrozenDict containing port definitions to indicate that
+                port definitions SHOULD not be used during the actual binding.
             
             Returns:
                 Dictionary of neural types associated with bound inputs.
         """
         # Extract port definitions (Neural Types) from the inputs list.
-        return {k: v.ntype for k, v in self._inputs.items()}
+        return frozendict({k: v.ntype for k, v in self._inputs.items()})
 
     def has_binding(self, step_number: int, port_name: str) -> Optional[str]:
         """ 

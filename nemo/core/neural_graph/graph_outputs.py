@@ -19,6 +19,8 @@
 from collections.abc import MutableMapping
 from typing import Any, Dict, List, Optional
 
+from frozendict import frozendict
+
 from nemo.core.neural_types import NeuralType, NmTensor
 from nemo.utils import logging
 from nemo.utils.connection import StepModulePort
@@ -83,30 +85,43 @@ class GraphOutputs(MutableMapping):
         # In this case tring to overwriting the existing ports with new tensors will be forbidden (Exception).
         self._manual_outputs = {}
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: NmTensor):
         """
             This method is used to set the manual output - creates a GraphOutput item and adds it to the list.
             
             Args:
-                key: name of the output (port).
-                value: tensor that will be used to create GraphOutput.
+                key: The name of the output (port).
+                value: NmTensor that will be used to create a given GraphOutput.
         """
         # Make sure that user passed a NmTensor.
-        assert type(value).__name__ == "NmTensor"
+        if not isinstance(value, NmTensor):
+            raise TypeError("Port `{}` definition must be must be set using a NmTensor".format(key))
+
         if key in self._manual_outputs.keys():
             raise KeyError("Overwriting of a port `{}` that was previously manually bound is not allowed".format(key))
-        # Ok, set output.
+
+        # Ok, set thee "manual" output.
         self._manual_outputs[key] = GraphOutput(value.ntype, value.producer_step_module_port)
 
-    def __getitem__(self, key):
-        """ Returns GraphOutput - depending whether there are some manual outputs or not. """
+    def __getitem__(self, key: str) -> GraphOutput:
+        """
+            Returns the bound output associated with the given key.
+            Uses default or manual dict depending whether there are some manual outputs or not.
+
+            Args:
+                key: Name of the bound input.
+        """
         if len(self._manual_outputs) > 0:
             return self._manual_outputs[key]
         else:  # Use default dict.
             return self._default_outputs[key]
 
-    def __delitem__(self, key):
-        raise NotImplementedError("Deleting a bound output is not allowed")
+    def __delitem__(self, key: str):
+        """
+            Raises:
+                TypeError as deletion of a bound input port is not allowed.
+        """
+        raise TypeError("Deleting a bound output is not allowed")
 
     def __iter__(self):
         """
@@ -160,15 +175,21 @@ class GraphOutputs(MutableMapping):
     def definitions(self) -> Dict[str, GraphOutput]:
         """
             Property returns definitions of the output ports by extracting them on the fly from the bound outputs.
+
+            ..info:
+                This property actually returns a FrozenDict containing port definitions to indicate that
+                port definitions SHOULD not be used during the actual binding.
             
+
             Returns:
                 Dictionary of neural types associated with bound outputs.
         """
         # Get the right output dictionary.
         d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
-        # Extract port definitions (Neural Types).
-        return {k: v.ntype for k, v in d.items()}
+        # Extract port definitions (Neural Types) and return an immutable dictionary - so one won't be able
+        # to try to modify its content by an accident!
+        return frozendict({k: v.ntype for k, v in d.items()})
 
     @property
     def tensors(self) -> Dict[str, NmTensor]:

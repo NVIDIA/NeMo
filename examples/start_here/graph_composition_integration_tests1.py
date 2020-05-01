@@ -34,7 +34,7 @@ with NeuralGraph(operation_mode=OperationMode.training) as g0:
     p = m2(x=x)
     lss = loss(predictions=p, target=t)
     # Manual bind.
-    g0.output_ports["output"] = lss
+    g0.outputs["output"] = lss
 
 # Print the summary.
 logging.info(g0.summary())

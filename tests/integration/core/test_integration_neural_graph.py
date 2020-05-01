@@ -28,8 +28,8 @@ class TestNeuralGraphTrainAction:
     @pytest.mark.integration
     def test_explicit_graph(self):
         """
-            Tests the integration of an `explicit` graph and decoupling of graph creation from its activation.
-            Additionally checks whether user can pass NG instance to train().
+            Tests the integration of an `explicit` graph with actions API.
+            In particular, checks whether user can pass NG instance to train().
         """
         # Create modules.
         dl = RealFunctionDataLayer(n=100, batch_size=4)
