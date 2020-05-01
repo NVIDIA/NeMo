@@ -165,7 +165,7 @@ class PtActions(Actions):
             all_nodes[node][nmtensor.name] = nmtensor
             processed_nmtensors.add(nmtensor)
             if nmtensor.producer_args is not None and nmtensor.producer_args != {}:
-                for name, new_nmtensor in nmtensor.producer_args.items():
+                for _, new_nmtensor in nmtensor.producer_args.items():
                     if new_nmtensor not in processed_nmtensors:
                         # put in the start of list
                         hooks_lst.insert(0, new_nmtensor)
