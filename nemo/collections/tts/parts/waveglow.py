@@ -1,7 +1,8 @@
 # Copyright (c) 2019 NVIDIA Corporation
+from typing import Tuple
+
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 
 @torch.jit.script
@@ -34,7 +35,7 @@ class Invertible1x1Conv(torch.nn.Module):
         W = W.view(c, c, 1)
         self.conv.weight.data = W
 
-    def forward(self, z, reverse=False):
+    def forward(self, z, reverse: bool = False):
         # shape
         batch_size, group_size, n_of_groups = z.size()
 
@@ -44,17 +45,23 @@ class Invertible1x1Conv(torch.nn.Module):
             if not hasattr(self, 'W_inverse'):
                 # Reverse computation
                 W_inverse = W.float().inverse()
-                W_inverse = Variable(W_inverse[..., None])
-                if z.type() == 'torch.cuda.HalfTensor' or z.type() == 'torch.HalfTensor':
+                if z.dtype == torch.half:
                     W_inverse = W_inverse.half()
-                self.W_inverse = W_inverse
-            z = F.conv1d(z, self.W_inverse, bias=None, stride=1, padding=0)
-            return z
+            z = F.conv1d(z, W_inverse, bias=None, stride=1, padding=0)
+            # Tracer demands uniform output, i.e two tensors:
+            dummy = torch.zeros([1])
+            return (
+                z,
+                dummy,
+            )
         else:
             # Forward computation
             log_det_W = batch_size * n_of_groups * torch.logdet(W.float())
             z = self.conv(z)
-            return z, log_det_W
+            return (
+                z,
+                log_det_W,
+            )
 
 
 class WN(torch.nn.Module):
@@ -105,8 +112,8 @@ class WN(torch.nn.Module):
             res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
             self.res_skip_layers.append(res_skip_layer)
 
-    def forward(self, forward_input):
-        audio, spect = forward_input
+    def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor]):
+        audio, spect = forward_input[0], forward_input[1]
         audio = self.start(audio)
 
         for i in range(self.n_layers):
@@ -156,12 +163,12 @@ class WaveGlow(torch.nn.Module):
             self.WN.append(WN(n_half, n_mel_channels * n_group, **WN_config))
         self.n_remaining_channels = n_remaining_channels
 
-    def forward(self, forward_input):
+    def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor]):
         """
         forward_input[0] = mel_spectrogram:  batch x n_mel_channels x frames
         forward_input[1] = audio: batch x time
         """
-        spect, audio = forward_input
+        spect, audio = forward_input[0], forward_input[1]
 
         #  Upsample spectrogram to size of audio
         spect = self.upsample(spect)
@@ -178,30 +185,33 @@ class WaveGlow(torch.nn.Module):
         log_s_list = []
         log_det_W_list = []
 
-        for k in range(self.n_flows):
+        k = 0
+        for convinvk, wnk in zip(self.convinv, self.WN):
             if k % self.n_early_every == 0 and k > 0:
                 output_audio.append(audio[:, : self.n_early_size, :])
                 audio = audio[:, self.n_early_size :, :]
 
-            audio, log_det_W = self.convinv[k](audio)
+            audio, log_det_W = convinvk(audio)
             log_det_W_list.append(log_det_W)
 
             n_half = int(audio.size(1) / 2)
             audio_0 = audio[:, :n_half, :]
             audio_1 = audio[:, n_half:, :]
 
-            output = self.WN[k]((audio_0, spect))
+            output = wnk((audio_0, spect))
             log_s = output[:, n_half:, :]
             b = output[:, :n_half, :]
             audio_1 = torch.exp(log_s) * audio_1 + b
             log_s_list.append(log_s)
 
-            audio = torch.cat([audio_0, audio_1], 1)
+            audio = torch.cat((audio_0, audio_1), 1)
+            k += 1
 
         output_audio.append(audio)
         return torch.cat(output_audio, 1), log_s_list, log_det_W_list
 
-    def infer(self, spect, sigma=1.0):
+    @torch.jit.ignore
+    def infer(self, spect, sigma: float = 1.0):
         spect = self.upsample(spect)
         # trim conv artifacts. maybe pad spec to kernel multiple
         time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
@@ -211,12 +221,13 @@ class WaveGlow(torch.nn.Module):
         spect = spect.contiguous().view(spect.size(0), spect.size(1), -1)
         spect = spect.permute(0, 2, 1)
 
-        audio = torch.randn(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device,).to(
+        audio = sigma * torch.randn(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device).to(
             spect.dtype
         )
 
-        audio = torch.autograd.Variable(sigma * audio)
-
+        # k = int(self.n_flows - 1)
+        # TODO - when ModuleList will support reversed iterator, make it traceable
+        # for convinvk, wnk in zip(self.convinv, self.WN):
         for k in reversed(range(self.n_flows)):
             n_half = int(audio.size(1) / 2)
             audio_0 = audio[:, :n_half, :]
@@ -226,26 +237,30 @@ class WaveGlow(torch.nn.Module):
             s = output[:, n_half:, :]
             b = output[:, :n_half, :]
             audio_1 = (audio_1 - b) / torch.exp(s)
-            audio = torch.cat([audio_0, audio_1], 1)
+            audio = torch.cat((audio_0, audio_1), 1)
 
             audio = self.convinv[k](audio, reverse=True)
+            audio = audio[0]
 
             if k % self.n_early_every == 0 and k > 0:
-                z = torch.randn(spect.size(0), self.n_early_size, spect.size(2), device=spect.device,).to(spect.dtype)
-                audio = torch.cat((sigma * z, audio), 1)
+                z = sigma * torch.randn(spect.size(0), self.n_early_size, spect.size(2), device=spect.device).to(
+                    spect.dtype
+                )
+                audio = torch.cat((z, audio), 1)
+            # k -= 1
 
         audio = audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1).data
         return audio
 
-    @staticmethod
-    def remove_weightnorm(model):
-        waveglow = model
-        for WN in waveglow.WN:
-            WN.start = torch.nn.utils.remove_weight_norm(WN.start)
-            WN.in_layers = remove(WN.in_layers)
-            WN.cond_layers = remove(WN.cond_layers)
-            WN.res_skip_layers = remove(WN.res_skip_layers)
-        return waveglow
+
+def remove_weightnorm(model):
+    waveglow = model
+    for WN in waveglow.WN:
+        WN.start = torch.nn.utils.remove_weight_norm(WN.start)
+        WN.in_layers = remove(WN.in_layers)
+        WN.cond_layers = remove(WN.cond_layers)
+        WN.res_skip_layers = remove(WN.res_skip_layers)
+    return waveglow
 
 
 def remove(conv_list):
