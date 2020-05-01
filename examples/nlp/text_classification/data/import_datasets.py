@@ -84,7 +84,6 @@ def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'd
         input_file = os.path.join(source_dir, naming_map[mode])
         lines = _read_tsv(input_file)
         for line in lines:
-            label = "False"
             text = line[1]
             label = line[2]
             if label == "True":
