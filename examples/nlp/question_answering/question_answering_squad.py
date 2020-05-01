@@ -120,7 +120,10 @@ def parse_args():
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
-        "--bert_checkpoint", default=None, type=str, help="Path to BERT model checkpoint for finetuning."
+        "--bert_checkpoint", default=None, type=str, help="Path to BERT encoder checkpoint for finetuning."
+    )
+    parser.add_argument(
+        "--head_checkpoint", default=None, type=str, help="Path to BERT QA head checkpoint for finetuning."
     )
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
     parser.add_argument(
@@ -196,18 +199,9 @@ def parse_args():
         type=int,
         help="Frequency of saving checkpoint '-1' - epoch checkpoint won't be saved",
     )
-    parser.add_argument(
-        "--save_step_freq",
-        default=-1,
-        type=int,
-        help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
-    )
     parser.add_argument("--train_step_freq", default=100, type=int, help="Frequency of printing training loss")
     parser.add_argument(
-        "--eval_step_freq", default=-1, type=int, help="Frequency of evaluation during training on evaluation data"
-    )
-    parser.add_argument(
-        "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation during training on evaluation data"
+        "--eval_step_freq", default=500, type=int, help="Frequency of evaluation during training on evaluation data"
     )
     parser.add_argument(
         "--version_2_with_negative",
@@ -357,6 +351,9 @@ if __name__ == "__main__":
     if args.bert_checkpoint is not None:
         model.restore_from(args.bert_checkpoint)
 
+    if args.head_checkpoint is not None:
+        qa_head.restore_from(args.head_checkpoint)
+
     if "train" in args.mode:
         train_loss, train_steps_per_epoch, _, _ = create_pipeline(
             data_file=args.train_file,
@@ -433,7 +430,6 @@ if __name__ == "__main__":
                 ),
                 tb_writer=nf.tb_writer,
                 eval_step=args.eval_step_freq,
-                eval_epoch=args.eval_epoch_freq,
             )
             callbacks.append(eval_callback)
 

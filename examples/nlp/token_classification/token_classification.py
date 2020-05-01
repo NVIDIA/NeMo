@@ -51,7 +51,7 @@ parser.add_argument("--num_fc_layers", default=2, type=int)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--mode", default='train_eval', type=str)
+parser.add_argument("--mode", default='train_eval', choices=["train_eval", "train"], type=str)
 parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument("--batches_per_step", default=1, type=int, help="Number of iterations per step.")
@@ -77,6 +77,8 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument(
     "--work_dir",
     default='output',
@@ -133,6 +135,8 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
 )
 
 if args.bert_checkpoint is not None:

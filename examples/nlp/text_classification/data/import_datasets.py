@@ -86,10 +86,9 @@ def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'd
         for line in lines:
             label = "False"
             text = line[1]
-            if mode != "test":
-                label = line[2]
-                if label == "True":
-                    label = line[3]
+            label = line[2]
+            if label == "True":
+                label = line[3]
             if uncased:
                 text = text.lower()
             if label not in label_mapping:
