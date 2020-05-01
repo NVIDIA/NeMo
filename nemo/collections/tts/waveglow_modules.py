@@ -161,7 +161,7 @@ class WaveGlowInferNM(WaveGlowNM):
         return {"audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))}
 
     def __str__(self):
-        return "WaveGlowInferNM"
+        return "WaveGlowNM"
 
     def __init__(
         self,
