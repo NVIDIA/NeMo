@@ -970,12 +970,6 @@ class PtActions(Actions):
         # Make a deep copy of init parameters.
         init_params_copy = copy.deepcopy(module._init_params)
 
-        # Remove NeMo-related things from the module
-        # We need to change __call__ method. Note that this will change the
-        # whole class, not just this object! Which is why we need to repair it
-        # in the finally block
-        type(module).__call__ = torch.nn.Module.__call__
-
         # Reset standard instance field - making the file (probably) lighter.
         module._init_params = None
         module._placement = None
@@ -984,6 +978,13 @@ class PtActions(Actions):
 
         module.eval()
         try:
+            # # Remove NeMo-related things from the module
+            # # We need to change __call__ method. Note that this will change the
+            # # whole class, not just this object! Which is why we need to repair it
+            # # in the finally block
+            __orig_call__ = type(module).__call__
+            type(module).__call__ = torch.nn.Module.__call__
+
             if d_format == DeploymentFormat.TORCHSCRIPT:
                 if input_example is None:
                     # Route 1 - via torch.jit.script
@@ -1035,15 +1036,7 @@ class PtActions(Actions):
         except Exception as e:  # nopep8
             logging.error(f'module export failed for {module} ' f'with exception {e}')
         finally:
-
-            def __old_call__(self, force_pt=False, *input, **kwargs):
-                pt_call = len(input) > 0 or force_pt
-                if pt_call:
-                    return nn.Module.__call__(self, *input, **kwargs)
-                else:
-                    return NeuralModule.__call__(self, **kwargs)
-
-            type(module).__call__ = __old_call__
+            type(module).__call__ = __orig_call__
 
     @staticmethod
     def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):

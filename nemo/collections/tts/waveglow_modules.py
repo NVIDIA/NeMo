@@ -5,7 +5,7 @@ import torch
 
 from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
-from nemo.collections.tts.parts.waveglow import WaveGlow
+from nemo.collections.tts.parts.waveglow import WaveGlow, remove_weightnorm
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
@@ -161,7 +161,7 @@ class WaveGlowInferNM(WaveGlowNM):
         return {"audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))}
 
     def __str__(self):
-        return "WaveGlowNM"
+        return "WaveGlowInferNM"
 
     def __init__(
         self,
@@ -207,16 +207,15 @@ class WaveGlowInferNM(WaveGlowNM):
         audio_denoised = librosa.core.istft(audio_spec_denoised * audio_angles)
         return audio_denoised, audio_spec_denoised
 
-    def forward(self, mel_spectrogram):
+    def forward(self, mel_spectrogram, z):
         if not self._removed_weight_norm:
             logging.info("remove WN")
-            self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
+            self.waveglow = remove_weightnorm(self.waveglow)
             self._removed_weight_norm = True
         if self.training:
             raise ValueError("You are using the WaveGlow Infer Neural Module in training mode.")
         with torch.no_grad():
-            audio = self.waveglow.infer(mel_spectrogram, sigma=self._sigma)
-        return audio
+            return self.waveglow.forward((mel_spectrogram, z,))[0]
 
 
 class WaveGlowLoss(LossNM):
