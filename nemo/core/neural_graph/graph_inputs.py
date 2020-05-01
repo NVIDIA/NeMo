@@ -17,7 +17,7 @@
 # =============================================================================
 
 from collections.abc import MutableMapping
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
