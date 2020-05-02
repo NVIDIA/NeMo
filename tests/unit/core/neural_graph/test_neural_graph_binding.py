@@ -107,7 +107,7 @@ class TestGraphOutputs:
             assert g1.output_ports[port].compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
             # Compare definitions - from output_tensors.
             assert g1.output_tensors[port].compare(module.output_ports[port]) == NeuralTypeComparisonResult.SAME
-            # Make sure that tensor was bound, i.e. iput refers to the same object instance!
+            # Make sure that tensor was bound, i.e. input refers to the same object instance!
             assert g1.output_tensors[port] is tensor
 
         # Test manual binding.

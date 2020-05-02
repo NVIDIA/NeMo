@@ -187,8 +187,8 @@ class GraphOutputs(MutableMapping):
         # Get the right output dictionary.
         d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
-        # Extract port definitions (Neural Types) and return an immutable dictionary - so one won't be able
-        # to try to modify its content by an accident!
+        # Extract port definitions (Neural Types) and return an immutable dictionary,
+        # so the user won't be able to modify its content by an accident!
         return frozendict({k: v.ntype for k, v in d.items()})
 
     @property
@@ -204,6 +204,7 @@ class GraphOutputs(MutableMapping):
 
         output_tensors = {}
         # Get tensors by acessing the producer-ports.
+        # At that point all keys (k) are unigue - we made sure of that during binding/__setitem__.
         for k, v in d.items():
             producer_step = v.producer_step_module_port.step_number
             producer_port_name = v.producer_step_module_port.port_name
@@ -211,8 +212,9 @@ class GraphOutputs(MutableMapping):
             tensor = self._tensors_ref[producer_step][producer_port_name]
             # Add it to the dictionary.
             output_tensors[k] = tensor
-        # Return the result.
-        return output_tensors
+        # Return the result as an immutable dictionary,
+        # so the user won't be able to modify its content by an accident!
+        return frozendict(output_tensors)
 
     @property
     def tensor_list(self) -> List[NmTensor]:

@@ -535,7 +535,7 @@ class NeuralModule(NeuralInterface):
         return self._operation_mode
 
     @operation_mode.setter
-    def operation_mode(self, operation_mode):
+    def operation_mode(self, operation_mode: OperationMode):
         """ Sets the operation mode. """
         self._operation_mode = operation_mode
 
