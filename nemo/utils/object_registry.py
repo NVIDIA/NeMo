@@ -51,7 +51,7 @@ class ObjectRegistry(WeakSet):
         # Check object name.
         if name is None:
             # Generate a new, unique name.
-            unique_name = self.__generate_unique_name()
+            unique_name = self.__generate_unique_name(new_obj)
         else:
             # Check if name is unique.
             if self.has(name):
@@ -78,18 +78,23 @@ class ObjectRegistry(WeakSet):
         # Else:
         return False
 
-    def __generate_unique_name(self) -> str:
+    def __generate_unique_name(self, new_obj) -> str:
         """
             Generates a new unique name by adding postfix (number) to base name.
+
+            Args:
+                new_obj: An object to be registered.
 
             Returns:
                 A generated unique name.
         """
         # Iterate through numbers.
         postfix = 0
+        # Get type name.
+        base_type_name = (type(new_obj).__name__).lower()
         while True:
             # Generate name.
-            new_name = self._base_type_name + str(postfix)
+            new_name = base_type_name + str(postfix)
             # Check uniqueneess.
             if not self.has(new_name):
                 # Ok, got a unique name!

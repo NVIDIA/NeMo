@@ -46,7 +46,7 @@ class TestAppState:
         # Test unique names generation.
         c3 = MockupObjectClass()
         c4 = MockupObjectClass()
-        assert c4.name == "object1"
+        assert c4.name == "mockupobjectclass1"
 
         # Check objects.
         assert len(registry) == 4
