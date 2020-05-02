@@ -122,7 +122,6 @@ class TestGraphOutputs:
         with pytest.raises(TypeError):
             g1.output_ports["my_prediction"] = y_pred
 
-
     @pytest.mark.unit
     def test_graph_inputs_binding1_default(self):
         # Create modules.
