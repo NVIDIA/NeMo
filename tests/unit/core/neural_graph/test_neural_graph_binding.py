@@ -140,8 +140,8 @@ class TestGraphOutputs:
     @pytest.mark.unit
     def test_graph_inputs_binding2_manual(self):
         # Create modules.
-        tn = TaylorNet(dim=4, name="tgi1_tn")
-        loss = MSELoss(name="tgi1_loss")
+        tn = TaylorNet(dim=4, name="tgi2_tn")
+        loss = MSELoss(name="tgi2_loss")
 
         # Test "manual" binding.
         with NeuralGraph() as g1:
