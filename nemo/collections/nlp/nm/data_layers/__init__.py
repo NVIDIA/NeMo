@@ -25,3 +25,4 @@ from nemo.collections.nlp.nm.data_layers.state_tracking_trade_datalayer import *
 from nemo.collections.nlp.nm.data_layers.text_classification_datalayer import *
 from nemo.collections.nlp.nm.data_layers.text_datalayer import *
 from nemo.collections.nlp.nm.data_layers.token_classification_datalayer import *
+from nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer import *

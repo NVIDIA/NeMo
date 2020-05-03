@@ -23,3 +23,4 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import *
 from nemo.collections.nlp.callbacks.qa_squad_callback import *
 from nemo.collections.nlp.callbacks.text_classification_callback import *
 from nemo.collections.nlp.callbacks.token_classification_callback import *
+from nemo.collections.nlp.callbacks.information_retrieval_callback import *

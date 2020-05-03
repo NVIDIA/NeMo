@@ -17,3 +17,5 @@
 from nemo.collections.nlp.nm.losses.masked_xentropy_loss import *
 from nemo.collections.nlp.nm.losses.smoothed_cross_entropy_loss import *
 from nemo.collections.nlp.nm.losses.spanning_loss import *
+from nemo.collections.nlp.nm.losses.hinge_loss import *
+from nemo.collections.nlp.nm.losses.listwise_softmax_loss import *
