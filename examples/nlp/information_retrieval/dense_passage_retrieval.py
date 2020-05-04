@@ -98,7 +98,7 @@ p_encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
 p_encoder.__str__ = lambda: "PassageBERT"
 
 loss_fn = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=args.num_negatives)
-loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=79)
+loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=99)
 
 passages = f"{args.data_dir}/collection.medium.tsv"
 
