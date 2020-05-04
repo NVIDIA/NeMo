@@ -49,14 +49,7 @@ class BertTextClassificationDataset(Dataset):
     """
 
     def __init__(
-        self,
-        input_file,
-        max_seq_length,
-        tokenizer,
-        num_samples=-1,
-        shuffle=False,
-        use_cache=False,
-        do_lower_case=False,
+        self, input_file, max_seq_length, tokenizer, num_samples=-1, shuffle=False, use_cache=False,
     ):
         self.input_file = input_file
         self.max_seq_length = max_seq_length
@@ -65,7 +58,6 @@ class BertTextClassificationDataset(Dataset):
         self.use_cache = use_cache
         self.shuffle = shuffle
         self.vocab_size = self.tokenizer.tokenizer.vocab_size
-        self.do_lower_case = do_lower_case
 
         if use_cache:
             data_dir, filename = os.path.split(input_file)
@@ -98,9 +90,6 @@ class BertTextClassificationDataset(Dataset):
                 for index, line in enumerate(lines):
                     if index % 20000 == 0:
                         logging.debug(f"Processing line {index}/{len(lines)}")
-
-                    if do_lower_case:
-                        line = line.lower()
 
                     line_splited = line.strip().split()
                     sent_label = int(line_splited[-1])
