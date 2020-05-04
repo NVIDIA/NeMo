@@ -21,6 +21,7 @@ import tarfile
 import unittest
 from unittest import TestCase
 
+import numpy as np
 import pytest
 from ruamel.yaml import YAML
 
@@ -83,27 +84,78 @@ class TestSpeechCommandsPytorch(TestCase):
 
     @pytest.mark.unit
     def test_pytorch_audio_dataset_with_perturbation(self):
-        perturbations = [
-            perturb.WhiteNoisePerturbation(min_level=-90, max_level=-46),
-            perturb.ShiftPerturbation(min_shift_ms=-5.0, max_shift_ms=5.0),
-        ]
+        def construct_perturbed_dataset(perturbation):
+            if perturbation is not None:
+                # Execute perturbations with 100% probability
+                prob_perturb = [(1.0, perturbation)]
+                audio_augmentor = perturb.AudioAugmentor(prob_perturb)
+            else:
+                audio_augmentor = None
 
-        # Execute perturbations with 100% probability
-        prob_perturb = [(1.0, p) for p in perturbations]
+            featurizer = WaveformFeaturizer(
+                sample_rate=self.featurizer_config['sample_rate'],
+                int_values=self.featurizer_config['int_values'],
+                augmentor=audio_augmentor,
+            )
 
-        audio_augmentor = perturb.AudioAugmentor(prob_perturb)
+            ds = AudioLabelDataset(manifest_filepath=self.manifest_filepath, labels=self.labels, featurizer=featurizer)
+            return ds
 
-        featurizer = WaveformFeaturizer(
-            sample_rate=self.featurizer_config['sample_rate'],
-            int_values=self.featurizer_config['int_values'],
-            augmentor=audio_augmentor,
+        baseline_ds = construct_perturbed_dataset(perturbation=None)
+        num_samples = len(baseline_ds)
+
+        # test white noise perturbation
+        white_noise_perturbation = perturb.WhiteNoisePerturbation(min_level=-90, max_level=-46)
+        white_noise_ds = construct_perturbed_dataset(white_noise_perturbation)
+        max_range = 10.0 ** (-46 / 20.0)
+        min_range = 10.0 ** (-90 / 20.0)
+        rng = np.random.RandomState(0)
+
+        for i in range(num_samples):
+            xp = white_noise_ds[i][0]
+            xp_max = rng.randn(xp.shape[0]) * max_range
+            xp_min = rng.randn(xp.shape[0]) * min_range
+
+            # Compute z statistic
+            z_max = (xp.mean() - xp_max.mean()) / np.sqrt(np.square(xp.std()) + np.square(xp_max.std()))
+            z_min = (xp.mean() - xp_min.mean()) / np.sqrt(np.square(xp.std()) + np.square(xp_min.std()))
+            self.assertTrue(z_max < 0.01)
+            self.assertTrue(z_min < 0.01)
+
+        # test shift perturbation
+        shift_perturbation = perturb.ShiftPerturbation(min_shift_ms=-5.0, max_shift_ms=5.0)
+        shift_ds = construct_perturbed_dataset(shift_perturbation)
+
+        for i in range(num_samples):
+            x = baseline_ds[i][0]
+            xp = shift_ds[i][0]
+            delta = np.abs(x - xp)
+            count_zeros = np.count_nonzero(delta == 0.0)
+            self.assertTrue(count_zeros >= 0)
+
+        # test time stretch perturbation
+        ts_perturbation = perturb.TimeStretchPerturbation(min_speed_rate=0.9, max_speed_rate=1.1, num_rates=4)
+        timestretch_ds = construct_perturbed_dataset(ts_perturbation)
+
+        for i in range(num_samples):
+            x = baseline_ds[i][0]
+            xp = timestretch_ds[i][0]
+            self.assertTrue((x.shape[0] > xp.shape[0]) or (x.shape[0] < xp.shape[0]))
+
+        # test speed perturbation
+        speed_perturbation = perturb.SpeedPerturbation(
+            sr=self.featurizer_config['sample_rate'],
+            resample_type='kaiser_fast',
+            min_speed_rate=0.9,
+            max_speed_rate=1.1,
+            num_rates=4,
         )
-        ds = AudioLabelDataset(manifest_filepath=self.manifest_filepath, labels=self.labels, featurizer=featurizer,)
+        speed_ds = construct_perturbed_dataset(speed_perturbation)
 
-        for i in range(len(ds)):
-            logging.info(ds[i])
-            # logging.info(ds[i][0].shape)
-            # self.assertEqual(freq, ds[i][0].shape[0])
+        for i in range(num_samples):
+            x = baseline_ds[i][0]
+            xp = speed_ds[i][0]
+            self.assertTrue((x.shape[0] > xp.shape[0]) or (x.shape[0] < xp.shape[0]))
 
     @pytest.mark.unit
     def test_dataloader(self):
@@ -182,6 +234,9 @@ class TestSpeechCommandsPytorch(TestCase):
         if installed_torchaudio:
             to_spectrogram = nemo_asr.AudioToSpectrogramPreprocessor(n_fft=400, window=None)
             to_mfcc = nemo_asr.AudioToMFCCPreprocessor(n_mfcc=15)
+            time_stretch_augment = nemo_asr.TimeStretchAugmentation(
+                self.featurizer_config['sample_rate'], probability=1.0, min_speed_rate=0.9, max_speed_rate=1.1
+            )
 
         to_melspec = nemo_asr.AudioToMelSpectrogramPreprocessor(features=50)
 
@@ -195,6 +250,7 @@ class TestSpeechCommandsPytorch(TestCase):
             if installed_torchaudio:
                 spec = to_spectrogram.forward(input_signals, seq_lengths)
                 mfcc = to_mfcc.forward(input_signals, seq_lengths)
+                ts_input_signals = time_stretch_augment.forward(input_signals, seq_lengths)
 
             # Check that number of features is what we expect
             self.assertTrue(melspec[0].shape[1] == 50)
@@ -202,3 +258,7 @@ class TestSpeechCommandsPytorch(TestCase):
             if installed_torchaudio:
                 self.assertTrue(spec[0].shape[1] == 201)  # n_fft // 2 + 1 bins
                 self.assertTrue(mfcc[0].shape[1] == 15)
+
+                timesteps = ts_input_signals[0].shape[1]
+                self.assertTrue(timesteps <= int(1.15 * self.featurizer_config['sample_rate']))
+                self.assertTrue(timesteps >= int(0.85 * self.featurizer_config['sample_rate']))

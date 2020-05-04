@@ -9,3 +9,4 @@ soundfile
 sox
 torch-stft
 unidecode
+packaging
