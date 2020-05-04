@@ -117,7 +117,10 @@ def main(
 
     # Create export directories if they don't already exist
     base_export_dir, export_fn = os.path.split(nn_onnx_encoder)
+    if not os.path.exists(base_export_dir):
+        os.makedirs(base_export_dir)
 
+    base_export_dir, export_fn = os.path.split(nn_onnx_decoder)
     if not os.path.exists(base_export_dir):
         os.makedirs(base_export_dir)
 
