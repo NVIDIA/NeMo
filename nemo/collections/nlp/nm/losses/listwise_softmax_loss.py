@@ -57,5 +57,5 @@ class ListwiseSoftmax(torch.nn.Module):
 
     def forward(self, scores):
         log_probs = torch.log_softmax(scores.view(-1, self.list_size), dim=-1)
-        neg_log_likelihood = -torch.mean(log_probs[:,0])
+        neg_log_likelihood = -torch.mean(log_probs[:, 0])
         return neg_log_likelihood

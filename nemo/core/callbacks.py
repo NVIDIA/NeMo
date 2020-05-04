@@ -411,12 +411,12 @@ class CheckpointCallback(NeMoCallback):
         unique_mod_names = set()
         for module in AppState().modules:
             if module.num_weights > 0:
-                if str(module) in unique_mod_names:
+                if module.__str__() in unique_mod_names:
                     raise NotImplementedError(
                         "There were two instances of the same module. Please overwrite __str__() of one of the "
                         "modules."
                     )
-                unique_mod_names.add(str(module))
+                unique_mod_names.add(module.__str__())
                 if self._step_freq > -1:
                     filename = f"{module}-STEP-{state['step']}.pt"
                 else:
@@ -451,7 +451,7 @@ class CheckpointCallback(NeMoCallback):
             for module in AppState().modules:
                 if module.num_weights > 0:
                     modules_to_restore.append(module)
-                    modules_to_restore_name.append(str(module))
+                    modules_to_restore_name.append(module.__str__())
             try:
                 module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, path)
 
@@ -485,12 +485,13 @@ class CheckpointCallback(NeMoCallback):
         unique_mod_names = set()
         for module in AppState().modules:
             if module.num_weights > 0:
-                if str(module) in unique_mod_names:
+                if module.__str__() in unique_mod_names:
+
                     raise NotImplementedError(
                         "There were two instances of the same module. Please overwrite __str__() of one of the "
                         "modules."
                     )
-                unique_mod_names.add(str(module))
+                unique_mod_names.add(module.__str__())
                 num_parameters += module.num_weights
         logging.info(f"Found {len(unique_mod_names)} modules with weights:")
         for name in unique_mod_names:
