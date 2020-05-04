@@ -19,7 +19,7 @@
 # Sadly have to import the whole "nemo" python module to avoid circular dependencies.
 # Moreover, at that point nemo module doesn't contain "core", so during "python module registration"
 # nothing from nemo.core, including e.g. types (so we cannot use them for "python 3 type hints").
-from nemo.utils.object_registry import ObjectRegistry
+from nemo.utils.neural_graph.object_registry import ObjectRegistry
 
 
 class NeuralGraphManager(ObjectRegistry):

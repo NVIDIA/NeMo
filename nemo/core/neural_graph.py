@@ -27,14 +27,14 @@ from typing import Any, Dict, List, Optional, Union
 from ruamel.yaml import YAML
 
 from nemo.core import OperationMode
-from nemo.core.neural_graph.graph_inputs import GraphInputs
-from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
-from nemo.utils.connection import Connection, StepModulePort
+from nemo.utils.neural_graph.connection import Connection, StepModulePort
+from nemo.utils.neural_graph.graph_inputs import GraphInputs
+from nemo.utils.neural_graph.graph_outputs import GraphOutputs
 
 YAML = YAML(typ='safe')
 

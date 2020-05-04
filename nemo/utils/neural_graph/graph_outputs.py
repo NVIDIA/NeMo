@@ -21,15 +21,14 @@ from typing import Any, Dict, List, Optional
 
 from frozendict import frozendict
 
-from nemo.core.neural_types import NeuralType, NmTensor
 from nemo.utils import logging
-from nemo.utils.connection import StepModulePort
+from nemo.utils.neural_graph.connection import StepModulePort
 
 
 class GraphOutput(object):
     """ A helper class represenging a single bound output. """
 
-    def __init__(self, ntype: NeuralType, producer_step_module_port: StepModulePort):
+    def __init__(self, ntype: "NeuralType", producer_step_module_port: StepModulePort):
         """ 
         Initializes object.
 
@@ -41,7 +40,7 @@ class GraphOutput(object):
         self._producer_step_module_port = producer_step_module_port
 
     @property
-    def ntype(self) -> NeuralType:
+    def ntype(self) -> "NeuralType":
         """ 
             Returns:
                 NeuralType of a given output.
@@ -85,7 +84,7 @@ class GraphOutputs(MutableMapping):
         # In this case tring to overwriting the existing ports with new tensors will be forbidden (Exception).
         self._manual_outputs = {}
 
-    def __setitem__(self, key: str, value: NmTensor):
+    def __setitem__(self, key: str, value: "NmTensor"):
         """
             This method is used to set the manual output - creates a GraphOutput item and adds it to the list.
             
@@ -94,7 +93,7 @@ class GraphOutputs(MutableMapping):
                 value: NmTensor that will be used to create a given GraphOutput.
         """
         # Make sure that user passed a NmTensor.
-        if not isinstance(value, NmTensor):
+        if type(value).__name__ != "NmTensor":
             raise TypeError("Port `{}` definition must be must be set using a NmTensor".format(key))
 
         if key in self._manual_outputs.keys():
@@ -143,7 +142,7 @@ class GraphOutputs(MutableMapping):
         else:  # Use default dict.
             return len(self._default_outputs)
 
-    def bind(self, tensors_ref: List[NmTensor], port_names: Optional[str] = None):
+    def bind(self, tensors_ref: List["NmTensor"], port_names: Optional[str] = None):
         """
             Binds the "default" outputs.
 
@@ -192,7 +191,7 @@ class GraphOutputs(MutableMapping):
         return frozendict({k: v.ntype for k, v in d.items()})
 
     @property
-    def tensors(self) -> Dict[str, NmTensor]:
+    def tensors(self) -> Dict[str, "NmTensor"]:
         """
             Property returns output tensors by extracting them on the fly from the bound outputs.
 
@@ -217,7 +216,7 @@ class GraphOutputs(MutableMapping):
         return frozendict(output_tensors)
 
     @property
-    def tensor_list(self) -> List[NmTensor]:
+    def tensor_list(self) -> List["NmTensor"]:
         """
             Property returns output tensors by extracting them on the fly from the bound outputs.
             

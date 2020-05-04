@@ -33,8 +33,8 @@ from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
-from nemo.utils.connection import StepModulePort
 from nemo.utils.decorators.deprecated import deprecated
+from nemo.utils.neural_graph.connection import StepModulePort
 
 YAML = YAML(typ='safe')
 

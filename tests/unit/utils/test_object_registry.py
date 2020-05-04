@@ -18,7 +18,7 @@
 
 import pytest
 
-from nemo.utils.object_registry import ObjectRegistry
+from nemo.utils.neural_graph.object_registry import ObjectRegistry
 
 
 class TestAppState:

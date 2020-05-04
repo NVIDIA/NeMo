@@ -29,7 +29,7 @@ from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 from nemo.core.neural_types.elements import *
 from nemo.utils.app_state import AppState
-from nemo.utils.connection import Connection, StepModulePort
+from nemo.utils.neural_graph.connection import Connection, StepModulePort
 
 
 class NeuralType(object):

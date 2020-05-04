@@ -20,8 +20,8 @@ import pytest
 
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import NeuralGraph, OperationMode
-from nemo.core.neural_graph.graph_outputs import GraphOutputs
 from nemo.core.neural_types import NeuralTypeComparisonResult
+from nemo.utils.neural_graph.graph_outputs import GraphOutputs
 
 
 @pytest.mark.usefixtures("neural_factory")

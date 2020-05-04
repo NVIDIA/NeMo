@@ -21,15 +21,14 @@ from typing import Dict, List, Optional, Union
 
 from frozendict import frozendict
 
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.connection import StepModulePort
+from nemo.utils.neural_graph.connection import StepModulePort
 
 
 class GraphInput(object):
     """ A helper class represenging a single bound input. """
 
-    def __init__(self, ntype: NeuralType):
+    def __init__(self, ntype: "NeuralType"):
         """ 
         Initializes object.
 
@@ -57,7 +56,7 @@ class GraphInput(object):
             self._consumers.append(smp)
 
     @property
-    def ntype(self) -> NeuralType:
+    def ntype(self) -> "NeuralType":
         """
             Returns:
                 NeuralType of a given input.
@@ -84,7 +83,7 @@ class GraphInputs(MutableMapping):
         """
         self._inputs = {}
 
-    def __setitem__(self, key: str, value: Union[NeuralType, GraphInput]):
+    def __setitem__(self, key: str, value: Union["NeuralType", GraphInput]):
         """
             This method is used to "create" a bound input, i.e. copy definition from indicated module input port.
 
@@ -96,8 +95,8 @@ class GraphInputs(MutableMapping):
                 KeyError: Definition of a previously bound port is not allowed.
                 TypeError: Port definition must be must be a NeuralType or GraphInput type.
         """
-        # Make sure that a proper NeuralType definition was passed here.
-        if isinstance(value, NeuralType):
+        # Make sure that a proper object was passed here.
+        if type(value).__name__ == "NeuralType":
             ntype = value
         elif isinstance(value, GraphInput):
             ntype = value.ntype
@@ -144,7 +143,7 @@ class GraphInputs(MutableMapping):
         return len(self._inputs)
 
     @property
-    def definitions(self) -> Dict[str, NeuralType]:
+    def definitions(self) -> Dict[str, "NeuralType"]:
         """
             Property returns definitions of the input ports by extracting them on the fly from list.
 
