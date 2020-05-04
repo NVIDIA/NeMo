@@ -2,27 +2,26 @@
 import argparse
 import copy
 import os
-import nemo
-from ruamel.yaml import YAML
-import nemo.utils.argparse as nm_argparse
-import nemo.collections.asr as nemo_asr
-from nemo.utils.lr_policies import CosineAnnealing
+from functools import partial
 
+from ruamel.yaml import YAML
+
+import nemo
+import nemo.collections.asr as nemo_asr
+import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import (
     monitor_classification_training_progress,
     process_classification_evaluation_batch,
     process_classification_evaluation_epoch,
 )
-from functools import partial
+from nemo.utils.lr_policies import CosineAnnealing
 
 logging = nemo.logging
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()],
-        description="SpeakerRecognition",
-        conflict_handler="resolve",
+        parents=[nm_argparse.NemoArgParser()], description="SpeakerRecognition", conflict_handler="resolve",
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -44,10 +43,7 @@ def parse_args():
         help="number of epochs to train. You should specify either num_epochs or max_steps",
     )
     parser.add_argument(
-        "--model_config",
-        type=str,
-        required=True,
-        help="model configuration file: model.yaml",
+        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
     )
 
     # Create new args
@@ -56,9 +52,7 @@ def parse_args():
     parser.add_argument("--beta2", default=0.5, type=float)
     parser.add_argument("--warmup_steps", default=1000, type=int)
     parser.add_argument("--load_dir", default=None, type=str)
-    parser.add_argument(
-        "--synced_bn", action="store_true", help="Use synchronized batch norm"
-    )
+    parser.add_argument("--synced_bn", action="store_true", help="Use synchronized batch norm")
     parser.add_argument("--emb_size", default=256, type=int)
     parser.add_argument("--synced_bn_groupsize", default=0, type=int)
     parser.add_argument("--print_freq", default=256, type=int)
@@ -147,9 +141,7 @@ def create_all_dags(args, neural_factory):
 
     spectr_augment_config = spkr_params.get("SpectrogramAugmentation", None)
     if spectr_augment_config:
-        data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(
-            **spectr_augment_config
-        )
+        data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(**spectr_augment_config)
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
 
@@ -172,16 +164,12 @@ def create_all_dags(args, neural_factory):
 
     audio_signal, audio_signal_len, label, label_len = data_layer_train()
 
-    processed_signal, processed_signal_len = data_preprocessor(
-        input_signal=audio_signal, length=audio_signal_len
-    )
+    processed_signal, processed_signal_len = data_preprocessor(input_signal=audio_signal, length=audio_signal_len)
 
     if spectr_augment_config:
         processed_signal = data_spectr_augmentation(input_spec=processed_signal)
 
-    encoded, encoded_len = encoder(
-        audio_signal=processed_signal, length=processed_signal_len
-    )
+    encoded, encoded_len = encoder(audio_signal=processed_signal, length=processed_signal_len)
 
     logits, _ = decoder(encoder_output=encoded)
     loss = xent_loss(logits=logits, labels=label)
@@ -215,9 +203,7 @@ def create_all_dags(args, neural_factory):
         processed_signal_test, processed_len_test = data_preprocessor(
             input_signal=audio_signal_test, length=audio_len_test
         )
-        encoded_test, encoded_len_test = encoder(
-            audio_signal=processed_signal_test, length=processed_len_test
-        )
+        encoded_test, encoded_len_test = encoder(audio_signal=processed_signal_test, length=processed_len_test)
         logits_test, _ = decoder(encoder_output=encoded_test)
         loss_test = xent_loss(logits=logits_test, labels=label_test)
 
@@ -225,12 +211,8 @@ def create_all_dags(args, neural_factory):
         print(tagname)
         eval_callback = nemo.core.EvaluatorCallback(
             eval_tensors=[loss_test, logits_test, label_test],
-            user_iter_callback=partial(
-                process_classification_evaluation_batch, top_k=1
-            ),
-            user_epochs_done_callback=partial(
-                process_classification_evaluation_epoch, tag=tagname
-            ),
+            user_iter_callback=partial(process_classification_evaluation_batch, top_k=1),
+            user_epochs_done_callback=partial(process_classification_evaluation_epoch, tag=tagname),
             eval_step=args.eval_freq,  # How often we evaluate the model on the test set
             tb_writer=neural_factory.tb_writer,
         )
@@ -246,13 +228,7 @@ def main():
     print(args)
     emb_size = 1024
     name = construct_name(
-        args.exp_name,
-        args.lr,
-        args.batch_size,
-        args.num_epochs,
-        args.weight_decay,
-        args.optimizer,
-        emb_size=emb_size,
+        args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer, emb_size=emb_size,
     )
     work_dir = name
     if args.work_dir:
@@ -282,22 +258,16 @@ def main():
         logging.info("Doing ALL GPU")
 
     # build dags
-    (
-        train_loss,
-        callbacks,
-        steps_per_epoch,
-        loss_test,
-        logits_test,
-        label_test,
-    ) = create_all_dags(args, neural_factory)
+    (train_loss, callbacks, steps_per_epoch, loss_test, logits_test, label_test,) = create_all_dags(
+        args, neural_factory
+    )
 
     # train model
     neural_factory.train(
         tensors_to_optimize=[train_loss],
         callbacks=callbacks,
         lr_policy=CosineAnnealing(
-            args.num_epochs * steps_per_epoch,
-            warmup_steps=0.1 * args.num_epochs * steps_per_epoch,
+            args.num_epochs * steps_per_epoch, warmup_steps=0.1 * args.num_epochs * steps_per_epoch,
         ),
         optimizer=args.optimizer,
         optimization_params={
