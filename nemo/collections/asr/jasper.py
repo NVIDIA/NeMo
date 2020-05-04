@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .parts.jasper import JasperBlock, init_weights, jasper_activations, StatsPoolLayer
 import nemo
+from .parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
@@ -318,6 +318,7 @@ class JasperDecoderForClassification(TrainableNM):
 
         return F.softmax(logits, dim=-1)
 
+
 class JasperDecoderForSpkrClass(TrainableNM):
     """
     Jasper Decoder creates the final layer in Jasper that maps from the outputs
@@ -332,6 +333,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
             'kaiming_uniform','kaiming_normal'].
             Defaults to "xavier_uniform".
     """
+
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -343,9 +345,8 @@ class JasperDecoderForSpkrClass(TrainableNM):
 
             2: AxisType(ProcessedTimeTag)
         """
-        return {
-            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
-        }
+        return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}
+
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
@@ -357,49 +358,52 @@ class JasperDecoderForSpkrClass(TrainableNM):
         """
         return {
             "logits": NeuralType(('B', 'D'), LogitsType()),
-            "embs" : NeuralType(('B','D'), AcousticEncodedRepresentation())
-            }
+            "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+        }
 
-    def __init__(self, feat_in, num_classes,emb_sizes = [256],gram=False,super_vector=True,init_mode="xavier_uniform"):
+    def __init__(
+        self, feat_in, num_classes, emb_sizes=[256], gram=False, super_vector=True, init_mode="xavier_uniform"
+    ):
         super().__init__()
         self._feat_in = 0
         if gram:
-            self._feat_in += feat_in**2
+            self._feat_in += feat_in ** 2
         else:
-            self._feat_in += 2*feat_in
-        
+            self._feat_in += 2 * feat_in
+
         if super_vector and gram:
-            self._feat_in += 2*feat_in
+            self._feat_in += 2 * feat_in
 
-        self._midEmbd1 = int(emb_sizes[0]) # Spkr Vector Embedding Shape
-        self._midEmbd2 = int(emb_sizes[1]) if len(emb_sizes)>1 else 0 # Spkr Vector Embedding Shape
+        self._midEmbd1 = int(emb_sizes[0])  # Spkr Vector Embedding Shape
+        self._midEmbd2 = int(emb_sizes[1]) if len(emb_sizes) > 1 else 0  # Spkr Vector Embedding Shape
 
-        self._num_classes = num_classes 
-        self._pooling = StatsPoolLayer(gram=gram,super_vector=super_vector)
+        self._num_classes = num_classes
+        self._pooling = StatsPoolLayer(gram=gram, super_vector=super_vector)
         self.norm = nn.BatchNorm1d(feat_in)
-        self.mid1 = self.affineLayer(self._feat_in,self._midEmbd1,learn_mean=False)
-        self.mid2 = self.affineLayer(self._midEmbd1,self._midEmbd2,learn_mean=False)
-        self.final = nn.Linear(self._midEmbd2,self._num_classes)
+        self.mid1 = self.affineLayer(self._feat_in, self._midEmbd1, learn_mean=False)
+        self.mid2 = self.affineLayer(self._midEmbd1, self._midEmbd2, learn_mean=False)
+        self.final = nn.Linear(self._midEmbd2, self._num_classes)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
-    def affineLayer(self,inp_shape,out_shape,learn_mean=True):
+    def affineLayer(self, inp_shape, out_shape, learn_mean=True):
         layer = nn.Sequential(
-            nn.Linear(inp_shape,out_shape),
-            nn.BatchNorm1d(out_shape,affine=learn_mean,track_running_stats=True),
-            nn.ReLU())
-        
-        return layer # layer, embs
+            nn.Linear(inp_shape, out_shape),
+            nn.BatchNorm1d(out_shape, affine=learn_mean, track_running_stats=True),
+            nn.ReLU(),
+        )
+
+        return layer  # layer, embs
 
     def forward(self, encoder_output):
         # encoder_output = self.norm(encoder_output)
         pool = self._pooling(encoder_output)
-        mid1,emb1 = self.mid1(pool),self.mid1[:2](pool)
-        mid2,embs = self.mid2(mid1),self.mid2[:2](mid1)
+        mid1, emb1 = self.mid1(pool), self.mid1[:2](pool)
+        mid2, embs = self.mid2(mid1), self.mid2[:2](mid1)
         out = self.final(mid2)
-        
-        return out,emb1
+
+        return out, emb1
 
 
 class JasperDecoderForSpkrClass_Covr(TrainableNM):
@@ -416,6 +420,7 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
             'kaiming_uniform','kaiming_normal'].
             Defaults to "xavier_uniform".
     """
+
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -427,9 +432,8 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
 
             2: AxisType(ProcessedTimeTag)
         """
-        return {
-            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
-        }
+        return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}
+
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
@@ -441,30 +445,29 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
         """
         return {
             "logits": NeuralType(('B', 'D'), LogitsType()),
-            "embs" : NeuralType(('B','D'), AcousticEncodedRepresentation())
-            }
+            "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+        }
 
-    def __init__(self, feat_in, num_classes,emb_size = 512,init_mode="xavier_uniform"):
+    def __init__(self, feat_in, num_classes, emb_size=512, init_mode="xavier_uniform"):
         super().__init__()
         print("Covariance Decoder")
-        self._feat_in = 2*feat_in+feat_in**2
+        self._feat_in = 2 * feat_in + feat_in ** 2
 
-        self._midEmbd1 = emb_size # Spkr Vector Embedding Shape
+        self._midEmbd1 = emb_size  # Spkr Vector Embedding Shape
         # Add 1 for blank char
-        self._num_classes = num_classes 
+        self._num_classes = num_classes
         self._pooling = StatsPoolLayer(covr=True)
         if self._midEmbd1:
             self.decoder_layers = nn.Sequential(
-                    nn.Linear(self._feat_in,self._midEmbd1),
-                    nn.BatchNorm1d(self._midEmbd1),
-                    nn.ReLU(),
-                    nn.Linear(self._midEmbd1,self._num_classes)
-                    )
+                nn.Linear(self._feat_in, self._midEmbd1),
+                nn.BatchNorm1d(self._midEmbd1),
+                nn.ReLU(),
+                nn.Linear(self._midEmbd1, self._num_classes),
+            )
         else:
             self.decoder_layers = nn.Sequential(
-                    nn.BatchNorm1d(self._feat_in),
-                    nn.Linear(self._feat_in,self._num_classes)
-                    )
+                nn.BatchNorm1d(self._feat_in), nn.Linear(self._feat_in, self._num_classes)
+            )
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
@@ -473,6 +476,7 @@ class JasperDecoderForSpkrClass_Covr(TrainableNM):
         if self._midEmbd1:
             return self.decoder_layers(pool), self.decoder_layers[:2](pool)
         return self.decoder_layers(pool)
+
 
 class SiameseDecoderForSpeakerClass(TrainableNM):
     """
@@ -488,6 +492,7 @@ class SiameseDecoderForSpeakerClass(TrainableNM):
             'kaiming_uniform','kaiming_normal'].
             Defaults to "xavier_uniform".
     """
+
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -503,6 +508,7 @@ class SiameseDecoderForSpeakerClass(TrainableNM):
             "embs1": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
             "embs2": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
+
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
@@ -514,34 +520,40 @@ class SiameseDecoderForSpeakerClass(TrainableNM):
         """
         return {
             "logits": NeuralType(('B', 'D'), LogitsType()),
-            }
+        }
 
     def __init__(self, emb_size, mid_dim, init_mode="xavier_uniform"):
         super().__init__()
         self._feat_in = emb_size
-        self._mid_dim=mid_dim
-        
-        self.connect = self.affineLayer(self._feat_in,self._mid_dim,learn_mean=True)
-        
-        self.S = nn.Parameter(torch.randn(self._mid_dim,self._mid_dim),requires_grad=True)
-        self.b = nn.Parameter(torch.randn(1),requires_grad=True)
+        self._mid_dim = mid_dim
+
+        self.connect = self.affineLayer(self._feat_in, self._mid_dim, learn_mean=True)
+
+        self.S = nn.Parameter(torch.randn(self._mid_dim, self._mid_dim), requires_grad=True)
+        self.b = nn.Parameter(torch.randn(1), requires_grad=True)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
-    def affineLayer(self,inp_shape,out_shape,learn_mean=True):
+    def affineLayer(self, inp_shape, out_shape, learn_mean=True):
         layer = nn.Sequential(
-            nn.Linear(inp_shape,out_shape),
-            nn.BatchNorm1d(out_shape,affine=learn_mean,track_running_stats=True),
-            nn.ReLU())
-        
-        return layer # layer, embs
+            nn.Linear(inp_shape, out_shape),
+            nn.BatchNorm1d(out_shape, affine=learn_mean, track_running_stats=True),
+            nn.ReLU(),
+        )
 
-    def forward(self, inp_emb1,inp_emb2):
-        
+        return layer  # layer, embs
+
+    def forward(self, inp_emb1, inp_emb2):
+
         x = self.connect(inp_emb1)
         y = self.connect(inp_emb2)
-        
-        out = torch.matmul(x,y.T).diag() - torch.matmul(torch.matmul(x,self.S),x.T).diag()-torch.matmul(torch.matmul(y,self.S),y.T).diag()+self.b
-        
+
+        out = (
+            torch.matmul(x, y.T).diag()
+            - torch.matmul(torch.matmul(x, self.S), x.T).diag()
+            - torch.matmul(torch.matmul(y, self.S), y.T).diag()
+            + self.b
+        )
+
         return out

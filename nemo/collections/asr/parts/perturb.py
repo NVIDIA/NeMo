@@ -272,7 +272,7 @@ class NoisePerturbation(Perturbation):
 
         if noise._samples.shape[0] < data._samples.shape[0]:
             noise_idx = self._rng.randint(0, data._samples.shape[0] - noise._samples.shape[0])
-            data._samples[noise_idx: noise_idx + noise._samples.shape[0]] += noise._samples
+            data._samples[noise_idx : noise_idx + noise._samples.shape[0]] += noise._samples
 
         else:
             data._samples += noise._samples
@@ -299,16 +299,16 @@ class EchoPerturbation(Perturbation):
         self._rng = np.random.RandomState() if rng is None else rng
 
     def perturb(self, data: AudioSegment):
-        min_delay = self._rng.uniform(0., self.min_delay)
+        min_delay = self._rng.uniform(0.0, self.min_delay)
         max_delay = self._rng.uniform(min_delay, self.max_duration)
-        max_dampen = self._rng.uniform(0., self.max_dampen)
+        max_dampen = self._rng.uniform(0.0, self.max_dampen)
 
         echo_start = int(min_delay * data._samples.shape[0])
         echo_end = int(max_delay * data._samples.shape[0])
         echo_duration = int(echo_end - echo_start)
         echo_dampen = np.linspace(1.0, max_dampen, num=echo_duration, dtype=np.float32)
 
-        data._samples[echo_start:echo_end] += (data._samples[0:echo_duration] * echo_dampen)
+        data._samples[echo_start:echo_end] += data._samples[0:echo_duration] * echo_dampen
 
         if self.normalize:
             max_amplitude = np.max(np.abs(data._samples))

@@ -47,7 +47,7 @@ def item_iter(
 
     if isinstance(manifests_files, str):
         manifests_files = [manifests_files]
-    
+
     if parse_func is None:
         parse_func = __parse_item
 

@@ -4,7 +4,9 @@ import torch
 
 import nemo
 from .metrics import classification_accuracy, word_error_rate
+
 logging = nemo.logging
+
 
 def __ctc_decoder_predictions_tensor(tensor, labels):
     """

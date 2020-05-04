@@ -21,7 +21,14 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 
 import nemo
-from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn, fixed_seq_collate_fn
+from .parts.dataset import (
+    AudioDataset,
+    AudioLabelDataset,
+    KaldiFeatureDataset,
+    TranscriptDataset,
+    fixed_seq_collate_fn,
+    seq_collate_fn,
+)
 from .parts.features import WaveformFeaturizer
 from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
@@ -34,7 +41,7 @@ __all__ = [
     'AudioToTextDataLayer',
     'KaldiFeatureDataLayer',
     'TranscriptDataLayer',
-    'AudioToLabelDataLayer',
+    'AudioToSpeechLabelDataLayer',
 ]
 
 logging = nemo.logging
@@ -596,7 +603,7 @@ class TranscriptDataLayer(DataLayerNM):
 
 
 # Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
-class AudioToLabelDataLayer(DataLayerNM):
+class AudioToSpeechLabelDataLayer(DataLayerNM):
     """Data Layer for general speech classification.
 
     Module which reads speech recognition with target label. It accepts comma-separated
@@ -680,9 +687,9 @@ target_label_n, "offset": offset_in_sec_n}
         drop_last: bool = False,
         load_audio: bool = True,
         augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
-        time_length: int = 8
+        time_length: int = 8,
     ):
-        super(AudioToLabelDataLayer, self).__init__()
+        super(AudioToSpeechLabelDataLayer, self).__init__()
 
         self._manifest_filepath = manifest_filepath
         self._labels = labels
@@ -724,7 +731,7 @@ target_label_n, "offset": offset_in_sec_n}
             dataset=self._dataset,
             batch_size=batch_size,
             # collate_fn=partial(seq_collate_fn, token_pad_value=0),
-            collate_fn=partial(fixed_seq_collate_fn, fixed_length=time_length*self._sample_rate),
+            collate_fn=partial(fixed_seq_collate_fn, fixed_length=time_length * self._sample_rate),
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,

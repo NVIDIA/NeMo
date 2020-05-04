@@ -84,14 +84,14 @@ def create_all_dags(args, neural_factory):
     cpu_per_traindl = max(int(total_cpus / neural_factory.world_size), 1)//2
 
     # create data layer for training
-    train_dl_params = copy.deepcopy(spkr_params["AudioToLabelDataLayer"])
-    train_dl_params.update(spkr_params["AudioToLabelDataLayer"]["train"])
+    train_dl_params = copy.deepcopy(spkr_params["AudioToSpeechLabelDataLayer"])
+    train_dl_params.update(spkr_params["AudioToSpeechLabelDataLayer"]["train"])
     del train_dl_params["train"]
     del train_dl_params["eval"]
     audio_augmentor = spkr_params.get('AudioAugmentor', None)
     # del train_dl_params["normalize_transcripts"]
 
-    data_layer_train = nemo_asr.AudioToLabelDataLayer(
+    data_layer_train = nemo_asr.AudioToSpeechLabelDataLayer(
         manifest_filepath=args.train_dataset,
         labels=None,
         batch_size=args.batch_size,
@@ -110,8 +110,8 @@ def create_all_dags(args, neural_factory):
     # we need separate eval dags for separate eval datasets
     # but all other modules in these dags will be shared
 
-    eval_dl_params = copy.deepcopy(spkr_params["AudioToLabelDataLayer"])
-    eval_dl_params.update(spkr_params["AudioToLabelDataLayer"]["eval"])
+    eval_dl_params = copy.deepcopy(spkr_params["AudioToSpeechLabelDataLayer"])
+    eval_dl_params.update(spkr_params["AudioToSpeechLabelDataLayer"]["eval"])
     del eval_dl_params["train"]
     del eval_dl_params["eval"]
 
@@ -119,7 +119,7 @@ def create_all_dags(args, neural_factory):
     data_layers_test = []
     for test_set in args.eval_datasets:
 
-        data_layer_test = nemo_asr.AudioToLabelDataLayer(
+        data_layer_test = nemo_asr.AudioToSpeechLabelDataLayer(
             manifest_filepath=test_set,
             labels=data_layer_train.labels,
             batch_size=args.batch_size,

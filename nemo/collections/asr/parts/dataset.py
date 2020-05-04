@@ -25,27 +25,27 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     max_tokens_len = max(tokens_lengths).item()
-    fixed_length = min(fixed_length,max(audio_lengths))
+    fixed_length = min(fixed_length, max(audio_lengths))
 
     audio_signal, tokens = [], []
     for sig, sig_len, tokens_i, tokens_i_len in batch:
         if has_audio:
             sig_len = sig_len.item()
-            chunck_len = sig_len-fixed_length
+            chunck_len = sig_len - fixed_length
             if chunck_len < 0:
                 # pad = (0,fixed_length-sig_len)
                 # signal = torch.nn.functional.pad(sig,pad)
-                repeat = fixed_length//sig_len
-                rem = fixed_length%sig_len
-                sub = sig[-rem:] if rem>0 else torch.tensor([])
-                rep_sig = torch.cat(repeat*[sig])
-                signal = torch.cat((rep_sig,sub))
+                repeat = fixed_length // sig_len
+                rem = fixed_length % sig_len
+                sub = sig[-rem:] if rem > 0 else torch.tensor([])
+                rep_sig = torch.cat(repeat * [sig])
+                signal = torch.cat((rep_sig, sub))
                 # print(sig_len,repeat,rem,len(sub),len(rep_sig),len(signal))
             else:
-                start_idx = torch.randint(0,chunck_len,(1,)) if chunck_len else torch.tensor(0)
+                start_idx = torch.randint(0, chunck_len, (1,)) if chunck_len else torch.tensor(0)
                 end_idx = start_idx + fixed_length
                 signal = sig[start_idx:end_idx]
-            
+
             audio_signal.append(signal)
         tokens_i_len = tokens_i_len.item()
         tokens.append(tokens_i)
@@ -59,6 +59,7 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
     tokens_lengths = torch.stack(tokens_lengths)
 
     return audio_signal, audio_lengths, tokens, tokens_lengths
+
 
 def seq_collate_fn(batch, token_pad_value=0):
     """collate batch of audio sig, audio len, tokens, tokens len
@@ -425,7 +426,7 @@ class AudioLabelDataset(Dataset):
         self.trim = trim
         self.load_audio = load_audio
 
-        self.labels =  labels if labels else self.collection.uniq_labels
+        self.labels = labels if labels else self.collection.uniq_labels
         self.num_commands = len(self.labels)
 
         self.label2id, self.id2label = {}, {}
@@ -434,7 +435,7 @@ class AudioLabelDataset(Dataset):
             self.id2label[label_id] = label
 
         for idx in range(len(self.labels[:5])):
-            logging.info(" label id {} and its mapped label {}".format(idx,self.id2label[idx]))
+            logging.info(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
 
     def __getitem__(self, index):
         sample = self.collection[index]
