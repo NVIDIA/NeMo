@@ -61,6 +61,7 @@ parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=2500, type=int)
 parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--num_negatives", default=5, type=int)
+parser.add_argument("--label_smoothing", default=0.0, type=float)
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -97,7 +98,8 @@ p_encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (p_encoder.bert.embeddings.word_embeddings.weight.data, zeros))
 p_encoder.__str__ = lambda: "PassageBERT"
 
-loss_fn = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=args.num_negatives)
+loss_fn_train = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
+    num_negatives=args.num_negatives, label_smoothing=args.label_smoothing)
 loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=99)
 
 passages = f"{args.data_dir}/collection.medium.tsv"
@@ -123,7 +125,7 @@ p_input_ids, p_input_mask, p_input_type_ids = batch_reshape(
     input_ids=p_input_ids, input_mask=p_input_mask, input_type_ids=p_input_type_ids)
 p_hiddens = p_encoder(input_ids=p_input_ids, token_type_ids=p_input_type_ids, attention_mask=p_input_mask)
 
-train_scores, train_loss = loss_fn(queries=q_hiddens, passages=p_hiddens)
+train_scores, train_loss = loss_fn_train(queries=q_hiddens, passages=p_hiddens)
 
 # Evaluation pipeline
 eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
