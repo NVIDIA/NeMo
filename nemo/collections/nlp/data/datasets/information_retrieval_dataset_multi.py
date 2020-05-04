@@ -22,7 +22,9 @@ import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
 
-__all__ = ['BertInformationRetrievalDatasetMulti', 'BertInformationRetrievalDatasetMultiEval']
+__all__ = ['BertInformationRetrievalDatasetMulti',
+           'BertInformationRetrievalDatasetMultiEval',
+           'BertDensePassageRetrievalDataset']
 
 
 class BertInformationRetrievalDatasetMulti(Dataset):

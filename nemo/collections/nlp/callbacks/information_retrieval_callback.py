@@ -30,13 +30,14 @@ def eval_iter_callback(tensors, global_vars):
 
     for kv, v in tensors.items():
 
-        if "logits" in kv:
+        #print (kv)
+        if "scores" in kv:
             for scores in v:
-                global_vars["scores"].append(scores.detach().cpu().numpy())
+                global_vars["scores"].append(scores[0].detach().cpu().numpy())
 
-        if "doc_rels" in kv:
+        if "psg_rels" in kv:
             for doc_rels in v:
-                global_vars["doc_rels"].append(doc_rels.detach().cpu().numpy())
+                global_vars["doc_rels"].append(doc_rels[0].detach().cpu().numpy())
 
 
 def eval_epochs_done_callback(global_vars):
