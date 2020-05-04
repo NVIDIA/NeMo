@@ -16,8 +16,10 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core.neural_factory import OperationMode
-from nemo.core.neural_graph.neural_graph import NeuralGraph
+# Sadly have to import the whole "nemo" python module to avoid circular dependencies.
+# Moreover, at that point nemo module doesn't contain "core", so during "python module registration"
+# nothing from nemo.core, including e.g. types (so we cannot use them for "python 3 type hints").
+import nemo
 from nemo.utils.object_registry import ObjectRegistry
 
 
@@ -51,7 +53,7 @@ class NeuralGraphManager(ObjectRegistry):
         return desc
 
     @property
-    def active_graph(self) -> NeuralGraph:
+    def active_graph(self) -> "NeuralGraph":
         """
             Property returns the active graph. If there is no active graph, creates a new one.
 
@@ -61,7 +63,7 @@ class NeuralGraphManager(ObjectRegistry):
         # Create a new graph - training is the default.
         if self._active_graph is None:
             # Create a new "default" graph. Default mode: both.
-            new_graph = NeuralGraph(operation_mode=OperationMode.both)
+            new_graph = nemo.core.NeuralGraph(operation_mode=core.OperationMode.both)
             new_graph._name = self.register(new_graph, None)
             # Set the newly created graph as active.
             self._active_graph = new_graph
@@ -70,7 +72,7 @@ class NeuralGraphManager(ObjectRegistry):
         return self._active_graph
 
     @active_graph.setter
-    def active_graph(self, graph: NeuralGraph):
+    def active_graph(self, graph: "NeuralGraph"):
         """
             Property sets the active graph.
 

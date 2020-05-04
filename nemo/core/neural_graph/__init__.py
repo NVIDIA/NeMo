@@ -17,4 +17,3 @@
 # =============================================================================
 
 from nemo.core.neural_graph.neural_graph import *
-from nemo.core.neural_graph.neural_graph_manager import NeuralGraphManager

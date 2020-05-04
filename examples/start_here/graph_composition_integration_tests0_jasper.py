@@ -77,7 +77,7 @@ logging.info(Jasper.summary())
 
 # Serialize graph
 serialized_jasper = Jasper.serialize()
-# print("Serialized:\n", serialized_jasper)
+print("Serialized:\n", serialized_jasper)
 
 # Delete everything - aside of jasper encoder, just as a test to show that reusing work! ;)
 del Jasper

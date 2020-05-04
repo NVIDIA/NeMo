@@ -15,11 +15,13 @@
 # limitations under the License.
 # =============================================================================
 
-# Sadly have to import the whole "nemo" module to avoid circular dependencies.
-# Moreover, at that point nemo module doesn't contain core, so during "python module registration"
-# nothing from nemo.core, including types (so we cannot use them for "python 3 type hints").
+# Sadly have to import the whole "nemo" python module to avoid circular dependencies.
+# Moreover, at that point nemo module doesn't contain "core", so during "python module registration"
+# nothing from nemo.core, including e.g. types (so we cannot use them for "python 3 type hints").
 import nemo
 from nemo.utils.metaclasses import Singleton
+from nemo.utils.neural_graph_manager import NeuralGraphManager
+from nemo.utils.object_registry import ObjectRegistry
 
 
 class AppState(metaclass=Singleton):
@@ -42,9 +44,9 @@ class AppState(metaclass=Singleton):
         else:
             self._device = device
         # Create module registry.
-        self._module_registry = nemo.utils.object_registry.ObjectRegistry("module")
+        self._module_registry = ObjectRegistry("module")
         # Create graph manager (registry with some additional functionality).
-        self._neural_graph_manager = nemo.core.NeuralGraphManager()
+        self._neural_graph_manager = NeuralGraphManager()
 
     @property
     def modules(self):
