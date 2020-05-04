@@ -58,11 +58,11 @@ class GraphOutputs(MutableMapping):
     '''
         A specialized dictionary that contains bound outputs of a Neural Graph.
         In fact stores two lists of "outputs":
-            - "default" outputs with default keys taken from outputs of modules (might result in
-            overwriting some keys), and
-            - "manual" used for specifying the subset of outputs, each with a new/different key
-        When accessing the outputs, it returns the "manual" outputs. If "manual" outputs are not defined,
-        will return/work on "default" outputs.
+            - "default" outputs with default keys taken from outputs of modules, and
+            - "manual" used for specifying the subset of outputs.
+        When accessing the outputs, it returns the one of those two lists following the rule:
+        return "manual" outputs if they were definde (at least one manual output defined by the user),
+        otherwise return the "default" outputs.
     '''
 
     def __init__(self, tensors_ref):
@@ -78,7 +78,7 @@ class GraphOutputs(MutableMapping):
 
         # This dictionary stores the output tensors collected during the "default" tensor recording.
         # As they are using the default port names, the second/next tensor published on the same port
-        # will overwrite the old one (Warning).
+        # will generate a new unique name following the (step_number.module.port_name) pattern.
         self._default_outputs = {}
 
         # This dictionary stores list of output tensors of module "manually" indicated by the user.
@@ -168,7 +168,7 @@ class GraphOutputs(MutableMapping):
                         tensor.name, tensor.producer_step_number, tensor.producer_name, name
                     )
                 )
-            # Still, "overwrite" it.
+            # Store the output.
             self._default_outputs[name] = GraphOutput(tensor.ntype, tensor.producer_step_module_port)
 
     @property
