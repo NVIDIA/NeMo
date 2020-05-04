@@ -128,8 +128,8 @@ train_scores, train_loss = loss_fn(queries=q_hiddens, passages=p_hiddens)
 # Evaluation pipeline
 eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
 eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
-eval_topk_list = f"{args.data_dir}/bm25top100.dev.tiny.tsv"
-#eval_topk_list = f"{args.data_dir}/bm25top100.{args.eval_datasets[0]}.tsv"
+#eval_topk_list = f"{args.data_dir}/bm25top100.dev.tiny.tsv"
+eval_topk_list = f"{args.data_dir}/bm25top100.{args.eval_datasets[0]}.tsv"
 eval_data_layer = ir_dl.BertDensePassageRetrievalDataLayerEval(
     tokenizer=tokenizer,
     passages=passages,
