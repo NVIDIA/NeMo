@@ -55,7 +55,7 @@ class ObjectRegistry(WeakSet):
         else:
             # Check if name is unique.
             if self.has(name):
-                raise NameError("A {} with name `{}` already exists!".format(self._base_type_name, name))
+                raise NameError("A {} with name `{}` already exists!".format(name, name))
             # Ok, it is unique.
             unique_name = name
 
