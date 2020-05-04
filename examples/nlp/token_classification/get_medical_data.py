@@ -30,7 +30,7 @@ URL = {
 
 def __maybe_download_file(destination: str, dataset: str):
     """
-    Downloads source to destination if not exists.
+    Downloads data from https://github.com/dmis-lab/biobert#datasets named entity recognition to destination if not exists.
     If exists, skips download
     Args:
         destination: local filepath
@@ -39,7 +39,7 @@ def __maybe_download_file(destination: str, dataset: str):
     parent_source, child_source = dataset.split("-")
     download_url = URL[parent_source]
     if not os.path.exists(destination):
-        logging.info(f'Downloading {download_url} to {destination}')
+        logging.info(f'Downloading {download_url} from https://github.com/dmis-lab/biobert#datasets to {destination}')
         tmp_zip = '/tmp/data.zip'
         tmp_unzip = '/tmp/data'
         if not os.path.exists(tmp_unzip):
