@@ -322,12 +322,14 @@ class JasperDecoderForClassification(TrainableNM):
 class JasperDecoderForSpkrClass(TrainableNM):
     """
     Jasper Decoder creates the final layer in Jasper that maps from the outputs
-    of Jasper Encoder to the vocabulary of interest.
+    of Jasper Encoder to the embedding layer followed by speaker based softmax loss.
 
     Args:
         feat_in (int): Number of channels being input to this module
-        num_classes (int): Number of characters in ASR model's vocab/labels.
-            This count should not include the CTC blank symbol.
+        num_classes (int): Number of unique speakers in dataset
+        emb_sizes (list) : shapes of intermidiate embedding layers (we consider speaker embbeddings from 1st of this layers)
+        gram (bool) : If we should consider gram based pooling
+        superVector (bool) : If we should unify  x-vector based pooling with gram based pooling
         init_mode (str): Describes how neural network parameters are
             initialized. Options are ['xavier_uniform', 'xavier_normal',
             'kaiming_uniform','kaiming_normal'].
@@ -345,16 +347,21 @@ class JasperDecoderForSpkrClass(TrainableNM):
 
             2: AxisType(ProcessedTimeTag)
         """
+
         return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        output:
+        logits:
             0: AxisType(BatchTag)
 
             1: AxisType(ChannelTag)
+                
+        embs: 
+            0: AxisType(BatchTag)
+            1: AxisType(EncodedRepresentationTah) 
         """
         return {
             "logits": NeuralType(('B', 'D'), LogitsType()),
@@ -362,9 +369,9 @@ class JasperDecoderForSpkrClass(TrainableNM):
         }
 
     def __init__(
-        self, feat_in, num_classes, emb_sizes=[256], gram=False, super_vector=True, init_mode="xavier_uniform"
+        self, feat_in, num_classes, emb_sizes=[1024, 1024], gram=False, super_vector=True, init_mode="xavier_uniform"
     ):
-        super().__init__()
+        TrainableNM.__init__(self)
         self._feat_in = 0
         if gram:
             self._feat_in += feat_in ** 2
@@ -406,78 +413,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
         return out, emb1
 
 
-class JasperDecoderForSpkrClass_Covr(TrainableNM):
-    """
-    Jasper Decoder creates the final layer in Jasper that maps from the outputs
-    of Jasper Encoder to the vocabulary of interest.
-
-    Args:
-        feat_in (int): Number of channels being input to this module
-        num_classes (int): Number of characters in ASR model's vocab/labels.
-            This count should not include the CTC blank symbol.
-        init_mode (str): Describes how neural network parameters are
-            initialized. Options are ['xavier_uniform', 'xavier_normal',
-            'kaiming_uniform','kaiming_normal'].
-            Defaults to "xavier_uniform".
-    """
-
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports.
-
-        encoder_output:
-            0: AxisType(BatchTag)
-
-            1: AxisType(EncodedRepresentationTag)
-
-            2: AxisType(ProcessedTimeTag)
-        """
-        return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}
-
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports.
-
-        output:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
-        """
-        return {
-            "logits": NeuralType(('B', 'D'), LogitsType()),
-            "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
-        }
-
-    def __init__(self, feat_in, num_classes, emb_size=512, init_mode="xavier_uniform"):
-        super().__init__()
-        print("Covariance Decoder")
-        self._feat_in = 2 * feat_in + feat_in ** 2
-
-        self._midEmbd1 = emb_size  # Spkr Vector Embedding Shape
-        # Add 1 for blank char
-        self._num_classes = num_classes
-        self._pooling = StatsPoolLayer(covr=True)
-        if self._midEmbd1:
-            self.decoder_layers = nn.Sequential(
-                nn.Linear(self._feat_in, self._midEmbd1),
-                nn.BatchNorm1d(self._midEmbd1),
-                nn.ReLU(),
-                nn.Linear(self._midEmbd1, self._num_classes),
-            )
-        else:
-            self.decoder_layers = nn.Sequential(
-                nn.BatchNorm1d(self._feat_in), nn.Linear(self._feat_in, self._num_classes)
-            )
-        self.apply(lambda x: init_weights(x, mode=init_mode))
-        self.to(self._device)
-
-    def forward(self, encoder_output):
-        pool = self._pooling(encoder_output)
-        if self._midEmbd1:
-            return self.decoder_layers(pool), self.decoder_layers[:2](pool)
-        return self.decoder_layers(pool)
-
-
+# Siamese Network, support to be added in future releases
 class SiameseDecoderForSpeakerClass(TrainableNM):
     """
     Jasper Decoder creates the final layer in Jasper that maps from the outputs

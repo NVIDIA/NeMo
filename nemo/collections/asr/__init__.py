@@ -20,7 +20,6 @@ from .jasper import (
     JasperDecoderForClassification,
     JasperDecoderForCTC,
     JasperDecoderForSpkrClass,
-    JasperDecoderForSpkrClass_Covr,
     JasperEncoder,
     SiameseDecoderForSpeakerClass,
 )
@@ -49,7 +48,6 @@ __all__ = [
     'JasperDecoderForCTC',
     'JasperDecoderForClassification',
     'JasperDecoderForSpkrClass',
-    'JasperDecoderForSpkrClass_Covr',
     'JasperRNNConnector',
     'CTCLossNM',
     'CrossEntropyLossNM',
