@@ -89,6 +89,11 @@ To release a new version, please update the changelog as followed:
 
 ### Contributors
 
+## [0.10.2] - 2020-05-05
+
+### Added
+- The Neural Graph is a high-level abstract concept empowering the users to build graphs consisting of many, interconnected Neural Modules. A user in his/her application can build any number of graphs, potentially spanning over the same modules. The import/export options combined with the lightweight API make Neural Graphs a perfect tool for rapid prototyping and experimentation. ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @tkornuta
+
 ## [0.10.0] - 2020-04-03
 
 ### Added

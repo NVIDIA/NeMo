@@ -60,7 +60,7 @@ class GraphOutputs(MutableMapping):
             - "default" outputs with default keys taken from outputs of modules, and
             - "manual" used for specifying the subset of outputs.
         When accessing the outputs, it returns the one of those two lists following the rule:
-        return "manual" outputs if they were definde (at least one manual output defined by the user),
+        return "manual" outputs if they were defined (at least one manual output defined by the user),
         otherwise return the "default" outputs.
     '''
 
