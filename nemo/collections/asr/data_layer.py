@@ -366,6 +366,9 @@ class TarredAudioToTextDataLayer(DataLayerNM):
     Notice that a few arguments are different from the AudioToTextDataLayer; for example, shuffle (bool) has been
     replaced by shuffle_n (int).
 
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest. Be aware
+    of this especially if the tarred audio is a subset of the samples represented in the manifest.
+
     Args:
         audio_tar_filepaths: Either a list of audio tarball filepaths, or a
             string (can be brace-expandable).
