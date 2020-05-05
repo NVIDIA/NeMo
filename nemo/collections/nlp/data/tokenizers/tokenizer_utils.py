@@ -61,7 +61,14 @@ def get_bert_special_tokens(bert_derivative):
     return MODEL_SPECIAL_TOKENS[bert_derivative]
 
 
-def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, special_tokens=None):
+def get_tokenizer(
+    tokenizer_name,
+    pretrained_model_name,
+    tokenizer_model=None,
+    special_tokens=None,
+    vocab_file=None,
+    do_lower_case=False,
+):
     '''
     Args:
     tokenizer_name: sentencepiece or nemobert
@@ -70,10 +77,14 @@ def get_tokenizer(tokenizer_name, pretrained_model_name, tokenizer_model=None, s
         To see the list of pretrained models, use: nemo_nlp.nm.trainables.get_bert_models_list()
     tokenizer_model (path): only used for sentencepiece tokenizer
     special_tokens (dict): dict of special tokens (Optional)
+    vocab_file (str): path to vocab file
+    do_lower_case (bool): (whether to apply lower cased) - only applicable when tokenizer is build with vocab file
     '''
 
     if tokenizer_name == 'nemobert':
-        tokenizer = nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(pretrained_model=pretrained_model_name)
+        tokenizer = nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(
+            pretrained_model=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
+        )
     elif tokenizer_name == 'sentencepiece':
         if not os.path.exists(tokenizer_model):
             raise FileNotFoundError(f'{tokenizer_model} tokenizer model not found')

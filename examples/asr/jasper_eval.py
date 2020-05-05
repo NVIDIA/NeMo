@@ -174,6 +174,7 @@ def main():
 
         beam_wers = []
 
+        logprobexp = [np.exp(p) for p in logprob]
         for alpha in np.arange(args.alpha, args.alpha_max, args.alpha_step):
             for beta in np.arange(args.beta, args.beta_max, args.beta_step):
                 logging.info('================================')
@@ -187,8 +188,8 @@ def main():
                     num_cpus=max(os.cpu_count(), 1),
                     input_tensor=False,
                 )
-                logprob = [np.exp(p) for p in logprob]
-                beam_predictions = beam_search_with_lm(log_probs=logprob, log_probs_length=None, force_pt=True)
+
+                beam_predictions = beam_search_with_lm(log_probs=logprobexp, log_probs_length=None, force_pt=True)
 
                 beam_predictions = [b[0][1] for b in beam_predictions[0]]
                 lm_wer = word_error_rate(hypotheses=beam_predictions, references=references)

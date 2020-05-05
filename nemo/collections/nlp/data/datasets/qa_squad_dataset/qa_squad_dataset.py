@@ -305,8 +305,10 @@ class SquadDataset(Dataset):
                 output = collections.OrderedDict()
                 output["text"] = entry.text
                 output["probability"] = probs[i]
-                output["start_logit"] = entry.start_logit
-                output["end_logit"] = entry.end_logit
+                output["start_logit"] = (
+                    entry.start_logit if isinstance(entry.start_logit, float) else list(entry.start_logit)
+                )
+                output["end_logit"] = entry.end_logit if isinstance(entry.end_logit, float) else list(entry.end_logit)
                 nbest_json.append(output)
 
             assert len(nbest_json) >= 1
@@ -322,7 +324,7 @@ class SquadDataset(Dataset):
                     all_predictions[example.qas_id] = ""
                 else:
                     all_predictions[example.qas_id] = best_non_null_entry.text
-                all_nbest_json[example.qas_id] = nbest_json
+            all_nbest_json[example.qas_id] = nbest_json
 
         return all_predictions, all_nbest_json, scores_diff_json
 
@@ -409,7 +411,7 @@ class SquadDataset(Dataset):
 
         exact_match, f1 = self.evaluate_predictions(all_predictions)
 
-        return exact_match, f1, all_predictions
+        return exact_match, f1, all_predictions, all_nbest_json
 
 
 class SquadProcessor(DataProcessor):

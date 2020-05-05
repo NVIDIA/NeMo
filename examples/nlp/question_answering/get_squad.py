@@ -46,7 +46,7 @@ class SquadDownloader:
             url = item
             file = self.download_urls[item]
 
-            logging.info('Downloading:', url)
+            logging.info('Downloading: %s', url)
             if os.path.isfile(self.save_path + '/' + file):
                 logging.info('** Download file already exists, skipping download')
             else:

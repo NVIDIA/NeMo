@@ -15,6 +15,7 @@
 # =============================================================================
 
 import argparse
+import csv
 import glob
 import json
 import os
@@ -43,7 +44,7 @@ def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
                 label = 0
             else:
                 label = 1
-            files = glob.glob(f'{data_dir}/{mode}/{sent}/*.txt')
+            files = glob.glob(f'{infold}/{mode}/{sent}/*.txt')
             for file in files:
                 with open(file, 'r') as f:
                     review = f.read().strip()
@@ -53,6 +54,50 @@ def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
                 outfiles[mode].write(f'{review}\t{label}\n')
     for mode in modes:
         outfiles[mode].close()
+
+
+def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'dev']):
+    if not os.path.exists(source_dir):
+        link = 'https://github.com/arwhirang/recursive_chemprot/tree/master/Demo/tree_LSTM/data'
+        raise ValueError(f'Data not found at {source_dir}. ' f'Please download ChemProt from {link}.')
+
+    logging.info(f'Processing Chemprot dataset and store at {target_dir}')
+    os.makedirs(target_dir, exist_ok=True)
+
+    naming_map = {'train': 'trainingPosit_chem', 'test': 'testPosit_chem', 'dev': 'developPosit_chem'}
+
+    def _read_tsv(input_file, quotechar=None):
+        """Reads a tab separated value file."""
+        with open(input_file, "r") as f:
+            reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
+            lines = []
+            for line in reader:
+                lines.append(line)
+            return lines
+
+    outfiles = {}
+    label_mapping = {}
+    out_label_mapping = open(os.path.join(target_dir, 'label_mapping.tsv'), 'w')
+    for mode in modes:
+        outfiles[mode] = open(os.path.join(target_dir, mode + '.tsv'), 'w')
+        outfiles[mode].write('sentence\tlabel\n')
+        input_file = os.path.join(source_dir, naming_map[mode])
+        lines = _read_tsv(input_file)
+        for line in lines:
+            text = line[1]
+            label = line[2]
+            if label == "True":
+                label = line[3]
+            if uncased:
+                text = text.lower()
+            if label not in label_mapping:
+                out_label_mapping.write(f'{label}\t{len(label_mapping)}\n')
+                label_mapping[label] = len(label_mapping)
+            label = label_mapping[label]
+            outfiles[mode].write(f'{text}\t{label}\n')
+    for mode in modes:
+        outfiles[mode].close()
+    out_label_mapping.close()
 
 
 def process_thucnews(infold, outfold):
@@ -163,7 +208,7 @@ if __name__ == "__main__":
         "--dataset_name",
         required=True,
         type=str,
-        choices=['sst-2', 'imdb', 'thucnews', 'nlu-chat', 'nlu-ubuntu', 'nlu-web'],
+        choices=['sst-2', 'imdb', 'thucnews', 'nlu-chat', 'nlu-ubuntu', 'nlu-web', 'chemprot'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='The path to the folder containing the dataset files.'
@@ -199,6 +244,8 @@ if __name__ == "__main__":
         elif dataset_name == 'nlu-web':
             infile = f'{source_dir}/WebApplicationsCorpus.json'
         process_nlu(filename=infile, outfold=target_dir, uncased=do_lower_case, dataset_name=dataset_name)
+    elif dataset_name == "chemprot":
+        process_chemprot(source_dir, target_dir, do_lower_case)
     else:
         raise ValueError(
             f'Dataset {dataset_name} is not supported.'
