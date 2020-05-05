@@ -1,6 +1,7 @@
+# ! /usr/bin/python
 # -*- coding: utf-8 -*-
 # =============================================================================
-# Copyright (c) 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,11 +16,21 @@
 # limitations under the License.
 # =============================================================================
 
-from .nemo_logging import Logger as _Logger
-from .nemo_logging import LogMode as logging_mode
+import pytest
 
-logging = _Logger()
+from nemo.utils.app_state import AppState
 
-from .argparse import NemoArgParser
-from .exp_logging import ExpManager, get_logger
-from .helpers import *
+
+class TestAppState:
+    @pytest.mark.unit
+    def test_value_sharing(self):
+        # Create first instance of AppState.
+        x = AppState()
+        x.test_value = "ala"
+        # Create second instance of AppState and test value.
+        y = AppState()
+        assert y.test_value == "ala"
+
+        # Change second instance and test first one.
+        y.test_value = "ola"
+        assert x.test_value == "ola"

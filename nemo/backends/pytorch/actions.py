@@ -21,7 +21,7 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, ModelMode, Optimization
+from nemo.core.neural_factory import Actions, OperationMode, Optimization
 from nemo.core.neural_types import *
 from nemo.utils.helpers import get_checkpoint_from_dir
 
@@ -153,6 +153,7 @@ class PtActions(Actions):
         while len(hooks_lst) > 0:
             # take nmtensor from the end of the list
             nmtensor = hooks_lst.pop()
+
             node = create_node(nmtensor.producer, nmtensor.producer_args)
             # Store nmtensor as an output of its producer
             # first make sure all keys are present per output port
@@ -391,7 +392,7 @@ class PtActions(Actions):
         return optimizer
 
     def __nm_graph_forward_pass(
-        self, call_chain, registered_tensors, mode=ModelMode.train, use_cache=False,
+        self, call_chain, registered_tensors, mode=OperationMode.training, use_cache=False,
     ):
         for ind in range(1, len(call_chain)):
             if use_cache:
@@ -418,16 +419,16 @@ class PtActions(Actions):
             #         else:
             #             pmodule.enable_allreduce()
 
-            if mode == ModelMode.train:
+            if mode == OperationMode.training:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.train()
-            elif mode == ModelMode.eval:
+            elif mode == OperationMode.evaluation:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.eval()
             else:
-                raise ValueError("Unknown ModelMode")
+                raise ValueError("Unknown OperationMode")
             # prepare call signature for `module`
             call_set = {}
             for tensor_name, nmtensor in call_args.items():
@@ -583,7 +584,7 @@ class PtActions(Actions):
                     t.unique_name: d for t, d in zip(call_chain[0][2].values(), tensors) if t is not None
                 }
                 self.__nm_graph_forward_pass(
-                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=ModelMode.eval,
+                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=OperationMode.evaluation,
                 )
 
                 if not is_distributed or self.global_rank == 0:
@@ -765,7 +766,7 @@ class PtActions(Actions):
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
-                    mode=ModelMode.eval,
+                    mode=OperationMode.evaluation,
                     use_cache=use_cache,
                 )
 
@@ -1079,7 +1080,8 @@ class PtActions(Actions):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
@@ -1092,6 +1094,18 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        # Analyse the arguments passed to train.
+        if tensors_to_optimize is not None and training_graph is not None:
+            raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
+        # if tensors_to_optimize is None and training_graph is None:
+        #    raise ValueError(
+        #        "One of the `tensors_to_optimize` or `training_graph` values must be passed to the train() function"
+        #    )
+        # Finally, unify.
+        if training_graph is not None:
+            # To keep the "compatibility with old NeMo": get output tensors.
+            tensors_to_optimize = training_graph.outputs.tensor_list
+
         if gradient_predivide:
             logging.error(
                 "gradient_predivide is currently disabled, and is under consideration for removal in future versions. "
