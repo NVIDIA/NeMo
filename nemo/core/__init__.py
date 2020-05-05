@@ -19,3 +19,4 @@ from nemo.core.callbacks import *
 from nemo.core.neural_factory import *
 from nemo.core.neural_modules import *
 from nemo.core.neural_types import *
+from nemo.core.nemo_model import *
