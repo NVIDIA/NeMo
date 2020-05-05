@@ -38,7 +38,6 @@ class BertTextClassificationDataLayer(TextDataLayer):
         num_samples (int): number of samples to load. default is -1 which means all samples.
         shuffle (bool): whether to shuffle data or not. Default: False.
         batch_size: text segments batch size
-        do_lower_case (bool): whether to make the sentence all lower case
         dataset (BertTextClassificationDataset):
                 the dataset that needs to be converted to DataLayerNM
     """
@@ -71,7 +70,6 @@ class BertTextClassificationDataLayer(TextDataLayer):
         shuffle=False,
         batch_size=64,
         use_cache=False,
-        do_lower_case=False,
         dataset_type=BertTextClassificationDataset,
     ):
         dataset_params = {
@@ -81,6 +79,5 @@ class BertTextClassificationDataLayer(TextDataLayer):
             'num_samples': num_samples,
             'use_cache': use_cache,
             'shuffle': shuffle,
-            'do_lower_case': do_lower_case,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
