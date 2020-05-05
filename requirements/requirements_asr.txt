@@ -9,6 +9,7 @@ num2words
 ruamel.yaml
 soundfile
 sox
+tarfile
 torch-stft
 unidecode
 webdataset

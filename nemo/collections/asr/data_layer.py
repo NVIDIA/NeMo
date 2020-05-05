@@ -208,8 +208,14 @@ transcript_n}
         int_values (bool): Bool indicating whether the audio file is saved as
             int data or float data.
             Defaults to False.
+        bos_id (id): Dataset parameter.
+            Beginning of string symbol id used for seq2seq models.
+            Defaults to None.
         eos_id (id): Dataset parameter.
             End of string symbol id used for seq2seq models.
+            Defaults to None.
+        pad_id (id): Token used to pad when collating samples in batches.
+            If this is None, pads using 0s.
             Defaults to None.
         min_duration (float): Dataset parameter.
             All training files which have a duration less than min_duration
@@ -383,8 +389,14 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         int_values (bool): Bool indicating whether the audio file is saved as
             int data or float data.
             Defaults to False.
+        bos_id (id): Dataset parameter.
+            Beginning of string symbol id used for seq2seq models.
+            Defaults to None.
         eos_id (id): Dataset parameter.
             End of string symbol id used for seq2seq models.
+            Defaults to None.
+        pad_id (id): Token used to pad when collating samples in batches.
+            If this is None, pads using 0s.
             Defaults to None.
         min_duration (float): Dataset parameter.
             All training files which have a duration less than min_duration
