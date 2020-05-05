@@ -64,5 +64,5 @@ def eval_epochs_done_callback(global_vars, graph_fold):
     logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
     logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
     plot_confusion_matrix(labels, preds, graph_fold)
-    logging.info(classification_report(labels, preds))
+    logging.info(classification_report(labels, preds, digits=4))
     return dict({"accuracy": accuracy})

@@ -37,9 +37,24 @@ parser.add_argument(
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
+parser.add_argument("--num_output_layers", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
@@ -54,7 +69,7 @@ parser.add_argument(
     "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
-parser.add_argument("--eval_file_prefix", default='test', type=str)
+parser.add_argument("--eval_file_prefix", default='dev', type=str)
 parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 parser.add_argument(
@@ -64,6 +79,7 @@ parser.add_argument(
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
+parser.add_argument('--eval_step_freq', default=100, type=int, help='Frequency of evaluation')
 parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
@@ -84,13 +100,23 @@ model = nemo_nlp.nm.trainables.get_huggingface_model(
 
 hidden_size = model.hidden_size
 
-tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
+)
 
 data_desc = TextClassificationDataDesc(data_dir=args.data_dir, modes=[args.train_file_prefix, args.eval_file_prefix])
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
-    hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
+    hidden_size=hidden_size,
+    num_classes=data_desc.num_labels,
+    dropout=args.fc_dropout,
+    num_layers=args.num_output_layers,
+    log_softmax=False,
 )
 
 if args.bert_checkpoint:
@@ -108,7 +134,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_
     logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if is_training else False
-
     data_layer = nemo_nlp.nm.data_layers.BertTextClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
@@ -117,7 +142,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_
         shuffle=shuffle,
         batch_size=batch_size,
         use_cache=args.use_cache,
-        do_lower_case=args.do_lower_case,
     )
 
     ids, type_ids, input_mask, labels = data_layer()
@@ -174,7 +198,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=args.eval_step_freq,
 )
 
 # Create callback to save checkpoints
