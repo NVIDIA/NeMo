@@ -33,17 +33,17 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    # 0. Instantiate Neural Factory with supported backend
+    # 0. Instantiate Neural Factory.
     nf = nemo.core.NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.GPU)
 
-    #############################################################################
-    # 1. Instantiate necessary neural modules
+    # 1. Instantiate necessary neural modules.
+    # Data layers for training and validation.
     dl = MNISTDataLayer(batch_size=64, data_folder="~/data/mnist", train=True, shuffle=True)
-    lenet5 = LeNet5()
-    nll_loss = NLLLoss()
-
-    # Data layer for the validation.
     dl_e = MNISTDataLayer(batch_size=64, data_folder="~/data/mnist", train=False, shuffle=True)
+    # Model.
+    lenet5 = LeNet5()
+    # Loss.
+    nll_loss = NLLLoss()
 
     # 2. Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     # SimpleLossLoggerCallback will print loss values to console.
     callback = nemo.core.SimpleLossLoggerCallback(
-        tensors=[loss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}')
+        tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
     )
 
     # Invoke the "train" action.
