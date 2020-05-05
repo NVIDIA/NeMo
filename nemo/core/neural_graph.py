@@ -95,16 +95,16 @@ class NeuralGraph(NeuralInterface):
         outer_mode = self._app_state.active_graph.operation_mode
         inner_mode = self.operation_mode
 
-        if inner_mode == OperationMode.inference and outer_mode == OperationMode.training:
+        if inner_mode == OperationMode.evaluation and outer_mode == OperationMode.training:
             raise TypeError("Cannot nest 'inference' graph into 'training'")
 
-        if inner_mode == OperationMode.training and outer_mode == OperationMode.inference:
+        if inner_mode == OperationMode.training and outer_mode == OperationMode.evaluation:
             raise TypeError("Cannot nest 'training' graph into 'inference'")
 
         if inner_mode == OperationMode.training and outer_mode == OperationMode.both:
             raise TypeError("Cannot nest 'training' graph into 'both'")
 
-        if inner_mode == OperationMode.inference and outer_mode == OperationMode.both:
+        if inner_mode == OperationMode.evaluation and outer_mode == OperationMode.both:
             raise TypeError("Cannot nest 'inference' graph into 'both'")
 
         # Check inputs: iterate through all inputs passed to the "self".
@@ -525,7 +525,7 @@ class NeuralGraph(NeuralInterface):
         # Add operation mode.
         if self._operation_mode == OperationMode.training:
             header["operation_mode"] = "training"
-        elif self._operation_mode == OperationMode.inference:
+        elif self._operation_mode == OperationMode.evaluation:
             header["operation_mode"] = "inference"
         else:
             header["operation_mode"] = "both"
@@ -717,7 +717,7 @@ class NeuralGraph(NeuralInterface):
         if serialized_header["operation_mode"] == "training":
             operation_mode = OperationMode.training
         elif serialized_header["operation_mode"] == "inference":
-            operation_mode = OperationMode.inference
+            operation_mode = OperationMode.evaluation
         else:
             operation_mode = OperationMode.both
 

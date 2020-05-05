@@ -45,9 +45,9 @@ class TestNeuralGraphNesting:
             _, _ = dl()
             assert dl.operation_mode == OperationMode.training
 
-        with NeuralGraph(operation_mode=OperationMode.inference):
+        with NeuralGraph(operation_mode=OperationMode.evaluation):
             _, _ = dl()
-            assert dl.operation_mode == OperationMode.inference
+            assert dl.operation_mode == OperationMode.evaluation
 
     @pytest.mark.unit
     def test_graph_nesting2_possible_operation_modes(self):
@@ -63,7 +63,7 @@ class TestNeuralGraphNesting:
         with NeuralGraph(operation_mode=OperationMode.training) as training:
             _, _ = dl()
 
-        with NeuralGraph(operation_mode=OperationMode.inference) as inference:
+        with NeuralGraph(operation_mode=OperationMode.evaluation) as inference:
             _, _ = dl()
 
         # Allowed operations.
@@ -72,7 +72,7 @@ class TestNeuralGraphNesting:
             _, _ = both()
 
         # Can nest 'both' into 'inference'.
-        with NeuralGraph(operation_mode=OperationMode.inference):
+        with NeuralGraph(operation_mode=OperationMode.evaluation):
             _, _ = both()
 
         # Can nest 'training' into 'training'.
@@ -80,7 +80,7 @@ class TestNeuralGraphNesting:
             _, _ = training()
 
         # Can nest 'inference' into 'inference'.
-        with NeuralGraph(operation_mode=OperationMode.inference):
+        with NeuralGraph(operation_mode=OperationMode.evaluation):
             _, _ = inference()
 
         # Can nest 'both' into 'both'.
@@ -95,7 +95,7 @@ class TestNeuralGraphNesting:
 
         # Cannot nest 'training' into 'inference'.
         with pytest.raises(TypeError):
-            with NeuralGraph(operation_mode=OperationMode.inference):
+            with NeuralGraph(operation_mode=OperationMode.evaluation):
                 _, _ = training()
 
         # Cannot nest 'training' into 'both'.
