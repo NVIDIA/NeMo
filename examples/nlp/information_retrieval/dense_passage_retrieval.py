@@ -61,6 +61,7 @@ parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=2500, type=int)
 parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--num_negatives", default=5, type=int)
+parser.add_argument("--num_eval_candidates", default=100, type=int)
 parser.add_argument("--label_smoothing", default=0.0, type=float)
 args = parser.parse_args()
 
@@ -90,6 +91,12 @@ q_encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (q_encoder.bert.embeddings.word_embeddings.weight.data, zeros))
 q_encoder.__str__ = lambda: "QueryBERT"
 
+q_encoder.bert.embeddings.dropout.p = args.embedding_dropout
+for layer in q_encoder.bert.encoder.layer:
+    layer.attention.self.dropout.p = args.attn_score_dropout
+    layer.attention.output.dropout.p = args.attn_layer_dropout
+    layer.output.dropout.p = args.ffn_dropout
+
 p_encoder = nemo_nlp.nm.trainables.get_huggingface_model(
     pretrained_model_name=args.pretrained_model)
 device = p_encoder.bert.embeddings.word_embeddings.weight.get_device()
@@ -98,9 +105,16 @@ p_encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (p_encoder.bert.embeddings.word_embeddings.weight.data, zeros))
 p_encoder.__str__ = lambda: "PassageBERT"
 
+p_encoder.bert.embeddings.dropout.p = args.embedding_dropout
+for layer in p_encoder.bert.encoder.layer:
+    layer.attention.self.dropout.p = args.attn_score_dropout
+    layer.attention.output.dropout.p = args.attn_layer_dropout
+    layer.output.dropout.p = args.ffn_dropout
+
 loss_fn_train = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
     num_negatives=args.num_negatives, label_smoothing=args.label_smoothing)
-loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=99)
+loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
+    num_negatives=args.num_eval_candidates-1)
 
 passages = f"{args.data_dir}/collection.medium.tsv"
 
@@ -138,7 +152,7 @@ eval_data_layer = ir_dl.BertDensePassageRetrievalDataLayerEval(
     queries=eval_queries,
     qrels=eval_qrels,
     topk_list=eval_topk_list,
-    num_candidates=100#(args.num_negatives + 1) * args.batch_size
+    num_candidates=args.num_eval_candidates
 )
 q_input_ids_, q_input_mask_, q_input_type_ids_, p_input_ids_, p_input_mask_, p_input_type_ids_, p_rels = eval_data_layer()
 
