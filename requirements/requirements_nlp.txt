@@ -9,4 +9,6 @@ youtokentome
 numpy
 tqdm
 sklearn
+fuzzywuzzy
+python-Levenshtein
 gdown
