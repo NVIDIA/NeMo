@@ -468,47 +468,7 @@ class NeuralModuleFactory(object):
                 instance = constructor(**params)
                 return instance
             else:
-                _nm_name = name.lower()
-                if _nm_name == "resnet18":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet18(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(512, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-                elif _nm_name == "resnet50":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet50(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(2048, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
+                raise NotImplemented(f"{name} is not implemented")
         else:
             collection_path = "nemo.collections." + collection + "." + name
             constructor = NeuralModuleFactory.__name_import(collection_path)
