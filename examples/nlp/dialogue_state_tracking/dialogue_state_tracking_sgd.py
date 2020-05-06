@@ -11,6 +11,7 @@ import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.sgd_dataset.data_utils as data_utils
 from nemo import logging
+from nemo.backends.pytorch.common.losses import BCEWithLogitsLossNM, CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.sgd_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import SchemaPreprocessor
 from nemo.collections.nlp.nm.trainables import sgd_model, sgd_modules
@@ -262,6 +263,16 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
 # define model pipeline
 encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
 model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
+
+intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
+req_slots_loss_fn = BCEWithLogitsLossNM()
+cat_slot_status_loss = CrossEntropyLossNM(logits_ndim=3)
+cat_slot_value_loss = CrossEntropyLossNM(logits_ndim=3)
+noncat_slot_status_loss = CrossEntropyLossNM(logits_ndim=3)
+span_start_loss = CrossEntropyLossNM(logits_ndim=2)
+span_end_loss_fn = CrossEntropyLossNM(logits_ndim=2)
+total_loss_fn = LossAggregatorNM(num_inputs=7)
+
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 
 
@@ -287,37 +298,41 @@ def create_pipeline(dataset_split='train'):
         logit_req_slot_status,
         req_slot_mask,
         logit_cat_slot_status,
+        cat_slot_status_mask,
         logit_cat_slot_value,
         logit_noncat_slot_status,
+        non_cat_slot_status_mask,
         logit_noncat_slot_start,
         logit_noncat_slot_end,
     ) = model(
         encoded_utterance=encoded_utterance,
         token_embeddings=token_embeddings,
         utterance_mask=data.utterance_mask,
+        num_categorical_slots=data.num_categorical_slots,
         num_categorical_slot_values=data.num_categorical_slot_values,
         num_intents=data.num_intents,
         req_num_slots=data.num_slots,
+        num_noncategorical_slots=data.num_noncategorical_slots,
         service_ids=data.service_id,
     )
 
     if dataset_split == 'train':
         loss = dst_loss(
             logit_intent_status=logit_intent_status,
+            intent_status_labels=data.intent_status_labels,
             logit_req_slot_status=logit_req_slot_status,
-            logit_cat_slot_status=logit_cat_slot_status,
-            logit_cat_slot_value=logit_cat_slot_value,
-            logit_noncat_slot_status=logit_noncat_slot_status,
-            logit_noncat_slot_start=logit_noncat_slot_start,
-            logit_noncat_slot_end=logit_noncat_slot_end,
-            intent_status=data.intent_status,
             requested_slot_status=data.requested_slot_status,
             req_slot_mask=req_slot_mask,
+            logit_cat_slot_status=logit_cat_slot_status,
             categorical_slot_status=data.categorical_slot_status,
-            num_categorical_slots=data.num_categorical_slots,
+            cat_slot_status_mask=cat_slot_status_mask,
+            logit_cat_slot_value=logit_cat_slot_value,
             categorical_slot_values=data.categorical_slot_values,
+            logit_noncat_slot_status=logit_noncat_slot_status,
             noncategorical_slot_status=data.noncategorical_slot_status,
-            num_noncategorical_slots=data.num_noncategorical_slots,
+            non_cat_slot_status_mask=non_cat_slot_status_mask,
+            logit_noncat_slot_start=logit_noncat_slot_start,
+            logit_noncat_slot_end=logit_noncat_slot_end,
             noncategorical_slot_value_start=data.noncategorical_slot_value_start,
             noncategorical_slot_value_end=data.noncategorical_slot_value_end,
         )

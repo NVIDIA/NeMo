@@ -6,8 +6,6 @@ https://github.com/google-research/google-research/tree/master/schema_guided_dst
 import numpy as np
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
-
 __all__ = ['SGDDataset']
 
 
@@ -47,4 +45,5 @@ class SGDDataset(Dataset):
             np.array(ex.requested_slot_status, dtype=np.float32),
             np.array(ex.num_intents),
             np.array(ex.intent_status),
+            np.array(ex.intent_status_labels),
         )

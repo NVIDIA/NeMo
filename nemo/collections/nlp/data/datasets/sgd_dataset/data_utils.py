@@ -429,6 +429,7 @@ class InputExample(object):
         self.num_intents = 0
         # Takes value 1 if the intent is active, 0 otherwise.
         self.intent_status = [STATUS_OFF] * schema_config["MAX_NUM_INTENT"]
+        self.intent_status_labels = 0
 
     @property
     def readable_summary(self):
@@ -653,6 +654,8 @@ class InputExample(object):
         for intent_idx, intent in enumerate(all_intents):
             if intent == frame["state"]["active_intent"]:
                 self.intent_status[intent_idx] = STATUS_ACTIVE
+                # adding +1 to take none intent into account
+                self.intent_status_labels = intent_idx + 1
 
 
 # Modified from run_classifier._truncate_seq_pair in the public bert model repo.

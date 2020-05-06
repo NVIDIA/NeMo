@@ -9,7 +9,6 @@ import os
 import numpy as np
 import torch
 
-import nemo
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset import schema
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset

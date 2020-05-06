@@ -10,11 +10,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 
-from nemo.backends.pytorch.nm import LossNM, TrainableNM
+from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import ChannelType, EmbeddedTextType, LengthsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
+
+__all__ = ['SGDModel']
 
 
 class Logits(nn.Module):
@@ -80,9 +81,11 @@ class SGDModel(TrainableNM):
             "encoded_utterance": NeuralType(('B', 'T'), EmbeddedTextType()),
             "token_embeddings": NeuralType(('B', 'T', 'C'), ChannelType()),
             "utterance_mask": NeuralType(('B', 'T'), ChannelType()),
+            "num_categorical_slots": NeuralType(('B'), LengthsType()),
             "num_categorical_slot_values": NeuralType(('B', 'T'), LengthsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "req_num_slots": NeuralType(('B'), LengthsType()),
+            "num_noncategorical_slots": NeuralType(('B'), LengthsType()),
             "service_ids": NeuralType(('B'), ChannelType()),
         }
 
@@ -103,8 +106,10 @@ class SGDModel(TrainableNM):
             "logit_req_slot_status": NeuralType(('B', 'T'), LogitsType()),
             "req_slot_mask": NeuralType(('B', 'T'), ChannelType()),
             "logit_cat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "cat_slot_status_mask": NeuralType(('B'), ChannelType()),
             "logit_cat_slot_value": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_noncat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "non_cat_slot_status_mask": NeuralType(('B'), ChannelType()),
             "logit_noncat_slot_start": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
@@ -189,9 +194,11 @@ class SGDModel(TrainableNM):
         encoded_utterance,
         token_embeddings,
         utterance_mask,
+        num_categorical_slots,
         num_categorical_slot_values,
         num_intents,
         req_num_slots,
+        num_noncategorical_slots,
         service_ids,
     ):
         """
@@ -212,12 +219,17 @@ class SGDModel(TrainableNM):
             encoded_utterance, req_slot_emb, req_num_slots
         )
 
-        logit_cat_slot_status, logit_cat_slot_value = self._get_categorical_slot_goals(
-            encoded_utterance, cat_slot_emb, cat_slot_value_emb, num_categorical_slot_values
+        logit_cat_slot_status, logit_cat_slot_value, cat_slot_status_mask = self._get_categorical_slot_goals(
+            encoded_utterance, cat_slot_emb, cat_slot_value_emb, num_categorical_slots, num_categorical_slot_values
         )
 
-        logit_noncat_slot_status, logit_noncat_slot_start, logit_noncat_slot_end = self._get_noncategorical_slot_goals(
-            encoded_utterance, utterance_mask, noncat_slot_emb, token_embeddings
+        (
+            logit_noncat_slot_status,
+            non_cat_slot_status_mask,
+            logit_noncat_slot_start,
+            logit_noncat_slot_end,
+        ) = self._get_noncategorical_slot_goals(
+            encoded_utterance, utterance_mask, noncat_slot_emb, token_embeddings, num_noncategorical_slots
         )
 
         return (
@@ -225,8 +237,10 @@ class SGDModel(TrainableNM):
             logit_req_slot_status,
             req_slot_mask,
             logit_cat_slot_status,
+            cat_slot_status_mask,
             logit_cat_slot_value,
             logit_noncat_slot_status,
+            non_cat_slot_status_mask,
             logit_noncat_slot_start,
             logit_noncat_slot_end,
         )
@@ -247,7 +261,7 @@ class SGDModel(TrainableNM):
         logits = logits.squeeze(axis=-1)  # Shape: (batch_size, max_intents + 1)
 
         # Mask out logits for padded intents, 1 is added to account for NONE intent.
-        mask, negative_logits = self._get_mask(logits, max_num_intents + 1, num_intents + 1)
+        mask, negative_logits = self._get_unused_slots_mask(logits, max_num_intents + 1, num_intents + 1)
         return torch.where(mask, logits, negative_logits)
 
     def _get_requested_slots(self, encoded_utterance, requested_slot_emb, req_num_slots):
@@ -258,11 +272,11 @@ class SGDModel(TrainableNM):
 
         # logits shape: (batch_size, max_num_slots)
         max_num_requested_slots = logits.size()[-1]
-        req_slot_mask, _ = self._get_mask(logits, max_num_requested_slots, req_num_slots)
+        req_slot_mask, _ = self._get_unused_slots_mask(logits, max_num_requested_slots, req_num_slots)
         return logits, req_slot_mask.view(-1)
 
     def _get_categorical_slot_goals(
-        self, encoded_utterance, cat_slot_emb, cat_slot_value_emb, num_categorical_slot_values
+        self, encoded_utterance, cat_slot_emb, cat_slot_value_emb, num_categorical_slots, num_categorical_slot_values
     ):
         """
         Obtain logits for status and values for categorical slots
@@ -283,14 +297,19 @@ class SGDModel(TrainableNM):
         value_logits = value_logits.view(-1, max_num_slots, max_num_values)
 
         # Mask out logits for padded slots and values because they will be softmaxed
-        cat_slot_values_mask, negative_logits = self._get_mask(
+        cat_slot_values_mask, negative_logits = self._get_unused_slots_mask(
             value_logits, max_num_values, num_categorical_slot_values
         )
 
         value_logits = torch.where(cat_slot_values_mask, value_logits, negative_logits)
-        return status_logits, value_logits
 
-    def _get_noncategorical_slot_goals(self, encoded_utterance, utterance_mask, noncat_slot_emb, token_embeddings):
+        cat_slot_status_mask = self._get_loss_mask(max_num_slots, num_categorical_slots)
+
+        return status_logits, value_logits, cat_slot_status_mask
+
+    def _get_noncategorical_slot_goals(
+        self, encoded_utterance, utterance_mask, noncat_slot_emb, token_embeddings, num_noncategorical_slots
+    ):
         """
         Obtain logits for status and slot spans for non-categorical slots.
         Slot status values: none, dontcare, active
@@ -298,6 +317,7 @@ class SGDModel(TrainableNM):
         # Predict the status of all non-categorical slots.
         max_num_slots = noncat_slot_emb.size()[1]
         status_logits = self.noncat_slot_layer(encoded_utterance, noncat_slot_emb)
+        non_cat_slot_status_mask = self._get_loss_mask(max_num_slots, num_noncategorical_slots)
 
         # Predict the distribution for span indices.
         max_num_tokens = token_embeddings.size()[1]
@@ -324,11 +344,17 @@ class SGDModel(TrainableNM):
 
         # Shape of both tensors: (batch_size, max_num_slots, max_num_tokens).
         span_start_logits, span_end_logits = torch.unbind(span_logits, dim=3)
-        return status_logits, span_start_logits, span_end_logits
+        return status_logits, non_cat_slot_status_mask, span_start_logits, span_end_logits
 
-    def _get_mask(self, logits, max_length, actual_length):
+    def _get_unused_slots_mask(self, logits, max_length, actual_length):
+        # Mask out logits for padded slots and values because they will be softmaxed
         mask = torch.arange(0, max_length, 1, device=self._device) < torch.unsqueeze(actual_length, dim=-1)
         negative_logits = (torch.finfo(logits.dtype).max * -0.7) * torch.ones(
             logits.size(), device=self._device, dtype=logits.dtype
         )
         return mask, negative_logits
+
+    def _get_loss_mask(self, max_number, values):
+        # Mask out logits for padded slots and values for loss calculations
+        mask = torch.arange(0, max_number, 1, device=self._device) < torch.unsqueeze(values, dim=-1)
+        return mask.view(-1)

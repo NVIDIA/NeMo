@@ -25,7 +25,7 @@ import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
+from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils
 
 # Separator to separate the two sentences in BERT's input sequence.
 _NL_SEPARATOR = "|||"

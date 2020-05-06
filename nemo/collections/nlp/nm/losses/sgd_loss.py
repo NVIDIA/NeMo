@@ -20,7 +20,7 @@ from torch import nn
 from nemo import logging
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import STATUS_ACTIVE
-from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, LossType, NeuralType
+from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDialogueStateLoss']
@@ -39,6 +39,7 @@ class SGDDialogueStateLoss(LossNM):
     """
 
     @property
+    @add_port_docs
     def input_ports(self):
         """Returns definitions of module input ports.
 
@@ -61,20 +62,20 @@ class SGDDialogueStateLoss(LossNM):
         """
         return {
             "logit_intent_status": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "intent_status_labels": NeuralType(('B'), LabelsType()),
             "logit_req_slot_status": NeuralType(('B', 'T'), LogitsType()),
+            "requested_slot_status": NeuralType(('B', 'T'), LabelsType()),
             "req_slot_mask": NeuralType(('B', 'T'), ChannelType()),
             "logit_cat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "categorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
+            "cat_slot_status_mask": NeuralType(('B'), ChannelType()),
             "logit_cat_slot_value": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "categorical_slot_values": NeuralType(('B', 'T'), LabelsType()),
             "logit_noncat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "noncategorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
+            "non_cat_slot_status_mask": NeuralType(('B'), ChannelType()),
             "logit_noncat_slot_start": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
-            "intent_status": NeuralType(('B'), LabelsType()),
-            "requested_slot_status": NeuralType(('B', 'T'), LabelsType()),
-            "categorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
-            "num_categorical_slots": NeuralType(('B'), LengthsType()),
-            "categorical_slot_values": NeuralType(('B', 'T'), LabelsType()),
-            "noncategorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
-            "num_noncategorical_slots": NeuralType(('B'), LengthsType()),
             "noncategorical_slot_value_start": NeuralType(('B', 'T'), LabelsType()),
             "noncategorical_slot_value_end": NeuralType(('B', 'T'), LabelsType()),
         }
@@ -94,28 +95,23 @@ class SGDDialogueStateLoss(LossNM):
         self._cross_entropy = nn.CrossEntropyLoss()
         self._criterion_req_slots = nn.BCEWithLogitsLoss()
 
-    def _get_mask(self, max_number, values):
-
-        mask = torch.arange(0, max_number, 1, device=self._device) < torch.unsqueeze(values, dim=-1)
-        return mask.view(-1)
-
     def _loss_function(
         self,
         logit_intent_status,
+        intent_status_labels,
         logit_req_slot_status,
-        logit_cat_slot_status,
-        logit_cat_slot_value,
-        logit_noncat_slot_status,
-        logit_noncat_slot_start,
-        logit_noncat_slot_end,
-        intent_status,
         requested_slot_status,
         req_slot_mask,
+        logit_cat_slot_status,
         categorical_slot_status,
-        num_categorical_slots,
+        cat_slot_status_mask,
+        logit_cat_slot_value,
         categorical_slot_values,
+        logit_noncat_slot_status,
         noncategorical_slot_status,
-        num_noncategorical_slots,
+        non_cat_slot_status_mask,
+        logit_noncat_slot_start,
+        logit_noncat_slot_end,
         noncategorical_slot_value_start,
         noncategorical_slot_value_end,
     ):
@@ -130,16 +126,7 @@ class SGDDialogueStateLoss(LossNM):
         """
 
         # Intent loss
-        # Add label corresponding to NONE intent.
-        num_active_intents = torch.sum(intent_status, axis=1).unsqueeze(1)
-        none_intent_label = (
-            torch.ones(num_active_intents.size(), dtype=intent_status.dtype, device=self._device) - num_active_intents
-        )
-        # Shape: (batch_size, max_num_intents + 1).
-        onehot_intent_labels = torch.cat([none_intent_label, intent_status], axis=1)
-        # use indices for intent labels - tf uses one_hot_encoding
-        _, intent_labels = onehot_intent_labels.max(dim=1)
-        intent_loss = self._cross_entropy(logit_intent_status, intent_labels)
+        intent_loss = self._cross_entropy(logit_intent_status, intent_status_labels)
 
         # Requested slots.
         # Shape: (batch_size, max_num_slots)
@@ -151,10 +138,6 @@ class SGDDialogueStateLoss(LossNM):
 
         # Categorical slot status
         # Shape of logit_cat_slot_status: (batch_size, max_num_cat_slots, 3)
-        max_num_cat_slots = categorical_slot_status.size()[-1]
-
-        cat_slot_status_mask = self._get_mask(max_num_cat_slots, num_categorical_slots)
-
         if sum(cat_slot_status_mask) == 0:
             logging.warning(f'No active categorical slots in the batch')
             cat_slot_status_loss = 0
@@ -181,8 +164,6 @@ class SGDDialogueStateLoss(LossNM):
 
         # Non-categorical slot status.
         # Shape: (batch_size, max_num_noncat_slots, 3).
-        max_num_noncat_slots = noncategorical_slot_status.size()[-1]
-        non_cat_slot_status_mask = self._get_mask(max_num_noncat_slots, num_noncategorical_slots)
         noncat_slot_status_loss = self._cross_entropy(
             logit_noncat_slot_status.view(-1, 3)[non_cat_slot_status_mask],
             noncategorical_slot_status.view(-1)[non_cat_slot_status_mask],

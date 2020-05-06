@@ -4,7 +4,6 @@ import json
 import os
 
 import torch
-from fuzzywuzzy import fuzz
 
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging

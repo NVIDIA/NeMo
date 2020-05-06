@@ -21,7 +21,7 @@ import os
 
 import nemo
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils, schema
+from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils
 
 REQ_SLOT_THRESHOLD = 0.5
 

@@ -1,10 +1,6 @@
-import torch
-from torch.utils import data as pt_data
-
-import nemo
 from nemo.collections.nlp.data.datasets.sgd_dataset.sgd_dataset import SGDDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core.neural_types import ChannelType, EmbeddedTextType, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDataLayer']
@@ -60,6 +56,7 @@ class SGDDataLayer(TextDataLayer):
             "requested_slot_status": NeuralType(('B', 'T'), LabelsType()),
             "num_intents": NeuralType(('B'), LengthsType()),
             "intent_status": NeuralType(('B'), LabelsType()),
+            "intent_status_labels": NeuralType(('B'), LabelsType()),
         }
 
     def __init__(
