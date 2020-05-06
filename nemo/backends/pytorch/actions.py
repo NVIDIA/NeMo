@@ -20,8 +20,8 @@ from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
-from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, OperationMode, Optimization
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback, SimpleLossLoggerCallback
+from nemo.core.neural_factory import Actions, OperationMode, Optimization, TrainingState
 from nemo.core.neural_types import *
 from nemo.utils.helpers import get_checkpoint_from_dir
 
@@ -450,10 +450,10 @@ class PtActions(Actions):
                 if nm_tensor is None:
                     continue
                 t_name = nm_tensor.unique_name
-                if t_name not in registered_tensors:
+                if t_name not in registered_tensors or registered_tensors[t_name] is None:
                     registered_tensors[t_name] = t_tensor
                 else:
-                    raise ValueError("A NMTensor was produced twice in " f"the same DAG. {t_name}")
+                    raise ValueError(f"A NMTensor was produced twice in the same DAG. {t_name}")
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):
@@ -1110,6 +1110,7 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        self._training_state = TrainingState()
         # Analyse the arguments passed to train.
         if tensors_to_optimize is not None and training_graph is not None:
             raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
@@ -1204,7 +1205,7 @@ class PtActions(Actions):
         # callbacks setup
         if callbacks is not None:
             for callback in callbacks:
-                if not isinstance(callback, ActionCallback):
+                if not isinstance(callback, ActionCallback) and not isinstance(callback, NeMoCallback):
                     raise ValueError("A callback was received that was not a child of ActionCallback")
                 elif isinstance(callback, SimpleLossLoggerCallback):
                     if logging_callchain:
@@ -1407,20 +1408,20 @@ class PtActions(Actions):
                     else:
                         tensors.append(d)
 
-                registered_tensors = {
-                    t.unique_name: d for t, d in zip(curr_call_chain[0][2].values(), tensors) if t is not None
-                }
+                for t, d in zip(curr_call_chain[0][2].values(), tensors):
+                    if t is not None:
+                        self.training_state.set_tensor(t, d)
                 disable_allreduce = batch_counter < (batches_per_step - 1)
                 self.__nm_graph_forward_pass(
-                    call_chain=curr_call_chain, registered_tensors=registered_tensors,
+                    call_chain=curr_call_chain, registered_tensors=self.training_state.tensor_dict,
                 )
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
                 for tensor in curr_tensors_to_optimize:
                     if (
-                        torch.isnan(registered_tensors[tensor.unique_name]).any()
-                        or torch.isinf(registered_tensors[tensor.unique_name]).any()
+                        torch.isnan(self.training_state.tensor_dict[tensor.unique_name]).any()
+                        or torch.isinf(self.training_state.tensor_dict[tensor.unique_name]).any()
                     ):
                         if (
                             (stop_on_nan_loss)
@@ -1436,7 +1437,7 @@ class PtActions(Actions):
                             )
                         else:
                             logging.warning('Loss is NaN or inf, continuing training')
-                    final_loss += registered_tensors[tensor.unique_name]
+                    final_loss += self.training_state.tensor_dict[tensor.unique_name]
 
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
@@ -1479,10 +1480,11 @@ class PtActions(Actions):
                     batch_counter = 0
                     # Register iteration end with callbacks
                     self._update_callbacks(
-                        callbacks=callbacks, registered_tensors=registered_tensors,
+                        callbacks=callbacks, registered_tensors=self.training_state.tensor_dict, final_loss=final_loss
                     )
                     self._perform_on_iteration_end(callbacks=callbacks)
                     self.step += 1
+                self.training_state.clear_dict()
             # End of epoch for loop
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)

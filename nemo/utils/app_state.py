@@ -47,6 +47,17 @@ class AppState(metaclass=Singleton):
         self._module_registry = ObjectRegistry("module")
         # Create graph manager (registry with some additional functionality).
         self._neural_graph_manager = NeuralGraphManager()
+        # Create NmTensor registry
+        self._nmtensor_name_registry = nemo.core.neural_types.NmTensorNameRegistry()
+
+    @property
+    def tensor_names(self):
+        """ Property returning the existing modules.
+
+            Returns:
+                Existing modules (a set object).
+        """
+        return self._nmtensor_name_registry
 
     @property
     def modules(self):
@@ -68,14 +79,14 @@ class AppState(metaclass=Singleton):
         return self._neural_graph_manager
 
     def register_module(self, module, name: str) -> str:
-        """ 
-            Registers a module using the provided name. 
+        """
+            Registers a module using the provided name.
             If name is none - generates a new unique name.
-            
+
             Args:
                 module: A Neural Module object to be registered.
                 name: A "proposition" of module name.
-            
+
             Returns:
                 A unique name (proposition or newly generated name).
         """
@@ -85,11 +96,11 @@ class AppState(metaclass=Singleton):
         """
             Registers a new graph using the provided name.
             If name is none - generates a new unique name.
-            
+
             Args:
                 graph: A Neural Graph object to be registered.
                 name: A "proposition" of graph name.
-            
+
             Returns:
                 A unique name (proposition or newly generated name).
         """
