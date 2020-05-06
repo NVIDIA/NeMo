@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 # =============================================================================
 # Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
@@ -15,11 +16,15 @@
 # limitations under the License.
 # =============================================================================
 
-from .nemo_logging import Logger as _Logger
-from .nemo_logging import LogMode as logging_mode
 
-logging = _Logger()
+from collections import namedtuple
 
-from .argparse import NemoArgParser
-from .exp_logging import ExpManager, get_logger
-from .helpers import *
+# Tuple used for storing "step number", "module name" and "port name".
+# (used in NmTensor's producer/consumer, port binding etc.).
+# Module name is redundant, as it can be recovered from the step number.
+StepModulePort = namedtuple('StepModulePort', ["step_number", "module_name", "port_name"])
+
+
+# Tuple used for connection between a single producer and a single consummer consumer.
+# (used in NmTensor's producer/consumer, port binding etc.).
+Connection = namedtuple('Connection', ["producer", "consumer", "ntype"])

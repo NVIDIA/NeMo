@@ -34,9 +34,8 @@ class TrainableNM(NeuralModule, nn.Module):
 
     """
 
-    def __init__(self, pretrained_model_name=None):
-
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, pretrained_model_name=None, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
 
         self._device = get_cuda_device(self.placement)
@@ -130,8 +129,8 @@ class TrainableNM(NeuralModule, nn.Module):
 
 
 class NonTrainableNM(NeuralModule):
-    def __init__(self):
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     def __call__(self, force_pt=False, *input, **kwargs):
@@ -190,8 +189,8 @@ class DataLayerNM(NeuralModule):
     data_iterator property to return iterator over the dataset.
     """
 
-    def __init__(self):
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
         # if 'batch_size' not in kwargs:
@@ -325,8 +324,8 @@ class LossNM(NeuralModule):
     You must implement _loss_function method.
     """
 
-    def __init__(self):
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
 
     def get_weights(self):

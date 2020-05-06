@@ -131,9 +131,9 @@ class TokenClassifier(TrainableNM):
         dropout=0.0,
         use_transformer_pretrained=True,
     ):
-        super().__init__()
+        # Pass name up the module class hierarchy.
+        super().__init__(name=name)
 
-        self.name = name
         self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self._device, num_layers, activation, log_softmax)
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
@@ -141,11 +141,7 @@ class TokenClassifier(TrainableNM):
         # self.to(self._device) # sometimes this is necessary
 
     def __str__(self):
-        name = TrainableNM.__str__(self)
-
-        if self.name:
-            name = self.name + name
-        return name
+        return self.name
 
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)

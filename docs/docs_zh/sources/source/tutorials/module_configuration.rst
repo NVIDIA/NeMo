@@ -21,14 +21,14 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 25-35
+   :lines: 24-34
 
 现在我们可以导出任何一个已有模块的配置，调用 :meth:`export_to_config()`, 例如 \
 我们可以导出 :class:`TaylorNet` 的配置，通过调用:
 
 .. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 38
+   :lines: 37
 
 导入配置
 ---------
@@ -37,7 +37,7 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 41
+   :lines: 40
 
 .. note::
     :meth:`import_from_config()` 函数事实上是创建了在配置中的这个类的一个新的实例 \
@@ -49,7 +49,7 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_configuration.py
    :language: python
-   :lines: 43-
+   :lines: 42-
 
 
 .. include:: module_custom_configuration.rst
