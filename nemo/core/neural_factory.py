@@ -36,6 +36,7 @@ import nemo
 from ..utils import ExpManager
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
+from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
 
 logging = nemo.logging
@@ -84,6 +85,26 @@ class DeviceType(Enum):
     AllGpu = 3
 
 
+class TrainingState:
+    def __init__(self):
+        tensor_naming_registery = AppState().tensor_names
+        self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
+
+    def tensor_list(self):
+        return self.tensor_dict.keys()
+
+    def clear_dict(self):
+        for name in self.tensor_dict:
+            self.tensor_dict[name] = None
+
+    def set_tensor(self, tensor, value):
+        self.tensor_dict[tensor.unique_name] = value
+
+    def get_tensor(self, name):
+        unique_name = AppState().tensor_names[name]
+        return self.tensor_dict[unique_name]
+
+
 class Actions(ABC):
     """Basic actions allowed on graphs of Neural Modules"""
 
@@ -93,6 +114,15 @@ class Actions(ABC):
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
+        self._training_state = TrainingState()
+
+    @property
+    def state(self):
+        return {"step": self.step, "tensors": self.training_state}
+
+    @property
+    def training_state(self):
+        return self._training_state
 
     @property
     def local_rank(self):
@@ -201,45 +231,67 @@ class Actions(ABC):
         # to be a list of ActionCallback objects
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.on_iteration_start()
+                if isinstance(callback, ActionCallback):
+                    callback.on_iteration_start()
+                else:
+                    callback.on_iteration_start(self.state)
 
     def _perform_on_iteration_end(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.on_iteration_end()
+                if isinstance(callback, ActionCallback):
+                    callback.on_iteration_end()
+                else:
+                    callback.on_iteration_end(self.state)
 
     def _perform_on_action_start(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.on_action_start()
+                if isinstance(callback, ActionCallback):
+                    callback.on_action_start()
+                else:
+                    callback.on_action_start(self.state)
 
     def _perform_on_action_end(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.on_action_end()
+                if isinstance(callback, ActionCallback):
+                    callback.on_action_end()
+                else:
+                    callback.on_action_end(self.state)
 
     def _perform_on_epoch_start(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.on_epoch_start()
+                if isinstance(callback, ActionCallback):
+                    callback.on_epoch_start()
+                else:
+                    callback.on_epoch_start(self.state)
 
     def _perform_on_epoch_end(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.on_epoch_end()
+                if isinstance(callback, ActionCallback):
+                    callback.on_epoch_end()
+                else:
+                    callback.on_epoch_end(self.state)
 
     def _init_callbacks(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback.action = self
+                if isinstance(callback, ActionCallback):
+                    callback.action = self
 
     def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
+        self, callbacks=None, registered_tensors=None, final_loss=None,
     ):
         # if self.local_rank is None or self.local_rank == 0:
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                callback._registered_tensors = registered_tensors
+                if isinstance(callback, ActionCallback):
+                    callback._registered_tensors = registered_tensors
+                else:  # For now, we can use the old callback function. In the future we should improve this
+                    self.training_state.tensor_dict["loss"] = final_loss
 
 
 def _str_to_opt_level(opt_str: str) -> Optimization:
