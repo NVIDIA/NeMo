@@ -15,13 +15,13 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 33-35
+   :lines: 28-30
 
 现在让我们定义 :class:`CustomTaylorNet` 神经模块类:
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 38-43
+   :lines: 33-38
 
 
 为了能处理好 :class:`Status` enum 的导出功能，我们必须实现自定义函数 \
@@ -29,7 +29,7 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 45-76
+   :lines: 40-61
 
 
 注意配置实际上是一个字典，包含了两个部分:
@@ -40,21 +40,14 @@
 这些参数存在保护域 ``self._init_params`` 中，它的基类是 :class:`NeuralModule` 类。
 确保用户不能直接访问和使用它们。 
 
-类似地，我们必须重载方法 :meth:`import_from_config()` :
+类似地，我们必须重载方法 :meth:`_deserialize_configuration()` :
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 79-119
-
-请注意，基类 :class:`NeuralModule` 提供了一些保护方法供我们使用, \
-其中，最重要的是:
-
- * :meth:`_create_config_header()` 生成合适的 header, 以及 \
- * :meth:`_validate_config_file()` 验证加载的配置文件 (检查 header 内容)。
-
+   :lines: 63-86
 
 .. note::
-    再强调一下 :meth:`import_from_config()` 是类的方法，实际上返回 \
+    再强调一下 :meth:`_deserialize_configuration()` 是类的方法，实际上返回 \
     一个新的对象实例 - 在这个例子中就是 :class:`CustomTaylorNet` 类型。
 
 
@@ -62,13 +55,13 @@
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 128-129,134-135
+   :lines: 95-96,101-102
 
 通过加载这个配置，初始化第二个实例:
 
 .. literalinclude:: ../../../../../examples/start_here/module_custom_configuration.py
    :language: python
-   :lines: 137-139
+   :lines: 104-106
 
 从结果中我们可以看到新的对象把状态都设置成了原来那个对象的值:
 

@@ -191,7 +191,8 @@ class SimpleLossLoggerCallback(ActionCallback):
         if self.global_rank is None or self.global_rank == 0:
             if self._swriter is not None:
                 self._swriter.close()
-            logging.info(f"Done in {time.time() - self._start_time}")
+            delta = datetime.timedelta(seconds=(time.time() - self._start_time))
+            logging.info("Done in %s", delta)
 
     def on_epoch_start(self):
         if self.global_rank is None or self.global_rank == 0:
@@ -397,6 +398,7 @@ class EvaluatorCallback(ActionCallback):
         eval_epoch=None,
         wandb_name=None,
         wandb_project=None,
+        eval_at_start=True,
     ):
         # TODO: Eval_epoch currently does nothing
         if eval_step is None and eval_epoch is None:
@@ -408,6 +410,7 @@ class EvaluatorCallback(ActionCallback):
         self._swriter = tb_writer
         self._tb_writer_func = tb_writer_func
         self._eval_frequency = eval_step
+        self._eval_at_start = eval_at_start
         # will be passed to callbacks below
         self._global_var_dict = {}
 
@@ -435,12 +438,13 @@ class EvaluatorCallback(ActionCallback):
         pass
 
     def on_iteration_end(self):
-        step = self.step
-        if step % self._eval_frequency == 0:
+        if self.step == 0 and not self._eval_at_start:
+            return
+        if self.step % self._eval_frequency == 0:
             if self.global_rank == 0 or self.global_rank is None:
                 logging.info('Doing Evaluation ' + '.' * 30)
             start_time = time.time()
-            self.action._eval(self._eval_tensors, self, step)
+            self.action._eval(self._eval_tensors, self, self.step)
             elapsed_time = time.time() - start_time
             if self.global_rank == 0 or self.global_rank is None:
                 logging.info(f'Evaluation time: {elapsed_time} seconds')

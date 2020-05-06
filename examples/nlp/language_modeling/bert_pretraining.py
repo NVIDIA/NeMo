@@ -188,6 +188,7 @@ parser.add_argument(
 parser.add_argument(
     "--work_dir", default="outputs/bert_lm", type=str, help="Output directory for checkpoints, logs etc."
 )
+parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
 parser.add_argument("--save_epoch_freq", default=1, type=int, help="Save checkpoints every given epoch.")
 parser.add_argument("--save_step_freq", default=100, type=int, help="Save checkpoints every given iteration.")
 parser.add_argument("--train_step_freq", default=25, type=int, help="Print training metrics every given iteration.")
@@ -423,8 +424,8 @@ ckpt_callback = nemo_core.CheckpointCallback(
     step_freq=args.save_step_freq,
 )
 
-ckpt_eval = nemo.core.EvaluatorCallback(
-    eval_tensors=[eval_mlm_loss, eval_nsp_loss],
+eval_callback = nemo.core.EvaluatorCallback(
+    eval_tensors=[eval_loss],
     user_iter_callback=nemo_nlp.callbacks.lm_bert_callback.eval_iter_callback,
     user_epochs_done_callback=nemo_nlp.callbacks.lm_bert_callback.eval_epochs_done_callback,
     eval_step=args.eval_step_freq,
@@ -458,10 +459,18 @@ if args.num_iters < 0:
     optimization_params['num_epochs'] = args.num_epochs
 else:
     optimization_params['max_steps'] = args.num_iters
+
+if args.grad_norm_clip >= 0:
+    optimization_params['grad_norm_clip'] = args.grad_norm_clip
+call_backs = [train_callback, ckpt_callback, eval_callback]
+
+if 'data_preprocessed' in sys.argv:
+    call_backs = [train_callback, ckpt_callback]
+
 nf.train(
     tensors_to_optimize=[train_loss],
     lr_policy=lr_policy_fn,
-    callbacks=[train_callback, ckpt_callback, ckpt_eval],
+    callbacks=call_backs,
     optimizer=args.optimizer,
     batches_per_step=args.batches_per_step,
     gradient_predivide=args.gradient_predivide,

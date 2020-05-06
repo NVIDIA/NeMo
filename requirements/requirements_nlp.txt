@@ -11,3 +11,4 @@ tqdm
 sklearn
 fuzzywuzzy
 python-Levenshtein
+gdown
