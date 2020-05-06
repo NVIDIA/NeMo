@@ -104,9 +104,3 @@ class NeMoModel(NeuralModule):
         tar.extractall(path=out_folder)
         tar.close()
         return path.join(out_folder, NEMO_TMP_FOLDER), out_folder
-
-
-
-
-
-
