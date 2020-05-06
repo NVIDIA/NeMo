@@ -80,12 +80,23 @@ class TestTTSPytorch(TestCase):
 
     @staticmethod
     def print_and_log_loss(loss_tensor, loss_log_list):
+        """A helper function that is passed to SimpleLossLoggerCallback. It prints loss_tensors and appends to
+        the loss_log_list list.
+
+        Args:
+            loss_tensor (NMTensor): tensor representing loss. Loss should be a scalar
+            loss_log_list (list): empty list
+        """
         logging.info(f'Train Loss: {str(loss_tensor[0].item())}')
         loss_log_list.append(loss_tensor[0].item())
 
     @pytest.mark.integration
     @pytest.mark.run_only_on('GPU')
     def test_tacotron2_training(self):
+        """Integtaion test that instantiates a smaller Tacotron2 model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=4
         )
@@ -162,6 +173,10 @@ class TestTTSPytorch(TestCase):
     @pytest.mark.integration
     @pytest.mark.run_only_on('GPU')
     def test_waveglow_training(self):
+        """Integtaion test that instantiates a smaller WaveGlow model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         data_layer = nemo_tts.AudioDataLayer(
             manifest_filepath=self.manifest_filepath, n_segments=4000, batch_size=4, sample_rate=16000
         )
@@ -211,6 +226,12 @@ class TestTTSPytorch(TestCase):
 
     @pytest.mark.integration
     def test_fastspeech(self):
+        """Integtaion test that instantiates a FastSpeech model and tests training with the sample asr data.
+        Note instantiating the FastSpeech model additionally requires creating speech durations which additionally
+        tests NeuralModuleFactory.infer().
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        """
         data_layer = nemo_asr.AudioToTextDataLayer(
             manifest_filepath=self.manifest_filepath,
             labels=self.labels,

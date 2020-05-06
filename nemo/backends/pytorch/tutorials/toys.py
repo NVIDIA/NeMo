@@ -7,7 +7,6 @@ import torch.utils.data as t_utils
 
 from nemo import logging
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
-from nemo.core import DeviceType, NeuralModule
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
@@ -35,70 +34,25 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
         """
         return {"y_pred": NeuralType(('B', 'D'), ChannelType())}
 
-    def __init__(self, dim):
-        # Part specific for Neural Modules API:
-        #   (1) call base constructor
-        #   (2) define input and output ports
-        super().__init__()
+    def __init__(self, dim, name=None):
+        """
+            Creates TaylorNet object.
+            
+            Args:
+                dim: Number of dimensions (number of terms in Taylor series).
+                name: Name of the module instance
+        """
+        super().__init__(name=name)
 
         # And of Neural Modules specific part. Rest is Pytorch code
         self._dim = dim
         self.fc1 = nn.Linear(self._dim, 1)
         t.nn.init.xavier_uniform_(self.fc1.weight)
-        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
         self.to(self._device)
 
     # IMPORTANT: input arguments to forward must match input input ports' names
     def forward(self, x):
         lst = []
-        for pw in range(self._dim):
-            lst.append(x ** pw)
-        nx = t.cat(lst, dim=-1)
-        return self.fc1(nx)
-
-
-class TaylorNetO(TrainableNM):  # Note inheritance from TrainableNM
-    """Module which learns Taylor's coefficients."""
-
-    @property
-    @add_port_docs()
-    def input_ports(self):
-        """Returns definitions of module input ports.
-
-        """
-        return {
-            "x": NeuralType(('B', 'D'), ChannelType()),
-            "o": NeuralType(('B', 'D'), ChannelType()),
-        }
-
-    @property
-    @add_port_docs()
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        """
-        return {"y_pred": NeuralType(('B', 'D'), ChannelType(), optional=True)}
-
-    def __init__(self, dim):
-        # Part specific for Neural Modules API:
-        #   (1) call base constructor
-        #   (2) define input and output ports
-        super().__init__()
-
-        # And of Neural Modules specific part. Rest is Pytorch code
-        self._dim = dim
-        self.fc1 = nn.Linear(self._dim, 1)
-        t.nn.init.xavier_uniform_(self.fc1.weight)
-        self._device = t.device("cuda" if self.placement == DeviceType.GPU else "cpu")
-        self.to(self._device)
-
-    # IMPORTANT: input arguments to forward must match input input ports' names
-    # If port is Optional, the default value should be None
-    def forward(self, x, o=None):
-        lst = []
-        if o is None:
-            logging.debug("O is None")
-        else:
-            logging.debug("O is not None")
         for pw in range(self._dim):
             lst.append(x ** pw)
         nx = t.cat(lst, dim=-1)
@@ -133,7 +87,7 @@ class RealFunctionDataLayer(DataLayerNM):
             "y": NeuralType(('B', 'D'), LabelsType()),
         }
 
-    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4):
+    def __init__(self, batch_size, f_name="sin", n=1000, x_lo=-4, x_hi=4, name=None):
         """
             Creates a datalayer returning (x-y) pairs, with n points from a given range.
 
@@ -143,8 +97,9 @@ class RealFunctionDataLayer(DataLayerNM):
                 n: number of points
                 x_lo: lower boundary along x axis
                 x_hi: higher boundary along x axis
+                name: Name of the module instance
         """
-        super().__init__()
+        super().__init__(name=name)
 
         # Dicionary with handled functions.
         handled_funcs = {"sin": t.sin, "cos": t.cos}
@@ -197,8 +152,8 @@ class MSELoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self._criterion = nn.MSELoss()
 
     def _loss_function(self, **kwargs):
@@ -223,8 +178,8 @@ class L1Loss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self._criterion = nn.L1Loss()
 
     def _loss_function(self, **kwargs):
@@ -252,10 +207,8 @@ class CrossEntropyLoss(LossNM):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self):
-        # Neural Module API specific
-        NeuralModule.__init__(self)
-        # End of Neural Module API specific
+    def __init__(self, name=None):
+        super().__init__(name=name)
         self._criterion = nn.CrossEntropyLoss()
 
     # You need to implement this function

@@ -21,7 +21,7 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, ModelMode, Optimization
+from nemo.core.neural_factory import Actions, OperationMode, Optimization
 from nemo.core.neural_types import *
 from nemo.utils.helpers import get_checkpoint_from_dir
 
@@ -153,6 +153,7 @@ class PtActions(Actions):
         while len(hooks_lst) > 0:
             # take nmtensor from the end of the list
             nmtensor = hooks_lst.pop()
+
             node = create_node(nmtensor.producer, nmtensor.producer_args)
             # Store nmtensor as an output of its producer
             # first make sure all keys are present per output port
@@ -303,6 +304,8 @@ class PtActions(Actions):
                     params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
                 )
             elif optimizer_class.lower() == "fused_adam":
+                if not FusedAdam:
+                    raise ValueError("FusedAdam works only with torch DDP.")
                 optimizer = FusedAdam(
                     params=params_to_optimize,
                     lr=lr,
@@ -326,6 +329,8 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_novograd":
+                if not FusedNovoGrad:
+                    raise ValueError("FusedNovoGrad works only with torch DDP.")
                 optimizer = FusedNovoGrad(
                     params_to_optimize,
                     lr=lr,
@@ -335,11 +340,15 @@ class PtActions(Actions):
                     betas=optimization_params.get("betas", (0.95, 0.25)),
                 )
             elif optimizer_class.lower() == "fused_lamb":
+                if not FusedLAMB:
+                    raise ValueError("FusedLAMB works only with torch DDP.")
                 optimizer = FusedLAMB(params_to_optimize, lr=lr,)
             else:
                 raise ValueError("Unknown optimizer class: {0}".format(optimizer_class))
 
             if optimization_params.get("larc", False):
+                if not LARC:
+                    raise ValueError("LARC works only with torch DDP.")
                 logging.info("Enabling larc")
                 optimizer = LARC(optimizer, trust_coefficient=optimization_params.get("larc_eta", 2e-2),)
         else:
@@ -383,7 +392,7 @@ class PtActions(Actions):
         return optimizer
 
     def __nm_graph_forward_pass(
-        self, call_chain, registered_tensors, mode=ModelMode.train, use_cache=False,
+        self, call_chain, registered_tensors, mode=OperationMode.training, use_cache=False,
     ):
         for ind in range(1, len(call_chain)):
             if use_cache:
@@ -410,16 +419,16 @@ class PtActions(Actions):
             #         else:
             #             pmodule.enable_allreduce()
 
-            if mode == ModelMode.train:
+            if mode == OperationMode.training:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.train()
-            elif mode == ModelMode.eval:
+            elif mode == OperationMode.evaluation:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.eval()
             else:
-                raise ValueError("Unknown ModelMode")
+                raise ValueError("Unknown OperationMode")
             # prepare call signature for `module`
             call_set = {}
             for tensor_name, nmtensor in call_args.items():
@@ -515,6 +524,7 @@ class PtActions(Actions):
                 #         self.local_rank, world_size
                 #     )
                 # )
+
                 if dl_nm.dataset is not None:
                     sampler = torch.utils.data.distributed.DistributedSampler(
                         dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
@@ -574,7 +584,7 @@ class PtActions(Actions):
                     t.unique_name: d for t, d in zip(call_chain[0][2].values(), tensors) if t is not None
                 }
                 self.__nm_graph_forward_pass(
-                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=ModelMode.eval,
+                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=OperationMode.evaluation,
                 )
 
                 if not is_distributed or self.global_rank == 0:
@@ -756,7 +766,7 @@ class PtActions(Actions):
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
-                    mode=ModelMode.eval,
+                    mode=OperationMode.evaluation,
                     use_cache=use_cache,
                 )
 
@@ -961,12 +971,6 @@ class PtActions(Actions):
         # Make a deep copy of init parameters.
         init_params_copy = copy.deepcopy(module._init_params)
 
-        # Remove NeMo-related things from the module
-        # We need to change __call__ method. Note that this will change the
-        # whole class, not just this object! Which is why we need to repair it
-        # in the finally block
-        type(module).__call__ = torch.nn.Module.__call__
-
         # Reset standard instance field - making the file (probably) lighter.
         module._init_params = None
         module._placement = None
@@ -975,6 +979,13 @@ class PtActions(Actions):
 
         module.eval()
         try:
+            # # Remove NeMo-related things from the module
+            # # We need to change __call__ method. Note that this will change the
+            # # whole class, not just this object! Which is why we need to repair it
+            # # in the finally block
+            __orig_call__ = type(module).__call__
+            type(module).__call__ = torch.nn.Module.__call__
+
             if d_format == DeploymentFormat.TORCHSCRIPT:
                 if input_example is None:
                     # Route 1 - via torch.jit.script
@@ -1026,15 +1037,7 @@ class PtActions(Actions):
         except Exception as e:  # nopep8
             logging.error(f'module export failed for {module} ' f'with exception {e}')
         finally:
-
-            def __old_call__(self, force_pt=False, *input, **kwargs):
-                pt_call = len(input) > 0 or force_pt
-                if pt_call:
-                    return nn.Module.__call__(self, *input, **kwargs)
-                else:
-                    return NeuralModule.__call__(self, **kwargs)
-
-            type(module).__call__ = __old_call__
+            type(module).__call__ = __orig_call__
 
     @staticmethod
     def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
@@ -1059,20 +1062,50 @@ class PtActions(Actions):
                 output_example=output_example,
             )
 
+    def _check_nan_or_inf(self, placement_gpu, nan_or_inf, steps_per_nan_check=None):
+        # Note that nan_or_inf only gets set if stop_on_nan loss is True, or if using O0/not using apex.amp.
+        if not placement_gpu:
+            return
+        if steps_per_nan_check is None or self.step % steps_per_nan_check == 0:
+            world_size = dist.get_world_size()
+            # We use dtype=int because nccl backend doesn't support torch.bool
+            nan_inf_tensor = torch.tensor(nan_or_inf, dtype=int).cuda()
+            nan_inf_results = []
+            for _ in range(world_size):
+                nan_inf_results.append(torch.empty_like(nan_inf_tensor))
+            dist.all_gather(nan_inf_results, nan_inf_tensor)
+            for nan_inf in nan_inf_results:
+                if nan_inf:
+                    raise ValueError('Terminating due to previous NaN or inf.')
+
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
+        steps_per_nan_check=100,
         synced_batchnorm=False,
         synced_batchnorm_groupsize=0,
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        # Analyse the arguments passed to train.
+        if tensors_to_optimize is not None and training_graph is not None:
+            raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
+        # if tensors_to_optimize is None and training_graph is None:
+        #    raise ValueError(
+        #        "One of the `tensors_to_optimize` or `training_graph` values must be passed to the train() function"
+        #    )
+        # Finally, unify.
+        if training_graph is not None:
+            # To keep the "compatibility with old NeMo": get output tensors.
+            tensors_to_optimize = training_graph.outputs.tensor_list
+
         if gradient_predivide:
             logging.error(
                 "gradient_predivide is currently disabled, and is under consideration for removal in future versions. "
@@ -1190,7 +1223,8 @@ class PtActions(Actions):
                 )
 
         dataNM = training_loop[0][2][0][0]
-        if dataNM.placement == DeviceType.AllGpu:
+        placement_gpu = dataNM.placement == DeviceType.AllGpu
+        if placement_gpu:
             # if len(training_loop) > 1:
             #     raise NotImplementedError(
             #         "Distributed training does nor work with multiple "
@@ -1294,6 +1328,8 @@ class PtActions(Actions):
         # Do action start callbacks
         self._perform_on_action_start(callbacks=callbacks)
 
+        nan_or_inf = False
+
         # MAIN TRAINING LOOP
         # iteration over epochs
         while num_epochs is None or self.epoch_num < num_epochs:
@@ -1356,29 +1392,29 @@ class PtActions(Actions):
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
-                nan = False
                 for tensor in curr_tensors_to_optimize:
                     if (
                         torch.isnan(registered_tensors[tensor.unique_name]).any()
                         or torch.isinf(registered_tensors[tensor.unique_name]).any()
                     ):
-                        if stop_on_nan_loss:
-                            raise ValueError('Loss is NaN or inf - exiting')
-                        logging.warning('Loss is NaN or inf')
-                        curr_optimizer.zero_grad()
-                        nan = True
-                        break
+                        if (
+                            (stop_on_nan_loss)
+                            or (self._optim_level not in AmpOptimizations)
+                            or (self._optim_level == Optimization.mxprO0)
+                        ):
+                            # Set flag here and terminate at next all_gather check.
+                            nan_or_inf = True
+                            logging.warning(
+                                'Loss is NaN or inf at step %d, will terminate within the'
+                                ' next steps_per_nan_check steps',
+                                self.step,
+                            )
+                        else:
+                            logging.warning('Loss is NaN or inf, continuing training')
                     final_loss += registered_tensors[tensor.unique_name]
-                if nan:
-                    continue
+
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
-                        if torch.isnan(scaled_loss).any() or torch.isinf(scaled_loss).any():
-                            if stop_on_nan_loss:
-                                raise ValueError('Loss is NaN or inf -' ' exiting')
-                            logging.warning('WARNING: Loss is NaN or inf')
-                            curr_optimizer.zero_grad()
-                            continue
                         if disable_allreduce:
                             with ExitStack() as stack:
                                 for mod in self.get_DDP_modules(curr_call_chain):
@@ -1405,6 +1441,9 @@ class PtActions(Actions):
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
+                # Check if we should terminate due to NaN/inf on any workers.
+                self._check_nan_or_inf(placement_gpu, nan_or_inf, steps_per_nan_check=steps_per_nan_check)
+
                 batch_counter += 1
 
                 if batch_counter == batches_per_step:
@@ -1423,6 +1462,10 @@ class PtActions(Actions):
             # Register epochs end with callbacks
             self._perform_on_epoch_end(callbacks=callbacks)
             self.epoch_num += 1
+
+        # Check again if we should stop on NaN/inf
+        self._check_nan_or_inf(placement_gpu, nan_or_inf)
+
         self._perform_on_action_end(callbacks=callbacks)
 
     def infer(

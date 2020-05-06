@@ -36,13 +36,17 @@ class QuartzNet(NeMoModel):
         train: bool = True,
     ):
         super().__init__()
-        preprocessor, _ = NeuralModule._import_from_config_dict(preprocessor_params)
-        encoder, _ = NeuralModule._import_from_config_dict(encoder_params)
-        decoder, _ = NeuralModule._import_from_config_dict(decoder_params)
+        # preprocessor, _ = NeuralModule._import_from_config_dict(preprocessor_params)
+        # encoder, _ = NeuralModule._import_from_config_dict(encoder_params)
+        # decoder, _ = NeuralModule._import_from_config_dict(decoder_params)
+        preprocessor = NeuralModule.deserialize(preprocessor_params)
+        encoder = NeuralModule.deserialize(encoder_params)
+        decoder = NeuralModule.deserialize(decoder_params)
         self.__train = train
         if spec_augment_params is not None:
             if train:
-                spec_augment, _ = NeuralModule._import_from_config_dict(spec_augment_params)
+                # spec_augment, _ = NeuralModule._import_from_config_dict(spec_augment_params)
+                spec_augment = NeuralModule.deserialize(spec_augment_params)
             else:
                 logging.warning(
                     "Spec Augmentation should not be used in evaluation or inference. Dropping Spec Augment module"

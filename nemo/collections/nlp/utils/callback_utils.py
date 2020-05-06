@@ -113,7 +113,7 @@ def get_classification_report(labels, preds, label_ids):
         if v in used_labels
     ]
 
-    return classification_report(labels, preds, target_names=labels_names)
+    return classification_report(labels, preds, target_names=labels_names, digits=4)
 
 
 def get_f1_scores(labels, preds, average_modes=['binary', 'weighted', 'macro', 'micro']):
