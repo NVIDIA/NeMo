@@ -17,7 +17,7 @@
 
 __all__ = [
     'Backend',
-    'ModelMode',
+    'OperationMode',
     'Optimization',
     'DeviceType',
     'Actions',
@@ -59,11 +59,12 @@ class Backend(Enum):
     NotSupported = 2
 
 
-class ModelMode(Enum):
-    """Training Mode or Evaluation/Inference"""
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
 
-    train = 0
-    eval = 1
+    training = 0
+    evaluation = 1
+    both = 2
 
 
 class Optimization(Enum):
@@ -136,9 +137,9 @@ class Actions(ABC):
                 "algorithmic" batch size per GPU/worker = batches_per_step*
                 batch_size
             stop_on_nan_loss: (default: False) If set to True, the training
-                will stop if loss=nan. If set to False, the training will
-                continue, but the gradients will be zeroed before next
-                mini-batch.
+                will stop if loss=nan or inf. If set to False, the training
+                will continue. Note that if apex.amp is not used, or if
+                optimization level is O0, training will stop regardless.
 
         Returns:
             None
@@ -565,13 +566,15 @@ class NeuralModuleFactory(object):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
+        steps_per_nan_check=100,
         synced_batchnorm=False,
         synced_batchnorm_groupsize=0,
         gradient_predivide=False,
@@ -582,12 +585,14 @@ class NeuralModuleFactory(object):
             self.reset_trainer()
         return self._trainer.train(
             tensors_to_optimize=tensors_to_optimize,
+            training_graph=training_graph,
             optimizer=optimizer,
             optimization_params=optimization_params,
             callbacks=callbacks,
             lr_policy=lr_policy,
             batches_per_step=batches_per_step,
             stop_on_nan_loss=stop_on_nan_loss,
+            steps_per_nan_check=steps_per_nan_check,
             synced_batchnorm=synced_batchnorm,
             synced_batchnorm_groupsize=synced_batchnorm_groupsize,
             gradient_predivide=gradient_predivide,

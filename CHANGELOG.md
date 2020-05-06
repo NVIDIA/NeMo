@@ -73,6 +73,7 @@ To release a new version, please update the changelog as followed:
 - Added multi-dataset data-layer and dataset.
 ([PR #538](https://github.com/NVIDIA/NeMo/pull/538)) - @yzhang123
 - Online Data Augmentation for ASR Collection. ([PR #565](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
+- Speed augmentation on CPU, TimeStretch augmentation on CPU+GPU ([PR #594](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
 
 ### Changed
 
@@ -87,6 +88,11 @@ To release a new version, please update the changelog as followed:
 ### Security
 
 ### Contributors
+
+## [0.10.2] - 2020-05-05
+
+### Added
+- The Neural Graph is a high-level abstract concept empowering the users to build graphs consisting of many, interconnected Neural Modules. A user in his/her application can build any number of graphs, potentially spanning over the same modules. The import/export options combined with the lightweight API make Neural Graphs a perfect tool for rapid prototyping and experimentation. ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @tkornuta
 
 ## [0.10.0] - 2020-04-03
 
