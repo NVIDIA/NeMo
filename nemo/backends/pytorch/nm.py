@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch as t
 import torch.nn as nn
 
-from nemo.core import DeviceType, NeuralModule, WeightShareTransform, ModuleType
+from nemo.core import DeviceType, ModuleType, NeuralModule, WeightShareTransform
 from nemo.utils.helpers import get_cuda_device, rgetattr, rsetattr
 
 
@@ -197,7 +197,7 @@ class DataLayerNM(NeuralModule):
 
         # Set module type.
         self._type = ModuleType.datalayer
-        
+
         self._device = get_cuda_device(self.placement)
 
         # if 'batch_size' not in kwargs:

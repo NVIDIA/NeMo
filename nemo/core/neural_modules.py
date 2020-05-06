@@ -40,16 +40,19 @@ YAML = YAML(typ='safe')
 
 class ModuleType(Enum):
     """ Back-end independent module types """
+
     module = 0
     datalayer = 1
     trainable = 2
     loss = 3
+
 
 class WeightShareTransform(Enum):
     """When sharing parameters, what kind of transform to apply."""
 
     SAME = 0
     TRANSPOSE = 1
+
 
 PretrainedModelInfo = namedtuple(
     "PretrainedModleInfo", ("pretrained_model_name", "description", "parameters", "location"),

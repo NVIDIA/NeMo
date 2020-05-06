@@ -28,7 +28,7 @@ from ruamel.yaml import YAML
 
 from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
-from nemo.core.neural_modules import NeuralModule, ModuleType
+from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
