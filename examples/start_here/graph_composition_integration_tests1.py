@@ -39,6 +39,9 @@ with NeuralGraph(operation_mode=OperationMode.training) as g0:
 # Print the summary.
 logging.info(g0.summary())
 
+g0.freeze()
+g0.unfreeze()
+
 # SimpleLossLoggerCallback will print loss values to console.
 callback = SimpleLossLoggerCallback(
     tensors=[lss], print_func=lambda x: logging.info(f'Train Loss: {str(x[0].item())}'),
