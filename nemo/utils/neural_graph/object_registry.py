@@ -30,14 +30,14 @@ class ObjectRegistry(WeakSet):
         super().__init__()
         self._base_type_name = base_type_name
 
-    def register(self, new_obj, name):
+    def register(self, new_obj, name: str) -> str:
         """
             Registers a new object using the provided name. 
             If name is none - generates new unique name.
             
             Args:
                 new_obj: An object to be registered.
-                name: A "proposition" of object name.
+                name: A "proposition" for the object name.
             
             Returns:
                 A unique name (proposition or newly generated name).
@@ -51,11 +51,11 @@ class ObjectRegistry(WeakSet):
         # Check object name.
         if name is None:
             # Generate a new, unique name.
-            unique_name = self.__generate_unique_name()
+            unique_name = self.__generate_unique_name(new_obj)
         else:
             # Check if name is unique.
             if self.has(name):
-                raise NameError("A {} with name `{}` already exists!".format(self._base_type_name, name))
+                raise NameError("A {} with name `{}` already exists!".format(name, name))
             # Ok, it is unique.
             unique_name = name
 
@@ -65,26 +65,36 @@ class ObjectRegistry(WeakSet):
         # Return the name.
         return unique_name
 
-    def has(self, name):
-        """ Check if registry stores object with a given name. """
+    def has(self, name: str) -> bool:
+        """ 
+            Check if registry stores object with a given name.
+
+            Args:
+                name: name of the object to be found in the registry.
+        """
         for obj in self:
             if obj.name == name:
                 return True
         # Else:
         return False
 
-    def __generate_unique_name(self):
+    def __generate_unique_name(self, new_obj) -> str:
         """
             Generates a new unique name by adding postfix (number) to base name.
+
+            Args:
+                new_obj: An object to be registered.
 
             Returns:
                 A generated unique name.
         """
         # Iterate through numbers.
         postfix = 0
+        # Get type name.
+        base_type_name = (type(new_obj).__name__).lower()
         while True:
             # Generate name.
-            new_name = self._base_type_name + str(postfix)
+            new_name = base_type_name + str(postfix)
             # Check uniqueneess.
             if not self.has(new_name):
                 # Ok, got a unique name!
@@ -93,7 +103,7 @@ class ObjectRegistry(WeakSet):
             postfix += 1
         return new_name
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str):
         """
         Object getter function.
 
@@ -112,17 +122,22 @@ class ObjectRegistry(WeakSet):
         raise KeyError("A {} with name `{}` don't exists!".format(self._base_type_name, key))
 
     def __eq__(self, other):
-        """ Checks if two registers have the same content. """
+        """
+            Checks if two registers have the same content.
+
+            Args:    
+                other: The second registry object.
+        """
         if not isinstance(other, WeakSet):
             return False
         return super().__eq__(other)
 
-    def summary(self):
+    def summary(self) -> str:
         """
             Returns:
                 A summary of the objects on the list.
         """
-        summary = "Objects:\n"
+        summary = "Registry of {}s:\n".format(self._base_type_name)
         for obj in self:
             summary += " * {} ({})\n".format(obj.name, type(obj).__name__)
         return summary

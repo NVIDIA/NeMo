@@ -81,7 +81,7 @@ class TestNeuralGraphSerialization:
         loss = MSELoss(name="tgs2_loss")
 
         # Create the graph.
-        with NeuralGraph(operation_mode=OperationMode.inference) as g1:
+        with NeuralGraph(operation_mode=OperationMode.evaluation) as g1:
             x, t = dl()
             prediction1 = tn(x=x)
             _ = loss(predictions=prediction1, target=t)

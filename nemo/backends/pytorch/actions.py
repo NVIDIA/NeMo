@@ -165,7 +165,7 @@ class PtActions(Actions):
             all_nodes[node][nmtensor.name] = nmtensor
             processed_nmtensors.add(nmtensor)
             if nmtensor.producer_args is not None and nmtensor.producer_args != {}:
-                for name, new_nmtensor in nmtensor.producer_args.items():
+                for _, new_nmtensor in nmtensor.producer_args.items():
                     if new_nmtensor not in processed_nmtensors:
                         # put in the start of list
                         hooks_lst.insert(0, new_nmtensor)
@@ -423,7 +423,7 @@ class PtActions(Actions):
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.train()
-            elif mode == OperationMode.inference:
+            elif mode == OperationMode.evaluation:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.eval()
@@ -584,7 +584,7 @@ class PtActions(Actions):
                     t.unique_name: d for t, d in zip(call_chain[0][2].values(), tensors) if t is not None
                 }
                 self.__nm_graph_forward_pass(
-                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=OperationMode.inference,
+                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=OperationMode.evaluation,
                 )
 
                 if not is_distributed or self.global_rank == 0:
@@ -766,7 +766,7 @@ class PtActions(Actions):
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
-                    mode=OperationMode.inference,
+                    mode=OperationMode.evaluation,
                     use_cache=use_cache,
                 )
 

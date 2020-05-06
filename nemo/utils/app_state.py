@@ -15,9 +15,13 @@
 # limitations under the License.
 # =============================================================================
 
-# Sadly have to import this to avoid circular dependencies.
+# Sadly have to import the whole "nemo" python module to avoid circular dependencies.
+# Moreover, at that point nemo module doesn't contain "core", so during "python module registration"
+# nothing from nemo.core, including e.g. types (so we cannot use them for "python 3 type hints").
 import nemo
 from nemo.utils.metaclasses import Singleton
+from nemo.utils.neural_graph.neural_graph_manager import NeuralGraphManager
+from nemo.utils.neural_graph.object_registry import ObjectRegistry
 
 
 class AppState(metaclass=Singleton):
@@ -40,9 +44,9 @@ class AppState(metaclass=Singleton):
         else:
             self._device = device
         # Create module registry.
-        self._module_registry = nemo.utils.ObjectRegistry("module")
+        self._module_registry = ObjectRegistry("module")
         # Create graph manager (registry with some additional functionality).
-        self._neural_graph_manager = nemo.core.NeuralGraphManager()
+        self._neural_graph_manager = NeuralGraphManager()
         # Create NmTensor registry
         self._nmtensor_name_registry = nemo.core.neural_types.NmTensorNameRegistry()
 
@@ -57,7 +61,8 @@ class AppState(metaclass=Singleton):
 
     @property
     def modules(self):
-        """ Property returning the existing modules.
+        """
+            Property returning the existing modules.
 
             Returns:
                 Existing modules (a set object).
@@ -73,9 +78,15 @@ class AppState(metaclass=Singleton):
         """
         return self._neural_graph_manager
 
+<<<<<<< HEAD
     def register_module(self, module, name):
         """
             Registers a module using the provided name.
+=======
+    def register_module(self, module, name: str) -> str:
+        """
+            Registers a module using the provided name.
+>>>>>>> nvidia/fix-sign
             If name is none - generates a new unique name.
 
             Args:
@@ -87,7 +98,7 @@ class AppState(metaclass=Singleton):
         """
         return self._module_registry.register(module, name)
 
-    def register_graph(self, graph, name):
+    def register_graph(self, graph, name: str) -> str:
         """
             Registers a new graph using the provided name.
             If name is none - generates a new unique name.
@@ -106,7 +117,7 @@ class AppState(metaclass=Singleton):
         """ Property returns the active graph.
 
             Returns:
-                Active graph
+                Active graph.
         """
         return self._neural_graph_manager.active_graph
 

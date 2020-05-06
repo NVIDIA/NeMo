@@ -16,7 +16,15 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core.neural_graph.graph_inputs import GraphInput, GraphInputs
-from nemo.core.neural_graph.graph_outputs import GraphOutput, GraphOutputs
-from nemo.core.neural_graph.neural_graph import *
-from nemo.core.neural_graph.neural_graph_manager import NeuralGraphManager
+
+from collections import namedtuple
+
+# Tuple used for storing "step number", "module name" and "port name".
+# (used in NmTensor's producer/consumer, port binding etc.).
+# Module name is redundant, as it can be recovered from the step number.
+StepModulePort = namedtuple('StepModulePort', ["step_number", "module_name", "port_name"])
+
+
+# Tuple used for connection between a single producer and a single consummer consumer.
+# (used in NmTensor's producer/consumer, port binding etc.).
+Connection = namedtuple('Connection', ["producer", "consumer", "ntype"])

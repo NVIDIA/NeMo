@@ -17,7 +17,7 @@
 # =============================================================================
 
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict
 
 import nemo
 from nemo.core.neural_types import NeuralType
@@ -33,17 +33,16 @@ class NeuralInterface(ABC):
         graph, e.g. get_weights, tie_weights, )
     """
 
-    def __init__(self, name):
-        """ Constructor. Sets the application state. """
-        # Copy the name. As names should be unique in module/graph scope, this should be handled additionally
-        # in their constructors.
-        self._name = name
+    def __init__(self):
+        """
+            Constructor. Creates a "shortcut" to the application state.
+        """
         # Create access to the app state.
         self._app_state = nemo.utils.app_state.AppState()
 
     @property
     @abstractmethod
-    def input_ports(self) -> Optional[Dict[str, NeuralType]]:
+    def input_ports(self) -> Dict[str, NeuralType]:
         """ Returns definitions of module input ports
 
         Returns:
@@ -52,7 +51,7 @@ class NeuralInterface(ABC):
 
     @property
     @abstractmethod
-    def output_ports(self) -> Optional[Dict[str, NeuralType]]:
+    def output_ports(self) -> Dict[str, NeuralType]:
         """ Returns definitions of module output ports
 
         Returns:

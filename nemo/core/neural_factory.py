@@ -63,7 +63,7 @@ class OperationMode(Enum):
     """Training or Inference (Evaluation) mode"""
 
     training = 0
-    inference = 1
+    evaluation = 1
     both = 2
 
 

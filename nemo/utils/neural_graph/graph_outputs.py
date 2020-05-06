@@ -17,32 +17,38 @@
 # =============================================================================
 
 from collections.abc import MutableMapping
+from typing import Any, Dict, List, Optional
+
+from frozendict import frozendict
 
 from nemo.utils import logging
-from nemo.utils.connection import StepModulePort
+from nemo.utils.neural_graph.connection import StepModulePort
 
 
 class GraphOutput(object):
     """ A helper class represenging a single bound output. """
 
-    def __init__(self, ntype, producer_step_module_port):
+    def __init__(self, ntype: "NeuralType", producer_step_module_port: StepModulePort):
         """ 
         Initializes object.
 
         Args:
-            type: a NeuralType object.
+            ntype: a NeuralType object.
             producer_step_module_port: a producer StepModulePort tuple (step number (module name), port name).
         """
         self._ntype = ntype
         self._producer_step_module_port = producer_step_module_port
 
     @property
-    def ntype(self):
-        """ Returns NeuralType of that output. """
+    def ntype(self) -> "NeuralType":
+        """ 
+            Returns:
+                NeuralType of a given output.
+        """
         return self._ntype
 
     @property
-    def producer_step_module_port(self):
+    def producer_step_module_port(self) -> StepModulePort:
         """ Returns producer step port (step number (module), port name) tuple. """
         return self._producer_step_module_port
 
@@ -51,11 +57,11 @@ class GraphOutputs(MutableMapping):
     '''
         A specialized dictionary that contains bound outputs of a Neural Graph.
         In fact stores two lists of "outputs":
-            - "default" outputs with default keys taken from outputs of modules (might result in
-            overwriting some keys), and
-            - "manual" used for specifying the subset of outputs, each with a new/different key
-        When accessing the outputs, it returns the "manual" outputs. If "manual" outputs are not defined,
-        will return/work on "default" outputs.
+            - "default" outputs with default keys taken from outputs of modules, and
+            - "manual" used for specifying the subset of outputs.
+        When accessing the outputs, it returns the one of those two lists following the rule:
+        return "manual" outputs if they were define (at least one manual output defined by the user),
+        otherwise return the "default" outputs.
     '''
 
     def __init__(self, tensors_ref):
@@ -71,54 +77,74 @@ class GraphOutputs(MutableMapping):
 
         # This dictionary stores the output tensors collected during the "default" tensor recording.
         # As they are using the default port names, the second/next tensor published on the same port
-        # will overwrite the old one (Warning).
+        # will generate a new unique name following the (step_number.module.port_name) pattern.
         self._default_outputs = {}
 
         # This dictionary stores list of output tensors of module "manually" indicated by the user.
         # In this case tring to overwriting the existing ports with new tensors will be forbidden (Exception).
         self._manual_outputs = {}
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: "NmTensor"):
         """
             This method is used to set the manual output - creates a GraphOutput item and adds it to the list.
             
             Args:
-                key: name of the output (port).
-                value: tensor that will be used to create GraphOutput.
+                key: The name of the output (port).
+                value: NmTensor that will be used to create a given GraphOutput.
         """
         # Make sure that user passed a NmTensor.
-        assert type(value).__name__ == "NmTensor"
+        if type(value).__name__ != "NmTensor":
+            raise TypeError("Port `{}` definition must be must be set using a NmTensor".format(key))
+
         if key in self._manual_outputs.keys():
             raise KeyError("Overwriting of a port `{}` that was previously manually bound is not allowed".format(key))
-        # Ok, set output.
+
+        # Ok, set thee "manual" output.
         self._manual_outputs[key] = GraphOutput(value.ntype, value.producer_step_module_port)
 
-    def __getitem__(self, key):
-        """ Returns GraphOutput - depending whether there are some manual outputs or not. """
+    def __getitem__(self, key: str) -> GraphOutput:
+        """
+            Returns the bound output associated with the given key.
+            Uses default or manual dict depending whether there are some manual outputs or not.
+
+            Args:
+                key: Name of the bound input.
+        """
         if len(self._manual_outputs) > 0:
             return self._manual_outputs[key]
         else:  # Use default dict.
             return self._default_outputs[key]
 
-    def __delitem__(self, key):
-        raise NotImplementedError("Deleting a bound output is not allowed")
+    def __delitem__(self, key: str):
+        """
+            Raises:
+                TypeError as deletion of a bound input port is not allowed.
+        """
+        raise TypeError("Deleting a bound output is not allowed")
 
     def __iter__(self):
-        """ Iterates over the outputs - depending whether there are some manual outputs or not. """
+        """
+            Returns:
+                Iterator over the outputs - depending whether there are some manual outputs or not.
+        """
         if len(self._manual_outputs) > 0:
             return iter(self._manual_outputs)
         else:  # Use default dict.
             return iter(self._default_outputs)
 
-    def __len__(self):
-        """ Return number of outputs - depending whether there are some manual outputs or not. """
+    def __len__(self) -> int:
+        """
+            Returns:
+                The number of outputs - depending whether there are some manual outputs or not.
+        """
         if len(self._manual_outputs) > 0:
             return len(self._manual_outputs)
         else:  # Use default dict.
             return len(self._default_outputs)
 
-    def bind(self, tensors_ref, port_names=None):
-        """ Binds the default outputs.
+    def bind(self, tensors_ref: List["NmTensor"], port_names: Optional[str] = None):
+        """
+            Binds the "default" outputs.
 
             Args:
                 tensors_ref: List of tensors to be added.
@@ -141,20 +167,31 @@ class GraphOutputs(MutableMapping):
                         tensor.name, tensor.producer_step_number, tensor.producer_name, name
                     )
                 )
-            # Still, "overwrite" it.
+            # Store the output.
             self._default_outputs[name] = GraphOutput(tensor.ntype, tensor.producer_step_module_port)
 
     @property
-    def definitions(self):
-        """ Property returns definitions of the output ports by extracting them on the fly from the bound outputs. """
+    def definitions(self) -> Dict[str, GraphOutput]:
+        """
+            Property returns definitions of the output ports by extracting them on the fly from the bound outputs.
+
+            ..info:
+                This property actually returns a FrozenDict containing port definitions to indicate that
+                port definitions SHOULD not be used during the actual binding.
+            
+
+            Returns:
+                Dictionary of neural types associated with bound outputs.
+        """
         # Get the right output dictionary.
         d = self._manual_outputs if len(self._manual_outputs) > 0 else self._default_outputs
 
-        # Extract port definitions (Neural Types).
-        return {k: v.ntype for k, v in d.items()}
+        # Extract port definitions (Neural Types) and return an immutable dictionary,
+        # so the user won't be able to modify its content by an accident!
+        return frozendict({k: v.ntype for k, v in d.items()})
 
     @property
-    def tensors(self):
+    def tensors(self) -> Dict[str, "NmTensor"]:
         """
             Property returns output tensors by extracting them on the fly from the bound outputs.
 
@@ -166,6 +203,7 @@ class GraphOutputs(MutableMapping):
 
         output_tensors = {}
         # Get tensors by acessing the producer-ports.
+        # At that point all keys (k) are unigue - we made sure of that during binding/__setitem__.
         for k, v in d.items():
             producer_step = v.producer_step_module_port.step_number
             producer_port_name = v.producer_step_module_port.port_name
@@ -173,11 +211,12 @@ class GraphOutputs(MutableMapping):
             tensor = self._tensors_ref[producer_step][producer_port_name]
             # Add it to the dictionary.
             output_tensors[k] = tensor
-        # Return the result.
-        return output_tensors
+        # Return the result as an immutable dictionary,
+        # so the user won't be able to modify its content by an accident!
+        return frozendict(output_tensors)
 
     @property
-    def tensor_list(self):
+    def tensor_list(self) -> List["NmTensor"]:
         """
             Property returns output tensors by extracting them on the fly from the bound outputs.
             
@@ -200,7 +239,7 @@ class GraphOutputs(MutableMapping):
         # Return the result.
         return output_tensor_list
 
-    def serialize(self):
+    def serialize(self) -> Dict[str, Any]:
         """ Method responsible for serialization of the graph outputs.
 
             Returns:
@@ -228,7 +267,7 @@ class GraphOutputs(MutableMapping):
         # Return the result.
         return serialized_outputs
 
-    def deserialize(self, serialized_outputs, modules):
+    def deserialize(self, serialized_outputs: Dict[str, Any], modules: Dict[str, 'NeuralModule']):
         """ 
             Method responsible for deserialization of graph outputs.
 

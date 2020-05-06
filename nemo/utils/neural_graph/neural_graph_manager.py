@@ -16,9 +16,10 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core.neural_factory import OperationMode
-from nemo.core.neural_graph.neural_graph import NeuralGraph
-from nemo.utils.object_registry import ObjectRegistry
+# Sadly have to import the whole "nemo" python module to avoid circular dependencies.
+# Moreover, at that point nemo module doesn't contain "core", so during "python module registration"
+# nothing from nemo.core, including e.g. types (so we cannot use them for "python 3 type hints").
+from nemo.utils.neural_graph.object_registry import ObjectRegistry
 
 
 class NeuralGraphManager(ObjectRegistry):
@@ -30,21 +31,28 @@ class NeuralGraphManager(ObjectRegistry):
         self._active_graph = None
 
     def __eq__(self, other):
-        """ Checks if two managers have the same content. """
+        """
+            Checks if two managers have the same content.
+            Args:
+                other: A second manager object.
+        """
         if not isinstance(other, ObjectRegistry):
             return False
         return super().__eq__(other)
 
-    def summary(self):
-        """ Prints a nice summary. """
+    def summary(self) -> str:
+        """
+            Returns:
+                A summary of the graphs on the list.
+        """
         # TODO: a nicer summary. ;)
-        desc = ""
+        desc = "List of graphs:"
         for graph in self:
             desc = desc + "`{}`: {}\n".format(graph.name, graph)
         return desc
 
     @property
-    def active_graph(self):
+    def active_graph(self) -> "NeuralGraph":
         """
             Property returns the active graph. If there is no active graph, creates a new one.
 
@@ -53,6 +61,9 @@ class NeuralGraphManager(ObjectRegistry):
         """
         # Create a new graph - training is the default.
         if self._active_graph is None:
+            # Import core here (to avoid circular dependency between core-utils).
+            from nemo.core import NeuralGraph, OperationMode
+
             # Create a new "default" graph. Default mode: both.
             new_graph = NeuralGraph(operation_mode=OperationMode.both)
             new_graph._name = self.register(new_graph, None)
@@ -63,7 +74,7 @@ class NeuralGraphManager(ObjectRegistry):
         return self._active_graph
 
     @active_graph.setter
-    def active_graph(self, graph):
+    def active_graph(self, graph: "NeuralGraph"):
         """
             Property sets the active graph.
 
