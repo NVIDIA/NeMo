@@ -19,10 +19,16 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import nemo
-from ..audio_preprocessing import AudioPreprocessor, SpectrogramAugmentation
-from ..jasper import JasperDecoderForCTC, JasperEncoder
 from nemo import logging
-from nemo.core import NeMoModel, NeuralModule, NeuralType, PretrainedModelInfo, WeightShareTransform
+from nemo.core import (
+    NeMoModel,
+    NeuralGraph,
+    NeuralModule,
+    NeuralType,
+    OperationMode,
+    PretrainedModelInfo,
+    WeightShareTransform,
+)
 from nemo.utils import maybe_download_from_cloud
 
 
@@ -33,39 +39,75 @@ class QuartzNet(NeMoModel):
         encoder_params: Dict,
         decoder_params: Dict,
         spec_augment_params: Optional[Dict] = None,
-        train: bool = True,
+        # mode: OperationMode = OperationMode.training
     ):
         super().__init__()
-        # preprocessor, _ = NeuralModule._import_from_config_dict(preprocessor_params)
-        # encoder, _ = NeuralModule._import_from_config_dict(encoder_params)
-        # decoder, _ = NeuralModule._import_from_config_dict(decoder_params)
+        # Instantiate necessary modules
+        preprocessor, spec_augmentation, encoder, decoder = self.__instantiate_modules(
+            preprocessor_params, encoder_params, decoder_params, spec_augment_params
+        )
+        self.__op_mode = OperationMode.training
+
+        self.__training_neural_graph = NeuralGraph(operation_mode=OperationMode.training)
+        with self.__training_neural_graph:
+            # Copy one input port definitions - using "user" port names.
+            self.__training_neural_graph.inputs["input_signal"] = preprocessor.input_ports["input_signal"]
+            self.__training_neural_graph.inputs["length"] = preprocessor.input_ports["length"]
+            # Bind the selected inputs. Connect the modules
+            i_processed_signal, i_processed_signal_len = preprocessor(
+                input_signal=self.__training_neural_graph.inputs["input_signal"],
+                length=self.__training_neural_graph.inputs["length"],
+            )
+            if spec_augmentation is not None:
+                i_processed_signal = spec_augmentation(input_spec=i_processed_signal)
+            i_encoded, i_encoded_len = encoder(audio_signal=i_processed_signal, length=i_processed_signal_len)
+            i_log_probs = decoder(encoder_output=i_encoded)
+            # Bind the selected outputs.
+            self.__training_neural_graph.outputs["log_probs"] = i_log_probs
+            self.__training_neural_graph.outputs["encoded_len"] = i_encoded_len
+
+        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.evaluation)
+        with self.__evaluation_neural_graph:
+            # Copy one input port definitions - using "user" port names.
+            self.__evaluation_neural_graph.inputs["input_signal"] = preprocessor.input_ports["input_signal"]
+            self.__evaluation_neural_graph.inputs["length"] = preprocessor.input_ports["length"]
+            # Bind the selected inputs. Connect the modules
+            i_processed_signal, i_processed_signal_len = preprocessor(
+                input_signal=self.__evaluation_neural_graph.inputs["input_signal"],
+                length=self.__evaluation_neural_graph.inputs["length"],
+            )
+            # Notice lack of speck augmentation for inference
+            i_encoded, i_encoded_len = encoder(audio_signal=i_processed_signal, length=i_processed_signal_len)
+            i_log_probs = decoder(encoder_output=i_encoded)
+            # Bind the selected outputs.
+            self.__evaluation_neural_graph.outputs["log_probs"] = i_log_probs
+            self.__evaluation_neural_graph.outputs["encoded_len"] = i_encoded_len
+
+    def train(self):
+        self.__op_mode = OperationMode.training
+
+    def eval(self):
+        self.__op_mode = OperationMode.evaluation
+
+    def __call__(self, audio_signal, a_sig_length):
+        if self.__op_mode == OperationMode.training:
+            log_probs, encoded_len = self.__training_neural_graph(input_signal=audio_signal, length=a_sig_length)
+            return log_probs, encoded_len
+        else:
+            log_probs, encoded_len = self.__evaluation_neural_graph(input_signal=audio_signal, length=a_sig_length)
+            return log_probs, encoded_len
+
+    def __instantiate_modules(
+        self, preprocessor_params, encoder_params, decoder_params, spec_augment_params=None,
+    ):
         preprocessor = NeuralModule.deserialize(preprocessor_params)
         encoder = NeuralModule.deserialize(encoder_params)
         decoder = NeuralModule.deserialize(decoder_params)
-        self.__train = train
         if spec_augment_params is not None:
-            if train:
-                # spec_augment, _ = NeuralModule._import_from_config_dict(spec_augment_params)
-                spec_augment = NeuralModule.deserialize(spec_augment_params)
-            else:
-                logging.warning(
-                    "Spec Augmentation should not be used in evaluation or inference. Dropping Spec Augment module"
-                )
-                spec_augment = None
+            spec_augmentation = NeuralModule.deserialize(spec_augment_params)
         else:
-            spec_augment = None
+            spec_augmentation = None
 
-        self.__instantiate_modules(
-            preprocessor=preprocessor, encoder=encoder, decoder=decoder, spec_augmentation=spec_augment
-        )
-
-    def __instantiate_modules(
-        self,
-        preprocessor: AudioPreprocessor,
-        encoder: JasperEncoder,
-        decoder: JasperDecoderForCTC,
-        spec_augmentation: Optional[SpectrogramAugmentation] = None,
-    ):
         # Record all modules
         self._modules = []
         self._preprocessor = preprocessor
@@ -81,16 +123,7 @@ class QuartzNet(NeMoModel):
         self._input_ports = preprocessor.input_ports
         self._output_ports = decoder.output_ports
         self._output_ports['encoded_lengths'] = encoder.output_ports['encoded_lengths']
-
-    def __call__(self, **kwargs):
-        processed_signal, p_length = self._preprocessor(
-            input_signal=kwargs['audio_signal'], length=kwargs['a_sig_length']
-        )
-        if self._spec_augmentation is not None and self.__train:
-            processed_signal = self._spec_augmentation(input_spec=processed_signal)
-        encoded, encoded_len = self._encoder(audio_signal=processed_signal, length=p_length)
-        log_probs = self._decoder(encoder_output=encoded)
-        return log_probs, encoded_len
+        return self._preprocessor, self._spec_augmentation, self._encoder, self._decoder
 
     def export(self, output_file_name: str, output_folder: str = None, deployment: bool = False) -> str:
         if not deployment:
