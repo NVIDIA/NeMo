@@ -24,14 +24,18 @@ __all__ = [
     'CropOrPadSpectrogramAugmentation',
     'MultiplyBatch',
     'SpectrogramAugmentation',
+    'TimeStretchAugmentation',
 ]
 
 import math
 import warnings
 from abc import abstractmethod
 
+import numpy as np
 import torch
+from packaging import version
 
+import nemo
 from .parts.features import FilterbankFeatures
 from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM
@@ -41,6 +45,11 @@ from nemo.utils.decorators import add_port_docs
 
 try:
     import torchaudio
+    import torchaudio.transforms
+    import torchaudio.functional
+
+    TORCHAUDIO_VERSION = version.parse(torchaudio.__version__)
+    TORCHAUDIO_VERSION_MIN = version.parse('0.5')
 
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
@@ -50,6 +59,9 @@ try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
     warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
+
+
+logging = nemo.logging
 
 
 class AudioPreprocessor(NonTrainableNM):
@@ -734,6 +746,178 @@ class CropOrPadSpectrogramAugmentation(NonTrainableNM):
             # ),
             # "processed_length": NeuralType({0: AxisType(BatchTag)}),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+
+class TimeStretchAugmentation(NonTrainableNM):
+    def __init__(
+        self,
+        sample_rate: int,
+        probability: float,
+        min_speed_rate: float = 0.9,
+        max_speed_rate: float = 1.1,
+        num_rates: int = 5,
+        n_fft: int = 512,
+    ):
+        """
+        Time-stretch a batch of audio series by a fixed rate while preserving pitch.
+
+        Note that while the speed rate is sampled independently for every batch,
+        all samples of that batch will be augmented by the same speed rate.
+
+        Note:
+        This is a simplified implementation, intended primarily for reference and pedagogical purposes.
+        It makes no attempt to handle transients, and is likely to produce audible artifacts.
+
+        Args:
+            sample_rate: Sampling rate.
+            probability: Float value declaring chance of the input being augmented.
+                Must be a float value in the range [0, 1].
+            min_speed_rate: Minimum sampling rate modifier.
+            max_speed_rate: Maximum sampling rate modifier.
+            num_rates: Number of discrete rates to allow. Can be a positive or negative
+                integer.
+                If a positive integer greater than 0 is provided, the range of
+                speed rates will be discretized into `num_rates` values.
+                If a negative integer or 0 is provided, the full range of speed rates
+                will be sampled uniformly.
+                Note: If a positive integer is provided and the resultant discretized
+                range of rates contains the value '1.0', then those samples with rate=1.0,
+                will not be augmented at all and simply skipped. This is to avoid unnecessary
+                augmentation and increase computation time. Effective augmentation chance
+                in such a case is = `prob * (num_rates - 1 / num_rates) * 100`% chance
+                where `prob` is the global probability of a sample being augmented.
+            n_fft: Number of fft filters to be computed.
+        """
+        super(TimeStretchAugmentation, self).__init__()
+
+        if probability > 1.0 or probability < 0.0:
+            raise ValueError("`probability` must be between 0 and 1")
+
+        if not HAVE_TORCHAUDIO:
+            raise ModuleNotFoundError(
+                "torchaudio is not installed but is necessary for "
+                "TimeStretchAugmentation. We recommend you try "
+                "installing it from conda for the PyTorch version you have."
+            )
+
+        # Check torchaudio version; inform user of potential issue
+        if TORCHAUDIO_VERSION < TORCHAUDIO_VERSION_MIN:
+            logging.error(
+                "Current installed version of `torchaudio` %s is less than the recommended minimum "
+                "version of %s. Please note that this may cause deadlocks when using distributed "
+                "data parallel training. Please follow the instructions at https://github.com/pytorch/audio "
+                "to update torchaudio.",
+                str(TORCHAUDIO_VERSION),
+                str(TORCHAUDIO_VERSION_MIN),
+            )
+
+        min_rate = min(min_speed_rate, max_speed_rate)
+        if min_rate < 0.0:
+            raise ValueError("Minimum sampling rate modifier must be > 0.")
+
+        self._sample_rate = sample_rate
+        self.probability = float(probability)
+        self.min_rate = float(min_speed_rate)
+        self.max_rate = float(max_speed_rate)
+        self.num_rates = num_rates
+        if num_rates > 0:
+            self._rates = np.linspace(min_speed_rate, max_speed_rate, num_rates)
+        self._rng = np.random.RandomState()
+
+        self._n_fft = n_fft
+        self._hop_length = n_fft // 2
+        self._stft_window = torch.hann_window(self._n_fft, periodic=True, device=self._device)
+        self._phi_advance = torch.linspace(0, np.pi * self._hop_length, self._hop_length + 1, device=self._device)
+        self._phi_advance = self._phi_advance.view(-1, 1)
+
+    @torch.no_grad()
+    def forward(self, input_signal, length):
+        proba = self._rng.uniform(0.0, 1.0)
+
+        if proba > self.probability:
+            return input_signal, length
+
+        # Select speed rate either from choice or random sample
+        if self.num_rates < 0:
+            speed_rate = self._rng.uniform(self.min_rate, self.max_rate)
+        else:
+            speed_rate = np.random.choice(self._rates)
+
+        # Skip perturbation in case of identity speed rate
+        if speed_rate == 1.0:
+            return input_signal, length
+
+        features = self._stft(input_signal, self._n_fft, self._hop_length)
+        features = self._phase_vocoder(features, speed_rate)
+
+        # Predict the length of y_stretch
+        len_stretch = int(round(input_signal.shape[1] / speed_rate))
+
+        audio = self._istft(features, len_stretch)
+
+        length = (length * speed_rate).type(torch.long)
+
+        return audio, length
+
+    def _stft(self, data: torch.Tensor, n_fft: int, hop_length: int):
+        win_length = n_fft
+        window = self._stft_window
+
+        stft = torch.stft(
+            data,
+            n_fft=n_fft,
+            hop_length=hop_length,
+            win_length=win_length,
+            window=window,
+            center=True,
+            pad_mode='reflect',
+            normalized=False,
+        )
+        return stft
+
+    def _phase_vocoder(self, data: torch.Tensor, rate: float):
+        data_stretch = torchaudio.functional.phase_vocoder(data, rate, self._phi_advance)
+        return data_stretch
+
+    def _istft(self, data: torch.Tensor, len_stretch: int):
+        n_fft = 2 * (data.shape[1] - 1)
+        hop_length = self._hop_length
+        win_length = n_fft
+        window = self._stft_window
+
+        audio = torchaudio.functional.istft(
+            data,
+            n_fft,
+            hop_length,
+            win_length,
+            window=window,
+            center=True,
+            pad_mode='reflect',
+            normalized=False,
+            length=len_stretch,
+        )
+
+        return audio
+
+    @property
+    @add_port_docs()
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
+            "processed_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
             "processed_length": NeuralType(tuple('B'), LengthsType()),
         }
 

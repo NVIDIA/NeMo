@@ -73,6 +73,7 @@ To release a new version, please update the changelog as followed:
 - Added multi-dataset data-layer and dataset.
 ([PR #538](https://github.com/NVIDIA/NeMo/pull/538)) - @yzhang123
 - Online Data Augmentation for ASR Collection. ([PR #565](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
+- Speed augmentation on CPU, TimeStretch augmentation on CPU+GPU ([PR #594](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
 
 ### Changed
 

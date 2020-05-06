@@ -78,15 +78,9 @@ class AppState(metaclass=Singleton):
         """
         return self._neural_graph_manager
 
-<<<<<<< HEAD
-    def register_module(self, module, name):
-        """
-            Registers a module using the provided name.
-=======
     def register_module(self, module, name: str) -> str:
         """
             Registers a module using the provided name.
->>>>>>> nvidia/fix-sign
             If name is none - generates a new unique name.
 
             Args:
