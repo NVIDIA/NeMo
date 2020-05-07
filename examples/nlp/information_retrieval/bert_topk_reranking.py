@@ -61,6 +61,8 @@ parser.add_argument("--save_epoch_freq", default=5, type=int)
 parser.add_argument("--save_step_freq", default=2500, type=int)
 parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--num_negatives", default=5, type=int)
+parser.add_argument("--num_eval_candidates", default=100, type=int)
+parser.add_argument("--label_smoothing", default=0.0, type=float)
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -88,9 +90,13 @@ encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
 )
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
-    hidden_size=args.d_model, num_classes=1, num_layers=1, dropout=args.ffn_dropout, log_softmax=False
+    hidden_size=args.d_model, num_classes=1, num_layers=1,
+    dropout=args.ffn_dropout, log_softmax=False
 )
-loss_fn = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(list_size=args.num_negatives+1)
+loss_fn_train = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(
+    list_size=args.num_negatives+1)
+loss_fn_eval = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(
+    list_size=args.num_eval_candidates)
 
 
 documents = f"{args.data_dir}/collection.medium.tsv"
@@ -112,7 +118,7 @@ input_ids, input_mask, input_type_ids = batch_reshape(
     input_ids=input_ids, input_mask=input_mask, input_type_ids=input_type_ids)
 hiddens = encoder(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 scores = classifier(hidden_states=hiddens)
-train_loss = loss_fn(scores=scores)
+train_scores, train_loss = loss_fn_train(scores=scores)
 
 # Evaluation pipeline
 eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
@@ -126,11 +132,14 @@ eval_data_layer = ir_dl.BertInformationRetrievalDataLayerMultiEval(
     qrels=eval_qrels,
     topk_list=eval_topk_list,
     max_seq_length=args.max_seq_length,
-    num_candidates=80#(args.num_negatives + 1) * args.batch_size
+    num_candidates=args.num_eval_candidates
 )
 input_ids_, input_mask_, input_type_ids_, doc_rels_ = eval_data_layer()
+input_ids_, input_mask_, input_type_ids_ = batch_reshape(
+    input_ids=input_ids_, input_mask=input_mask_, input_type_ids=input_type_ids_)
 hiddens_ = encoder(input_ids=input_ids_, token_type_ids=input_type_ids_, attention_mask=input_mask_)
 scores_ = classifier(hidden_states=hiddens_)
+eval_scores, _ = loss_fn_eval(scores=scores_)
 
 # callback which prints training loss once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
@@ -142,9 +151,9 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 )
 
 eval_callback = nemo.core.EvaluatorCallback(
-    eval_tensors=[scores_, doc_rels_],
+    eval_tensors=[eval_scores, doc_rels_],
     user_iter_callback=eval_iter_callback,
-    user_epochs_done_callback=eval_epochs_done_callback,
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, topk=[10, 40, 80]),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer,
 )

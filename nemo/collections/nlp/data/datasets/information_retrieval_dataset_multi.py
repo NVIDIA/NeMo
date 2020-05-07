@@ -18,13 +18,12 @@
 
 import os
 import pickle
+import random
 import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
 
-__all__ = ['BertInformationRetrievalDatasetMulti',
-           'BertInformationRetrievalDatasetMultiEval',
-           'BertDensePassageRetrievalDataset']
+__all__ = ['BertInformationRetrievalDatasetMulti', 'BertInformationRetrievalDatasetMultiEval']
 
 
 class BertInformationRetrievalDatasetMulti(Dataset):
@@ -63,9 +62,18 @@ class BertInformationRetrievalDatasetMulti(Dataset):
 
     def parse_triples(self, file):
         idx2triples = {}
-        for i, line in enumerate(open(file, "r").readlines()):
-            query_and_docs = line.split("\t")[:self.num_negatives+2]
-            idx2triples[i] = [int(id_) for id_ in query_and_docs]
+        idx = 0
+        for line in open(file, "r").readlines():
+            query_and_docs = line.split("\t")
+            query_and_docs_ids = [int(id_) for id_ in query_and_docs]
+            query_and_rel_doc_ids, irrel_docs_ids = query_and_docs_ids[:2], query_and_docs_ids[2:]
+            random.shuffle(irrel_docs_ids)
+            num_samples = len(irrel_docs_ids) // self.num_negatives
+            for j in range(num_samples):
+                left = self.num_negatives * j
+                right = self.num_negatives * (j + 1)
+                idx2triples[idx] = query_and_rel_doc_ids + irrel_docs_ids[left:right]
+                idx += 1
         return idx2triples
     
     def preprocess_query_and_docs(self, query_and_docs):

@@ -37,25 +37,33 @@ class ListwiseSoftmaxLoss(LossNM):
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"loss": NeuralType(elements_type=LossType())}
+        return {
+            "scores": NeuralType(('B', 'B'), LogitsType()),
+            "loss": NeuralType(elements_type=LossType()),
+        }
 
-    def __init__(self, list_size=2):
+    def __init__(self, list_size=2, label_smoothing=0):
         LossNM.__init__(self)
 
-        self._loss_fn = ListwiseSoftmax(list_size=list_size)
+        self._loss_fn = ListwiseSoftmax(list_size=list_size,
+                                        label_smoothing=label_smoothing)
 
     def _loss_function(self, scores):
-        loss = self._loss_fn(scores)
-        return loss
+        scores, loss = self._loss_fn(scores)
+        return scores, loss
 
 
 class ListwiseSoftmax(torch.nn.Module):
 
-    def __init__(self, list_size=2):
+    def __init__(self, list_size=2, label_smoothing=0):
         super().__init__()
-        self.list_size = list_size
+        self._ls = list_size
+        self._smoothing = label_smoothing
 
     def forward(self, scores):
-        log_probs = torch.log_softmax(scores.view(-1, self.list_size), dim=-1)
-        neg_log_likelihood = -torch.mean(log_probs[:, 0])
-        return neg_log_likelihood
+        scores = scores.view(-1, self._ls)
+        smoothing = self._ls * self._smoothing / (self._ls - 1)
+        log_probs = torch.log_softmax(scores, dim=-1)
+        neg_log_likelihood = (1.0 - smoothing) * log_probs[:, 0] + smoothing * log_probs.mean(dim=-1)
+        neg_log_likelihood = -torch.mean(neg_log_likelihood)
+        return scores, neg_log_likelihood
