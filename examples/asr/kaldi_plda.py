@@ -8,7 +8,7 @@ from kaldi_python_io import ArchiveWriter
 
 def write_scp(root, filename, lines, train):
     assert len(lines) == len(train)
-    filename=os.path.join(root,filename)
+    filename = os.path.join(root, filename)
     with ArchiveWriter(filename + '.ark', filename + '.scp') as writer:
         for key, mat in zip(lines, train):
             writer.write(key, mat)
@@ -17,7 +17,7 @@ def write_scp(root, filename, lines, train):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root",help="embeddings root path", type=str, required=True)
+    parser.add_argument("--root", help="embeddings root path", type=str, required=True)
     parser.add_argument("--train_embs", help="npy of train embs", type=str, required=True)
     parser.add_argument("--train_labels", help="npy of train labels", type=str, required=True)
     parser.add_argument("--eval_embs", help="npy of eval embb", type=str, required=True)
@@ -31,12 +31,12 @@ if __name__ == "__main__":
         train = np.load(args.train_embs)
         labels = np.load(args.train_labels)
 
-        write_scp(root,'train', labels, train)
+        write_scp(root, 'train', labels, train)
 
     eval = np.load(args.eval_embs)
     labels = np.load(args.eval_labels)
 
-    write_scp(root,'dev', labels, eval)
+    write_scp(root, 'dev', labels, eval)
 
     cmd = ['bash', 'train_plda.sh', root, args.stage]
     subprocess.run(cmd)
