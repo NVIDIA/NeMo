@@ -255,6 +255,47 @@ class TestASRPytorch(TestCase):
         self.assertTrue(len(dl_test_max) == 19)
 
     @pytest.mark.unit
+    def test_tarred_dataloader(self):
+        batch_size = 4
+        manifest_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '../data/asr/tarred_an4/tarred_audio_manifest.json')
+        )
+
+        # Test loading a single tarball
+        tarpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/asr/tarred_an4/audio_0.tar'))
+        dl_single_tar = nemo_asr.TarredAudioToTextDataLayer(
+            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, batch_size=batch_size
+        )
+        count = 0
+        for _ in dl_single_tar.dataset:
+            count += 1
+        self.assertTrue(count == 16)
+
+        # Test braceexpand loading
+        tarpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '../data/asr/tarred_an4/audio_{0..3}.tar'))
+        dl_braceexpand = nemo_asr.TarredAudioToTextDataLayer(
+            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, batch_size=batch_size
+        )
+        self.assertTrue(len(dl_braceexpand) == 65)
+        count = 0
+        for _ in dl_braceexpand.dataset:
+            count += 1
+        self.assertTrue(count == 65)
+
+        # Test loading via list
+        tarpath = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), f'../data/asr/tarred_an4/audio_{i}.tar'))
+            for i in range(4)
+        ]
+        dl_list_load = nemo_asr.TarredAudioToTextDataLayer(
+            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, batch_size=batch_size
+        )
+        count = 0
+        for _ in dl_braceexpand.dataset:
+            count += 1
+        self.assertTrue(count == 65)
+
+    @pytest.mark.unit
     def test_trim_silence(self):
         batch_size = 4
         normal_dl = nemo_asr.AudioToTextDataLayer(
