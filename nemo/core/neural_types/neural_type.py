@@ -329,6 +329,7 @@ class NmTensor(NeuralType):
         """
         AppState().tensor_names.rename_NmTensor(self, new_name)
 
+
 class NeuralTypeError(Exception):
     """Base class for neural type related exceptions."""
 

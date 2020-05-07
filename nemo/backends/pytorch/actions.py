@@ -1161,11 +1161,7 @@ class PtActions(Actions):
             for module in AppState().modules:
                 key = module.unique_instance_id
                 num_trainable_weights = module.num_weights
-                if (
-                    not isinstance(module, DDP)
-                    and isinstance(module, torch.nn.Module)
-                    and num_trainable_weights > 0
-                ):
+                if not isinstance(module, DDP) and isinstance(module, torch.nn.Module) and num_trainable_weights > 0:
                     # gpf = 1
                     # if gradient_predivide:
                     #     gpf = dist.get_world_size()
@@ -1189,9 +1185,7 @@ class PtActions(Actions):
                             )
                             sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
 
-                        module = nn.SyncBatchNorm.convert_sync_batchnorm(
-                            module, process_group=sync_batchnorm_group
-                        )
+                        module = nn.SyncBatchNorm.convert_sync_batchnorm(module, process_group=sync_batchnorm_group)
 
                     # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
                     # pass

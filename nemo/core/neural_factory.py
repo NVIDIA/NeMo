@@ -43,8 +43,9 @@ from nemo.utils.decorators import deprecated
 logging = nemo.logging
 
 # def topological_sort_from_leaves(leaf_nmtensors, cached_training_state: TrainingState = None):
-def topological_sort_from_leaves(leaf_nmtensors, cached_training_state = None):
+def topological_sort_from_leaves(leaf_nmtensors, cached_training_state=None):
     from nemo.backends.pytorch.nm import DataLayerNM
+
     def create_node(producer, producer_args):
         if producer_args is None:
             return tuple((producer, ()))
@@ -141,7 +142,7 @@ def topological_sort_from_leaves(leaf_nmtensors, cached_training_state = None):
         if i > 0 and isinstance(m[0], DataLayerNM):
             raise ValueError("There were more than one DataLayer NeuralModule inside your DAG.")
 
-        #TODO
+        # TODO
         if cached_training_state and isinstance(m[0], DataLayerNM):
             raise ValueError("Could not compute tensor from current cached training state.")
 
