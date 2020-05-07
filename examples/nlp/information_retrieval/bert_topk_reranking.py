@@ -46,6 +46,7 @@ parser.set_defaults(
     eval_freq=2500,
 )
 parser.add_argument("--data_dir", default="/home/ohrinchuk/datasets/msmarco/", type=str)
+parser.add_argument("--collection_file", default="collection.medium.tsv", type=str)
 parser.add_argument("--pretrained_model", default="bert-base-uncased", type=str)
 parser.add_argument("--d_model", default=768, type=int)
 parser.add_argument("--d_inner", default=3072, type=int)
@@ -99,7 +100,7 @@ loss_fn_eval = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(
     list_size=args.num_eval_candidates)
 
 
-documents = f"{args.data_dir}/collection.medium.tsv"
+documents = f"{args.data_dir}/{args.collection_file}"
 
 # Training pipeline
 train_queries = f"{args.data_dir}/queries.{args.train_dataset}.tsv"
