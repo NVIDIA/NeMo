@@ -15,8 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This file contains NeuralModule and NmTensor classes."""
-__all__ = ['WeightShareTransform', 'NeuralModule']
+__all__ = ['WeightShareTransform', 'NeuralModule', 'ModuleType']
 
 import uuid
 from abc import abstractmethod
@@ -37,6 +36,16 @@ from nemo.utils.decorators.deprecated import deprecated
 from nemo.utils.neural_graph.connection import StepModulePort
 
 YAML = YAML(typ='safe')
+
+
+class ModuleType(Enum):
+    """ Back-end independent module types """
+
+    module = 0
+    datalayer = 1
+    trainable = 2
+    loss = 3
+    nontrainable = 4
 
 
 class WeightShareTransform(Enum):
@@ -68,6 +77,9 @@ class NeuralModule(NeuralInterface):
 
         # Register module and store the generated name.
         self._name = self._app_state.register_module(self, name)
+
+        # Set "module" type as default.
+        self._type = ModuleType.module
 
         # Set "both" as default operation mode.
         self._operation_mode = OperationMode.both
@@ -478,15 +490,6 @@ class NeuralModule(NeuralInterface):
         # In this case configuration = init parameters.
         return serialized_init_params
 
-    @deprecated(version=0.11)
-    @staticmethod
-    def create_ports(**kwargs):
-        """ Deprecated method, to be remoted in the next release."""
-        raise Exception(
-            'Deprecated method. Please implement ``inputs`` and ``outputs`` \
-                 properties to define module ports instead'
-        )
-
     @property
     @abstractmethod
     def input_ports(self) -> Dict[str, NeuralType]:
@@ -533,6 +536,11 @@ class NeuralModule(NeuralInterface):
     def operation_mode(self):
         """ Returns the operation mode. """
         return self._operation_mode
+
+    @property
+    def type(self):
+        """ Returns the type of module. """
+        return self._type
 
     @operation_mode.setter
     def operation_mode(self, operation_mode: OperationMode):
