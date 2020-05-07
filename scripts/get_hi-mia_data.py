@@ -6,21 +6,23 @@ import argparse
 import json
 import logging
 import os
-from glob import glob
-from sklearn.model_selection import StratifiedShuffleSplit
 import tarfile
 import urllib.request
-from tqdm import tqdm
+from glob import glob
+
 import librosa as l
+from sklearn.model_selection import StratifiedShuffleSplit
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='HI-MIA Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
 args = parser.parse_args()
 
-URL = {'dev': "http://www.openslr.org/resources/85/dev.tar.gz",
+URL = {
+    'dev': "http://www.openslr.org/resources/85/dev.tar.gz",
     'test': "http://www.openslr.org/resources/85/test.tar.gz",
     'train': "http://www.openslr.org/resources/85/train.tar.gz",
-        }
+}
 
 
 def __maybe_download_file(destination: str, source: str):
@@ -64,13 +66,15 @@ def extract_file(filepath: str, data_dir: str):
     except Exception:
         logging.info('Not extracting. Maybe already there?')
 
-def write_file(name,lines,idx):
-    with open(name,'w') as fout:
+
+def write_file(name, lines, idx):
+    with open(name, 'w') as fout:
         for i in idx:
             dic = lines[i]
-            json.dump(dic,fout)
+            json.dump(dic, fout)
             fout.write('\n')
-    print("wrote",name)
+    print("wrote", name)
+
 
 def __process_data(data_folder: str, data_set: str):
     """
@@ -82,26 +86,26 @@ def __process_data(data_folder: str, data_set: str):
 
     """
     fullpath = os.path.abspath(data_folder)
-    scp = glob(fullpath+'/**/*.wav',recursive=True)
-    out = os.path.join(fullpath,data_set+'_all.json')
-    utt2spk = os.path.join(fullpath,'utt2spk')
-    utt2spk_file = open(utt2spk,'w')
-    id = -2 #speaker id 
+    scp = glob(fullpath + '/**/*.wav', recursive=True)
+    out = os.path.join(fullpath, data_set + '_all.json')
+    utt2spk = os.path.join(fullpath, 'utt2spk')
+    utt2spk_file = open(utt2spk, 'w')
+    id = -2  # speaker id
 
     if os.path.exists(out):
         os.remove(out)
-    
-    speakers=[]
-    lines=[]
+
+    speakers = []
+    lines = []
     with open(out, 'w') as outfile:
         for line in tqdm(scp):
             line = line.strip()
             y, sr = l.load(line, sr=None)
-            if sr!=16000:
-                y,sr = l.load(line,sr=16000)
-                l.output.write_wav(line,y,sr)
+            if sr != 16000:
+                y, sr = l.load(line, sr=16000)
+                l.output.write_wav(line, y, sr)
             dur = l.get_duration(y=y, sr=sr)
-            if data_set=='test':
+            if data_set == 'test':
                 speaker = line.split('/')[-1].split('.')[0].split('_')[0]
             else:
                 speaker = line.split('/')[id]
@@ -112,19 +116,19 @@ def __process_data(data_folder: str, data_set: str):
             lines.append(meta)
             json.dump(meta, outfile)
             outfile.write("\n")
-            utt2spk_file.write(line.split('/')[-1]+"\t"+speaker+"\n")
-    
+            utt2spk_file.write(line.split('/')[-1] + "\t" + speaker + "\n")
+
     utt2spk_file.close()
 
-    if data_set !='test':
-        sss = StratifiedShuffleSplit(n_splits=1,test_size=0.1, random_state=42)
-        for train_idx,test_idx in sss.split(speakers,speakers):
+    if data_set != 'test':
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=42)
+        for train_idx, test_idx in sss.split(speakers, speakers):
             print(len(train_idx))
-        
-        out = os.path.join(fullpath,'train.json')
-        write_file(out,lines,train_idx)
-        out = os.path.join(fullpath,'dev.json')
-        write_file(out,lines,test_idx)
+
+        out = os.path.join(fullpath, 'train.json')
+        write_file(out, lines, train_idx)
+        out = os.path.join(fullpath, 'dev.json')
+        write_file(out, lines, test_idx)
 
 
 def main():
@@ -140,7 +144,7 @@ def main():
         data_folder = os.path.join(data_root, data_set)
         __extract_all_files(file_path, data_root, data_folder)
         logging.info("Processing {0}".format(data_set))
-        __process_data(data_folder,data_set)
+        __process_data(data_folder, data_set)
         logging.info('Done!')
 
 
