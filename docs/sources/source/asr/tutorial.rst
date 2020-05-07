@@ -340,6 +340,40 @@ Perform the following steps:
 
         python <nemo_git_repo_root>/examples/asr/jasper_eval.py --model_config=<nemo_git_repo_root>/examples/asr/configs/quartznet15x5.yaml --eval_datasets "<path_to_data>/dev_clean.json" --load_dir=<directory_containing_checkpoints> --lm_path=<path_to_6gram.binary>
 
+
+Using and Converting to Tarred Datasets
+---------------------------------------
+
+If you are training on a distributed cluster, you may want to avoid a dataset consisting of many small files and instead perform batched reads from tarballs.
+In this case, you can use the ``TarredAudioToTextDataLayer`` to load your data.
+
+The ``TarredAudioToTextDataLayer`` takes in an ``audio_tar_filepaths`` argument, which specifies the path(s) to the tarballs that contain the audio files, and a ``manifest_filepath`` argument that should contain the transcripts and durations corresponding to those files (with a unique WAV basename per entry).
+The ``audio_tar_filepaths`` argument can be in the form of a string, either containing a path to a single tarball or braceexpand-able to multiple paths, or a list of paths.
+Note that the data layer's size (via ``len``) is set by the number of entries of the manifest, rather than the number of files across all tarballs.
+
+This DataLayer uses `WebDataset <https://github.com/tmbdev/webdataset>`_ to read the tarred audio files.
+Since reads are performed sequentially, shuffling is done with a buffer which can be specified by the argument ``shuffle_n``.
+
+Please see the ``TarredAudioToTextDataLayer`` `documentation <https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo.collections.asr.data_layer.TarredAudioToTextDataLayer>`_ and the WebDataset documentation for more details.
+
+.. note::
+
+  If using ``torch.distributed`` processes, the ``TarredAudioToTextDataLayer`` will automatically partition the audio tarballs across workers.
+  As such, if you are training on `n` workers, please make sure to divide your WAV files evenly across a number of tarballs that is divisible by `n`.
+
+Conversion from an Existing Dataset to Tarred Dataset
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you already have an ASR dataset that you would like to convert to one that is compatible with the ``TarredAudioToTextDataLayer``, you can use ``scripts/convert_to_tarred_audio_dataset.py``.
+
+This script takes a few arguments:
+
+* ``manifest_path`` (required): The path to your existing dataset's manifest file.
+* ``target_dir``: The directory where the tarballs and new manifest will be written. If none if given, defaults to ``./tarred``.
+* ``num_shards``: The number of shards (tarballs) to create. If using multiple workers for training, set this to be a multiple of the number of workers you have. Defaults to 1.
+* ``shuffle``: Setting this flag will shuffle the entries in your original manifest before creating the new dataset. You may want to do this if your original dataset is ordered, since the ``TarredAudioToTextDataLayer`` cannot shuffle the whole dataset (see ``shuffle_n``).
+
+
 Kaldi Compatibility
 -------------------
 
@@ -354,7 +388,7 @@ Of course, you will also need the .ark files that contain the audio data in the 
 
 To load your Kaldi-formatted data, you can simply use the ``KaldiFeatureDataLayer`` instead of the ``AudioToTextDataLayer``.
 The ``KaldiFeatureDataLayer`` takes in an argument ``kaldi_dir`` instead of a ``manifest_filepath``, and this argument should be set to the directory that contains the files mentioned above.
-See `the documentation <https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo_asr.data_layer.KaldiFeatureDataLayer>`_ for more detailed information about the arguments to this data layer.
+See `the documentation <https://nvidia.github.io/NeMo/collections/nemo_asr.html#nemo.collections.asr.data_layer.KaldiFeatureDataLayer>`_ for more detailed information about the arguments to this data layer.
 
 .. note::
 
