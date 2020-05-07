@@ -25,6 +25,7 @@ __all__ = [
     'DeploymentFormat',
 ]
 
+import copy
 import random
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -40,6 +41,111 @@ from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
 
 logging = nemo.logging
+
+# def topological_sort_from_leaves(leaf_nmtensors, cached_training_state: TrainingState = None):
+def topological_sort_from_leaves(leaf_nmtensors, cached_training_state = None):
+    from nemo.backends.pytorch.nm import DataLayerNM
+    def create_node(producer, producer_args):
+        if producer_args is None:
+            return tuple((producer, ()))
+        else:
+            return tuple((producer, tuple([(k, v) for k, v in producer_args.items()]),))
+
+    def is_in_degree_zero(node, processed_nodes, cached_training_state):
+        """A node has in degree of zero"""
+        if node[1] == ():
+            return True
+        for portname, nmtensor in node[1]:
+            nd = create_node(nmtensor.producer, nmtensor.producer_args)
+            if nd not in processed_nodes:
+                if cached_training_state and cached_training_state.check_tensor_cached(nmtensor.unique_name):
+                    continue
+                return False
+        return True
+
+    hooks = leaf_nmtensors if isinstance(leaf_nmtensors, list) else [leaf_nmtensors]
+
+    # ensures that no tensors are processed twice
+    processed_nmtensors = set()
+
+    indices_to_remove = []
+    # Check for duplicates in hook
+    for i, nmtensor in enumerate(hooks):
+        if nmtensor in processed_nmtensors:
+            indices_to_remove.append(i)
+        else:
+            processed_nmtensors.add(nmtensor)
+
+    for i in reversed(indices_to_remove):
+        hooks.pop(i)
+
+    _top_sorted_modules = []
+    all_nodes = {}
+
+    # extract all nodes to all_nodes set
+    hooks_lst = list(hooks)
+    while len(hooks_lst) > 0:
+        # take nmtensor from the end of the list
+        nmtensor = hooks_lst.pop()
+        producer_args = nmtensor.producer_args
+
+        node = create_node(nmtensor.producer, producer_args)
+        # Store nmtensor as an output of its producer
+        # first make sure all keys are present per output port
+        # and nm is inside all_nodes
+        if node not in all_nodes:
+            all_nodes[node] = {k: None for k in nmtensor.producer.output_ports}
+        # second, populate output port with current nmtensor
+        # where applicable
+        all_nodes[node][nmtensor.name] = nmtensor
+        processed_nmtensors.add(nmtensor)
+
+        new_tensors = set()
+        if producer_args is not None and producer_args != {}:
+            for _, new_nmtensor in producer_args.items():
+                if new_nmtensor not in processed_nmtensors:
+                    new_tensors.add(new_nmtensor)
+
+        # TODO
+        if cached_training_state:
+            for name, input_nmtensor in producer_args.items():
+                if cached_training_state.check_tensor_cached(input_nmtensor.unique_name):
+                    new_tensors.remove(input_nmtensor)
+
+        for new_nmtensor in new_tensors:
+            # put in the start of list
+            hooks_lst.insert(0, new_nmtensor)
+
+    all_node_with_output = []
+    # Iterate over all_nodes to create new nodes that include its output
+    # now all nodes have (module, input tensors, output tensors)
+    for node in all_nodes:
+        all_node_with_output.append(tuple((node[0], node[1], all_nodes[node])))
+
+    processed_nodes = []
+    while len(all_node_with_output) > 0:
+        for node in all_node_with_output.copy():
+            # if node's in_degree is zero it can be added to
+            # _top_sorted_modules
+            # this will also reduce in_degree of its children
+            if is_in_degree_zero(node, processed_nodes, cached_training_state):
+                _top_sorted_modules.append(node)
+                processed_nodes.append((node[0], node[1]))
+                all_node_with_output.remove(node)
+
+    # Create top_sorted_modules aka callchain
+    top_sorted_modules = []
+    for i, m in enumerate(_top_sorted_modules):
+        top_sorted_modules.append((m[0], dict(m[1]), m[2]))
+        # Ensure that there is only one dataset in callchain
+        if i > 0 and isinstance(m[0], DataLayerNM):
+            raise ValueError("There were more than one DataLayer NeuralModule inside your DAG.")
+
+        #TODO
+        if cached_training_state and isinstance(m[0], DataLayerNM):
+            raise ValueError("Could not compute tensor from current cached training state.")
+
+    return top_sorted_modules
 
 
 class DeploymentFormat(Enum):
@@ -100,9 +206,27 @@ class TrainingState:
     def set_tensor(self, tensor, value):
         self.tensor_dict[tensor.unique_name] = value
 
+    def check_tensor_cached(self, unique_name):
+        if self.tensor_dict[unique_name] is None:
+            return False
+        return True
+
     def get_tensor(self, name):
         unique_name = AppState().tensor_names[name]
         return self.tensor_dict[unique_name]
+
+    def get_and_compute_tensor(self, name, action):
+        unique_name = AppState().tensor_names[name]
+        tensor_value = self.tensor_dict[unique_name]
+        if tensor_value is None:
+            nmtensor = AppState().tensor_names._nmtensor_uniname_dict[unique_name]
+            callchain = topological_sort_from_leaves([nmtensor], cached_training_state=self)
+            # print(callchain)
+            callchain.insert(0, ())
+            action.nm_graph_forward_pass(callchain, self.tensor_dict)
+            # print(self.tensor_dict[unique_name])
+            tensor_value = self.tensor_dict[unique_name]
+        return tensor_value
 
 
 class Actions(ABC):
@@ -279,8 +403,8 @@ class Actions(ABC):
     def _init_callbacks(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.action = self
+                # if isinstance(callback, ActionCallback):
+                callback.action = self
 
     def _update_callbacks(
         self, callbacks=None, registered_tensors=None, final_loss=None,

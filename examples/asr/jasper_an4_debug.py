@@ -65,7 +65,7 @@ def create_dags(model_config_file, vocab, args, nf):
     encoded, encoded_len = jasper_encoder(audio_signal=processed, length=processed_len)
     log_probs = jasper_decoder(encoder_output=encoded)
     predictions = greedy_decoder(log_probs=log_probs)
-    loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,)
+    loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len)
 
     # # Create an evaluation graph.
     # audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
@@ -89,7 +89,9 @@ def create_dags(model_config_file, vocab, args, nf):
     # loss.rename("test")
     # train_callback = nemo.core.SimpleLossLogger(tensors_to_log=["test"])
 
-    train_callback = nemo.core.SimpleLossLogger()
+    # train_callback = nemo.core.SimpleLossLogger()
+    predictions.rename("test")
+    train_callback = nemo.core.SimpleLossLogger(tensors_to_log=["loss", "test"])
 
     # checkpointer_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.checkpoint_save_freq)
 
