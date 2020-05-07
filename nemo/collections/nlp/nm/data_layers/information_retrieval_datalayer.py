@@ -168,9 +168,9 @@ class BertInformationRetrievalDataLayerMultiEval(TextDataLayer):
         irrel_mask: bool tensor with 0s in place of pad tokens in irrel_ids to be masked
         """
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), ChannelType()),
-            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
             "doc_rels": NeuralType(('B', 'T'), ChannelType()),
         }
 
@@ -195,32 +195,6 @@ class BertInformationRetrievalDataLayerMultiEval(TextDataLayer):
             'num_candidates': num_candidates,
         }
         super().__init__(dataset_type, dataset_params, batch_size=1)
-        
-        if self._placement == nemo.core.DeviceType.AllGpu:
-            sampler = pt_data.distributed.DistributedSampler(self._dataset)
-        else:
-            sampler = None
-
-        self._dataloader = pt_data.DataLoader(
-            dataset=self._dataset, batch_size=1, collate_fn=self._collate_fn,
-            shuffle=sampler is None, sampler=sampler
-        )
-
-    def _collate_fn(self, x):
-        input_ids, input_mask, input_type_ids, doc_rels = x[0]
-        input_ids = torch.Tensor(input_ids).long().to(self._device)
-        input_mask = torch.Tensor(input_mask).float().to(self._device)
-        input_type_ids = torch.Tensor(input_type_ids).long().to(self._device)
-        doc_rels = torch.Tensor(doc_rels).long().to(self._device)
-        return input_ids, input_mask, input_type_ids, doc_rels
-
-    @property
-    def dataset(self):
-        return None
-
-    @property
-    def data_iterator(self):
-        return self._dataloader
 
 
 class BertDensePassageRetrievalDataLayer(TextDataLayer):

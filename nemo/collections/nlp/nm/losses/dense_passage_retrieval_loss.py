@@ -46,7 +46,8 @@ class DensePassageRetrievalLoss(LossNM):
     def __init__(self, num_negatives=1, label_smoothing=0.0):
         LossNM.__init__(self)
 
-        self._loss_fn = DPRLoss(num_negatives=num_negatives, label_smoothing=label_smoothing)
+        self._loss_fn = DPRLoss(num_negatives=num_negatives,
+                                label_smoothing=label_smoothing)
 
     def _loss_function(self, queries, passages):
         scores, loss = self._loss_fn(queries, passages)
