@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch as t
 import torch.nn as nn
 
-from nemo.core import DeviceType, NeuralModule, WeightShareTransform
+from nemo.core import DeviceType, ModuleType, NeuralModule, WeightShareTransform
 from nemo.utils.helpers import get_cuda_device, rgetattr, rsetattr
 
 
@@ -37,6 +37,9 @@ class TrainableNM(NeuralModule, nn.Module):
     def __init__(self, pretrained_model_name=None, name=None):
         NeuralModule.__init__(self, name)  # For NeuralModule API
         nn.Module.__init__(self)  # For PyTorch API
+
+        # Set module type.
+        self._type = ModuleType.trainable
 
         self._device = get_cuda_device(self.placement)
 
@@ -132,6 +135,8 @@ class NonTrainableNM(NeuralModule):
     def __init__(self, name=None):
         NeuralModule.__init__(self, name)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
+        # Set module type.
+        self._type = ModuleType.nontrainable
 
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
@@ -191,6 +196,10 @@ class DataLayerNM(NeuralModule):
 
     def __init__(self, name=None):
         NeuralModule.__init__(self, name)  # For NeuralModule API
+
+        # Set module type.
+        self._type = ModuleType.datalayer
+
         self._device = get_cuda_device(self.placement)
 
         # if 'batch_size' not in kwargs:
@@ -326,6 +335,10 @@ class LossNM(NeuralModule):
 
     def __init__(self, name=None):
         NeuralModule.__init__(self, name)  # For NeuralModule API
+
+        # Set module type.
+        self._type = ModuleType.loss
+
         self._device = get_cuda_device(self.placement)
 
     def get_weights(self):
