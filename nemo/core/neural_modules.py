@@ -45,6 +45,7 @@ class ModuleType(Enum):
     datalayer = 1
     trainable = 2
     loss = 3
+    nontrainable = 4
 
 
 class WeightShareTransform(Enum):

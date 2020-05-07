@@ -135,6 +135,8 @@ class NonTrainableNM(NeuralModule):
     def __init__(self, name=None):
         NeuralModule.__init__(self, name)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
+        # Set module type.
+        self._type = ModuleType.nontrainable
 
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
