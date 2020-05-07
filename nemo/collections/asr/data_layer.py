@@ -26,7 +26,14 @@ import webdataset as wd
 
 import nemo
 from .parts.collections import ASRAudioText
-from .parts.dataset import AudioDataset, AudioLabelDataset, KaldiFeatureDataset, TranscriptDataset, seq_collate_fn
+from .parts.dataset import (
+    AudioDataset,
+    AudioLabelDataset,
+    KaldiFeatureDataset,
+    TranscriptDataset,
+    fixed_seq_collate_fn,
+    seq_collate_fn,
+)
 from .parts.features import WaveformFeaturizer
 from .parts.parsers import make_parser
 from .parts.perturb import AudioAugmentor, perturbation_types
@@ -897,6 +904,7 @@ target_label_n, "offset": offset_in_sec_n}
             the range [0, 1] of this augmentation being applied.
             If this keyword is not present, then the augmentation is
             disabled and a warning is logged.
+        time_length (int): max seconds to consider in a batch # Pass this only for speaker recognition task
     """
 
     @property
@@ -926,6 +934,7 @@ target_label_n, "offset": offset_in_sec_n}
         drop_last: bool = False,
         load_audio: bool = True,
         augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        time_length: int = 0,
     ):
         super(AudioToSpeechLabelDataLayer, self).__init__()
 
@@ -949,6 +958,9 @@ target_label_n, "offset": offset_in_sec_n}
         }
         self._dataset = AudioLabelDataset(**dataset_params)
 
+        self.num_classes = self._dataset.num_commands
+        logging.info("# of classes :{}".format(self.num_classes))
+        self.labels = self._dataset.labels
         # Set up data loader
         if self._placement == DeviceType.AllGpu:
             logging.info("Parallelizing Datalayer.")
@@ -956,10 +968,15 @@ target_label_n, "offset": offset_in_sec_n}
         else:
             sampler = None
 
+        if time_length:
+            collate_func = partial(fixed_seq_collate_fn, fixed_length=time_length * self._sample_rate)
+        else:
+            collate_func = partial(seq_collate_fn, token_pad_value=0)
+
         self._dataloader = torch.utils.data.DataLoader(
             dataset=self._dataset,
             batch_size=batch_size,
-            collate_fn=partial(seq_collate_fn, token_pad_value=0),
+            collate_fn=collate_func,
             drop_last=drop_last,
             shuffle=shuffle if sampler is None else False,
             sampler=sampler,
