@@ -1,12 +1,14 @@
+braceexpand
 frozendict
 inflect
 kaldi-io
 librosa
 marshmallow
+packaging
 num2words
 ruamel.yaml
 soundfile
 sox
 torch-stft
 unidecode
-packaging
+webdataset
