@@ -1,7 +1,19 @@
-"""
-This code were adapted from 
-https://github.com/google-research/google-research/tree/master/schema_guided_dst
-"""
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import argparse
 import math
@@ -9,9 +21,8 @@ import os
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.data.datasets.sgd_dataset.data_utils as data_utils
+import nemo.collections.nlp.data.datasets.sgd_dataset.data_processor as data_processor
 from nemo import logging
-from nemo.backends.pytorch.common.losses import BCEWithLogitsLossNM, CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.sgd_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import SchemaPreprocessor
 from nemo.collections.nlp.nm.trainables import sgd_model, sgd_modules
@@ -85,7 +96,7 @@ parser.add_argument(
     "--task_name",
     default="dstc8_single_domain",
     type=str,
-    choices=data_utils.FILE_RANGES.keys(),
+    choices=data_processor.FILE_RANGES.keys(),
     help="The name of the task to train.",
 )
 parser.add_argument(
@@ -251,7 +262,7 @@ schema_preprocessor = SchemaPreprocessor(
     is_trainable=args.train_schema_emb,
 )
 
-dialogues_processor = data_utils.Dstc8DataProcessor(
+dialogues_processor = data_processor.Dstc8DataProcessor(
     task_name=args.task_name,
     dstc8_data_dir=args.data_dir,
     dialogues_example_dir=args.dialogues_example_dir,
@@ -263,15 +274,6 @@ dialogues_processor = data_utils.Dstc8DataProcessor(
 # define model pipeline
 encoder = sgd_modules.Encoder(hidden_size=hidden_size, dropout=args.dropout)
 model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
-
-intent_loss_fn = CrossEntropyLossNM(logits_ndim=2)
-req_slots_loss_fn = BCEWithLogitsLossNM()
-cat_slot_status_loss = CrossEntropyLossNM(logits_ndim=3)
-cat_slot_value_loss = CrossEntropyLossNM(logits_ndim=3)
-noncat_slot_status_loss = CrossEntropyLossNM(logits_ndim=3)
-span_start_loss = CrossEntropyLossNM(logits_ndim=2)
-span_end_loss_fn = CrossEntropyLossNM(logits_ndim=2)
-total_loss_fn = LossAggregatorNM(num_inputs=7)
 
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLoss()
 
@@ -351,7 +353,7 @@ def create_pipeline(dataset_split='train'):
             logit_noncat_slot_status,
             logit_noncat_slot_start,
             logit_noncat_slot_end,
-            data.intent_status,
+            data.intent_status_labels,
             data.requested_slot_status,
             data.categorical_slot_status,
             data.num_categorical_slots,
@@ -380,7 +382,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 # we'll write predictions to file in DSTC8 format during evaluation callback
 input_json_files = [
     os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
-    for fid in data_utils.FILE_RANGES[args.task_name][args.eval_dataset]
+    for fid in data_processor.FILE_RANGES[args.task_name][args.eval_dataset]
 ]
 
 schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
@@ -416,7 +418,6 @@ lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
-
 nf.train(
     tensors_to_optimize=train_tensors,
     callbacks=[train_callback, eval_callback, ckpt_callback],
@@ -430,5 +431,3 @@ nf.train(
         "grad_norm_clip": args.grad_norm_clip,
     },
 )
-
-logging.info('********End of script***********')

@@ -1,5 +1,6 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +20,7 @@ from torch import nn
 
 from nemo import logging
 from nemo.backends.pytorch import LossNM
-from nemo.collections.nlp.data.datasets.sgd_dataset.data_utils import STATUS_ACTIVE
+from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import STATUS_ACTIVE
 from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 

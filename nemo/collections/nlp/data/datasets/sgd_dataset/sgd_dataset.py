@@ -1,7 +1,19 @@
-"""
-This code were adapted from 
-https://github.com/google-research/google-research/tree/master/schema_guided_dst
-"""
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -11,7 +23,10 @@ __all__ = ['SGDDataset']
 
 class SGDDataset(Dataset):
     """ 
-    TODO
+    Processes SGD dataset
+    Args:
+        dataset_split (str): train/dev/test
+        dialogues_processor (obj): Data generator for dstc8 dialogues
     """
 
     def __init__(self, dataset_split, dialogues_processor):
@@ -44,6 +59,5 @@ class SGDDataset(Dataset):
             np.array(ex.num_slots),  # num_requested_slots
             np.array(ex.requested_slot_status, dtype=np.float32),
             np.array(ex.num_intents),
-            np.array(ex.intent_status),
             np.array(ex.intent_status_labels),
         )

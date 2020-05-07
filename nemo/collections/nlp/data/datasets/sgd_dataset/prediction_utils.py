@@ -1,5 +1,6 @@
-# coding=utf-8
-# Copyright 2020 The Google Research Authors.
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
 """Prediction and evaluation-related utility functions."""
 
@@ -21,7 +23,12 @@ import os
 
 import nemo
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils
+from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
+    STATUS_ACTIVE,
+    STATUS_DONTCARE,
+    STATUS_OFF,
+    STR_DONTCARE,
+)
 
 REQ_SLOT_THRESHOLD = 0.5
 
@@ -123,9 +130,9 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         cat_slot_status_acc += 1
                     ####
                     slot_status = predictions["cat_slot_status"][slot_idx]
-                    if slot_status == data_utils.STATUS_DONTCARE:
-                        slot_values[slot] = data_utils.STR_DONTCARE
-                    elif slot_status == data_utils.STATUS_ACTIVE:
+                    if slot_status == STATUS_DONTCARE:
+                        slot_values[slot] = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
                         # print(predictions["cat_slot_status_p"][slot_idx])
                         if (
                             predictions["cat_slot_status_p"][slot_idx] + predictions["cat_slot_value_p"][slot_idx]
@@ -166,9 +173,9 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         noncat_slot_status_acc += 1
 
                     slot_status = predictions["noncat_slot_status"][slot_idx]
-                    if slot_status == data_utils.STATUS_DONTCARE:
-                        slot_values[slot] = data_utils.STR_DONTCARE
-                    elif slot_status == data_utils.STATUS_ACTIVE:
+                    if slot_status == STATUS_DONTCARE:
+                        slot_values[slot] = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
                         tok_start_idx = predictions["noncat_slot_start"][slot_idx]
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
@@ -276,17 +283,17 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
                 # Categorical slots.
                 for slot_idx, slot in enumerate(service_schema.categorical_slots):
                     slot_status = predictions["cat_slot_status"][slot_idx]
-                    if slot_status == data_utils.STATUS_DONTCARE:
-                        slot_values[slot] = data_utils.STR_DONTCARE
-                    elif slot_status == data_utils.STATUS_ACTIVE:
+                    if slot_status == STATUS_DONTCARE:
+                        slot_values[slot] = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
                         value_idx = predictions["cat_slot_value"][slot_idx]
                         slot_values[slot] = service_schema.get_categorical_slot_values(slot)[value_idx]
                 # Non-categorical slots.
                 for slot_idx, slot in enumerate(service_schema.non_categorical_slots):
                     slot_status = predictions["noncat_slot_status"][slot_idx]
-                    if slot_status == data_utils.STATUS_DONTCARE:
-                        slot_values[slot] = data_utils.STR_DONTCARE
-                    elif slot_status == data_utils.STATUS_ACTIVE:
+                    if slot_status == STATUS_DONTCARE:
+                        slot_values[slot] = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
                         tok_start_idx = predictions["noncat_slot_start"][slot_idx]
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]

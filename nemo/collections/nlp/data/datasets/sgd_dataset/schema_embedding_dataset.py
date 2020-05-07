@@ -1,4 +1,5 @@
-# coding=utf-8
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
 """Extract BERT embeddings for slots, values, intents in schema."""
 # Modified from bert.extract_features
@@ -25,7 +27,7 @@ import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset import data_utils
+from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import truncate_seq_pair
 
 # Separator to separate the two sentences in BERT's input sequence.
 _NL_SEPARATOR = "|||"
@@ -38,8 +40,8 @@ class SchemaEmbeddingDataset(Dataset):
         """Generate the embeddings for a schema's elements.
 
         Args:
-          tokenizer: BERT's wordpiece tokenizer.
-          max_seq_length: Sequence length used for BERT model.
+          tokenizer (tokenizer): such as NemoBertTokenizer
+          max_seq_length: Sequence length used for BERT model
           schemas: Schemas for all services in the datasets
         """
         self._tokenizer = tokenizer
@@ -92,7 +94,7 @@ class SchemaEmbeddingDataset(Dataset):
             # Modifies `tokens_a` and `tokens_b` in place so that the total
             # length is less than the specified length.
             # Account for [CLS], [SEP], [SEP] with "- 3"
-            data_utils.truncate_seq_pair(tokens_a, tokens_b, seq_length - 3)
+            truncate_seq_pair(tokens_a, tokens_b, seq_length - 3)
         else:
             # Account for [CLS] and [SEP] with "- 2"
             if len(tokens_a) > seq_length - 2:
@@ -118,19 +120,19 @@ class SchemaEmbeddingDataset(Dataset):
         # because the entire model is fine-tuned.
         tokens = []
         input_type_ids = []
-        tokens.append("[CLS]")
+        tokens.append(self._tokenizer.cls_token)
         input_type_ids.append(0)
         for token in tokens_a:
             tokens.append(token)
             input_type_ids.append(0)
-        tokens.append("[SEP]")
+        tokens.append(self._tokenizer.sep_token)
         input_type_ids.append(0)
 
         if tokens_b:
             for token in tokens_b:
                 tokens.append(token)
                 input_type_ids.append(1)
-            tokens.append("[SEP]")
+            tokens.append(self._tokenizer.sep_token)
             input_type_ids.append(1)
 
         input_ids = self._tokenizer.tokens_to_ids(tokens)

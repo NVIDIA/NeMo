@@ -1,7 +1,19 @@
-"""
-Some parts of this code were adapted from 
-https://github.com/google-research/google-research/tree/master/schema_guided_dst
-"""
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import collections
 import os
@@ -13,15 +25,9 @@ from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset import schema
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
 from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import BertInferDataLayer
+from nemo.collections.nlp.utils.data_utils import concatenate
 
 __all__ = ['SchemaPreprocessor']
-
-
-def concatenate(lists):
-    """
-    Helper function for inference
-    """
-    return np.concatenate([t.cpu() for t in lists])
 
 
 class SchemaPreprocessor:
@@ -159,3 +165,9 @@ class SchemaPreprocessor:
 
     def get_ids_to_service_names_dict(self):
         return self.schemas._services_id_to_vocab
+
+    def concatenate(lists):
+        """
+        Helper function for inference
+        """
+        return np.concatenate([t.cpu() for t in lists])
