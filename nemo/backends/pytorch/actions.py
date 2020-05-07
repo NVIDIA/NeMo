@@ -526,17 +526,22 @@ class PtActions(Actions):
                 # )
 
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
-                    )
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=sampler,
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=False,
-                        pin_memory=dl_nm.pin_memory,
-                    )
+                    sampler = None
+                    if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
+                        sampler = torch.utils.data.distributed.DistributedSampler(
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
+                        )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': sampler,
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': False,
+                        'pin_memory': dl_nm.pin_memory,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
 
@@ -545,14 +550,17 @@ class PtActions(Actions):
             else:  # Not distributed
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=None,  # not distributed sampler
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=dl_nm.shuffle,
-                        pin_memory=dl_nm.pin_memory,
-                    )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': None,  # not distributed sampler
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': dl_nm.shuffle,
+                        'pin_memory': dataNM.pin_memory,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
             # after this eval_dataloader is ready to be used
@@ -695,17 +703,22 @@ class PtActions(Actions):
                 #     )
                 # )
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
-                    )
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=sampler,
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=False,
-                        pin_memory=dl_nm.pin_memory,
-                    )
+                    sampler = None
+                    if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
+                        sampler = torch.utils.data.distributed.DistributedSampler(
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
+                        )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': sampler,
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': False,
+                        'pin_memory': dataNM.pin_memory,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
                 eval_dataloader.sampler.set_epoch(0)
@@ -714,14 +727,17 @@ class PtActions(Actions):
                 # When caching, the DAG must cache all outputs from dataloader
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=None,  # not distributed sampler
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=dl_nm.shuffle,
-                        pin_memory=dl_nm.pin_memory,
-                    )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': None,  # not distributed sampler
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': dl_nm.shuffle,
+                        'pin_memory': dataNM.pin_memory,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
             # after this eval_dataloader is ready to be used
@@ -1235,17 +1251,22 @@ class PtActions(Actions):
             #         "optimizers")
             logging.info("Doing distributed training")
             if t_dataset is not None:
-                train_sampler = torch.utils.data.distributed.DistributedSampler(
-                    dataset=t_dataset, shuffle=dataNM.shuffle
-                )
-                train_dataloader = torch.utils.data.DataLoader(
-                    dataset=t_dataset,
-                    sampler=train_sampler,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
-                    shuffle=False,
-                    pin_memory=dataNM.pin_memory,
-                )
+                train_sampler = None
+                if not isinstance(t_dataset, torch.utils.data.IterableDataset):
+                    train_sampler = torch.utils.data.distributed.DistributedSampler(
+                        dataset=t_dataset, shuffle=dataNM.shuffle
+                    )
+                dataloader_params = {
+                    'dataset': t_dataset,
+                    'sampler': train_sampler,
+                    'num_workers': dataNM.num_workers,
+                    'batch_size': dataNM.batch_size,
+                    'shuffle': False,
+                    'pin_memory': dataNM.pin_memory,
+                }
+                if hasattr(dataNM, 'collate_fn'):
+                    dataloader_params['collate_fn'] = dataNM.collate_fn
+                train_dataloader = torch.utils.data.DataLoader(**dataloader_params)
             else:
                 train_dataloader = dataNM.data_iterator
                 if hasattr(train_dataloader, 'sampler'):
@@ -1318,14 +1339,18 @@ class PtActions(Actions):
         else:
             if t_dataset is not None:
                 train_sampler = None
-                train_dataloader = torch.utils.data.DataLoader(
-                    dataset=t_dataset,
-                    sampler=None,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
-                    shuffle=dataNM.shuffle,
-                    pin_memory=dataNM.pin_memory,
-                )
+                dataloader_params = {
+                    'dataset': t_dataset,
+                    'sampler': None,
+                    'num_workers': dataNM.num_workers,
+                    'batch_size': dataNM.batch_size,
+                    'shuffle': dataNM.shuffle,
+                    'pin_memory': dataNM.pin_memory,
+                }
+                if hasattr(dataNM, 'collate_fn'):
+                    dataloader_params['collate_fn'] = dataNM.collate_fn
+
+                train_dataloader = torch.utils.data.DataLoader(**dataloader_params)
             else:
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None
