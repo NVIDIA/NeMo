@@ -25,7 +25,8 @@ class NmTensorNameRegistry:
         # Create the nmtensor_naming_dict
         # which contains a mapping of str to NMTensor.unique_name
         self._nmtensor_naming_dict = {"loss": "loss"}  # Reserve keyname of 'loss'
-        self._nmtensor_uniname_set = set(["loss"])
+        # self._nmtensor_uniname_set = set(["loss"])
+        self._nmtensor_uniname_dict = {"loss": None}
 
     # def summary(self):
     #     """ Prints a nice summary. """
@@ -36,7 +37,7 @@ class NmTensorNameRegistry:
 
     @property
     def unique_names(self):
-        return self._nmtensor_uniname_set
+        return self._nmtensor_uniname_dict.keys()
 
     # def register(self, tensor: NmTensor):
     def register(self, tensor):
@@ -44,11 +45,11 @@ class NmTensorNameRegistry:
         """
 
         # Check if object is already in a set.
-        if tensor.unique_name in self._nmtensor_uniname_set:
+        if tensor.unique_name in self._nmtensor_uniname_dict:
             pass
 
         # Finally, add object to the set.
-        self._nmtensor_uniname_set.add(tensor.unique_name)
+        self._nmtensor_uniname_dict[tensor.unique_name] = tensor
 
     # def rename_NmTensor(self, tensor: NmTensor, new_name: str):
     def rename_NmTensor(self, tensor, new_name: str):
@@ -81,7 +82,7 @@ class NmTensorNameRegistry:
         if key in self._nmtensor_naming_dict:
             key = self._nmtensor_naming_dict[key]
 
-        if key in self._nmtensor_uniname_set:
+        if key in self._nmtensor_uniname_dict:
             return key
 
         raise KeyError("A NmTensor with name `{}` don't exists!".format(key))
