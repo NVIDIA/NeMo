@@ -24,7 +24,7 @@ import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.trainables.lenet5 import LeNet5
-from nemo.core import NeuralGraph, OperationMode, DeviceType
+from nemo.core import DeviceType, NeuralGraph, OperationMode
 from nemo.utils import logging
 
 if __name__ == "__main__":
@@ -85,5 +85,9 @@ if __name__ == "__main__":
     )
 
     # Invoke the "train" action.
-    nf.train(training_graph=training_graph, callbacks=[callback, ecallback], optimization_params={"num_epochs": 10, "lr": 0.001}, optimizer="adam"
+    nf.train(
+        training_graph=training_graph,
+        callbacks=[callback, ecallback],
+        optimization_params={"num_epochs": 10, "lr": 0.001},
+        optimizer="adam",
     )
