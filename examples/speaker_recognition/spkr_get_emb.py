@@ -128,9 +128,6 @@ def create_all_dags(args, neural_factory):
         pool_mode=spkr_params["JasperDecoderForSpkrClass"]['pool_mode'],
     )
 
-    weight = None
-    xent_loss = nemo_asr.CrossEntropyLossNM(weight=weight)
-
     # --- Assemble Validation DAG --- #
     audio_signal_test, audio_len_test, label_test, _ = data_layer_test()
 

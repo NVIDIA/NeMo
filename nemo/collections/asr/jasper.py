@@ -423,82 +423,82 @@ class JasperDecoderForSpkrClass(TrainableNM):
 
 
 # Siamese Network, support to be added in future releases
-class SiameseDecoderForSpeakerClass(TrainableNM):
-    """
-    Jasper Decoder creates the final layer in Jasper that maps from the outputs
-    of Jasper Encoder to the vocabulary of interest.
+# class SiameseDecoderForSpeakerClass(TrainableNM):
+#     """
+#     Jasper Decoder creates the final layer in Jasper that maps from the outputs
+#     of Jasper Encoder to the vocabulary of interest.
 
-    Args:
-        feat_in (int): Number of channels being input to this module
-        num_classes (int): Number of characters in ASR model's vocab/labels.
-            This count should not include the CTC blank symbol.
-        init_mode (str): Describes how neural network parameters are
-            initialized. Options are ['xavier_uniform', 'xavier_normal',
-            'kaiming_uniform','kaiming_normal'].
-            Defaults to "xavier_uniform".
-    """
+#     Args:
+#         feat_in (int): Number of channels being input to this module
+#         num_classes (int): Number of characters in ASR model's vocab/labels.
+#             This count should not include the CTC blank symbol.
+#         init_mode (str): Describes how neural network parameters are
+#             initialized. Options are ['xavier_uniform', 'xavier_normal',
+#             'kaiming_uniform','kaiming_normal'].
+#             Defaults to "xavier_uniform".
+#     """
 
-    @property
-    def input_ports(self):
-        """Returns definitions of module input ports.
+#     @property
+#     def input_ports(self):
+#         """Returns definitions of module input ports.
 
-        encoder_output:
-            0: AxisType(BatchTag)
+#         encoder_output:
+#             0: AxisType(BatchTag)
 
-            1: AxisType(EncodedRepresentationTag)
+#             1: AxisType(EncodedRepresentationTag)
 
-            2: AxisType(ProcessedTimeTag)
-        """
-        return {
-            "embs1": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
-            "embs2": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
-        }
+#             2: AxisType(ProcessedTimeTag)
+#         """
+#         return {
+#             "embs1": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+#             "embs2": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+#         }
 
-    @property
-    def output_ports(self):
-        """Returns definitions of module output ports.
+#     @property
+#     def output_ports(self):
+#         """Returns definitions of module output ports.
 
-        output:
-            0: AxisType(BatchTag)
+#         output:
+#             0: AxisType(BatchTag)
 
-            1: AxisType(ChannelTag)
-        """
-        return {
-            "logits": NeuralType(('B', 'D'), LogitsType()),
-        }
+#             1: AxisType(ChannelTag)
+#         """
+#         return {
+#             "logits": NeuralType(('B', 'D'), LogitsType()),
+#         }
 
-    def __init__(self, emb_size, mid_dim, init_mode="xavier_uniform"):
-        super().__init__()
-        self._feat_in = emb_size
-        self._mid_dim = mid_dim
+#     def __init__(self, emb_size, mid_dim, init_mode="xavier_uniform"):
+#         super().__init__()
+#         self._feat_in = emb_size
+#         self._mid_dim = mid_dim
 
-        self.connect = self.affineLayer(self._feat_in, self._mid_dim, learn_mean=True)
+#         self.connect = self.affineLayer(self._feat_in, self._mid_dim, learn_mean=True)
 
-        self.S = nn.Parameter(torch.randn(self._mid_dim, self._mid_dim), requires_grad=True)
-        self.b = nn.Parameter(torch.randn(1), requires_grad=True)
+#         self.S = nn.Parameter(torch.randn(self._mid_dim, self._mid_dim), requires_grad=True)
+#         self.b = nn.Parameter(torch.randn(1), requires_grad=True)
 
-        self.apply(lambda x: init_weights(x, mode=init_mode))
-        self.to(self._device)
+#         self.apply(lambda x: init_weights(x, mode=init_mode))
+#         self.to(self._device)
 
-    def affineLayer(self, inp_shape, out_shape, learn_mean=True):
-        layer = nn.Sequential(
-            nn.Linear(inp_shape, out_shape),
-            nn.BatchNorm1d(out_shape, affine=learn_mean, track_running_stats=True),
-            nn.ReLU(),
-        )
+#     def affineLayer(self, inp_shape, out_shape, learn_mean=True):
+#         layer = nn.Sequential(
+#             nn.Linear(inp_shape, out_shape),
+#             nn.BatchNorm1d(out_shape, affine=learn_mean, track_running_stats=True),
+#             nn.ReLU(),
+#         )
 
-        return layer  # layer, embs
+#         return layer  # layer, embs
 
-    def forward(self, inp_emb1, inp_emb2):
+#     def forward(self, inp_emb1, inp_emb2):
 
-        x = self.connect(inp_emb1)
-        y = self.connect(inp_emb2)
+#         x = self.connect(inp_emb1)
+#         y = self.connect(inp_emb2)
 
-        out = (
-            torch.matmul(x, y.T).diag()
-            - torch.matmul(torch.matmul(x, self.S), x.T).diag()
-            - torch.matmul(torch.matmul(y, self.S), y.T).diag()
-            + self.b
-        )
+#         out = (
+#             torch.matmul(x, y.T).diag()
+#             - torch.matmul(torch.matmul(x, self.S), x.T).diag()
+#             - torch.matmul(torch.matmul(y, self.S), y.T).diag()
+#             + self.b
+#         )
 
-        return out
+#         return out

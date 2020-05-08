@@ -22,6 +22,19 @@ from sklearn.metrics import roc_curve
 from tqdm import tqdm
 
 
+"""
+This script faciliates to get EER % based on cosine-smilarity 
+for HI-MIA dataset.
+
+Args:
+    data_root str: Path to embeddings file and also make sure trails_1m file is also
+    placed in this path
+    emb : test embedding file path 
+    emb_labels : embedding labels file path
+    emb_size :help="Embeddings size
+"""
+
+
 def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
     basename = os.path.dirname(emb)
     X_test = np.load(emb)
@@ -100,8 +113,8 @@ def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_root", help="directory of embeddings location", type=str, required=True)
-    parser.add_argument("--emb", help="embedding file name excluding npy type", type=str, required=True)
-    parser.add_argument("--emb_labels", help="embedding file name excluding npy type", type=str, required=True)
+    parser.add_argument("--emb", help="test embedding file path", type=str, required=True)
+    parser.add_argument("--emb_labels", help="embedding labels file path", type=str, required=True)
     parser.add_argument("--emb_size", help="Embeddings size", type=int, required=True)
     args = parser.parse_args()
     root, emb, emb_labels, emb_size = args.data_root, args.emb, args.emb_labels, args.emb_size
