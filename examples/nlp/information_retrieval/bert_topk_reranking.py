@@ -100,14 +100,13 @@ loss_fn_eval = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(
     list_size=args.num_eval_candidates)
 
 
-documents = f"{args.data_dir}/{args.collection_file}"
-
+train_documents = f"{args.data_dir}/{args.collection_file}"
 # Training pipeline
 train_queries = f"{args.data_dir}/queries.{args.train_dataset}.tsv"
 train_triples = f"{args.data_dir}/triples.{args.train_dataset}.tsv"
 train_data_layer = ir_dl.BertInformationRetrievalDataLayer(
     tokenizer=tokenizer,
-    documents=documents,
+    documents=train_documents,
     queries=train_queries,
     triples=train_triples,
     batch_size=args.batch_size,
@@ -121,6 +120,7 @@ hiddens = encoder(input_ids=input_ids, token_type_ids=input_type_ids, attention_
 scores = classifier(hidden_states=hiddens)
 train_scores, train_loss = loss_fn_train(scores=scores)
 
+eval_documents = f"{args.data_dir}/collection.dev.small.tsv"
 # Evaluation pipeline
 eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
 eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
@@ -128,7 +128,7 @@ eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
 eval_topk_list = f"{args.data_dir}/bm25top100.{args.eval_datasets[0]}.tsv"
 eval_data_layer = ir_dl.BertInformationRetrievalDataLayerEval(
     tokenizer=tokenizer,
-    documents=documents,
+    documents=eval_documents,
     queries=eval_queries,
     qrels=eval_qrels,
     topk_list=eval_topk_list,

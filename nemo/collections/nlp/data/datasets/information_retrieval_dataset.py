@@ -32,8 +32,8 @@ class BertInformationRetrievalDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length
         self.num_negatives = num_negatives
-        self.documents = self.parse_collection(documents)
-        self.queries = self.parse_collection(queries)
+        self.documents = self.parse_npz(documents)
+        self.queries = self.parse_pkl(queries)
         self.idx2triples = self.parse_triples(triples)
 
     def __getitem__(self, idx):
@@ -42,7 +42,20 @@ class BertInformationRetrievalDataset(Dataset):
     def __len__(self):
         return len(self.idx2triples)
 
-    def parse_collection(self, file):
+    def parse_npz(self, file):
+        cached_collection = file + ".npz"
+        if os.path.isfile(cached_collection):
+            file_dict = np.load(cached_collection)["data"]
+        else:
+            file_dict = {}
+            lines = open(file, "r").readlines()
+            with mp.Pool() as pool:
+                file_dict = pool.map(self.preprocess_line, lines)
+            file_dict = {q[0]:q[1] for q in file_dict}
+            pickle.dump(file_dict, open(cached_collection, "wb"))
+        return file_dict
+
+    def parse_pkl(self, file):
         cached_collection = file + ".pkl"
         if os.path.isfile(cached_collection):
             file_dict = pickle.load(open(cached_collection, "rb"))
@@ -91,7 +104,10 @@ class BertInformationRetrievalDataset(Dataset):
 
     def pair_query_doc(self, query_id, doc_id):
         query_token_ids = self.queries[query_id]
+
         doc_token_ids = self.documents[doc_id]
+        doc_token_ids = doc_token_ids[1:doc_token_ids[0]+1].tolist()
+
         input_ids = [self.tokenizer.pad_id] * self.max_seq_length
         bert_input = [self.tokenizer.cls_id] + query_token_ids + [self.tokenizer.sep_id]
         sentence_a_length = len(bert_input)
@@ -181,6 +197,7 @@ class BertInformationRetrievalDatasetEval(Dataset):
     def pair_query_doc(self, query_id, doc_id):
         query_token_ids = self.queries[query_id]
         doc_token_ids = self.documents[doc_id]
+
         input_ids = [self.tokenizer.pad_id] * self.max_seq_length
         bert_input = [self.tokenizer.cls_id] + query_token_ids + [self.tokenizer.sep_id]
         sentence_a_length = len(bert_input)

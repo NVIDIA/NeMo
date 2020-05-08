@@ -33,8 +33,8 @@ class BertDensePassageRetrievalDataset(Dataset):
         self.max_query_length = max_query_length
         self.max_passage_length = max_passage_length
         self.num_negatives = num_negatives
-        self.passages = self.parse_collection(passages)
-        self.queries = self.parse_collection(queries)
+        self.passages = self.parse_npz(passages)
+        self.queries = self.parse_pkl(queries)
         self.idx2triples = self.parse_triples(triples)
 
     def __getitem__(self, idx):
@@ -43,7 +43,20 @@ class BertDensePassageRetrievalDataset(Dataset):
     def __len__(self):
         return len(self.idx2triples)
 
-    def parse_collection(self, file):
+    def parse_npz(self, file):
+        cached_collection = file + ".npz"
+        if os.path.isfile(cached_collection):
+            file_dict = np.load(cached_collection)["data"]
+        else:
+            file_dict = {}
+            lines = open(file, "r").readlines()
+            with mp.Pool() as pool:
+                file_dict = pool.map(self.preprocess_line, lines)
+            file_dict = {q[0]:q[1] for q in file_dict}
+            pickle.dump(file_dict, open(cached_collection, "wb"))
+        return file_dict
+
+    def parse_pkl(self, file):
         cached_collection = file + ".pkl"
         if os.path.isfile(cached_collection):
             file_dict = pickle.load(open(cached_collection, "rb"))
