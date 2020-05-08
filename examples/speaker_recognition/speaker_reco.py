@@ -210,7 +210,7 @@ def create_all_dags(args, neural_factory):
 
     for i, eval_layer in enumerate(data_layers_test):
 
-        audio_signal_test, audio_len_test, label_test, label_len_test = eval_layer()
+        audio_signal_test, audio_len_test, label_test, _ = eval_layer()
         processed_signal_test, processed_len_test = data_preprocessor(
             input_signal=audio_signal_test, length=audio_len_test
         )

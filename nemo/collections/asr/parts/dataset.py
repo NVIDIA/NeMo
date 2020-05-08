@@ -70,7 +70,7 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
     fixed_length = min(fixed_length, max(audio_lengths))
 
     audio_signal, tokens = [], []
-    for sig, sig_len, tokens_i, tokens_i_len in batch:
+    for sig, sig_len, tokens_i, _ in batch:
         if has_audio:
             sig_len = sig_len.item()
             chunck_len = sig_len - fixed_length
@@ -89,7 +89,6 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
                 signal = sig[start_idx:end_idx]
 
             audio_signal.append(signal)
-        tokens_i_len = tokens_i_len.item()
         tokens.append(tokens_i)
 
     if has_audio:
