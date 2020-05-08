@@ -18,18 +18,16 @@ import torch
 from torch.utils import data as pt_data
 
 import nemo
-from nemo.collections.nlp.data import BertInformationRetrievalDataset, \
-    BertInformationRetrievalDatasetMulti, BertInformationRetrievalDatasetMultiEval, \
+from nemo.collections.nlp.data import BertInformationRetrievalDataset, BertInformationRetrievalDatasetEval, \
     BertDensePassageRetrievalDataset, BertDensePassageRetrievalDatasetEval
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = [
-    'BertInformationRetrievalDataLayer',
-    'BertInformationRetrievalDataLayerMulti',
-    'BertInformationRetrievalDataLayerMultiEval'
-]
+__all__ = ['BertInformationRetrievalDataLayer',
+           'BertInformationRetrievalDataLayerEval',
+           'BertDensePassageRetrievalDataLayer',
+           'BertDensePassageRetrievalDataLayerEval']
 
 
 class BertInformationRetrievalDataLayer(TextDataLayer):
@@ -53,65 +51,11 @@ class BertInformationRetrievalDataLayer(TextDataLayer):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        rel_ids: indices of tokens which correspond to query-relevant doc pair
-        rel_mask: bool tensor with 0s in place of pad tokens in rel_ids to be masked
-        irrel_ids: indices of tokens which correspond to query-irrelevant doc pair
-        irrel_mask: bool tensor with 0s in place of pad tokens in irrel_ids to be masked
-        """
-        return {
-            "rel_ids": NeuralType(('B', 'T'), ChannelType()),
-            "rel_mask": NeuralType(('B', 'T'), ChannelType()),
-            "rel_type_ids": NeuralType(('B', 'T'), ChannelType()),
-            "irrel_ids": NeuralType(('B', 'T'), ChannelType()),
-            "irrel_mask": NeuralType(('B', 'T'), ChannelType()),
-            "irrel_type_ids": NeuralType(('B', 'T'), ChannelType()),
-        }
-
-    def __init__(
-        self,
-        tokenizer,
-        documents,
-        queries,
-        qrels,
-        batch_size,
-        max_seq_length=256,
-        dataset_type=BertInformationRetrievalDataset,
-    ):
-        dataset_params = {
-            'tokenizer': tokenizer,
-            'documents': documents,
-            'queries': queries,
-            'qrels': qrels,
-            'max_seq_length': max_seq_length,
-        }
-        super().__init__(dataset_type, dataset_params, batch_size)
-
-
-class BertInformationRetrievalDataLayerMulti(TextDataLayer):
-    """
-    Data layer for information retrieval with pre-trained Bert.
-
-    Args:
-        tokenizer (TokenizerSpec): Bert tokenizer
-        documents (str): Path to the collection of documents tsv file
-        queries (str): Path to the queries tsv file
-        qrels (str): Path to the tsv file with query-document relevance information
-        batch_size: text segments batch size
-        max_seq_length (int):
-                maximum allowed length of the text segments. Default: 256
-        dataset_type (Dataset):
-                the underlying dataset. Default: BertInformationRetrievalDatasetMulti
-    """
-
-    @property
-    @add_port_docs()
-    def output_ports(self):
-        """Returns definitions of module output ports.
-
-        rel_ids: indices of tokens which correspond to query-relevant doc pair
-        rel_mask: bool tensor with 0s in place of pad tokens in rel_ids to be masked
-        irrel_ids: indices of tokens which correspond to query-irrelevant doc pair
-        irrel_mask: bool tensor with 0s in place of pad tokens in irrel_ids to be masked
+        input_ids: tensor of shape [batch_size x num_docs x seq_len], each entry
+            has form [CLS] query_tokens [SEP] doc_tokens [SEP], first document in each
+            batch corresponds to relevant document, all other to irrelevant ones
+        input_mask: bool tensor with 0s in place of pad tokens in input_ids to be masked
+        input_type_ids: 0 for query tokens and 1 for document tokens
         """
         return {
             "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
@@ -128,7 +72,8 @@ class BertInformationRetrievalDataLayerMulti(TextDataLayer):
         batch_size,
         max_seq_length=256,
         num_negatives=5,
-        dataset_type=BertInformationRetrievalDatasetMulti,
+        shuffle=True,
+        dataset_type=BertInformationRetrievalDataset,
     ):
         dataset_params = {
             'tokenizer': tokenizer,
@@ -138,10 +83,10 @@ class BertInformationRetrievalDataLayerMulti(TextDataLayer):
             'max_seq_length': max_seq_length,
             'num_negatives': num_negatives,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
 
 
-class BertInformationRetrievalDataLayerMultiEval(TextDataLayer):
+class BertInformationRetrievalDataLayerEval(TextDataLayer):
     """
     Data layer for information retrieval with pre-trained Bert.
 
@@ -150,11 +95,10 @@ class BertInformationRetrievalDataLayerMultiEval(TextDataLayer):
         documents (str): Path to the collection of documents tsv file
         queries (str): Path to the queries tsv file
         qrels (str): Path to the tsv file with query-document relevance information
-        batch_size: text segments batch size
         max_seq_length (int):
                 maximum allowed length of the text segments. Default: 256
         dataset_type (Dataset):
-                the underlying dataset. Default: BertInformationRetrievalDatasetMulti
+                the underlying dataset. Default: BertInformationRetrievalDatasetEval
     """
 
     @property
@@ -162,10 +106,12 @@ class BertInformationRetrievalDataLayerMultiEval(TextDataLayer):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        rel_ids: indices of tokens which correspond to query-relevant doc pair
-        rel_mask: bool tensor with 0s in place of pad tokens in rel_ids to be masked
-        irrel_ids: indices of tokens which correspond to query-irrelevant doc pair
-        irrel_mask: bool tensor with 0s in place of pad tokens in irrel_ids to be masked
+        input_ids: tensor of shape [batch_size x num_docs x seq_len], each entry
+            has form [CLS] query_tokens [SEP] doc_tokens [SEP]
+        input_mask: bool tensor with 0s in place of pad tokens in input_ids to be masked
+        input_type_ids: 0 for query tokens and 1 for document tokens
+        doc_rels: tensor of shape [batch_size x num_docs] with 0 for irrelevant query-doc
+            pairs and 1 for relevant pairs to compute MRR
         """
         return {
             "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
@@ -183,7 +129,7 @@ class BertInformationRetrievalDataLayerMultiEval(TextDataLayer):
         topk_list,
         max_seq_length=256,
         num_candidates=10,
-        dataset_type=BertInformationRetrievalDatasetMultiEval,
+        dataset_type=BertInformationRetrievalDatasetEval,
     ):
         dataset_params = {
             'tokenizer': tokenizer,
@@ -220,10 +166,15 @@ class BertDensePassageRetrievalDataLayer(TextDataLayer):
     def output_ports(self):
         """Returns definitions of module output ports.
 
-        rel_ids: indices of tokens which correspond to query-relevant doc pair
-        rel_mask: bool tensor with 0s in place of pad tokens in rel_ids to be masked
-        irrel_ids: indices of tokens which correspond to query-irrelevant doc pair
-        irrel_mask: bool tensor with 0s in place of pad tokens in irrel_ids to be masked
+        q_input_ids: tensor of shape [batch_size x 1 x seq_len], each entry
+            has form [CLS] query_tokens [SEP]
+        q_input_mask: bool tensor with 0s in place of pad tokens in q_input_ids to be masked
+        q_input_type_ids: tensor of 0s everywhere
+        p_input_ids: tensor of shape [batch_size x num_psgs x seq_len], each entry
+            has form [CLS] passage_tokens [SEP], first passage in each
+            batch corresponds to relevant passage, all other to irrelevant ones
+        p_input_mask: bool tensor with 0s in place of pad tokens in p_input_ids to be masked
+        p_input_type_ids: tensor of 0s everywhere
         """
         return {
             "q_input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
@@ -244,6 +195,7 @@ class BertDensePassageRetrievalDataLayer(TextDataLayer):
         max_query_length=32,
         max_passage_length=192,
         num_negatives=1,
+        shuffle=True,
         dataset_type=BertDensePassageRetrievalDataset,
     ):
         dataset_params = {
@@ -255,7 +207,7 @@ class BertDensePassageRetrievalDataLayer(TextDataLayer):
             'max_passage_length': max_passage_length,
             'num_negatives': num_negatives,
         }
-        super().__init__(dataset_type, dataset_params, batch_size)
+        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
 
 
 class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
@@ -263,6 +215,20 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
     @property
     @add_port_docs()
     def output_ports(self):
+        """Returns definitions of module output ports.
+
+        q_input_ids: tensor of shape [batch_size x 1 x seq_len], each entry
+            has form [CLS] query_tokens [SEP]
+        q_input_mask: bool tensor with 0s in place of pad tokens in q_input_ids to be masked
+        q_input_type_ids: tensor of 0s everywhere
+        p_input_ids: tensor of shape [batch_size x num_psgs x seq_len], each entry
+            has form [CLS] passage_tokens [SEP], first passage in each
+            batch corresponds to relevant passage, all other to irrelevant ones
+        p_input_mask: bool tensor with 0s in place of pad tokens in p_input_ids to be masked
+        p_input_type_ids: tensor of 0s everywhere
+        doc_rels: tensor of shape [batch_size x num_psgs] with 0 for irrelevant query-passage
+            pairs and 1 for relevant pairs to compute MRR
+        """
         return {
             "q_input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
             "q_input_mask": NeuralType(('B', 'B', 'T'), ChannelType()),

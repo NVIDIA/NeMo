@@ -39,8 +39,7 @@ from nemo.collections.nlp.data.datasets.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
-from nemo.collections.nlp.data.datasets.information_retrieval_dataset import BertInformationRetrievalDataset
-from nemo.collections.nlp.data.datasets.information_retrieval_dataset_multi import \
-    BertInformationRetrievalDatasetMulti, BertInformationRetrievalDatasetMultiEval
+from nemo.collections.nlp.data.datasets.information_retrieval_dataset import \
+    BertInformationRetrievalDataset, BertInformationRetrievalDatasetEval
 from nemo.collections.nlp.data.datasets.bert_dense_passage_retrieval_dataset import \
     BertDensePassageRetrievalDataset, BertDensePassageRetrievalDatasetEval

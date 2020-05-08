@@ -62,9 +62,18 @@ class BertDensePassageRetrievalDataset(Dataset):
 
     def parse_triples(self, file):
         idx2triples = {}
-        for i, line in enumerate(open(file, "r").readlines()):
-            query_and_passages = line.split("\t")[:self.num_negatives+2]
-            idx2triples[i] = [int(id_) for id_ in query_and_passages]
+        idx = 0
+        for line in open(file, "r").readlines():
+            query_and_psgs = line.split("\t")
+            query_and_psgs_ids = [int(id_) for id_ in query_and_psgs]
+            query_and_rel_psg_ids, irrel_psgs_ids = query_and_psgs_ids[:2], query_and_psgs_ids[2:]
+            random.shuffle(irrel_psgs_ids)
+            num_samples = len(irrel_psgs_ids) // self.num_negatives
+            for j in range(num_samples):
+                left = self.num_negatives * j
+                right = self.num_negatives * (j + 1)
+                idx2triples[idx] = query_and_rel_psg_ids + irrel_psgs_ids[left:right]
+                idx += 1
         return idx2triples
 
     def preprocess_query_and_passages(self, query_and_passages):
@@ -120,11 +129,11 @@ class BertDensePassageRetrievalDatasetEval(Dataset):
         query2rel = {}
         for line in open(qrels, "r").readlines():
             query_id = int(line.split("\t")[0])
-            doc_id = int(line.split("\t")[2])
+            psg_id = int(line.split("\t")[2])
             if query_id not in query2rel:
-                query2rel[query_id] = [doc_id]
+                query2rel[query_id] = [psg_id]
             else:
-                query2rel[query_id].append(doc_id)
+                query2rel[query_id].append(psg_id)
         return query2rel
 
     def parse_collection(self, file):
