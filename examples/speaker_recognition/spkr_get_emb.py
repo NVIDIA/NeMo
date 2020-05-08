@@ -120,7 +120,7 @@ def create_all_dags(args, neural_factory):
 
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
-    
+
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
         num_classes=254,

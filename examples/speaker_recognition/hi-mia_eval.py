@@ -44,7 +44,7 @@ def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
             speaker_list[speaker] = [idx]
 
     emb = int(emb_size)
-    
+
     tmp_file = open(trail_file, 'r').readlines()
     trail_score = open('trial_score.txt', 'w')
 
@@ -53,7 +53,7 @@ def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
     all_scores = []
     all_keys = []
 
-    #for each of trails in trial file
+    # for each of trails in trial file
     for line in tqdm(tmp_file):
         line = line.strip()
         x_speaker = line.split(' ')[0]

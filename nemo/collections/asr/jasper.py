@@ -369,17 +369,15 @@ class JasperDecoderForSpkrClass(TrainableNM):
             "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
 
-    def __init__(
-        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform"
-    ):
+    def __init__(self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform"):
         TrainableNM.__init__(self)
         self._feat_in = 0
         if pool_mode == 'gram':
             gram = True
-            super_vector=False
+            super_vector = False
         elif pool_mode == 'superVector':
             gram = True
-            super_vector=True
+            super_vector = True
         else:
             gram = False
             super_vector = False
@@ -397,7 +395,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
 
         self._num_classes = num_classes
         self._pooling = StatsPoolLayer(gram=gram, super_vector=super_vector)
-        
+
         self.mid1 = self.affineLayer(self._feat_in, self._midEmbd1, learn_mean=False)
         self.mid2 = self.affineLayer(self._midEmbd1, self._midEmbd2, learn_mean=False)
         self.final = nn.Linear(self._midEmbd2, self._num_classes)

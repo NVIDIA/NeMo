@@ -65,7 +65,7 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
 
     """
     _, audio_lengths, _, tokens_lengths = zip(*batch)
-    
+
     has_audio = audio_lengths[0] is not None
     fixed_length = min(fixed_length, max(audio_lengths))
 
@@ -417,7 +417,14 @@ class AudioLabelDataset(Dataset):
     """
 
     def __init__(
-        self, manifest_filepath, featurizer, labels=None, max_duration=None, min_duration=None, trim=False, load_audio=True
+        self,
+        manifest_filepath,
+        featurizer,
+        labels=None,
+        max_duration=None,
+        min_duration=None,
+        trim=False,
+        load_audio=True,
     ):
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
