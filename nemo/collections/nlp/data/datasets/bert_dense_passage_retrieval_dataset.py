@@ -97,8 +97,14 @@ class BertDensePassageRetrievalDataset(Dataset):
             token_ids_list=[self.queries[query_id]],
             max_length=self.max_query_length)
 
+        psg_token_ids_list = []
+        for psg_id in passage_ids:
+            psg_token_ids = self.passages[psg_id]
+            psg_token_ids = psg_token_ids[1:psg_token_ids[0]+1].tolist()
+            psg_token_ids_list.append(psg_token_ids)
+
         p_ids, p_mask, p_type_ids = self.prepare_input(
-            token_ids_list=[self.passages[psg_id] for psg_id in passage_ids],
+            token_ids_list=psg_token_ids_list,
             max_length=self.max_passage_length)
         return q_ids, q_mask, q_type_ids, p_ids, p_mask, p_type_ids
 
