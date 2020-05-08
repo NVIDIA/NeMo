@@ -157,7 +157,7 @@ def create_all_dags(args, neural_factory):
         data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(**spectr_augment_config)
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
-    
+
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params["JasperEncoder"]["jasper"][-1]["filters"],
         num_classes=data_layer_train.num_classes,
