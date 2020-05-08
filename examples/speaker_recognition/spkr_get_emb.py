@@ -120,16 +120,14 @@ def create_all_dags(args, neural_factory):
 
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
-
+    
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
         num_classes=254,
         emb_sizes=spkr_params['JasperDecoderForSpkrClass']['emb_sizes'].split(','),
-        gram=spkr_params['JasperDecoderForSpkrClass']['gram'],
-        super_vector=spkr_params['JasperDecoderForSpkrClass']['super_vector'],
+        pool_mode=spkr_params["JasperDecoderForSpkrClass"]['pool_mode'],
     )
 
-    # weight = pickle.load(open('myExps/all_LibriSpeech/weight.pkl','rb'))
     weight = None
     xent_loss = nemo_asr.CrossEntropyLossNM(weight=weight)
 
@@ -158,9 +156,6 @@ def main():
     work_dir = name
     if args.work_dir:
         work_dir = os.path.join(args.work_dir, name)
-
-    # data_dir = '/data/samsungSSD/NVIDIA/datasets/LibriSpeech/'
-    # abs_dir=os.path.abspath(data_dir)
 
     # instantiate Neural Factory with supported backend
     neural_factory = nemo.core.NeuralModuleFactory(

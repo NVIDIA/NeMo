@@ -328,8 +328,9 @@ class JasperDecoderForSpkrClass(TrainableNM):
         feat_in (int): Number of channels being input to this module
         num_classes (int): Number of unique speakers in dataset
         emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
-        gram (bool) : If we should consider gram based pooling
-        superVector (bool) : If we should unify  x-vector based pooling with gram based pooling
+                Defaults to [1024,1024]
+        pool_mode (str) : Pooling stratergy type. options are 'gram','xvector','superVector'.
+                Defaults to 'xvector'
         init_mode (str): Describes how neural network parameters are
             initialized. Options are ['xavier_uniform', 'xavier_normal',
             'kaiming_uniform','kaiming_normal'].
@@ -369,10 +370,20 @@ class JasperDecoderForSpkrClass(TrainableNM):
         }
 
     def __init__(
-        self, feat_in, num_classes, emb_sizes=[1024, 1024], gram=False, super_vector=True, init_mode="xavier_uniform"
+        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform"
     ):
         TrainableNM.__init__(self)
         self._feat_in = 0
+        if pool_mode == 'gram':
+            gram = True
+            super_vector=False
+        elif pool_mode == 'superVector':
+            gram = True
+            super_vector=True
+        else:
+            gram = False
+            super_vector = False
+
         if gram:
             self._feat_in += feat_in ** 2
         else:
@@ -386,7 +397,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
 
         self._num_classes = num_classes
         self._pooling = StatsPoolLayer(gram=gram, super_vector=super_vector)
-        self.norm = nn.BatchNorm1d(feat_in)
+        
         self.mid1 = self.affineLayer(self._feat_in, self._midEmbd1, learn_mean=False)
         self.mid2 = self.affineLayer(self._midEmbd1, self._midEmbd2, learn_mean=False)
         self.final = nn.Linear(self._midEmbd2, self._num_classes)

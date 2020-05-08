@@ -44,7 +44,7 @@ def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
             speaker_list[speaker] = [idx]
 
     emb = int(emb_size)
-    # import ipdb; ipdb.set_trace()
+    
     tmp_file = open(trail_file, 'r').readlines()
     trail_score = open('trial_score.txt', 'w')
 
@@ -53,6 +53,7 @@ def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
     all_scores = []
     all_keys = []
 
+    #for each of trails in trial file
     for line in tqdm(tmp_file):
         line = line.strip()
         x_speaker = line.split(' ')[0]
@@ -109,6 +110,4 @@ if __name__ == "__main__":
     fpr, tpr, thresholds = roc_curve(y, y_score, pos_label=1)
 
     eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0)
-    # cmd = ['./compute_scores.sh', task]
-    # subprocess.run(cmd)
     print("EER: {:.2f}%".format(eer * 100))

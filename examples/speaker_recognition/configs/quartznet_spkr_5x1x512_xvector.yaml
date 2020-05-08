@@ -1,4 +1,4 @@
-model: "QuartzNet"
+model: "GramVoxNet"
 sample_rate: &sample_rate 16000
 dropout: &drop 0.5
 repeat:  &rep  1
@@ -95,6 +95,5 @@ JasperEncoder:
 
 JasperDecoderForSpkrClass:
     feat_in: *enc_feat_out
-    gram: False
-    super_vector: False 
+    pool_mode: xvector 
     emb_sizes: 1024,1024
