@@ -147,7 +147,7 @@ dmypy.json
 *~
 
 cifar-10-batches-py
-*.tar.gz
+#*.tar.gz
 
 # outputs folder
 examples/*/outputs
