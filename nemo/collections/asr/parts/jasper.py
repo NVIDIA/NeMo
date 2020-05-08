@@ -66,7 +66,7 @@ def get_same_padding(kernel_size, stride, dilation):
 
 
 class StatsPoolLayer(nn.Module):
-    def __init__(self, gram=False, super_vector=True):
+    def __init__(self, gram=False, super_vector=False):
         super().__init__()
         self.gram = gram
         self.super = super_vector

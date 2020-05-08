@@ -157,19 +157,17 @@ def create_all_dags(args, neural_factory):
         data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(**spectr_augment_config)
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
-
+    
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params["JasperEncoder"]["jasper"][-1]["filters"],
         num_classes=data_layer_train.num_classes,
+        pool_mode=spkr_params["JasperDecoderForSpkrClass"]['pool_mode'],
         emb_sizes=spkr_params["JasperDecoderForSpkrClass"]["emb_sizes"].split(","),
-        gram=spkr_params["JasperDecoderForSpkrClass"]["gram"],
-        super_vector=spkr_params["JasperDecoderForSpkrClass"]["super_vector"],
     )
     if os.path.exists(args.checkpoint_dir + "/JasperEncoder-STEP-100.pt"):
         encoder.restore_from(args.checkpoint_dir + "/JasperEncoder-STEP-100.pt")
         logging.info("Pretrained Encoder loaded")
 
-    # weight = pickle.load(open('myExps/all_LibriSpeech/weight.pkl','rb'))
     weight = None
     xent_loss = nemo_asr.CrossEntropyLossNM(weight=weight)
 
@@ -246,9 +244,6 @@ def main():
     work_dir = name
     if args.work_dir:
         work_dir = os.path.join(args.work_dir, name)
-
-    # data_dir = '/data/samsungSSD/NVIDIA/datasets/LibriSpeech/'
-    # abs_dir=os.path.abspath(data_dir)
 
     # instantiate Neural Factory with supported backend
     neural_factory = nemo.core.NeuralModuleFactory(

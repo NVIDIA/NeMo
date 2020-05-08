@@ -61,12 +61,12 @@ def fixed_seq_collate_fn(batch, fixed_length=16000):
                LongTensor):  A tuple of tuples of signal, signal lengths,
                encoded tokens, and encoded tokens length.  This collate func
                assumes the signals are 1d torch tensors (i.e. mono audio).
+        fixed_length (Optional[int]): length of input signal to be considered
 
     """
     _, audio_lengths, _, tokens_lengths = zip(*batch)
-    max_audio_len = 0
+    
     has_audio = audio_lengths[0] is not None
-    max_tokens_len = max(tokens_lengths).item()
     fixed_length = min(fixed_length, max(audio_lengths))
 
     audio_signal, tokens = [], []
@@ -405,7 +405,8 @@ class AudioLabelDataset(Dataset):
     Args:
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
-        labels: String containing all the possible labels to map to
+        labels (Optional[list]): String containing all the possible labels to map to
+            if None then automatically picks from ASRSpeechLabel collection. 
         featurizer: Initialized featurizer class that converts paths of
             audio to feature tensors
         max_duration: If audio exceeds this length, do not include in dataset
@@ -416,7 +417,7 @@ class AudioLabelDataset(Dataset):
     """
 
     def __init__(
-        self, manifest_filepath, labels, featurizer, max_duration=None, min_duration=None, trim=False, load_audio=True
+        self, manifest_filepath, featurizer, labels=None, max_duration=None, min_duration=None, trim=False, load_audio=True
     ):
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
@@ -435,7 +436,7 @@ class AudioLabelDataset(Dataset):
             self.id2label[label_id] = label
 
         for idx in range(len(self.labels[:5])):
-            logging.info(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+            logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
 
     def __getitem__(self, index):
         sample = self.collection[index]
