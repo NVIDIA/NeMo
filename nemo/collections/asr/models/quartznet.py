@@ -46,9 +46,10 @@ class QuartzNet(NeMoModel):
         preprocessor, spec_augmentation, encoder, decoder = self.__instantiate_modules(
             preprocessor_params, encoder_params, decoder_params, spec_augment_params
         )
-        self.__op_mode = OperationMode.training
+        self._operation_mode = OperationMode.training
 
-        self.__training_neural_graph = NeuralGraph(operation_mode=OperationMode.training)
+        # self.__training_neural_graph = NeuralGraph(operation_mode=OperationMode.training)
+        self.__training_neural_graph = NeuralGraph(operation_mode=OperationMode.both)
         with self.__training_neural_graph:
             # Copy one input port definitions - using "user" port names.
             self.__training_neural_graph.inputs["input_signal"] = preprocessor.input_ports["input_signal"]
@@ -83,20 +84,6 @@ class QuartzNet(NeMoModel):
             self.__evaluation_neural_graph.outputs["log_probs"] = i_log_probs
             self.__evaluation_neural_graph.outputs["encoded_len"] = i_encoded_len
 
-    def train(self):
-        self.__op_mode = OperationMode.training
-
-    def eval(self):
-        self.__op_mode = OperationMode.evaluation
-
-    def __call__(self, audio_signal, a_sig_length):
-        if self.__op_mode == OperationMode.training:
-            log_probs, encoded_len = self.__training_neural_graph(input_signal=audio_signal, length=a_sig_length)
-            return log_probs, encoded_len
-        else:
-            log_probs, encoded_len = self.__evaluation_neural_graph(input_signal=audio_signal, length=a_sig_length)
-            return log_probs, encoded_len
-
     def __instantiate_modules(
         self, preprocessor_params, encoder_params, decoder_params, spec_augment_params=None,
     ):
@@ -125,9 +112,13 @@ class QuartzNet(NeMoModel):
         self._output_ports['encoded_lengths'] = encoder.output_ports['encoded_lengths']
         return self._preprocessor, self._spec_augmentation, self._encoder, self._decoder
 
-    def export(self, output_file_name: str, output_folder: str = None, deployment: bool = False) -> str:
-        if not deployment:
-            super().export(output_file_name=output_file_name, output_folder=output_folder, deployment=deployment)
+    @property
+    def train_graph(self) -> NeuralGraph:
+        return self.__training_neural_graph
+
+    @property
+    def eval_graph(self) -> NeuralGraph:
+        return self.__evaluation_neural_graph
 
     @property
     def input_ports(self) -> Optional[Dict[str, NeuralType]]:

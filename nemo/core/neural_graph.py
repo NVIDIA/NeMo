@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ruamel.yaml import YAML
 
-from nemo.core import OperationMode
+from .neural_factory import OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
