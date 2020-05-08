@@ -24,6 +24,8 @@ from abc import abstractmethod
 from os import path
 from typing import Iterable
 
+from .neural_factory import OperationMode
+from .neural_graph import NeuralGraph
 from .neural_modules import NeuralModule
 from nemo import logging
 
@@ -38,11 +40,18 @@ class NeMoModel(NeuralModule):
     It typically represents a whole neural network and requires only connections with data layer and loss
     modules for training."""
 
+    def __call__(self, **kwargs):
+        if self._operation_mode == OperationMode.training or self.operation_mode == OperationMode.both:
+            return self.train_graph(**kwargs)
+
+        else:
+            return self.eval_graph(**kwargs)
+
     @classmethod
     @abstractmethod
     def from_pretrained(cls, model_info, local_rank=0) -> NeuralModule:
         if isinstance(model_info, str) and model_info.endswith(".nemo"):
-            nemo_file_folder, to_delete = cls._unpack_nemo_file(path2file=model_info)
+            nemo_file_folder, to_delete = cls.__unpack_nemo_file(path2file=model_info)
             # TODO: this is potentially error-prone
             configuration_file = path.join(nemo_file_folder, cls.__name__ + ".yaml")
             instance = cls.import_from_config(config_file=configuration_file)
@@ -54,13 +63,11 @@ class NeMoModel(NeuralModule):
         else:
             raise NotImplemented("Generic from_pretrained from cloud is not implemented")
 
-    def export(self, output_file_name: str, output_folder: str = None, deployment: bool = False) -> str:
+    def export(self, output_file_name: str, output_folder: str = None) -> str:
         def make_nemo_file_from_folder(filename, source_dir):
             with tarfile.open(filename, "w:gz") as tar:
                 tar.add(source_dir, arcname=os.path.basename(source_dir))
 
-        if deployment:
-            raise NotImplemented("Currently, deployment is working on a per-model basis")
         if output_folder is None:
             output_folder = ""
 
@@ -75,6 +82,14 @@ class NeMoModel(NeuralModule):
             os.makedirs(tmp_folder)
         try:
             config_file_path = path.join(tmp_folder, self.__class__.__name__ + ".yaml")
+
+            if self.train_graph is not None:
+                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_eval_graph.yaml")
+                self.train_graph.export_to_config(config_file_path_graph)
+
+            if self.eval_graph is not None:
+                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_train_graph.yaml")
+                self.eval_graph.export_to_config(config_file_path_graph)
             self.export_to_config(config_file=config_file_path)
             for module in self.modules:
                 module_checkpoint = module.__class__.__name__ + ".pt"
@@ -85,14 +100,31 @@ class NeMoModel(NeuralModule):
             logging.error("Could not perform NeMoModel export")
         finally:
             shutil.rmtree(rnd_path)
+            pass
 
     @property
     @abstractmethod
     def modules(self) -> Iterable[NeuralModule]:
         pass
 
+    @property
+    @abstractmethod
+    def train_graph(self) -> NeuralGraph:
+        pass
+
+    @property
+    @abstractmethod
+    def eval_graph(self) -> NeuralGraph:
+        pass
+
+    def train(self):
+        self._operation_mode = OperationMode.training
+
+    def eval(self):
+        self._operation_mode = OperationMode.evaluation
+
     @staticmethod
-    def _unpack_nemo_file(path2file: str, out_folder: str = None) -> str:
+    def __unpack_nemo_file(path2file: str, out_folder: str = None) -> str:
         if not path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
         if out_folder is None:
