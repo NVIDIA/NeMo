@@ -327,7 +327,7 @@ class JasperDecoderForSpkrClass(TrainableNM):
     Args:
         feat_in (int): Number of channels being input to this module
         num_classes (int): Number of unique speakers in dataset
-        emb_sizes (list) : shapes of intermidiate embedding layers (we consider speaker embbeddings from 1st of this layers)
+        emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
         gram (bool) : If we should consider gram based pooling
         superVector (bool) : If we should unify  x-vector based pooling with gram based pooling
         init_mode (str): Describes how neural network parameters are
