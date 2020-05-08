@@ -26,7 +26,7 @@ from typing import Iterable
 
 from .neural_factory import OperationMode
 from .neural_graph import NeuralGraph
-from .neural_modules import NeuralModule
+from .neural_modules import ModuleType, NeuralModule
 from nemo import logging
 
 __all__ = ['NeMoModel']
@@ -38,7 +38,11 @@ class NeMoModel(NeuralModule):
     """Abstract class representing NeMoModel.
     A NeMoModel is a kind of neural module which contains other neural modules and logic inside.
     It typically represents a whole neural network and requires only connections with data layer and loss
-    modules for training."""
+    modules for training.
+
+    The same NeMoModel could be used in training, evaluation or inference regimes. It should adjust itself
+    accordingly.
+    """
 
     def __call__(self, **kwargs):
         if self._operation_mode == OperationMode.training or self.operation_mode == OperationMode.both:
@@ -49,7 +53,16 @@ class NeMoModel(NeuralModule):
 
     @classmethod
     @abstractmethod
-    def from_pretrained(cls, model_info, local_rank=0) -> NeuralModule:
+    def from_pretrained(cls, model_info, local_rank: int = 0) -> NeuralModule:
+        """
+        Instantiates NeMoModel from pretrained checkpoint. Can do so from file on disk or from the NVIDIA NGC.
+        Args:
+            model_info: Either path to ".nemo" file or a valid NGC Model name
+            local_rank: on which GPU to instantiate.
+
+        Returns:
+            NeMoModel instance
+        """
         if isinstance(model_info, str) and model_info.endswith(".nemo"):
             nemo_file_folder, to_delete = cls.__unpack_nemo_file(path2file=model_info)
             # TODO: this is potentially error-prone
@@ -64,6 +77,19 @@ class NeMoModel(NeuralModule):
             raise NotImplemented("Generic from_pretrained from cloud is not implemented")
 
     def export(self, output_file_name: str, output_folder: str = None) -> str:
+        """
+        Export NeMoModel to .nemo file. This file will contain:
+            * weights of all NeuralModule instances inside the model
+            * Yaml file with configuration
+            * Yaml files with topologies and configuration of training and (if applicable) eval graphs
+        Args:
+            output_file_name: filename, something like nemomodel.nemo
+            output_folder: folder where to save output_file_name. If None (default) current folder will be used.
+
+        Returns:
+            None
+        """
+
         def make_nemo_file_from_folder(filename, source_dir):
             with tarfile.open(filename, "w:gz") as tar:
                 tar.add(source_dir, arcname=os.path.basename(source_dir))
@@ -118,10 +144,30 @@ class NeMoModel(NeuralModule):
         pass
 
     def train(self):
+        """
+        Sets model to the training mode
+
+        Returns:
+            None
+        """
         self._operation_mode = OperationMode.training
+        for module in self.modules:
+            module.operation_mode = OperationMode.training
+            if module.type == ModuleType.trainable and hasattr(module, 'train'):
+                module.train()
 
     def eval(self):
+        """
+        Sets model to the evaluation mode
+
+        Returns:
+            None
+        """
         self._operation_mode = OperationMode.evaluation
+        for module in self.modules:
+            module.operation_mode = OperationMode.evaluation
+            if module.type == ModuleType.trainable and hasattr(module, 'eval'):
+                module.eval()
 
     @staticmethod
     def __unpack_nemo_file(path2file: str, out_folder: str = None) -> str:
@@ -136,3 +182,28 @@ class NeMoModel(NeuralModule):
         tar.extractall(path=out_folder)
         tar.close()
         return path.join(out_folder, NEMO_TMP_FOLDER), out_folder
+
+    def get_weights(self):
+        raise NotImplemented()
+
+    def set_weights(
+        self, name2weight, name2name_and_transform,
+    ):
+        raise NotImplemented()
+
+    def tie_weights_with(
+        self, module, weight_names, name2name_and_transform,
+    ):
+        raise NotImplemented()
+
+    def save_to(self, path: str):
+        raise NotImplemented("Please use export method for NeMoModels")
+
+    def restore_from(self, path: str):
+        raise NotImplemented("Please use from_pretrained method for NeMoModels")
+
+    def freeze(self, weights):
+        raise NotImplemented
+
+    def unfreeze(self, weights):
+        raise NotImplemented

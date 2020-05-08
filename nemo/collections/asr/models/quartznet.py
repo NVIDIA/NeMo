@@ -33,13 +33,17 @@ from nemo.utils import maybe_download_from_cloud
 
 
 class QuartzNet(NeMoModel):
+    """
+    QuartzNet ASR Model. See: "QuartzNet: Deep Automatic Speech Recognition with 1D Time-Channel Separable Convolutions"
+    https://arxiv.org/abs/1910.10261
+    """
+
     def __init__(
         self,
         preprocessor_params: Dict,
         encoder_params: Dict,
         decoder_params: Dict,
         spec_augment_params: Optional[Dict] = None,
-        # mode: OperationMode = OperationMode.training
     ):
         super().__init__()
         # Instantiate necessary modules
@@ -167,7 +171,7 @@ class QuartzNet(NeMoModel):
     @classmethod
     def from_pretrained(cls, model_info, local_rank=0) -> Optional[NeuralModule]:
         # Create destination folder:
-        logging.warning("THIS METHOD IS NOT DONE YET")
+        logging.warning("THIS METHOD IS NOT YET FINISHED")
         if model_info.endswith(".nemo"):
             return super().from_pretrained(model_info=model_info)
         else:
@@ -190,33 +194,3 @@ class QuartzNet(NeMoModel):
     @property
     def modules(self) -> Iterable[NeuralModule]:
         return self._modules
-
-    def get_weights(self) -> Optional[Dict[(str, bool)]]:
-        pass
-
-    def set_weights(
-        self,
-        name2weight: Dict[(str, Tuple[str, bool])],
-        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
-    ):
-        pass
-
-    def tie_weights_with(
-        self,
-        module,
-        weight_names=List[str],
-        name2name_and_transform: Dict[(str, Tuple[str, WeightShareTransform])] = None,
-    ):
-        pass
-
-    def save_to(self, path: str):
-        pass
-
-    def restore_from(self, path: str):
-        pass
-
-    def freeze(self, weights: Set[str] = None):
-        pass
-
-    def unfreeze(self, weights: Set[str] = None):
-        pass
