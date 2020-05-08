@@ -117,14 +117,13 @@ loss_fn_train = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
 loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
     num_negatives=args.num_eval_candidates-1)
 
-passages = f"{args.data_dir}/{args.collection_file}"
-
+train_passages = f"{args.data_dir}/{args.collection_file}"
 # Training pipeline
 train_queries = f"{args.data_dir}/queries.{args.train_dataset}.tsv"
 train_triples = f"{args.data_dir}/triples.{args.train_dataset}.tsv"
 train_data_layer = ir_dl.BertDensePassageRetrievalDataLayer(
     tokenizer=tokenizer,
-    passages=passages,
+    passages=train_passages,
     queries=train_queries,
     triples=train_triples,
     batch_size=args.batch_size,
@@ -142,6 +141,7 @@ p_hiddens = p_encoder(input_ids=p_input_ids, token_type_ids=p_input_type_ids, at
 
 train_scores, train_loss = loss_fn_train(queries=q_hiddens, passages=p_hiddens)
 
+eval_passages = f"{args.data_dir}/collection.dev.small.tsv"
 # Evaluation pipeline
 eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
 eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
@@ -149,7 +149,7 @@ eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
 eval_topk_list = f"{args.data_dir}/bm25top100.{args.eval_datasets[0]}.tsv"
 eval_data_layer = ir_dl.BertDensePassageRetrievalDataLayerEval(
     tokenizer=tokenizer,
-    passages=passages,
+    passages=eval_passages,
     queries=eval_queries,
     qrels=eval_qrels,
     topk_list=eval_topk_list,
