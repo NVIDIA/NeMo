@@ -105,7 +105,7 @@ documents = f"{args.data_dir}/{args.collection_file}"
 # Training pipeline
 train_queries = f"{args.data_dir}/queries.{args.train_dataset}.tsv"
 train_triples = f"{args.data_dir}/triples.{args.train_dataset}.tsv"
-train_data_layer = ir_dl.BertInformationRetrievalDataLayerMulti(
+train_data_layer = ir_dl.BertInformationRetrievalDataLayer(
     tokenizer=tokenizer,
     documents=documents,
     queries=train_queries,
@@ -126,7 +126,7 @@ eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
 eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
 #eval_topk_list = f"{args.data_dir}/bm25top100.dev.tiny.tsv"
 eval_topk_list = f"{args.data_dir}/bm25top100.{args.eval_datasets[0]}.tsv"
-eval_data_layer = ir_dl.BertInformationRetrievalDataLayerMultiEval(
+eval_data_layer = ir_dl.BertInformationRetrievalDataLayerEval(
     tokenizer=tokenizer,
     documents=documents,
     queries=eval_queries,
