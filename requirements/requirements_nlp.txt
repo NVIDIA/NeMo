@@ -8,5 +8,4 @@ unidecode
 youtokentome
 numpy
 tqdm
-sklearn
 gdown
