@@ -362,8 +362,9 @@ class TestDeployExport:
         stride = 256  # value from waveglow upsample
         n_group = 8
         z_size2 = (mel.size(2) * stride) // n_group
+        audio = torch.randn(1, z_size2).cuda()
 
-        input_example = OrderedDict([("mel_spectrogram", mel)])
+        input_example = OrderedDict([("mel_spectrogram", mel), ("audio", audio)])
         tmp_file_name = str(tmpdir.mkdir("export").join("waveglow"))
 
         self.__test_export_route(module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example)
