@@ -281,9 +281,9 @@ class CheckpointCallback(ActionCallback):
                     )
                 unique_mod_names.add(module.__str__())
                 if self._step_freq > -1:
-                    filename = f"{module}-STEP-{self.step}.pt"
+                    filename = f"{module.__str__()}-STEP-{self.step}.pt"
                 else:
-                    filename = f"{module}-EPOCH-{self.epoch_num}.pt"
+                    filename = f"{module.__str__()}-EPOCH-{self.epoch_num}.pt"
                 module.save_to(os.path.join(path, filename))
 
         if self._step_freq > -1:

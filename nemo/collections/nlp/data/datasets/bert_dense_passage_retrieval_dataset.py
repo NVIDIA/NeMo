@@ -23,7 +23,9 @@ import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
 
-__all__ = ['BertDensePassageRetrievalDataset', 'BertDensePassageRetrievalDatasetEval']
+__all__ = ['BertDensePassageRetrievalDataset',
+           'BertDensePassageRetrievalDatasetEval',
+           'BertDensePassageRetrievalDatasetInfer']
 
 
 class BertDensePassageRetrievalDataset(Dataset):
@@ -213,4 +215,89 @@ class BertDensePassageRetrievalDatasetEval(Dataset):
         input_ids = np.stack(input_ids_list)
         input_mask = np.stack(input_mask_list)
         input_type_ids = np.stack(input_type_ids_list)
+        return input_ids, input_mask, input_type_ids
+
+
+class BertDensePassageRetrievalDatasetInfer(Dataset):
+    def __init__(self, tokenizer, passages=None, queries=None,
+                 max_query_length=32, max_passage_length=192):
+        self.tokenizer = tokenizer
+
+        if passages is not None:
+            self.data = self.parse_npz(passages)
+            self.max_seq_length = max_passage_length
+            self._get_tokens = self._get_passage_tokens
+            self.idx2data_id = {i:i for i in range(self.data.shape[0])}
+        elif queries is not None:
+            self.data = self.parse_pkl(data)
+            self.max_seq_length = max_query_length
+            self._get_tokens = self._get_query_tokens
+            self.idx2data_id = self.build_data_map(self.data)
+
+    def __getitem__(self, idx):
+        data_id = self.idx2data_id[idx]
+        token_ids = self._get_tokens(data_id)
+        return [*self.preprocess_tokens(token_ids)] + [data_id]
+
+    def __len__(self):
+        return len(self.idx2data_id)
+    
+    def _get_passage_tokens(self, data_id):
+        psg_token_ids = self.data[data_id]
+        psg_token_ids = psg_token_ids[1:psg_token_ids[0]+1].tolist()
+        return psg_token_ids
+    
+    def _get_query_tokens(self, data_id):
+        return self.data[data_id]
+
+    def build_data_map(self, data):
+        data_map = {}
+        for i, key in enumerate(data.keys()):
+            data_map[i] = key
+        return data_map
+
+    def parse_npz(self, file):
+        cached_collection = file + ".npz"
+        if os.path.isfile(cached_collection):
+            file_dict = np.load(cached_collection)["data"]
+        else:
+            file_dict = {}
+            lines = open(file, "r").readlines()
+            with mp.Pool() as pool:
+                file_dict = pool.map(self.preprocess_line, lines)
+            file_dict = {q[0]:q[1] for q in file_dict}
+            pickle.dump(file_dict, open(cached_collection, "wb"))
+        return file_dict
+
+    def parse_pkl(self, file):
+        cached_collection = file + ".pkl"
+        if os.path.isfile(cached_collection):
+            file_dict = pickle.load(open(cached_collection, "rb"))
+        else:
+            file_dict = {}
+            lines = open(file, "r").readlines()
+            with mp.Pool() as pool:
+                file_dict = pool.map(self.preprocess_line, lines)
+            file_dict = {q[0]:q[1] for q in file_dict}
+            pickle.dump(file_dict, open(cached_collection, "wb"))
+        return file_dict
+
+    def preprocess_line(self, line):
+        id_, text = line.split("\t")
+        token_ids = self.tokenizer.text_to_ids(text.strip())
+        return int(id_), token_ids[:self.max_seq_length]
+
+    def preprocess_tokens(self, tokens):
+        input_ids, input_mask, input_type_ids = self.prepare_input(
+            tokens, max_length=self.max_seq_length)
+        return input_ids, input_mask, input_type_ids
+
+    def prepare_input(self, token_ids, max_length):
+        input_ids = [self.tokenizer.pad_id] * max_length
+        bert_input = [self.tokenizer.cls_id] + token_ids[:max_length-2] + [self.tokenizer.sep_id]
+        num_nonpad_tokens = len(bert_input)
+        input_ids[:num_nonpad_tokens] = bert_input
+        input_ids = np.array(input_ids, dtype=np.long)
+        input_mask = (input_ids != self.tokenizer.pad_id)
+        input_type_ids = np.zeros_like(input_ids)
         return input_ids, input_mask, input_type_ids
