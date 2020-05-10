@@ -418,9 +418,15 @@ class CheckpointCallback(NeMoCallback):
                     )
                 unique_mod_names.add(module.__str__())
                 if self._step_freq > -1:
+<<<<<<< 67bdddd03df20c0319083f343928a5eb1f83572d
                     filename = f"{module}-STEP-{state['step']}.pt"
                 else:
                     filename = f"{module}-EPOCH-{state['epoch']}.pt"
+=======
+                    filename = f"{module.__str__()}-STEP-{self.step}.pt"
+                else:
+                    filename = f"{module.__str__()}-EPOCH-{self.epoch_num}.pt"
+>>>>>>> added dpr inference
                 module.save_to(os.path.join(path, filename))
 
         if self._step_freq > -1:

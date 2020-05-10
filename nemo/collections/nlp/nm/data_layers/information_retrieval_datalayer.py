@@ -19,7 +19,7 @@ from torch.utils import data as pt_data
 
 import nemo
 from nemo.collections.nlp.data import BertInformationRetrievalDataset, BertInformationRetrievalDatasetEval, \
-    BertDensePassageRetrievalDataset, BertDensePassageRetrievalDatasetEval
+    BertDensePassageRetrievalDataset, BertDensePassageRetrievalDatasetEval, BertDensePassageRetrievalDatasetInfer
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
@@ -27,7 +27,8 @@ from nemo.utils.decorators import add_port_docs
 __all__ = ['BertInformationRetrievalDataLayer',
            'BertInformationRetrievalDataLayerEval',
            'BertDensePassageRetrievalDataLayer',
-           'BertDensePassageRetrievalDataLayerEval']
+           'BertDensePassageRetrievalDataLayerEval',
+           'BertDensePassageRetrievalDataLayerInfer']
 
 
 class BertInformationRetrievalDataLayer(TextDataLayer):
@@ -262,3 +263,58 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
             'num_candidates': num_candidates,
         }
         super().__init__(dataset_type, dataset_params, batch_size=1)
+
+
+class BertDensePassageRetrievalDataLayerInfer(TextDataLayer):
+    """
+    Data layer for information retrieval with pre-trained Bert.
+
+    Args:
+        tokenizer (TokenizerSpec): Bert tokenizer
+        passages (str): Path to the collection of passages tsv file
+        queries (str): Path to the queries tsv file
+        triples (str): Path to the tsv file with query-document relevance information
+        batch_size: text segments batch size
+        max_query_length (int):
+                maximum allowed length of the queries. Default: 32
+        max_passage_length (int):
+                maximum allowed length of the passages. Default: 192
+        dataset_type (Dataset):
+                the underlying dataset. Default: BertDensePassageRetrievalDataset
+    """
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        input_ids: tensor of shape [batch_size x 1 x seq_len], each entry
+            has form [CLS] query_tokens [SEP]
+        input_mask: bool tensor with 0s in place of pad tokens in q_input_ids to be masked
+        input_type_ids: tensor of 0s everywhere
+        """
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "idx": NeuralType(tuple('B'), ChannelType()),
+        }
+
+    def __init__(
+        self,
+        tokenizer,
+        passages,
+        queries,
+        batch_size,
+        max_query_length=32,
+        max_passage_length=192,
+        dataset_type=BertDensePassageRetrievalDatasetInfer,
+    ):
+        dataset_params = {
+            'tokenizer': tokenizer,
+            'passages': passages,
+            'queries': queries,
+            'max_query_length': max_query_length,
+            'max_passage_length': max_passage_length,
+        }
+        super().__init__(dataset_type, dataset_params, batch_size)
