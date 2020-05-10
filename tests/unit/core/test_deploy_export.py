@@ -236,6 +236,7 @@ class TestDeployExport:
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
         elif mode == DF.TORCHSCRIPT:
             tscr = torch.jit.load(out_name)
+            torch.manual_seed(1)
             outputs_scr = (
                 tscr.forward(*tuple(input_example.values()))
                 if isinstance(input_example, OrderedDict)
@@ -244,7 +245,8 @@ class TestDeployExport:
                 )
             )
         elif mode == DF.PYTORCH:
-            module.load_state_dict(torch.load(out_name))
+            module.restore_from(out_name)
+            torch.manual_seed(1)
             if isinstance(input_example, OrderedDict):
                 outputs_scr = module.forward(*tuple(input_example.values()))
             elif isinstance(input_example, tuple) or isinstance(input_example, list):
@@ -360,9 +362,8 @@ class TestDeployExport:
         stride = 256  # value from waveglow upsample
         n_group = 8
         z_size2 = (mel.size(2) * stride) // n_group
-        z = torch.randn(1, z_size2).cuda()
 
-        input_example = OrderedDict([("mel_spectrogram", mel), ("z", z)])
+        input_example = OrderedDict([("mel_spectrogram", mel)])
         tmp_file_name = str(tmpdir.mkdir("export").join("waveglow"))
 
         self.__test_export_route(module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example)
