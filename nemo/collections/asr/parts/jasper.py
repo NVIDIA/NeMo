@@ -179,21 +179,33 @@ class GroupShuffle(nn.Module):
 
 
 class SqueezeExcite(nn.Module):
-    def __init__(self, channels, reduction_ratio):
+    def __init__(self, channels, reduction_ratio, context_window: int = -1, interpolation_mode='nearest'):
         super(SqueezeExcite, self).__init__()
-        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.context_window = int(context_window)
+        self.interpolation_mode = interpolation_mode
+
+        if context_window > 0:
+            self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
+        else:
+            self.pool = nn.AvgPool1d(self.context_window, stride=1)
+
         self.fc = nn.Sequential(
             nn.Linear(channels, channels // reduction_ratio, bias=False),
             nn.ReLU(inplace=True),
             nn.Linear(channels // reduction_ratio, channels, bias=False),
-            nn.Sigmoid(),
         )
 
     def forward(self, x):
-        batch, channels, _ = x.size()
-        y = self.pool(x).view(batch, channels)
-        y = self.fc(y).view(batch, channels, 1)
-        return x * y.expand_as(x)
+        batch, channels, timesteps = x.size()
+        y = self.pool(x)  # [B, C, T - context_window + 1]
+        y = y.transpose(1, 2)  # [B, T - context_window + 1, C]
+        y = self.fc(y)  # [B, T - context_window + 1, C]
+        y = y.transpose(1, 2)  # [B, C, T - context_window + 1]
+
+        if self.context_window > 0:
+            y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
+
+        return x * y
 
 
 class JasperBlock(nn.Module):
