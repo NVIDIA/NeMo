@@ -122,9 +122,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                 "for dialogue with id {}".format(dial_id)
             )
 
-        joint_metrics = [
-        metrics.JOINT_GOAL_ACCURACY, metrics.JOINT_CAT_ACCURACY,
-        metrics.JOINT_NONCAT_ACCURACY]
+        joint_metrics = [metrics.JOINT_GOAL_ACCURACY, metrics.JOINT_CAT_ACCURACY, metrics.JOINT_NONCAT_ACCURACY]
         for turn_id, (turn_ref, turn_hyp) in enumerate(zip(dial_ref["turns"], dial_hyp["turns"])):
             metric_collections_per_turn = collections.defaultdict(lambda: collections.defaultdict(lambda: 1.0))
             if turn_ref["speaker"] != turn_hyp["speaker"]:
@@ -156,7 +154,9 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                     frame_ref, frame_hyp, turn_ref["utterance"], service
                 )
                 requested_slots_f1_scores = metrics.get_requested_slots_f1(frame_ref, frame_hyp)
-                goal_accuracy_dict = metrics.get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service, no_fuzzy_match)
+                goal_accuracy_dict = metrics.get_average_and_joint_goal_accuracy(
+                    frame_ref, frame_hyp, service, no_fuzzy_match
+                )
 
                 frame_metric = {
                     metrics.ACTIVE_INTENT_ACCURACY: active_intent_acc,

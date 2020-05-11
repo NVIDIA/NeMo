@@ -415,8 +415,8 @@ eval_callback = nemo.core.EvaluatorCallback(
         args.state_tracker,
         args.debug_mode,
         schema_preprocessor,
-        args.joint_acc_across_turn, 
-        args.no_fuzzy_match
+        args.joint_acc_across_turn,
+        args.no_fuzzy_match,
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,

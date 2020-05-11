@@ -145,8 +145,8 @@ def eval_epochs_done_callback(
     state_tracker,
     eval_debug,
     schema_emb_preprocessor,
-    joint_acc_across_turn, 
-    no_fuzzy_match
+    joint_acc_across_turn,
+    no_fuzzy_match,
 ):
     # added for debugging
     in_domain_services = get_in_domain_services(
@@ -162,11 +162,21 @@ def eval_epochs_done_callback(
         eval_debug=eval_debug,
         in_domain_services=in_domain_services,
     )
-    metrics = evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file, schema_emb_preprocessor.schemas, joint_acc_across_turn, no_fuzzy_match)
+    metrics = evaluate(
+        prediction_dir,
+        data_dir,
+        eval_dataset,
+        output_metric_file,
+        schema_emb_preprocessor.schemas,
+        joint_acc_across_turn,
+        no_fuzzy_match,
+    )
     return metrics
 
 
-def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file, schemas, joint_acc_across_turn, no_fuzzy_match):
+def evaluate(
+    prediction_dir, data_dir, eval_dataset, output_metric_file, schemas, joint_acc_across_turn, no_fuzzy_match
+):
 
     in_domain_services = get_in_domain_services(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
@@ -182,7 +192,9 @@ def evaluate(prediction_dir, data_dir, eval_dataset, output_metric_file, schemas
     dataset_ref = get_dataset_as_dict(os.path.join(data_dir, eval_dataset, "dialogues_*.json"))
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
 
-    all_metric_aggregate, _ = get_metrics(dataset_ref, dataset_hyp, eval_services, in_domain_services, joint_acc_across_turn, no_fuzzy_match)
+    all_metric_aggregate, _ = get_metrics(
+        dataset_ref, dataset_hyp, eval_services, in_domain_services, joint_acc_across_turn, no_fuzzy_match
+    )
     if SEEN_SERVICES in all_metric_aggregate:
         logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
     if UNSEEN_SERVICES in all_metric_aggregate:

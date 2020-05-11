@@ -118,9 +118,9 @@ def noncat_slot_value_match(str_ref_list, str_hyp, no_fuzzy_match):
     score = 0.0
     for str_ref in str_ref_list:
         if no_fuzzy_match:
-          match_score = float(str_ref == str_hyp)
+            match_score = float(str_ref == str_hyp)
         else:
-          match_score = fuzzy_string_match(str_ref, str_hyp)
+            match_score = fuzzy_string_match(str_ref, str_hyp)
         score = max(score, match_score)
     return score
 
