@@ -121,10 +121,15 @@ def create_all_dags(args, neural_factory):
     logging.info('Steps per epoch : {0}'.format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
 
-    data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
+#     data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
+#         sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
+#     )
+
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
     )
 
+    
     spectr_augment_config = jasper_params.get('SpectrogramAugmentation', None)
     if spectr_augment_config:
         data_spectr_augmentation = nemo_asr.SpectrogramAugmentation(**spectr_augment_config)

@@ -8,6 +8,13 @@ import inspect
 import librosa
 import re
 
+# import argparse
+import array
+import math
+import numpy as np
+import random
+import wave
+
 sr = 16000
 duration_stride = 1.0
 
@@ -248,7 +255,7 @@ def write_manifest(data_dir, out_dir, files, manifest_name, duration_stride=1.0,
     return skip_num, seg_num
 
 
-def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_stride, duration_max):
+def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_stride = 1.0, duration_max = 1.0):
     
     file_path = os.path.join(data_dir + filename)
     with open(os.path.join(data_dir, file_path), 'r') as allfile:
@@ -301,6 +308,7 @@ def get_clean_max_json(data_dir , out_dir, sc_data_json, max_limit, prefix):
     
 def process_google_speech_train(data_dir):
 
+    # TODO filter out _background_noise_
     files = sorted(glob.glob(data_dir + '/*/*.wav'))
     short_files = [i.split(data_dir)[1] for i in files]
     
@@ -312,6 +320,7 @@ def process_google_speech_train(data_dir):
 
     exist_set = set(testing_list).copy()
     exist_set.update(set(validation_list))
+    
     
     training_list = [i for i in short_files if i not in exist_set]
     
@@ -371,3 +380,193 @@ def infer_single_by_manifest(filepath, out_dir, manifest_name, duration_stride, 
 
     print(f'=== Writing {seg_num} to {output_path} ===' )
     
+    
+# # -*- coding: utf-8 -*-
+
+
+# # def get_args():
+# #     parser = argparse.ArgumentParser()
+# #     parser.add_argument('--clean_file', type=str, required=True)
+# #     parser.add_argument('--noise_file', type=str, required=True)
+# #     parser.add_argument('--output_mixed_file', type=str, default='', required=True)
+# #     parser.add_argument('--output_clean_file', type=str, default='')
+# #     parser.add_argument('--output_noise_file', type=str, default='')
+# #     parser.add_argument('--snr', type=float, default='', required=True)
+# #     args = parser.parse_args()
+# #     return args
+
+# def cal_adjusted_rms(clean_rms, snr):
+#     a = float(snr) / 20
+#     noise_rms = clean_rms / (10**a) 
+#     return noise_rms
+
+# def cal_amp(wf):
+# #     buffer = wf.readframes(wf.getnframes())
+# #     # The dtype depends on the value of pulse-code modulation. The int16 is set for 16-bit PCM.
+# #     amptitude = (np.frombuffer(buffer, dtype="int16")).astype(np.float64)
+    
+#     return amptitude
+
+# def cal_rms(amp):
+#     return np.sqrt(np.mean(np.square(amp), axis=-1))
+
+# def save_waveform(output_path, params, amp):
+#     output_file = wave.Wave_write(output_path)
+#     output_file.setparams(params) #nchannels, sampwidth, framerate, nframes, comptype, compname
+#     output_file.writeframes(array.array('h', amp.astype(np.int16)).tobytes() )
+#     output_file.close()
+
+
+# def make_noisy_speech(clean_speech_file, noise_file, 
+#                       clean_speech_dir, noise_dir,  out_dir, 
+#                       min_snr_level = 1, max_snr_level = 20,
+#                       snr = None):
+
+#     # args = get_args()
+#     # clean_file = args.clean_file
+#     # noise_file = args.noise_file
+
+#     # clean_speech_file 'down/b4aa9fef_nohash_4.wav'
+    
+#     clean_speech_file = os.path.join(clean_speech_dir, clean_speech_file)
+#     noise_file = os.path.join(noise_dir, noise_file)
+    
+#     if not os.path.exists(out_dir):
+#         print('Create output dir for noisy output!')
+#         os.mkdir(out_dir)
+       
+#     subdir, filename = clean_speech_file.split(clean_speech_dir)[1].split('/')
+#     out_subdir = os.path.join(out_dir, subdir)
+#     if not os.path.exists(out_subdir):
+#         print('Create output subdir for noisy output!')
+#         os.mkdir(out_subdir)
+        
+#     if not snr:
+#         snr = random.randint(min_snr_level, max_snr_level)
+        
+#     output_mixed_filename = filename.split('.wav')[0] + '_n' + str(snr) + '.wav'
+#     output_mixed_file = os.path.join(out_subdir, output_mixed_filename)
+    
+#     clean_wav = wave.open(clean_speech_file, "r")
+#     noise_wav = wave.open(noise_file, "r")
+
+#     clean_amp = cal_amp(clean_wav)
+#     noise_amp = cal_amp(noise_wav)
+
+#     clean_rms = cal_rms(clean_amp)
+
+#     start = random.randint(0, len(noise_amp)-len(clean_amp))
+#     divided_noise_amp = noise_amp[start: start + len(clean_amp)]
+#     noise_rms = cal_rms(divided_noise_amp)
+    
+        
+#     adjusted_noise_rms = cal_adjusted_rms(clean_rms, snr)
+
+#     adjusted_noise_amp = divided_noise_amp * (adjusted_noise_rms / noise_rms) 
+#     mixed_amp = (clean_amp + adjusted_noise_amp)
+
+#     #Avoid clipping noise
+#     max_int16 = np.iinfo(np.int16).max
+#     min_int16 = np.iinfo(np.int16).min
+#     if mixed_amp.max(axis=0) > max_int16 or mixed_amp.min(axis=0) < min_int16:
+#         if mixed_amp.max(axis=0) >= abs(mixed_amp.min(axis=0)): 
+#             reduction_rate = max_int16 / mixed_amp.max(axis=0)
+#         else :
+#             reduction_rate = min_int16 / mixed_amp.min(axis=0)
+#         mixed_amp = mixed_amp * (reduction_rate)
+#         clean_amp = clean_amp * (reduction_rate)
+
+#     save_waveform(output_mixed_file, clean_wav.getparams(), mixed_amp)
+#     return output_mixed_file
+
+
+# -*- coding: utf-8 -*-
+
+
+# def get_args():
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('--clean_file', type=str, required=True)
+#     parser.add_argument('--noise_file', type=str, required=True)
+#     parser.add_argument('--output_mixed_file', type=str, default='', required=True)
+#     parser.add_argument('--output_clean_file', type=str, default='')
+#     parser.add_argument('--output_noise_file', type=str, default='')
+#     parser.add_argument('--snr', type=float, default='', required=True)
+#     args = parser.parse_args()
+#     return args
+
+def cal_adjusted_rms(clean_rms, snr):
+    a = float(snr) / 20
+    noise_rms = clean_rms / (10**a) 
+    return noise_rms
+
+# def cal_amp(wf):
+# #     buffer = wf.readframes(wf.getnframes())
+# #     # The dtype depends on the value of pulse-code modulation. The int16 is set for 16-bit PCM.
+# #     amptitude = (np.frombuffer(buffer, dtype="int16")).astype(np.float64)
+    
+#     return amptitude
+
+# def cal_rms(amp):
+#     return np.sqrt(np.mean(np.square(amp), axis=-1))
+
+# def save_waveform(output_path, params, amp):
+#     output_file = wave.Wave_write(output_path)
+#     output_file.setparams(params) #nchannels, sampwidth, framerate, nframes, comptype, compname
+#     output_file.writeframes(array.array('h', amp.astype(np.int16)).tobytes() )
+#     output_file.close()
+
+
+def make_noisy_speech(clean_speech_file, noise_file, 
+                      clean_speech_dir, noise_dir,  out_dir, 
+                      min_snr_level = 1, max_snr_level = 20,
+                      snr = None):
+
+    # args = get_args()
+    # clean_file = args.clean_file
+    # noise_file = args.noise_file
+
+    # clean_speech_file 'down/b4aa9fef_nohash_4.wav'
+  
+#     if not os.path.exists(out_dir):
+#         print('Create output dir for noisy output!')
+#         os.mkdir(out_dir)
+
+    subdir, filename = clean_speech_file.split('/')
+    out_subdir = os.path.join(out_dir, subdir)
+#     if not os.path.exists(out_subdir):
+#         print('Create output subdir for noisy output!')
+#         os.mkdir(out_subdir)
+        
+    
+    clean_speech_file = os.path.join(clean_speech_dir, clean_speech_file)
+    noise_file = os.path.join(noise_dir, noise_file)
+    
+    
+    if not snr:
+        snr = random.randint(min_snr_level, max_snr_level)
+        
+    output_mixed_filename = filename.split('.wav')[0] + '_n' + str(snr) + '.wav'
+    output_mixed_file = os.path.join(out_subdir, output_mixed_filename)
+    
+    clean_y, clean_sr = librosa.load(clean_speech_file)
+    noise_y, noise_sr = librosa.load(noise_file)
+    
+    while len(noise_y) < 2 * len(clean_y):
+        print('Duplicate noise!')
+        noise_y = np.concatenate((noise_y, noise_y), axis=0)
+
+    
+    clean_rms = np.sqrt(np.mean(np.square(clean_y), axis=-1))
+    start = random.randint(0, len(noise_y)-len(clean_y))
+    divided_noise_y = noise_y[start: start + len(clean_y)]
+#     noise_rms = librosa.feature.rms(y = divided_noise_y)
+    
+    noise_rms = np.sqrt(np.mean(np.square(noise_y), axis=-1))
+
+    adjusted_noise_rms = cal_adjusted_rms(clean_rms, snr) 
+    adjusted_noise_y = divided_noise_y * (adjusted_noise_rms / noise_rms) 
+    mixed_y = (clean_y + divided_noise_y)
+    
+    librosa.output.write_wav(output_mixed_file, mixed_y, clean_sr)
+    
+    return output_mixed_file, snr

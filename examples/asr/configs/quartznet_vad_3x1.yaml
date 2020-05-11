@@ -35,11 +35,11 @@ AudioToMFCCPreprocessor:
 
 AudioAugmentor:
     shift:
-        prob: 1.0
+        prob: 0.8
         min_shift_ms: -5.0
         max_shift_ms: 5.0
     white_noise:
-        prob: 1.0
+        prob: 0.8
         min_level: -90
         max_level: -46
 
