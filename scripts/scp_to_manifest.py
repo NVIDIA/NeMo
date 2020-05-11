@@ -14,21 +14,18 @@
 
 import argparse
 import json
+import logging
 import os
 
 import librosa as l
-from examples.speaker_recognition.speaker_reco import logging
 from sklearn.model_selection import StratifiedShuffleSplit
 from tqdm import tqdm
 
-import nemo
-
-logging = nemo.logging
 
 """
-This scipt take scp file where each line contains  
+This scipt converts a scp file where each line contains  
 <absolute path of wav file> 
-to manifest json file. 
+to a manifest json file. 
 Args: 
 --scp: scp file name
 --id: index of speaker label in filename present in scp file that is separated by '/'
