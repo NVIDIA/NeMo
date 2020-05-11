@@ -82,7 +82,7 @@ def get_dataset_as_dict(file_path_patterns):
     return dataset_dict
 
 
-def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services):
+def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
     """Calculate the DSTC8 metrics.
 
   Args:
@@ -122,7 +122,11 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services):
                 "for dialogue with id {}".format(dial_id)
             )
 
+        joint_metrics = [
+        metrics.JOINT_GOAL_ACCURACY, metrics.JOINT_CAT_ACCURACY,
+        metrics.JOINT_NONCAT_ACCURACY]
         for turn_id, (turn_ref, turn_hyp) in enumerate(zip(dial_ref["turns"], dial_hyp["turns"])):
+            metric_collections_per_turn = collections.defaultdict(lambda: collections.defaultdict(lambda: 1.0))
             if turn_ref["speaker"] != turn_hyp["speaker"]:
                 raise ValueError("Speakers don't match in dialogue with id {}".format(dial_id))
 
@@ -152,7 +156,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services):
                     frame_ref, frame_hyp, turn_ref["utterance"], service
                 )
                 requested_slots_f1_scores = metrics.get_requested_slots_f1(frame_ref, frame_hyp)
-                goal_accuracy_dict = metrics.get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service)
+                goal_accuracy_dict = metrics.get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service, no_fuzzy_match)
 
                 frame_metric = {
                     metrics.ACTIVE_INTENT_ACCURACY: active_intent_acc,
@@ -181,7 +185,16 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services):
                 for domain_key in domain_keys:
                     for metric_key, metric_value in frame_metric.items():
                         if metric_value != metrics.NAN_VAL:
-                            metric_collections[domain_key][metric_key].append(metric_value)
+                            if joint_acc_across_turn and metric_key in joint_metrics:
+                                metric_collections_per_turn[domain_key][metric_key] *= metric_value
+                            else:
+                                metric_collections[domain_key][metric_key].append(metric_value)
+            if joint_acc_across_turn:
+                # Conduct multiwoz style evaluation that computes joint goal accuracy
+                # across all the slot values of all the domains for each turn.
+                for domain_key in metric_collections_per_turn:
+                    for metric_key, metric_value in metric_collections_per_turn[domain_key].items():
+                        metric_collections[domain_key][metric_key].append(metric_value)
 
     all_metric_aggregate = {}
     for domain_key, domain_metric_vals in metric_collections.items():

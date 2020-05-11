@@ -40,7 +40,7 @@ FILE_RANGES = {
     "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
     "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 3)},
-    "multiwoz": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 1)},
+    "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
