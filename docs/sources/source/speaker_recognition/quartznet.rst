@@ -6,9 +6,9 @@ similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 
 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
-We use a Quarznet encoder of 3x2 size with narrow filters. This encoder is connected to decoder by using statspooling layer. 
-We experimented with various layers like a gram layer, a x-vector pooling layer, or super vector layer which is combination of the gram and x-vector layers.
-xvector stratergy is based on Mean and variance based statistic pooling, it is faster to train and very stable.
+We use a Quartznet encoder of 3x2 size with narrow filters. This encoder is connected to the decoder by using a statistics pooling layer. 
+We experimented with various statistics pooling layers like a gram layer, a x-vector pooling layer, or super vector layer which is combination of the gram and x-vector layers.
+the xvector layer is based on Mean and variance based statistics pooling, it is faster to train and very stable.
 
     .. image:: ../asr/quartz_vertical.png
         :align: center
