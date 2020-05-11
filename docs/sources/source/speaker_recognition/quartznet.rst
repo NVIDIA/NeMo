@@ -6,18 +6,17 @@ similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 
 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
-We use Quarznet encoder of 3x2 size with narrow filters. These encoder is connected to decoder by using statspooling layer. 
-We experimented with various layers like gram layer, x-vector pooling, super vector which is combination of gram and x-vector. 
-Mean and variance based pooling is faster to train and very stable.
+We use a Quarznet encoder of 3x2 size with narrow filters. This encoder is connected to decoder by using statspooling layer. 
+We experimented with various layers like a gram layer, a x-vector pooling layer, or super vector layer which is combination of the gram and x-vector layers.
+xvector stratergy is based on Mean and variance based statistic pooling, it is faster to train and very stable.
 
-    .. image:: quartz_vertical.png
+    .. image:: ../asr/quartz_vertical.png
         :align: center
         :alt: quartznet model
 
 `QuartzNet paper <https://arxiv.org/abs/1910.10261>`_.
 
-on average for 417 hrs of data should finish 25 epochs in about 7-8 hours on single Quadro GV100. For larger datasets 
-on 8 GPUS with  mixed precision it takes about 17hrs to train.
+on average for 417 hrs of data should finish 25 epochs in under 8 hours on single Quadro GV100. 
 
 ============== ================= ===================== ====================== ==========
 Network            Trained             Evaluated           cosine similarity     PLDA

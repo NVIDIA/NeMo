@@ -17,13 +17,17 @@ import json
 import os
 
 import librosa as l
+from examples.speaker_recognition.speaker_reco import logging
 from sklearn.model_selection import StratifiedShuffleSplit
 from tqdm import tqdm
 
+import nemo
+
+logging = nemo.logging
 
 """
-This scipt take scp file which is in format 
-<absolute  filename> 
+This scipt take scp file where each line contains  
+<absolute path of wav file> 
 to manifest json file. 
 Args: 
 --scp: scp file name
@@ -41,7 +45,7 @@ def write_file(name, lines, idx):
             dic = lines[i]
             json.dump(dic, fout)
             fout.write('\n')
-    print("wrote", name)
+    logging.info("wrote", name)
 
 
 def main(scp, id, out, split=False):
@@ -69,7 +73,7 @@ def main(scp, id, out, split=False):
     if split:
         sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=42)
         for train_idx, test_idx in sss.split(speakers, speakers):
-            print(len(train_idx))
+            logging.info(len(train_idx))
 
         out = os.path.join(path, 'train.json')
         write_file(out, lines, train_idx)

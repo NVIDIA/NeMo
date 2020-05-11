@@ -13,16 +13,16 @@ See the :ref:`installation` section.
 Introduction
 ------------
 
-Speaker Recognition (SR) is an broad research area which solves two major tasks: speaker identification (who is speaking?) and 
+Speaker Recognition (SR) is a broad research area which solves two major tasks: speaker identification (who is speaking?) and 
 speaker verification (is the speaker who she claims to be?). In this work, we focus on the far-field, 
 text-independent speaker recognition when the identity of the speaker is based on how speech is spoken, 
 not necessarily in what is being said. Typically such SR systems operate on unconstrained speech utterances, 
-which are converted into vector of fixed length, called speaker embedding. Speaker embedding is also  used in 
+which are converted into vector of fixed length, called speaker embedding. Speaker embeddings are also  used in 
 automatic speech recognition (ASR) and speech synthesis. 
 
-As goal of most speaker related systems is to get good speaker level embeddings that could help distinguish from other speakers, we shall first train these embeddings in end-to-end
+As the goal of most speaker related systems is to get good speaker level embeddings that could help distinguish from other speakers, we shall first train these embeddings in end-to-end
 manner optimizing the QuatzNet based :cite:`speaker-tut-kriman2019quartznet` encoder model on cross-entropy loss. 
-We modeify the decoder to get these fixed size embeddings irrespective of length of input audio. We employ mean and variance 
+We modeify the decoder to get these fixed size embeddings irrespective of the length of input audio. We employ mean and variance 
 based statistics pooling method to grab these embeddings.
 
 In this tutorial we shall first train these embeddings on speaker related datasets and then get speaker embeddings from a 
@@ -30,7 +30,9 @@ pretrained network for a new dataset, then followed by scoring them using cosine
 
 .. note::
   A Jupyter Notebook containing all the steps to download the dataset, train a model and evaluate its results
-  is available at : `Speaker Recognition an4 example <https://github.com/NVIDIA/NeMo/blob/master/examples/speaker_recognition/notebooks/Speaker_Recognition_an4.ipynb>`_
+  is available at : `Speaker Recognition an4 example <https://github.com/NVIDIA/NeMo/blob/master/examples/speaker_recognition/notebooks/Speaker_Recognition_an4.ipynb>`_ 
+  also for hi-mia dataset at: 
+  `Speaker Recognition hi-mia example <https://github.com/NVIDIA/NeMo/blob/master/examples/speaker_recognition/notebooks/Speaker_Recognition_hi-mia.ipynb>`_ 
 
 Data Preparation
 ----------------
@@ -51,7 +53,7 @@ This script downloads data, extracts files, converts audio to 16Khz and creates 
 format {set}_all.json. It also creates train and dev manifest files in each train and dev directories that are split on 
 stratified basis on speakers. So your data folder looks like :
 
-After download and conversion, your `data` folder should contain a directories with manifest files as:
+After download and conversion, your `data` folder should contain directories with manifest files as:
 
 * `data/<set>/train.json`
 * `data/<set>/dev.json` 
@@ -95,7 +97,7 @@ which greatly reduce the number of parameters required to get good model accurac
 QuartzNet models generally follow the model definition pattern QuartzNet-[BxR], where B is the number of blocks and R is the number of
 convolutional sub-blocks. Each sub-block contains a 1-D masked convolution, batch normalization, ReLU, and dropout:
 
-    .. image:: quartz_vertical.png
+    .. image:: ../asr/quartz_vertical.png
         :align: center
         :alt: quartznet model
 
@@ -115,8 +117,8 @@ The script below which is in  <nemo/examples/speaker_recognition/speaker_reco.py
     --tensorboard_dir='./myExps/tensorboard/'  --warmup_steps=1000  \
     --weight_decay=0.001 --work_dir='./myExps/'
 
-.. .. tip::
-..     Run Jupyter notebook and walk through this script step-by-step
+.. tip::
+    Run Jupyter notebook and walk through this script step-by-step
 
 
 **Training script**
@@ -407,10 +409,10 @@ The script below which is in  <nemo/examples/speaker_recognition/speaker_reco.py
 
 
 We have experimented on different pooling methods, like gram based pooling, x-vector pooling and super_vector which 
-is combination of gram and x-vector. To experiment on these change pool_mode in config file accordingly.
+is combination of gram and x-vector. To experiment on these methods change pool_mode in config file accordingly.
 
 .. note::
-    This script on average for 417 hrs of data should finish 25 epochs in about 7-8 hours on Quadro GV100.
+    This script on average for 417 hrs of data should finish 25 epochs under 8 hours on Quadro GV100.
 
 .. tip::
     To improve your embeddings performance:
@@ -752,7 +754,7 @@ test_all_labels.npy.
 SCORING
 -------
 
-Though speaker verification scoring is slightly dependent on how we get the trial-files. So this evaluattion script may
+Though speaker verification scoring is slightly dependent on how the trial-files are described. So this evaluation script may
 not work well without slight modifications on your challange/dataset trial file. Here we provide a script scoring
 on hi-mia :cite:`speaker-tut-himia` whose trial file has structure <speaker_name1> <speaker_name2> <target/nontarget> 
 
@@ -764,9 +766,8 @@ script to this is found in <nemo>/scripts. Make sure trails file is placed in <e
     python hi-mia_eval.py --data_root='<embeddings_dir' --emb='<emb_dir>/test_all.npy' --emb_labels='<emb_dir>/test_all_labels.npy' --emb_size 1024
 
 This should output an EER rate of 8.72%. Above script also generates all_embs_himia.npy file which can be later used during PLDA scoring.
-.. Here the --task argument was ffsvc task id for challenge. 
 
-We also used PLDA backend to finetune our speaker embeddings furthur. We used kaldi PLDA scripts to train PLDA and evaluate as well. 
+To finetune our speaker embeddings further, we used kaldi PLDA scripts to train PLDA and evaluate as well. 
 so from this point going forward, please make sure you installed kaldi and was added to your path as KALDI_ROOT. 
 
 .. note::
