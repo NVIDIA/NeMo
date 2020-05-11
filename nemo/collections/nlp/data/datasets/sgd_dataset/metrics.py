@@ -104,23 +104,28 @@ def fuzzy_string_match(str_ref, str_hyp):
     return fuzz.token_sort_ratio(str_ref, str_hyp) / 100.0
 
 
-def noncat_slot_value_match(str_ref_list, str_hyp):
+def noncat_slot_value_match(str_ref_list, str_hyp, no_fuzzy_match):
     """Calculate non-categorical slots correctness.
 
   Args:
     str_ref_list: a list of reference strings.
     str_hyp: the hypothesis string.
+    use_fuzzy_match: whether to use fuzzy string matching.
 
   Returns:
     score: The highest fuzzy string match score of the references and hypotheis.
   """
     score = 0.0
     for str_ref in str_ref_list:
-        score = max(score, fuzzy_string_match(str_ref, str_hyp))
+        if no_fuzzy_match:
+            match_score = float(str_ref == str_hyp)
+        else:
+            match_score = fuzzy_string_match(str_ref, str_hyp)
+        score = max(score, match_score)
     return score
 
 
-def compare_slot_values(slot_values_ref, slot_values_hyp, service):
+def compare_slot_values(slot_values_ref, slot_values_hyp, service, no_fuzzy_match):
     """Compare and get correctness of goal state's slot_values.
 
   Args:
@@ -128,6 +133,8 @@ def compare_slot_values(slot_values_ref, slot_values_hyp, service):
     slot_values_hyp: goal state slot_values from hypothesis (prediction).
     service: a service data structure in the schema. We use it to obtain the
       list of slots in the service and infer whether a slot is categorical.
+    use_fuzzy_match: whether to use fuzzy string matching for non-categorical
+      slot values
 
   Returns:
     (list_cor, slot_active, slot_cat)
@@ -155,7 +162,7 @@ def compare_slot_values(slot_values_ref, slot_values_hyp, service):
                 if slot["is_categorical"]:
                     cor = float(value_ref_list[0] == value_hyp)
                 else:
-                    cor = noncat_slot_value_match(value_ref_list, value_hyp)
+                    cor = noncat_slot_value_match(value_ref_list, value_hyp, no_fuzzy_match)
 
                 list_cor.append(cor)
             else:  # HYP=off
@@ -231,7 +238,7 @@ def get_requested_slots_f1(frame_ref, frame_hyp):
     return compute_f1(frame_ref["state"]["requested_slots"], frame_hyp["state"]["requested_slots"])
 
 
-def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service):
+def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service, no_fuzzy_match):
     """Get average and joint goal accuracies of a frame.
 
   Args:
@@ -239,6 +246,8 @@ def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service):
     frame_hyp: single semantic frame from hypothesis (prediction) file.
     service: a service data structure in the schema. We use it to obtain the
       list of slots in the service and infer whether a slot is categorical.
+    use_fuzzy_match: whether to use fuzzy string matching for comparing
+      non-categorical slot values.
 
   Returns:
     goal_acc: a dict whose values are average / joint
@@ -247,7 +256,7 @@ def get_average_and_joint_goal_accuracy(frame_ref, frame_hyp, service):
     goal_acc = {}
 
     list_acc, slot_active, slot_cat = compare_slot_values(
-        frame_ref["state"]["slot_values"], frame_hyp["state"]["slot_values"], service
+        frame_ref["state"]["slot_values"], frame_hyp["state"]["slot_values"], service, no_fuzzy_match
     )
 
     # (4) Average goal accuracy.

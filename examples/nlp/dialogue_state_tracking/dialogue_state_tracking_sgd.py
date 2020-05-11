@@ -124,6 +124,16 @@ parser.add_argument(
     help="Whether to generate a new file saving the dialogue examples.",
 )
 parser.add_argument(
+    "--joint_acc_across_turn",
+    action="store_true",
+    help="Whether to compute joint accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.",
+)
+parser.add_argument(
+    "--no_fuzzy_match",
+    action="store_true",
+    help="Whether to use fuzzy string matching when comparing non-categorical slot values. Fuzz match should not be used when conducting multiwoz style evaluation.",
+)
+parser.add_argument(
     "--dialogues_example_dir",
     type=str,
     default="dialogues_example_dir",
@@ -204,14 +214,14 @@ if args.task_name == "multiwoz":
     schema_config = {
         "MAX_NUM_CAT_SLOT": 9,
         "MAX_NUM_NONCAT_SLOT": 4,
-        "MAX_NUM_VALUE_PER_CAT_SLOT": 50,
+        "MAX_NUM_VALUE_PER_CAT_SLOT": 47,
         "MAX_NUM_INTENT": 1,
     }
 else:
     schema_config = {
         "MAX_NUM_CAT_SLOT": 6,
         "MAX_NUM_NONCAT_SLOT": 12,
-        "MAX_NUM_VALUE_PER_CAT_SLOT": 11,
+        "MAX_NUM_VALUE_PER_CAT_SLOT": 12,
         "MAX_NUM_INTENT": 4,
     }
 
@@ -256,7 +266,7 @@ schema_preprocessor = SchemaPreprocessor(
     tokenizer=tokenizer,
     bert_model=pretrained_bert_model,
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
-    bert_ckpt_dir=args.bert_checkpoint,
+    bert_ckpt_dir=args.checkpoint_dir,
     nf=nf,
     mode=args.schema_emb_init,
     is_trainable=args.train_schema_emb,
@@ -405,6 +415,8 @@ eval_callback = nemo.core.EvaluatorCallback(
         args.state_tracker,
         args.debug_mode,
         schema_preprocessor,
+        args.joint_acc_across_turn,
+        args.no_fuzzy_match,
     ),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,
