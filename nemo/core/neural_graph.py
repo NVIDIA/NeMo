@@ -939,8 +939,10 @@ class NeuralGraph(NeuralInterface):
             # Check module type.
             module = self._modules[name]
             if module.type == ModuleType.trainable:
-                # Freeze weights of the module
+                # Freeze weights of the module.
                 module.freeze()
+            else:
+                raise KeyError("Module `{}` is not trainable so cannot be frozen".format(name, self.name))
 
     def unfreeze(self, module_names: Optional[List[str]] = None):
         """
@@ -962,3 +964,40 @@ class NeuralGraph(NeuralInterface):
             if module.type == ModuleType.trainable:
                 # Unfreeze weights of the module.
                 module.unfreeze()
+            else:
+                raise KeyError("Module `{}` is not trainable so cannot be unfrozen".format(name, self.name))
+
+    def save_to(self, path: str, module_names: Optional[List[str]] = None):
+        """
+            Saves the state of trainable modules in the graph to a checkpoint file.
+            Args:
+                path (string): path to while where to save.
+                module_names: List of modules to be frozen (Optional). If passed, all modules will be saved.
+            Raises:
+                KeyError: If name of the module won't be recognized.
+        """
+        if module_names is None:
+            # Work on all modules.
+            module_names = self._modules.keys()
+        # Iterate through modules one by one.
+        for name in module_names:
+            if name not in self._modules.keys():
+                raise KeyError("Module `{}` not present in the `{}` graph".format(name, self.name))
+            # Check module type.
+            module = self._modules[name]
+            if module.type == ModuleType.trainable:
+                # Freeze weights of the module
+                module.freeze()
+            else:
+                raise KeyError("Module `{}` is not trainable so cannot be frozen".format(name, self.name))
+
+    def restore_from(self, path: str, module_names: Optional[List[str]] = None):
+        """
+            Restores the state of trainable modules in the graph from a checkpoint file.
+            Args:
+                path (string): path to where to restore from.
+                module_names: List of modules to be frozen (Optional). If passed, all modules will be restored.
+            Raises:
+                KeyError: If name of the module won't be recognized.
+        """
+        pass
