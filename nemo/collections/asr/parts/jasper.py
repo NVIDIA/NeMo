@@ -179,7 +179,9 @@ class GroupShuffle(nn.Module):
 
 
 class SqueezeExcite(nn.Module):
-    def __init__(self, channels, reduction_ratio, context_window: int = -1, interpolation_mode='nearest'):
+    def __init__(
+        self, channels, reduction_ratio, context_window: int = -1, interpolation_mode='nearest', activation=None
+    ):
         super(SqueezeExcite, self).__init__()
         self.context_window = int(context_window)
         self.interpolation_mode = interpolation_mode
@@ -189,9 +191,12 @@ class SqueezeExcite(nn.Module):
         else:
             self.pool = nn.AvgPool1d(self.context_window, stride=1)
 
+        if activation is None:
+            activation = nn.ReLU(inplace=True)
+
         self.fc = nn.Sequential(
             nn.Linear(channels, channels // reduction_ratio, bias=False),
-            nn.ReLU(inplace=True),
+            activation,
             nn.Linear(channels // reduction_ratio, channels, bias=False),
         )
 
@@ -205,7 +210,14 @@ class SqueezeExcite(nn.Module):
         if self.context_window > 0:
             y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
 
+        y = torch.sigmoid(y)
+
         return x * y
+
+
+class Swish(nn.Module):
+    def forward(self, x):
+        return x * torch.sigmoid(x)
 
 
 class JasperBlock(nn.Module):
@@ -234,6 +246,7 @@ class JasperBlock(nn.Module):
         conv_mask=False,
         se=False,
         se_reduction_ratio=16,
+        se_context_window=None,
     ):
         super(JasperBlock, self).__init__()
 
@@ -274,9 +287,6 @@ class JasperBlock(nn.Module):
 
             conv.extend(self._get_act_dropout_layer(drop_prob=dropout, activation=activation))
 
-            if se and not residual:
-                conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
-
             inplanes_loop = planes
 
         conv.extend(
@@ -295,8 +305,12 @@ class JasperBlock(nn.Module):
             )
         )
 
-        if se and not residual:
-            conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
+        if se:
+            conv.append(
+                SqueezeExcite(
+                    planes, reduction_ratio=se_reduction_ratio, context_window=se_context_window, activation=activation
+                )
+            )
 
         self.mconv = conv
 
@@ -314,9 +328,6 @@ class JasperBlock(nn.Module):
                         ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
                     )
                 )
-
-                if se:
-                    res.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
 
                 res_list.append(res)
 
@@ -485,3 +496,7 @@ class JasperBlock(nn.Module):
             return xs + [out], lens
 
         return [out], lens
+
+
+# Register swish activation function
+jasper_activations['swish'] = Swish

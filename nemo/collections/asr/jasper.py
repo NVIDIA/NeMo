@@ -54,7 +54,7 @@ class JasperEncoder(TrainableNM):
                     'se_reduction_ratio' (int)  # The reduction ratio of the Squeeze
                         # sub-module.
                         # Must be an integer > 1.
-                        # Defaults to 16
+                        # Defaults to 8
                     'kernel_size_factor' (float)  # Conv kernel size multiplier
                         # Can be either an int or float
                         # Kernel size is recomputed as below:
@@ -66,7 +66,7 @@ class JasperEncoder(TrainableNM):
                 }
 
         activation (str): Activation function used for each sub-blocks. Can be
-            one of ["hardtanh", "relu", "selu"].
+            one of ["hardtanh", "relu", "selu", "swish"].
         feat_in (int): Number of channels being input to this module
         normalization_mode (str): Normalization to be used in each sub-block.
             Can be one of ["batch", "layer", "instance", "group"]
@@ -163,7 +163,8 @@ class JasperEncoder(TrainableNM):
             separable = lcfg.get('separable', False)
             heads = lcfg.get('heads', -1)
             se = lcfg.get('se', False)
-            se_reduction_ratio = lcfg.get('se_reduction_ratio', 16)
+            se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
+            se_context_window = lcfg.get('se_context_window', -1)
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             encoder_layers.append(
                 JasperBlock(
@@ -186,6 +187,7 @@ class JasperEncoder(TrainableNM):
                     conv_mask=conv_mask,
                     se=se,
                     se_reduction_ratio=se_reduction_ratio,
+                    se_context_window=se_context_window,
                     kernel_size_factor=kernel_size_factor,
                 )
             )
