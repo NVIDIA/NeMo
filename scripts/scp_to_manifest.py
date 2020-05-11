@@ -65,14 +65,15 @@ def main(scp, id, out, split=False):
             json.dump(meta, outfile)
             outfile.write("\n")
 
+    path = os.path.dirname(out)
     if split:
         sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=42)
         for train_idx, test_idx in sss.split(speakers, speakers):
             print(len(train_idx))
 
-        out = os.path.join(out, '_train.json')
+        out = os.path.join(path, 'train.json')
         write_file(out, lines, train_idx)
-        out = os.path.join(out, '_dev.json')
+        out = os.path.join(path, 'dev.json')
         write_file(out, lines, test_idx)
 
 

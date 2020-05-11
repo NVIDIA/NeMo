@@ -28,9 +28,9 @@ based statistics pooling method to grab these embeddings.
 In this tutorial we shall first train these embeddings on speaker related datasets and then get speaker embeddings from a 
 pretrained network for a new dataset, then followed by scoring them using cosine similarity method or optionally with PLDA backend. 
 
-.. .. note::
-..   A Jupyter Notebook containing all the steps to download the dataset, train a model and evaluate its results
-..   is available at : `Speech Commands Using NeMo <https://github.com/NVIDIA/NeMo/blob/master/examples/speaker_recognition/notebooks/3_Speech_Commands_using_NeMo.ipynb>`_
+.. note::
+  A Jupyter Notebook containing all the steps to download the dataset, train a model and evaluate its results
+  is available at : `Speaker Recognition an4 example <https://github.com/NVIDIA/NeMo/blob/master/examples/speaker_recognition/notebooks/Speaker_Recognition_an4.ipynb>`_
 
 Data Preparation
 ----------------
