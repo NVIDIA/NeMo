@@ -171,6 +171,7 @@ class ContextNetEncoder(TrainableNM):
             groups = lcfg.get('groups', 1)
             separable = lcfg.get('separable', False)
             heads = lcfg.get('heads', -1)
+            residual_mode = lcfg.get('residual_mode', residual_mode)
             se = lcfg.get('se', True)
             se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
             se_context_window = lcfg.get('se_context_window', -1)

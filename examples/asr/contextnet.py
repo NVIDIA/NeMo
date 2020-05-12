@@ -141,7 +141,7 @@ def create_all_dags(args, neural_factory):
         feat_in=contextnet_params["ContextNetEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab),
     )
 
-    ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
+    ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab), zero_infinity=True)
 
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 

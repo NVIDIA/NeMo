@@ -35,7 +35,7 @@ SpectrogramAugmentation:
 
 ContextNetEncoder:
     activation: "relu"
-    conv_mask: false
+    conv_mask: true
 
     jasper:
         -   filters: 128
@@ -71,10 +71,10 @@ ContextNetEncoder:
         -   filters: 128
             repeat: *repeat
             kernel: [5]
-            stride: [*stride]
+            stride: [2]
             dilation: [1]
             dropout: *dropout
-            residual: false
+            residual: true
             separable: true
             se: true
             stride_last: true
@@ -116,7 +116,7 @@ ContextNetEncoder:
             stride: [*stride]
             dilation: [1]
             dropout: *dropout
-            residual: false
+            residual: true
             separable: true
             se: true
             stride_last: true
@@ -188,7 +188,7 @@ ContextNetEncoder:
             stride: [*stride]
             dilation: [1]
             dropout: *dropout
-            residual: false
+            residual: true
             separable: true
             se: true
             stride_last: true

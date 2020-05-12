@@ -503,7 +503,7 @@ class JasperBlock(nn.Module):
                     else:
                         res_out = res_layer(res_out)
 
-                if self.residual_mode == 'add':
+                if self.residual_mode == 'add' or self.residual_mode == 'stride_add':
                     out = out + res_out
                 else:
                     out = torch.max(out, res_out)
