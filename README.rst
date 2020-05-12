@@ -177,7 +177,7 @@ The user can run  all the tests locally by simply executing:
 
     pytest
 
-In order to run a subset one can run, e.g. ``system``:
+In order to run a subset of tests one can use the ``-m`` argument followed by the subset name, e.g. for ``system`` subset:
 
 .. code-block:: bash
 
