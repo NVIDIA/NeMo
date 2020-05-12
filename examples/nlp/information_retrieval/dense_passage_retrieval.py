@@ -33,7 +33,7 @@ from nemo.utils.lr_policies import get_lr_policy
 parser = nemo.utils.NemoArgParser(description='Bert for Information Retrieval')
 parser.set_defaults(
     train_dataset="train",
-    eval_datasets=["dev.small"],
+    eval_datasets=["bm25", "dpr"],
     work_dir="outputs/bert_ir",
     optimizer="adam_w",
     batch_size=8,
@@ -118,8 +118,8 @@ loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
 
 train_passages = f"{args.data_dir}/{args.collection_file}"
 # Training pipeline
-train_queries = f"{args.data_dir}/queries.{args.train_dataset}.tsv"
-train_triples = f"{args.data_dir}/triples.{args.train_dataset}.tsv"
+train_queries = f"{args.data_dir}/queries.train.tsv"
+train_triples = f"{args.data_dir}/{args.train_dataset}"
 train_data_layer = ir_dl.BertDensePassageRetrievalDataLayer(
     tokenizer=tokenizer,
     passages=train_passages,
@@ -129,42 +129,13 @@ train_data_layer = ir_dl.BertDensePassageRetrievalDataLayer(
     num_negatives=args.num_negatives
 )
 q_input_ids, q_input_mask, q_input_type_ids, p_input_ids, p_input_mask, p_input_type_ids = train_data_layer()
-
 q_input_ids, q_input_mask, q_input_type_ids = batch_reshape(
     input_ids=q_input_ids, input_mask=q_input_mask, input_type_ids=q_input_type_ids)
 q_hiddens = q_encoder(input_ids=q_input_ids, token_type_ids=q_input_type_ids, attention_mask=q_input_mask)
-
 p_input_ids, p_input_mask, p_input_type_ids = batch_reshape(
     input_ids=p_input_ids, input_mask=p_input_mask, input_type_ids=p_input_type_ids)
 p_hiddens = p_encoder(input_ids=p_input_ids, token_type_ids=p_input_type_ids, attention_mask=p_input_mask)
-
 train_scores, train_loss = loss_fn_train(queries=q_hiddens, passages=p_hiddens)
-
-eval_passages = f"{args.data_dir}/collection.dev.small.tsv"
-# Evaluation pipeline
-eval_queries = f"{args.data_dir}/queries.{args.eval_datasets[0]}.tsv"
-eval_qrels = f"{args.data_dir}/qrels.{args.eval_datasets[0]}.tsv"
-#eval_topk_list = f"{args.data_dir}/bm25top100.dev.tiny.tsv"
-eval_topk_list = f"{args.data_dir}/bm25top100.{args.eval_datasets[0]}.tsv"
-eval_data_layer = ir_dl.BertDensePassageRetrievalDataLayerEval(
-    tokenizer=tokenizer,
-    passages=eval_passages,
-    queries=eval_queries,
-    qrels=eval_qrels,
-    topk_list=eval_topk_list,
-    num_candidates=args.num_eval_candidates
-)
-q_input_ids_, q_input_mask_, q_input_type_ids_, p_input_ids_, p_input_mask_, p_input_type_ids_, p_rels = eval_data_layer()
-
-q_input_ids_, q_input_mask_, q_input_type_ids_ = batch_reshape(
-    input_ids=q_input_ids_, input_mask=q_input_mask_, input_type_ids=q_input_type_ids_)
-q_hiddens_ = q_encoder(input_ids=q_input_ids_, token_type_ids=q_input_type_ids_, attention_mask=q_input_mask_)
-
-p_input_ids_, p_input_mask_, p_input_type_ids_ = batch_reshape(
-    input_ids=p_input_ids_, input_mask=p_input_mask_, input_type_ids=p_input_type_ids_)
-p_hiddens_ = p_encoder(input_ids=p_input_ids_, token_type_ids=p_input_type_ids_, attention_mask=p_input_mask_)
-
-eval_scores, _ = loss_fn_eval(queries=q_hiddens_, passages=p_hiddens_)
 
 # callback which prints training loss once in a while
 train_callback = nemo.core.SimpleLossLoggerCallback(
@@ -175,20 +146,46 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tb_writer=nf.tb_writer,
 )
 
-eval_callback = nemo.core.EvaluatorCallback(
-    eval_tensors=[eval_scores, p_rels],
-    user_iter_callback=eval_iter_callback,
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, topk=[10, 50, 80]),
-    eval_step=args.eval_freq,
-    tb_writer=nf.tb_writer,
-)
+callbacks = [train_callback]
+
+for eval_dataset in args.eval_datasets:
+    eval_passages = f"{args.data_dir}/collection.{eval_dataset}.dev.small.tsv"
+    eval_queries = f"{args.data_dir}/queries.dev.small.tsv"
+    eval_qrels = f"{args.data_dir}/qrels.dev.small.tsv"
+    eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.dev.small.tsv"
+
+    eval_data_layer = ir_dl.BertDensePassageRetrievalDataLayerEval(
+        tokenizer=tokenizer,
+        passages=eval_passages,
+        queries=eval_queries,
+        qrels=eval_qrels,
+        topk_list=eval_topk_list,
+        num_candidates=args.num_eval_candidates)
+
+    q_input_ids_, q_input_mask_, q_input_type_ids_, p_input_ids_, p_input_mask_, p_input_type_ids_, p_rels = eval_data_layer()
+    q_input_ids_, q_input_mask_, q_input_type_ids_ = batch_reshape(
+        input_ids=q_input_ids_, input_mask=q_input_mask_, input_type_ids=q_input_type_ids_)
+    q_hiddens_ = q_encoder(input_ids=q_input_ids_, token_type_ids=q_input_type_ids_, attention_mask=q_input_mask_)
+    p_input_ids_, p_input_mask_, p_input_type_ids_ = batch_reshape(
+        input_ids=p_input_ids_, input_mask=p_input_mask_, input_type_ids=p_input_type_ids_)
+    p_hiddens_ = p_encoder(input_ids=p_input_ids_, token_type_ids=p_input_type_ids_, attention_mask=p_input_mask_)
+    eval_scores, _ = loss_fn_eval(queries=q_hiddens_, passages=p_hiddens_)
+
+    eval_callback = nemo.core.EvaluatorCallback(
+        eval_tensors=[eval_scores, p_rels],
+        user_iter_callback=eval_iter_callback,
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x, topk=[10, 50, 80], baseline_name=eval_dataset),
+        eval_step=args.eval_freq,
+        tb_writer=nf.tb_writer)
+    callbacks.append(eval_callback)
 
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=ckpt_dir, epoch_freq=args.save_epoch_freq,
-    step_freq=args.save_step_freq, checkpoints_to_keep=5
-)
+    step_freq=args.save_step_freq, checkpoints_to_keep=5)
+callbacks.append(ckpt_callback)
 
 # define learning rate decay policy
 lr_policy_fn = get_lr_policy(args.lr_policy, total_steps=args.max_steps, warmup_steps=args.warmup_steps)
@@ -203,7 +200,7 @@ else:
 
 nf.train(
     tensors_to_optimize=[train_loss],
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=callbacks,
     optimizer=args.optimizer,
     lr_policy=lr_policy_fn,
     optimization_params={**stop_training_condition, "lr": args.lr, "weight_decay": args.weight_decay},
