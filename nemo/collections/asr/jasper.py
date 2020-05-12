@@ -51,10 +51,12 @@ class JasperEncoder(TrainableNM):
                     'se' (bool)  # Whether to add Squeeze and Excitation
                         # sub-blocks.
                         # Defaults to False
-                    'se_reduction_ratio' (int)  # The reduction ratio of the Squeeze
-                        # sub-module.
-                        # Must be an integer > 1.
-                        # Defaults to 8
+                    'se_context_window' (int) # The size of the temporal context
+                        # provided to SE sub-module.
+                        # Must be an integer. If value <= 0, will perform global
+                        # temporal pooling (global context).
+                        # If value >= 1, will perform stride 1 average pooling to
+                        # compute context window.
                     'kernel_size_factor' (float)  # Conv kernel size multiplier
                         # Can be either an int or float
                         # Kernel size is recomputed as below:
@@ -63,6 +65,9 @@ class JasperEncoder(TrainableNM):
                         # Note: If rescaled kernel size is an even integer,
                         # adds 1 to the rescaled kernel size to allow "same"
                         # padding.
+                    'stride_last' (bool) # Bool flag to determine whether each
+                        # of the the repeated sub-blockss will perform a stride,
+                        # or only the last sub-block will perform a strided convolution.
                 }
 
         activation (str): Activation function used for each sub-blocks. Can be
@@ -166,6 +171,7 @@ class JasperEncoder(TrainableNM):
             se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
             se_context_window = lcfg.get('se_context_window', -1)
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
+            stride_last = lcfg.get('stride_last', False)
             encoder_layers.append(
                 JasperBlock(
                     feat_in,
@@ -189,6 +195,7 @@ class JasperEncoder(TrainableNM):
                     se_reduction_ratio=se_reduction_ratio,
                     se_context_window=se_context_window,
                     kernel_size_factor=kernel_size_factor,
+                    stride_last=stride_last,
                 )
             )
             feat_in = lcfg['filters']

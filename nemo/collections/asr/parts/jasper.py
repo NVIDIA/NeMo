@@ -186,7 +186,7 @@ class SqueezeExcite(nn.Module):
         self.context_window = int(context_window)
         self.interpolation_mode = interpolation_mode
 
-        if context_window > 0:
+        if self.context_window <= 0:
             self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
         else:
             self.pool = nn.AvgPool1d(self.context_window, stride=1)
@@ -247,6 +247,7 @@ class JasperBlock(nn.Module):
         se=False,
         se_reduction_ratio=16,
         se_context_window=None,
+        stride_last=False,
     ):
         super(JasperBlock, self).__init__()
 
@@ -269,12 +270,18 @@ class JasperBlock(nn.Module):
         conv = nn.ModuleList()
 
         for _ in range(repeat - 1):
+            # Stride last means only the last convolution in block will have stride
+            if stride_last:
+                stride_val = [1]
+            else:
+                stride_val = stride
+
             conv.extend(
                 self._get_conv_bn_layer(
                     inplanes_loop,
                     planes,
                     kernel_size=kernel_size,
-                    stride=stride,
+                    stride=stride_val,
                     dilation=dilation,
                     padding=padding_val,
                     groups=groups,
@@ -319,13 +326,24 @@ class JasperBlock(nn.Module):
 
         if residual:
             res_list = nn.ModuleList()
+
+            if residual_mode == 'stride_add':
+                stride_val = stride
+            else:
+                stride_val = [1]
+
             if len(residual_panes) == 0:
                 res_panes = [inplanes]
                 self.dense_residual = False
             for ip in res_panes:
                 res = nn.ModuleList(
                     self._get_conv_bn_layer(
-                        ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
+                        ip,
+                        planes,
+                        kernel_size=1,
+                        normalization=normalization,
+                        norm_groups=norm_groups,
+                        stride=stride_val,
                     )
                 )
 
