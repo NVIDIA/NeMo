@@ -83,12 +83,15 @@ class SimpleLossLogger(NeMoCallback):
                 #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
                 #                    f"Current state tensors include {state['tensors'].tensor_list()}")
 
+
 def on_train_start(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_train_start(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -96,8 +99,10 @@ def on_epoch_start(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_epoch_start(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -105,8 +110,10 @@ def on_batch_start(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_batch_start(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -114,8 +121,10 @@ def on_step_start(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_step_start(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -123,8 +132,10 @@ def on_step_end(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_step_end(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -132,8 +143,10 @@ def on_batch_end(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_batch_end(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -141,8 +154,10 @@ def on_epoch_end(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_epoch_end(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
 
 
@@ -150,9 +165,12 @@ def on_train_end(func):
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
+
         def on_train_end(self, state):
             self._func(state)
+
     return NeMoCallbackWrapper(func)
+
 
 class ActionCallback(ABC):
     """Abstract interface for callbacks.
