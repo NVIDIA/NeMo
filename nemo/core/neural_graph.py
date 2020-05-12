@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Union
 from ruamel.yaml import YAML
 
 from nemo.core import OperationMode
+from nemo.backends import save, load, get_state_dict, set_state_dict
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
@@ -929,9 +930,10 @@ class NeuralGraph(NeuralInterface):
             Raises:
                 KeyError: If name of the module won't be recognized.
         """
+        # Work on all modules.
         if module_names is None:
-            # Work on all modules.
             module_names = self._modules.keys()
+
         # Iterate through modules one by one.
         for name in module_names:
             if name not in self._modules.keys():
@@ -942,7 +944,7 @@ class NeuralGraph(NeuralInterface):
                 # Freeze weights of the module.
                 module.freeze()
             else:
-                raise KeyError("Module `{}` is not trainable so cannot be frozen".format(name, self.name))
+                logging.debug("Module `{}` is not trainable so cannot be frozen".format(name))
 
     def unfreeze(self, module_names: Optional[List[str]] = None):
         """
@@ -952,9 +954,10 @@ class NeuralGraph(NeuralInterface):
             Raises:
                 KeyError: If name of the module won't be recognized.
         """
+        # Work on all modules.
         if module_names is None:
-            # Work on all modules.
             module_names = self._modules.keys()
+
         # Iterate through modules one by one.
         for name in module_names:
             if name not in self._modules.keys():
@@ -965,39 +968,79 @@ class NeuralGraph(NeuralInterface):
                 # Unfreeze weights of the module.
                 module.unfreeze()
             else:
-                raise KeyError("Module `{}` is not trainable so cannot be unfrozen".format(name, self.name))
+                logging.debug("Module `{}` is not trainable so cannot be unfrozen".format(name))
 
-    def save_to(self, path: str, module_names: Optional[List[str]] = None):
+    def save_to(self, filename: str, module_names: Optional[List[str]] = None):
         """
             Saves the state of trainable modules in the graph to a checkpoint file.
             Args:
-                path (string): path to while where to save.
+                filename (string): Name of the file where the checkpoint will be saved.
                 module_names: List of modules to be frozen (Optional). If passed, all modules will be saved.
             Raises:
                 KeyError: If name of the module won't be recognized.
         """
+        # Work on all modules.
         if module_names is None:
-            # Work on all modules.
             module_names = self._modules.keys()
-        # Iterate through modules one by one.
+
+        # Prepare the "graph checkpoint".
+        chkpt = {"header": {}, "modules": {}}
+        chkpt["header"] = {"nemo_core_version": nemo_version, "name": self.name}
+
+        log_str = ''
+        # Iterate through the modules one by one.
         for name in module_names:
             if name not in self._modules.keys():
                 raise KeyError("Module `{}` not present in the `{}` graph".format(name, self.name))
             # Check module type.
             module = self._modules[name]
             if module.type == ModuleType.trainable:
-                # Freeze weights of the module
-                module.freeze()
+                # Get module state_dict().
+                chkpt["modules"][name] = get_state_dict(module)
+                log_str += "  * Module '{}' ({}) params saved \n".format(module.name, type(module).__name__)
             else:
-                raise KeyError("Module `{}` is not trainable so cannot be frozen".format(name, self.name))
+                logging.debug("Module `{}` is not trainable so cannot be saved".format(name))
 
-    def restore_from(self, path: str, module_names: Optional[List[str]] = None):
+        # Save checkpoint.
+        save(chkpt, filename)
+        log_str = "Saved  the '{}' graph to a checkpoint `{}`:\n".format(self.name, filename) + log_str 
+        logging.info(log_str)
+
+
+    def restore_from(self, filename: str, module_names: Optional[List[str]] = None):
         """
             Restores the state of trainable modules in the graph from a checkpoint file.
             Args:
-                path (string): path to where to restore from.
+                filename (string): Name of the checkpoint to be restored from.
                 module_names: List of modules to be frozen (Optional). If passed, all modules will be restored.
             Raises:
                 KeyError: If name of the module won't be recognized.
         """
-        pass
+        # Work on all modules.
+        if module_names is None:
+            module_names = self._modules.keys()
+
+        # Load the checkpoint.
+        chkpt = load (filename)
+
+        log_str = "Loading modules constituting the '{}' graph from the `{}` checkpoint :\n".format(
+            chkpt["header"]["name"],
+            filename)
+
+        # Iterate through the modules one by one.
+        for name in module_names:
+            try:
+                # Get module.
+                module = self._modules[name]
+                # Restore module weights
+                set_state_dict(module, chkpt["modules"][name])
+                log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
+            except KeyError:
+                log_str += "  ! Module '{}' params not found in checkpoint\n".format(name)
+                warning = True
+
+        # Log results.
+        if warning:
+            logging.warning(log_str)
+        else:
+            logging.info(log_str)

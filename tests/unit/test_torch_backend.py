@@ -57,7 +57,7 @@ class TestTorchBackend:
         fx = TaylorNet(dim=4)
 
         # Generate filename in the temporary directory.
-        tmp_file_name = str(tmpdir.join("taylornet.chkpt"))
+        tmp_file_name = str(tmpdir.join("tsl_taylornet.chkpt"))
 
         # Save.
         weights = get_state_dict(fx)

@@ -17,16 +17,19 @@
 from typing import Any, Dict
 
 import torch
+from os.path import expanduser
 
 
-def save(checkpoint: Dict[str, Any], filename: str):
+def save(checkpoint: Dict[str, Any], filename: str) -> None:
     """
         A proxy function that saves the checkpoint to a given file.
         Args:
             checkpoint - checkpoint to be stored.
             filename - Name of the file containing checkpoint.
     """
-    torch.save(checkpoint, filename)
+    # Greate the absolute path and save.
+    abs_filename = expanduser(filename)
+    torch.save(checkpoint, abs_filename)
 
 
 def load(filename: str) -> Dict[str, Any]:
@@ -37,8 +40,10 @@ def load(filename: str) -> Dict[str, Any]:
         Returns:
             Loaded checkpoint.
     """
+    # Greate the absolute path and save.
+    abs_filename = expanduser(filename)
     # Use map location to be able to load CUDA-trained modules on CPU.
-    return torch.load(filename, map_location=lambda storage, loc: storage)
+    return torch.load(abs_filename, map_location=lambda storage, loc: storage)
 
 
 def get_state_dict(model: torch.nn.Module) -> Dict[str, Any]:
@@ -50,7 +55,7 @@ def get_state_dict(model: torch.nn.Module) -> Dict[str, Any]:
     return model.state_dict()
 
 
-def set_state_dict(model: torch.nn.Module, state_dict: Dict[str, Any]):
+def set_state_dict(model: torch.nn.Module, state_dict: Dict[str, Any]) -> None:
     """
         A proxy function that sets the state dictionary.
         Args:
