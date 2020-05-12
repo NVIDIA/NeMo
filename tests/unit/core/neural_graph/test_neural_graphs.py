@@ -21,8 +21,8 @@
 import pytest
 from numpy import array_equal
 
-from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.backends import get_state_dict
+from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import NeuralGraph
 from nemo.core.neural_types import NeuralTypeComparisonResult
 

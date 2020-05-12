@@ -26,8 +26,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from nemo.backends import get_state_dict, load, save, set_state_dict
 from nemo.core import OperationMode
-from nemo.backends import save, load, get_state_dict, set_state_dict
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
@@ -1003,9 +1003,8 @@ class NeuralGraph(NeuralInterface):
 
         # Save checkpoint.
         save(chkpt, filename)
-        log_str = "Saved  the '{}' graph to a checkpoint `{}`:\n".format(self.name, filename) + log_str 
+        log_str = "Saved  the '{}' graph to a checkpoint `{}`:\n".format(self.name, filename) + log_str
         logging.info(log_str)
-
 
     def restore_from(self, filename: str, module_names: Optional[List[str]] = None):
         """
@@ -1021,11 +1020,11 @@ class NeuralGraph(NeuralInterface):
             module_names = self._modules.keys()
 
         # Load the checkpoint.
-        chkpt = load (filename)
+        chkpt = load(filename)
 
         log_str = "Loading modules constituting the '{}' graph from the `{}` checkpoint :\n".format(
-            chkpt["header"]["name"],
-            filename)
+            chkpt["header"]["name"], filename
+        )
 
         # Iterate through the modules one by one.
         for name in module_names:

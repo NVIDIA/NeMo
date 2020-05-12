@@ -14,10 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
+from os.path import expanduser
 from typing import Any, Dict
 
 import torch
-from os.path import expanduser
 
 
 def save(checkpoint: Dict[str, Any], filename: str) -> None:
