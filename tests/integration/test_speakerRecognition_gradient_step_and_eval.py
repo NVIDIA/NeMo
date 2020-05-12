@@ -133,7 +133,7 @@ class TestSpeakerRecognitonPytorch(TestCase):
         )
         self.nf.random_seed = 42
         self.nf.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 5, "lr": 0.02},
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 4, "lr": 0.002},
         )
         self.nf.reset_trainer()
 
