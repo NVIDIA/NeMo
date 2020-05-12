@@ -993,7 +993,7 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
-        self._training_state = TrainingState()
+        self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
         if tensors_to_optimize is not None and training_graph is not None:
             raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
