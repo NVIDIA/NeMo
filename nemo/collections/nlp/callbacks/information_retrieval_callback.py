@@ -40,6 +40,7 @@ def eval_iter_callback(tensors, global_vars):
 
 
 def eval_epochs_done_callback(global_vars, topk=[10, 100], baseline_name="bm25"):
+
     doc_relevances = np.stack(global_vars["doc_rels"])
     doc_scores = np.stack(global_vars["scores"])
     mrrs = calculate_mrrs(doc_relevances, doc_scores, topk)

@@ -131,7 +131,8 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 
 callbacks = [train_callback]
 
-for eval_dataset in args.eval_datasets:
+def create_eval_pipeline(eval_dataset):
+
     eval_documents = f"{args.data_dir}/collection.{eval_dataset}.dev.small.tsv"
     eval_queries = f"{args.data_dir}/queries.dev.small.tsv"
     eval_qrels = f"{args.data_dir}/qrels.dev.small.tsv"
@@ -152,15 +153,32 @@ for eval_dataset in args.eval_datasets:
     hiddens_ = encoder(input_ids=input_ids_, token_type_ids=input_type_ids_, attention_mask=input_mask_)
     scores_ = classifier(hidden_states=hiddens_)
     eval_scores, _ = loss_fn_eval(scores=scores_)
+    
+    return eval_scores, doc_rels_
 
-    eval_callback = nemo.core.EvaluatorCallback(
-        eval_tensors=[eval_scores, doc_rels_],
-        user_iter_callback=eval_iter_callback,
-        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-            x, topk=[10, 50, 80], baseline_name=eval_dataset),
-        eval_step=args.eval_freq,
-        tb_writer=nf.tb_writer)
-    callbacks.append(eval_callback)
+
+all_eval_scores, all_eval_rels = {}, {}
+for eval_dataset in args.eval_datasets:
+    eval_scores, eval_rels = create_eval_pipeline(eval_dataset)
+    all_eval_scores[eval_dataset] = eval_scores
+    all_eval_rels[eval_dataset] = eval_rels
+
+
+callbacks.append(nemo.core.EvaluatorCallback(
+    eval_tensors=[all_eval_scores[args.eval_datasets[0]], all_eval_rels[args.eval_datasets[0]]],
+    user_iter_callback=eval_iter_callback,
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x, topk=[10, 50, 80], baseline_name=args.eval_datasets[0]),
+    eval_step=args.eval_freq,
+    tb_writer=nf.tb_writer))
+
+callbacks.append(nemo.core.EvaluatorCallback(
+    eval_tensors=[all_eval_scores[args.eval_datasets[1]], all_eval_rels[args.eval_datasets[1]]],
+    user_iter_callback=eval_iter_callback,
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x, topk=[10, 50, 80], baseline_name=args.eval_datasets[1]),
+    eval_step=args.eval_freq,
+    tb_writer=nf.tb_writer))
 
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir
