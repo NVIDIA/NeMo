@@ -28,7 +28,7 @@ from ruamel.yaml import YAML
 
 from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
-from nemo.core.neural_modules import NeuralModule
+from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
@@ -920,3 +920,45 @@ class NeuralGraph(NeuralInterface):
 
         # Return the result.
         return desc
+
+    def freeze(self, module_names: Optional[List[str]] = None):
+        """
+            A method that freezes the weights of the trainable modules in a graph.
+            Args:
+                module_names: List of modules to be frozen (Optional). If passed, all modules will be unfrozen.
+            Raises:
+                KeyError: If name of the module won't be recognized.
+        """
+        if module_names is None:
+            # Work on all modules.
+            module_names = self._modules.keys()
+        # Iterate through modules one by one.
+        for name in module_names:
+            if name not in self._modules.keys():
+                raise KeyError("Module `{}` not present in the `{}` graph".format(name, self.name))
+            # Check module type.
+            module = self._modules[name]
+            if module.type == ModuleType.trainable:
+                # Freeze weights of the module
+                module.freeze()
+
+    def unfreeze(self, module_names: Optional[List[str]] = None):
+        """
+            Unfreezes weights of the trainable modules in a graph.
+            Args:
+                module_names: List of modules to be unfrozen (Optional). If not passed, all modules will be unfrozen.
+            Raises:
+                KeyError: If name of the module won't be recognized.
+        """
+        if module_names is None:
+            # Work on all modules.
+            module_names = self._modules.keys()
+        # Iterate through modules one by one.
+        for name in module_names:
+            if name not in self._modules.keys():
+                raise KeyError("Module `{}` not present in the `{}` graph".format(name, self.name))
+            # Check module type.
+            module = self._modules[name]
+            if module.type == ModuleType.trainable:
+                # Unfreeze weights of the module.
+                module.unfreeze()
