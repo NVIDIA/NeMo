@@ -9,6 +9,7 @@ NVIDIA Neural Modules Developer Guide
    tutorials/intro
    training
    asr/intro
+   speaker_recognition/intro
    speech_command/intro
    nlp/intro
    tts/intro
