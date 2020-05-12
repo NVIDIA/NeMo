@@ -24,8 +24,8 @@
 
 
 
-NVIDIA Neural Modules: NeMo
-===========================
+NVIDIA NeMo
+===========
 
 NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
