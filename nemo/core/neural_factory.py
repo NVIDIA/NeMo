@@ -363,7 +363,7 @@ class Actions(ABC):
                     callback.on_step_start(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_step_end(self, callbacks):
@@ -375,7 +375,7 @@ class Actions(ABC):
                     callback.on_step_end(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_action_start(self, callbacks):
@@ -387,7 +387,7 @@ class Actions(ABC):
                     callback.on_train_start(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_action_end(self, callbacks):
@@ -399,7 +399,7 @@ class Actions(ABC):
                     callback.on_train_end(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_epoch_start(self, callbacks):
@@ -411,7 +411,7 @@ class Actions(ABC):
                     callback.on_epoch_start(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_epoch_end(self, callbacks):
@@ -423,7 +423,7 @@ class Actions(ABC):
                     callback.on_epoch_end(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_batch_start(self, callbacks):
@@ -435,7 +435,7 @@ class Actions(ABC):
                     callback.on_epoch_start(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _perform_on_batch_end(self, callbacks):
@@ -447,7 +447,7 @@ class Actions(ABC):
                     callback.on_epoch_end(self.state)
                 else:
                     raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not " "understood"
+                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                     )
 
     def _init_callbacks(self, callbacks):
