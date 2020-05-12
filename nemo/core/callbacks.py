@@ -38,28 +38,33 @@ logging = nemo.logging
 
 
 class NeMoCallback(ABC):
-    def on_action_start(self, state):
-        pass
-
-    def on_action_end(self, state):
+    def on_train_start(self, state):
         pass
 
     def on_epoch_start(self, state):
         pass
 
+    def on_batch_start(self, state):
+        pass
+
+    def on_step_start(self, state):
+        pass
+
+    def on_step_end(self, state):
+        pass
+
+    def on_batch_end(self, state):
+        pass
+
     def on_epoch_end(self, state):
         pass
 
-    def on_iteration_start(self, state):
-        pass
-
-    def on_iteration_end(self, state):
+    def on_train_end(self, state):
         pass
 
 
 class SimpleLossLogger(NeMoCallback):
     def __init__(self, step_freq=100, tensors_to_log=["loss"]):
-        super().__init__()
         # Step_freq: how often logs are printed
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
@@ -67,7 +72,7 @@ class SimpleLossLogger(NeMoCallback):
     # def on_optimizer_step_stop(self, state, tensors_to_log=[“loss”]):
     #     #tensors_to_log: List of keys into state that will be logged
 
-    def on_iteration_end(self, state):
+    def on_step_end(self, state):
         if state["step"] % self.step_freq == 0:
             for tensor_key in self.tensors_to_log:
                 tensor = state["tensors"].get_tensor(tensor_key)
@@ -78,6 +83,76 @@ class SimpleLossLogger(NeMoCallback):
                 #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
                 #                    f"Current state tensors include {state['tensors'].tensor_list()}")
 
+def on_train_start(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_train_start(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_epoch_start(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_epoch_start(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_batch_start(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_batch_start(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_step_start(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_step_start(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_step_end(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_step_end(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_batch_end(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_batch_end(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_epoch_end(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_epoch_end(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
+
+
+def on_train_end(func):
+    class NeMoCallbackWrapper(NeMoCallback):
+        def __init__(self, my_func):
+            self._func = my_func
+        def on_train_end(self, state):
+            self._func(state)
+    return NeMoCallbackWrapper(func)
 
 class ActionCallback(ABC):
     """Abstract interface for callbacks.

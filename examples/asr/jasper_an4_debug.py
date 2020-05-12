@@ -107,6 +107,12 @@ def create_dags(model_config_file, vocab, args, nf):
     # callbacks = [train_callback, checkpointer_callback, eval_callback]
     callbacks = [train_callback]
 
+    @nemo.core.callbacks.on_step_start
+    def my_own_func(state):
+        print(state)
+
+    callbacks.append(my_own_func)
+
     # Return entities required by the actual training.
     return (
         loss,
