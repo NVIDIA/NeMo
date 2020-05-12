@@ -1258,7 +1258,7 @@ class PtActions(Actions):
                     curr_optimizer = training_loop[self.step % len(training_loop)][0]
                     curr_optimizer.zero_grad()
                     # Register iteration start with callbacks
-                    self._perform_on_iteration_start(callbacks=callbacks)
+                    self._perform_on_step_start(callbacks=callbacks)
 
                 # set learning rate policy
                 if lr_policy is not None:
@@ -1362,7 +1362,7 @@ class PtActions(Actions):
                     self._update_callbacks(
                         callbacks=callbacks, registered_tensors=self.training_state.tensor_dict, final_loss=final_loss
                     )
-                    self._perform_on_iteration_end(callbacks=callbacks)
+                    self._perform_on_step_end(callbacks=callbacks)
                     self.step += 1
                 self.training_state.clear_dict()
             # End of epoch for loop
