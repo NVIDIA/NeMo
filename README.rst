@@ -172,17 +172,20 @@ NeMo contains test suite divided into 5 subsets:
  5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
 
 The user can run  all the tests locally by simply executing:
+
 .. code-block:: bash
 
     pytest
 
 In order to run a subset one can run, e.g. ``system``:
+
 .. code-block:: bash
 
     pytest -m system
 
 By default, all the tests will be executed on GPU. However, there is also an option to run the test suite on CPU
 by assing the ``--cpu`` argument, e.g.:
+
 .. code-block:: bash
 
     pytest -m unit --cpu
