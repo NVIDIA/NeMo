@@ -51,6 +51,7 @@ def parse_args():
     parser.add_argument("--load_dir", default=None, type=str)
     parser.add_argument("--synced_bn", action='store_true', help="Use synchronized batch norm")
     parser.add_argument("--synced_bn_groupsize", default=0, type=int)
+    parser.add_argument('--kernel_size_factor', default=1.0, type=float)
 
     args = parser.parse_args()
     if args.max_steps is not None:
@@ -59,8 +60,9 @@ def parse_args():
     return args
 
 
-def construct_name(name, lr, batch_size, num_epochs, wd, optimizer):
-    return "{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}".format(name, lr, batch_size, num_epochs, wd, optimizer)
+def construct_name(name, lr, batch_size, num_epochs, wd, optimizer, kernel_size_factor):
+    return "{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}-kf_{6}".format(name, lr, batch_size, num_epochs, wd, optimizer,
+                                                                  kernel_size_factor)
 
 
 def create_all_dags(args, neural_factory):
@@ -130,6 +132,11 @@ def create_all_dags(args, neural_factory):
     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
         sample_rate=sample_rate, **contextnet_params["AudioToMelSpectrogramPreprocessor"],
     )
+
+    # Inject the `kernel_size_factor` kwarg to the QuartzNet config
+    # Skip the last layer  as that must be a pointwise kernel
+    for idx in range(len(contextnet_params["ContextNetEncoder"]["jasper"]) - 1):
+        contextnet_params["ContextNetEncoder"]["jasper"][idx]["kernel_size_factor"] = args.kernel_size_factor
 
     # (ContextNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.ContextNetEncoder(
@@ -224,7 +231,8 @@ def create_all_dags(args, neural_factory):
 def main():
     args = parse_args()
 
-    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,)
+    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,
+                          args.kernel_size_factor)
     work_dir = name
     if args.work_dir:
         work_dir = os.path.join(args.work_dir, name)

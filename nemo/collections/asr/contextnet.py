@@ -227,6 +227,7 @@ class ContextNetDecoderForCTC(TrainableNM):
         feat_in (int): Number of channels being input to this module
         num_classes (int): Number of characters in ASR model's vocab/labels.
             This count should not include the CTC blank symbol.
+        hidden_size (int): Number of units in the hidden state of the LSTM RNN.
         init_mode (str): Describes how neural network parameters are
             initialized. Options are ['xavier_uniform', 'xavier_normal',
             'kaiming_uniform','kaiming_normal'].
@@ -253,7 +254,7 @@ class ContextNetDecoderForCTC(TrainableNM):
         # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
         return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
-    def __init__(self, feat_in, num_classes, hidden_size=128, init_mode="xavier_uniform"):
+    def __init__(self, feat_in, num_classes, hidden_size=700, init_mode="xavier_uniform"):
         super().__init__()
 
         self._feat_in = feat_in

@@ -47,6 +47,7 @@ ContextNetEncoder:
             residual: false
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -57,6 +58,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -67,6 +69,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -77,6 +80,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
             stride_last: true
             residual_mode: "stride_add"
 
@@ -89,6 +93,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -99,6 +104,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -109,6 +115,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -119,6 +126,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
             stride_last: true
             residual_mode: "stride_add"
 
@@ -131,6 +139,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -141,6 +150,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 256
             repeat: *repeat
@@ -151,6 +161,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -161,6 +172,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -171,6 +183,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -181,6 +194,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -191,6 +205,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
             stride_last: true
             residual_mode: "stride_add"
 
@@ -203,6 +218,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -213,6 +229,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -223,6 +240,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -233,6 +251,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -243,6 +262,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -253,6 +273,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 512
             repeat: *repeat
@@ -263,6 +284,7 @@ ContextNetEncoder:
             residual: true
             separable: true
             se: true
+            se_context_size: -1
 
         -   filters: 640
             repeat: 1
@@ -272,6 +294,8 @@ ContextNetEncoder:
             dropout: 0.0
             residual: false
             separable: true
+            se: true
+            se_context_size: -1
 
 labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
