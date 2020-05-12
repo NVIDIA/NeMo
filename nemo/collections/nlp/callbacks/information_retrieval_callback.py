@@ -39,17 +39,18 @@ def eval_iter_callback(tensors, global_vars):
                 global_vars["doc_rels"].append(doc_rels[0].detach().cpu().numpy())
 
 
-def eval_epochs_done_callback(global_vars, topk=[10, 100]):
+def eval_epochs_done_callback(global_vars, topk=[10, 100], baseline_name="bm25"):
     doc_relevances = np.stack(global_vars["doc_rels"])
     doc_scores = np.stack(global_vars["scores"])
     mrrs = calculate_mrrs(doc_relevances, doc_scores, topk)
 
     logging.info("--------------------")
     for k in topk:
-        oracle, bm25, model = mrrs[k]["oracle"], mrrs[k]["bm25"], mrrs[k]["model"]
-        logging.info(f" Oracle MRR@{k}: {np.round(oracle, 3)}")
-        logging.info(f"   BM25 MRR@{k}: {np.round(bm25, 3)}")
-        logging.info(f"    Our MRR@{k}: {np.round(model, 3)}")
+        oracle, baseline, model = mrrs[k]["oracle"], mrrs[k]["baseline"], mrrs[k]["model"]
+        baseline_str = " " * (5 - len(baseline_name)) + baseline_name.upper()
+        logging.info(f"{baseline_str}   oracle MRR@{k}: {np.round(oracle, 3)}")
+        logging.info(f"{baseline_str} baseline MRR@{k}: {np.round(baseline, 3)}")
+        logging.info(f"{baseline_str}   method MRR@{k}: {np.round(model, 3)}")
         logging.info("--------------------")
 
     for key in GLOBAL_KEYS:
@@ -76,10 +77,10 @@ def calculate_mrrs(doc_relevances, doc_scores, topk=[10, 100]):
     for k in topk:
         rels, invs, scores = doc_relevances[:, :k], inv_ids[:, :k], doc_scores[:, :k]
         oracle_mrr = np.mean(np.max(rels, axis=1))
-        bm25_mrr = np.mean(np.max(rels * invs, axis=1))
-        new_rels = np.array([
+        baseline_mrr = np.mean(np.max(rels * invs, axis=1))
+        model_rels = np.array([
             [p[1] for p in sorted(zip(scores[i], rels[i]), key=lambda x: -x[0])]
             for i in range(len(scores))])
-        new_mrr = np.mean(np.max(new_rels * invs, axis=1))
-        mrrs[k] = {"oracle": oracle_mrr, "bm25": bm25_mrr, "model": new_mrr}
+        model_mrr = np.mean(np.max(model_rels * invs, axis=1))
+        mrrs[k] = {"oracle": oracle_mrr, "baseline": baseline_mrr, "model": model_mrr}
     return mrrs

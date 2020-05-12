@@ -229,7 +229,7 @@ class BertDensePassageRetrievalDatasetInfer(Dataset):
             self._get_tokens = self._get_passage_tokens
             self.idx2data_id = {i:i for i in range(self.data.shape[0])}
         elif queries is not None:
-            self.data = self.parse_pkl(data)
+            self.data = self.parse_pkl(queries)
             self.max_seq_length = max_query_length
             self._get_tokens = self._get_query_tokens
             self.idx2data_id = self.build_data_map(self.data)
