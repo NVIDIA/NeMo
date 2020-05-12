@@ -184,7 +184,7 @@ In order to run a subset of tests one can use the ``-m`` argument followed by th
     pytest -m system
 
 By default, all the tests will be executed on GPU. There is also an option to run the test suite on CPU
-by assing the ``--cpu`` command line argument, e.g.:
+by passing the ``--cpu`` command line argument, e.g.:
 
 .. code-block:: bash
 
