@@ -38,18 +38,6 @@ logging = nemo.logging
 
 
 class NeMoCallback(ABC):
-    def __init__(self):
-        self._action = None
-
-    @property
-    def action(self):
-        """TODO remove"""
-        return self._action
-
-    @action.setter
-    def action(self, action_obj):
-        self._action = action_obj
-
     def on_action_start(self, state):
         pass
 
@@ -84,7 +72,7 @@ class SimpleLossLogger(NeMoCallback):
             for tensor_key in self.tensors_to_log:
                 tensor = state["tensors"].get_tensor(tensor_key)
                 if tensor is None:
-                    tensor = state["tensors"].get_and_compute_tensor(tensor_key, self.action)
+                    tensor = state["tensors"].get_and_compute_tensor(tensor_key)
                 logging.info("%s: %s", tensor_key, tensor)
                 # except KeyError:
                 #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "

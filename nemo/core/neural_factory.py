@@ -34,9 +34,9 @@ from typing import List, Optional
 import numpy as np
 
 import nemo
-from ..utils import ExpManager
-from .callbacks import ActionCallback, EvaluatorCallback
-from .neural_types import *
+from nemo.utils import ExpManager
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback
+from nemo.core.neural_types import NmTensor
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
 
@@ -193,9 +193,10 @@ class DeviceType(Enum):
 
 
 class TrainingState:
-    def __init__(self):
+    def __init__(self, action):
         tensor_naming_registery = AppState().tensor_names
         self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
+        self._action = action
 
     def tensor_list(self):
         return self.tensor_dict.keys()
@@ -216,7 +217,7 @@ class TrainingState:
         unique_name = AppState().tensor_names[name]
         return self.tensor_dict[unique_name]
 
-    def get_and_compute_tensor(self, name, action):
+    def get_and_compute_tensor(self, name):
         unique_name = AppState().tensor_names[name]
         tensor_value = self.tensor_dict[unique_name]
         if tensor_value is None:
@@ -224,7 +225,7 @@ class TrainingState:
             callchain = topological_sort_from_leaves([nmtensor], cached_training_state=self)
             # print(callchain)
             callchain.insert(0, ())
-            action.nm_graph_forward_pass(callchain, self.tensor_dict)
+            self._action.nm_graph_forward_pass(callchain, self.tensor_dict)
             # print(self.tensor_dict[unique_name])
             tensor_value = self.tensor_dict[unique_name]
         return tensor_value
@@ -239,7 +240,7 @@ class Actions(ABC):
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
-        self._training_state = TrainingState()
+        self._training_state = None
 
     @property
     def state(self):
@@ -404,8 +405,8 @@ class Actions(ABC):
     def _init_callbacks(self, callbacks):
         if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
             for callback in callbacks:
-                # if isinstance(callback, ActionCallback):
-                callback.action = self
+                if isinstance(callback, ActionCallback):
+                    callback.action = self
 
     def _update_callbacks(
         self, callbacks=None, registered_tensors=None, final_loss=None,
@@ -616,86 +617,6 @@ class NeuralModuleFactory(object):
         for comp in components[1:]:
             mod = getattr(mod, comp)
         return mod
-
-    @deprecated(version=0.11)
-    def __get_pytorch_module(self, name, collection, params, pretrained):
-        # TK: "factory" is not passed as parameter anymore.
-        # params["factory"] = self
-
-        if collection == "toys" or collection == "tutorials" or collection == "other":
-            constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.tutorials." + name)
-        elif collection == "nemo_nlp":
-            constructor = NeuralModuleFactory.__name_import("nemo_nlp." + name)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-        elif collection == "nemo_asr":
-            constructor = NeuralModuleFactory.__name_import("nemo_asr." + name)
-        elif collection == "nemo_lpr":
-            constructor = NeuralModuleFactory.__name_import("nemo_lpr." + name)
-        elif collection == 'common':
-            constructor = NeuralModuleFactory.__name_import('nemo.backends.pytorch.common.' + name)
-        elif collection == "torchvision":
-            import torchvision.models as tv_models
-            import nemo.backends.pytorch.module_wrapper as mw
-            import torch.nn as nn
-
-            if name == "ImageFolderDataLayer":
-                constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.torchvision.data." + name)
-                instance = constructor(**params)
-                return instance
-            else:
-                _nm_name = name.lower()
-                if _nm_name == "resnet18":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet18(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(512, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-                elif _nm_name == "resnet50":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet50(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(2048, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-        else:
-            collection_path = "nemo.collections." + collection + "." + name
-            constructor = NeuralModuleFactory.__name_import(collection_path)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-
-        # TK: "placement" is not passed as parameter anymore.
-        # if "placement" not in params:
-        #    params["placement"] = self._placement
-        instance = constructor(**params)
-        return instance
 
     @deprecated(version=0.11)
     def get_module(self, name, collection, params, pretrained=False):
