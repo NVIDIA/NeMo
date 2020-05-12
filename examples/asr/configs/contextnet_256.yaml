@@ -1,0 +1,277 @@
+model: "ContextNet"
+sample_rate: 16000
+repeat: &repeat 5
+dropout: &dropout 0.0
+stride: &stride 1
+
+
+AudioToTextDataLayer:
+    max_duration: 16.7
+    trim_silence: true
+
+    train:
+        shuffle: true
+
+    eval:
+        shuffle: false
+        max_duration: null
+
+AudioToMelSpectrogramPreprocessor:
+    window_size: 0.025
+    window_stride: 0.01
+    window: "hann"
+    normalize: "per_feature"
+    n_fft: 512
+    features: 80
+    dither: 0.00001
+    pad_to: 16
+    stft_conv: true
+
+SpectrogramAugmentation:
+    freq_masks: 2
+    time_masks: 10
+    freq_width: 27
+    time_width: 0.05
+
+ContextNetEncoder:
+    activation: "relu"
+    conv_mask: false
+
+    jasper:
+        -   filters: 256
+            repeat: 1
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [*stride]
+            dilation: [1]
+            dropout: *dropout
+            residual: false
+            separable: true
+            se: true
+            stride_last: true
+            residual_mode: "stride_add"
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [*stride]
+            dilation: [1]
+            dropout: *dropout
+            residual: false
+            separable: true
+            se: true
+            stride_last: true
+            residual_mode: "stride_add"
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 256
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [*stride]
+            dilation: [1]
+            dropout: *dropout
+            residual: false
+            separable: true
+            se: true
+            stride_last: true
+            residual_mode: "stride_add"
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 512
+            repeat: *repeat
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: true
+            se: true
+
+        -   filters: 640
+            repeat: 1
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: true
+
+labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
