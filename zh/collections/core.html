@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo Common Collection &mdash; nemo 0.10.0b8 documentation</title>
+  <title>NeMo Common Collection &mdash; nemo 0.10.1 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.0b8
+                0.10.1
               </div>
             
           
@@ -220,11 +220,11 @@ Defaults to 1e-5.</p></li>
 
 <dl class="class">
 <dt id="nemo.backends.pytorch.common.losses.CrossEntropyLossNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLossNM</code><span class="sig-paren">(</span><em class="sig-param">logits_dim=2</em>, <em class="sig-param">weight=None</em>, <em class="sig-param">reduction='mean'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLossNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLossNM" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLossNM</code><span class="sig-paren">(</span><em class="sig-param">logits_ndim=2</em>, <em class="sig-param">weight=None</em>, <em class="sig-param">reduction='mean'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLossNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLossNM" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
 <p>CrossEntropyLoss
-:param logits_dim: dimension size of the logits tensor
-:type logits_dim: int
+:param logits_ndim: number of dimensions (or rank) of the logits tensor
+:type logits_ndim: int
 :param weight: list of rescaling weight given to each class
 :type weight: list
 :param reduction: type of the reduction over the batch

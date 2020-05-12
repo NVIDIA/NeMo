@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.core.neural_factory &mdash; nemo 0.10.0b8 documentation</title>
+  <title>nemo.core.neural_factory &mdash; nemo 0.10.1 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.0b8
+                0.10.1
               </div>
             
           
@@ -292,9 +292,9 @@
 <span class="sd">                &quot;algorithmic&quot; batch size per GPU/worker = batches_per_step*</span>
 <span class="sd">                batch_size</span>
 <span class="sd">            stop_on_nan_loss: (default: False) If set to True, the training</span>
-<span class="sd">                will stop if loss=nan. If set to False, the training will</span>
-<span class="sd">                continue, but the gradients will be zeroed before next</span>
-<span class="sd">                mini-batch.</span>
+<span class="sd">                will stop if loss=nan or inf. If set to False, the training</span>
+<span class="sd">                will continue. Note that if apex.amp is not used, or if</span>
+<span class="sd">                optimization level is O0, training will stop regardless.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
@@ -495,6 +495,11 @@
                 <span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
                 <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
                 <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="n">random_seed</span><span class="p">)</span>
+
+            <span class="c1"># logging.info(&quot;Random seeds&quot;)</span>
+            <span class="c1"># logging.info(&quot;torch: %d&quot;, torch.initial_seed())</span>
+            <span class="c1"># logging.info(&quot;numpy: %d&quot;, )</span>
+            <span class="c1"># logging.info(&quot;random: %d&quot;, )</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_rank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">init_process_group</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="s2">&quot;nccl&quot;</span><span class="p">,</span> <span class="n">init_method</span><span class="o">=</span><span class="s2">&quot;env://&quot;</span><span class="p">)</span>
@@ -723,6 +728,7 @@
         <span class="n">lr_policy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">batches_per_step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">steps_per_nan_check</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
         <span class="n">synced_batchnorm</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
         <span class="n">gradient_predivide</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
@@ -739,6 +745,7 @@
             <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
             <span class="n">batches_per_step</span><span class="o">=</span><span class="n">batches_per_step</span><span class="p">,</span>
             <span class="n">stop_on_nan_loss</span><span class="o">=</span><span class="n">stop_on_nan_loss</span><span class="p">,</span>
+            <span class="n">steps_per_nan_check</span><span class="o">=</span><span class="n">steps_per_nan_check</span><span class="p">,</span>
             <span class="n">synced_batchnorm</span><span class="o">=</span><span class="n">synced_batchnorm</span><span class="p">,</span>
             <span class="n">synced_batchnorm_groupsize</span><span class="o">=</span><span class="n">synced_batchnorm_groupsize</span><span class="p">,</span>
             <span class="n">gradient_predivide</span><span class="o">=</span><span class="n">gradient_predivide</span><span class="p">,</span>

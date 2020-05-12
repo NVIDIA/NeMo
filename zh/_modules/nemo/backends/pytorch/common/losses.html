@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.backends.pytorch.common.losses &mdash; nemo 0.10.0b8 documentation</title>
+  <title>nemo.backends.pytorch.common.losses &mdash; nemo 0.10.1 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.0b8
+                0.10.1
               </div>
             
           
@@ -264,7 +264,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    CrossEntropyLoss</span>
 <span class="sd">    Args:</span>
-<span class="sd">        logits_dim (int): dimension size of the logits tensor</span>
+<span class="sd">        logits_ndim (int): number of dimensions (or rank) of the logits tensor</span>
 <span class="sd">        weight (list): list of rescaling weight given to each class</span>
 <span class="sd">        reduction (str): type of the reduction over the batch</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -290,13 +290,13 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">elements_type</span><span class="o">=</span><span class="n">LossType</span><span class="p">())}</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logits_dim</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logits_ndim</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
         <span class="k">if</span> <span class="n">weight</span><span class="p">:</span>
             <span class="n">weight</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">(</span><span class="n">weight</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">CrossEntropyLoss</span><span class="p">(</span><span class="n">weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="n">reduction</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_logits_dim</span> <span class="o">=</span> <span class="n">logits_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logits_dim</span> <span class="o">=</span> <span class="n">logits_ndim</span>
 
     <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">loss_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>

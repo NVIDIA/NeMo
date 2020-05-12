@@ -1,5 +1,5 @@
-NVIDIA Neural Modules 开发者指南(中文版)
-==========================================
+NVIDIA NeMo 开发者指南
+======================
 
 .. toctree::
    :hidden:
@@ -17,7 +17,7 @@ NVIDIA Neural Modules 开发者指南(中文版)
 
 
 
-Neural Modules (NeMo) 是一个用神经模块来构建 AI 应用的工具包，它与具体的框架无关。当前支持 PyTorch 框架。
+NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的框架无关。当前支持 PyTorch 框架。
 
 一个“神经模块”指的是，根据一系列的输入来计算一系列输出的代码块。
 
