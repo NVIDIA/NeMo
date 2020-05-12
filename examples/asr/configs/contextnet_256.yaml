@@ -25,7 +25,7 @@ AudioToMelSpectrogramPreprocessor:
     features: 80
     dither: 0.00001
     pad_to: 16
-    stft_conv: true
+    stft_conv: false
 
 SpectrogramAugmentation:
     freq_masks: 2
