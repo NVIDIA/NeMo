@@ -183,8 +183,8 @@ In order to run a subset one can run, e.g. ``system``:
 
     pytest -m system
 
-By default, all the tests will be executed on GPU. However, there is also an option to run the test suite on CPU
-by assing the ``--cpu`` argument, e.g.:
+By default, all the tests will be executed on GPU. There is also an option to run the test suite on CPU
+by assing the ``--cpu`` command line argument, e.g.:
 
 .. code-block:: bash
 
