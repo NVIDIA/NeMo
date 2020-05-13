@@ -1,4 +1,5 @@
 .. _Quartznet_model:
+
 QuartzNet
 ---------
 
@@ -29,3 +30,4 @@ References
     :style: plain
     :labelprefix: QTZ-MODELS
     :keyprefix: qtz-models-
+
