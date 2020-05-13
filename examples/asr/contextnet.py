@@ -61,8 +61,9 @@ def parse_args():
 
 
 def construct_name(name, lr, batch_size, num_epochs, wd, optimizer, kernel_size_factor):
-    return "{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}-kf_{6}".format(name, lr, batch_size, num_epochs, wd, optimizer,
-                                                                  kernel_size_factor)
+    return "{0}-lr_{1}-bs_{2}-e_{3}-wd_{4}-opt_{5}-kf_{6}".format(
+        name, lr, batch_size, num_epochs, wd, optimizer, kernel_size_factor
+    )
 
 
 def create_all_dags(args, neural_factory):
@@ -231,8 +232,15 @@ def create_all_dags(args, neural_factory):
 def main():
     args = parse_args()
 
-    name = construct_name(args.exp_name, args.lr, args.batch_size, args.num_epochs, args.weight_decay, args.optimizer,
-                          args.kernel_size_factor)
+    name = construct_name(
+        args.exp_name,
+        args.lr,
+        args.batch_size,
+        args.num_epochs,
+        args.weight_decay,
+        args.optimizer,
+        args.kernel_size_factor,
+    )
     work_dir = name
     if args.work_dir:
         work_dir = os.path.join(args.work_dir, name)

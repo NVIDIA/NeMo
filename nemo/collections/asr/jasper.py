@@ -51,6 +51,10 @@ class JasperEncoder(TrainableNM):
                     'se' (bool)  # Whether to add Squeeze and Excitation
                         # sub-blocks.
                         # Defaults to False
+                    'se_reduction_ratio' (int)  # The reduction ratio of the Squeeze
+                        # sub-module.
+                        # Must be an integer > 1.
+                        # Defaults to 8.
                     'se_context_window' (int) # The size of the temporal context
                         # provided to SE sub-module.
                         # Must be an integer. If value <= 0, will perform global
@@ -77,7 +81,9 @@ class JasperEncoder(TrainableNM):
             Can be one of ["batch", "layer", "instance", "group"]
             Defaults to "batch".
         residual_mode (str): Type of residual connection.
-            Can be "add" or "max".
+            Can be "add", "stride_add" or "max".
+            "stride_add" mode performs strided convolution prior to residual
+            addition.
             Defaults to "add".
         norm_groups (int): Number of groups for "group" normalization type.
             If set to -1, number of channels is used.
