@@ -30,7 +30,7 @@ logging = nemo.logging
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestSpeakerRecognitonPytorch():
+class TestSpeakerRecognitonPytorch:
     manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/an4_speaker/train.json"))
     yaml = YAML(typ="safe")
 
@@ -76,14 +76,12 @@ class TestSpeakerRecognitonPytorch():
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_spkr_test.yaml"))
         ) as file:
             spkr_params = self.yaml.load(file)
-        dl = nemo_asr.AudioToSpeechLabelDataLayer(
-            manifest_filepath=self.manifest_filepath,
-            labels=None,
-            batch_size=5,
-        )
+        dl = nemo_asr.AudioToSpeechLabelDataLayer(manifest_filepath=self.manifest_filepath, labels=None, batch_size=5,)
         sample_rate = 16000
 
-        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(sample_rate=sample_rate, **spkr_params["AudioToMelSpectrogramPreprocessor"],)
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
+            sample_rate=sample_rate, **spkr_params["AudioToMelSpectrogramPreprocessor"],
+        )
         jasper_encoder = nemo_asr.JasperEncoder(**spkr_params['JasperEncoder'])
         jasper_decoder = nemo_asr.JasperDecoderForSpkrClass(
             feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
