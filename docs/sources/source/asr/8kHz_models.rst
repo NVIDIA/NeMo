@@ -29,7 +29,7 @@ The model was first pretrained with 8 kHz LibriSpeech data for 134 epochs and th
 in your application, you may choose to :ref:`fine-tune <fine-tune>` this model using data collected from your application.
 
 ..
-The pre-trained model is available for download `here <https://ngc.nvidia.com/models/nvidian:nemo:quartznet_15x5_8_khz_for_nemo>`_.
+    The pre-trained model is available for download `here <https://ngc.nvidia.com/models/nvidian:nemo:quartznet_15x5_8_khz_for_nemo>`_.
 
 References
 ----------

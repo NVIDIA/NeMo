@@ -11,8 +11,6 @@ These models are trained on Google Speech Commands dataset (V1 - all 30 classes)
         :align: center
         :alt: quartznet model
    
-    .. note:: This checkpoint was trained on LibriSpeech :cite:`panayotov2015librispeech` and full "validated" part of En Mozilla Common Voice :cite:`ardila2019common`
-
 `QuartzNet paper <https://arxiv.org/abs/1910.10261>`_.
 
 These QuartzNet models were trained for 200 epochs using mixed precision on 2 GPUs with a batch size of 128 over 200 epochs.
