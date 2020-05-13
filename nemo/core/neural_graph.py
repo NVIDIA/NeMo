@@ -984,8 +984,7 @@ class NeuralGraph(NeuralInterface):
             module_names = self._modules.keys()
 
         # Prepare the "graph checkpoint".
-        chkpt = {"header": {}, "modules": {}}
-        chkpt["header"] = {"nemo_core_version": nemo_version, "name": self.name}
+        chkpt = {"header": {"nemo_core_version": nemo_version, "name": self.name}, "modules": {}}
 
         log_str = ''
         # Iterate through the modules one by one.
@@ -1026,6 +1025,7 @@ class NeuralGraph(NeuralInterface):
             chkpt["header"]["name"], filename
         )
 
+        warning = False
         # Iterate through the modules one by one.
         for name in module_names:
             try:

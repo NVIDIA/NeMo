@@ -23,24 +23,26 @@ import torch
 def save(checkpoint: Dict[str, Any], filename: str) -> None:
     """
         A proxy function that saves the checkpoint to a given file.
+
         Args:
-            checkpoint - checkpoint to be stored.
-            filename - Name of the file containing checkpoint.
+            checkpoint: Checkpoint to be stored.
+            filename: Name of the file containing checkpoint.
     """
-    # Greate the absolute path and save.
+    # Get the absolute path and save.
     abs_filename = expanduser(filename)
     torch.save(checkpoint, abs_filename)
 
 
 def load(filename: str) -> Dict[str, Any]:
     """
-         A proxy function that loads checkpoint from a given file.
+        A proxy function that loads checkpoint from a given file.
+
         Args:
-            filename - Name of the file containing checkpoint.
+            filename: Name of the file containing checkpoint.
         Returns:
             Loaded checkpoint.
     """
-    # Greate the absolute path and save.
+    # Get the absolute path and save.
     abs_filename = expanduser(filename)
     # Use map location to be able to load CUDA-trained modules on CPU.
     return torch.load(abs_filename, map_location=lambda storage, loc: storage)
@@ -49,8 +51,11 @@ def load(filename: str) -> Dict[str, Any]:
 def get_state_dict(model: torch.nn.Module) -> Dict[str, Any]:
     """
         A proxy function that gets the state dictionary.
+
         Args:
-            model - torch model.
+            model: Torch model.
+        Returns:
+            State dictionary containing model weights.
     """
     return model.state_dict()
 
@@ -58,7 +63,9 @@ def get_state_dict(model: torch.nn.Module) -> Dict[str, Any]:
 def set_state_dict(model: torch.nn.Module, state_dict: Dict[str, Any]) -> None:
     """
         A proxy function that sets the state dictionary.
+
         Args:
-            model - torch model.
+            model: Torch model.
+            state_dict: State dictionary containing model weights.
     """
     model.load_state_dict(state_dict)
