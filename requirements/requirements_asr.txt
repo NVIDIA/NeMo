@@ -12,3 +12,4 @@ sox
 torch-stft
 unidecode
 webdataset
+kaldi-python-io

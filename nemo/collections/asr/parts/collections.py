@@ -233,6 +233,8 @@ class SpeechLabel(_Collection):
         logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )
+        self.uniq_labels = sorted(set(map(lambda x: x.label, data)))
+        logging.info("# {} files loaded accounting to # {} labels".format(len(data), len(self.uniq_labels)))
 
         super().__init__(data)
 
