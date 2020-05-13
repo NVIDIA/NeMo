@@ -19,7 +19,6 @@ import os
 import shutil
 import tarfile
 from functools import partial
-from unittest import TestCase
 
 import pytest
 from ruamel.yaml import YAML
@@ -31,24 +30,12 @@ logging = nemo.logging
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestSpeakerRecognitonPytorch(TestCase):
+class TestSpeakerRecognitonPytorch():
     manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/an4_speaker/train.json"))
-    featurizer_config = {
-        "normalize": "per_feature",
-        "window_size": 0.02,
-        "window_stride": 0.01,
-        "window": "hann",
-        "features": 64,
-        "n_fft": 512,
-        "frame_splicing": 1,
-        "dither": 0.00001,
-        "stft_conv": False,
-    }
     yaml = YAML(typ="safe")
 
     @classmethod
-    def setUpClass(cls) -> None:
-        super().setUpClass()
+    def setup_class(cls) -> None:
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
         logging.info("Looking up for speaker related data")
         if not os.path.exists(os.path.join(data_folder, "an4_speaker")):
@@ -60,8 +47,7 @@ class TestSpeakerRecognitonPytorch(TestCase):
             logging.info("Speech Command data found in: {0}".format(os.path.join(data_folder, "an4_speaker")))
 
     @classmethod
-    def tearDownClass(cls) -> None:
-        super().tearDownClass()
+    def teardown_class(cls) -> None:
         data_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/"))
         logging.info("Looking up for test an4 data")
         if os.path.exists(os.path.join(data_folder, "an4_speaker")):
@@ -91,24 +77,13 @@ class TestSpeakerRecognitonPytorch(TestCase):
         ) as file:
             spkr_params = self.yaml.load(file)
         dl = nemo_asr.AudioToSpeechLabelDataLayer(
-            # featurizer_config=self.featurizer_config,
             manifest_filepath=self.manifest_filepath,
             labels=None,
             batch_size=5,
         )
-        pre_process_params = pre_process_params = {
-            "sample_rate": 16000,
-            "normalize": "per_feature",
-            "window_size": 0.02,
-            "window_stride": 0.01,
-            "window": "hann",
-            "features": 64,
-            "n_fft": 512,
-            "frame_splicing": 1,
-            "dither": 0.00001,
-            "stft_conv": False,
-        }
-        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
+        sample_rate = 16000
+
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(sample_rate=sample_rate, **spkr_params["AudioToMelSpectrogramPreprocessor"],)
         jasper_encoder = nemo_asr.JasperEncoder(**spkr_params['JasperEncoder'])
         jasper_decoder = nemo_asr.JasperDecoderForSpkrClass(
             feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
@@ -139,55 +114,3 @@ class TestSpeakerRecognitonPytorch(TestCase):
 
         # Assert that training loss went down
         assert loss_list[-1] < loss_list[0]
-
-    @pytest.mark.integration
-    def test_quartznet_speaker_reco_eval(self):
-        """Integration test that tests EvaluatorCallback and NeuralModuleFactory.eval().
-        """
-        with open(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_spkr_test.yaml"))
-        ) as file:
-            spkr_params = self.yaml.load(file)
-        dl = nemo_asr.AudioToSpeechLabelDataLayer(manifest_filepath=self.manifest_filepath, labels=None, batch_size=2,)
-        pre_process_params = {
-            'frame_splicing': 1,
-            'features': 64,
-            'window_size': 0.02,
-            'n_fft': 512,
-            'dither': 1e-05,
-            'window': 'hann',
-            'sample_rate': 16000,
-            'normalize': 'per_feature',
-            'window_stride': 0.01,
-        }
-        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
-        jasper_encoder = nemo_asr.JasperEncoder(**spkr_params['JasperEncoder'])
-        jasper_decoder = nemo_asr.JasperDecoderForSpkrClass(
-            feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
-            num_classes=dl.num_classes,
-            pool_mode=spkr_params['JasperDecoderForSpkrClass']['pool_mode'],
-            emb_sizes=spkr_params["JasperDecoderForSpkrClass"]["emb_sizes"].split(","),
-        )
-        ce_loss = nemo_asr.CrossEntropyLossNM()
-
-        # DAG
-        audio_signal, a_sig_length, targets, targets_len = dl()
-        processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
-
-        encoded, encoded_len = jasper_encoder(audio_signal=processed_signal, length=p_length)
-        # logging.info(jasper_encoder)
-        logits, _ = jasper_decoder(encoder_output=encoded)
-        loss = ce_loss(logits=logits, labels=targets,)
-
-        from nemo.collections.asr.helpers import (
-            process_classification_evaluation_batch,
-            process_classification_evaluation_epoch,
-        )
-
-        eval_callback = nemo.core.EvaluatorCallback(
-            eval_tensors=[loss, logits, targets],
-            user_iter_callback=lambda x, y: process_classification_evaluation_batch(x, y, top_k=[1]),
-            user_epochs_done_callback=process_classification_evaluation_epoch,
-        )
-        # Instantiate an optimizer to perform `train` action
-        self.nf.eval(callbacks=[eval_callback])
