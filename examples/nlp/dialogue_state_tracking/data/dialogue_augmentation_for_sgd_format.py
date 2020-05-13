@@ -1,3 +1,19 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import argparse
 import copy
 import json
@@ -392,7 +408,10 @@ def parse_args():
         "--concat_orig_dialogue", action="store_true", help="contenate original dialogue to the augmented one"
     )
     parser.add_argument(
-        "--input_dir", type=str, help="data directory. contains one schema.json and multiple dialogue*.json files"
+        "--input_dir",
+        type=str,
+        default="",
+        help="data directory. contains one schema.json and multiple dialogue*.json files",
     )
     parser.add_argument("--output_dir", type=str, help="output data directory", default=None)
     parser.add_argument("--num2string", action="store_true", help="convert digits to string")
@@ -411,6 +430,12 @@ if __name__ == "__main__":
     args = parse_args()
     print(vars(args))
     random.seed(args.seed)
+
+    if not os.path.exists(args.input_dir):
+        raise ValueError(
+            "SGD dataset not found. Dataset can be downloaded from https://github.com/google-research-datasets/dstc8-schema-guided-dialogue"
+        )
+
     in_file_path = args.input_dir
     schema_path = os.path.join(in_file_path, 'schema.json')
     dialogue_files = [
