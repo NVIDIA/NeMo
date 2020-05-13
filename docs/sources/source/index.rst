@@ -1,5 +1,5 @@
-NVIDIA Neural Modules Developer Guide
-=====================================
+NVIDIA NeMo Developer Guide
+===========================
 
 .. toctree::
    :hidden:
@@ -18,7 +18,7 @@ NVIDIA Neural Modules Developer Guide
    chinese/intro
 
 
-Neural Modules (NeMo) is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.
+NeMo is a framework-agnostic toolkit for building AI applications powered by Neural Modules. Current support is for PyTorch framework.
 
 A "Neural Module" is a block of code that computes a set of outputs from a set of inputs.
 
