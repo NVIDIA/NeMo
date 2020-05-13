@@ -64,6 +64,7 @@ parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--num_negatives", default=5, type=int)
 parser.add_argument("--num_eval_candidates", default=100, type=int)
 parser.add_argument("--label_smoothing", default=0.0, type=float)
+parser.add_argument("--freeze_encoder", action="store_true")
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -90,6 +91,8 @@ zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
 )
+if args.freeze_encoder:
+    encoder.freeze()
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
     hidden_size=args.d_model, num_classes=1, num_layers=1,
     dropout=args.ffn_dropout, log_softmax=False
