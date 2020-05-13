@@ -242,7 +242,7 @@ class TestASRPytorch(TestCase):
             feat_in=contextnet_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
             **contextnet_model_definition['ContextNetEncoder'],
         )
-        contextnet_decoder = nemo_asr.ContextNetDecoderForCTC(feat_in=32,  hidden_size=16, num_classes=len(self.labels))
+        contextnet_decoder = nemo_asr.ContextNetDecoderForCTC(feat_in=32, hidden_size=16, num_classes=len(self.labels))
         ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
 
         # DAG
