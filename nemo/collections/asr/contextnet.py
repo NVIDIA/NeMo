@@ -1,5 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -61,6 +61,10 @@ class ContextNetEncoder(TrainableNM):
                         # temporal pooling (global context).
                         # If value >= 1, will perform stride 1 average pooling to
                         # compute context window.
+                    'se_interpolation_mode' (str) # Interpolation mode of timestep dimension.
+                        # Used only if context window is > 1.
+                        # The modes available for resizing are: `nearest`, `linear` (3D-only),
+                        # `bilinear`, `area`
                     'kernel_size_factor' (float)  # Conv kernel size multiplier
                         # Can be either an int or float
                         # Kernel size is recomputed as below:
@@ -146,15 +150,15 @@ class ContextNetEncoder(TrainableNM):
 
     def __init__(
         self,
-        jasper,
-        activation,
-        feat_in,
-        normalization_mode="batch",
-        residual_mode="add",
-        norm_groups=-1,
-        conv_mask=False,
-        frame_splicing=1,
-        init_mode='xavier_uniform',
+        jasper: Dict[str, Any],
+        activation: str,
+        feat_in: int,
+        normalization_mode: str = "batch",
+        residual_mode: str = "add",
+        norm_groups: int = -1,
+        conv_mask: bool = False,
+        frame_splicing: int = 1,
+        init_mode: str = 'xavier_uniform',
     ):
         super().__init__()
 
@@ -177,6 +181,7 @@ class ContextNetEncoder(TrainableNM):
             se = lcfg.get('se', True)
             se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
             se_context_window = lcfg.get('se_context_window', -1)
+            se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)
             encoder_layers.append(
@@ -201,6 +206,7 @@ class ContextNetEncoder(TrainableNM):
                     se=se,
                     se_reduction_ratio=se_reduction_ratio,
                     se_context_window=se_context_window,
+                    se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
                     stride_last=stride_last,
                 )
@@ -256,7 +262,7 @@ class ContextNetDecoderForCTC(TrainableNM):
         # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
         return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
-    def __init__(self, feat_in, num_classes, hidden_size=640, init_mode="xavier_uniform"):
+    def __init__(self, feat_in: int, num_classes: int, hidden_size: int = 640, init_mode: str = "xavier_uniform"):
         super().__init__()
 
         self._feat_in = feat_in

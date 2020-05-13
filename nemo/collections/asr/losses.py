@@ -13,6 +13,9 @@ class CTCLossNM(LossNM):
     Args:
         num_classes (int): Number of characters in ASR model's vocab/labels.
             This count should not include the CTC blank symbol.
+        zero_infinity (bool): Whether to zero infinite losses and the associated gradients.
+            By default, it is False. Infinite losses mainly occur when the inputs are too
+            short to be aligned to the targets.
     """
 
     @property

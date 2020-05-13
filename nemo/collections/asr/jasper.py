@@ -61,6 +61,10 @@ class JasperEncoder(TrainableNM):
                         # temporal pooling (global context).
                         # If value >= 1, will perform stride 1 average pooling to
                         # compute context window.
+                    'se_interpolation_mode' (str) # Interpolation mode of timestep dimension.
+                        # Used only if context window is > 1.
+                        # The modes available for resizing are: `nearest`, `linear` (3D-only),
+                        # `bilinear`, `area`
                     'kernel_size_factor' (float)  # Conv kernel size multiplier
                         # Can be either an int or float
                         # Kernel size is recomputed as below:
@@ -177,6 +181,7 @@ class JasperEncoder(TrainableNM):
             se = lcfg.get('se', False)
             se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
             se_context_window = lcfg.get('se_context_window', -1)
+            se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
             stride_last = lcfg.get('stride_last', False)
             encoder_layers.append(
@@ -201,6 +206,7 @@ class JasperEncoder(TrainableNM):
                     se=se,
                     se_reduction_ratio=se_reduction_ratio,
                     se_context_window=se_context_window,
+                    se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
                     stride_last=stride_last,
                 )

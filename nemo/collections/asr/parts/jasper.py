@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -180,7 +180,12 @@ class GroupShuffle(nn.Module):
 
 class SqueezeExcite(nn.Module):
     def __init__(
-        self, channels, reduction_ratio, context_window: int = -1, interpolation_mode='nearest', activation=None
+        self,
+        channels: int,
+        reduction_ratio: int,
+        context_window: int = -1,
+        interpolation_mode: str = 'nearest',
+        activation: Optional[Callable] = None,
     ):
         """
         Squeeze-and-Excitation sub-module.
@@ -193,7 +198,10 @@ class SqueezeExcite(nn.Module):
                 If value < 1, then global context is computed.
             interpolation_mode: Interpolation mode of timestep dimension.
                 Used only if context window is > 1.
-            activation: Intermediate activation function used.
+                The modes available for resizing are: `nearest`, `linear` (3D-only),
+                `bilinear`, `area`
+            activation: Intermediate activation function used. Must be a
+                callable activation function.
         """
         super(SqueezeExcite, self).__init__()
         self.context_window = int(context_window)
@@ -260,6 +268,7 @@ class JasperBlock(nn.Module):
         se=False,
         se_reduction_ratio=16,
         se_context_window=None,
+        se_interpolation_mode='nearest',
         stride_last=False,
     ):
         super(JasperBlock, self).__init__()
@@ -328,7 +337,11 @@ class JasperBlock(nn.Module):
         if se:
             conv.append(
                 SqueezeExcite(
-                    planes, reduction_ratio=se_reduction_ratio, context_window=se_context_window, activation=activation
+                    planes,
+                    reduction_ratio=se_reduction_ratio,
+                    context_window=se_context_window,
+                    interpolation_mode=se_interpolation_mode,
+                    activation=activation,
                 )
             )
 
