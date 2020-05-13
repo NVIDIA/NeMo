@@ -19,7 +19,9 @@
 
 
 import pytest
+from numpy import array_equal
 
+from nemo.backends import get_state_dict
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core import NeuralGraph
 from nemo.core.neural_types import NeuralTypeComparisonResult
@@ -83,18 +85,35 @@ class TestNeuralGraphs:
         assert len(g0) == 2
 
     @pytest.mark.unit
-    def test_default_output_ports(self):
-        """ Tests automatic binding of default output ports. """
-        dl = RealFunctionDataLayer(n=10, batch_size=1)
-        m2 = TaylorNet(dim=4)
-        loss = MSELoss()
+    def test_graph_save_load(self, tmpdir):
+        """
+            Tests graph saving and loading.
+        
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+        """
 
+        dl = RealFunctionDataLayer(n=10, batch_size=1)
+        tn = TaylorNet(dim=4)
+        # Get the "original" weights.
+        weights1 = get_state_dict(tn)
+
+        # Create a simple graph.
         with NeuralGraph() as g1:
             x, t = dl()
-            p = m2(x=x)
+            p = tn(x=x)
 
-        # Tests output ports.
-        assert len(g1.output_ports) == 3
-        assert g1.output_ports["x"].compare(x) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["y"].compare(t) == NeuralTypeComparisonResult.SAME
-        assert g1.output_ports["y_pred"].compare(p) == NeuralTypeComparisonResult.SAME
+        # Generate filename in the temporary directory.
+        tmp_file_name = str(tmpdir.join("tgsl_g1.chkpt"))
+        # Save graph.
+        g1.save_to(tmp_file_name)
+
+        # Load graph.
+        g1.restore_from(tmp_file_name)
+
+        # Get the "restored" weights.
+        weights2 = get_state_dict(tn)
+
+        # Compare state dicts.
+        for key in weights1:
+            assert array_equal(weights1[key].cpu().numpy(), weights2[key].cpu().numpy())

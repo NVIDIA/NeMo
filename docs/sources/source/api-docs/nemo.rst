@@ -18,6 +18,14 @@ neural_modules
     :undoc-members:
     :show-inheritance:
 
+neural_graph
+--------------
+
+.. automodule:: nemo.core.neural_graph
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 neural_factory
 --------------
 
