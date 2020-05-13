@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from nemo.backends import get_state_dict, load, save, set_state_dict
+from nemo.core import OperationMode
 from .neural_factory import OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
@@ -46,12 +48,12 @@ class NeuralGraph(NeuralInterface):
 
     def __init__(self, operation_mode: OperationMode = OperationMode.both, name: Optional[str] = None):
         """
-            Constructor. Initializes graph variables.
+        Constructor. Initializes graph variables.
 
-            Args:
-                operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
-                [training | eval | both] (DEFAULT: both)
-                name: Name of the graph (optional)
+        Args:
+            operation_mode: Graph operation mode, that will be propagated along modules during graph creation.
+            [training | eval | both] (DEFAULT: both)
+            name: Name of the graph (optional)
         """
         # Initialize the inferface.
         super().__init__()
@@ -84,12 +86,11 @@ class NeuralGraph(NeuralInterface):
 
     def __call__(self, **kwargs):
         """
-            This method "nests" one existing neural graph into another one.
-            Also checks if all inputs were provided and properly connects them.
+        This method "nests" one existing neural graph into another one.
+        Also checks if all inputs were provided and properly connects them.
 
-            Args:
-                kwargs: keyword arguments containing dictionary of (input_port_name, port_content).
-
+        Args:
+            kwargs: keyword arguments containing dictionary of (input_port_name, port_content).
         """
         # Test operation modes of the nested graphs.
         outer_mode = self._app_state.active_graph.operation_mode
@@ -121,11 +122,11 @@ class NeuralGraph(NeuralInterface):
 
     def __nest(self, inner_graph: 'NeuralGraph', inner_graph_args):
         """
-            Method nests (copies) a graph: modules, steps, topology (tensors).
+        Method nests (copies) a graph: modules, steps, topology (tensors).
 
-            Args:
-                inner_graph: Graph to be copied (will be "nested" in this (self) graph).
-                inner_graph_args: inputs passed to the graph call.
+        Args:
+            inner_graph: Graph to be copied (will be "nested" in this (self) graph).
+            inner_graph_args: inputs passed to the graph call.
         """
         # Remember the number of "already present steps".
         step_bump = len(self.steps)
@@ -248,13 +249,13 @@ class NeuralGraph(NeuralInterface):
 
     def record_step(self, module: NeuralModule):
         """
-            Records the operation (module plus passed inputs) on a list.
+        Records the operation (the module to be executed) on a list.
 
-            Args:
-                module: Neural modules added to a given graph.
+        Args:
+            module: Neural modules added to a given graph.
 
-            Returns:
-                Step number.
+        Returns:
+            Step number.
         """
         # The solution allows loops in the graph.
         # This also means that module with that name can already be present in the graph.
@@ -277,17 +278,17 @@ class NeuralGraph(NeuralInterface):
     @property
     def step_number(self) -> int:
         """
-            Returns:
-                The current step number.
+        Returns:
+            The current step number.
         """
         return len(self._steps) - 1
 
     def bind_outputs(self, tensors_list: Union[NmTensor, List[NmTensor]]):
         """
-            Binds the output tensors.
+        Binds the output tensors.
 
-            Args:
-                tensors_list: A single tensor OR a List of tensors to be bound.
+        Args:
+            tensors_list: A single tensor OR a List of tensors to be bound.
         """
         # Handle both single port and lists of ports to be bound.
         if type(tensors_list) is not list:
@@ -311,48 +312,46 @@ class NeuralGraph(NeuralInterface):
     @property
     def inputs(self) -> GraphInputs:
         """
-            Returns graph inputs.
-
         Returns:
-            A graph input.
+            Graph input.
         """
         return self._inputs
 
     @property
     def input_ports(self) -> Dict[str, NeuralType]:
         """
-            Returns definitions of graph input ports (dict of Neural Types).
+        Returns definitions of graph input ports (dict of Neural Types).
 
         .. note::
             This method actually returns an immutable  dictionary with port types (like Neural Modules).
             In order to get access to actual graph inputs please call the inputs() method.
 
         Returns:
-            A graph input ports definitions.
+            Graph input ports definitions.
         """
         return self._inputs.definitions
 
     @property
     def outputs(self) -> GraphOutputs:
         """
-            Returns graph outputs.
+        Returns graph outputs.
 
         Returns:
-            A graph outputs.
+            Graph outputs.
         """
         return self._outputs
 
     @property
     def output_ports(self) -> Dict[str, NeuralType]:
         """
-            Returns definitions of module output ports (dict of Neural Types).
+        Returns definitions of module output ports (dict of Neural Types).
 
         .. note::
             This method actually returns an immutable dictionary with port types (like Neural Modules).
             In order to get access to actual graph outpus please call the outputs() method.
 
         Returns:
-            A graph output ports definitions.
+            Graph output ports definitions.
             
         """
         return self._outputs.definitions
@@ -360,10 +359,8 @@ class NeuralGraph(NeuralInterface):
     @property
     def output_tensors(self) -> Dict[str, NmTensor]:
         """
-            Returns graph output tensors.
-
         Returns:
-            A graph output tensors.
+            Fraph output tensors.
         """
         return self._outputs.tensors
 
@@ -387,35 +384,36 @@ class NeuralGraph(NeuralInterface):
 
     def __len__(self) -> int:
         """
-            Returns:
-                The number of modules (vertices) in a given graph.
+        Returns:
+            The number of modules (vertices) in a given graph.
         """
         return len(self._modules)
 
     @property
     def steps(self) -> Dict[int, str]:
-        """ Returns steps. """
+        """
+        Returns:
+            Dictionary [steps_number, module_name]
+        """
         return self._steps
 
     @property
     def tensors(self):
         """
-            Property returning a (double) dictionary of all output tensors.
+        Property returning a (double) dictionary of all output tensors.
 
-            Returns:
-                Dictionary of tensors in the format [module_name][output_port_name].
-        
+        Returns:
+            Dictionary of tensors in the format [module_name][output_port_name].
          """
         return self._all_tensors
 
     @property
     def tensor_list(self) -> List[NmTensor]:
         """
-            Property returning output tensors by extracting them on the fly from the bound outputs.
-            
-            Returns:
-                List of tensors.
+        Property returning output tensors by extracting them on the fly from the bound outputs.
 
+        Returns:
+            List of tensors.
         """
         tensor_list = []
         # Get tensors by acessing the producer-ports.
@@ -429,45 +427,45 @@ class NeuralGraph(NeuralInterface):
     @property
     def operation_mode(self) -> OperationMode:
         """
-            Returns:
-                Operation mode.
+        Returns:
+            Operation mode.
         """
         return self._operation_mode
 
     def __enter__(self) -> 'NeuralGraph':
         """ 
-            Activates this graph.
-        
-            Returns:
-                The graph object.
+        Activates this graph.
+
+        Returns:
+            The graph object.
         """
         self._app_state.active_graph = self
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """
-            Deactivates the current graph.
+        Deactivates the current graph.
         """
         self._app_state.active_graph = None
 
     def activate(self):
         """ 
-            Activates this graph.
+        Activates this graph.
         """
         self._app_state.active_graph = self
 
     def deactivate(self):
         """
-            Deactivates the current graph.
+        Deactivates the current graph.
         """
         self._app_state.active_graph = None
 
     def export_to_config(self, config_file: str):
         """
-            Exports the neural graph to a file.
-        
-            Args:
-                config_file: Name (and path) of the config file (YML) to be written to.
+        Exports the neural graph to a file.
+
+        Args:
+            config_file: Name (and path) of the config file (YML) to be written to.
         """
         # Greate an absolute path.
         abs_path_file = path.expanduser(config_file)
@@ -484,10 +482,11 @@ class NeuralGraph(NeuralInterface):
         )
 
     def serialize(self) -> Dict[str, Any]:
-        """ Method serializes the whole graph.
+        """
+        Method serializes the whole graph.
 
-            Returns:
-                Dictionary containing description of the whole graph.
+        Returns:
+            Dictionary containing description of the whole graph.
         """
         # Create a dictionary representing the serialized object.
         serialized_graph = {}
@@ -514,10 +513,11 @@ class NeuralGraph(NeuralInterface):
         return serialized_graph
 
     def __serialize_header(self) -> Dict[str, Any]:
-        """ Private method responsible for serializing the graph header.
+        """
+        Private method responsible for serializing the graph header.
 
-            Returns:
-                Dictionary containing description of the whole graph.        
+        Returns:
+            Dictionary containing description of the whole graph.
         """
         # Generate full_spec of the class.
         full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
@@ -533,10 +533,11 @@ class NeuralGraph(NeuralInterface):
         return header
 
     def __serialize_modules(self) -> Dict[str, Any]:
-        """ Private method responsible for serializing the modules present in the graph.
+        """
+        Private method responsible for serializing the modules present in the graph.
 
-            Returns:
-                Dictionary containing description of all graph modules.
+        Returns:
+            Dictionary containing description of all graph modules.
         """
         serialized_modules = {}
         for name, module in self._modules.items():
@@ -544,10 +545,11 @@ class NeuralGraph(NeuralInterface):
         return serialized_modules
 
     def __serialize_steps(self):
-        """ Private method responsible for serializing the steps (order of module executions).
+        """
+        Private method responsible for serializing the steps (order of module executions).
 
-            Returns:
-                Dictionary containing description of the steps.
+        Returns:
+            Dictionary containing description of the steps.
         """
         serialized_steps = {}
         for no, module_name in self._steps.items():
@@ -555,10 +557,11 @@ class NeuralGraph(NeuralInterface):
         return serialized_steps
 
     def __serialize_connections(self) -> Dict[str, Any]:
-        """ Private method responsible for serializing the connections in the graph.
+        """
+        Private method responsible for serializing the connections in the graph.
 
-            Returns:
-                List containing "connections" between modules.
+        Returns:
+            List containing "connections" between modules.
         """
         serialized_connections = []
         # Iterate through "tensor modules".
@@ -583,22 +586,18 @@ class NeuralGraph(NeuralInterface):
         name: Optional[str] = None,
     ) -> 'NeuralGraph':
         """
-            Class method importing the neural graph from the configuration file.
-            Raises an ImportError exception when config file is invalid.
+        Class method importing the neural graph from the configuration file.
+        Raises an ImportError exception when config file is invalid.
 
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-                reuse_existing_modules: If the modules with (name, type, init_params) are already created, import will
-                connect to them instead of creating new instances.
-
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
-                parameters loaded from the configuration file
-
-                name: Name of the new graph (optional, DEFAULT: NONE)
-
-            Returns:
-                Instance of the created NeuralGraph object.
+        Args:
+            config_file: path (absolute or relative) and name of the config file (YML)
+            reuse_existing_modules: If the modules with (name, type, init_params) are already created, import will
+            connect to them instead of creating new instances.
+            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default
+            parameters loaded from the configuration file
+            name: Name of the new graph (optional, DEFAULT: NONE)
+        Returns:
+            Instance of the created NeuralGraph object.
         """
         logging.info("Loading configuration of a new Neural Graph from the `{}` file".format(config_file))
 
@@ -615,15 +614,14 @@ class NeuralGraph(NeuralInterface):
     @classmethod
     def __validate_config_file(cls, config_file: str):
         """
-            Class method validating whether the config file has a proper content (sections, specification etc.).
-            Raises an ImportError exception when config file is invalid or
-            incompatible (when called from a particular class).
+        Class method validating whether the config file has a proper content (sections, specification etc.).
+        Raises an ImportError exception when config file is invalid or
+        incompatible (when called from a particular class).
 
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-            Returns:
-                A loaded configuration file (dictionary).
+        Args:
+            config_file: path (absolute or relative) and name of the config file (YML)
+        Returns:
+            A loaded configuration file (dictionary).
         """
         # Greate an absolute path.
         abs_path_file = path.expanduser(config_file)
@@ -658,16 +656,14 @@ class NeuralGraph(NeuralInterface):
         cls, configuration: Dict[str, Any], reuse_existing_modules: bool = False, name: Optional[str] = None
     ) -> 'NeuralGraph':
         """
-            Class method creating a graph instance by deserializing the provided configuratino.
+        Class method creating a graph instance by deserializing the provided configuratino.
 
-            Args:
-                configuration: Dictionary containing serialized graph.
-
-                reuse_existing_modules: If the modules with (name, type, init_params) are already created, import will
-                connect to them instead of creating new instances.
-
-            Returns:
-                Instance of the created NeuralGraph object.
+        Args:
+            configuration: Dictionary containing serialized graph.
+            reuse_existing_modules: If the modules with (name, type, init_params) are already created, import will
+            connect to them instead of creating new instances.
+        Returns:
+            Instance of the created NeuralGraph object.
         """
         # Deserialize header and get object class.
         operation_mode = cls.__deserialize_header(configuration["header"])
@@ -702,13 +698,13 @@ class NeuralGraph(NeuralInterface):
 
     @classmethod
     def __deserialize_header(cls, serialized_header: Dict[str, Any]):
-        """ Private class method deserializing the header and extracts the general information.
-            
-            Args:
-                serialized_header: Dictionary containing graph header.
+        """
+        Private class method deserializing the header and extracts the general information.
 
-            Returns:
-                Operation mode.
+        Args:
+            serialized_header: Dictionary containing graph header.
+        Returns:
+            Operation mode.
         """
         # Parse the "full specification" - do not need that now.
         # spec_list = serialized_header["full_spec"].split(".")
@@ -725,17 +721,18 @@ class NeuralGraph(NeuralInterface):
         return operation_mode
 
     def __deserialize_modules(self, serialized_modules: Dict[str, Any], reuse_existing_modules: bool):
-        """ Private method deserializing the modules present in the graph.
+        """
+        Private method deserializing the modules present in the graph.
 
-            Args:
-                serialized_modules: Dictionary containing graph modules.
-                reuse_existing_modules: If True, won create a new module when a module with a given name exists.
+        Args:
+            serialized_modules: Dictionary containing graph modules.
+            reuse_existing_modules: If True, won create a new module when a module with a given name exists.
 
-            Returns:
-                Dictionary of modules.
+        Returns:
+            Dictionary of modules.
 
-            Raises:
-                KeyError: A module with name already exists (if reuse_existing_modules is set to False).
+        Raises:
+            KeyError: A module with name already exists (if reuse_existing_modules is set to False).
         """
         modules = {}
         for name, module_params in serialized_modules.items():
@@ -753,13 +750,13 @@ class NeuralGraph(NeuralInterface):
         return modules
 
     def __deserialize_steps(self, serialized_steps: Dict[str, Any]):
-        """ Private method deserializing the steps (order of module executions).
+        """
+        Private method deserializing the steps (order of module executions).
 
-            Args:
-                serialized_steps: Dictionary containing serialized steps.
-
-            Returns:
-                Odered dict with steps.
+        Args:
+            serialized_steps: Dictionary containing serialized steps.
+        Returns:
+            Odered dict with steps.
         """
         steps = OrderedDict()
         for i in range(len(serialized_steps)):
@@ -768,14 +765,14 @@ class NeuralGraph(NeuralInterface):
         return steps
 
     def __deserialize_connections(self, serialized_connections: Dict[str, Any], modules: Dict[str, NeuralModule]):
-        """ Private method deserializing the connections in the graph.
+        """
+        Private method deserializing the connections in the graph.
 
-            Args:
-                serialized_steps: Dictionary containing serialized connections.
-                modules: List of modules.
-
-            Returns:
-                List of connections, in a format enabling graph traversing.
+        Args:
+            serialized_steps: Dictionary containing serialized connections.
+            modules: List of modules.
+        Returns:
+            List of connections, in a format enabling graph traversing.
         """
         connections = []
         # Deserialize connections one by one.
@@ -798,15 +795,15 @@ class NeuralGraph(NeuralInterface):
         return connections
 
     def __execute_and_create_tensors(self, steps, modules, connections, inputs):
-        """ Method creates (internal) tensors of the graph by executing it following the order and using 
-            the provided connections and inputs.
+        """
+        Method creates (internal) tensors of the graph by executing it following the order and using
+        the provided connections and inputs.
 
-            Args:
-                steps: List of steps to be executed.
-                modules: List of modules.
-                connections: List of connections.
-                inputs: List of "bound inputs"
-        
+        Args:
+            steps: List of steps to be executed.
+            modules: List of modules.
+            connections: List of connections.
+            inputs: List of "bound inputs"
         """
         # Activate this graph, so all the tensors will be added to this !
         self.activate()
@@ -874,8 +871,8 @@ class NeuralGraph(NeuralInterface):
 
     def summary(self) -> str:
         """ 
-            Returns:
-                A nice, full graph summary.
+        Returns:
+            A nice, full graph summary.
         """
         # Line "decorator".
         desc = "\n" + 120 * '=' + "\n"
@@ -923,15 +920,17 @@ class NeuralGraph(NeuralInterface):
 
     def freeze(self, module_names: Optional[List[str]] = None):
         """
-            A method that freezes the weights of the trainable modules in a graph.
-            Args:
-                module_names: List of modules to be frozen (Optional). If passed, all modules will be unfrozen.
-            Raises:
-                KeyError: If name of the module won't be recognized.
+        A method that freezes the weights of the trainable modules in a graph.
+
+        Args:
+            module_names: List of modules to be frozen (Optional). If passed, all modules will be unfrozen.
+        Raises:
+            KeyError: If name of the module won't be recognized.
         """
+        # Work on all modules.
         if module_names is None:
-            # Work on all modules.
             module_names = self._modules.keys()
+
         # Iterate through modules one by one.
         for name in module_names:
             if name not in self._modules.keys():
@@ -939,20 +938,24 @@ class NeuralGraph(NeuralInterface):
             # Check module type.
             module = self._modules[name]
             if module.type == ModuleType.trainable:
-                # Freeze weights of the module
+                # Freeze weights of the module.
                 module.freeze()
+            else:
+                logging.debug("Module `{}` is not trainable so cannot be frozen".format(name))
 
     def unfreeze(self, module_names: Optional[List[str]] = None):
         """
-            Unfreezes weights of the trainable modules in a graph.
-            Args:
-                module_names: List of modules to be unfrozen (Optional). If not passed, all modules will be unfrozen.
-            Raises:
-                KeyError: If name of the module won't be recognized.
+        Unfreezes weights of the trainable modules in a graph.
+
+        Args:
+            module_names: List of modules to be unfrozen (Optional). If not passed, all modules will be unfrozen.
+        Raises:
+            KeyError: If name of the module won't be recognized.
         """
+        # Work on all modules.
         if module_names is None:
-            # Work on all modules.
             module_names = self._modules.keys()
+
         # Iterate through modules one by one.
         for name in module_names:
             if name not in self._modules.keys():
@@ -962,3 +965,81 @@ class NeuralGraph(NeuralInterface):
             if module.type == ModuleType.trainable:
                 # Unfreeze weights of the module.
                 module.unfreeze()
+            else:
+                logging.debug("Module `{}` is not trainable so cannot be unfrozen".format(name))
+
+    def save_to(self, filename: str, module_names: Optional[List[str]] = None):
+        """
+        Saves the state of trainable modules in the graph to a checkpoint file.
+
+        Args:
+            filename (string): Name of the file where the checkpoint will be saved.
+            module_names: List of modules to be frozen (Optional). If passed, all modules will be saved.
+        Raises:
+            KeyError: If name of the module won't be recognized.
+        """
+        # Work on all modules.
+        if module_names is None:
+            module_names = self._modules.keys()
+
+        # Prepare the "graph checkpoint".
+        chkpt = {"header": {"nemo_core_version": nemo_version, "name": self.name}, "modules": {}}
+
+        log_str = ''
+        # Iterate through the modules one by one.
+        for name in module_names:
+            if name not in self._modules.keys():
+                raise KeyError("Module `{}` not present in the `{}` graph".format(name, self.name))
+            # Check module type.
+            module = self._modules[name]
+            if module.type == ModuleType.trainable:
+                # Get module state_dict().
+                chkpt["modules"][name] = get_state_dict(module)
+                log_str += "  * Module '{}' ({}) params saved \n".format(module.name, type(module).__name__)
+            else:
+                logging.debug("Module `{}` is not trainable so cannot be saved".format(name))
+
+        # Save checkpoint.
+        save(chkpt, filename)
+        log_str = "Saved  the '{}' graph to a checkpoint `{}`:\n".format(self.name, filename) + log_str
+        logging.info(log_str)
+
+    def restore_from(self, filename: str, module_names: Optional[List[str]] = None):
+        """
+        Restores the state of trainable modules in the graph from a checkpoint file.
+
+        Args:
+            filename (string): Name of the checkpoint to be restored from.
+            module_names: List of modules to be frozen (Optional). If passed, all modules will be restored.
+        Raises:
+            KeyError: If name of the module won't be recognized.
+        """
+        # Work on all modules.
+        if module_names is None:
+            module_names = self._modules.keys()
+
+        # Load the checkpoint.
+        chkpt = load(filename)
+
+        log_str = "Loading modules constituting the '{}' graph from the `{}` checkpoint :\n".format(
+            chkpt["header"]["name"], filename
+        )
+
+        warning = False
+        # Iterate through the modules one by one.
+        for name in module_names:
+            try:
+                # Get module.
+                module = self._modules[name]
+                # Restore module weights
+                set_state_dict(module, chkpt["modules"][name])
+                log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
+            except KeyError:
+                log_str += "  ! Module '{}' params not found in checkpoint\n".format(name)
+                warning = True
+
+        # Log results.
+        if warning:
+            logging.warning(log_str)
+        else:
+            logging.info(log_str)
