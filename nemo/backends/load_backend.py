@@ -14,9 +14,13 @@
 # limitations under the License.
 # =============================================================================
 
-from .load_backend import backend
+# Set the default backend to PyTorch.
+_BACKEND = 'pytorch'
 
-# Load backend specific classes, functions etc.
-if backend() == 'pytorch':
-    from .torch_backend import save, load, get_state_dict, set_state_dict
-    from . import pytorch
+
+def backend() -> str:
+    """
+    Returns:
+        Name of the currently used backend.
+    """
+    return _BACKEND
