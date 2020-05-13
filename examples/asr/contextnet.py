@@ -133,7 +133,7 @@ def create_all_dags(args, neural_factory):
         sample_rate=sample_rate, **contextnet_params["AudioToMelSpectrogramPreprocessor"],
     )
 
-    # Inject the `kernel_size_factor` kwarg to the QuartzNet config
+    # Inject the `kernel_size_factor` kwarg to the ContextNet config
     # Skip the last layer  as that must be a pointwise kernel
     for idx in range(len(contextnet_params["ContextNetEncoder"]["jasper"]) - 1):
         contextnet_params["ContextNetEncoder"]["jasper"][idx]["kernel_size_factor"] = args.kernel_size_factor

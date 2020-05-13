@@ -182,6 +182,19 @@ class SqueezeExcite(nn.Module):
     def __init__(
         self, channels, reduction_ratio, context_window: int = -1, interpolation_mode='nearest', activation=None
     ):
+        """
+        Squeeze-and-Excitation sub-module.
+
+        Args:
+            channels: Input number of channels.
+            reduction_ratio: Reduction ratio for "squeeze" layer.
+            context_window: Integer number of timesteps that the context
+                should be computed over, using stride 1 average pooling.
+                If value < 1, then global context is computed.
+            interpolation_mode: Interpolation mode of timestep dimension.
+                Used only if context window is > 1.
+            activation: Intermediate activation function used.
+        """
         super(SqueezeExcite, self).__init__()
         self.context_window = int(context_window)
         self.interpolation_mode = interpolation_mode

@@ -254,7 +254,7 @@ class ContextNetDecoderForCTC(TrainableNM):
         # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
         return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
-    def __init__(self, feat_in, num_classes, hidden_size=700, init_mode="xavier_uniform"):
+    def __init__(self, feat_in, num_classes, hidden_size=640, init_mode="xavier_uniform"):
         super().__init__()
 
         self._feat_in = feat_in
@@ -262,12 +262,12 @@ class ContextNetDecoderForCTC(TrainableNM):
         self._num_classes = num_classes + 1
 
         self.rnn = nn.LSTM(feat_in, hidden_size, bias=True, batch_first=True)
-        self.proj = nn.Linear(hidden_size, self._num_classes)
-        self.proj.apply(lambda x: init_weights(x, mode=init_mode))
+        self.clf = nn.Linear(hidden_size, self._num_classes)
+        self.clf.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
 
     def forward(self, encoder_output):
         encoder_output = encoder_output.transpose(1, 2)  # [B, T, D]
         output, states = self.rnn(encoder_output)
-        logits = self.proj(output)
+        logits = self.clf(output)
         return F.log_softmax(logits, dim=-1)

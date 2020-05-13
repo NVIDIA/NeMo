@@ -14,7 +14,12 @@ class SpecAugment(nn.Module):
     freq_masks - how many frequency segments should be cut
     time_masks - how many time segments should be cut
     freq_width - maximum number of frequencies to be cut in one segment
-    time_width - maximum number of time steps to be cut in one segment
+    time_width - maximum number of time steps to be cut in one segment.
+        Can be a positive integer or a float value in the range [0, 1].
+        If positive integer value, defines maximum number of time steps
+        to be cut in one segment.
+        If a float value, defines maximum percentage of timesteps that
+        are cut adaptively.
     """
 
     def __init__(
