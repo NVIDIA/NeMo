@@ -22,11 +22,11 @@ import torch
 
 def save(checkpoint: Dict[str, Any], filename: str) -> None:
     """
-        A proxy function that saves the checkpoint to a given file.
+    A proxy function that saves the checkpoint to a given file.
 
-        Args:
-            checkpoint: Checkpoint to be stored.
-            filename: Name of the file containing checkpoint.
+    Args:
+        checkpoint: Checkpoint to be stored.
+        filename: Name of the file containing checkpoint.
     """
     # Get the absolute path and save.
     abs_filename = expanduser(filename)
@@ -35,12 +35,12 @@ def save(checkpoint: Dict[str, Any], filename: str) -> None:
 
 def load(filename: str) -> Dict[str, Any]:
     """
-        A proxy function that loads checkpoint from a given file.
+    A proxy function that loads checkpoint from a given file.
 
-        Args:
-            filename: Name of the file containing checkpoint.
-        Returns:
-            Loaded checkpoint.
+    Args:
+        filename: Name of the file containing checkpoint.
+    Returns:
+        Loaded checkpoint.
     """
     # Get the absolute path and save.
     abs_filename = expanduser(filename)
@@ -50,22 +50,22 @@ def load(filename: str) -> Dict[str, Any]:
 
 def get_state_dict(model: torch.nn.Module) -> Dict[str, Any]:
     """
-        A proxy function that gets the state dictionary.
+    A proxy function that gets the state dictionary.
 
-        Args:
-            model: Torch model.
-        Returns:
-            State dictionary containing model weights.
+    Args:
+        model: Torch model.
+    Returns:
+        State dictionary containing model weights.
     """
     return model.state_dict()
 
 
 def set_state_dict(model: torch.nn.Module, state_dict: Dict[str, Any]) -> None:
     """
-        A proxy function that sets the state dictionary.
+    A proxy function that sets the state dictionary.
 
-        Args:
-            model: Torch model.
-            state_dict: State dictionary containing model weights.
+    Args:
+        model: Torch model.
+        state_dict: State dictionary containing model weights.
     """
     model.load_state_dict(state_dict)

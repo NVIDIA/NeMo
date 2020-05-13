@@ -20,7 +20,7 @@ _BACKEND = 'pytorch'
 
 def backend() -> str:
     """
-        Returns:
-            Name of the currently used backend.
+    Returns:
+        Name of the currently used backend.
     """
     return _BACKEND
