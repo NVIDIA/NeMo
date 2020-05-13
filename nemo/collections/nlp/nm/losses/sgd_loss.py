@@ -24,42 +24,35 @@ from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import STATUS_
 from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['SGDDialogueStateLoss']
+__all__ = ['SGDDialogueStateLossNM']
 
 
-class SGDDialogueStateLoss(LossNM):
+class SGDDialogueStateLossNM(LossNM):
     """
-    Neural module which implements Token Classification loss.
-
-    Args:
-        num_classes (int): number of classes in a classifier, e.g. size
-            of the vocabulary in language modeling objective
-        logits (float): output of the classifier
-        labels (long): ground truth labels
-        loss_mask (long): to differentiate from original tokens and paddings
+    Neural module which implements loss for SGD model.
     """
 
     @property
     @add_port_docs
     def input_ports(self):
         """Returns definitions of module input ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
-
-        labels:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-        loss_mask:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
+            logit_intent_status (float): Output of SGD model
+            intent_status_labels (int): Intent labels
+            logit_req_slot_status (float): Output of SGD model
+            requested_slot_status (float): Takes value 1 if the corresponding slot is requested, 0 otherwise
+            req_slot_mask (bool): Masks requested slots not used for the particular service
+            logit_cat_slot_status (float): Output of SGD model
+            categorical_slot_status (int): The status of each categorical slot in the service
+            cat_slot_status_mask (bool): Masks categorical slots not used for the particular service
+            logit_cat_slot_value (float): Output of SGD model
+            categorical_slot_values (int): The index of the correct value for each categorical slot
+            logit_noncat_slot_status (float): Output of SGD model
+            noncategorical_slot_status (int): The status of each noncategorical slot in the service
+            non_cat_slot_status_mask (bool): masks noncategorical slots not used for the particular service
+            logit_noncat_slot_start (float): Output of SGD model
+            logit_noncat_slot_end (float): Output of SGD model
+            noncategorical_slot_value_start (int): The index of the starting subword corresponding to the slot span for a non-categorical slot value
+            noncategorical_slot_value_end (int): The index of the ending (inclusive) subword corresponding to the slot span for a non-categorical slot value
         """
         return {
             "logit_intent_status": NeuralType(('B', 'T', 'C'), LogitsType()),
@@ -116,15 +109,6 @@ class SGDDialogueStateLoss(LossNM):
         noncategorical_slot_value_start,
         noncategorical_slot_value_end,
     ):
-        """
-        Obtain the loss of the model
-        """
-
-        """
-        Intents:
-            logit_intent_status Shape: (batch_size, max_num_intents + 1)
-            intent_status (labels) Shape: (batch_size, max_num_intents) - one-hot encoded
-        """
 
         # Intent loss
         intent_loss = self._cross_entropy(logit_intent_status, intent_status_labels)
@@ -200,5 +184,5 @@ class SGDDialogueStateLoss(LossNM):
             "span_end_loss": span_end_loss,
         }
 
-        total_loss = sum(losses.values()) / len(losses)
+        total_loss = sum(losses.values())
         return total_loss

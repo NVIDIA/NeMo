@@ -1,3 +1,20 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 from torch import nn
 
 from nemo.backends.pytorch.nm import TrainableNM
@@ -5,7 +22,7 @@ from nemo.collections.nlp.utils.transformer_utils import transformer_weights_ini
 from nemo.core import ChannelType, EmbeddedTextType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['Encoder']
+__all__ = ['EncoderNM']
 
 ACTIVATIONS_F = {
     "tanh": nn.Tanh,
@@ -13,19 +30,15 @@ ACTIVATIONS_F = {
 }
 
 
-class Encoder(TrainableNM):
+class EncoderNM(TrainableNM):
     """
-    Neural module which consists of MLP followed by softmax classifier for each
-    sequence in the batch.
+    Neural module which extracts the first token from the BERT representation of the utterance
+    followed by a fully connected layer.
 
     Args:
-        hidden_size (int): hidden size (d_model) of the Transformer
-        num_classes (int): number of classes in softmax classifier, e.g. number
-            of different sentiments
-        num_layers (int): number of layers in classifier MLP
-        activation (str): activation function applied in classifier MLP layers
-        log_softmax (bool): whether to apply log_softmax to MLP output
-        dropout (float): dropout ratio applied to MLP
+        hidden_size (int): hidden size of the BERT model
+        activation (str): activation function applied
+        dropout (float): dropout ratio
     """
 
     @property
@@ -33,6 +46,7 @@ class Encoder(TrainableNM):
     def input_ports(self):
         """
         Returns definitions of module input ports.
+        hidden_states (float): BERT representation of the utterance
         """
         return {"hidden_states": NeuralType(('B', 'T', 'C'), ChannelType())}
 
@@ -40,11 +54,8 @@ class Encoder(TrainableNM):
     @add_port_docs
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        logits:
-            0: AxisType(BatchTag)
-
-            1: AxisType(ChannelTag)
+        logits (float): First token of the BERT representation of the utterance followed by fc and dropout
+        hidden_states (float) : BERT representation of the utterance with applied dropout
         """
         return {
             "logits": NeuralType(('B', 'T'), EmbeddedTextType()),
