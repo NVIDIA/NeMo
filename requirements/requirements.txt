@@ -10,3 +10,4 @@ torchvision
 wget
 wrapt
 ruamel.yaml
+sklearn

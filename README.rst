@@ -24,8 +24,8 @@
 
 
 
-NVIDIA Neural Modules: NeMo
-===========================
+NVIDIA NeMo
+===========
 
 NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
@@ -162,14 +162,33 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
     python setup.py style --fix  # Tries to fix error in-place.
     python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
-**Unittests**
+** NeMo Test Suite**
 
-This command runs unittests:
+NeMo contains test suite divided into 5 subsets:
+ 1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
+ 2) ``integration``: tests checking the elements when integrated into subsystems
+ 3) ``system``: tests working at the highest integration level
+ 4) ``acceptance``: tests checking whether the developed product/model passes the user defined acceptance criteria
+ 5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
+
+The user can run  all the tests locally by simply executing:
 
 .. code-block:: bash
 
-    ./reinstall.sh
-    pytest tests
+    pytest
+
+In order to run a subset of tests one can use the ``-m`` argument followed by the subset name, e.g. for ``system`` subset:
+
+.. code-block:: bash
+
+    pytest -m system
+
+By default, all the tests will be executed on GPU. There is also an option to run the test suite on CPU
+by passing the ``--cpu`` command line argument, e.g.:
+
+.. code-block:: bash
+
+    pytest -m unit --cpu
 
 
 Citation
