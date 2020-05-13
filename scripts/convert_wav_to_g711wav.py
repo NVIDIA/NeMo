@@ -25,6 +25,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+
 def __convert_audio(in_path, out_path):
     """
     Helper function that's called per thread, converts wav to G.711 wav.
@@ -32,8 +33,9 @@ def __convert_audio(in_path, out_path):
         in_path: source wav file to convert
         out_path: destination for G.711 wav file
     """
-    cmd = ["sox", in_path, "-r", "8000", "-c", "1", "-e", "u-law",out_path]
+    cmd = ["sox", in_path, "-r", "8000", "-c", "1", "-e", "u-law", out_path]
     subprocess.run(cmd)
+
 
 def __process_set(data_dir, dst_root):
     """
@@ -64,15 +66,16 @@ def __process_set(data_dir, dst_root):
     tp.shutdown()
     pbar.close()
 
+
 def main():
     data_dir = args.data_dir
     dest_dir = args.dest_dir
 
     logging.info("\n\nConverting audio in {}", data_dir)
     __process_set(
-        os.path.join(data_dir, "*.wav",),
-        os.path.join(dest_dir),
+        os.path.join(data_dir, "*.wav",), os.path.join(dest_dir),
     )
+
 
 if __name__ == '__main__':
     main()
