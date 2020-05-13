@@ -10,6 +10,8 @@ Speech Recognition
    tutorial
    datasets
    models
+   8kHz_models
+
 
 
 
