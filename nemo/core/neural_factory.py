@@ -595,11 +595,7 @@ class NeuralModuleFactory(object):
             _out_example = output_example
 
         return self._trainer.deployment_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=_inexample,
-            output_example=_out_example,
+            module=module, output=output, d_format=d_format, input_example=_inexample, output_example=_out_example,
         )
 
     def infer(
