@@ -523,8 +523,11 @@ class NeuralModule(NeuralInterface):
 
     def _prepare_for_deployment(self) -> None:
         """Patch the module if required to prepare for deployment
+
+        Returns:
+            (Optional) input and output example tensors
         """
-        return
+        return None, None
 
     @property
     def operation_mode(self):

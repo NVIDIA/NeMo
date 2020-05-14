@@ -133,6 +133,9 @@ class JasperEncoder(TrainableNM):
                 m_count += 1
         logging.warning(f"Turned off {m_count} masked convolutions")
 
+        input_example = torch.randn(16, self.__feat_in, 256)
+        return input_example, None
+
     def __init__(
         self,
         jasper,
@@ -149,6 +152,8 @@ class JasperEncoder(TrainableNM):
 
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing
+
+        self.__feat_in = feat_in
 
         residual_panes = []
         encoder_layers = []
@@ -252,6 +257,10 @@ class JasperDecoderForCTC(TrainableNM):
 
     def forward(self, encoder_output):
         return F.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+
+    def _prepare_for_deployment(self):
+        input_example = torch.randn(34, self._feat_in, 1)
+        return input_example, None
 
 
 class JasperDecoderForClassification(TrainableNM):
