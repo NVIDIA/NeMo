@@ -18,7 +18,7 @@ from os.path import expanduser
 
 import torch
 from torchvision.datasets import MNIST
-from torchvision.transforms import Resize, ToTensor, Compose
+from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core.neural_types import AxisKind, AxisType, LabelsType, NeuralType, NormalizedValueType
