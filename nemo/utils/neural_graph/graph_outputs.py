@@ -163,7 +163,7 @@ class GraphOutputs(MutableMapping):
                 )  # last = port name
 
                 logging.debug(
-                    "Setting unigue name of the default output port `{}` produced in step {} by `{}` to `{}`".format(
+                    "Setting unique name of the default output port `{}` produced in step {} by `{}` to `{}`".format(
                         tensor.name, tensor.producer_step_number, tensor.producer_name, name
                     )
                 )
