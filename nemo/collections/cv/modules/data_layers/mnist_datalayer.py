@@ -17,7 +17,8 @@
 from os.path import expanduser
 
 import torch
-from torchvision import datasets, transforms
+from torchvision.datasets import MNIST
+from torchvision.transforms import Resize, ToTensor, Compose
 
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core.neural_types import AxisKind, AxisType, LabelsType, NeuralType, NormalizedValueType
@@ -26,7 +27,7 @@ from nemo.utils.decorators import add_port_docs
 __all__ = ['MNISTDataLayer']
 
 
-class MNISTDataLayer(DataLayerNM):
+class MNISTDataLayer(DataLayerNM, MNIST):
     """Wrapper around torchvision's MNIST dataset.
     """
 
@@ -40,26 +41,26 @@ class MNISTDataLayer(DataLayerNM):
             train: use train or test splits
             shuffle: shuffle data (True by default)
         """
-        # Call the base class constructor.
-        super().__init__()
+        # Call the base class constructor of DataLayer.
+        DataLayerNM.__init__(self)
 
-        self._batch_size = batch_size
-        self._train = train
-        self._shuffle = shuffle
+        # Create transformations: up-scale and transform to tensors.
+        mnist_transforms = Compose([Resize((32, 32)), ToTensor()])
 
         # Get absolute path.
         abs_data_folder = expanduser(data_folder)
 
-        # Up-scale and transform to tensors.
-        self._transforms = transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])
+        # Call the base class constructor of MNIST dataset.
+        MNIST.__init__(self, root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
 
-        self._dataset = datasets.MNIST(
-            root=abs_data_folder, train=self._train, download=True, transform=self._transforms
-        )
+        # Remember the params passed to DataLoader. :]
+        self._batch_size = batch_size
+        self._shuffle = shuffle
 
         # Class names.
         labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')
         word_to_ix = {labels[i]: i for i in range(10)}
+
         # Reverse mapping - for labels.
         self.ix_to_word = {value: key for (key, value) in word_to_ix.items()}
 
@@ -84,12 +85,9 @@ class MNISTDataLayer(DataLayerNM):
         }
 
     def __len__(self):
-        return len(self._dataset)
+        return len(self.data)
 
     @property
     def dataset(self):
-        return self._dataset
-
-    @property
-    def data_iterator(self):
-        return None
+        """ Return self - just to be "compatible" with the current NeMo train action. """
+        return self
