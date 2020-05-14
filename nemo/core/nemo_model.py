@@ -24,10 +24,9 @@ from abc import abstractmethod
 from os import path
 from typing import Iterable
 
-from .neural_factory import OperationMode
+from .neural_factory import DeploymentFormat, OperationMode
 from .neural_graph import NeuralGraph
 from .neural_modules import ModuleType, NeuralModule
-from .neural_factory import DeploymentFormat
 from nemo import logging
 
 __all__ = ['NeMoModel']
@@ -128,7 +127,7 @@ class NeMoModel(NeuralModule):
                     module._factory.deployment_export(
                         module=module,
                         output=path.join(tmp_folder, module_checkpoint),
-                        d_format=DeploymentFormat.TRTONNX
+                        d_format=DeploymentFormat.TRTONNX,
                     )
                 except Exception as ex:
                     print(ex)
