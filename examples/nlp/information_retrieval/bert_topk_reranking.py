@@ -86,10 +86,13 @@ batch_reshape = nemo_nlp.nm.trainables.BertBatchReshaper()
 encoder = nemo_nlp.nm.trainables.get_huggingface_model(
     pretrained_model_name=args.pretrained_model
 )
-device = encoder.bert.embeddings.word_embeddings.weight.get_device()
+
+model_name = args.pretrained_model.split("-")[0]
+
+device = getattr(encoder, model_name).embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
-encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-    (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
+getattr(encoder, model_name).embeddings.word_embeddings.weight.data = torch.cat(
+    (getattr(encoder, model_name).embeddings.word_embeddings.weight.data, zeros)
 )
 if args.freeze_encoder:
     encoder.freeze()
