@@ -587,14 +587,19 @@ class NeuralModuleFactory(object):
             logging.info(f"Exported to {output}")
             return
 
-        module._prepare_for_deployment()
+        _inexample, _out_example = module._prepare_for_deployment()
+
+        if input_example is not None:
+            _inexample = input_example
+        if output_example is not None:
+            _out_example = output_example
 
         return self._trainer.deployment_export(
             module=module,
             output=output,
             d_format=d_format,
-            input_example=input_example,
-            output_example=output_example,
+            input_example=_inexample,
+            output_example=_out_example,
         )
 
     def infer(

@@ -27,6 +27,7 @@ from typing import Iterable
 from .neural_factory import OperationMode
 from .neural_graph import NeuralGraph
 from .neural_modules import ModuleType, NeuralModule
+from .neural_factory import DeploymentFormat
 from nemo import logging
 
 __all__ = ['NeMoModel']
@@ -76,7 +77,7 @@ class NeMoModel(NeuralModule):
         else:
             raise NotImplemented("Generic from_pretrained from cloud is not implemented")
 
-    def export(self, output_file_name: str, output_folder: str = None) -> str:
+    def export(self, output_file_name: str, output_folder: str = None, optimize_for_deployment: bool = False) -> str:
         """
         Export NeMoModel to .nemo file. This file will contain:
             * weights of all NeuralModule instances inside the model
@@ -85,6 +86,8 @@ class NeMoModel(NeuralModule):
         Args:
             output_file_name: filename, something like nemomodel.nemo
             output_folder: folder where to save output_file_name. If None (default) current folder will be used.
+            optimize_for_deployment: will optimize for deployment by trying to export modules to .onnx format and
+                skipping training graph.
 
         Returns:
             None
@@ -108,18 +111,31 @@ class NeMoModel(NeuralModule):
             os.makedirs(tmp_folder)
         try:
             config_file_path = path.join(tmp_folder, self.__class__.__name__ + ".yaml")
+            self.export_to_config(config_file=config_file_path)
 
-            if self.train_graph is not None:
-                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_eval_graph.yaml")
+            if self.train_graph is not None and not optimize_for_deployment:
+                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_train_graph.yaml")
                 self.train_graph.export_to_config(config_file_path_graph)
 
             if self.eval_graph is not None:
-                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_train_graph.yaml")
+                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_eval_graph.yaml")
                 self.eval_graph.export_to_config(config_file_path_graph)
-            self.export_to_config(config_file=config_file_path)
+
             for module in self.modules:
-                module_checkpoint = module.__class__.__name__ + ".pt"
-                module.save_to(path.join(tmp_folder, module_checkpoint))
+                module_name = module.__class__.__name__
+                try:
+                    module_checkpoint = module_name + ".onnx"
+                    module._factory.deployment_export(
+                        module=module,
+                        output=path.join(tmp_folder, module_checkpoint),
+                        d_format=DeploymentFormat.TRTONNX
+                    )
+                except Exception as ex:
+                    print(ex)
+                    logging.warning(f"Did not convert {module_name} to .onnx")
+                    module_checkpoint = module_name + ".pt"
+                    module.save_to(path.join(tmp_folder, module_checkpoint))
+
             make_nemo_file_from_folder(resulting_file, tmp_folder)
             logging.info(f"Exported model {self} to {resulting_file}")
         except:
