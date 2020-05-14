@@ -136,6 +136,7 @@ class NeuralModule(NeuralInterface):
                 # If own class is not equal to the call context class.
                 continue
             # Ok, got the actual __init__() call!!
+            import pdb;pdb.set_trace()
             # Copy the keys.
             for key in init_keys:
                 # Found the variable - and it is still unset!

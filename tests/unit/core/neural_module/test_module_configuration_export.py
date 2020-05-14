@@ -36,7 +36,7 @@ class TestNeuralModuleExport:
         Mockup component class.
         """
 
-        def __init__(self, a, b, c, d):
+        def __init__(self, a, b, c, d = False):
             super().__init__()
 
     def setup_method(self, method):
@@ -57,7 +57,7 @@ class TestNeuralModuleExport:
         """
 
         # Set params: {"int": 123, "float": 12.4, "string": "ala ma kota", "bool": True}
-        params = {"a": 123, "b": 12.4, "c": "ala ma kota", "d": True}
+        params = {"a": 123, "b": 12.4, "c": "ala ma kota"}
         module = TestNeuralModuleExport.MockupSimpleModule(**params)
 
         # Generate filename in the temporary directory.
@@ -81,7 +81,7 @@ class TestNeuralModuleExport:
         assert int(exported_init_params["a"]) == 123
         assert float(exported_init_params["b"]) == 12.4
         assert exported_init_params["c"] == "ala ma kota"
-        assert bool(exported_init_params["d"]) == True
+        assert bool(exported_init_params["d"]) == False
 
     @pytest.mark.unit
     def test_nested_list_export(self, tmpdir):
