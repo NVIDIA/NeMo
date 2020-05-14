@@ -63,6 +63,7 @@ parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--num_negatives", default=5, type=int)
 parser.add_argument("--num_eval_candidates", default=100, type=int)
 parser.add_argument("--label_smoothing", default=0.0, type=float)
+parser.add_argument("--freeze_encoder", action="store_true")
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -81,32 +82,35 @@ vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
 batch_reshape = nemo_nlp.nm.trainables.BertBatchReshaper()
+model_name = args.pretrained_model.split("-")[0]
 
 # BERT encoders for query and passage encodings
 q_encoder = nemo_nlp.nm.trainables.get_huggingface_model(
     pretrained_model_name=args.pretrained_model)
-device = q_encoder.bert.embeddings.word_embeddings.weight.get_device()
+device = getattr(q_encoder, model_name).embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
-q_encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-    (q_encoder.bert.embeddings.word_embeddings.weight.data, zeros))
+getattr(q_encoder, model_name).embeddings.word_embeddings.weight.data = torch.cat(
+    (getattr(q_encoder, model_name).embeddings.word_embeddings.weight.data, zeros))
 q_encoder.__str__ = lambda: "QueryBERT"
+if args.freeze_encoder:
+    q_encoder.freeze()
 
-q_encoder.bert.embeddings.dropout.p = args.embedding_dropout
-for layer in q_encoder.bert.encoder.layer:
+getattr(q_encoder, model_name).embeddings.dropout.p = args.embedding_dropout
+for layer in getattr(q_encoder, model_name).encoder.layer:
     layer.attention.self.dropout.p = args.attn_score_dropout
     layer.attention.output.dropout.p = args.attn_layer_dropout
     layer.output.dropout.p = args.ffn_dropout
 
 p_encoder = nemo_nlp.nm.trainables.get_huggingface_model(
     pretrained_model_name=args.pretrained_model)
-device = p_encoder.bert.embeddings.word_embeddings.weight.get_device()
+device = getattr(p_encoder, model_name).embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
-p_encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-    (p_encoder.bert.embeddings.word_embeddings.weight.data, zeros))
+getattr(p_encoder, model_name).embeddings.word_embeddings.weight.data = torch.cat(
+    (getattr(p_encoder, model_name).embeddings.word_embeddings.weight.data, zeros))
 p_encoder.__str__ = lambda: "PassageBERT"
 
-p_encoder.bert.embeddings.dropout.p = args.embedding_dropout
-for layer in p_encoder.bert.encoder.layer:
+getattr(p_encoder, model_name).embeddings.dropout.p = args.embedding_dropout
+for layer in getattr(p_encoder, model_name).encoder.layer:
     layer.attention.self.dropout.p = args.attn_score_dropout
     layer.attention.output.dropout.p = args.attn_layer_dropout
     layer.output.dropout.p = args.ffn_dropout
