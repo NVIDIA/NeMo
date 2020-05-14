@@ -17,7 +17,6 @@ import copy
 import os
 from functools import partial
 
-import wandb
 from ruamel.yaml import YAML
 
 import nemo
