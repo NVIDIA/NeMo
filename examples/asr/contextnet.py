@@ -114,7 +114,7 @@ def create_all_dags(args, neural_factory):
         labels=vocab,
         batch_size=args.batch_size,
         num_workers=cpu_per_traindl,
-        **train_dl_params
+        **train_dl_params,
     )
 
     N = len(data_layer_train)
@@ -222,10 +222,13 @@ def create_all_dags(args, neural_factory):
 
     # Log training metrics to wandb
     if args.project is not None:
-        wand_callback = nemo.core.WandbCallback(train_tensors=[loss_t],
-                                                wandb_name=args.exp_name, wandb_project=args.project,
-                                                update_freq=args.update_freq,
-                                                args=args)
+        wand_callback = nemo.core.WandbCallback(
+            train_tensors=[loss_t],
+            wandb_name=args.exp_name,
+            wandb_project=args.project,
+            update_freq=args.update_freq,
+            args=args,
+        )
         callbacks.append(wand_callback)
 
     # assemble eval DAGs
@@ -298,7 +301,10 @@ def main():
         tensors_to_optimize=[train_loss],
         callbacks=callbacks,
         lr_policy=CosineAnnealing(
-            args.num_epochs * steps_per_epoch, warmup_steps=args.warmup_steps, warmup_ratio=args.warmup_ratio, min_lr=args.min_lr
+            args.num_epochs * steps_per_epoch,
+            warmup_steps=args.warmup_steps,
+            warmup_ratio=args.warmup_ratio,
+            min_lr=args.min_lr,
         ),
         optimizer=args.optimizer,
         optimization_params={
