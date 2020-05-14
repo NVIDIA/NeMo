@@ -106,9 +106,8 @@ class TestSpeakerRecognitonPytorch:
         )
         self.nf.random_seed = 42
         self.nf.train(
-            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 4, "lr": 0.002},
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 6, "lr": 0.002},
         )
-        self.nf.reset_trainer()
 
         # Assert that training loss went down
         assert loss_list[-1] < loss_list[0]

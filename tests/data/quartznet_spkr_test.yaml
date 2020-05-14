@@ -78,4 +78,4 @@ JasperEncoder:
 JasperDecoderForSpkrClass:
     feat_in: *enc_feat_out
     pool_mode: 'xvector'
-    emb_sizes: 128,128
+    emb_sizes: 64,32
