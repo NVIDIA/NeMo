@@ -76,7 +76,9 @@ class TestSpeakerRecognitonPytorch:
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_spkr_test.yaml"))
         ) as file:
             spkr_params = self.yaml.load(file)
-        dl = nemo_asr.AudioToSpeechLabelDataLayer(manifest_filepath=self.manifest_filepath, labels=None, batch_size=5,)
+        dl = nemo_asr.AudioToSpeechLabelDataLayer(
+            manifest_filepath=self.manifest_filepath, labels=None, batch_size=10,
+        )
         sample_rate = 16000
 
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(
