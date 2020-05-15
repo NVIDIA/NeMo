@@ -39,6 +39,9 @@ class TrainableNM(NeuralModule, nn.Module):
         nn.Module.__init__(self)  # For PyTorch API
         NeuralModule.__init__(self, name)  # For NeuralModule API
 
+        # Unfrozen by default.
+        self._frozen = False
+
         # Set module type.
         self._type = ModuleType.trainable
 
@@ -115,6 +118,8 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = False
+        # Freeze.
+        self._frozen = True
 
     @t.jit.ignore
     def unfreeze(self, weights=None):
@@ -126,6 +131,15 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = True
+        # Unfreeze.
+        self._frozen = False
+
+    @t.jit.ignore
+    def is_frozen(self) -> bool:
+        """ Returns:
+                True/False depending whether there are any frozen weights or not.
+        """
+        return self._frozen
 
     @property
     def num_weights(self):

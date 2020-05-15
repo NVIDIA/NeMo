@@ -881,7 +881,10 @@ class NeuralGraph(NeuralInterface):
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
         for key, module in self._modules.items():
-            desc += "    * `{}` ({})\n".format(key, type(module).__name__)
+            if module.type == ModuleType.trainable and module.is_frozen():
+                desc += "    * `{}` ({}) [FROZEN]\n".format(key, type(module).__name__)
+            else:
+                desc += "    * `{}` ({})\n".format(key, type(module).__name__)
 
         # 3. steps.
         desc += " * Steps ({}):\n".format(len(self._steps))
