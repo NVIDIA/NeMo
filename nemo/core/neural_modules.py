@@ -112,8 +112,6 @@ class NeuralModule(NeuralInterface):
         Returns:
             Dictionary containing parameters passed to init().
         """
-
-    def __extract_init_params(self):
         # Get names of arguments of the original module init method.
         to_set_params = getfullargspec(type(self).__init__).args
         to_set_params.remove("self")
