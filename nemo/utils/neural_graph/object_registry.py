@@ -137,7 +137,11 @@ class ObjectRegistry(WeakSet):
             Returns:
                 A summary of the objects on the list.
         """
-        summary = "Registry of {}s:\n".format(self._base_type_name)
+        # Line "decorator".
+        summary = "\n" + 113 * '=' + "\n"
+        summary += "Registry of {}s:\n".format(self._base_type_name)
         for obj in self:
             summary += " * {} ({})\n".format(obj.name, type(obj).__name__)
+        # Line "decorator".
+        summary += 113 * '='
         return summary
