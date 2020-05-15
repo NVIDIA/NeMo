@@ -1404,7 +1404,7 @@ class PtActions(Actions):
                 # Check for NaN/inf loss (across workers if applicable)
                 loss_nan_inf_checker = final_loss.clone()
                 if placement_gpu:
-                    dist.all_reduce(loss_nan_inf_checker)
+                    dist.all_reduce(loss_nan_inf_checker, torch.distributed.ReduceOp.MAX)
                 if torch.isnan(loss_nan_inf_checker).any() or torch.isinf(loss_nan_inf_checker).any():
                     if stop_on_nan_loss:
                         raise ValueError('Loss is NaN or inf - exiting')
