@@ -184,10 +184,10 @@ pipeline {
             sh 'rm -rf examples/nlp/token_classification/token_classification_output'
           }
         }
-        stage('Token Classification Training/Inference Test with Megatron') {
+        stage('MEgatron finetuning Token Classification Training/Inference Test') {
           steps {
-            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir megatron_output --pretrained_model_name megatron --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt --vocab-file /home/TestData/nlp/megatron_345m_uncased/vocab.txt --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls megatron_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --checkpoint_dir megatron_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_model_name megatron'
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir megatron_output --pretrained_model_name megatron-uncased --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt --vocab-file /home/TestData/nlp/megatron_345m_uncased/vocab.txt --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls megatron_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --checkpoint_dir megatron_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_model_name megatron-uncased'
             sh 'rm -rf examples/nlp/token_classification/megatron_output'
           }
         }
