@@ -17,7 +17,7 @@
 
 __all__ = [
     'Backend',
-    'ModelMode',
+    'OperationMode',
     'Optimization',
     'DeviceType',
     'Actions',
@@ -58,11 +58,12 @@ class Backend(Enum):
     NotSupported = 2
 
 
-class ModelMode(Enum):
-    """Training Mode or Evaluation/Inference"""
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
 
-    train = 0
-    eval = 1
+    training = 0
+    evaluation = 1
+    both = 2
 
 
 class Optimization(Enum):
@@ -564,7 +565,8 @@ class NeuralModuleFactory(object):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
@@ -582,6 +584,7 @@ class NeuralModuleFactory(object):
             self.reset_trainer()
         return self._trainer.train(
             tensors_to_optimize=tensors_to_optimize,
+            training_graph=training_graph,
             optimizer=optimizer,
             optimization_params=optimization_params,
             callbacks=callbacks,

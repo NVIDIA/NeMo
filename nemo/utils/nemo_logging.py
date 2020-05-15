@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
 from nemo.utils.env_var_parsing import get_envbool, get_envint
 from nemo.utils.formatters.base import BaseNeMoFormatter
-from nemo.utils.metaclasses import SingletonMetaClass
+from nemo.utils.metaclasses import Singleton
 
 __all__ = ["Logger", "LogMode"]
 
@@ -33,7 +33,7 @@ class LogMode(enum.IntEnum):
     ONCE = 1  # Log the message only once. The same message will not be logged again.
 
 
-class Logger(metaclass=SingletonMetaClass):
+class Logger(metaclass=Singleton):
 
     # Level 0
     NOTSET = _logging.NOTSET

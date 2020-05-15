@@ -76,7 +76,7 @@ class ModuleInitializationTestCase(TestCase):
         x_tg = NmTensor(
             producer=None,
             producer_args=None,
-            name=None,
+            output_port_name=None,
             ntype=NeuralType(elements_type=ChannelType(), axes=('B', 'D')),
         )
 

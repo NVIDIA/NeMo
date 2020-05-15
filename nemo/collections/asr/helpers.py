@@ -257,12 +257,12 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
 
     eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
     batch_sizes = global_vars['batchsize']
-    total_num_samples = torch.tensor(batch_sizes).sum().float()
+    total_num_samples = torch.tensor(batch_sizes).sum().double()
 
     topk_accs = []
     for k in top_k:
         correct_counts = torch.tensor(global_vars[f'CorrectCount@{k}'])
-        topk_acc = correct_counts.sum() / total_num_samples
+        topk_acc = correct_counts.sum().double() / total_num_samples
         topk_accs.append(topk_acc)
 
     if tag is None:
@@ -270,7 +270,7 @@ def process_classification_evaluation_epoch(global_vars: dict, eval_metric=None,
 
     logs = {f"Evaluation_Loss {tag}": eloss}
 
-    logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+    logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss:.3f}")
     for k, acc in zip(top_k, topk_accs):
         logging.info(f"==========>>>>>>Evaluation Accuracy Top@{k} {tag}: {acc * 100.:3.4f}")
         logs[f'Evaluation_Accuracy_Top@{k} {tag}'] = acc * 100.0

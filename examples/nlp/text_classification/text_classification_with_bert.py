@@ -57,11 +57,12 @@ parser.add_argument(
     "--do_lower_case",
     action='store_true',
     help="Whether to lower case the input text. True for uncased models, False for cased models. "
-    + "For tokenizer only applicable when tokenizer is build with vocab file",
+    + "For tokenizer only applicable when tokenizer is build with vocab file.",
 )
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
 parser.add_argument("--num_gpus", default=1, type=int)
+parser.add_argument("--num_output_layers", default=1, type=int)
 parser.add_argument("--num_epochs", default=10, type=int)
 parser.add_argument("--num_train_samples", default=-1, type=int)
 parser.add_argument("--num_eval_samples", default=-1, type=int)
@@ -76,15 +77,15 @@ parser.add_argument(
     "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
-parser.add_argument("--eval_file_prefix", default='test', type=str)
+parser.add_argument("--eval_file_prefix", default='dev', type=str)
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 parser.add_argument(
     "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
 )
-
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
+parser.add_argument('--eval_step_freq', default=100, type=int, help='Frequency of evaluation')
 parser.add_argument("--local_rank", default=None, type=int)
 
 args = parser.parse_args()
@@ -124,7 +125,11 @@ data_desc = TextClassificationDataDesc(data_dir=args.data_dir, modes=[args.train
 
 # Create sentence classification loss on top
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
-    hidden_size=hidden_size, num_classes=data_desc.num_labels, dropout=args.fc_dropout
+    hidden_size=hidden_size,
+    num_classes=data_desc.num_labels,
+    dropout=args.fc_dropout,
+    num_layers=args.num_output_layers,
+    log_softmax=False,
 )
 
 if args.bert_checkpoint:
@@ -142,7 +147,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_
     logging.info(f"Loading {mode} data...")
     data_file = f'{data_desc.data_dir}/{mode}.tsv'
     shuffle = args.shuffle_data if is_training else False
-
     data_layer = nemo_nlp.nm.data_layers.BertTextClassificationDataLayer(
         input_file=data_file,
         tokenizer=tokenizer,
@@ -151,7 +155,6 @@ def create_pipeline(num_samples=-1, batch_size=32, num_gpus=1, mode='train', is_
         shuffle=shuffle,
         batch_size=batch_size,
         use_cache=args.use_cache,
-        do_lower_case=args.do_lower_case,
     )
 
     ids, type_ids, input_mask, labels = data_layer()
@@ -208,7 +211,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_iter_callback=lambda x, y: eval_iter_callback(x, y, data_layer),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, f'{nf.work_dir}/graphs'),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=args.eval_step_freq,
 )
 
 # Create callback to save checkpoints

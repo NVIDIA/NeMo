@@ -21,7 +21,7 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, ModelMode, Optimization
+from nemo.core.neural_factory import Actions, OperationMode, Optimization
 from nemo.core.neural_types import *
 from nemo.utils.helpers import get_checkpoint_from_dir
 
@@ -153,6 +153,7 @@ class PtActions(Actions):
         while len(hooks_lst) > 0:
             # take nmtensor from the end of the list
             nmtensor = hooks_lst.pop()
+
             node = create_node(nmtensor.producer, nmtensor.producer_args)
             # Store nmtensor as an output of its producer
             # first make sure all keys are present per output port
@@ -391,7 +392,7 @@ class PtActions(Actions):
         return optimizer
 
     def __nm_graph_forward_pass(
-        self, call_chain, registered_tensors, mode=ModelMode.train, use_cache=False,
+        self, call_chain, registered_tensors, mode=OperationMode.training, use_cache=False,
     ):
         for ind in range(1, len(call_chain)):
             if use_cache:
@@ -418,16 +419,16 @@ class PtActions(Actions):
             #         else:
             #             pmodule.enable_allreduce()
 
-            if mode == ModelMode.train:
+            if mode == OperationMode.training:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.train()
-            elif mode == ModelMode.eval:
+            elif mode == OperationMode.evaluation:
                 # if module.is_trainable():
                 if isinstance(pmodule, nn.Module):
                     pmodule.eval()
             else:
-                raise ValueError("Unknown ModelMode")
+                raise ValueError("Unknown OperationMode")
             # prepare call signature for `module`
             call_set = {}
             for tensor_name, nmtensor in call_args.items():
@@ -525,16 +526,21 @@ class PtActions(Actions):
                 # )
 
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
-                    )
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=sampler,
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=False,
-                    )
+                    sampler = None
+                    if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
+                        sampler = torch.utils.data.distributed.DistributedSampler(
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
+                        )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': sampler,
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': False,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
 
@@ -543,13 +549,16 @@ class PtActions(Actions):
             else:  # Not distributed
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=None,  # not distributed sampler
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=dl_nm.shuffle,
-                    )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': None,  # not distributed sampler
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': dl_nm.shuffle,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
             # after this eval_dataloader is ready to be used
@@ -583,7 +592,7 @@ class PtActions(Actions):
                     t.unique_name: d for t, d in zip(call_chain[0][2].values(), tensors) if t is not None
                 }
                 self.__nm_graph_forward_pass(
-                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=ModelMode.eval,
+                    call_chain=call_chain, registered_tensors=registered_e_tensors, mode=OperationMode.evaluation,
                 )
 
                 if not is_distributed or self.global_rank == 0:
@@ -692,16 +701,21 @@ class PtActions(Actions):
                 #     )
                 # )
                 if dl_nm.dataset is not None:
-                    sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
-                    )
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=sampler,
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=False,
-                    )
+                    sampler = None
+                    if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
+                        sampler = torch.utils.data.distributed.DistributedSampler(
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
+                        )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': sampler,
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': False,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
                 eval_dataloader.sampler.set_epoch(0)
@@ -710,13 +724,16 @@ class PtActions(Actions):
                 # When caching, the DAG must cache all outputs from dataloader
                 if dl_nm.dataset is not None:
                     # Todo: remove local_parameters
-                    eval_dataloader = torch.utils.data.DataLoader(
-                        dataset=dl_nm.dataset,
-                        sampler=None,  # not distributed sampler
-                        num_workers=dl_nm.num_workers,
-                        batch_size=dl_nm.batch_size,
-                        shuffle=dl_nm.shuffle,
-                    )
+                    dataloader_params = {
+                        'dataset': dl_nm.dataset,
+                        'sampler': None,  # not distributed sampler
+                        'num_workers': dl_nm.num_workers,
+                        'batch_size': dl_nm.batch_size,
+                        'shuffle': dl_nm.shuffle,
+                    }
+                    if hasattr(dl_nm, 'collate_fn'):
+                        dataloader_params['collate_fn'] = dl_nm.collate_fn
+                    eval_dataloader = torch.utils.data.DataLoader(**dataloader_params)
                 else:
                     eval_dataloader = dl_nm.data_iterator
             # after this eval_dataloader is ready to be used
@@ -765,7 +782,7 @@ class PtActions(Actions):
                 self.__nm_graph_forward_pass(
                     call_chain=call_chain,
                     registered_tensors=registered_e_tensors,
-                    mode=ModelMode.eval,
+                    mode=OperationMode.evaluation,
                     use_cache=use_cache,
                 )
 
@@ -970,12 +987,6 @@ class PtActions(Actions):
         # Make a deep copy of init parameters.
         init_params_copy = copy.deepcopy(module._init_params)
 
-        # Remove NeMo-related things from the module
-        # We need to change __call__ method. Note that this will change the
-        # whole class, not just this object! Which is why we need to repair it
-        # in the finally block
-        type(module).__call__ = torch.nn.Module.__call__
-
         # Reset standard instance field - making the file (probably) lighter.
         module._init_params = None
         module._placement = None
@@ -984,6 +995,13 @@ class PtActions(Actions):
 
         module.eval()
         try:
+            # # Remove NeMo-related things from the module
+            # # We need to change __call__ method. Note that this will change the
+            # # whole class, not just this object! Which is why we need to repair it
+            # # in the finally block
+            __orig_call__ = type(module).__call__
+            type(module).__call__ = torch.nn.Module.__call__
+
             if d_format == DeploymentFormat.TORCHSCRIPT:
                 if input_example is None:
                     # Route 1 - via torch.jit.script
@@ -1035,15 +1053,7 @@ class PtActions(Actions):
         except Exception as e:  # nopep8
             logging.error(f'module export failed for {module} ' f'with exception {e}')
         finally:
-
-            def __old_call__(self, force_pt=False, *input, **kwargs):
-                pt_call = len(input) > 0 or force_pt
-                if pt_call:
-                    return nn.Module.__call__(self, *input, **kwargs)
-                else:
-                    return NeuralModule.__call__(self, **kwargs)
-
-            type(module).__call__ = __old_call__
+            type(module).__call__ = __orig_call__
 
     @staticmethod
     def deployment_export(module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None):
@@ -1086,7 +1096,8 @@ class PtActions(Actions):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
         callbacks: Optional[List[ActionCallback]] = None,
@@ -1099,6 +1110,18 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        # Analyse the arguments passed to train.
+        if tensors_to_optimize is not None and training_graph is not None:
+            raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
+        # if tensors_to_optimize is None and training_graph is None:
+        #    raise ValueError(
+        #        "One of the `tensors_to_optimize` or `training_graph` values must be passed to the train() function"
+        #    )
+        # Finally, unify.
+        if training_graph is not None:
+            # To keep the "compatibility with old NeMo": get output tensors.
+            tensors_to_optimize = training_graph.outputs.tensor_list
+
         if gradient_predivide:
             logging.error(
                 "gradient_predivide is currently disabled, and is under consideration for removal in future versions. "
@@ -1224,16 +1247,21 @@ class PtActions(Actions):
             #         "optimizers")
             logging.info("Doing distributed training")
             if t_dataset is not None:
-                train_sampler = torch.utils.data.distributed.DistributedSampler(
-                    dataset=t_dataset, shuffle=dataNM.shuffle
-                )
-                train_dataloader = torch.utils.data.DataLoader(
-                    dataset=t_dataset,
-                    sampler=train_sampler,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
-                    shuffle=False,
-                )
+                train_sampler = None
+                if not isinstance(t_dataset, torch.utils.data.IterableDataset):
+                    train_sampler = torch.utils.data.distributed.DistributedSampler(
+                        dataset=t_dataset, shuffle=dataNM.shuffle
+                    )
+                dataloader_params = {
+                    'dataset': t_dataset,
+                    'sampler': train_sampler,
+                    'num_workers': dataNM.num_workers,
+                    'batch_size': dataNM.batch_size,
+                    'shuffle': False,
+                }
+                if hasattr(dataNM, 'collate_fn'):
+                    dataloader_params['collate_fn'] = dataNM.collate_fn
+                train_dataloader = torch.utils.data.DataLoader(**dataloader_params)
             else:
                 train_dataloader = dataNM.data_iterator
                 if hasattr(train_dataloader, 'sampler'):
@@ -1306,13 +1334,17 @@ class PtActions(Actions):
         else:
             if t_dataset is not None:
                 train_sampler = None
-                train_dataloader = torch.utils.data.DataLoader(
-                    dataset=t_dataset,
-                    sampler=None,
-                    num_workers=dataNM.num_workers,
-                    batch_size=dataNM.batch_size,
-                    shuffle=dataNM.shuffle,
-                )
+                dataloader_params = {
+                    'dataset': t_dataset,
+                    'sampler': None,
+                    'num_workers': dataNM.num_workers,
+                    'batch_size': dataNM.batch_size,
+                    'shuffle': dataNM.shuffle,
+                }
+                if hasattr(dataNM, 'collate_fn'):
+                    dataloader_params['collate_fn'] = dataNM.collate_fn
+
+                train_dataloader = torch.utils.data.DataLoader(**dataloader_params)
             else:
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None

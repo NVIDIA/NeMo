@@ -20,9 +20,6 @@ import os
 import sys
 
 import torch
-
-sys.path.append('path_to/Megatron-LM')
-
 from megatron import get_args
 from megatron.initialize import initialize_megatron
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
@@ -33,8 +30,6 @@ from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
-
-
 
 __all__ = ['MegatronBERT']
 
