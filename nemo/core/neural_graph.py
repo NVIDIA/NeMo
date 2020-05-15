@@ -477,7 +477,7 @@ class NeuralGraph(NeuralInterface):
             YAML.dump(to_export, outfile)
 
         logging.info(
-            "Configuration of graph `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
+            "Configuration of graph `{}` ({}) exported to '{}'".format(self.name, type(self).__name__, abs_path_file)
         )
 
     def serialize(self) -> Dict[str, Any]:
@@ -874,9 +874,9 @@ class NeuralGraph(NeuralInterface):
             A nice, full graph summary.
         """
         # Line "decorator".
-        desc = "\n" + 120 * '=' + "\n"
+        desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
-        desc += "The `{}` Neural Graph:\n".format(self.name)
+        desc += "The `{}` Neural Graph [{}]:\n".format(self.name, self.operation_mode)
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
@@ -912,7 +912,7 @@ class NeuralGraph(NeuralInterface):
         for output in outputs["mappings"]:
             desc += "    * {}\n".format(output)
         # Line "decorator".
-        desc += 120 * '='
+        desc += 113 * '='
 
         # Return the result.
         return desc
@@ -1030,9 +1030,10 @@ class NeuralGraph(NeuralInterface):
             try:
                 # Get module.
                 module = self._modules[name]
-                # Restore module weights
-                set_state_dict(module, chkpt["modules"][name])
-                log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
+                if module.type == ModuleType.trainable:
+                    # Restore module weights
+                    set_state_dict(module, chkpt["modules"][name])
+                    log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
             except KeyError:
                 log_str += "  ! Module '{}' params not found in checkpoint\n".format(name)
                 warning = True

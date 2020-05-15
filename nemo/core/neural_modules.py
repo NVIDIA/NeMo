@@ -224,7 +224,7 @@ class NeuralModule(NeuralInterface):
             YAML.dump(to_export, outfile)
 
         logging.info(
-            "Configuration of module `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
+            "Configuration of module `{}` ({}) exported to '{}'".format(self.name, type(self).__name__, abs_path_file)
         )
 
     def serialize(self) -> Dict[str, Any]:
