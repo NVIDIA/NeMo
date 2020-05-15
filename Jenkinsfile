@@ -184,10 +184,10 @@ pipeline {
             sh 'rm -rf examples/nlp/token_classification/token_classification_output'
           }
         }
-        stage('MEgatron finetuning Token Classification Training/Inference Test') {
+        stage('Megatron finetuning Token Classification Training/Inference Test') {
           steps {
-            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir megatron_output --pretrained_model_name megatron-uncased --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt --vocab_file /home/TestData/nlp/megatron_345m_uncased/vocab.txt --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt'
-            sh 'cd examples/nlp/token_classification && DATE_F=$(ls megatron_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --checkpoint_dir megatron_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_model_name megatron-uncased --vocab_file /home/TestData/nlp/megatron_345m_uncased/vocab.txt'
+            sh 'cd examples/nlp/token_classification && CUDA_VISIBLE_DEVICES=0 python token_classification.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --batch_size 2 --num_epochs 1 --save_epoch_freq 1 --work_dir megatron_output --pretrained_model_name megatron-uncased --bert_checkpoint /home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt --vocab_file /home/TestData/nlp/megatron_345m_uncased/vocab.txt --bert_config /home/TestData/nlp/megatron_345m_uncased/345m_config.json'
+            sh 'cd examples/nlp/token_classification && DATE_F=$(ls megatron_output/) && CUDA_VISIBLE_DEVICES=0 python token_classification_infer.py --checkpoint_dir megatron_output/$DATE_F/checkpoints/ --labels_dict /home/TestData/nlp/token_classification_punctuation/label_ids.csv --pretrained_model_name megatron-uncased --vocab_file /home/TestData/nlp/megatron_345m_uncased/vocab.txt --bert_config /home/TestData/nlp/megatron_345m_uncased/345m_config.json'
             sh 'rm -rf examples/nlp/token_classification/megatron_output'
           }
         }
