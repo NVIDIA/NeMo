@@ -36,7 +36,7 @@ class TestNeuralModuleExport:
         Mockup component class.
         """
 
-        def __init__(self, a, b, c, d = False):
+        def __init__(self, a, b, c, d=False):
             super().__init__()
 
     def setup_method(self, method):
