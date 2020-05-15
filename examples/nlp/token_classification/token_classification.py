@@ -20,7 +20,6 @@ https://nvidia.github.io/NeMo/nlp/intro.html#named-entity-recognition
 """
 
 import argparse
-import json
 import os
 
 import nemo.collections.nlp as nemo_nlp
