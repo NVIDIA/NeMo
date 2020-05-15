@@ -6,21 +6,22 @@ More details could be found in `Megatron-LM github repo <https://github.com/NVID
 
 Most of the NLP downstream tasks currently support fine-tuning with Pretrained Megatron language model. 
 In order to use Megatron language model, follow the steps below:
+
 1. Download pretrained Megatron checkpoint as described `here <https://github.com/NVIDIA/Megatron-LM#downloading-checkpoints>`_
-2. Download configuration file. It determines model architecture: number of hidden layers, number of attention heads, etc
-3. Download vocabulary file used for model training
+2. Download `configuration file <https://drive.google.com/file/d/123zDhg38Aat3gIFfX-ptpCAIOsGgSqr2/view?usp=sharing>`_. It determines model architecture: number of hidden layers, number of attention heads, etc
+3. Download `vocabulary file <https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt>`_ used for model training
 
 .. note::
-    Megatron-LM has its own set of arguments, but training is done with Neural factory in Nemo, so all Megatron-LM training arguments
+    Megatron-LM has its own set of arguments, but training is done with Neural factory in NeMo, so all Megatron-LM training arguments
     are ignored. Please use downstream task training scripts for all NeMo supported arguments.
 
-To run Multi GPU training with Megatron-LM, run:
+To finetune SQuAD v1.1 with Megatron-LM, run:
 
 .. code-block:: bash
 
-    export NUM_GPUS=2
-    python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS examples/nlp/token_classification/token_classification.py --num_gpus $NUM_GPUS \
-    --data_dir path_to_data \
+    python question_answering_squad.py  \
+    --train_file PATH_TO_DATA_DIR/squad/v1.1/train-v1.1.json  \
+    --eval_file PATH_TO_DATA_DIR/squad/v1.1/dev-v1.1.json \
     --pretrained_model_name megatron-uncased \
     --bert_config PATH_TO_MEGATRON_CONFIG/config.json \
     --bert_checkpoint PATH_TO_CHECKPOINT/model.pt \
