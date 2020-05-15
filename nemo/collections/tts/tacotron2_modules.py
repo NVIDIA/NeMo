@@ -280,23 +280,23 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
     """
 
     def __init__(
-            self,
-            n_mel_channels: int,
-            n_frames_per_step: int = 1,
-            encoder_embedding_dim: int = 512,
-            gate_threshold: float = 0.5,
-            prenet_dim: int = 256,
-            max_decoder_steps: int = 1000,
-            decoder_rnn_dim: int = 1024,
-            p_decoder_dropout: float = 0.1,
-            p_attention_dropout: float = 0.1,
-            attention_rnn_dim: int = 1024,
-            attention_dim: int = 128,
-            attention_location_n_filters: int = 32,
-            attention_location_kernel_size: int = 31,
-            prenet_p_dropout: float = 0.5,
-            force: bool = False,
-        ):
+        self,
+        n_mel_channels: int,
+        n_frames_per_step: int = 1,
+        encoder_embedding_dim: int = 512,
+        gate_threshold: float = 0.5,
+        prenet_dim: int = 256,
+        max_decoder_steps: int = 1000,
+        decoder_rnn_dim: int = 1024,
+        p_decoder_dropout: float = 0.1,
+        p_attention_dropout: float = 0.1,
+        attention_rnn_dim: int = 1024,
+        attention_dim: int = 128,
+        attention_location_n_filters: int = 32,
+        attention_location_kernel_size: int = 31,
+        prenet_p_dropout: float = 0.5,
+        force: bool = False,
+    ):
         super().__init__(
             n_mel_channels=n_mel_channels,
             n_frames_per_step=n_frames_per_step,
@@ -312,7 +312,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             attention_location_n_filters=attention_location_n_filters,
             attention_location_kernel_size=attention_location_kernel_size,
             prenet_p_dropout=prenet_p_dropout,
-            force=force
+            force=force,
         )
 
     @property
