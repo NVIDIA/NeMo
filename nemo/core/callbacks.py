@@ -84,6 +84,7 @@ class TensorboardLogger(NeMoCallback):
                 #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
                 #                    f"Current state tensors include {state['tensors'].tensor_list()}")
 
+
 class WandBLogger(NeMoCallback):
     def __init__(self, step_freq=100, tensors_to_log=["loss"]):
         # Step_freq: how often logs are printed
@@ -103,6 +104,7 @@ class WandBLogger(NeMoCallback):
                 # except KeyError:
                 #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
                 #                    f"Current state tensors include {state['tensors'].tensor_list()}")
+
 
 class SimpleLossLogger(NeMoCallback):
     def __init__(self, step_freq=100, tensors_to_log=["loss"]):
@@ -442,7 +444,7 @@ class CheckpointCallback(NeMoCallback):
         self._force_load = force_load
 
     def __save_to(self, path, state):
-        if state.global_rank is not None and state.global_rank != 0:
+        if state["global_rank"] is not None and state["global_rank"] != 0:
             return
         if not os.path.isdir(path):
             logging.info(f"Creating {path} folder")
@@ -457,19 +459,19 @@ class CheckpointCallback(NeMoCallback):
                     )
                 unique_mod_names.add(str(module))
                 if self._step_freq > -1:
-                    filename = f"{module}-STEP-{state.step}.pt"
+                    filename = f"{module}-STEP-{state['step']}.pt"
                 else:
-                    filename = f"{module}-EPOCH-{state.epoch_num}.pt"
+                    filename = f"{module}-EPOCH-{state['epoch']}.pt"
                 module.save_to(os.path.join(path, filename))
 
         if self._step_freq > -1:
-            filename = f"trainer-STEP-{state.step}.pt"
-            state.save_state_to(f'{path}/{filename}')
-            self._saved_ckpts.append(f'-{state.step}.pt')
+            filename = f"trainer-STEP-{state['step']}.pt"
+            state.save_state_to(f"{path}/{filename}")
+            self._saved_ckpts.append(f"-{state['step']}.pt")
         else:
-            filename = f"trainer-EPOCH-{state.epoch_num}.pt"
-            state.save_state_to(f'{path}/{filename}')
-            self._saved_ckpts.append(f'-{state.epoch_num}.pt')
+            filename = f"trainer-EPOCH-{state['epoch']}.pt"
+            state.save_state_to(f"{path}/{filename}")
+            self._saved_ckpts.append(f"-{state['epoch']}.pt")
 
         if len(self._saved_ckpts) > self._ckpt2keep:
             for end in self._saved_ckpts[: -self._ckpt2keep]:
@@ -495,7 +497,7 @@ class CheckpointCallback(NeMoCallback):
                 module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, path)
 
                 for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
-                    mod.restore_from(checkpoint, state.local_rank)
+                    mod.restore_from(checkpoint, state["local_rank"])
             except (BaseException, ValueError) as e:
                 if self._force_load:
                     raise ValueError(
@@ -536,21 +538,21 @@ class CheckpointCallback(NeMoCallback):
         for name in unique_mod_names:
             logging.info(f"{name}")
         logging.info(f"Total model parameters: {num_parameters}")
-        self.__restore_from(path=self._load_from_folder)
+        self.__restore_from(self._load_from_folder, state)
 
     def on_step_end(self, state):
         step = state["step"]
         if self._step_freq > 0 and step % self._step_freq == 0 and step > 0:
-            self.__save_to(path=self._folder)
+            self.__save_to(self._folder, state)
 
     def on_train_end(self, state):
         if self._step_freq > 0 or self._epoch_freq > 0:
-            self.__save_to(path=self._folder)
+            self.__save_to(self._folder, state)
 
     def on_epoch_end(self, state):
         epoch = state["epoch"]
         if self._epoch_freq > 0 and epoch % self._epoch_freq == 0 and epoch > 0:
-            self.__save_to(path=self._folder)
+            self.__save_to(self._folder, state)
 
 
 class EvaluatorCallback(ActionCallback):
