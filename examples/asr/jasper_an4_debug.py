@@ -93,7 +93,7 @@ def create_dags(model_config_file, vocab, args, nf):
     predictions.rename("test")
     train_callback = nemo.core.SimpleLossLogger(tensors_to_log=["loss", "test"])
 
-    # checkpointer_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.checkpoint_save_freq)
+    checkpointer_callback = nemo.core.CheckpointCallback(folder=nf.checkpoint_dir, step_freq=args.checkpoint_save_freq)
 
     # eval_tensors = [loss_e, predictions_e, transcript_e, transcript_len_e]
     # eval_callback = nemo.core.EvaluatorCallback(
@@ -105,11 +105,12 @@ def create_dags(model_config_file, vocab, args, nf):
     #     eval_at_start=not args.do_not_eval_at_start,
     # )
     # callbacks = [train_callback, checkpointer_callback, eval_callback]
-    callbacks = [train_callback]
+    callbacks = [train_callback, checkpointer_callback]
 
     @nemo.core.callbacks.on_step_start
     def my_own_func(state):
-        print(state)
+        if state["step"] % 100 == 0:
+            print(state)
 
     callbacks.append(my_own_func)
 

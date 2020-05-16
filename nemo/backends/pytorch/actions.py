@@ -21,7 +21,7 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, OperationMode, Optimization, TrainingState, topological_sort_from_leaves
+from nemo.core.neural_factory import Actions, OperationMode, Optimization, topological_sort_from_leaves
 from nemo.core.neural_types import *
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
@@ -1145,8 +1145,40 @@ class PtActions(Actions):
                     else:  # For now, we can use the old callback function. In the future we should improve this
                         registered_tensors["loss"] = final_loss
 
-        def get_state(self):
-            return {"step": self.step, "tensors": self._training_state, "epoch_num":self.epoch_num, "optimizer": self.optimizers}
+        def get_state(action):
+            class StateWrapper(dict):
+                def restore_state_from(self, path):
+                    if os.path.isfile(path):
+                        # map_location could be cuda:<device_id> but cpu seems to be more
+                        # general since we are also saving step and epoch_num
+                        # load_state_dict should move the variables to the relevant device
+                        checkpoint = torch.load(path, map_location="cpu")
+                        self.step = checkpoint["step"]
+                        self.epoch_num = checkpoint["epoch_num"]
+                        if checkpoint["optimizer_state"]:
+                            for opt, opt_chkpt in zip(self["optimizers"], checkpoint["optimizer_state"]):
+                                opt.load_state_dict(opt_chkpt)
+                    else:
+                        raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
+
+                def save_state_to(self, path):
+                    state = {
+                        "step": self["step"],
+                        "epoch_num": self["epoch"],
+                        "optimizer_state": [opt.state_dict() for opt in self["optimizers"]],
+                    }
+                    torch.save(state, path)
+
+            return StateWrapper(
+                {
+                    "step": action.step,
+                    "tensors": action._training_state,
+                    "epoch": action.epoch_num,
+                    "local_rank": action.local_rank,
+                    "global_rank": action.global_rank,
+                    "optimizers": action.optimizers,
+                }
+            )
 
         self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
@@ -1181,9 +1213,9 @@ class PtActions(Actions):
 
         if tensors_to_optimize is None:
             # This is Evaluation Mode
-            self._init_callbacks(callbacks)
+            _init_callbacks(callbacks, self)
             # Do action start callbacks
-            self._perform_on_action_end(callbacks=callbacks)
+            _perform_on_action_end(callbacks, get_state(self))
             return
         # Check if tensors_to_optimize is just a list of NmTensors
         elif tensors_to_optimize is not None and (
@@ -1385,9 +1417,9 @@ class PtActions(Actions):
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None
 
-        self._init_callbacks(callbacks)
+        _init_callbacks(callbacks, self)
         # Do action start callbacks
-        self._perform_on_action_start(callbacks=callbacks)
+        _perform_on_action_start(callbacks, get_state(self))
 
         nan_or_inf = False
 
@@ -1400,7 +1432,7 @@ class PtActions(Actions):
                 break
 
             # Register epochs start with callbacks
-            self._perform_on_epoch_start(callbacks=callbacks)
+            _perform_on_epoch_start(callbacks, get_state(self))
 
             # iteration over batches in epoch
             batch_counter = 0
@@ -1413,7 +1445,7 @@ class PtActions(Actions):
                     curr_optimizer = training_loop[self.step % len(training_loop)][0]
                     curr_optimizer.zero_grad()
                     # Register iteration start with callbacks
-                    self._perform_on_step_start(callbacks=callbacks)
+                    _perform_on_step_start(callbacks, get_state(self))
 
                 # set learning rate policy
                 if lr_policy is not None:
@@ -1445,18 +1477,18 @@ class PtActions(Actions):
 
                 for t, d in zip(curr_call_chain[0][2].values(), tensors):
                     if t is not None:
-                        self.training_state.set_tensor(t, d)
+                        self._training_state.set_tensor(t, d)
                 disable_allreduce = batch_counter < (batches_per_step - 1)
                 self.__nm_graph_forward_pass(
-                    call_chain=curr_call_chain, registered_tensors=self.training_state.tensor_dict,
+                    call_chain=curr_call_chain, registered_tensors=self._training_state.tensor_dict,
                 )
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
                 for tensor in curr_tensors_to_optimize:
                     if (
-                        torch.isnan(self.training_state.tensor_dict[tensor.unique_name]).any()
-                        or torch.isinf(self.training_state.tensor_dict[tensor.unique_name]).any()
+                        torch.isnan(self._training_state.tensor_dict[tensor.unique_name]).any()
+                        or torch.isinf(self._training_state.tensor_dict[tensor.unique_name]).any()
                     ):
                         if (
                             (stop_on_nan_loss)
@@ -1472,7 +1504,7 @@ class PtActions(Actions):
                             )
                         else:
                             logging.warning('Loss is NaN or inf, continuing training')
-                    final_loss += self.training_state.tensor_dict[tensor.unique_name]
+                    final_loss += self._training_state.tensor_dict[tensor.unique_name]
 
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
@@ -1514,21 +1546,21 @@ class PtActions(Actions):
                     curr_optimizer.step()
                     batch_counter = 0
                     # Register iteration end with callbacks
-                    self._update_callbacks(
-                        callbacks=callbacks, registered_tensors=self.training_state.tensor_dict, final_loss=final_loss
+                    _update_callbacks(
+                        callbacks, registered_tensors=self._training_state.tensor_dict, final_loss=final_loss
                     )
-                    self._perform_on_step_end(callbacks=callbacks)
+                    _perform_on_step_end(callbacks, get_state(self))
                     self.step += 1
-                self.training_state.clear_dict()
+                self._training_state.clear_dict()
             # End of epoch for loop
             # Register epochs end with callbacks
-            self._perform_on_epoch_end(callbacks=callbacks)
+            _perform_on_epoch_end(callbacks, get_state(self))
             self.epoch_num += 1
 
         # Check again if we should stop on NaN/inf
         self._check_nan_or_inf(placement_gpu, nan_or_inf)
 
-        self._perform_on_action_end(callbacks=callbacks)
+        _perform_on_action_end(callbacks, get_state(self))
 
     def infer(
         self,
