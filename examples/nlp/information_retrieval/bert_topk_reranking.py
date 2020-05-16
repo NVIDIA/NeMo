@@ -140,7 +140,7 @@ def create_eval_pipeline(eval_dataset):
 
     eval_documents = f"{args.data_dir}/collection.{eval_dataset}.dev.small.tsv"
     eval_queries = f"{args.data_dir}/queries.dev.small.tsv"
-    eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.tiny.tsv"
+    eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.dev.small.tsv"
 
     eval_data_layer = ir_dl.BertInformationRetrievalDataLayerEval(
         tokenizer=tokenizer,
