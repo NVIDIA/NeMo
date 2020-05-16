@@ -29,8 +29,8 @@ __all__ = [
     'get_megatron_vocab_file',
     'get_megatron_checkpoint',
 ]
-print('TRANSFORMERS_CACHE:', TRANSFORMERS_CACHE)
-MEGATRON_CACHE = TRANSFORMERS_CACHE.parent.joinpath('megatron')
+
+MEGATRON_CACHE = os.path.join(os.path.dirname(TRANSFORMERS_CACHE), 'megatron')
 
 CONFIGS = {'345m': {"hidden-size": 1024, "num-attention-heads": 16, "num-layers": 24, "max-seq-length": 512}}
 

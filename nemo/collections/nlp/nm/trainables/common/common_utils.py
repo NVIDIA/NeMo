@@ -16,8 +16,6 @@
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
-import wget
-
 from nemo import logging
 from nemo.collections.nlp.nm.trainables.common.huggingface.huggingface_utils import *
 from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import MegatronBERT
