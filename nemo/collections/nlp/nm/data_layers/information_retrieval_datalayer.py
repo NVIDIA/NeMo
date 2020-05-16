@@ -18,20 +18,20 @@ import torch
 from torch.utils import data as pt_data
 
 import nemo
-from nemo.collections.nlp.data import BertInformationRetrievalDataset, BertInformationRetrievalDatasetEval, \
-    BertDensePassageRetrievalDataset, BertDensePassageRetrievalDatasetEval, BertDensePassageRetrievalDatasetInfer
+from nemo.collections.nlp.data import BertInformationRetrievalDatasetTrain, BertInformationRetrievalDatasetEval, \
+    BertDensePassageRetrievalDatasetInfer
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['BertInformationRetrievalDataLayer',
+__all__ = ['BertInformationRetrievalDataLayerTrain',
            'BertInformationRetrievalDataLayerEval',
-           'BertDensePassageRetrievalDataLayer',
+           'BertDensePassageRetrievalDataLayerTrain',
            'BertDensePassageRetrievalDataLayerEval',
            'BertDensePassageRetrievalDataLayerInfer']
 
 
-class BertInformationRetrievalDataLayer(TextDataLayer):
+class BertInformationRetrievalDataLayerTrain(TextDataLayer):
     """
     Data layer for information retrieval with pre-trained Bert.
 
@@ -67,21 +67,23 @@ class BertInformationRetrievalDataLayer(TextDataLayer):
     def __init__(
         self,
         tokenizer,
-        documents,
+        passages,
         queries,
-        triples,
+        query_to_passages,
         batch_size,
-        max_seq_length=256,
+        max_query_length=31,
+        max_passage_length=190,
         num_negatives=5,
         shuffle=True,
-        dataset_type=BertInformationRetrievalDataset,
+        dataset_type=BertInformationRetrievalDatasetTrain,
     ):
         dataset_params = {
             'tokenizer': tokenizer,
-            'documents': documents,
+            'passages': passages,
             'queries': queries,
-            'triples': triples,
-            'max_seq_length': max_seq_length,
+            'query_to_passages': query_to_passages,
+            'max_query_length': max_query_length,
+            'max_passage_length': max_passage_length,
             'num_negatives': num_negatives,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
@@ -118,33 +120,34 @@ class BertInformationRetrievalDataLayerEval(TextDataLayer):
             "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
-            "doc_rels": NeuralType(('B', 'T'), ChannelType()),
+            "query_id": NeuralType(('B', ), ChannelType()),
+            "passage_ids": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(
         self,
         tokenizer,
-        documents,
+        passages,
         queries,
-        qrels,
-        topk_list,
-        max_seq_length=256,
+        query_to_passages,
+        max_query_length=31,
+        max_passage_length=190,
         num_candidates=10,
         dataset_type=BertInformationRetrievalDatasetEval,
     ):
         dataset_params = {
             'tokenizer': tokenizer,
-            'documents': documents,
+            'passages': passages,
             'queries': queries,
-            'qrels': qrels,
-            'topk_list': topk_list,
-            'max_seq_length': max_seq_length,
+            'query_to_passages': query_to_passages,
+            'max_query_length': max_query_length,
+            'max_passage_length': max_passage_length,
             'num_candidates': num_candidates,
         }
         super().__init__(dataset_type, dataset_params, batch_size=1)
 
 
-class BertDensePassageRetrievalDataLayer(TextDataLayer):
+class BertDensePassageRetrievalDataLayerTrain(TextDataLayer):
     """
     Data layer for information retrieval with pre-trained Bert.
 
@@ -191,22 +194,23 @@ class BertDensePassageRetrievalDataLayer(TextDataLayer):
         tokenizer,
         passages,
         queries,
-        triples,
+        query_to_passages,
         batch_size,
-        max_query_length=32,
-        max_passage_length=192,
+        max_query_length=30,
+        max_passage_length=190,
         num_negatives=1,
         shuffle=True,
-        dataset_type=BertDensePassageRetrievalDataset,
+        dataset_type=BertInformationRetrievalDatasetTrain,
     ):
         dataset_params = {
             'tokenizer': tokenizer,
             'passages': passages,
             'queries': queries,
-            'triples': triples,
+            'query_to_passages': query_to_passages,
             'max_query_length': max_query_length,
             'max_passage_length': max_passage_length,
             'num_negatives': num_negatives,
+            'preprocess_fn': "preprocess_dpr",
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
 
@@ -237,7 +241,8 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
             "p_input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
             "p_input_mask": NeuralType(('B', 'B', 'T'), ChannelType()),
             "p_input_type_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
-            "psg_rels": NeuralType(('B', 'T'), ChannelType()),
+            "query_id": NeuralType(('B', ), ChannelType()),
+            "passage_ids": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(
@@ -245,22 +250,21 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
         tokenizer,
         passages,
         queries,
-        qrels,
-        topk_list,
-        max_query_length=32,
-        max_passage_length=192,
+        query_to_passages,
+        max_query_length=30,
+        max_passage_length=190,
         num_candidates=10,
-        dataset_type=BertDensePassageRetrievalDatasetEval,
+        dataset_type=BertInformationRetrievalDatasetEval,
     ):
         dataset_params = {
             'tokenizer': tokenizer,
             'passages': passages,
             'queries': queries,
-            'qrels': qrels,
-            'topk_list': topk_list,
+            'query_to_passages': query_to_passages,
             'max_query_length': max_query_length,
             'max_passage_length': max_passage_length,
             'num_candidates': num_candidates,
+            'preprocess_fn': "preprocess_dpr",
         }
         super().__init__(dataset_type, dataset_params, batch_size=1)
 
