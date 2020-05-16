@@ -53,9 +53,7 @@ parser.add_argument(
     type=str,
     help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
 )
-parser.add_argument(
-    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
-)
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
 parser.add_argument(
     "--do_lower_case",
     action='store_true',
@@ -68,16 +66,9 @@ args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch)
 
-if 'megatron' in args.pretrained_model_name:
-    if not (args.bert_config and args.vocab_file):
-        raise FileNotFoundError("Config file and vocabulary file should be provided for Megatron models.")
-    pretrained_bert_model = nemo_nlp.nm.trainables.MegatronBERT(
-        model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file
-    )
-else:
-    pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
-        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-    )
+pretrained_bert_model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name, config=args.bert_config, vocab=args.vocab_file
+)
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,

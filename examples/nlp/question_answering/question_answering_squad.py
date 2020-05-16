@@ -116,7 +116,7 @@ def parse_args():
         default='roberta-base',
         type=str,
         help='Name of the pre-trained model',
-        choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+        choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
     )
     parser.add_argument("--checkpoint_dir", default=None, type=str, help="Checkpoint directory for inference.")
     parser.add_argument(
@@ -140,9 +140,7 @@ def parse_args():
         help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
     )
     parser.add_argument("--optimizer", default="adam_w", type=str, help="Optimizer kind")
-    parser.add_argument(
-        "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
-    )
+    parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
     parser.add_argument("--lr", default=3e-5, type=float, help="The initial learning rate.")
     parser.add_argument("--lr_warmup_proportion", default=0.0, type=float)
@@ -341,18 +339,12 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    if 'megatron' in args.pretrained_model_name:
-        if not (args.bert_config and args.bert_checkpoint and args.vocab_file):
-            raise FileNotFoundError(
-                "Config file, checkpoint and vocabulary file should be provided for Megatron models."
-            )
-        model = nemo_nlp.nm.trainables.MegatronBERT(
-            model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file
-        )
-    else:
-        model = nemo_nlp.nm.trainables.get_huggingface_model(
-            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-        )
+    model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+        pretrained_model_name=args.pretrained_model_name,
+        config=args.bert_config,
+        vocab=args.vocab_file,
+        checkpoint=args.bert_checkpoint,
+    )
 
     tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
         tokenizer_name=args.tokenizer,
@@ -368,8 +360,6 @@ if __name__ == "__main__":
         hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
     )
     squad_loss = nemo_nlp.nm.losses.SpanningLoss()
-    if args.bert_checkpoint is not None:
-        model.restore_from(args.bert_checkpoint)
 
     if args.head_checkpoint is not None:
         qa_head.restore_from(args.head_checkpoint)

@@ -67,8 +67,11 @@ class MegatronBERT(TrainableNM):
     def __init__(
         self,
         model_name,
-        config_file,
         vocab_file,
+        hidden_size=1024,
+        num_attention_heads=16,
+        num_layers=24,
+        max_seq_length=512,
         tokenizer_type='BertWordPieceLowerCase',
         init_method_std=0.02,
         num_tokentypes=2,
@@ -79,16 +82,11 @@ class MegatronBERT(TrainableNM):
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
-        if not os.path.exists(config_file):
-            raise ValueError(f'Config file not found at {config_file}')
-        with open(config_file) as json_file:
-            config = json.load(json_file)
-
         megatron_args = {
-            "num_layers": config['num-layers'],
-            "hidden_size": config['hidden-size'],
-            "num_attention_heads": config['num-attention-heads'],
-            "max_position_embeddings": config['max-seq-length'],
+            "num_layers": num_layers,
+            "hidden_size": hidden_size,
+            "num_attention_heads": num_attention_heads,
+            "max_position_embeddings": max_seq_length,
             "tokenizer_type": tokenizer_type,
             "vocab_file": vocab_file,
         }
@@ -101,7 +99,7 @@ class MegatronBERT(TrainableNM):
             num_tokentypes=num_tokentypes,
             add_pooler=False,
             init_method=init_method,
-            scaled_init_method=scaled_init_method_normal(init_method_std, config['num-layers']),
+            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
         )
 
         self.language_model.to(self._device)

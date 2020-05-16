@@ -33,7 +33,7 @@ parser.add_argument(
     default="bert-base-uncased",
     type=str,
     help="Name of the pre-trained model",
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
@@ -92,20 +92,9 @@ nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, log_dir=No
 
 labels_dict = get_vocab(args.labels_dict)
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.huggingface.BERT.list_pretrained_models()
-"""
-if 'megatron' in args.pretrained_model_name:
-    if not (args.bert_config and args.vocab_file):
-        raise FileNotFoundError("Config file and vocabulary file should be provided for Megatron models.")
-    model = nemo_nlp.nm.trainables.MegatronBERT(
-        model_name=args.pretrained_model_name, config_file=args.bert_config, vocab_file=args.vocab_file
-    )
-else:
-    model = nemo_nlp.nm.trainables.get_huggingface_model(
-        bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-    )
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name, config=args.bert_config, vocab=args.vocab_file
+)
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,

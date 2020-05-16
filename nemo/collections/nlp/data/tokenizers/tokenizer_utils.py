@@ -18,6 +18,10 @@ import os
 from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 import nemo
+from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import (
+    get_megatron_vocab_file,
+    is_lower_cased_megatron,
+)
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 
@@ -81,11 +85,8 @@ def get_tokenizer(
     do_lower_case (bool): (whether to apply lower cased) - only applicable when tokenizer is build with vocab file
     '''
     if 'megatron' in pretrained_model_name:
-        # expected megatron model names: 'megatron-cased' and 'megatron-uncased'
-        lower_case = True if 'uncased' in pretrained_model_name else False
-        if lower_case != do_lower_case:
-            logging.info('Setting do_lower_case flag to %s', lower_case)
-            do_lower_case = lower_case
+        do_lower_case = is_lower_cased_megatron(pretrained_model_name)
+        vocab_file = get_megatron_vocab_file(pretrained_model_name)
         return nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(
             vocab_file=vocab_file, do_lower_case=do_lower_case
         )
