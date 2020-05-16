@@ -5,6 +5,7 @@ sentencepiece
 torchtext
 transformers
 unidecode
+cython
 youtokentome
 numpy
 tqdm
