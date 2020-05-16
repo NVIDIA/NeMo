@@ -50,6 +50,45 @@ _float_2_half_req = {
 }
 
 
+class TrainingState:
+    def __init__(self, action):
+        tensor_naming_registery = AppState().tensor_names
+        self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
+        self._action = action
+
+    def tensor_list(self):
+        return self.tensor_dict.keys()
+
+    def clear_dict(self):
+        for name in self.tensor_dict:
+            self.tensor_dict[name] = None
+
+    def set_tensor(self, tensor, value):
+        self.tensor_dict[tensor.unique_name] = value
+
+    def check_tensor_cached(self, unique_name):
+        if self.tensor_dict[unique_name] is None:
+            return False
+        return True
+
+    def get_tensor(self, name):
+        unique_name = AppState().tensor_names[name]
+        return self.tensor_dict[unique_name]
+
+    def get_and_compute_tensor(self, name):
+        unique_name = AppState().tensor_names[name]
+        tensor_value = self.tensor_dict[unique_name]
+        if tensor_value is None:
+            nmtensor = AppState().tensor_names._nmtensor_uniname_dict[unique_name]
+            callchain = topological_sort_from_leaves([nmtensor], cached_training_state=self)
+            # print(callchain)
+            callchain.insert(0, ())
+            self._action.nm_graph_forward_pass(callchain, self.tensor_dict)
+            # print(self.tensor_dict[unique_name])
+            tensor_value = self.tensor_dict[unique_name]
+        return tensor_value
+
+
 class PtActions(Actions):
     def __init__(
         self, local_rank=None, global_rank=None, tb_writer=None, optimization_level=Optimization.mxprO0,
@@ -993,6 +1032,122 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        def _perform_on_step_start(callbacks, state):
+            # TODO: Most of these checks can be relaxed since we enforce callbacks
+            # to be a list of ActionCallback objects
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_iteration_start()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_step_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_step_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_iteration_end()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_step_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_action_start(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_action_start()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_train_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_action_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_action_end()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_train_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_epoch_start(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_epoch_start()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_epoch_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_epoch_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_epoch_end()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_epoch_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_batch_start(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        continue
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_epoch_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_batch_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        continue
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_epoch_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _init_callbacks(callbacks, action):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.action = action
+
+        def _update_callbacks(callbacks=None, registered_tensors=None, final_loss=None):
+            # if self.local_rank is None or self.local_rank == 0:
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback._registered_tensors = registered_tensors
+                    else:  # For now, we can use the old callback function. In the future we should improve this
+                        registered_tensors["loss"] = final_loss
+
+        def get_state(self):
+            return {"step": self.step, "tensors": self._training_state, "epoch_num":self.epoch_num, "optimizer": self.optimizers}
+
         self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
         if tensors_to_optimize is not None and training_graph is not None:

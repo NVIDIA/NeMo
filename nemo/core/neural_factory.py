@@ -192,45 +192,6 @@ class DeviceType(Enum):
     AllGpu = 3
 
 
-class TrainingState:
-    def __init__(self, action):
-        tensor_naming_registery = AppState().tensor_names
-        self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
-        self._action = action
-
-    def tensor_list(self):
-        return self.tensor_dict.keys()
-
-    def clear_dict(self):
-        for name in self.tensor_dict:
-            self.tensor_dict[name] = None
-
-    def set_tensor(self, tensor, value):
-        self.tensor_dict[tensor.unique_name] = value
-
-    def check_tensor_cached(self, unique_name):
-        if self.tensor_dict[unique_name] is None:
-            return False
-        return True
-
-    def get_tensor(self, name):
-        unique_name = AppState().tensor_names[name]
-        return self.tensor_dict[unique_name]
-
-    def get_and_compute_tensor(self, name):
-        unique_name = AppState().tensor_names[name]
-        tensor_value = self.tensor_dict[unique_name]
-        if tensor_value is None:
-            nmtensor = AppState().tensor_names._nmtensor_uniname_dict[unique_name]
-            callchain = topological_sort_from_leaves([nmtensor], cached_training_state=self)
-            # print(callchain)
-            callchain.insert(0, ())
-            self._action.nm_graph_forward_pass(callchain, self.tensor_dict)
-            # print(self.tensor_dict[unique_name])
-            tensor_value = self.tensor_dict[unique_name]
-        return tensor_value
-
-
 class Actions(ABC):
     """Basic actions allowed on graphs of Neural Modules"""
 
@@ -238,17 +199,6 @@ class Actions(ABC):
         self._local_rank = local_rank
         self._global_rank = global_rank
         self._optim_level = optimization_level
-        self.step = None
-        self.epoch_num = None
-        self._training_state = None
-
-    @property
-    def state(self):
-        return {"step": self.step, "tensors": self.training_state}
-
-    @property
-    def training_state(self):
-        return self._training_state
 
     @property
     def local_rank(self):
@@ -312,29 +262,29 @@ class Actions(ABC):
         """
         pass
 
-    @abstractmethod
-    def save_state_to(self, path: str):
-        """
-        Saves current state such as step, epoch and optimizer parameters
-        Args:
-          path:
+    # @abstractmethod
+    # def save_state_to(self, path: str):
+    #     """
+    #     Saves current state such as step, epoch and optimizer parameters
+    #     Args:
+    #       path:
 
-        Returns:
+    #     Returns:
 
-        """
-        pass
+    #     """
+    #     pass
 
-    @abstractmethod
-    def restore_state_from(self, path: str):
-        """
-        Restores state such as step, epoch and optimizer parameters
-        Args:
-          path:
+    # @abstractmethod
+    # def restore_state_from(self, path: str):
+    #     """
+    #     Restores state such as step, epoch and optimizer parameters
+    #     Args:
+    #       path:
 
-        Returns:
+    #     Returns:
 
-        """
-        pass
+    #     """
+    #     pass
 
     @abstractmethod
     def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
@@ -352,120 +302,120 @@ class Actions(ABC):
         """
         pass
 
-    def _perform_on_step_start(self, callbacks):
-        # TODO: Most of these checks can be relaxed since we enforce callbacks
-        # to be a list of ActionCallback objects
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.on_iteration_start()
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_step_start(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_step_start(self, callbacks):
+    #     # TODO: Most of these checks can be relaxed since we enforce callbacks
+    #     # to be a list of ActionCallback objects
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.on_iteration_start()
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_step_start(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_step_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.on_iteration_end()
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_step_end(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_step_end(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.on_iteration_end()
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_step_end(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_action_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.on_action_start()
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_train_start(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_action_start(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.on_action_start()
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_train_start(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_action_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.on_action_end()
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_train_end(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_action_end(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.on_action_end()
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_train_end(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_epoch_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.on_epoch_start()
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_epoch_start(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_epoch_start(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.on_epoch_start()
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_epoch_start(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_epoch_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.on_epoch_end()
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_epoch_end(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_epoch_end(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.on_epoch_end()
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_epoch_end(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_batch_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    continue
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_epoch_start(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_batch_start(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 continue
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_epoch_start(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _perform_on_batch_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    continue
-                elif isinstance(callback, NeMoCallback):
-                    callback.on_epoch_end(self.state)
-                else:
-                    raise ValueError(
-                        "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
-                    )
+    # def _perform_on_batch_end(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 continue
+    #             elif isinstance(callback, NeMoCallback):
+    #                 callback.on_epoch_end(self.state)
+    #             else:
+    #                 raise ValueError(
+    #                     "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+    #                 )
 
-    def _init_callbacks(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback.action = self
+    # def _init_callbacks(self, callbacks):
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback.action = self
 
-    def _update_callbacks(
-        self, callbacks=None, registered_tensors=None, final_loss=None,
-    ):
-        # if self.local_rank is None or self.local_rank == 0:
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                if isinstance(callback, ActionCallback):
-                    callback._registered_tensors = registered_tensors
-                else:  # For now, we can use the old callback function. In the future we should improve this
-                    self.training_state.tensor_dict["loss"] = final_loss
+    # def _update_callbacks(
+    #     self, callbacks=None, registered_tensors=None, final_loss=None,
+    # ):
+    #     # if self.local_rank is None or self.local_rank == 0:
+    #     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+    #         for callback in callbacks:
+    #             if isinstance(callback, ActionCallback):
+    #                 callback._registered_tensors = registered_tensors
+    #             else:  # For now, we can use the old callback function. In the future we should improve this
+    #                 self.training_state.tensor_dict["loss"] = final_loss
 
 
 def _str_to_opt_level(opt_str: str) -> Optimization:

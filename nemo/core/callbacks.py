@@ -26,6 +26,7 @@ from collections import namedtuple
 
 import nemo
 from nemo.utils import get_checkpoint_from_dir
+from nemo.utils.app_state import AppState
 
 try:
     import wandb
@@ -62,6 +63,46 @@ class NeMoCallback(ABC):
     def on_train_end(self, state):
         pass
 
+
+class TensorboardLogger(NeMoCallback):
+    def __init__(self, step_freq=100, tensors_to_log=["loss"]):
+        # Step_freq: how often logs are printed
+        self.step_freq = step_freq
+        self.tensors_to_log = tensors_to_log
+
+    # def on_optimizer_step_stop(self, state, tensors_to_log=[“loss”]):
+    #     #tensors_to_log: List of keys into state that will be logged
+
+    def on_step_end(self, state):
+        if state["step"] % self.step_freq == 0:
+            for tensor_key in self.tensors_to_log:
+                tensor = state["tensors"].get_tensor(tensor_key)
+                if tensor is None:
+                    tensor = state["tensors"].get_and_compute_tensor(tensor_key)
+                logging.info("%s: %s", tensor_key, tensor)
+                # except KeyError:
+                #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
+                #                    f"Current state tensors include {state['tensors'].tensor_list()}")
+
+class WandBLogger(NeMoCallback):
+    def __init__(self, step_freq=100, tensors_to_log=["loss"]):
+        # Step_freq: how often logs are printed
+        self.step_freq = step_freq
+        self.tensors_to_log = tensors_to_log
+
+    # def on_optimizer_step_stop(self, state, tensors_to_log=[“loss”]):
+    #     #tensors_to_log: List of keys into state that will be logged
+
+    def on_step_end(self, state):
+        if state["step"] % self.step_freq == 0:
+            for tensor_key in self.tensors_to_log:
+                tensor = state["tensors"].get_tensor(tensor_key)
+                if tensor is None:
+                    tensor = state["tensors"].get_and_compute_tensor(tensor_key)
+                logging.info("%s: %s", tensor_key, tensor)
+                # except KeyError:
+                #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
+                #                    f"Current state tensors include {state['tensors'].tensor_list()}")
 
 class SimpleLossLogger(NeMoCallback):
     def __init__(self, step_freq=100, tensors_to_log=["loss"]):
@@ -374,7 +415,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                 logging.info(f"Step time: {run_time} seconds")
 
 
-class CheckpointCallback(ActionCallback):
+class CheckpointCallback(NeMoCallback):
     """
     For callback documentation: please see
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
@@ -400,14 +441,14 @@ class CheckpointCallback(ActionCallback):
         # If True, run will fail if we cannot load module weights
         self._force_load = force_load
 
-    def __save_to(self, path):
-        if self.global_rank is not None and self.global_rank != 0:
+    def __save_to(self, path, state):
+        if state.global_rank is not None and state.global_rank != 0:
             return
         if not os.path.isdir(path):
             logging.info(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)
         unique_mod_names = set()
-        for module in self.action.modules:
+        for module in AppState().modules:
             if module.num_weights > 0:
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
@@ -416,19 +457,19 @@ class CheckpointCallback(ActionCallback):
                     )
                 unique_mod_names.add(str(module))
                 if self._step_freq > -1:
-                    filename = f"{module}-STEP-{self.step}.pt"
+                    filename = f"{module}-STEP-{state.step}.pt"
                 else:
-                    filename = f"{module}-EPOCH-{self.epoch_num}.pt"
+                    filename = f"{module}-EPOCH-{state.epoch_num}.pt"
                 module.save_to(os.path.join(path, filename))
 
         if self._step_freq > -1:
-            filename = f"trainer-STEP-{self.step}.pt"
-            self.action.save_state_to(f'{path}/{filename}')
-            self._saved_ckpts.append(f'-{self.step}.pt')
+            filename = f"trainer-STEP-{state.step}.pt"
+            state.save_state_to(f'{path}/{filename}')
+            self._saved_ckpts.append(f'-{state.step}.pt')
         else:
-            filename = f"trainer-EPOCH-{self.epoch_num}.pt"
-            self.action.save_state_to(f'{path}/{filename}')
-            self._saved_ckpts.append(f'-{self.epoch_num}.pt')
+            filename = f"trainer-EPOCH-{state.epoch_num}.pt"
+            state.save_state_to(f'{path}/{filename}')
+            self._saved_ckpts.append(f'-{state.epoch_num}.pt')
 
         if len(self._saved_ckpts) > self._ckpt2keep:
             for end in self._saved_ckpts[: -self._ckpt2keep]:
@@ -437,7 +478,7 @@ class CheckpointCallback(ActionCallback):
             self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep :]
         logging.info(f'Saved checkpoint: {path}/{filename}')
 
-    def __restore_from(self, path):
+    def __restore_from(self, path, state):
         if not os.path.isdir(path):
             if self._force_load:
                 raise ValueError("force_load was set to True for checkpoint callback but a checkpoint was not found.")
@@ -446,7 +487,7 @@ class CheckpointCallback(ActionCallback):
             logging.info(f"Found checkpoint folder {path}. Will attempt to restore checkpoints from it.")
             modules_to_restore = []
             modules_to_restore_name = []
-            for module in self.action.modules:
+            for module in AppState().modules:
                 if module.num_weights > 0:
                     modules_to_restore.append(module)
                     modules_to_restore_name.append(str(module))
@@ -454,7 +495,7 @@ class CheckpointCallback(ActionCallback):
                 module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, path)
 
                 for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
-                    mod.restore_from(checkpoint, self.local_rank)
+                    mod.restore_from(checkpoint, state.local_rank)
             except (BaseException, ValueError) as e:
                 if self._force_load:
                     raise ValueError(
@@ -469,8 +510,8 @@ class CheckpointCallback(ActionCallback):
 
             try:
                 trainer_checkpoints = get_checkpoint_from_dir(["trainer"], path)
-                for tr, checkpoint in zip([self.action], trainer_checkpoints):
-                    tr.restore_state_from(checkpoint)
+                state.restore_state_from(checkpoint)
+                # for tr, checkpoint in zip([self.action], trainer_checkpoints):
             except (BaseException, ValueError) as e:
                 logging.warning(e)
                 logging.warning(
@@ -479,10 +520,10 @@ class CheckpointCallback(ActionCallback):
                 )
                 return
 
-    def on_action_start(self):
+    def on_train_start(self, state):
         num_parameters = 0
         unique_mod_names = set()
-        for module in self.action.modules:
+        for module in AppState().modules:
             if module.num_weights > 0:
                 if str(module) in unique_mod_names:
                     raise NotImplementedError(
@@ -491,29 +532,25 @@ class CheckpointCallback(ActionCallback):
                     )
                 unique_mod_names.add(str(module))
                 num_parameters += module.num_weights
-        logging.info(f"Found {len(unique_mod_names)} modules with " f"weights:")
+        logging.info(f"Found {len(unique_mod_names)} modules with weights:")
         for name in unique_mod_names:
             logging.info(f"{name}")
         logging.info(f"Total model parameters: {num_parameters}")
         self.__restore_from(path=self._load_from_folder)
 
-    def on_iteration_end(self):
-        step = self.step
+    def on_step_end(self, state):
+        step = state["step"]
         if self._step_freq > 0 and step % self._step_freq == 0 and step > 0:
             self.__save_to(path=self._folder)
 
-    def on_action_end(self):
+    def on_train_end(self, state):
         if self._step_freq > 0 or self._epoch_freq > 0:
             self.__save_to(path=self._folder)
 
-    def on_epoch_start(self):
-        self._last_epoch_start = time.time()
-
-    def on_epoch_end(self):
-        if self._epoch_freq > 0:
-            if self.global_rank is None or self.global_rank == 0:
-                if (self.epoch_num + 1) % self._epoch_freq == 0:
-                    self.__save_to(path=self._folder)
+    def on_epoch_end(self, state):
+        epoch = state["epoch"]
+        if self._epoch_freq > 0 and epoch % self._epoch_freq == 0 and epoch > 0:
+            self.__save_to(path=self._folder)
 
 
 class EvaluatorCallback(ActionCallback):
@@ -712,7 +749,7 @@ class UnfreezeCallback(ActionCallback):
                 m.unfreeze()
 
 
-class WandbCallback(ActionCallback):
+class OldWandbCallback(ActionCallback):
     """
     Log metrics to [Weights & Biases](https://docs.wandb.com/)
     """
