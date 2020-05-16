@@ -23,39 +23,33 @@ import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
 
-__all__ = ['BertInformationRetrievalDataset', 'BertInformationRetrievalDatasetEval']
+__all__ = ['BertInformationRetrievalDatasetTrain', 'BertInformationRetrievalDatasetEval']
 
 
-class BertInformationRetrievalDataset(Dataset):
-    def __init__(self, tokenizer, documents, queries, triples,
-                 max_seq_length=256, num_negatives=5):
+class BaseInformationRetrievalDataset(Dataset):
+    def __init__(self, tokenizer, max_query_length=31, max_passage_length=190):
         self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
-        self.num_negatives = num_negatives
-        self.documents = self.parse_npz(documents)
-        self.queries = self.parse_pkl(queries)
-        self.idx2triples = self.parse_triples(triples)
+        self.max_query_length = max_query_length
+        self.max_passage_length = max_passage_length
 
-    def __getitem__(self, idx):
-        return self.preprocess_query_and_docs(self.idx2triples[idx])
-
-    def __len__(self):
-        return len(self.idx2triples)
-
-    def parse_npz(self, file):
+    def parse_npz(self, file, max_seq_length):
         cached_collection = file + ".npz"
         if os.path.isfile(cached_collection):
-            file_dict = np.load(cached_collection)["data"]
+            file_npz = np.load(cached_collection)["data"]
         else:
             file_dict = {}
             lines = open(file, "r").readlines()
             with mp.Pool() as pool:
                 file_dict = pool.map(self.preprocess_line, lines)
             file_dict = {q[0]:q[1] for q in file_dict}
-            pickle.dump(file_dict, open(cached_collection, "wb"))
-        return file_dict
+            file_npz = np.zeros((len(file_dict), max_seq_lenth))
+            for key in file_dict:
+                file_npz[key][0] = len(file_dict[key])
+                file_npz[key][1:len(file_dict[key])+1] = file_dict[key]
+            np.savez(cached_collection, data=file_npz)
+        return file_npz#[:, :max_seq_length+1]
 
-    def parse_pkl(self, file):
+    def parse_pkl(self, file, max_seq_length):
         cached_collection = file + ".pkl"
         if os.path.isfile(cached_collection):
             file_dict = pickle.load(open(cached_collection, "rb"))
@@ -66,151 +60,138 @@ class BertInformationRetrievalDataset(Dataset):
                 file_dict = pool.map(self.preprocess_line, lines)
             file_dict = {q[0]:q[1] for q in file_dict}
             pickle.dump(file_dict, open(cached_collection, "wb"))
-        return file_dict
+        return {key: file_dict[key][:max_seq_length] for key in file_dict}
 
     def preprocess_line(self, line):
         id_, text = line.split("\t")
         token_ids = self.tokenizer.text_to_ids(text.strip())
-        return int(id_), token_ids[:self.max_seq_length]
+        return int(id_), token_ids[:self.max_passage_length]
 
-    def parse_triples(self, file):
-        idx2triples = {}
+    def construct_input(self, token_ids1, max_seq_length, token_ids2=None):
+        input_ids = [self.tokenizer.pad_id] * max_seq_length
+        bert_input = [self.tokenizer.cls_id] + token_ids1 + [self.tokenizer.sep_id]
+        sentence1_length = len(bert_input)
+        if token_ids2 is not None:
+            bert_input = bert_input + token_ids2 + [self.tokenizer.sep_id]
+        num_nonpad_tokens = len(bert_input)
+
+        input_ids[:num_nonpad_tokens] = bert_input
+        input_ids = np.array(input_ids, dtype=np.long)
+        input_mask = (input_ids != self.tokenizer.pad_id)
+        input_type_ids = np.ones_like(input_ids)
+        input_type_ids[:sentence1_length] = 0
+
+        return input_ids, input_mask, input_type_ids
+
+    def preprocess_bert(self, query_id, psg_ids):
+        max_seq_length = self.max_query_length + self.max_passage_length + 3
+        input_ids, input_mask, input_type_ids = [], [], []
+        for psg_id in psg_ids:
+            inputs = self.construct_input(
+                self.queries[query_id], max_seq_length, self.psgid2tokens(psg_id))
+            input_ids.append(inputs[0])
+            input_mask.append(inputs[1])
+            input_type_ids.append(inputs[2])
+        input_ids = np.stack(input_ids)
+        input_mask = np.stack(input_mask)
+        input_type_ids = np.stack(input_type_ids)
+        return input_ids, input_mask, input_type_ids
+
+    def preprocess_dpr(self, query_id, psg_ids):
+        q_input_ids, q_input_mask, q_type_ids = self.construct_input(
+            self.queries[query_id], self.max_query_length+2)
+        input_ids, input_mask, input_type_ids = [], [], []
+        for psg_id in psg_ids:
+            inputs = self.construct_input(
+                self.psgid2tokens(psg_id), self.max_passage_length+2)
+            input_ids.append(inputs[0])
+            input_mask.append(inputs[1])
+            input_type_ids.append(inputs[2])
+        input_ids = np.stack(input_ids)
+        input_mask = np.stack(input_mask)
+        input_type_ids = np.stack(input_type_ids)
+        return q_input_ids[None, ...], q_input_mask[None, ...], q_type_ids[None, ...], \
+            input_ids, input_mask, input_type_ids
+
+
+class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
+    def __init__(self, tokenizer, passages, queries, query_to_passages,
+                 max_query_length=31, max_passage_length=190,
+                 num_negatives=10, preprocess_fn="preprocess_bert"):
+        super().__init__(tokenizer, max_query_length, max_passage_length)
+        self.num_negatives = num_negatives
+
+        self.passages = self.parse_npz(passages, max_passage_length)
+        self.queries = self.parse_pkl(queries, max_query_length)
+        self.idx2psgs = self.parse_query_to_passages(query_to_passages)
+        self._preprocess_fn = getattr(self, preprocess_fn)
+
+    def __getitem__(self, idx):
+        query_and_psgs = self.idx2psgs[idx]
+        query_id, psg_ids = query_and_psgs[0], query_and_psgs[1:]
+        inputs = self._preprocess_fn(query_id, psg_ids)
+        return inputs
+
+    def __len__(self):
+        return len(self.idx2psgs)
+
+    def parse_query_to_passages(self, file):
+        idx2psgs = {}
         idx = 0
         for line in open(file, "r").readlines():
-            query_and_docs = line.split("\t")
-            query_and_docs_ids = [int(id_) for id_ in query_and_docs]
-            query_and_rel_doc_ids, irrel_docs_ids = query_and_docs_ids[:2], query_and_docs_ids[2:]
-            random.shuffle(irrel_docs_ids)
-            num_samples = len(irrel_docs_ids) // self.num_negatives
+            query_and_psgs = line.split("\t")
+            query_and_psgs_ids = [int(id_) for id_ in query_and_psgs]
+            query_and_rel_psg_ids, irrel_psgs_ids = query_and_psgs_ids[:2], query_and_psgs_ids[2:]
+            random.shuffle(irrel_psgs_ids)
+            num_samples = len(irrel_psgs_ids) // self.num_negatives
             for j in range(num_samples):
                 left = self.num_negatives * j
                 right = self.num_negatives * (j + 1)
-                idx2triples[idx] = query_and_rel_doc_ids + irrel_docs_ids[left:right]
+                idx2psgs[idx] = query_and_rel_psg_ids + irrel_psgs_ids[left:right]
                 idx += 1
-        return idx2triples
-    
-    def preprocess_query_and_docs(self, query_and_docs):
-        query_id , doc_ids = query_and_docs[0], query_and_docs[1:]
-        input_ids, input_mask, input_type_ids = [], [], []
-        for doc_id in doc_ids:
-            input_ids_, input_mask_, input_type_ids_ = self.pair_query_doc(query_id, doc_id)
-            input_ids.append(input_ids_)
-            input_mask.append(input_mask_)
-            input_type_ids.append(input_type_ids_)
-        input_ids = np.stack(input_ids)
-        input_mask = np.stack(input_mask)
-        input_type_ids = np.stack(input_type_ids)
-        return input_ids, input_mask, input_type_ids
+        return idx2psgs
 
-    def pair_query_doc(self, query_id, doc_id):
-        query_token_ids = self.queries[query_id]
-
-        doc_token_ids = self.documents[doc_id]
-        doc_token_ids = doc_token_ids[1:doc_token_ids[0]+1].tolist()
-
-        input_ids = [self.tokenizer.pad_id] * self.max_seq_length
-        bert_input = [self.tokenizer.cls_id] + query_token_ids + [self.tokenizer.sep_id]
-        sentence_a_length = len(bert_input)
-        bert_input = bert_input + doc_token_ids + [self.tokenizer.sep_id]
-
-        if len(bert_input) >= self.max_seq_length:
-            bert_input = bert_input[:self.max_seq_length-1] + [self.tokenizer.sep_id]
-
-        num_nonpad_tokens = len(bert_input)
-        input_ids[:num_nonpad_tokens] = bert_input
-        input_ids = np.array(input_ids, dtype=np.long)
-        input_mask = (input_ids != self.tokenizer.pad_id)
-        input_type_ids = np.ones_like(input_ids)
-        input_type_ids[:sentence_a_length] = 0
-        
-        return input_ids, input_mask, input_type_ids
+    def psgid2tokens(self, psg_id):
+        seq_len = self.passages[psg_id][0]
+        return self.passages[psg_id][1:seq_len+1].tolist()
 
 
-class BertInformationRetrievalDatasetEval(Dataset):
-    def __init__(self, tokenizer, documents, queries, qrels, topk_list,
-                 max_seq_length=256, num_candidates=10):
-        self.tokenizer = tokenizer
-        self.max_seq_length = max_seq_length
+class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
+    def __init__(self, tokenizer, passages, queries, query_to_passages,
+                 max_query_length=31, max_passage_length=190,
+                 num_candidates=10, preprocess_fn="preprocess_bert"):
+        super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_candidates = num_candidates
-        self.documents = self.parse_collection(documents)
-        self.queries = self.parse_collection(queries)
-        self.query2rel = self.parse_qrels(qrels)
-        self.idx2topk = self.parse_topk_list(topk_list)
+
+        self.passages = self.parse_npz(passages, max_passage_length)
+        self.queries = self.parse_pkl(queries, max_query_length)
+        self.idx2topk = self.parse_topk_list(query_to_passages)
+        self._preprocess_fn = getattr(self, preprocess_fn)
 
     def __getitem__(self, idx):
-        return self.preprocess_query_and_docs(self.idx2topk[idx])
+        query_and_psgs = self.idx2topk[idx]
+        query_id, psg_ids = query_and_psgs[0], query_and_psgs[1:]
+        inputs = self._preprocess_fn(query_id, psg_ids)
+        return [*inputs, query_id, np.array(psg_ids)]
 
     def __len__(self):
         return len(self.idx2topk)
-    
-    def parse_qrels(self, qrels):
-        query2rel = {}
-        for line in open(qrels, "r").readlines():
-            query_id = int(line.split("\t")[0])
-            doc_id = int(line.split("\t")[2])
-            if query_id not in query2rel:
-                query2rel[query_id] = [doc_id]
-            else:
-                query2rel[query_id].append(doc_id)
-        return query2rel
-
-    def parse_collection(self, file):
-        cached_collection = file + ".pkl"
-        if os.path.isfile(cached_collection):
-            file_dict = pickle.load(open(cached_collection, "rb"))
-        else:
-            file_dict = {}
-            lines = open(file, "r").readlines()
-            with mp.Pool() as pool:
-                file_dict = pool.map(self.preprocess_line, lines)
-            file_dict = {q[0]:q[1] for q in file_dict}
-            pickle.dump(file_dict, open(cached_collection, "wb"))
-        return file_dict
-
-    def preprocess_line(self, line):
-        id_, text = line.split("\t")
-        token_ids = self.tokenizer.text_to_ids(text.strip())
-        return int(id_), token_ids[:self.max_seq_length]
 
     def parse_topk_list(self, file):
         idx2topk = {}
-        for i, line in enumerate(open(file, "r").readlines()):
-            query_and_docs = line.split("\t")[:self.num_candidates+1]
-            idx2topk[i] = [int(id_) for id_ in query_and_docs]
+        idx = 0
+        for line in open(file, "r").readlines():
+            query_and_psgs = [int(id_) for id_ in line.split("\t")]
+            num_samples = int(np.ceil((len(query_and_psgs) - 1) / self.num_candidates))
+            for j in range(num_samples):
+                left = self.num_candidates * j + 1
+                right = self.num_candidates * (j + 1) + 1
+                idx2topk[idx] = [query_and_psgs[0]] + query_and_psgs[left:right]
+                idx += 1
         return idx2topk
     
-    def preprocess_query_and_docs(self, query_and_docs):
-        query_id , doc_ids = query_and_docs[0], query_and_docs[1:]
-        input_ids, input_mask, input_type_ids, doc_rels = [], [], [], []
-        for doc_id in doc_ids:
-            input_ids_, input_mask_, input_type_ids_ = self.pair_query_doc(query_id, doc_id)
-            input_ids.append(input_ids_)
-            input_mask.append(input_mask_)
-            input_type_ids.append(input_type_ids_)
-            doc_rels.append(doc_id in self.query2rel[query_id])
-        input_ids = np.stack(input_ids)
-        input_mask = np.stack(input_mask)
-        input_type_ids = np.stack(input_type_ids)
-        doc_rels = np.array(doc_rels, dtype=np.long)
-        return input_ids, input_mask, input_type_ids, doc_rels
-
-    def pair_query_doc(self, query_id, doc_id):
-        query_token_ids = self.queries[query_id]
-        doc_token_ids = self.documents[doc_id]
-
-        input_ids = [self.tokenizer.pad_id] * self.max_seq_length
-        bert_input = [self.tokenizer.cls_id] + query_token_ids + [self.tokenizer.sep_id]
-        sentence_a_length = len(bert_input)
-        bert_input = bert_input + doc_token_ids + [self.tokenizer.sep_id]
-
-        if len(bert_input) >= self.max_seq_length:
-            bert_input = bert_input[:self.max_seq_length-1] + [self.tokenizer.sep_id]
-
-        num_nonpad_tokens = len(bert_input)
-        input_ids[:num_nonpad_tokens] = bert_input
-        input_ids = np.array(input_ids, dtype=np.long)
-        input_mask = (input_ids != self.tokenizer.pad_id)
-        input_type_ids = np.ones_like(input_ids)
-        input_type_ids[:sentence_a_length] = 0
-        
-        return input_ids, input_mask, input_type_ids
+#     def psgid2tokens(self, psg_id):
+#         return self.passages[psg_id]
+    def psgid2tokens(self, psg_id):
+        seq_len = self.passages[psg_id][0]
+        return self.passages[psg_id][1:seq_len+1].tolist()

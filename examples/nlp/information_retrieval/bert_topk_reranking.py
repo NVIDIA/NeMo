@@ -110,13 +110,12 @@ train_documents = f"{args.data_dir}/{args.collection_file}"
 # Training pipeline
 train_queries = f"{args.data_dir}/queries.train.tsv"
 train_triples = f"{args.data_dir}/{args.train_dataset}"
-train_data_layer = ir_dl.BertInformationRetrievalDataLayer(
+train_data_layer = ir_dl.BertInformationRetrievalDataLayerTrain(
     tokenizer=tokenizer,
-    documents=train_documents,
+    passages=train_documents,
     queries=train_queries,
-    triples=train_triples,
+    query_to_passages=train_triples,
     batch_size=args.batch_size,
-    max_seq_length=args.max_seq_length,
     num_negatives=args.num_negatives
 )
 input_ids, input_mask, input_type_ids = train_data_layer()
@@ -141,48 +140,56 @@ def create_eval_pipeline(eval_dataset):
 
     eval_documents = f"{args.data_dir}/collection.{eval_dataset}.dev.small.tsv"
     eval_queries = f"{args.data_dir}/queries.dev.small.tsv"
-    eval_qrels = f"{args.data_dir}/qrels.dev.small.tsv"
-    eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.dev.small.tsv"
+    eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.tiny.tsv"
 
     eval_data_layer = ir_dl.BertInformationRetrievalDataLayerEval(
         tokenizer=tokenizer,
-        documents=eval_documents,
+        passages=train_documents,
         queries=eval_queries,
-        qrels=eval_qrels,
-        topk_list=eval_topk_list,
-        max_seq_length=args.max_seq_length,
+        query_to_passages=eval_topk_list,
         num_candidates=args.num_eval_candidates)
 
-    input_ids_, input_mask_, input_type_ids_, doc_rels_ = eval_data_layer()
+    input_ids_, input_mask_, input_type_ids_, query_id, passage_ids = eval_data_layer()
     input_ids_, input_mask_, input_type_ids_ = batch_reshape(
         input_ids=input_ids_, input_mask=input_mask_, input_type_ids=input_type_ids_)
     hiddens_ = encoder(input_ids=input_ids_, token_type_ids=input_type_ids_, attention_mask=input_mask_)
     scores_ = classifier(hidden_states=hiddens_)
     eval_scores, _ = loss_fn_eval(scores=scores_)
     
-    return eval_scores, doc_rels_
+    return eval_scores, query_id, passage_ids
 
 
-all_eval_scores, all_eval_rels = {}, {}
+def parse_qrels(qrels):
+    query2rel = {}
+    for line in open(qrels, "r").readlines():
+        query_id = int(line.split("\t")[0])
+        psg_id = int(line.split("\t")[2])
+        if query_id not in query2rel:
+            query2rel[query_id] = [psg_id]
+        else:
+            query2rel[query_id].append(psg_id)
+    return query2rel
+query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.small.tsv")
+
+
+all_eval_tensors = {}
 for eval_dataset in args.eval_datasets:
-    eval_scores, eval_rels = create_eval_pipeline(eval_dataset)
-    all_eval_scores[eval_dataset] = eval_scores
-    all_eval_rels[eval_dataset] = eval_rels
-
+    scores, q_id, p_ids = create_eval_pipeline(eval_dataset)
+    all_eval_tensors[eval_dataset] = [scores, q_id, p_ids]
 
 callbacks.append(nemo.core.EvaluatorCallback(
-    eval_tensors=[all_eval_scores[args.eval_datasets[0]], all_eval_rels[args.eval_datasets[0]]],
+    eval_tensors=all_eval_tensors[args.eval_datasets[0]],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, topk=[10, 50, 80], baseline_name=args.eval_datasets[0]),
+        x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[0]),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer))
 
 callbacks.append(nemo.core.EvaluatorCallback(
-    eval_tensors=[all_eval_scores[args.eval_datasets[1]], all_eval_rels[args.eval_datasets[1]]],
+    eval_tensors=all_eval_tensors[args.eval_datasets[1]],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, topk=[10, 50, 80], baseline_name=args.eval_datasets[1]),
+        x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer))
 
