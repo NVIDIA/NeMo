@@ -7,7 +7,7 @@ All the code introduced in this tutorial is based on ``examples/nlp/intent_detec
 
 There are a variety pre-trained BERT models that we can select as the base encoder for our model. We're currently
 using the script for loading pre-trained models from `transformers`. \
-See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`. \
+See the list of available pre-trained models by calling `nemo_nlp.nm.trainables.get_pretrained_lm_models_list()`. \
 The type of the encoder can get defined by the argument `--pretrained_model_name`.
 
 .. tip::
@@ -95,9 +95,8 @@ Next, we define all Neural Modules participating in our joint intent slot fillin
 
     .. code-block:: python
 
-        pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
-            bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
-        )
+        bert_model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+            pretrained_model_name=args.pretrained_model_name)
 
     * Create the classifier heads for our task.
 

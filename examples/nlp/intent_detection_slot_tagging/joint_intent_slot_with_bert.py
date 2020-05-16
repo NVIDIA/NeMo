@@ -48,7 +48,7 @@ parser.add_argument(
     default='bert-base-uncased',
     type=str,
     help='Name of the pre-trained model for the encoder',
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to pretrained bert model")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
