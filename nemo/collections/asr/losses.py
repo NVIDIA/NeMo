@@ -13,6 +13,9 @@ class CTCLossNM(LossNM):
     Args:
         num_classes (int): Number of characters in ASR model's vocab/labels.
             This count should not include the CTC blank symbol.
+        zero_infinity (bool): Whether to zero infinite losses and the associated gradients.
+            By default, it is False. Infinite losses mainly occur when the inputs are too
+            short to be aligned to the targets.
     """
 
     @property
@@ -41,11 +44,11 @@ class CTCLossNM(LossNM):
         # return {"loss": NeuralType(None)}
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, zero_infinity=False):
         super().__init__()
 
         self._blank = num_classes
-        self._criterion = nn.CTCLoss(blank=self._blank, reduction='none')
+        self._criterion = nn.CTCLoss(blank=self._blank, reduction='none', zero_infinity=zero_infinity)
 
     def _loss(self, log_probs, targets, input_length, target_length):
         input_length = input_length.long()
