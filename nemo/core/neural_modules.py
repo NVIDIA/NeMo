@@ -139,7 +139,11 @@ class NeuralModule(NeuralInterface):
                 break
 
         # Make sure that we collected ALL (and ONLY) the signature params - if not, then there is a BUG!
-        assert len(to_set_params) == 0
+        if len(to_set_params) != 0:
+            raise ValueError(
+                "Could not collect all the signature params! "
+                f"Please file a bug on GitHub with the current stack trace so that it can be reproduced."
+            )
 
         # print("! init_params of {}: {}\n".format(type(self).__name__, init_params))
 
