@@ -121,10 +121,10 @@ class NeuralModule(NeuralInterface):
 
         # Get the frame "call context".
         for frame in stack()[1:]:
-            # Get the call arguments.
+            # Get the current call arguments.
             localvars = getargvalues(frame[0])
 
-            # Fill the parameters with call_args.
+            # Fill the parameters with call arguments.
             for key in to_set_params:
                 if key in localvars.args:
                     init_params[key] = localvars.locals[key]
