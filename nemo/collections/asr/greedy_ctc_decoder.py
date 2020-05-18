@@ -17,7 +17,7 @@
 # =============================================================================
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import NeuralType, LogprobsType, PredictionsType
+from nemo.core.neural_types import LogprobsType, NeuralType, PredictionsType
 from nemo.utils.decorators import add_port_docs
 
 
