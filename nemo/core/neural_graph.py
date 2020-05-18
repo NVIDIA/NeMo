@@ -1056,6 +1056,7 @@ class NeuralGraph(NeuralInterface):
         Method checks if graph is "complete". In here the "complete" means that the graph has:
             * exactly one DataLayer
             * zero bound input ports
+            
         In short it means that the graph can be complete.
         
         Returns:
