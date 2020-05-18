@@ -880,7 +880,7 @@ class NeuralGraph(NeuralInterface):
         if self.is_complete():
             desc += " [COMPLETE]:\n"
         else:
-            desc += " [NOT COMPLETE]:\n"
+            desc += " [INCOMPLETE]:\n"
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
@@ -1056,7 +1056,7 @@ class NeuralGraph(NeuralInterface):
         Method checks if graph is "complete". In here the "complete" means that the graph has:
             * exactly one DataLayer
             * zero bound input ports
-            
+
         In short it means that the graph can be complete.
         
         Returns:
