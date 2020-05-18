@@ -184,5 +184,6 @@ class SGDDialogueStateLossNM(LossNM):
             "span_end_loss": span_end_loss,
         }
 
-        total_loss = sum(losses.values())
+        batch_size = logit_intent_status.shape[0]
+        total_loss = sum(losses.values()) / batch_size
         return total_loss
