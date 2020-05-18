@@ -22,6 +22,7 @@ import nemo
 from nemo.utils.metaclasses import Singleton
 from nemo.utils.neural_graph.neural_graph_manager import NeuralGraphManager
 from nemo.utils.neural_graph.object_registry import ObjectRegistry
+from typing import Optional
 
 
 class AppState(metaclass=Singleton):
@@ -31,7 +32,7 @@ class AppState(metaclass=Singleton):
         active graph etc.
     """
 
-    def __init__(self, device=None):
+    def __init__(self, device: Optional[nemo.core.DeviceType] = None, backend: Optional[nemo.core.Backend] = None):
         """
             Constructor. Initializes global variables.
 
@@ -43,6 +44,10 @@ class AppState(metaclass=Singleton):
             self._device = nemo.core.DeviceType.GPU
         else:
             self._device = device
+        if backend is None:
+            self.__backend = nemo.core.Backend.PyTorch
+        else:
+            self.__backend = backend
         # Create module registry.
         self._module_registry = ObjectRegistry("module")
         # Create graph manager (registry with some additional functionality).
@@ -112,3 +117,8 @@ class AppState(metaclass=Singleton):
                 graph: Neural graph object that will become active.
         """
         self._neural_graph_manager.active_graph = graph
+
+    @property
+    def backend(self) -> nemo.core.Backend:
+        """Current Backend"""
+        return self.__backend

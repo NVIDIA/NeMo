@@ -1,11 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
-
 logging = nemo.logging
-
-nf = nemo.core.NeuralModuleFactory()
-# To use CPU-only do:
-# nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
 
 # Instantiate the necessary neural modules.
 # RealFunctionDataLayer defaults to f_name="sin", sampling from x=[-4, 4]
@@ -24,4 +19,4 @@ callback = nemo.core.SimpleLossLoggerCallback(
 )
 
 # Invoke "train" action.
-nf.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")
+nemo.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")

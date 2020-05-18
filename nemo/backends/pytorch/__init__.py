@@ -7,3 +7,4 @@ from . import torchvision, tutorials
 from .actions import PtActions
 from .common import *
 from .nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
+from .functions import pytorch_fit

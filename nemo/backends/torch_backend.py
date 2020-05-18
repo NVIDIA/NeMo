@@ -14,6 +14,8 @@
 # limitations under the License.
 # =============================================================================
 
+# Oleksii: TODO: move under backends.pytorch
+
 from os.path import expanduser
 from typing import Any, Dict
 
