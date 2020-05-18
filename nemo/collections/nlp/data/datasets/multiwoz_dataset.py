@@ -96,9 +96,9 @@ class MultiWOZDataset(Dataset):
                 if num_samples > 0 and len(data) >= num_samples:
                     break
 
-                turn_uttr = turn['system_transcript'] + ' ; ' + turn['transcript']
+                turn_uttr = "<system> " + turn['system_transcript'] + ' <user> ' + turn['transcript']
                 turn_uttr_strip = turn_uttr.strip()
-                dialog_history += turn["system_transcript"] + " ; " + turn["transcript"] + " ; "
+                dialog_history += "<system> " + turn["system_transcript"] + " <user> " + turn["transcript"] + " ; "
                 source_text = dialog_history.strip()
 
                 turn_beliefs = fix_general_label_error_multiwoz(turn['belief_state'], self.slots)
