@@ -15,8 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This file contains NeuralModule and NmTensor classes."""
-__all__ = ['WeightShareTransform', 'NeuralModule']
+__all__ = ['WeightShareTransform', 'NeuralModule', 'ModuleType']
 
 import uuid
 from abc import abstractmethod
@@ -39,6 +38,16 @@ from nemo.utils.neural_graph.connection import StepModulePort
 YAML = YAML(typ='safe')
 
 
+class ModuleType(Enum):
+    """ Back-end independent module types """
+
+    module = 0
+    datalayer = 1
+    trainable = 2
+    loss = 3
+    nontrainable = 4
+
+
 class WeightShareTransform(Enum):
     """When sharing parameters, what kind of transform to apply."""
 
@@ -53,7 +62,7 @@ PretrainedModelInfo = namedtuple(
 
 class NeuralModule(NeuralInterface):
     """
-        Abstract class that every Neural Module must inherit from.
+    Abstract class that every Neural Module must inherit from.
     """
 
     def __init__(self, name=None):
@@ -68,6 +77,9 @@ class NeuralModule(NeuralInterface):
 
         # Register module and store the generated name.
         self._name = self._app_state.register_module(self, name)
+
+        # Set "module" type as default.
+        self._type = ModuleType.module
 
         # Set "both" as default operation mode.
         self._operation_mode = OperationMode.both
@@ -85,70 +97,68 @@ class NeuralModule(NeuralInterface):
     @property
     def init_params(self) -> Dict[str, Any]:
         """
-            Property returning parameters used to instantiate the module.
+        Property returning parameters used to instantiate the module.
 
-            Returns:
-                Dictionary containing parameters used to instantiate the module.
+        Returns:
+            Dictionary containing parameters used to instantiate the module.
         """
         return self._init_params
 
     def __extract_init_params(self) -> Dict[str, Any]:
         """
-            Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
-            (also indirectly) from the Neural Module class.
+        Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived
+        (also indirectly) from the Neural Module class.
 
-            Returns:
-                Dictionary containing parameters passed to init().
+        Returns:
+            Dictionary containing parameters passed to init().
         """
         # Get names of arguments of the original module init method.
-        init_keys = getfullargspec(type(self).__init__).args
+        to_set_params = getfullargspec(type(self).__init__).args
+        to_set_params.remove("self")
 
-        # Remove self.
-        if "self" in init_keys:
-            init_keys.remove("self")
+        # Create empty list of init params.
+        init_params = {}
 
-        # Create a list of params and initialize it with a special value.
-        init_params = {}.fromkeys(init_keys, "__UNSET__")
-        no_of_unset = len(init_params)
-
-        # Retrieve values of those params from the call list.
-        # Do it by removing and analysing the calls from stack one by one.
+        # Get the frame "call context".
         for frame in stack()[1:]:
-            # Get call "context".
-            localvars = getargvalues(frame[0]).locals
-            # Check if we are in the "context" of the class call.
-            if "__class__" not in localvars.keys():
-                continue
-            # Check if this is the context of the current "class".
-            if type(localvars["self"]).__name__ != localvars["__class__"].__name__:
-                # If own class is not equal to the call context class.
-                continue
-            # Ok, got the actual __init__() call!!
-            # Copy the keys.
-            for key in init_keys:
-                # Found the variable - and it is still unset!
-                if key in localvars.keys() and init_params[key] == "__UNSET__":
-                    # Save the value.
-                    init_params[key] = localvars[key]
-                    no_of_unset -= 1
-            # That should set all the init_params!
-            assert no_of_unset == 0
-            # Ok, we can terminate.
-            break
+            # Get the call arguments.
+            localvars = getargvalues(frame[0])
+
+            # Fill the parameters with call_args.
+            for key in to_set_params:
+                if key in localvars.args:
+                    init_params[key] = localvars.locals[key]
+
+            # Remove all set keys.
+            for key in init_params.keys():
+                if key in to_set_params:
+                    to_set_params.remove(key)
+
+            # Check if we have set everything.
+            if len(to_set_params) == 0:
+                break
+
+        # Make sure that we collected ALL (and ONLY) the signature params - if not, then there is a BUG!
+        if len(to_set_params) != 0:
+            raise ValueError(
+                "Could not collect all the signature params! "
+                F"Please file a bug on GitHub with the current stacktrace so that it can be resolved."
+            )
+
+        # print("! init_params of {}: {}\n".format(type(self).__name__, init_params))
 
         # Return parameters.
         return init_params
 
     def __validate_params(self, params: Dict[str, Any]) -> bool:
         """
-            Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
-            or (lists of)+ primitive types.
+        Checks whether dictionary contains parameters being primitive types (string, int, float etc.)
+        or (lists of)+ primitive types.
 
-            Args:
-                params: dictionary of parameters.
-
-            Returns:
-                True if all parameters were ok, False otherwise.
+        Args:
+            params: dictionary of parameters.
+        Returns:
+            True if all parameters were ok, False otherwise.
         """
         ok = True
 
@@ -167,13 +177,12 @@ class NeuralModule(NeuralInterface):
 
     def __is_of_allowed_type(self, var) -> bool:
         """
-            A recursive function that checks if a given variable is of allowed type.
+        A recursive function that checks if a given variable is of allowed type.
 
-            Args:
-                pretrained_model_name (str): name of pretrained model to use in order.
-
-            Returns:
-                True if all parameters were ok, False otherwise.
+        Args:
+            pretrained_model_name (str): name of pretrained model to use in order.
+        Returns:
+            True if all parameters were ok, False otherwise.
         """
         # Special case: None is also allowed.
         if var is None:
@@ -201,13 +210,12 @@ class NeuralModule(NeuralInterface):
 
     def export_to_config(self, config_file: str):
         """
-            A function that exports module "configuration" (i.e. init parameters) to a YAML file.
+        A function that exports module "configuration" (i.e. init parameters) to a YAML file.
 
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-            Raises:
-                ValueError: An error occurred and  parameters coudn't be exported.
+        Args:
+            config_file: path (absolute or relative) and name of the config file (YML)
+        Raises:
+            ValueError: An error occurred and  parameters coudn't be exported.
         """
         # Greate an absolute path.
         abs_path_file = path.expanduser(config_file)
@@ -224,10 +232,11 @@ class NeuralModule(NeuralInterface):
         )
 
     def serialize(self) -> Dict[str, Any]:
-        """ A method serializing the whole Neural module (into a dictionary).
-            
-            Returns:
-                Dictionary containing a "serialized" module.
+        """
+        A method serializing the whole Neural module (into a dictionary).
+
+        Returns:
+            Dictionary containing a "serialized" module.
         """
         # Create a dictionary representing the serialized object.
         serialized_module = {}
@@ -242,10 +251,11 @@ class NeuralModule(NeuralInterface):
         return serialized_module
 
     def __serialize_header(self) -> Dict[str, Any]:
-        """ A protected method that creates a header stored later in the configuration file.
+        """
+        A protected method that creates a header stored later in the configuration file.
             
-            Returns:
-                Dictionary containing a header with module specification.
+        Returns:
+            Dictionary containing a header with module specification.
         """
 
         # Get module "full specification".
@@ -290,14 +300,15 @@ class NeuralModule(NeuralInterface):
 
     def _serialize_configuration(self) -> Dict[str, Any]:
         """
-            A function that serializes the module "configuration (i.e. init parameters) to a dictionary.
-            Raises a ValueError exception in case then parameters coudn't be exported.
+        A function that serializes the module "configuration (i.e. init parameters) to a dictionary.
 
-            ..note:
-                Thus functions should be overloaded when writing a custom module import/export.
+        ..note:
+            Thus functions should be overloaded when writing a custom module import/export.
 
-            Returns:
-                A "serialized" dictionary with module configuration.
+        Returns:
+            A "serialized" dictionary with module configuration.
+        Raises:
+            A ValueError exception in case then parameters coudn't be exported.
         """
         # Check if generic export will work.
         if not self.__validate_params(self._init_params):
@@ -314,22 +325,18 @@ class NeuralModule(NeuralInterface):
         cls, config_file: str, section_name: str = None, name: str = None, overwrite_params: Dict = {}
     ) -> 'NeuralModule':
         """
-            Class method importing the configuration file.
-            Raises an ImportError exception when config file is invalid or
-            incompatible (when called from a particular class).
+        Class method importing the configuration file.
+        Raises an ImportError exception when config file is invalid or
+        incompatible (when called from a particular class).
 
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
-
-                name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
-
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
-                the default init parameters loaded from the configuration file (the module "init_params" section).
-
-            Returns:
-                Instance of the created NeuralModule object.
+        Args:
+            config_file: path (absolute or relative) and name of the config file (YML)
+            section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+            name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
+            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
+            the default init parameters loaded from the configuration file (the module "init_params" section).
+        Returns:
+            Instance of the created NeuralModule object.
         """
         logging.info("Loading configuration of a new Neural Module from the `{}` file".format(config_file))
 
@@ -345,17 +352,15 @@ class NeuralModule(NeuralInterface):
     @classmethod
     def __validate_config_file(cls, config_file: str, section_name: str = None) -> Dict[str, Any]:
         """
-            Class method validating whether the config file has a proper content (sections, specification etc.).
-            Raises an ImportError exception when config file is invalid or
-            incompatible (when called from a particular class).
+        Class method validating whether the config file has a proper content (sections, specification etc.).
+        Raises an ImportError exception when config file is invalid or
+        incompatible (when called from a particular class).
 
-            Args:
-                config_file: path (absolute or relative) and name of the config file (YML)
-
-                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
-
-            Returns:
-                A loaded configuration file (dictionary).
+        Args:
+            config_file: path (absolute or relative) and name of the config file (YML)
+            section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)
+        Returns:
+            A loaded configuration file (dictionary).
         """
         # Greate an absolute path.
         abs_path_file = path.expanduser(config_file)
@@ -398,21 +403,21 @@ class NeuralModule(NeuralInterface):
 
     @classmethod
     def deserialize(
-        cls, configuration: str, name: str = None, overwrite_params: Dict[str, Any] = {}
+        cls, configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
     ) -> 'NeuralModule':
         """
-            Class method instantianting the neural module object based on the configuration (dictionary).
+        Class method instantianting the neural module object based on the configuration (dictionary).
 
-            Args:
-                configuration: Dictionary containing proper "header" and "init_params" sections.
+        Args:
+            configuration: Dictionary containing proper "header" and "init_params" sections.
 
-                name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
+            name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
 
-                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
-                the default init parameters loaded from the configuration file (the module "init_params" section).
+            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
+            the default init parameters loaded from the configuration file (the module "init_params" section).
 
-            Returns:
-                Instance of the created NeuralModule object.
+        Returns:
+            Instance of the created NeuralModule object.
         """
         # Deserialize header - get object class.
         module_class = cls.__deserialize_header(configuration["header"])
@@ -442,13 +447,13 @@ class NeuralModule(NeuralInterface):
 
     @classmethod
     def __deserialize_header(cls, serialized_header: Dict[str, Any]):
-        """ Method deserializes the header and extracts the module class.
-            
-            Args:
-                serialized_header: Dictionary containing module header.
+        """
+        Method deserializes the header and extracts the module class.
 
-            Returns:
-                Class of the module to be created.
+        Args:
+            serialized_header: Dictionary containing module header.
+        Returns:
+            Class of the module to be created.
         """
         # Parse the "full specification".
         spec_list = serialized_header["full_spec"].split(".")
@@ -464,45 +469,37 @@ class NeuralModule(NeuralInterface):
     @classmethod
     def _deserialize_configuration(cls, serialized_init_params: Dict[str, Any]):
         """
-            A function that deserializes the module "configuration (i.e. init parameters).
+        A function that deserializes the module "configuration (i.e. init parameters).
 
-            ..note:
-                Thus functions should be overloaded when writing a custom module import/export.
+        ..note:
+            Thus functions should be overloaded when writing a custom module import/export.
 
-            Args:
-                serialized_init_params: List of init parameters loaded from the file.
-
-            Returns:
-                A "deserialized" list with init parameters.
+        Args:
+            serialized_init_params: List of init parameters loaded from the file.
+        Returns:
+            A "deserialized" list with init parameters.
         """
         # In this case configuration = init parameters.
         return serialized_init_params
 
-    @deprecated(version=0.11)
-    @staticmethod
-    def create_ports(**kwargs):
-        """ Deprecated method, to be remoted in the next release."""
-        raise Exception(
-            'Deprecated method. Please implement ``inputs`` and ``outputs`` \
-                 properties to define module ports instead'
-        )
-
     @property
     @abstractmethod
     def input_ports(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module input ports
+        """
+        Returns definitions of module input ports
 
         Returns:
-          A (dict) of module's input ports names to NeuralTypes mapping
+          A dictionary containing module's input ports (names, NeuralTypes) mapping.
         """
 
     @property
     @abstractmethod
     def output_ports(self) -> Dict[str, NeuralType]:
-        """Returns definitions of module output ports
+        """
+        Returns definitions of module output ports
 
         Returns:
-          A (dict) of module's output ports names to NeuralTypes mapping
+          A dictionary containing module's output ports (names, NeuralTypes) mapping.
         """
 
     @property
@@ -525,7 +522,6 @@ class NeuralModule(NeuralInterface):
 
     def _prepare_for_deployment(self) -> None:
         """Patch the module if required to prepare for deployment
-
         """
         return
 
@@ -533,6 +529,11 @@ class NeuralModule(NeuralInterface):
     def operation_mode(self):
         """ Returns the operation mode. """
         return self._operation_mode
+
+    @property
+    def type(self):
+        """ Returns the type of module. """
+        return self._type
 
     @operation_mode.setter
     def operation_mode(self, operation_mode: OperationMode):

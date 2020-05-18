@@ -58,7 +58,7 @@ parser.add_argument(
     default="bert-base-uncased",
     type=str,
     help="Name of the pre-trained model",
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -78,6 +78,15 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, \
                     only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "Only applicable when tokenizer is build with vocab file",
 )
 parser.add_argument(
     "--work_dir",
@@ -128,19 +137,20 @@ logging.info(args)
 
 output_file = f'{nf.work_dir}/output.txt'
 
-model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
 )
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
 )
-
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
 
 hidden_size = model.hidden_size
 
@@ -272,6 +282,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=losses + train_logits,
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=args.loss_step_freq,
     tb_writer=nf.tb_writer,
 )
 
@@ -298,5 +309,5 @@ nf.train(
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
 )

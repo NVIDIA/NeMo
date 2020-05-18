@@ -14,6 +14,7 @@
 # =============================================================================
 from .audio_preprocessing import *
 from .beam_search_decoder import BeamSearchDecoderWithLM
+from .contextnet import ContextNetDecoderForCTC, ContextNetEncoder
 from .data_layer import (
     AudioToSpeechLabelDataLayer,
     AudioToTextDataLayer,
@@ -22,7 +23,7 @@ from .data_layer import (
     TranscriptDataLayer,
 )
 from .greedy_ctc_decoder import GreedyCTCDecoder
-from .jasper import JasperDecoderForClassification, JasperDecoderForCTC, JasperEncoder
+from .jasper import JasperDecoderForClassification, JasperDecoderForCTC, JasperDecoderForSpkrClass, JasperEncoder
 from .las.misc import JasperRNNConnector
 from .losses import CTCLossNM
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
@@ -48,7 +49,10 @@ __all__ = [
     'JasperEncoder',
     'JasperDecoderForCTC',
     'JasperDecoderForClassification',
+    'JasperDecoderForSpkrClass',
     'JasperRNNConnector',
+    'ContextNetEncoder',
+    'ContextNetDecoderForCTC',
     'CTCLossNM',
     'CrossEntropyLossNM',
 ]
