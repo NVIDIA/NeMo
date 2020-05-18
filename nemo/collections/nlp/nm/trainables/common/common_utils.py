@@ -14,12 +14,14 @@
 # limitations under the License.
 # =============================================================================
 
-__all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
+import json
 
 from nemo import logging
 from nemo.collections.nlp.nm.trainables.common.huggingface.huggingface_utils import *
 from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import MegatronBERT
 from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *
+
+__all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
 
 def get_pretrained_lm_models_list():
@@ -44,8 +46,14 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, chec
     if pretrained_model_name in get_huggingface_lm_models_list():
         model = get_huggingface_lm_model(bert_config=config, pretrained_model_name=pretrained_model_name)
     elif pretrained_model_name in get_megatron_lm_models_list():
+        if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
+            if not (config and checkpoint):
+                raise ValueError(f'Config file and pretrained checkpoint required for {pretrained_model_name}')
         if not config:
             config = get_megatron_config_file(pretrained_model_name)
+        if isinstance(config, str):
+            with open(config) as f:
+                config = json.load(f)
         if not vocab:
             vocab = get_megatron_vocab_file(pretrained_model_name)
         if not checkpoint:
