@@ -497,7 +497,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         self.collate_fn = partial(seq_collate_fn, token_pad_value=pad_id)
 
         # Check for distributed and partition shards accordingly
-        if torch.distributed.is_initialized():
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
             global_rank = torch.distributed.get_rank()
             world_size = torch.distributed.get_world_size()
 
