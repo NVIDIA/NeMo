@@ -72,11 +72,10 @@ class TrainingState:
         return True
 
     def get_tensor(self, name):
-        unique_name = AppState().tensor_names[name]
-        return self.tensor_dict[unique_name]
-
-    def get_and_compute_tensor(self, name):
-        unique_name = AppState().tensor_names[name]
+        if isinstance(name, NmTensor):
+            unique_name = name.unique_name
+        else:
+            unique_name = AppState().tensor_names[name]
         tensor_value = self.tensor_dict[unique_name]
         if tensor_value is None:
             nmtensor = AppState().tensor_names._nmtensor_uniname_dict[unique_name]
@@ -87,6 +86,9 @@ class TrainingState:
             # print(self.tensor_dict[unique_name])
             tensor_value = self.tensor_dict[unique_name]
         return tensor_value
+    #     unique_name = AppState().tensor_names[name]
+    #     return self.tensor_dict[unique_name]
+    # def get_and_compute_tensor(self, name):
 
 
 class PtActions(Actions):

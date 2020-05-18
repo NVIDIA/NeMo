@@ -65,45 +65,87 @@ class NeMoCallback(ABC):
 
 
 class TensorboardLogger(NeMoCallback):
-    def __init__(self, step_freq=100, tensors_to_log=["loss"]):
+    def __init__(self, step_freq=100, tensors_to_log=["loss"], tb_writer=None, custom_tb_log_func=None):
         # Step_freq: how often logs are printed
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
+        if tb_writer is None:
+            logging.error("There was no tb writer")
+            # Should grab this from default tb writer
+        else:
+            self.tb_writer = tb_writer
+        self.custom_tb_log_func = custom_tb_log_func
+        self._last_epoch_start = None
 
     # def on_optimizer_step_stop(self, state, tensors_to_log=[“loss”]):
     #     #tensors_to_log: List of keys into state that will be logged
 
-    def on_step_end(self, state):
-        if state["step"] % self.step_freq == 0:
-            for tensor_key in self.tensors_to_log:
-                tensor = state["tensors"].get_tensor(tensor_key)
-                if tensor is None:
-                    tensor = state["tensors"].get_and_compute_tensor(tensor_key)
-                logging.info("%s: %s", tensor_key, tensor)
-                # except KeyError:
-                #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
-                #                    f"Current state tensors include {state['tensors'].tensor_list()}")
+    def on_epoch_start(self, state):
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            self._last_epoch_start = time.time()
 
+    def on_epoch_end(self, state):
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            # always log epoch num and epoch_time
+            epoch_time = time.time() - self._last_epoch_start
+            self.tb_writer.add_scalar('misc/epoch', state["epoch"], state["step"])
+            self.tb_writer.add_scalar('misc/epoch_time', epoch_time, state["step"])
+
+    def on_step_end(self, state):
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            if state["step"] % self.step_freq == 0:
+                tb_log_func = lambda x: self.tb_writer.add_scalar(x, state["tensors"].get_tensor(x), state["step"])
+                if self.custom_tb_log_func is not None:
+                    tb_log_func = self.custom_tb_log_func
+                for tensor_key in self.tensors_to_log:
+                    tb_log_func(tensor_key)
 
 class WandBLogger(NeMoCallback):
-    def __init__(self, step_freq=100, tensors_to_log=["loss"]):
-        # Step_freq: how often logs are printed
-        self.step_freq = step_freq
-        self.tensors_to_log = tensors_to_log
+    def __init__(self, step_freq=100, tensors_to_log=["loss"], wandb_name=None, wandb_project=None, args=None):
+        if not _WANDB_AVAILABLE:
+            logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+        self._step_freq = step_freq
+        self._tensors_to_log = tensors_to_log
+        self._name = wandb_name
+        self._project = wandb_project
+        self._args = args
+        self._last_epoch_start = None
 
-    # def on_optimizer_step_stop(self, state, tensors_to_log=[“loss”]):
-    #     #tensors_to_log: List of keys into state that will be logged
+    def on_train_start(self, state):
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            if _WANDB_AVAILABLE and wandb.run is None:
+                wandb.init(name=self._name, project=self._project)
+                if self._args is not None:
+                    wandb.config.update(self._args)
+            elif _WANDB_AVAILABLE and wandb.run is not None:
+                logging.info("Re-using wandb session")
+            else:
+                logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
+                logging.info("Will not log data to weights and biases.")
+                self._step_freq = -1
 
     def on_step_end(self, state):
-        if state["step"] % self.step_freq == 0:
-            for tensor_key in self.tensors_to_log:
-                tensor = state["tensors"].get_tensor(tensor_key)
-                if tensor is None:
-                    tensor = state["tensors"].get_and_compute_tensor(tensor_key)
-                logging.info("%s: %s", tensor_key, tensor)
-                # except KeyError:
-                #     raise KeyError(f"{self} was passed {tensor_key} but the tensor was not found in the state_dict. "
-                #                    f"Current state tensors include {state['tensors'].tensor_list()}")
+        # log training metrics
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            if state["step"] % self._step_freq == 0 and self._step_freq > 0:
+                tensors_logged = {t: state["tensors"].get_tensor(t).cpu() for t in self._tensors_to_log}
+                # Always log learning rate
+                tensors_logged['LR'] = state["learning_rate"]
+                self._wandb_log(tensors_logged)
+
+    def on_epoch_start(self, state):
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            self._last_epoch_start = time.time()
+
+    def on_epoch_end(self, state):
+        if state["global_rank"] is None or state["global_rank"] == 0:
+            # always log epoch num and epoch_time
+            epoch_time = time.time() - self._last_epoch_start
+            self._wandb_log({"epoch": state["epoch"], "epoch_time": epoch_time})
+
+    def _wandb_log(self, tensors_logged):
+        if _WANDB_AVAILABLE:
+            wandb.log(tensors_logged, step=state["step"])
 
 
 class SimpleLossLogger(NeMoCallback):
