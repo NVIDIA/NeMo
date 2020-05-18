@@ -876,7 +876,11 @@ class NeuralGraph(NeuralInterface):
         # Line "decorator".
         desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
-        desc += "The `{}` Neural Graph [{}]:\n".format(self.name, self.operation_mode)
+        desc += "The `{}` Neural Graph [{}]".format(self.name, self.operation_mode)
+        if self.is_complete():
+            desc += " [COMPLETE]:\n"
+        else:
+            desc += " [NOT COMPLETE]:\n"
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
@@ -1046,3 +1050,31 @@ class NeuralGraph(NeuralInterface):
             logging.warning(log_str)
         else:
             logging.info(log_str)
+
+    def is_complete(self) -> bool:
+        """
+        Method checks if graph is "complete". In here the "complete" means that the graph has:
+            * exactly one DataLayer
+            * zero bound input ports
+        In short it means that the graph can be complete.
+        
+        Returns:
+            True or false.
+        """
+        has_datalayer = False
+        # Iterate through the modules one by one.
+        for module in self._modules.values():
+            # Get module.
+            if module.type == ModuleType.datalayer:
+                if has_datalayer:
+                    # More than one DL is not acceptable.
+                    return False
+                else:
+                    has_datalayer = True
+
+        # Now check the ports.
+        if len(self._inputs) != 0:
+            return False
+
+        # Else:
+        return True
