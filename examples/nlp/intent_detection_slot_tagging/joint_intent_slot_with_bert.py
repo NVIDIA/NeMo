@@ -48,10 +48,26 @@ parser.add_argument(
     default='bert-base-uncased',
     type=str,
     help='Name of the pre-trained model for the encoder',
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
-parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to pretrained bert model")
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='test', type=str)
 
@@ -70,7 +86,12 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 
 parser.add_argument("--intent_loss_weight", default=0.6, type=float)
 parser.add_argument("--class_balancing", default="regular", type=str, choices=["regular", "weighted_loss"])
-parser.add_argument("--do_lower_case", action='store_true')
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "For tokenizer only applicable when tokenizer is build with vocab file",
+)
 parser.add_argument(
     "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
 )
@@ -101,16 +122,22 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
 )
 
-tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
-if args.bert_checkpoint:
-    pretrained_bert_model.restore_from(args.bert_checkpoint)
-    logging.info(f"Model restored from {args.bert_checkpoint}")
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
+)
 
-hidden_size = pretrained_bert_model.hidden_size
+hidden_size = model.hidden_size
 
 data_desc = JointIntentSlotDataDesc(
     data_dir=args.data_dir, none_slot_label=args.none_slot_label, pad_label=args.pad_label
@@ -165,7 +192,7 @@ def create_pipeline(num_samples=-1, batch_size=32, data_prefix='train', is_train
     steps_per_epoch = math.ceil(data_size / (batch_size * num_gpus))
     logging.info(f"Steps_per_epoch = {steps_per_epoch}")
 
-    hidden_states = pretrained_bert_model(
+    hidden_states = model(
         input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
     )
 
