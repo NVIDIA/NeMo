@@ -100,6 +100,7 @@ class TensorboardLogger(NeMoCallback):
                 for tensor_key in self.tensors_to_log:
                     tb_log_func(tensor_key)
 
+
 class WandBLogger(NeMoCallback):
     def __init__(self, step_freq=100, tensors_to_log=["loss"], wandb_name=None, wandb_project=None, args=None):
         if not _WANDB_AVAILABLE:
