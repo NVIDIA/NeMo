@@ -83,7 +83,6 @@ from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description="GLUE_with_pretrained_BERT")
 
-# Parsing arguments
 parser.add_argument(
     "--data_dir",
     default="COLA",
@@ -104,7 +103,7 @@ parser.add_argument(
     default="bert-base-uncased",
     type=str,
     help="Name of the pre-trained model",
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -120,6 +119,13 @@ parser.add_argument(
     type=str,
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "Only applicable when tokenizer is build with vocab file",
 )
 parser.add_argument(
     "--max_seq_length",
@@ -147,6 +153,7 @@ parser.add_argument(
     type=str,
     help="The output directory where the model predictions and checkpoints will be written.",
 )
+parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -164,6 +171,13 @@ parser.add_argument(
     "--no_data_cache", action="store_true", help="When specified do not load and store cache preprocessed data.",
 )
 parser.add_argument("--no_shuffle_data", action="store_false", dest="shuffle_data")
+parser.add_argument(
+    "--wandb_project", default=None, type=str, help='Project name for tracking with Weights and Biases'
+)
+parser.add_argument(
+    "--wandb_experiment", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
+)
+
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -195,21 +209,25 @@ nf = nemo_core.NeuralModuleFactory(
     log_dir=args.work_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
-    add_time_to_log_dir=True,
+    add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
 logging.info(f"{args}")
 
-model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
 )
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
 )
-
 
 hidden_size = model.hidden_size
 
@@ -220,10 +238,6 @@ if args.task_name == "sts-b":
 else:
     pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
     glue_loss = CrossEntropyLossNM()
-
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
 
 
 def create_pipeline(
@@ -281,6 +295,8 @@ callbacks_eval = [
         user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, args.work_dir, eval_task_names[0]),
         tb_writer=nf.tb_writer,
         eval_step=steps_per_epoch,
+        wandb_name=args.wandb_experiment,
+        wandb_project=args.wandb_project,
     )
 ]
 
@@ -313,14 +329,27 @@ ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
 
+callbacks = [callback_train, ckpt_callback] + callbacks_eval
+
+if args.wandb_project and args.wandb_experiment:
+    wand_callback = nemo.core.WandbCallback(
+        train_tensors=[train_loss],
+        wandb_name=args.wandb_experiment,
+        wandb_project=args.wandb_project,
+        update_freq=args.loss_step_freq if args.loss_step_freq > 0 else steps_per_epoch,
+        args=args,
+    )
+    callbacks.append(wand_callback)
+
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
+
 nf.train(
     tensors_to_optimize=[train_loss],
-    callbacks=[callback_train, ckpt_callback] + callbacks_eval,
+    callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
 )

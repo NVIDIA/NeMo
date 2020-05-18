@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -63,6 +63,34 @@ def get_same_padding(kernel_size, stride, dilation):
     if dilation > 1:
         return (dilation * kernel_size) // 2 - 1
     return kernel_size // 2
+
+
+class StatsPoolLayer(nn.Module):
+    def __init__(self, gram=False, super_vector=False):
+        super().__init__()
+        self.gram = gram
+        self.super = super_vector
+
+    def forward(self, encoder_output):
+
+        mean = encoder_output.mean(dim=-1)  # Time Axis
+        std = encoder_output.std(dim=-1)
+
+        pooled = torch.cat([mean, std], dim=-1)
+
+        if self.gram:
+            time_len = encoder_output.shape[-1]
+            # encoder_output = encoder_output
+            cov = encoder_output.bmm(encoder_output.transpose(2, 1))  # cov matrix
+            cov = cov.view(cov.shape[0], -1) / (time_len)
+
+        if self.gram and not self.super:
+            return cov
+
+        if self.super and self.gram:
+            pooled = torch.cat([pooled, cov], dim=-1)
+
+        return pooled
 
 
 class MaskedConv1d(nn.Module):
@@ -151,21 +179,66 @@ class GroupShuffle(nn.Module):
 
 
 class SqueezeExcite(nn.Module):
-    def __init__(self, channels, reduction_ratio):
+    def __init__(
+        self,
+        channels: int,
+        reduction_ratio: int,
+        context_window: int = -1,
+        interpolation_mode: str = 'nearest',
+        activation: Optional[Callable] = None,
+    ):
+        """
+        Squeeze-and-Excitation sub-module.
+
+        Args:
+            channels: Input number of channels.
+            reduction_ratio: Reduction ratio for "squeeze" layer.
+            context_window: Integer number of timesteps that the context
+                should be computed over, using stride 1 average pooling.
+                If value < 1, then global context is computed.
+            interpolation_mode: Interpolation mode of timestep dimension.
+                Used only if context window is > 1.
+                The modes available for resizing are: `nearest`, `linear` (3D-only),
+                `bilinear`, `area`
+            activation: Intermediate activation function used. Must be a
+                callable activation function.
+        """
         super(SqueezeExcite, self).__init__()
-        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.context_window = int(context_window)
+        self.interpolation_mode = interpolation_mode
+
+        if self.context_window <= 0:
+            self.pool = nn.AdaptiveAvgPool1d(1)  # context window = T
+        else:
+            self.pool = nn.AvgPool1d(self.context_window, stride=1)
+
+        if activation is None:
+            activation = nn.ReLU(inplace=True)
+
         self.fc = nn.Sequential(
             nn.Linear(channels, channels // reduction_ratio, bias=False),
-            nn.ReLU(inplace=True),
+            activation,
             nn.Linear(channels // reduction_ratio, channels, bias=False),
-            nn.Sigmoid(),
         )
 
     def forward(self, x):
-        batch, channels, _ = x.size()
-        y = self.pool(x).view(batch, channels)
-        y = self.fc(y).view(batch, channels, 1)
-        return x * y.expand_as(x)
+        batch, channels, timesteps = x.size()
+        y = self.pool(x)  # [B, C, T - context_window + 1]
+        y = y.transpose(1, 2)  # [B, T - context_window + 1, C]
+        y = self.fc(y)  # [B, T - context_window + 1, C]
+        y = y.transpose(1, 2)  # [B, C, T - context_window + 1]
+
+        if self.context_window > 0:
+            y = torch.nn.functional.interpolate(y, size=timesteps, mode=self.interpolation_mode)
+
+        y = torch.sigmoid(y)
+
+        return x * y
+
+
+class Swish(nn.Module):
+    def forward(self, x):
+        return x * torch.sigmoid(x)
 
 
 class JasperBlock(nn.Module):
@@ -194,6 +267,9 @@ class JasperBlock(nn.Module):
         conv_mask=False,
         se=False,
         se_reduction_ratio=16,
+        se_context_window=None,
+        se_interpolation_mode='nearest',
+        stride_last=False,
     ):
         super(JasperBlock, self).__init__()
 
@@ -216,12 +292,18 @@ class JasperBlock(nn.Module):
         conv = nn.ModuleList()
 
         for _ in range(repeat - 1):
+            # Stride last means only the last convolution in block will have stride
+            if stride_last:
+                stride_val = [1]
+            else:
+                stride_val = stride
+
             conv.extend(
                 self._get_conv_bn_layer(
                     inplanes_loop,
                     planes,
                     kernel_size=kernel_size,
-                    stride=stride,
+                    stride=stride_val,
                     dilation=dilation,
                     padding=padding_val,
                     groups=groups,
@@ -233,9 +315,6 @@ class JasperBlock(nn.Module):
             )
 
             conv.extend(self._get_act_dropout_layer(drop_prob=dropout, activation=activation))
-
-            if se and not residual:
-                conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
 
             inplanes_loop = planes
 
@@ -255,8 +334,16 @@ class JasperBlock(nn.Module):
             )
         )
 
-        if se and not residual:
-            conv.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
+        if se:
+            conv.append(
+                SqueezeExcite(
+                    planes,
+                    reduction_ratio=se_reduction_ratio,
+                    context_window=se_context_window,
+                    interpolation_mode=se_interpolation_mode,
+                    activation=activation,
+                )
+            )
 
         self.mconv = conv
 
@@ -265,18 +352,26 @@ class JasperBlock(nn.Module):
 
         if residual:
             res_list = nn.ModuleList()
+
+            if residual_mode == 'stride_add':
+                stride_val = stride
+            else:
+                stride_val = [1]
+
             if len(residual_panes) == 0:
                 res_panes = [inplanes]
                 self.dense_residual = False
             for ip in res_panes:
                 res = nn.ModuleList(
                     self._get_conv_bn_layer(
-                        ip, planes, kernel_size=1, normalization=normalization, norm_groups=norm_groups,
+                        ip,
+                        planes,
+                        kernel_size=1,
+                        normalization=normalization,
+                        norm_groups=norm_groups,
+                        stride=stride_val,
                     )
                 )
-
-                if se:
-                    res.append(SqueezeExcite(planes, reduction_ratio=se_reduction_ratio))
 
                 res_list.append(res)
 
@@ -434,7 +529,7 @@ class JasperBlock(nn.Module):
                     else:
                         res_out = res_layer(res_out)
 
-                if self.residual_mode == 'add':
+                if self.residual_mode == 'add' or self.residual_mode == 'stride_add':
                     out = out + res_out
                 else:
                     out = torch.max(out, res_out)
@@ -445,3 +540,7 @@ class JasperBlock(nn.Module):
             return xs + [out], lens
 
         return [out], lens
+
+
+# Register swish activation function
+jasper_activations['swish'] = Swish

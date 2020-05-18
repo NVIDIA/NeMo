@@ -33,10 +33,10 @@ parser.add_argument(
     default='roberta-base',
     type=str,
     help='Name of the pre-trained model',
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--bert_config", default=None, type=str)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer",
     default="nemobert",
@@ -50,6 +50,12 @@ parser.add_argument(
     default=None,
     type=str,
     help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "For tokenizer only applicable when tokenizer is build with vocab file.",
 )
 parser.add_argument("--batch_size", default=32, type=int)
 parser.add_argument("--max_seq_length", default=36, type=int)
@@ -70,12 +76,10 @@ parser.add_argument(
 )
 parser.add_argument("--train_file_prefix", default='train', type=str)
 parser.add_argument("--eval_file_prefix", default='dev', type=str)
-parser.add_argument("--do_lower_case", action='store_true')
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 parser.add_argument(
     "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
 )
-
 parser.add_argument("--save_epoch_freq", default=1, type=int)
 parser.add_argument("--save_step_freq", default=-1, type=int)
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
@@ -94,11 +98,12 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
 )
-
-hidden_size = model.hidden_size
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
@@ -107,6 +112,8 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     vocab_file=args.vocab_file,
     do_lower_case=args.do_lower_case,
 )
+
+hidden_size = model.hidden_size
 
 data_desc = TextClassificationDataDesc(data_dir=args.data_dir, modes=[args.train_file_prefix, args.eval_file_prefix])
 
@@ -119,9 +126,6 @@ classifier = nemo_nlp.nm.trainables.SequenceClassifier(
     log_softmax=False,
 )
 
-if args.bert_checkpoint:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
 
 if args.class_balancing == 'weighted_loss':
     # You may need to increase the number of epochs for convergence.
