@@ -1334,6 +1334,7 @@ class PtActions(Actions):
             for module in AppState().modules:
                 key = module.unique_instance_id
                 num_trainable_weights = module.num_weights
+                self.ddp_module_dict[key] = module
                 if not isinstance(module, DDP) and isinstance(module, torch.nn.Module) and num_trainable_weights > 0:
                     # gpf = 1
                     # if gradient_predivide:
