@@ -33,59 +33,21 @@ from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
+"""Provide extra arguments required for tasks."""
 parser = argparse.ArgumentParser(description="Token classification with pretrained BERT")
 parser.add_argument("--local_rank", default=None, type=int)
-parser.add_argument("--batch_size", default=8, type=int)
-parser.add_argument("--max_seq_length", default=128, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_epochs", default=5, type=int)
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=5e-5, type=float)
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--weight_decay", default=0.01, type=float)
-parser.add_argument("--optimizer_kind", default="adam", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--data_dir", default="/data", type=str)
-parser.add_argument("--fc_dropout", default=0.5, type=float)
-parser.add_argument("--num_fc_layers", default=2, type=int)
-parser.add_argument("--ignore_start_end", action='store_false')
-parser.add_argument("--ignore_extra_tokens", action='store_false')
-parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--mode", default='train_eval', choices=["train_eval", "train"], type=str)
-parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
-parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
-parser.add_argument("--batches_per_step", default=1, type=int, help="Number of iterations per step.")
-parser.add_argument(
-    "--pretrained_model_name",
-    default="bert-base-uncased",
-    type=str,
-    help="Name of the pre-trained model",
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
-)
-parser.add_argument("--bert_checkpoint", default=None, type=str)
-parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
-parser.add_argument(
-    "--tokenizer_model",
-    default=None,
-    type=str,
-    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
-)
-parser.add_argument(
-    "--tokenizer",
-    default="nemobert",
-    type=str,
-    choices=["nemobert", "sentencepiece"],
-    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
-)
-parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
-parser.add_argument("--do_lower_case", action='store_true')
+
+# training arguments
 parser.add_argument(
     "--work_dir",
     default='output',
     type=str,
     help="The output directory where the model prediction and checkpoints will be written.",
 )
-parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
+parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
+parser.add_argument("--num_gpus", default=1, type=int)
+parser.add_argument("--num_epochs", default=5, type=int)
+parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -98,11 +60,69 @@ parser.add_argument(
     type=int,
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
-parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
 parser.add_argument("--eval_step_freq", default=100, type=int, help="Frequency of evaluation")
+parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
 parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")
 
+# learning rate arguments
+parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
+parser.add_argument("--lr", default=5e-5, type=float)
+parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--weight_decay", default=0.01, type=float)
+parser.add_argument("--optimizer_kind", default="adam", type=str)
+
+# task specific arguments
+parser.add_argument("--fc_dropout", default=0.5, type=float)
+parser.add_argument("--num_fc_layers", default=2, type=int)
+
+# data arguments
+parser.add_argument("--data_dir", default="/data", type=str)
+parser.add_argument("--max_seq_length", default=128, type=int)
+parser.add_argument("--ignore_start_end", action='store_false')
+parser.add_argument("--ignore_extra_tokens", action='store_false')
+parser.add_argument("--none_label", default='O', type=str)
+parser.add_argument("--mode", default='train_eval', choices=["train_eval", "train"], type=str)
+parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
+parser.add_argument("--batch_size", default=8, type=int, help="Batch size")
+parser.add_argument("--batches_per_step", default=1, type=int, help="Number of iterations per step.")
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "Only applicable when tokenizer is build with vocab file",
+)
+
+# model arguments
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
+)
+parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to bert pretrained  checkpoint")
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+
+
 args = parser.parse_args()
+logging.info(args)
 
 if not os.path.exists(args.data_dir):
     raise FileNotFoundError(
@@ -122,13 +142,17 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
-logging.info(args)
-
 output_file = f'{nf.work_dir}/output.txt'
 
-model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
 )
+
+hidden_size = model.hidden_size
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
@@ -137,12 +161,6 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     vocab_file=args.vocab_file,
     do_lower_case=args.do_lower_case,
 )
-
-if args.bert_checkpoint is not None:
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
-
-hidden_size = model.hidden_size
 
 
 def create_pipeline(
@@ -232,6 +250,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=args.loss_step_freq,
     tb_writer=nf.tb_writer,
 )
 callbacks.append(train_callback)

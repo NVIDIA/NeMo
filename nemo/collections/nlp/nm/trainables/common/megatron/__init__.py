@@ -14,10 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.common.common_utils import *
-from nemo.collections.nlp.nm.trainables.common.huggingface import *
-from nemo.collections.nlp.nm.trainables.common.megatron import *
-from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *
-from nemo.collections.nlp.nm.trainables.common.token_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.transformer import *
+from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import *
