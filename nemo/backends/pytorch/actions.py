@@ -86,6 +86,7 @@ class TrainingState:
             # print(self.tensor_dict[unique_name])
             tensor_value = self.tensor_dict[unique_name]
         return tensor_value
+
     #     unique_name = AppState().tensor_names[name]
     #     return self.tensor_dict[unique_name]
     # def get_and_compute_tensor(self, name):
