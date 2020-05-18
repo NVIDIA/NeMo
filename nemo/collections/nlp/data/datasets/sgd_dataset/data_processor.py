@@ -59,6 +59,16 @@ class Dstc8DataProcessor(object):
         schema_emb_processor,
         overwrite_dial_files=False,
     ):
+        """
+        Constructs Dstc8DataProcessor
+        Args:
+            task_name (str): task  name, for  example, "dstc8_single_domain"
+            dstc8_data_dir (str): path to data directory
+            dialogues_example_dir (str): path to  store processed dialogue examples
+            tokenizer (Tokenizer): such as NemoBertTokenizer
+            schema_emb_processor (Obj): contains information about schemas
+            overwrite_dial_files (bool): whether to overwite dialogue files
+        """
         self.dstc8_data_dir = dstc8_data_dir
         self.dialogues_examples_dir = dialogues_example_dir
 
@@ -104,6 +114,13 @@ class Dstc8DataProcessor(object):
                 torch.distributed.barrier()
 
     def get_dialog_examples(self, dataset):
+        """
+        Returns a list of `InputExample`s of the data splits' dialogues.
+        Args:
+          dataset(str): can be "train", "dev", or "test".
+        Returns:
+          examples: a list of `InputExample`s.
+        """
         if (self._task_name, dataset) not in self.dial_files or not os.path.exists(
             self.dial_files[(self._task_name, dataset)]
         ):
@@ -119,8 +136,8 @@ class Dstc8DataProcessor(object):
         return dial_examples
 
     def _generate_dialog_examples(self, dataset, schemas):
-        """Return a list of `InputExample`s of the data splits' dialogues.
-
+        """
+        Returns a list of `InputExample`s of the data splits' dialogues.
         Args:
           dataset(str): can be "train", "dev", or "test".
           schemas(Schema): for all services and all datasets processed by the schema_processor
@@ -144,7 +161,15 @@ class Dstc8DataProcessor(object):
         return examples
 
     def _create_examples_from_dialog(self, dialog, schemas, dataset):
-        """Create examples for every turn in the dialog."""
+        """
+        Create examples for every turn in the dialog.
+        Args:
+            dialog (dict): dialogue example
+            schemas(Schema): for all services and all datasets processed by the schema_processor
+            dataset(str): can be "train", "dev", or "test".
+        Returns:
+            examples: a list of `InputExample`s.
+        """
         dialog_id = dialog["dialogue_id"]
         prev_states = {}
         examples = []
@@ -169,6 +194,15 @@ class Dstc8DataProcessor(object):
         return examples
 
     def _get_state_update(self, current_state, prev_state):
+        """
+        Updates dialogue state
+        Args:
+            current_state (dict): dict of slot - slot values pairs for the current dialogue turn
+            prev_state (dict): dict of slot - slot values pairs for the previous dialogue turns
+        Returns:
+            state_update (dict): dict of slot - slot values pairs that very added/updated during the current
+                dialogue turn
+        """
         state_update = dict(current_state)
         for slot, values in current_state.items():
             if slot in prev_state and prev_state[slot][0] in values:
@@ -179,7 +213,20 @@ class Dstc8DataProcessor(object):
     def _create_examples_from_turn(
         self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
     ):
-        """Creates an example for each frame in the user turn."""
+        """
+        Creates an example for each frame in the user turn.
+        Args:
+            turn_id (int): turn number
+            system_utterance (str): last system utterance
+            user_utterance (str): lst user utterance
+            system_frames (dict): all system utterances and slot - slot value pairs
+            user_frames (dict): all user utterances and slot - slot value pairs
+            prev_states (dict): slot - slot value pairs from the previous turns
+            schemas (obj): carries information about the service from the current turn
+        Returns:
+            examples: a list of `InputExample`s.
+            prev_states (dict): updated dialogue state
+        """
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
@@ -302,11 +349,10 @@ class Dstc8DataProcessor(object):
         return bert_tokens, alignments, inverse_alignments
 
     def get_num_dialog_examples(self, dataset):
-        """Get the number of dilaog examples in the data split.
-
+        """
+        Gets the number of dilaog examples in the data split.
         Args:
           dataset: str. can be "train", "dev", or "test".
-
         Returns:from nemo_nlp.data.datasets.sgd import data_utils
           example_count: int. number of examples in the specified dataset.
         """
@@ -323,14 +369,26 @@ class Dstc8DataProcessor(object):
         return example_count
 
     def _naive_tokenize(s):
-        """Tokenize a string, separating words, spaces and punctuations."""
+        """
+        Tokenizes a string, separating words, spaces and punctuations.
+        Args:
+            s (str): a string
+        Returns:
+            seq_tok (list): list of words, spaces and punctuations from the s
+        """
         # Spaces and punctuation marks are all retained, i.e. direct concatenation
         # of all the tokens in the sequence will be the original string.
         seq_tok = [tok for tok in re.split(r"([^a-zA-Z0-9])", s) if tok]
         return seq_tok
 
     def load_dialogues(dialog_json_filepaths):
-        """Obtain the list of all dialogues from specified json files."""
+        """
+        Obtain the list of all dialogues from specified json files.
+        Args:
+            dialog_json_filepaths (list): list of json files
+        Returns:
+            dialogs  (list): the list of all dialogues
+        """
         dialogs = []
         for dialog_json_filepath in sorted(dialog_json_filepaths):
             with open(dialog_json_filepath, 'r') as f:

@@ -76,17 +76,26 @@ class SGDDialogueStateLossNM(LossNM):
 
     @property
     def output_ports(self):
-        """Returns definitions of module output ports.
-
+        """
+        Returns definitions of module output ports.
         loss:
             NeuralType(None)
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, **kwargs):
-        LossNM.__init__(self, **kwargs)
+    def __init__(self, reduction='mean'):
+        """
+        Args:
+            reduction (str): specifies the reduction to apply to the final loss, choose 'mean' or 'sum'
+        """
+        super().__init__()
 
-        self._cross_entropy = nn.CrossEntropyLoss()
+        if reduction not in ['mean', 'sum']:
+            logging.warning(f'{reduction} reduction is not supported. Setting reduction to "mean"')
+            reduction = 'mean'
+
+        self.reduction = reduction
+        self._cross_entropy = nn.CrossEntropyLoss(reduction=self.reduction)
         self._criterion_req_slots = nn.BCEWithLogitsLoss()
 
     def _loss_function(
@@ -184,6 +193,10 @@ class SGDDialogueStateLossNM(LossNM):
             "span_end_loss": span_end_loss,
         }
 
-        batch_size = logit_intent_status.shape[0]
-        total_loss = sum(losses.values()) / batch_size
+        total_loss = sum(losses.values())
+        if self.reduction == 'mean':
+            total_loss = total_loss / len(losses)
+        else:
+            batch_size = logit_intent_status.shape[0]
+            total_loss = total_loss / batch_size
         return total_loss
