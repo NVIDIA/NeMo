@@ -15,3 +15,4 @@
 # =============================================================================
 
 from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import *
+from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *

@@ -1,12 +1,61 @@
-.. _squad_model_links:
 
 Tutorial
 ========
 
-In this tutorial, we are going to implement a Question Answering system using the SQuAD dataset with pretrained BERT-like models based on
-`BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`_ :cite:`nlp-qa-devlin2018bert`.
-All code used in this tutorial is based on ``examples/nlp/question_answering/question_answering_squad.py``.
+In this tutorial, we are going to describe how to finetune a BERT-like models based on `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`_ :cite:`nlp-qa-devlin2018bert` on GLUE tasks. 
+All code used in this tutorial is based on ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``.
 
+GLUE tasks description
+----------------------
+
+`GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding <https://openreview.net/pdf?id=rJ4km2R5t7>`_ :cite:`nlp-glue-wang2018glue` includes 9 natural language understanding tasks. 
+Note, it's recommended to finetune you model on each task separately.
+
+Single-Sentence Tasks:
+**CoLA** The Corpus of Linguistic Acceptability :cite:`nlp-glue-warstadt2018neural` is a set of English sentences labeled as grammatical or ungrammatical from published linguistics literature.
+Evaluation metric: Matthew's Corrrelation.
+SST-2 The Stanford Sentiment Treebank :cite:`nlp-glue-socher2013recursive` consists of sentences from movie reviews and human annotations of their sentiment. The task is to predict the sentiment of a given
+sentence: positive or negative.  Evaluation metric: accuracy.
+
+Similarity and Paraphrase tasks:
+- MRPC The Microsoft Research Paraphrase Corpus :cite:`nlp-glue-dolan-brockett-2005-automatically` is a corpus of sentence pairs automatically extracted from online news sources, with human annotations for whether the sentences in the pair are semantically equivalent.
+Evaluation metrins: accuracy and F1 score.
+- `QQP The Quora Question Pairs2 <https://www.quora.com/q/quoradata/First-Quora-Dataset-Release-Question-Pairs>` dataset is a collection of question pairs from the community question-answering website Quora.
+The task is to determine whether a pair of questions are semantically equivalent. Evaluation metrics: accuracy and F1 score. 
+- STS-B The Semantic Textual Similarity Benchmark :cite:`nlp-glue-cer2017semeval` is a collection of sentence pairs drawn from news headlines, video and image captions, and natural language inference data.
+
+Inference Tasks:
+- MNLI The Multi-Genre Natural Language Inference Corpus :cite:`nlp-glue-williams2017broad` is a crowdsourced collection of sentence pairs with textual entailment annotations. Given a premise sentence
+and a hypothesis sentence, the task is to predict whether the premise entails the hypothesis (entailment), contradicts the hypothesis (contradiction), or neither (neutral). 
+The task has the matched (in-domain) and mismatched (cross-domain) sections, evaluation metric: accuracy.
+ 
+We also use and recommend the SNLI corpus (Bowman et al., 2015) as 550k examples of auxiliary training data.
+QNLI The Stanford Question Answering Dataset (Rajpurkar et al. 2016) is a question-answering
+dataset consisting of question-paragraph pairs, where one of the sentences in the paragraph (drawn
+from Wikipedia) contains the answer to the corresponding question (written by an annotator). We
+convert the task into sentence pair classification by forming a pair between each question and each
+sentence in the corresponding context, and filtering out pairs with low lexical overlap between the
+question and the context sentence. The task is to determine whether the context sentence contains
+the answer to the question. This modified version of the original task removes the requirement that
+the model select the exact answer, but also removes the simplifying assumptions that the answer
+is always present in the input and that lexical overlap is a reliable cue. This process of recasting
+existing datasets into NLI is similar to methods introduced in White et al. (2017) and expanded
+upon in Demszky et al. (2018). We call the converted dataset QNLI (Question-answering NLI).3
+RTE The Recognizing Textual Entailment (RTE) datasets come from a series of annual textual
+entailment challenges. We combine the data from RTE1 (Dagan et al., 2006), RTE2 (Bar Haim
+et al., 2006), RTE3 (Giampiccolo et al., 2007), and RTE5 (Bentivogli et al., 2009).4 Examples are
+constructed based on news and Wikipedia text. We convert all datasets to a two-class split, where
+for three-class datasets we collapse neutral and contradiction into not entailment, for consistency.
+WNLI The Winograd Schema Challenge (Levesque et al., 2011) is a reading comprehension task
+in which a system must read a sentence with a pronoun and select the referent of that pronoun from
+a list of choices. The examples are manually constructed to foil simple statistical methods: Each
+one is contingent on contextual information provided by a single word or phrase in the sentence
+
+
+
+
+
+`GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding <https://openreview.net/pdf?id=rJ4km2R5t7>`_ :cite:`nlp-glue-wang2018glue`.
 
 Currently, there are 4 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
 Megatron-LM BERT, BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
@@ -36,6 +85,7 @@ BERT Large uncased models (~110M parameters) finetuned on SQuADv1.1 or SQuADv2.0
     For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
 
 Model results:
+(dev set, single model, single-task finetuning)
 
 +---------------------------------------------+--------+--------+--------+--------+
 |                                             | SQuADv1.1       | SQuADv2.0       |
@@ -305,5 +355,5 @@ References
 
 .. bibliography:: nlp_all_refs.bib
     :style: plain
-    :labelprefix: NLP-QA
-    :keyprefix: nlp-qa-
+    :labelprefix: NLP-GLUE
+    :keyprefix: nlp-glue-
