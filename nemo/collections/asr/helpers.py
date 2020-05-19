@@ -2,7 +2,6 @@
 
 import torch
 
-import nemo
 from .metrics import classification_accuracy, word_error_rate
 from nemo.utils import logging
 

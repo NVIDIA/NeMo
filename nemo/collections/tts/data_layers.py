@@ -1,7 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
 
-import nemo
 from .parts.datasets import AudioOnlyDataset
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType

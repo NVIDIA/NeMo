@@ -35,7 +35,6 @@ import numpy as np
 import torch
 from packaging import version
 
-import nemo
 from .parts.features import FilterbankFeatures
 from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM

@@ -4,7 +4,6 @@ import matplotlib.pylab as plt
 import numpy as np
 import torch
 
-import nemo
 from nemo.utils import logging
 
 __all__ = [

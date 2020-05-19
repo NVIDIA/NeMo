@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import nemo
 from .jasper import JasperEncoder
 from .parts.jasper import init_weights
 from nemo.backends.pytorch.nm import TrainableNM

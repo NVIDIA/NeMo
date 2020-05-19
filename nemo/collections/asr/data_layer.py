@@ -24,7 +24,6 @@ import braceexpand
 import torch
 import webdataset as wd
 
-import nemo
 from .parts.collections import ASRAudioText
 from .parts.dataset import (
     AudioDataset,
