@@ -1,6 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
 
+# Uncomment this to try on CPU
+# nemo.utils.app_state.AppState(device=nemo.core.DeviceType.CPU)
+
 logging = nemo.logging
 
 # Instantiate the necessary neural modules.

@@ -33,7 +33,7 @@ class AppState(metaclass=Singleton):
         active graph etc.
     """
 
-    def __init__(self, device=None, backend=None):
+    def __init__(self, device=None, backend=None, local_rank=None, global_rank=None, optim_level=0):
         """
             Constructor. Initializes global variables.
 
@@ -42,8 +42,7 @@ class AppState(metaclass=Singleton):
         """
         # Had to set it to None in argument to avoid circular import at the class initialization phase.
         if device is None:
-            # TODO: Set back to GPU
-            self._device = nemo.core.DeviceType.CPU
+            self._device = nemo.core.DeviceType.GPU
         else:
             self._device = device
         if backend is None:
@@ -55,10 +54,9 @@ class AppState(metaclass=Singleton):
         # Create graph manager (registry with some additional functionality).
         self._neural_graph_manager = NeuralGraphManager()
 
-        # TODO: Properly initialize this!!!!!
-        self.__optim_level = nemo.core.Optimization.mxprO0
-        self.__local_rank = None
-        self.__global_rank = 0
+        self.__optim_level = optim_level
+        self.__local_rank = local_rank
+        self.__global_rank = global_rank
 
     @property
     def device(self):
