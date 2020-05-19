@@ -137,8 +137,7 @@ class Actions(ABC):
                 batch_size
             stop_on_nan_loss: (default: False) If set to True, the training
                 will stop if loss=nan or inf. If set to False, the training
-                will continue. Note that if apex.amp is not used, or if
-                optimization level is O0, training will stop regardless.
+                will continue.
 
         Returns:
             None
@@ -573,7 +572,6 @@ class NeuralModuleFactory(object):
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
-        steps_per_nan_check=100,
         synced_batchnorm=False,
         synced_batchnorm_groupsize=0,
         gradient_predivide=False,
@@ -591,7 +589,6 @@ class NeuralModuleFactory(object):
             lr_policy=lr_policy,
             batches_per_step=batches_per_step,
             stop_on_nan_loss=stop_on_nan_loss,
-            steps_per_nan_check=steps_per_nan_check,
             synced_batchnorm=synced_batchnorm,
             synced_batchnorm_groupsize=synced_batchnorm_groupsize,
             gradient_predivide=gradient_predivide,

@@ -18,6 +18,10 @@ import os
 from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 
 import nemo
+from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import (
+    get_megatron_vocab_file,
+    is_lower_cased_megatron,
+)
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 
@@ -72,7 +76,7 @@ def get_tokenizer(
     '''
     Args:
     tokenizer_name: sentencepiece or nemobert
-    pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
+    pretrained_mode_name ('str'): name of the pretrained model from the hugging face list or 'megatron',
         for example: bert-base-cased
         To see the list of pretrained models, use: nemo_nlp.nm.trainables.get_bert_models_list()
     tokenizer_model (path): only used for sentencepiece tokenizer
@@ -80,6 +84,12 @@ def get_tokenizer(
     vocab_file (str): path to vocab file
     do_lower_case (bool): (whether to apply lower cased) - only applicable when tokenizer is build with vocab file
     '''
+    if 'megatron' in pretrained_model_name:
+        do_lower_case = is_lower_cased_megatron(pretrained_model_name)
+        vocab_file = get_megatron_vocab_file(pretrained_model_name)
+        return nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(
+            vocab_file=vocab_file, do_lower_case=do_lower_case
+        )
 
     if tokenizer_name == 'nemobert':
         tokenizer = nemo.collections.nlp.data.tokenizers.NemoBertTokenizer(
