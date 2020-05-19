@@ -29,7 +29,7 @@ This part covers the following:
  * how to create a Neural Graph object
  * how to activate/deactivate graph context (in various ways)
  * how to bind NG inputs and outpus (in various ways)
- * how to nest one graph (representing the our trained model) into training and validation graphs
+ * how to nest one graph (representing the our "trainable model") into training and validation graphs
 
 
 Tutorial II: The advanced functionality
