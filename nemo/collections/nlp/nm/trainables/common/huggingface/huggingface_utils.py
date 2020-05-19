@@ -18,12 +18,12 @@ from nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm import Albe
 from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
 from nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm import Roberta
 
-__all__ = ['MODELS', 'get_huggingface_model', 'get_bert_models_list']
+__all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list']
 
 
-def get_huggingface_model(pretrained_model_name, bert_config=None):
+def get_huggingface_lm_model(pretrained_model_name, bert_config=None):
     '''
-    Return the dict of special tokens associated with the model.
+    Returns the dict of special tokens associated with the model.
     Args:
     pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
         for example: bert-base-cased
@@ -36,7 +36,7 @@ def get_huggingface_model(pretrained_model_name, bert_config=None):
         else:
             return MODELS[model_type]['class'](pretrained_model_name=pretrained_model_name)
     else:
-        raise ValueError(f'Choose pretrained model from the following list: {get_bert_models_list()}.')
+        raise ValueError(f'{pretrained_model_name} is not supported')
 
 
 MODELS = {
@@ -46,7 +46,10 @@ MODELS = {
 }
 
 
-def get_bert_models_list():
+def get_huggingface_lm_models_list():
+    '''
+    Returns the list of supported HuggingFace models
+    '''
     huggingface_models = []
     for model in MODELS:
         model_names = [x.pretrained_model_name for x in MODELS[model]['class'].list_pretrained_models()]

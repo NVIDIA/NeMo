@@ -24,8 +24,8 @@
 
 
 
-NVIDIA Neural Modules: NeMo
-===========================
+NVIDIA NeMo
+===========
 
 NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
@@ -34,13 +34,17 @@ NeMo toolkit makes it possible for researchers to easily compose complex neural 
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
 
-Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
+Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes. NeMo has integration with NVIDIA Jarvis.
 
 **Introduction**
 
 * Watch `this video <https://drive.google.com/a/nvidia.com/file/d/1AcOmtx4n1BAWvPoyhE0thcQXdloGWb6q/view?usp=sharing>`_ for a quick walk-through.
 
 * `Documentation (latest released version) <https://nvidia.github.io/NeMo/>`_ and `Documentation (master branch) <http://nemo-master-docs.s3-website.us-east-2.amazonaws.com/>`_
+
+* Read NVIDIA `Developer Blog to learn how to develop speech recognition models for different languages <https://devblogs.nvidia.com/jump-start-training-for-speech-recognition-models-with-nemo/>`_
+
+* Read NVIDIA `Developer Blog announcing NeMo <https://devblogs.nvidia.com/announcing-nemo-fast-development-of-speech-and-language-models/>`_
 
 * Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
 
@@ -162,14 +166,33 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
     python setup.py style --fix  # Tries to fix error in-place.
     python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
-**Unittests**
+** NeMo Test Suite**
 
-This command runs unittests:
+NeMo contains test suite divided into 5 subsets:
+ 1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
+ 2) ``integration``: tests checking the elements when integrated into subsystems
+ 3) ``system``: tests working at the highest integration level
+ 4) ``acceptance``: tests checking whether the developed product/model passes the user defined acceptance criteria
+ 5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
+
+The user can run  all the tests locally by simply executing:
 
 .. code-block:: bash
 
-    ./reinstall.sh
-    pytest tests
+    pytest
+
+In order to run a subset of tests one can use the ``-m`` argument followed by the subset name, e.g. for ``system`` subset:
+
+.. code-block:: bash
+
+    pytest -m system
+
+By default, all the tests will be executed on GPU. There is also an option to run the test suite on CPU
+by passing the ``--cpu`` command line argument, e.g.:
+
+.. code-block:: bash
+
+    pytest -m unit --cpu
 
 
 Citation

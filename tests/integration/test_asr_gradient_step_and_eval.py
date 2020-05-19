@@ -213,6 +213,64 @@ class TestASRPytorch(TestCase):
         assert loss_list[-1] < loss_list[0]
 
     @pytest.mark.integration
+    def test_contextnet_ctc_training(self):
+        """Integtaion test that instantiates a small ContextNet model and tests training with the sample asr data.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
+        Checks SE-block with fixed context size and global context, residual_mode='stride_add' and 'stride_last' flags
+        """
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/contextnet_32.yaml"))) as f:
+            contextnet_model_definition = self.yaml.load(f)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
+        pre_process_params = {
+            'frame_splicing': 1,
+            'features': 80,
+            'window_size': 0.025,
+            'n_fft': 512,
+            'dither': 1e-05,
+            'window': 'hann',
+            'sample_rate': 16000,
+            'normalize': 'per_feature',
+            'window_stride': 0.01,
+        }
+        preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
+
+        spec_aug = nemo_asr.SpectrogramAugmentation(**contextnet_model_definition['SpectrogramAugmentation'])
+
+        contextnet_encoder = nemo_asr.ContextNetEncoder(
+            feat_in=contextnet_model_definition['AudioToMelSpectrogramPreprocessor']['features'],
+            **contextnet_model_definition['ContextNetEncoder'],
+        )
+        contextnet_decoder = nemo_asr.ContextNetDecoderForCTC(feat_in=32, hidden_size=16, num_classes=len(self.labels))
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        processed_signal, p_length = preprocessing(input_signal=audio_signal, length=a_sig_length)
+
+        processed_signal = spec_aug(input_spec=processed_signal)
+
+        encoded, encoded_len = contextnet_encoder(audio_signal=processed_signal, length=p_length)
+        log_probs = contextnet_decoder(encoder_output=encoded)
+        loss = ctc_loss(
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
+        )
+
+        loss_list = []
+        callback = nemo.core.SimpleLossLoggerCallback(
+            tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
+        )
+
+        self.nf.train(
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
+        )
+        self.nf.reset_trainer()
+
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
+
+    @pytest.mark.integration
     def test_stft_conv_training(self):
         """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
         test_stft_conv_training tests the torch_stft path while test_jasper_training tests the torch.stft path inside

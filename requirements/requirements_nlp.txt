@@ -12,3 +12,4 @@ sklearn
 fuzzywuzzy
 python-Levenshtein
 gdown
+megatron-lm

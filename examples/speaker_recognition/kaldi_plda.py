@@ -32,10 +32,10 @@ def write_scp(root, filename, lines, train):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", help="embeddings root path", type=str, required=True)
-    parser.add_argument("--train_embs", help="npy of train embs", type=str, required=True)
-    parser.add_argument("--train_labels", help="npy of train labels", type=str, required=True)
-    parser.add_argument("--eval_embs", help="npy of eval embb", type=str, required=True)
-    parser.add_argument("--eval_labels", help="npy of eval labels", type=str, required=True)
+    parser.add_argument("--train_embs", help="npy of train embs for PLDA training", type=str, required=True)
+    parser.add_argument("--train_labels", help="npy of train labels for PLDA training", type=str, required=True)
+    parser.add_argument("--eval_embs", help="npy of eval embb for PLDA testing", type=str, required=True)
+    parser.add_argument("--eval_labels", help="npy of eval labels for PLDA testing", type=str, required=True)
     parser.add_argument("--stage", help="1 for test on already trained PLDA 2 otherwise", type=str, required=True)
     args = parser.parse_args()
 
