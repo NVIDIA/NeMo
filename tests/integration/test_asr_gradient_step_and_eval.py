@@ -148,7 +148,7 @@ class TestASRIntegrationPytorch(TestCase):
         )
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
