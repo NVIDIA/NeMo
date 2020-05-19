@@ -23,7 +23,6 @@ import json
 import os
 import re
 
-import nemo
 import nemo.collections.nlp.data.datasets.sgd_dataset.schema as schema
 from nemo import logging
 
@@ -239,7 +238,6 @@ def _locate_word(word, text, start_pos):
             if time_value[0] == '0':
                 if len(time_value) > 2 and time_value[1] != [':']:
                     time_value = time_value[1:]
-            start_idx, end_idx = _locate_boundary(time_value, text)
     else:
         start_idx, end_idx = _locate_boundary(word, text)
         if start_idx is not None:
