@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
+
 logging = nemo.logging
 
 # Instantiate the necessary neural modules.
@@ -19,4 +20,4 @@ callback = nemo.core.SimpleLossLoggerCallback(
 )
 
 # Invoke "train" action.
-nemo.train([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")
+nemo.core.fit([lss], callbacks=[callback], optimization_params={"num_epochs": 3, "lr": 0.0003}, optimizer="sgd")

@@ -12,18 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
+from contextlib import ExitStack
+from typing import Dict, List
 
 import torch
-import nemo
-from typing import List, Dict
-
-from nemo.backends.pytorch import TrainableNM, DataLayerNM
-from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
-from nemo.core import NmTensor
-from nemo.core.neural_factory import Actions, OperationMode, Optimization
-from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
-from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 import torch.optim as optim
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+import nemo
+from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
+
+# from nemo.backends.pytorch import TrainableNeuralModuleWrapper  # TODO: maybe get rid of this
+from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
+from nemo.core.neural_factory import DeviceType, OperationMode, Optimization
+from nemo.core.neural_types import NmTensor
+from nemo.utils.app_state import AppState
+
+# from .nm import DataLayerNM, TrainableNM
+# from .actions import TrainableNeuralModuleWrapper
+# from .optimizers import AdamW, Novograd, master_params
+# from ...core import ActionCallback, EvaluatorCallback, NmTensor, SimpleLossLoggerCallback
+# from ...core import OperationMode, Optimization, DeviceType
+# from ...utils.app_state import AppState
+# from nemo.core import ActionCallback, EvaluatorCallback, NmTensor, SimpleLossLoggerCallback
+# from nemo.core.neural_factory import OperationMode, Optimization
+
+logging = nemo.logging
+
+__all__ = ['pytorch_fit']
 
 # these imports will happen on as-needed basis
 amp = None
@@ -46,9 +64,6 @@ _float_2_half_req = {
     Optimization.mxprO2,
     Optimization.mxprO3,
 }
-
-
-logging = nemo.logging
 
 
 def __perform_on_iteration_start(callbacks):
@@ -87,10 +102,19 @@ def __perform_on_epoch_end(callbacks):
             callback.on_epoch_end()
 
 
-def __update_callbacks(callbacks=None, registered_tensors=None,):
+def __update_callbacks(
+    callbacks=None, registered_tensors=None,
+):
     if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
         for callback in callbacks:
             callback._registered_tensors = registered_tensors
+
+
+def __init_callbacks(appstate, callbacks):
+    if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+        for callback in callbacks:
+            # TODO: This is a hack to make current callbacks work. REDO
+            callback.action = appstate
 
 
 def __check_all_tensors(list_of_tensors):
@@ -176,8 +200,7 @@ def __setup_optimizer(
             logging.warning("Ignoring `optimizer_class` parameter because `optimizer_instance` is provided")
         if optimization_params is not None and optimization_params != {}:
             logging.warning(
-                "Ignoring `optimization_params` parameter for "
-                "optimizer because `optimizer_instance` is provided"
+                "Ignoring `optimization_params` parameter for " "optimizer because `optimizer_instance` is provided"
             )
         optimizer = optimizer_instance
     return optimizer
@@ -284,22 +307,23 @@ def __get_top_sorted_modules_and_dataloader(hook, module_reference_table: Dict, 
 
     # populate self.module_reference_table
     for m in top_sorted_modules:
-        if m[0].factory is None and local_rank is not None:
-            raise ValueError(
-                "Neural module {0} was created without "
-                "NeuralModuleFactory, but you are trying to"
-                "run in distributed mode. Please instantiate"
-                "NeuralModuleFactory first and pass its "
-                "instance as `factory` parameter to all your"
-                "Neural Module objects."
-                "".format(str(m[0]))
-            )
+        # if m[0].factory is None and local_rank is not None:
+        #     raise ValueError(
+        #         "Neural module {0} was created without "
+        #         "NeuralModuleFactory, but you are trying to"
+        #         "run in distributed mode. Please instantiate"
+        #         "NeuralModuleFactory first and pass its "
+        #         "instance as `factory` parameter to all your"
+        #         "Neural Module objects."
+        #         "".format(str(m[0]))
+        #     )
         key = m[0].unique_instance_id
         if key not in module_reference_table:
-            if isinstance(m[0], TrainableNeuralModuleWrapper):
-                module_reference_table[key] = (m[0], m[0]._pt_module)
-            else:
-                module_reference_table[key] = (m[0], m[0])
+            module_reference_table[key] = (m[0], m[0])
+            # if isinstance(m[0], TrainableNeuralModuleWrapper):
+            #     module_reference_table[key] = (m[0], m[0]._pt_module)
+            # else:
+            #     module_reference_table[key] = (m[0], m[0])
 
     return top_sorted_modules, tdataset
 
@@ -314,24 +338,180 @@ def __check_tuples(list_of_tuples):
     return True
 
 
-def pytorch_fit(tensors_to_optimize,
-                training_graph,
-                optimizer=None,
-                optimization_params=None,
-                callbacks: list = None,
-                lr_policy=None,
-                batches_per_step=None,
-                stop_on_nan_loss=False,
-                steps_per_nan_check=100,
-                synced_batchnorm=False,
-                synced_batchnorm_groupsize=0,
-                gradient_predivide=False,
-                amp_max_loss_scale=2.0 ** 24,
-                reset=False):
-    local_rank = 0 # TODO: Properly set this !!!!
+def __get_all_modules(modules, training_loop, callbacks, module_reference_table, local_rank, logging_callchain=None):
+    """Gets all neural modules that will be used by train() and eval() via
+    EvaluatorCallbacks. Saves all modules to self.modules
+    """
+    # If there is a SimpleLossLoggerCallback, create an logger_callchain
+    # with all callchains from training_loop and
+    # SimpleLossLoggerCallback.tensors
+    if logging_callchain:
+        for module in logging_callchain:
+            modules.add(module[0])
+
+    # Else grab all callchains from training_loop
+    else:
+        for step in training_loop:
+            for module in step[2]:
+                modules.add(module[0])
+
+    # Lastly, grab all eval modules
+    if callbacks is not None:
+        for callback in callbacks:
+            if isinstance(callback, EvaluatorCallback):
+                (callchain, _,) = __get_top_sorted_modules_and_dataloader(
+                    hook=callback.eval_tensors, module_reference_table=module_reference_table, local_rank=local_rank
+                )
+                for module in callchain:
+                    modules.add(module[0])
+
+
+def __initialize_amp(
+    modules, optimizer, optim_level, amp_max_loss_scale=2.0 ** 24, amp_min_loss_scale=1.0,
+):
+    if optim_level not in AmpOptimizations:
+        raise ValueError(f"__initialize_amp() was called with unknown optim_level={optim_level}")
+    # in this case, nothing to do here
+    if optim_level == Optimization.mxprO0:
+        return optimizer
+
+    if len(modules) < 1:
+        raise ValueError("There were no modules to initialize")
+    pt_modules = []
+    for module in modules:
+        if isinstance(module, torch.nn.Module):
+            pt_modules.append(module)
+        # elif isinstance(module, TrainableNeuralModuleWrapper):
+        #    pt_modules.append(module._pt_module)
+
+    _, optimizer = amp.initialize(
+        max_loss_scale=amp_max_loss_scale,
+        min_loss_scale=amp_min_loss_scale,
+        models=pt_modules,
+        optimizers=optimizer,
+        opt_level=AmpOptimizations[optim_level],
+    )
+    return optimizer
+
+
+def __nm_graph_forward_pass(
+    module_reference_table, call_chain, registered_tensors, mode=OperationMode.training, use_cache=False
+):
+    for ind in range(1, len(call_chain)):
+        if use_cache:
+            in_cache = True
+            for tensor in call_chain[ind][2].values():
+                if tensor is None:
+                    # NM has an output tensor that is not used in the
+                    # current call chain, so we don't care if it's not in
+                    # cache
+                    continue
+                if tensor.unique_name not in registered_tensors:
+                    in_cache = False
+            if in_cache:
+                continue
+        call_args = call_chain[ind][1]
+        # module = call_chain[ind][0]
+        m_id = call_chain[ind][0].unique_instance_id
+        pmodule = module_reference_table[m_id][1]
+
+        # if self._local_rank is not None:
+        #     if isinstance(pmodule, DDP):
+        #         if disable_allreduce:
+        #             pmodule.disable_allreduce()
+        #         else:
+        #             pmodule.enable_allreduce()
+
+        if mode == OperationMode.training:
+            # if module.is_trainable():
+            if isinstance(pmodule, torch.nn.Module):
+                pmodule.train()
+        elif mode == OperationMode.evaluation:
+            # if module.is_trainable():
+            if isinstance(pmodule, torch.nn.Module):
+                pmodule.eval()
+        else:
+            raise ValueError("Unknown OperationMode")
+        # prepare call signature for `module`
+        call_set = {}
+        for tensor_name, nmtensor in call_args.items():
+            # _add_uuid_2_name(nmtensor.name, nmtensor.producer._uuid)
+            key = nmtensor.unique_name
+            call_set[tensor_name] = registered_tensors[key]
+        # actual PyTorch module call with signature
+        # if isinstance(module_reference_table[m_id][0], TrainableNeuralModuleWrapper,):
+        #     new_tensors = pmodule(**call_set)
+        # else:
+        #     new_tensors = pmodule(force_pt=True, **call_set)
+        new_tensors = pmodule(force_pt=True, **call_set)
+
+        if not isinstance(new_tensors, List):
+            if not isinstance(new_tensors, tuple):
+                new_tensors = [new_tensors]
+            else:
+                new_tensors = list(new_tensors)
+        for t_tensor, nm_tensor in zip(new_tensors, call_chain[ind][2].values()):
+            if nm_tensor is None:
+                continue
+            t_name = nm_tensor.unique_name
+            if t_name not in registered_tensors:
+                registered_tensors[t_name] = t_tensor
+            else:
+                raise ValueError("A NMTensor was produced twice in " f"the same DAG. {t_name}")
+
+
+def get_DDP_modules(module_reference_table, call_chain):
+    modules = []
+    for ind in range(1, len(call_chain)):
+        m_id = call_chain[ind][0].unique_instance_id
+        module = module_reference_table[m_id][1]
+        if isinstance(module, DDP):
+            modules.append(module)
+
+    return modules
+
+
+def __check_nan_or_inf(step, placement_gpu, nan_or_inf, steps_per_nan_check=None):
+    # Note that nan_or_inf only gets set if stop_on_nan loss is True, or if using O0/not using apex.amp.
+    if not placement_gpu:
+        return
+    if steps_per_nan_check is None or step % steps_per_nan_check == 0:
+        world_size = dist.get_world_size()
+        # We use dtype=int because nccl backend doesn't support torch.bool
+        nan_inf_tensor = torch.tensor(nan_or_inf, dtype=int).cuda()
+        nan_inf_results = []
+        for _ in range(world_size):
+            nan_inf_results.append(torch.empty_like(nan_inf_tensor))
+        dist.all_gather(nan_inf_results, nan_inf_tensor)
+        for nan_inf in nan_inf_results:
+            if nan_inf:
+                raise ValueError('Terminating due to previous NaN or inf.')
+
+
+def pytorch_fit(
+    tensors_to_optimize,
+    training_graph,
+    optimizer=None,
+    optimization_params=None,
+    callbacks: list = None,
+    lr_policy=None,
+    batches_per_step=None,
+    stop_on_nan_loss=False,
+    steps_per_nan_check=100,
+    synced_batchnorm=False,
+    synced_batchnorm_groupsize=0,
+    gradient_predivide=False,
+    amp_max_loss_scale=2.0 ** 24,
+    reset=False,
+):
+    app_state = AppState()
+    local_rank = app_state.local_rank
+    global_rank = app_state.global_rank
+    optim_level = app_state.optim_level
+
     module_reference_table = {}
-    step = 0
-    epoch_num = 0
+    app_state.step = 0
+    app_state.epoch_num = 0
     optimizers = []
     tb_writer = None
     modules = set()
@@ -351,7 +531,7 @@ def pytorch_fit(tensors_to_optimize,
         tensors_to_optimize = training_graph.outputs.tensor_list
 
     if gradient_predivide:
-        logging.error(
+        raise ValueError(
             "gradient_predivide is currently disabled, and is under consideration for removal in future versions. "
             "If this functionality is needed, please raise a github issue."
         )
@@ -370,18 +550,19 @@ def pytorch_fit(tensors_to_optimize,
 
     if tensors_to_optimize is None:
         # This is Evaluation Mode
+        __init_callbacks(appstate=nemo.utils.app_state.AppState(), callbacks=callbacks)
         # Do action start callbacks
         __perform_on_action_end(callbacks=callbacks)
         return
     # Check if tensors_to_optimize is just a list of NmTensors
     elif tensors_to_optimize is not None and (
-            isinstance(tensors_to_optimize[0], NmTensor) and __check_all_tensors(tensors_to_optimize)
+        isinstance(tensors_to_optimize[0], NmTensor) and __check_all_tensors(tensors_to_optimize)
     ):
         # Parse graph into a topologically sorted sequence of neural
         # modules' calls
-        (opt_call_chain, t_dataset,) = __get_top_sorted_modules_and_dataloader(hook=tensors_to_optimize,
-                                                                               module_reference_table=module_reference_table,
-                                                                               local_rank=local_rank)
+        (opt_call_chain, t_dataset,) = __get_top_sorted_modules_and_dataloader(
+            hook=tensors_to_optimize, module_reference_table=module_reference_table, local_rank=local_rank
+        )
         # Extract trainable weights which will be optimized
         params_list = [
             p[0].parameters() for p in opt_call_chain if isinstance(p[0], TrainableNM) or p[0].is_trainable()
@@ -418,9 +599,9 @@ def pytorch_fit(tensors_to_optimize,
         datasets = []
         training_loop = []
         for step in tensors_to_optimize:
-            (step_call_chain, dataset,) = __get_top_sorted_modules_and_dataloader(hook=step[1],
-                                                                                  module_reference_table=module_reference_table,
-                                                                                  local_rank=local_rank)
+            (step_call_chain, dataset,) = __get_top_sorted_modules_and_dataloader(
+                hook=step[1], module_reference_table=module_reference_table, local_rank=local_rank
+            )
             datasets.append(dataset)
             training_loop.append((step[0], step[1], step_call_chain))
 
@@ -445,26 +626,29 @@ def pytorch_fit(tensors_to_optimize,
                 all_tensors = logging_tensors
                 for step in training_loop:
                     all_tensors = all_tensors + step[1]
-                (logging_callchain, _,) = self.__get_top_sorted_modules_and_dataloader(hook=all_tensors)
+                (logging_callchain, _,) = __get_top_sorted_modules_and_dataloader(
+                    hook=all_tensors, module_reference_table=module_reference_table, local_rank=local_rank
+                )
 
-    self._get_all_modules(training_loop, callbacks, logging_callchain)
+    __get_all_modules(modules, training_loop, callbacks, module_reference_table, local_rank, logging_callchain)
 
     # Intialize Amp if needed
-    if self._optim_level in AmpOptimizations:
+    if optim_level in AmpOptimizations:
         # Store mapping of self.optimizers to optimizer in callchain
         training_loop_opts = []
         for opt in training_loop:
-            training_loop_opts.append(self.optimizers.index(opt[0]))
-        self.optimizers = self.__initialize_amp(
-            optimizer=self.optimizers,
-            optim_level=self._optim_level,
+            training_loop_opts.append(optimizers.index(opt[0]))
+        optimizers = __initialize_amp(
+            modules=modules,
+            optimizer=optimizers,
+            optim_level=optim_level,
             amp_max_loss_scale=amp_max_loss_scale,
             amp_min_loss_scale=optimization_params.get('amp_min_loss_scale', 1.0),
         )
         # Use stored mapping to map amp_init opts to training loop
         for i, step in enumerate(training_loop):
             training_loop[i] = (
-                self.optimizers[training_loop_opts[i]],
+                optimizers[training_loop_opts[i]],
                 step[1],
                 step[2],
             )
@@ -476,7 +660,8 @@ def pytorch_fit(tensors_to_optimize,
         #     raise NotImplementedError(
         #         "Distributed training does nor work with multiple "
         #         "optimizers")
-        logging.info("Doing distributed training")
+
+        # logging.info("Doing distributed training")
         if t_dataset is not None:
             train_sampler = None
             if not isinstance(t_dataset, torch.utils.data.IterableDataset):
@@ -506,11 +691,7 @@ def pytorch_fit(tensors_to_optimize,
                 key = call_chain[i][0].unique_instance_id
                 pmodule = module_reference_table[key][1]
                 num_trainable_weights = module_reference_table[key][1].num_weights
-                if (
-                        not isinstance(pmodule, DDP)
-                        and isinstance(pmodule, torch.nn.Module)
-                        and num_trainable_weights > 0
-                ):
+                if not isinstance(pmodule, DDP) and isinstance(pmodule, torch.nn.Module) and num_trainable_weights > 0:
                     # gpf = 1
                     # if gradient_predivide:
                     #     gpf = dist.get_world_size()
@@ -534,14 +715,14 @@ def pytorch_fit(tensors_to_optimize,
                             )
                             sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
 
-                        pmodule = nn.SyncBatchNorm.convert_sync_batchnorm(
+                        pmodule = torch.nn.SyncBatchNorm.convert_sync_batchnorm(
                             pmodule, process_group=sync_batchnorm_group
                         )
 
                     # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
                     # pass
                     pmodule = DDP(
-                        pmodule, device_ids=[self.local_rank], broadcast_buffers=False, find_unused_parameters=True
+                        pmodule, device_ids=[local_rank], broadcast_buffers=False, find_unused_parameters=True
                     )
 
                 # # Convert batchnorm modules to synced if applicable
@@ -557,8 +738,8 @@ def pytorch_fit(tensors_to_optimize,
                 #     process_group = create_syncbn_process_group(synced_batchnorm_groupsize)
                 #     pmodule = convert_syncbn(pmodule, process_group=process_group)
 
-                self.module_reference_table[key] = (
-                    self.module_reference_table[key][0],
+                module_reference_table[key] = (
+                    module_reference_table[key][0],
                     pmodule,
                 )
     # single GPU/CPU training
@@ -580,44 +761,45 @@ def pytorch_fit(tensors_to_optimize,
             train_dataloader = dataNM.data_iterator
             train_sampler = None
 
-    self._init_callbacks(callbacks)
+    # self._init_callbacks(callbacks)
+    __init_callbacks(appstate=nemo.utils.app_state.AppState(), callbacks=callbacks)
     # Do action start callbacks
-    self._perform_on_action_start(callbacks=callbacks)
+    __perform_on_action_start(callbacks=callbacks)
 
     nan_or_inf = False
 
     # MAIN TRAINING LOOP
     # iteration over epochs
-    while num_epochs is None or self.epoch_num < num_epochs:
+    while num_epochs is None or app_state.epoch_num < num_epochs:
         if train_sampler is not None:
-            train_sampler.set_epoch(self.epoch_num)
-        if max_steps is not None and self.step >= max_steps:
+            train_sampler.set_epoch(app_state.epoch_num)
+        if max_steps is not None and app_state.step >= max_steps:
             break
 
         # Register epochs start with callbacks
-        self._perform_on_epoch_start(callbacks=callbacks)
+        __perform_on_epoch_start(callbacks=callbacks)
 
         # iteration over batches in epoch
         batch_counter = 0
         for _, data in enumerate(train_dataloader, 0):
-            if max_steps is not None and self.step >= max_steps:
+            if max_steps is not None and app_state.step >= max_steps:
                 break
 
             if batch_counter == 0:
                 # Started step, zero gradients
-                curr_optimizer = training_loop[self.step % len(training_loop)][0]
+                curr_optimizer = training_loop[app_state.step % len(training_loop)][0]
                 curr_optimizer.zero_grad()
                 # Register iteration start with callbacks
-                self._perform_on_iteration_start(callbacks=callbacks)
+                __perform_on_iteration_start(callbacks=callbacks)
 
             # set learning rate policy
             if lr_policy is not None:
-                adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch_num)
+                adjusted_lr = lr_policy(optimization_params["lr"], app_state.step, app_state.epoch_num)
                 for param_group in curr_optimizer.param_groups:
                     param_group["lr"] = adjusted_lr
-            if self.tb_writer is not None:
-                value = curr_optimizer.param_groups[0]['lr']
-                self.tb_writer.add_scalar('param/lr', value, self.step)
+            # if self.tb_writer is not None:
+            #    value = curr_optimizer.param_groups[0]['lr']
+            #    self.tb_writer.add_scalar('param/lr', value, self.step)
             if callbacks is not None:
                 for callback in callbacks:
                     callback.learning_rate = curr_optimizer.param_groups[0]['lr']
@@ -625,9 +807,9 @@ def pytorch_fit(tensors_to_optimize,
             # registered_tensors will contain created tensors
             # named by output port and uuid of module which created them
             # Get and properly name tensors returned by data layer
-            curr_call_chain = training_loop[self.step % len(training_loop)][2]
+            curr_call_chain = training_loop[app_state.step % len(training_loop)][2]
             dl_device = curr_call_chain[0][0]._device
-            if logging_callchain and self.step % logger_step_freq == 0:
+            if logging_callchain and app_state.step % logger_step_freq == 0:
                 curr_call_chain = logging_callchain
             tensors = []
             if isinstance(data, torch.Tensor):
@@ -642,38 +824,41 @@ def pytorch_fit(tensors_to_optimize,
                 t.unique_name: d for t, d in zip(curr_call_chain[0][2].values(), tensors) if t is not None
             }
             disable_allreduce = batch_counter < (batches_per_step - 1)
-            self.__nm_graph_forward_pass(
-                call_chain=curr_call_chain, registered_tensors=registered_tensors,
+            __nm_graph_forward_pass(
+                module_reference_table=module_reference_table,
+                call_chain=curr_call_chain,
+                registered_tensors=registered_tensors,
             )
 
-            curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
+            curr_tensors_to_optimize = training_loop[app_state.step % len(training_loop)][1]
             final_loss = 0
             for tensor in curr_tensors_to_optimize:
                 if (
-                        torch.isnan(registered_tensors[tensor.unique_name]).any()
-                        or torch.isinf(registered_tensors[tensor.unique_name]).any()
+                    torch.isnan(registered_tensors[tensor.unique_name]).any()
+                    or torch.isinf(registered_tensors[tensor.unique_name]).any()
                 ):
                     if (
-                            (stop_on_nan_loss)
-                            or (self._optim_level not in AmpOptimizations)
-                            or (self._optim_level == Optimization.mxprO0)
+                        (stop_on_nan_loss)
+                        or (optim_level not in AmpOptimizations)
+                        or (optim_level == Optimization.mxprO0)
                     ):
                         # Set flag here and terminate at next all_gather check.
                         nan_or_inf = True
+
                         logging.warning(
                             'Loss is NaN or inf at step %d, will terminate within the'
                             ' next steps_per_nan_check steps',
-                            self.step,
+                            app_state.step,
                         )
                     else:
                         logging.warning('Loss is NaN or inf, continuing training')
                 final_loss += registered_tensors[tensor.unique_name]
 
-            if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
+            if optim_level in AmpOptimizations and optim_level != Optimization.mxprO0:
                 with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
                     if disable_allreduce:
                         with ExitStack() as stack:
-                            for mod in self.get_DDP_modules(curr_call_chain):
+                            for mod in get_DDP_modules(module_reference_table, curr_call_chain):
                                 stack.enter_context(mod.no_sync())
                             scaled_loss.backward(bps_scale.to(scaled_loss.get_device()))
                     else:
@@ -681,10 +866,10 @@ def pytorch_fit(tensors_to_optimize,
             # no AMP optimizations needed
             else:
                 # multi-GPU, float32
-                if self._local_rank is not None:
+                if local_rank is not None:
                     if disable_allreduce:
                         with ExitStack() as stack:
-                            for mod in self.get_DDP_modules(curr_call_chain):
+                            for mod in get_DDP_modules(module_reference_table, curr_call_chain):
                                 stack.enter_context(mod.no_sync())
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
                     else:
@@ -698,7 +883,7 @@ def pytorch_fit(tensors_to_optimize,
                         final_loss.backward(bps_scale.to(final_loss.get_device()))
 
             # Check if we should terminate due to NaN/inf on any workers.
-            self._check_nan_or_inf(placement_gpu, nan_or_inf, steps_per_nan_check=steps_per_nan_check)
+            __check_nan_or_inf(step, placement_gpu, nan_or_inf, steps_per_nan_check=steps_per_nan_check)
 
             batch_counter += 1
 
@@ -709,17 +894,17 @@ def pytorch_fit(tensors_to_optimize,
                 curr_optimizer.step()
                 batch_counter = 0
                 # Register iteration end with callbacks
-                self._update_callbacks(
+                __update_callbacks(
                     callbacks=callbacks, registered_tensors=registered_tensors,
                 )
-                self._perform_on_iteration_end(callbacks=callbacks)
-                self.step += 1
+                __perform_on_iteration_end(callbacks=callbacks)
+                app_state.step += 1
         # End of epoch for loop
         # Register epochs end with callbacks
-        self._perform_on_epoch_end(callbacks=callbacks)
-        self.epoch_num += 1
+        __perform_on_epoch_end(callbacks=callbacks)
+        app_state.epoch_num += 1
 
     # Check again if we should stop on NaN/inf
-    self._check_nan_or_inf(placement_gpu, nan_or_inf)
+    __check_nan_or_inf(app_state.step, placement_gpu, nan_or_inf)
 
-    self._perform_on_action_end(callbacks=callbacks)
+    __perform_on_action_end(callbacks=callbacks)

@@ -19,4 +19,5 @@ from .load_backend import backend
 # Load backend specific classes, functions etc.
 if backend() == 'pytorch':
     from .torch_backend import save, load, get_state_dict, set_state_dict
-    from . import pytorch
+
+    # from . import pytorch

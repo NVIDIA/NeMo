@@ -6,7 +6,8 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch as t
 import torch.nn as nn
 
-from nemo.core import DeviceType, ModuleType, NeuralModule, WeightShareTransform
+from nemo.core.neural_factory import DeviceType
+from nemo.core.neural_modules import ModuleType, NeuralModule, WeightShareTransform
 from nemo.utils.helpers import get_cuda_device, rgetattr, rsetattr
 
 

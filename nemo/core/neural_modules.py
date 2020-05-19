@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
-from nemo.core import NeuralModuleFactory, OperationMode
+from nemo.core.neural_factory import NeuralModuleFactory, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
@@ -88,11 +88,13 @@ class NeuralModule(NeuralInterface):
         self._factory = NeuralModuleFactory.get_default_factory()
 
         # Set module properties from factory else use defaults
-        self._placement = self._factory.placement
+        # self._placement = self._factory.placement
+        self._placement = self._app_state.device
         # If one needs to change that should override it manually.
 
         # Optimization level.
-        self._opt_level = self._factory.optim_level
+        # self._opt_level = self._factory.optim_level
+        self._opt_level = self._app_state.optim_level
 
     @property
     def init_params(self) -> Dict[str, Any]:

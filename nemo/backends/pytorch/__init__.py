@@ -3,8 +3,7 @@
 This package provides Neural Modules building blocks for building Software
 2.0 projects
 """
-from . import torchvision, tutorials
 from .actions import PtActions
 from .common import *
+from .functions import *
 from .nm import DataLayerNM, LossNM, NonTrainableNM, TrainableNM
-from .functions import pytorch_fit

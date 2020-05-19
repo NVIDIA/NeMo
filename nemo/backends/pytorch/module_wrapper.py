@@ -2,8 +2,11 @@
 import torch as t
 import torch.nn as nn
 
-from ...core import DeviceType, NeuralModule
 from ...utils.helpers import rgetattr, rsetattr
+from nemo.core.neural_factory import DeviceType
+
+# from ...core import DeviceType, NeuralModule
+from nemo.core.neural_modules import NeuralModule
 
 
 class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
