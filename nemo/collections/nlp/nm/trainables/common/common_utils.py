@@ -20,13 +20,13 @@ from nemo import logging
 from nemo.collections.nlp.nm.trainables.common.huggingface.huggingface_utils import *
 
 try:
-    __megatron_satisfied = True
+    __megatron_utils_satisfied = True
     from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import MegatronBERT
     from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *
 
 except Exception as e:
     logging.error('Failed to import Megatron Neural Module and utils: `{}` ({})'.format(str(e), type(e)))
-    __megatron_utils_satisfied = True
+    __megatron_utils_satisfied = False
 
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']

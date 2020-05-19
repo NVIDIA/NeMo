@@ -35,7 +35,7 @@ freq = 16000
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestASRPytorch(TestCase):
+class TestUnitASRPytorch(TestCase):
     labels = [
         " ",
         "a",

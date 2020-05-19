@@ -29,7 +29,7 @@ try:
 
 except Exception as e:
     logging.error('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
-    __megatron_utils_satisfied = True
+    __megatron_utils_satisfied = False
 
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
