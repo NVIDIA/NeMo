@@ -28,7 +28,6 @@ __all__ = [
 ]
 
 import math
-import warnings
 from abc import abstractmethod
 
 import numpy as np
@@ -54,11 +53,12 @@ try:
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
-    warnings.warn('Could not import torchaudio. Some features might not work.')
+    logging.warning('Could not import torchaudio. Some features might not work.')
+
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
+    logging.warning("Unable to import APEX. Mixed precision and distributed training will not work.")
 
 
 class AudioPreprocessor(NonTrainableNM):

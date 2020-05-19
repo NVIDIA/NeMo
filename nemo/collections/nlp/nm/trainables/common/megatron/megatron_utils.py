@@ -30,7 +30,7 @@ __all__ = [
     'get_megatron_checkpoint',
 ]
 
-MEGATRON_CACHE = os.path.join(os.path.dirname(TRANSFORMERS_CACHE), 'megatron')
+MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), 'megatron')
 
 CONFIGS = {'345m': {"hidden-size": 1024, "num-attention-heads": 16, "num-layers": 24, "max-seq-length": 512}}
 
