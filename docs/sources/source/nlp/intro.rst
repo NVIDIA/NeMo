@@ -32,6 +32,12 @@ Pretraining BERT
 
    bert_pretraining
 
+Megatron-LM for Downstream tasks
+--------------------------------
+.. toctree::
+   :maxdepth: 8
+
+   megatron_finetuning
 
 Transformer Language Model
 --------------------------
