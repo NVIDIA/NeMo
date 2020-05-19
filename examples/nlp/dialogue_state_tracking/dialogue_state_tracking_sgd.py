@@ -32,7 +32,6 @@ from nemo.utils.lr_policies import get_lr_policy
 parser = argparse.ArgumentParser(description='Schema_guided_dst')
 
 # BERT based utterance encoder related arguments
-
 parser.add_argument(
     "--max_seq_length",
     default=80,
@@ -47,7 +46,7 @@ parser.add_argument(
     default="bert-base-cased",
     type=str,
     help="Name of the pre-trained model",
-    choices=nemo_nlp.nm.trainables.get_bert_models_list(),
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
 parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to model checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
@@ -63,6 +62,13 @@ parser.add_argument(
     type=str,
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "Only applicable when tokenizer is build with vocab file",
 )
 
 # Hyperparameters and optimization related flags.
@@ -246,21 +252,22 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
 
-pretrained_bert_model = nemo_nlp.nm.trainables.get_huggingface_model(
-    bert_config=args.bert_config, pretrained_model_name=args.pretrained_model_name
+pretrained_bert_model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
 )
 
 schema_config["EMBEDDING_DIMENSION"] = pretrained_bert_model.hidden_size
 schema_config["MAX_SEQ_LENGTH"] = args.max_seq_length
 
-if args.bert_checkpoint is not None:
-    pretrained_bert_model.restore_from(args.bert_checkpoint)
-    logging.info(f"model restored from {args.bert_checkpoint}")
-
-tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+tokenizer = nemo_nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
 )
 
 hidden_size = pretrained_bert_model.hidden_size
@@ -291,7 +298,6 @@ dialogues_processor = data_processor.Dstc8DataProcessor(
 # define model pipeline
 encoder = sgd_modules.EncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
-
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
 
 
@@ -304,7 +310,6 @@ def create_pipeline(dataset_split='train'):
         num_workers=args.num_workers,
         pin_memory=args.enable_pin_memory,
     )
-
     data = datalayer()
 
     # Encode the utterances using BERT.
@@ -401,7 +406,6 @@ input_json_files = [
     os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
     for fid in data_processor.FILE_RANGES[args.task_name][args.eval_dataset]
 ]
-
 schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
 # Write predictions to file in DSTC8 format.
