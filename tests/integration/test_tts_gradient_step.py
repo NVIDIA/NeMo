@@ -25,14 +25,11 @@ from unittest import TestCase
 import numpy as np
 import pytest
 
-
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-
-from nemo.utils import logging
-from nemo.core import SimpleLossLoggerCallback
-
 from nemo.backends.pytorch.actions import PtActions
+from nemo.core import SimpleLossLoggerCallback
+from nemo.utils import logging
 
 
 @pytest.mark.usefixtures("neural_factory")

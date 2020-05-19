@@ -25,7 +25,6 @@ from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-
 from nemo.utils import logging
 
 

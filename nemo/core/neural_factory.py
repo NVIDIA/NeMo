@@ -36,9 +36,8 @@ import nemo
 from ..utils import ExpManager
 from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
-from nemo.utils.decorators import deprecated
-
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
 class DeploymentFormat(Enum):

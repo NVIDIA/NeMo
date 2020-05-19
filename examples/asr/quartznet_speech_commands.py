@@ -17,9 +17,8 @@ from nemo.collections.asr.helpers import (
     process_classification_evaluation_batch,
     process_classification_evaluation_epoch,
 )
-from nemo.utils.lr_policies import CosineAnnealing, PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing
-
 from nemo.utils import logging
+from nemo.utils.lr_policies import CosineAnnealing, PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing
 
 
 def parse_args():

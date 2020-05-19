@@ -26,7 +26,6 @@ import torch
 import nemo
 from nemo.backends.pytorch.common import DataCombination
 from nemo.core import ChannelType, NeuralType
-
 from nemo.utils import logging
 
 

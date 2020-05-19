@@ -40,6 +40,7 @@ from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 from nemo.utils.misc import pad_to
 
@@ -50,8 +51,6 @@ __all__ = [
     'TranscriptDataLayer',
     'AudioToSpeechLabelDataLayer',
 ]
-
-from nemo.utils import logging
 
 
 def _process_augmentations(augmenter) -> AudioAugmentor:

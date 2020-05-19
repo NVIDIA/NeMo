@@ -41,6 +41,7 @@ from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM
 from nemo.core import Optimization
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
 try:
@@ -59,9 +60,6 @@ try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
     warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
-
-
-from nemo.utils import logging
 
 
 class AudioPreprocessor(NonTrainableNM):

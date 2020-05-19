@@ -3,7 +3,6 @@ import os
 import shutil
 
 import nemo
-
 from nemo.utils import logging
 
 data_file = "movie_data.txt"

@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
-
 from nemo.utils import logging
 
 nf = nemo.core.NeuralModuleFactory()
