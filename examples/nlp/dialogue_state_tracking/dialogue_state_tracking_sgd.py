@@ -165,6 +165,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--loss_reduction",
+    default='mean',
+    type=str,
+    help="specifies the reduction to apply to the final loss, choose 'mean' or 'sum'",
+)
+
+parser.add_argument(
     "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
 )
 
@@ -190,7 +197,7 @@ parser.add_argument(
     "--schema_emb_init",
     type=str,
     default='baseline',
-    choices=['baseline', 'random', 'last_layer_average', 'last_4_layers_average'],
+    choices=['baseline', 'random', 'last_layer_average'],
     help="Specifies how schema embeddings are generated. Baseline uses ['CLS'] token",
 )
 parser.add_argument(
@@ -285,7 +292,7 @@ dialogues_processor = data_processor.Dstc8DataProcessor(
 encoder = sgd_modules.EncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
 
-dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM()
+dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
 
 
 def create_pipeline(dataset_split='train'):

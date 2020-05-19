@@ -15,13 +15,12 @@
 # limitations under the License.
 # =============================================================================
 
-import torch
 from torch import nn
 
 from nemo import logging
 from nemo.backends.pytorch import LossNM
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import STATUS_ACTIVE
-from nemo.core import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
+from nemo.core import ChannelType, LabelsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDialogueStateLossNM']
@@ -96,7 +95,7 @@ class SGDDialogueStateLossNM(LossNM):
 
         self.reduction = reduction
         self._cross_entropy = nn.CrossEntropyLoss(reduction=self.reduction)
-        self._criterion_req_slots = nn.BCEWithLogitsLoss()
+        self._criterion_req_slots = nn.BCEWithLogitsLoss(reduction=self.reduction)
 
     def _loss_function(
         self,

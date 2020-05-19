@@ -124,8 +124,6 @@ class SchemaPreprocessor:
             )
 
             input_ids, input_mask, input_type_ids = emb_datalayer()
-            if mode == 'last_4_layers_average':
-                bert_model.set_output_hidden_states(output_hidden_states=True)
 
             hidden_states = bert_model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
             evaluated_tensors = nf.infer(tensors=[hidden_states], checkpoint_dir=bert_ckpt_dir)
@@ -134,8 +132,6 @@ class SchemaPreprocessor:
             if master_device:
                 hidden_states = [concatenate(tensors) for tensors in evaluated_tensors]
                 emb_datalayer.dataset.save_embeddings(hidden_states, self.schema_embedding_file, mode)
-                if mode == 'last_4_layers_average':
-                    bert_model.set_output_hidden_states(output_hidden_states=False)
                 logging.info(f"Finish generating the schema embeddings.")
 
         # wait until the master process writes to the schema embedding file
@@ -165,9 +161,3 @@ class SchemaPreprocessor:
 
     def get_ids_to_service_names_dict(self):
         return self.schemas._services_id_to_vocab
-
-    def concatenate(lists):
-        """
-        Helper function for inference
-        """
-        return np.concatenate([t.cpu() for t in lists])

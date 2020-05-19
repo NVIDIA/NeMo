@@ -18,7 +18,6 @@
 
 import json
 import os
-import pickle
 import re
 
 import numpy as np
@@ -368,7 +367,8 @@ class Dstc8DataProcessor(object):
                     example_count += len(turn["frames"])
         return example_count
 
-    def _naive_tokenize(s):
+    @classmethod
+    def _naive_tokenize(cls, s):
         """
         Tokenizes a string, separating words, spaces and punctuations.
         Args:
@@ -381,7 +381,8 @@ class Dstc8DataProcessor(object):
         seq_tok = [tok for tok in re.split(r"([^a-zA-Z0-9])", s) if tok]
         return seq_tok
 
-    def load_dialogues(dialog_json_filepaths):
+    @classmethod
+    def load_dialogues(cls, dialog_json_filepaths):
         """
         Obtain the list of all dialogues from specified json files.
         Args:

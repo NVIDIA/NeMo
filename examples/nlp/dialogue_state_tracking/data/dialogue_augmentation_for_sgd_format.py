@@ -20,7 +20,6 @@ import json
 import os
 import random
 import re
-import sys
 from collections import defaultdict
 from pprint import pprint
 
@@ -209,7 +208,7 @@ def process_dialogues(final_dialogues, dialogue_count, dialogues, replace_turn_p
                                 replace_success += 1
                             except:
                                 replace_failed += 1
-                                pass
+
         for turn in dialogue["turns"]:
             for frame in turn["frames"]:
                 if 'state_update' in frame:

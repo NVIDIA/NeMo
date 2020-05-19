@@ -23,7 +23,6 @@ import json
 import os
 import re
 
-import nemo
 import nemo.collections.nlp.data.datasets.sgd_dataset.schema as schema
 from nemo import logging
 
