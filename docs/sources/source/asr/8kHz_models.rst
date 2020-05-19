@@ -8,7 +8,7 @@ to the formats prevalent in your application. Here we detail one such approach t
 
 To train a model suitable for recognizing telephony speech we converted some of the datasets to G.711 :cite:`8kHz-mod-itu1988g711`. G.711 is a popular speech codec used in VoIP products and encodes speech
 at 64 kbps using PCM u-law companding. We converted audio from LibriSpeech, Mozilla Common Voice and WSJ datasets to G.711 format and combined Fisher and Switchboard datasets to
-train a :ref:`Quartznet15x5 <Quartznet_model>` model with about 4000 hours of data.
+train a :ref:`Quartznet15x5 <Quartznet_model>` model with about 4000 hours of data. To convert your audio to G.711 format you can use the script `convert_wav_to_g711wav.py` found in the `scripts` sub-directory of the nemo base directory.
 
 Among the experiments that we ran, we got the best accuracy for a model that used our 16 kHz Quartznet15x5 model's weights as pre-trained weights. We then
 trained the model for 250 epochs with five datasets mentioned above. Here are some results for our best model so far (note that all the test sets
