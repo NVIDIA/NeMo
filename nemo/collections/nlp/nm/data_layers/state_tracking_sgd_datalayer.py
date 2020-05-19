@@ -40,8 +40,8 @@ class SGDDataLayer(TextDataLayer):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-        example_id_num (num): example ids
-        service_id  (num): service ids
+        example_id_num (int): example ids
+        service_id  (int): service ids
         is_real_example (bool): flag to determine is the example is valid
         utterance_ids (int): utterance ids
         utterance_segment (int): Denotes the identity of the sequence. Takes values 0 (system utterance) and 1 (user utterance)

@@ -1,10 +1,19 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Jan 26 20:56:22 2020
-
-@author: ebakhturina
-"""
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import numpy as np
 import torch
@@ -21,20 +30,14 @@ __all__ = ['SGDModel']
 class Logits(nn.Module):
     def __init__(self, num_classes, embedding_dim):
         """Get logits for elements by conditioning on utterance embedding.
-
         Args:
-          element_embeddings: A tensor of shape (batch_size, num_elements,
-            embedding_dim).
-          num_classes: An int containing the number of classes for which logits are
-            to be generated.
-          name_scope: The name scope to be used for layers.
+          num_classes (int): An int containing the number of classes for which logits are to be generated.
+          embedding_dim (int): hidden size of the BERT
     
         Returns:
-          A tensor of shape (batch_size, num_elements, num_classes) containing the
-          logits.
+          A tensor of shape (batch_size, num_elements, num_classes) containing the logits.
         """
         super().__init__()
-
         self.num_classes = num_classes
         self.utterance_proj = nn.Linear(embedding_dim, embedding_dim)
         self.activation = F.gelu
@@ -43,10 +46,9 @@ class Logits(nn.Module):
         self.layer2 = nn.Linear(embedding_dim, num_classes)
 
     def forward(self, encoded_utterance, element_embeddings):
-
         """
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
-        
+        element_embeddings: A tensor of shape (batch_size, num_elements, embedding_dim).
         """
         _, num_elements, _ = element_embeddings.size()
 
@@ -66,17 +68,23 @@ class Logits(nn.Module):
 
 class SGDModel(TrainableNM):
     """
-    TODO
-    
-                  num_categorical_slot_values,
-
-                num_intents,
-    
+    Baseline model for schema guided dialogue state tracking with option to make schema embeddings learnable
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
+        """Returns definitions of module output ports.
+        encoded_utterance (float): [CLS] token hidden state from BERT encoding of the utterance
+        token_embeddings (float): BERT encoding of utterance (all tokens)
+        utterance_mask (bool): Mask which takes the value 0 for padded tokens and 1 otherwise
+        num_categorical_slots (int): Number of categorical slots present in the service
+        num_categorical_slot_values (int): Number of values taken by each categorical slot
+        num_intents (int): Total number of intents present in the service
+        req_num_slots (int): Total number of slots present in the service
+        num_noncategorical_slots (int): Number of non-categorical slots present in the service
+        service_ids (int): service ids
+        """
         return {
             "encoded_utterance": NeuralType(('B', 'T'), EmbeddedTextType()),
             "token_embeddings": NeuralType(('B', 'T', 'C'), ChannelType()),
@@ -93,13 +101,16 @@ class SGDModel(TrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
-        hidden_states:
-            0: AxisType(BatchTag)
-
-            1: AxisType(TimeTag)
-
-            2: AxisType(ChannelTag)
+            logit_intent_status (float): output for intent status
+            logit_req_slot_status (float): output for requested slots status
+            req_slot_mask (bool): Masks requested slots not used for the particular service
+            logit_cat_slot_status (float): output for categorical slots status
+            cat_slot_status_mask (bool): Masks categorical slots not used for the particular service
+            logit_cat_slot_value (float): output for categorical slots values
+            logit_noncat_slot_status (float): Output of SGD model
+            non_cat_slot_status_mask (bool): masks noncategorical slots not used for the particular service
+            logit_noncat_slot_start (float): output for non categorical slots values start
+            logit_noncat_slot_end (float): output for non categorical slots values end
         """
         return {
             "logit_intent_status": NeuralType(('B', 'T', 'C'), LogitsType()),
@@ -118,15 +129,8 @@ class SGDModel(TrainableNM):
         """Get logits for elements by conditioning on utterance embedding.
 
         Args:
-          element_embeddings: A tensor of shape (batch_size, num_elements,
-            embedding_dim).
-          num_classes: An int containing the number of classes for which logits are
-            to be generated.
-          name_scope: The name scope to be used for layers.
-    
-        Returns:
-          A tensor of shape (batch_size, num_elements, num_classes) containing the
-          logits.
+            embedding_dim (int): hidden size of the BERT
+            schema_emb_processor (obj): contains schema embeddings for services and config file
         """
         super().__init__()
 
@@ -201,10 +205,6 @@ class SGDModel(TrainableNM):
         num_noncategorical_slots,
         service_ids,
     ):
-        """
-        encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
-        
-        """
         batch_size, emb_dim = encoded_utterance.size()
         intent_embeddings = self.intents_emb(service_ids).view(batch_size, -1, emb_dim)
         cat_slot_emb = self.cat_slot_emb(service_ids).view(batch_size, -1, emb_dim)

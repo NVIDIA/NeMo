@@ -21,14 +21,8 @@ import collections
 import json
 import os
 
-import nemo
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
-    STATUS_ACTIVE,
-    STATUS_DONTCARE,
-    STATUS_OFF,
-    STR_DONTCARE,
-)
+from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import STATUS_ACTIVE, STATUS_DONTCARE, STR_DONTCARE
 
 REQ_SLOT_THRESHOLD = 0.5
 
@@ -324,7 +318,7 @@ def write_predictions_to_file(
     schemas: Schemas to all services in the dst dataset (train, dev and test splits).
     output_dir: The directory where output json files will be created.
   """
-    nemo.logging.info(f"Writing predictions to {output_dir} started.")
+    logging.info(f"Writing predictions to {output_dir} started.")
 
     # Index all predictions.
     all_predictions = {}
@@ -333,13 +327,13 @@ def write_predictions_to_file(
             continue
         _, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
         all_predictions[(dialog_id, turn_id, service_name)] = prediction
-    nemo.logging.info(f'Predictions for {idx} examples are getting processed.')
+    logging.info(f'Predictions for {idx} examples are getting processed.')
 
     # Read each input file and write its predictions.
     for input_file_path in input_json_files:
         with open(input_file_path) as f:
             dialogs = json.load(f)
-            nemo.logging.info(f'{input_file_path} file is loaded')
+            logging.info(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
                 if state_tracker == 'baseline':
