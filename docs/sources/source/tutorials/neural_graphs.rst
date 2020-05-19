@@ -13,7 +13,7 @@ At the same time, he can reuse and nest one graph into another.
 The import/export/save/restore options combined with the lightweight API make Neural Graphs
 a perfect tool for rapid prototyping and experimentation.
 
-There are two notebook tutorials focusing on different aspects of the Neural Graphs functionality.
+There are two Jupyter Notebook tutorials focusing on different aspects of the Neural Graphs functionality.
 
 Tutorial I: The basic functionality
 -----------------------------------
@@ -51,4 +51,4 @@ Additionally, we will show how use `AppState` to list all the modules and graphs
 our application.
 
 .. note::
-    Both tutorials can be found in the `nemo/examples/neural_graphs` folder.
+    Both tutorial notebooks can be found in the `nemo/examples/neural_graphs` folder.
