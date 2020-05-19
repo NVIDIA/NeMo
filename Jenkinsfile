@@ -191,6 +191,16 @@ pipeline {
             sh 'rm -rf examples/nlp/token_classification/punctuation_output'
           }
         }
+        stage('SGD Test') {
+          steps {
+            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0 python dialogue_state_tracking_sgd.py --data_dir /home/TestData/nlp/sgd \
+                --schema_embedding_dir /home/TestData/nlp/embeddings/ --eval_dataset dev \
+                --dialogues_example_dir /home/TestData/nlp/sgd/dialogue_example_dir --work_dir /home/TestData/nlp/sgd_output \
+                --task DEBUG --overwrite_schema_emb \
+                --overwrite_dial_files --num_epochs 1 --save_epoch_freq=0'
+            sh 'rm -rf /home/TestData/nlp/sgd_output'
+          }
+        }
       }
     }
 
