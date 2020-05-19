@@ -27,7 +27,7 @@ import nemo
 from nemo.backends.pytorch.common import DataCombination
 from nemo.core import ChannelType, NeuralType
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 @pytest.mark.usefixtures("neural_factory")

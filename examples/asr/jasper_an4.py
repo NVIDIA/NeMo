@@ -19,7 +19,7 @@ from nemo.collections.asr.helpers import (
 )
 from nemo.utils.lr_policies import CosineAnnealing
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def create_dags(model_config_file, vocab, args, nf):

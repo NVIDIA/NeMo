@@ -38,7 +38,7 @@ from .callbacks import ActionCallback, EvaluatorCallback
 from .neural_types import *
 from nemo.utils.decorators import deprecated
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class DeploymentFormat(Enum):

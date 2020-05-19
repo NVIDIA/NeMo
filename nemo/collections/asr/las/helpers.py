@@ -7,7 +7,8 @@ import nemo
 from nemo.backends.pytorch.common.metrics import char_lm_metrics
 from nemo.collections.asr.metrics import word_error_rate
 
-logging = nemo.logging
+from nemo.utils import logging
+
 ENG_MWN = 5.3
 
 

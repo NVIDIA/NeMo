@@ -9,7 +9,7 @@ from torch.nn import functional as F
 import nemo
 from nemo.collections.tts.parts.layers import ConvNorm, LinearNorm, get_mask_from_lengths
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class LocationLayer(nn.Module):

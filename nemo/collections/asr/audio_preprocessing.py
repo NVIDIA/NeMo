@@ -61,7 +61,7 @@ except (AttributeError, ModuleNotFoundError) as e:
     warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
 
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class AudioPreprocessor(NonTrainableNM):

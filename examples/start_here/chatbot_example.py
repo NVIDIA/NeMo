@@ -4,7 +4,7 @@ import shutil
 
 import nemo
 
-logging = nemo.logging
+from nemo.utils import logging
 
 data_file = "movie_data.txt"
 

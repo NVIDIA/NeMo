@@ -6,7 +6,7 @@ import torch
 
 import nemo
 
-logging = nemo.logging
+from nemo.utils import logging
 
 __all__ = [
     "waveglow_log_to_tb_func",

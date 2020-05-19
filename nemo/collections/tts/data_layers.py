@@ -8,7 +8,7 @@ from nemo.core import DeviceType
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class AudioDataLayer(DataLayerNM):

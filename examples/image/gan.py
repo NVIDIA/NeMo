@@ -10,7 +10,7 @@ import nemo
 import nemo.collections.simple_gan as nemo_simple_gan
 from nemo.backends.pytorch.torchvision.helpers import compute_accuracy, eval_epochs_done_callback, eval_iter_callback
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 parser = argparse.ArgumentParser(description='MNIST')

@@ -19,7 +19,7 @@ from nemo.collections.asr.helpers import (
 )
 from nemo.utils.lr_policies import CosineAnnealing, PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():

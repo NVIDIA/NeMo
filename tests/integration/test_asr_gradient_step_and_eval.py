@@ -24,10 +24,9 @@ from unittest import TestCase
 import pytest
 from ruamel.yaml import YAML
 
-import nemo
 import nemo.collections.asr as nemo_asr
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 @pytest.mark.usefixtures("neural_factory")

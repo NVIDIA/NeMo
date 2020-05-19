@@ -12,7 +12,7 @@ import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import monitor_asr_train_progress, process_evaluation_batch, process_evaluation_epoch
 from nemo.utils.lr_policies import SquareAnnealing
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():

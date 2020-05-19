@@ -51,7 +51,7 @@ __all__ = [
     'AudioToSpeechLabelDataLayer',
 ]
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def _process_augmentations(augmenter) -> AudioAugmentor:

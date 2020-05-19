@@ -35,7 +35,7 @@ from nemo.collections.tts import (
 )
 from nemo.utils.lr_policies import CosineAnnealing
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():

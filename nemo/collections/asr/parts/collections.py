@@ -9,7 +9,7 @@ import pandas as pd
 import nemo
 from nemo.collections.asr.parts import manifest, parsers
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class _Collection(collections.UserList):

@@ -34,7 +34,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     _WANDB_AVAILABLE = False
 
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class ActionCallback(ABC):
