@@ -102,12 +102,15 @@ Next, we'll need to define our tokenizer and our BERT model. Currently, there ar
 BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument in the training script.
 The pretrained back-bone models can be specified `--pretrained_model_name`.
-See the list of available pre-trained models by calling `nemo.collections.nlp.nm.trainables.get_bert_models_list()`. \
+See the list of available pre-trained models by calling `nemo_nlp.nm.trainables.get_pretrained_lm_models_list()`. \
 
     .. code-block:: python
 
-        tokenizer = nemo.collections.nlp.data.NemoBertTokenizer(pretrained_model=PRETRAINED_BERT_MODEL)
-        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+        bert_model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+            pretrained_model_name=PRETRAINED_BERT_MODEL)
+
+        tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+            tokenizer_name="nemobert",
             pretrained_model_name=PRETRAINED_BERT_MODEL)
 
 Now, create the train and evaluation data layers:
