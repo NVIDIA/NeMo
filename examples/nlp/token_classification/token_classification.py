@@ -37,7 +37,9 @@ from nemo.utils.lr_policies import get_lr_policy
 parser = argparse.ArgumentParser(description="Token classification with pretrained BERT")
 parser.add_argument("--local_rank", default=None, type=int)
 
-# training arguments
+# Training arguments
+parser.add_argument("--model-parallel-size", default=None, type=int)
+parser.add_argument("--random_seed", default=None, type=int)
 parser.add_argument(
     "--work_dir",
     default='output',
@@ -48,6 +50,12 @@ parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether t
 parser.add_argument("--num_gpus", default=1, type=int)
 parser.add_argument("--num_epochs", default=5, type=int)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+parser.add_argument(
+    "--checkpoints_to_keep",
+    default=4,
+    type=int,
+    help="Number of checkpoints to keep",
+)
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -119,9 +127,13 @@ parser.add_argument(
     help="Name of the pre-trained model",
     choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
-parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to bert pretrained  checkpoint")
+parser.add_argument(
+    "--bert_checkpoint",
+    default=None,
+    type=str,
+    help="Path to model file. (If using model parallel, path to checkpoint directory.)"
+)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
-
 
 args = parser.parse_args()
 logging.info(args)
