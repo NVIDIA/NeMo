@@ -90,7 +90,7 @@ QuartzNet 模型使用一种固定的模型定义模式： QuartzNet-[BxR], 其�
         process_classification_evaluation_epoch,
     )
 
-    logging = nemo.logging
+    from nemo.utils import logging
 
     # Lets define some hyper parameters
     lr = 0.05
@@ -420,7 +420,7 @@ QuartzNet 模型使用一种固定的模型定义模式： QuartzNet-[BxR], 其�
     import nemo
     import nemo.collections.asr as nemo_asr
 
-    logging = nemo.logging
+    from nemo.utils import logging
 
     # We add some
     data_dir = '<path to the data directory>'

@@ -1,7 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import nemo
-
-logging = nemo.logging
+from nemo.utils import logging
 
 nf = nemo.core.NeuralModuleFactory()
 # To use CPU-only do:

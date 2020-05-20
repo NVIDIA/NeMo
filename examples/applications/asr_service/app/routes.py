@@ -17,10 +17,8 @@ from app import (
 from flask import request
 from werkzeug.utils import secure_filename
 
-import nemo
 import nemo.collections.asr as nemo_asr
-
-logging = nemo.logging
+from nemo.utils import logging
 
 try:
     from app import beam_search_with_lm

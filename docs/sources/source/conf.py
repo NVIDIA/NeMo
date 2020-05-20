@@ -48,6 +48,7 @@ autodoc_mock_imports = [
     'soundfile',
     'sentencepiece',
     'youtokentome',
+    'megatron-lm',
 ]
 
 # -- General configuration ------------------------------------------------
