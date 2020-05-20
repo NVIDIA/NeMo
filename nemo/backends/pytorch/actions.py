@@ -1164,7 +1164,9 @@ class PtActions(Actions):
                             "local_rank": action.local_rank,
                             "global_rank": action.global_rank,
                             "optimizers": action.optimizers,
-                    })
+                        }
+                    )
+
                 def restore_state_from(self, path):
                     if os.path.isfile(path):
                         # map_location could be cuda:<device_id> but cpu seems to be more
