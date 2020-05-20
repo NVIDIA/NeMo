@@ -111,7 +111,7 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
         process_classification_evaluation_epoch,
     )
 
-    logging = nemo.logging
+    from nemo.utils import logging
 
     # Lets define some hyper parameters
     lr = 0.05
@@ -447,7 +447,7 @@ but they can similarly be used for v2 dataset.
     import nemo
     import nemo.collections.asr as nemo_asr
 
-    logging = nemo.logging
+    from nemo.utils import logging
 
     # We add some
     data_dir = '<path to the data directory>'

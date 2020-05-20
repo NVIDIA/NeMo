@@ -5,13 +5,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import nemo
 from .parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
-
-logging = nemo.logging
 
 
 class JasperEncoder(TrainableNM):

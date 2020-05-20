@@ -34,8 +34,7 @@ from nemo.collections.nlp.nm.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.nm.trainables.common import TokenClassifier
 from nemo.core import WeightShareTransform
 from nemo.core.neural_types import *
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 @pytest.mark.usefixtures("neural_factory")
