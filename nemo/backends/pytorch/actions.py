@@ -837,43 +837,43 @@ class PtActions(Actions):
         """
         self.cache = None
 
-    # def save_state_to(self, path: str):
-    #     """
-    #     Saves current state such as step, epoch and optimizer parameters
-    #     Args:
-    #       path:
+    def save_state_to(self, path: str):
+        """
+        Saves current state such as step, epoch and optimizer parameters
+        Args:
+          path:
 
-    #     Returns:
+        Returns:
 
-    #     """
-    #     state = {
-    #         "step": self.step,
-    #         "epoch": self.epoch,
-    #         "optimizer_state": [opt.state_dict() for opt in self.optimizers],
-    #     }
-    #     torch.save(state, path)
+        """
+        state = {
+            "step": self.step,
+            "epoch": self.epoch,
+            "optimizer_state": [opt.state_dict() for opt in self.optimizers],
+        }
+        torch.save(state, path)
 
-    # def restore_state_from(self, path: str):
-    #     """
-    #     Restores state such as step, epoch and optimizer parameters
-    #     Args:
-    #       path:
+    def restore_state_from(self, path: str):
+        """
+        Restores state such as step, epoch and optimizer parameters
+        Args:
+          path:
 
-    #     Returns:
+        Returns:
 
-    #     """
-    #     if os.path.isfile(path):
-    #         # map_location could be cuda:<device_id> but cpu seems to be more
-    #         # general since we are also saving step and epoch
-    #         # load_state_dict should move the variables to the relevant device
-    #         checkpoint = torch.load(path, map_location="cpu")
-    #         self.step = checkpoint["step"]
-    #         self.epoch = checkpoint["epoch"]
-    #         if checkpoint["optimizer_state"]:
-    #             for opt, opt_chkpt in zip(self.optimizers, checkpoint["optimizer_state"]):
-    #                 opt.load_state_dict(opt_chkpt)
-    #     else:
-    #         raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
+        """
+        if os.path.isfile(path):
+            # map_location could be cuda:<device_id> but cpu seems to be more
+            # general since we are also saving step and epoch
+            # load_state_dict should move the variables to the relevant device
+            checkpoint = torch.load(path, map_location="cpu")
+            self.step = checkpoint["step"]
+            self.epoch = checkpoint["epoch"]
+            if checkpoint["optimizer_state"]:
+                for opt, opt_chkpt in zip(self.optimizers, checkpoint["optimizer_state"]):
+                    opt.load_state_dict(opt_chkpt)
+        else:
+            raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
 
     @staticmethod
     def _check_all_tensors(list_of_tensors):
