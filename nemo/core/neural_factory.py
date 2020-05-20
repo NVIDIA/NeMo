@@ -77,9 +77,18 @@ class DeviceType(Enum):
 class Actions(ABC):
     """Basic actions allowed on graphs of Neural Modules"""
 
-    def __init__(self, local_rank, global_rank, optimization_level=Optimization.mxprO0):
+    def __init__(
+        self,
+        local_rank,
+        global_rank,
+        dp_rank,
+        mp_rank,
+        optimization_level=Optimization.mxprO0,
+        ):
         self._local_rank = local_rank
         self._global_rank = global_rank
+        self._dp_rank = dp_rank
+        self._mp_rank = mp_rank
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
