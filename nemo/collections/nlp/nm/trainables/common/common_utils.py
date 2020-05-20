@@ -83,6 +83,7 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, chec
     if checkpoint:
         if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
             model.megatron_restore_from(checkpoint, local_rank)
-        model.restore_from(checkpoint, local_rank)
+        else:
+            model.restore_from(checkpoint, local_rank)
         logging.info(f"{pretrained_model_name} model restored from {checkpoint}")
     return model

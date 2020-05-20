@@ -165,6 +165,7 @@ model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
     config=args.bert_config,
     vocab=args.vocab_file,
     checkpoint=args.bert_checkpoint,
+    local_rank=nf.local_rank,
 )
 
 hidden_size = model.hidden_size
