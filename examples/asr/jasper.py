@@ -11,9 +11,8 @@ import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import monitor_asr_train_progress, process_evaluation_batch, process_evaluation_epoch
+from nemo.utils import logging
 from nemo.utils.lr_policies import CosineAnnealing
-
-logging = nemo.logging
 
 
 def parse_args():

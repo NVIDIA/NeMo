@@ -22,7 +22,7 @@ import wrapt
 
 from nemo.utils import logging
 
-# logging = nemo.logging
+# from nemo.utils import logging
 
 # Remember which deprecation warnings have been printed already.
 _PRINTED_WARNING = {}

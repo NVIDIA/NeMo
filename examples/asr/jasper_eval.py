@@ -23,8 +23,7 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import post_process_predictions, post_process_transcripts, word_error_rate
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def main():

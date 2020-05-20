@@ -25,11 +25,11 @@ from unittest import TestCase
 import numpy as np
 import pytest
 
-import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-
-logging = nemo.logging
+from nemo.backends.pytorch.actions import PtActions
+from nemo.core import SimpleLossLoggerCallback
+from nemo.utils import logging
 
 
 @pytest.mark.usefixtures("neural_factory")
@@ -158,11 +158,11 @@ class TestTTSPytorch(TestCase):
         )
         loss_list = []
 
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss_t], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer = PtActions()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.01}
         )
@@ -212,11 +212,11 @@ class TestTTSPytorch(TestCase):
         loss_t = waveglow_loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss_t], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer = PtActions()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.01}
         )
@@ -314,11 +314,11 @@ class TestTTSPytorch(TestCase):
         )
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss_t], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
         # Instantiate an optimizer to perform `train` action
-        optimizer = nemo.backends.pytorch.actions.PtActions()
+        optimizer = PtActions()
         optimizer.train(
             [loss_t], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.0003}
         )

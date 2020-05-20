@@ -25,7 +25,7 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 
 import nemo
-from nemo.utils import get_checkpoint_from_dir
+from nemo.utils import get_checkpoint_from_dir, logging
 
 try:
     import wandb
@@ -33,8 +33,6 @@ try:
     _WANDB_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     _WANDB_AVAILABLE = False
-
-logging = nemo.logging
 
 
 class ActionCallback(ABC):

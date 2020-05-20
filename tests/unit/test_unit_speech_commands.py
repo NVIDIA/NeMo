@@ -29,9 +29,7 @@ import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts import AudioLabelDataset, WaveformFeaturizer, collections, parsers, perturb
 from nemo.core import DeviceType
-
-logging = nemo.logging
-
+from nemo.utils import logging
 
 freq = 16000
 

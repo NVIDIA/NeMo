@@ -23,9 +23,7 @@ import nemo
 from nemo.collections import asr as nemo_asr
 from nemo.collections import tts as nemo_tts
 from nemo.utils import argparse as nm_argparse
-from nemo.utils import lr_policies
-
-logging = nemo.logging
+from nemo.utils import logging, lr_policies
 
 
 def parse_args():

@@ -24,7 +24,6 @@ import braceexpand
 import torch
 import webdataset as wd
 
-import nemo
 from .parts.collections import ASRAudioText
 from .parts.dataset import (
     AudioDataset,
@@ -40,6 +39,7 @@ from .parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 from nemo.utils.misc import pad_to
 
@@ -50,8 +50,6 @@ __all__ = [
     'TranscriptDataLayer',
     'AudioToSpeechLabelDataLayer',
 ]
-
-logging = nemo.logging
 
 
 def _process_augmentations(augmenter) -> AudioAugmentor:

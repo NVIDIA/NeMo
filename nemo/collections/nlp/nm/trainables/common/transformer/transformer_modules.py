@@ -28,11 +28,12 @@ __all__ = []
 
 try:
     from apex.normalization import FusedLayerNorm
-except (AttributeError, ModuleNotFoundError):
-    # this is lie - it isn't fused in this case
-    logging.warning(
-        "Unable to import APEX. Mixed precision, distributed training and FusedLayerNorm are not available."
-    )
+
+    # Try to use FusedLayerNorm from Apex - this will trigger an error.
+    _ = FusedLayerNorm(8, eps=1e-5)
+
+except Exception as e:
+    logging.warning("Unable to import FusedLayerNorm  from APEX. Using regular LayerNorm instead.")
     from torch.nn import LayerNorm as FusedLayerNorm
 
 
