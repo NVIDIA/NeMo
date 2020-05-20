@@ -239,7 +239,7 @@ else:
     }
 
 if not os.path.exists(args.data_dir):
-    raise ValueError('Data not found at {args.data_dir}')
+    raise ValueError(f'Data not found at {args.data_dir}')
 
 nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
