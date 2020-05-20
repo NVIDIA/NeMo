@@ -131,17 +131,28 @@ class MegatronBERT(TrainableNM):
         )
         return sequence_output
     
-    def megatron_restore_from(self, path, local_rank=None): 
-        # megatron mp checkpoints must be in the form "path/mp_rank_0X/model_optim_rng.pt"
+    def restore_model_parallel_megatron(self, path, local_rank=None): 
+        if not os.path.isdir(path):
+            raise ValueError(f'Megatron checkpoint directory {path} not found')
         if self.factory.model_parallel_size is not None:
+            checkpoint_directory = path
             path = os.path.join(
                 path,
                 f'mp_rank_{self.factory.mp_rank:02d}',
                 'model_optim_rng.pt'
                 )
+            if not os.path.isfile(path):
+                value_error = (
+                    f'Megatron checkpoint file {path} not found.\n'
+                    f'Model parallel checkpoints from Megatron-LM must be in this format.'
+                )
+                raise ValueError(value_error)
+
         self.restore_from(path, local_rank)
 
     def restore_from(self, path, local_rank=None):
+        if not os.path.isfile(path):
+            raise ValueError(f'Checkpoint file {path} not found')
         if self.placement == DeviceType.AllGpu:
             load_device = f"cuda:{local_rank}"
         else:

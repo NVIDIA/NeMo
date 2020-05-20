@@ -89,7 +89,7 @@ def get_pretrained_lm_model(
 
     if checkpoint:
         if 'megatron' in pretrained_model_name:
-            model.megatron_restore_from(checkpoint, local_rank)
+            model.restore_model_parallel_megatron(checkpoint, local_rank)
         else:
             model.restore_from(checkpoint, local_rank)
         logging.info(f"{pretrained_model_name} model restored from {checkpoint}")
