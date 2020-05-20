@@ -34,13 +34,11 @@ from typing import List, Optional
 import numpy as np
 
 import nemo
-
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
 from nemo.core.neural_types import NmTensor
-from nemo.utils import ExpManager
+from nemo.utils import ExpManager, logging
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
-from nemo.utils import logging
 
 
 # def topological_sort_from_leaves(leaf_nmtensors, cached_training_state: TrainingState = None):
@@ -148,6 +146,7 @@ def topological_sort_from_leaves(leaf_nmtensors, cached_training_state=None):
             raise ValueError("Could not compute tensor from current cached training state.")
 
     return top_sorted_modules
+
 
 class DeploymentFormat(Enum):
     """Which format to use when exporting a Neural Module for deployment"""

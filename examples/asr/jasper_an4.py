@@ -7,7 +7,6 @@ from functools import partial
 from ruamel.yaml import YAML
 
 import nemo
-from nemo.core import NeuralGraph
 import nemo.collections.asr as nemo_asr
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import (
@@ -18,6 +17,7 @@ from nemo.collections.asr.helpers import (
     process_evaluation_epoch,
     word_error_rate,
 )
+from nemo.core import NeuralGraph
 from nemo.utils import logging
 from nemo.utils.lr_policies import CosineAnnealing
 
@@ -66,7 +66,9 @@ def create_dags(model_config_file, vocab, args, nf):
         encoded, encoded_len = jasper_encoder(audio_signal=processed, length=processed_len)
         log_probs = jasper_decoder(encoder_output=encoded)
         predictions = greedy_decoder(log_probs=log_probs)
-        loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,)
+        loss = ctc_loss(
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
+        )
 
         # Create an evaluation graph.
         audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
@@ -101,15 +103,7 @@ def create_dags(model_config_file, vocab, args, nf):
     callbacks = [train_callback, checkpointer_callback, eval_callback]
 
     # Return entities required by the actual training.
-    return (
-        loss,
-        eval_tensors,
-        callbacks,
-        total_steps,
-        log_probs_e,
-        encoded_len_e,
-        g0
-    )
+    return (loss, eval_tensors, callbacks, total_steps, log_probs_e, encoded_len_e, g0)
 
 
 def main():

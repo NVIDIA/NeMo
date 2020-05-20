@@ -25,8 +25,8 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 
 import nemo
-from nemo.utils.app_state import AppState
 from nemo.utils import get_checkpoint_from_dir, logging
+from nemo.utils.app_state import AppState
 
 try:
     import wandb
