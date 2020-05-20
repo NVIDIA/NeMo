@@ -15,7 +15,7 @@
 # limitations under the License.
 # =============================================================================
 
-from torch import nn
+import torch
 
 from nemo import logging
 from nemo.backends.pytorch import LossNM
@@ -94,8 +94,8 @@ class SGDDialogueStateLossNM(LossNM):
             reduction = 'mean'
 
         self.reduction = reduction
-        self._cross_entropy = nn.CrossEntropyLoss(reduction=self.reduction)
-        self._criterion_req_slots = nn.BCEWithLogitsLoss(reduction=self.reduction)
+        self._cross_entropy = torch.nn.CrossEntropyLoss(reduction=self.reduction)
+        self._criterion_req_slots = torch.nn.BCEWithLogitsLoss(reduction=self.reduction)
 
     def _loss_function(
         self,
@@ -133,7 +133,9 @@ class SGDDialogueStateLossNM(LossNM):
         # Shape of logit_cat_slot_status: (batch_size, max_num_cat_slots, 3)
         if sum(cat_slot_status_mask) == 0:
             logging.warning(f'No active categorical slots in the batch')
-            cat_slot_status_loss = 0
+            cat_slot_status_loss = self._cross_entropy(
+                logit_cat_slot_status.view(-1, 3), torch.argmax(logit_cat_slot_status.view(-1, 3), dim=-1)
+            )
         else:
             cat_slot_status_loss = self._cross_entropy(
                 logit_cat_slot_status.view(-1, 3)[cat_slot_status_mask],
@@ -148,8 +150,11 @@ class SGDDialogueStateLossNM(LossNM):
         cat_slot_value_mask = (categorical_slot_status == STATUS_ACTIVE).view(-1)
         # to handle cases with no active categorical slot value
         if sum(cat_slot_value_mask) == 0:
-            logging.warning(f'No active categorical slots in the batch')
-            cat_slot_value_loss = 0
+            logging.warning(f'No active values for categorical slots in the batch.')
+            cat_slot_value_loss = self._cross_entropy(
+                logit_cat_slot_value.view(-1, max_num_slot_values),
+                torch.argmax(logit_cat_slot_value.view(-1, max_num_slot_values), dim=-1),
+            )
         else:
             slot_values_active_logits = logit_cat_slot_value.view(-1, max_num_slot_values)[cat_slot_value_mask]
             slot_values_active_labels = categorical_slot_values.view(-1)[cat_slot_value_mask]
@@ -157,10 +162,16 @@ class SGDDialogueStateLossNM(LossNM):
 
         # Non-categorical slot status.
         # Shape: (batch_size, max_num_noncat_slots, 3).
-        noncat_slot_status_loss = self._cross_entropy(
-            logit_noncat_slot_status.view(-1, 3)[non_cat_slot_status_mask],
-            noncategorical_slot_status.view(-1)[non_cat_slot_status_mask],
-        )
+        if sum(non_cat_slot_status_mask) == 0:
+            logging.warning(f'No active non-categorical slots in the batch.')
+            noncat_slot_status_loss = self._cross_entropy(
+                logit_noncat_slot_status.view(-1, 3), torch.argmax(logit_noncat_slot_status.view(-1, 3), dim=-1)
+            )
+        else:
+            noncat_slot_status_loss = self._cross_entropy(
+                logit_noncat_slot_status.view(-1, 3)[non_cat_slot_status_mask],
+                noncategorical_slot_status.view(-1)[non_cat_slot_status_mask],
+            )
 
         # Non-categorical slot spans.
         # Shape: (batch_size, max_num_noncat_slots, max_num_tokens).n
@@ -171,8 +182,15 @@ class SGDDialogueStateLossNM(LossNM):
         # non_cat_slot_value_mask = (noncategorical_slot_status > -1 ).view(-1)
         # to handle cases with no active categorical slot value
         if sum(non_cat_slot_value_mask) == 0:
-            span_start_loss = 0
-            span_end_loss = 0
+            logging.warning(f'No active values for non-categorical slots in the batch.')
+            span_start_loss = self._cross_entropy(
+                logit_noncat_slot_start.view(-1, max_num_tokens),
+                torch.argmax(logit_noncat_slot_start.view(-1, max_num_tokens), dim=-1),
+            )
+            span_end_loss = self._cross_entropy(
+                logit_noncat_slot_end.view(-1, max_num_tokens),
+                torch.argmax(logit_noncat_slot_end.view(-1, max_num_tokens), dim=-1),
+            )
         else:
             noncat_slot_start_active_logits = logit_noncat_slot_start.view(-1, max_num_tokens)[non_cat_slot_value_mask]
             noncat_slot_start_active_labels = noncategorical_slot_value_start.view(-1)[non_cat_slot_value_mask]
