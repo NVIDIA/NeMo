@@ -153,10 +153,11 @@ nf = nemo.core.NeuralModuleFactory(
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
+    model_parallel_size=args.model-parallel-size,
+    random_seed=args.random_seed,
 )
 
 output_file = f'{nf.work_dir}/output.txt'
-
 
 model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
     pretrained_model_name=args.pretrained_model_name,
