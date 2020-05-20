@@ -17,7 +17,7 @@
 import os
 
 import torch
-from megatron.initialize import set_global_variables, _set_random_seed
+from megatron.initialize import _set_random_seed, set_global_variables
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
@@ -90,9 +90,7 @@ class MegatronBERT(TrainableNM):
             "vocab_file": vocab_file,
         }
 
-        set_global_variables(extra_args_provider=None,
-                args_defaults=megatron_args,
-                ignore_unknown_args=True)
+        set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
         if self.factory._random_seed is None:
             raise ValueError("Megatron Neural Module requires Neural Factory to have random_seed is not None.")
         _set_random_seed(self.factory._random_seed)
@@ -130,17 +128,13 @@ class MegatronBERT(TrainableNM):
             input_ids, position_ids, extended_attention_mask, tokentype_ids=token_type_ids
         )
         return sequence_output
-    
-    def restore_model_parallel_megatron(self, path, local_rank=None): 
+
+    def restore_model_parallel_megatron(self, path, local_rank=None):
         if not os.path.isdir(path):
             raise ValueError(f'Megatron checkpoint directory {path} not found')
         if self.factory.model_parallel_size is not None:
             checkpoint_directory = path
-            path = os.path.join(
-                path,
-                f'mp_rank_{self.factory.mp_rank:02d}',
-                'model_optim_rng.pt'
-                )
+            path = os.path.join(path, f'mp_rank_{self.factory.mp_rank:02d}', 'model_optim_rng.pt')
             if not os.path.isfile(path):
                 value_error = (
                     f'Megatron checkpoint file {path} not found.\n'

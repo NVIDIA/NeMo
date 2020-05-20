@@ -42,13 +42,7 @@ def get_pretrained_lm_models_list():
         return get_huggingface_lm_models_list()
 
 
-def get_pretrained_lm_model(
-    pretrained_model_name,
-    config=None,
-    vocab=None,
-    checkpoint=None,
-    local_rank=None
-    ):
+def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, checkpoint=None, local_rank=None):
     '''
     Returns pretrained model
     Args:

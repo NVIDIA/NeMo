@@ -110,23 +110,9 @@ def on_epoch_start(func):
     on_epoch_start callback event.
     """
 
-<<<<<<< HEAD
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
-=======
-    @property
-    def global_rank(self):
-        return self.action.global_rank
-    
-    @property
-    def mp_rank(self):
-        return self.action.mp_rank
-
-    @property
-    def dp_rank(self):
-        return self.action.dp_rank
->>>>>>> Added mp checkpoint support to CheckpointCallback
 
         def on_epoch_start(self, state):
             self._func(state)
@@ -441,14 +427,8 @@ class CheckpointCallback(NeMoCallback):
         # If True, run will fail if we cannot load module weights
         self._force_load = force_load
 
-<<<<<<< HEAD
     def __save_to(self, path, state):
         if state["global_rank"] is not None and state["global_rank"] != 0:
-=======
-    def __save_to(self, path):
-        # only data parallel rank 0 saves to disk
-        if self.dp_rank is not None and self.dp_rank != 0:
->>>>>>> Added mp checkpoint support to CheckpointCallback
             return
         if self.mp_rank is not None:
             path = os.path.join(
@@ -489,16 +469,7 @@ class CheckpointCallback(NeMoCallback):
             self._saved_ckpts = self._saved_ckpts[-self._ckpt2keep :]
         logging.info(f'Saved checkpoint: {path}/{filename}')
 
-<<<<<<< HEAD
     def __restore_from(self, path, state):
-=======
-    def __restore_from(self, path):
-        if self.mp_rank is not None:
-            path = os.path.join(
-            path,
-            f'mp_rank_{self.mp_rank:02d}',
-            )
->>>>>>> Added mp checkpoint support to CheckpointCallback
         if not os.path.isdir(path):
             if self._force_load:
                 raise ValueError("force_load was set to True for checkpoint callback but a checkpoint was not found.")

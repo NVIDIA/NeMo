@@ -78,13 +78,8 @@ class Actions(ABC):
     """Basic actions allowed on graphs of Neural Modules"""
 
     def __init__(
-        self,
-        local_rank,
-        global_rank,
-        dp_rank,
-        mp_rank,
-        optimization_level=Optimization.mxprO0,
-        ):
+        self, local_rank, global_rank, dp_rank, mp_rank, optimization_level=Optimization.mxprO0,
+    ):
         self._local_rank = local_rank
         self._global_rank = global_rank
         self._dp_rank = dp_rank
@@ -110,7 +105,7 @@ class Actions(ABC):
             (int) rank or worker or None if not in distributed model
         """
         return self._global_rank
-    
+
     @property
     def mp_rank(self):
         """Model parallel rank. None if not using model parallelism
@@ -418,6 +413,7 @@ class NeuralModuleFactory(object):
 
                 if self._model_parallel_size is not None:
                     from megatron import mpu
+
                     mpu.initialize.initialize_model_parallel(self._model_parallel_size)
                     self._mp_rank = mpu.get_model_parallel_rank()
                     self._dp_rank = mpu.get_data_parallel_rank()
@@ -647,7 +643,7 @@ class NeuralModuleFactory(object):
     @property
     def world_size(self):
         return self._world_size
-    
+
     @property
     def model_parallel_size(self):
         return self._model_parallel_size
@@ -675,11 +671,11 @@ class NeuralModuleFactory(object):
     @property
     def global_rank(self):
         return self._global_rank
-    
+
     @property
     def local_rank(self):
         return self._local_rank
-    
+
     @property
     def mp_rank(self):
         return self._mp_rank
