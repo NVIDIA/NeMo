@@ -7,6 +7,7 @@ from functools import partial
 from ruamel.yaml import YAML
 
 import nemo
+from nemo.core import NeuralGraph
 import nemo.collections.asr as nemo_asr
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.asr.helpers import (
@@ -21,62 +22,62 @@ from nemo.utils.lr_policies import CosineAnnealing
 
 logging = nemo.logging
 
-
 def create_dags(model_config_file, vocab, args, nf):
 
-    # Create a data_layer for training.
-    data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
-        model_config_file,
-        "AudioToTextDataLayer_train",
-        overwrite_params={"manifest_filepath": args.train_dataset, "batch_size": args.batch_size},
-    )
+    with NeuralGraph() as g0:
+        # Create a data_layer for training.
+        data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
+            model_config_file,
+            "AudioToTextDataLayer_train",
+            overwrite_params={"manifest_filepath": args.train_dataset, "batch_size": args.batch_size},
+        )
 
-    num_samples = len(data_layer)
-    steps_per_epoch = math.ceil(num_samples / (data_layer.batch_size * args.iter_per_step * nf.world_size))
-    total_steps = steps_per_epoch * args.num_epochs
-    logging.info("Train samples=", num_samples, "num_steps=", total_steps)
+        num_samples = len(data_layer)
+        steps_per_epoch = math.ceil(num_samples / (data_layer.batch_size * args.iter_per_step * nf.world_size))
+        total_steps = steps_per_epoch * args.num_epochs
+        logging.info("Train samples=", num_samples, "num_steps=", total_steps)
 
-    # Create a data_layer for evaluation.
-    data_layer_eval = nemo_asr.AudioToTextDataLayer.import_from_config(
-        model_config_file, "AudioToTextDataLayer_eval", overwrite_params={"manifest_filepath": args.eval_datasets},
-    )
+        # Create a data_layer for evaluation.
+        data_layer_eval = nemo_asr.AudioToTextDataLayer.import_from_config(
+            model_config_file, "AudioToTextDataLayer_eval", overwrite_params={"manifest_filepath": args.eval_datasets},
+        )
 
-    num_samples = len(data_layer_eval)
-    logging.info(f"Eval samples={num_samples}")
+        num_samples = len(data_layer_eval)
+        logging.info(f"Eval samples={num_samples}")
 
-    # Instantiate data processor.
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
-        model_config_file, "AudioToMelSpectrogramPreprocessor"
-    )
+        # Instantiate data processor.
+        data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
+            model_config_file, "AudioToMelSpectrogramPreprocessor"
+        )
 
-    # Instantiate JASPER encoder-decoder modules.
-    jasper_encoder = nemo_asr.JasperEncoder.import_from_config(model_config_file, "JasperEncoder")
-    jasper_decoder = nemo_asr.JasperDecoderForCTC.import_from_config(
-        model_config_file, "JasperDecoderForCTC", overwrite_params={"num_classes": len(vocab)}
-    )
+        # Instantiate JASPER encoder-decoder modules.
+        jasper_encoder = nemo_asr.JasperEncoder.import_from_config(model_config_file, "JasperEncoder")
+        jasper_decoder = nemo_asr.JasperDecoderForCTC.import_from_config(
+            model_config_file, "JasperDecoderForCTC", overwrite_params={"num_classes": len(vocab)}
+        )
 
-    # Instantiate losses.
-    ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
-    greedy_decoder = nemo_asr.GreedyCTCDecoder()
+        # Instantiate losses.
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(vocab))
+        greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
-    # Create a training graph.
-    audio, audio_len, transcript, transcript_len = data_layer()
-    processed, processed_len = data_preprocessor(input_signal=audio, length=audio_len)
-    encoded, encoded_len = jasper_encoder(audio_signal=processed, length=processed_len)
-    log_probs = jasper_decoder(encoder_output=encoded)
-    predictions = greedy_decoder(log_probs=log_probs)
-    loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,)
+        # Create a training graph.
+        audio, audio_len, transcript, transcript_len = data_layer()
+        processed, processed_len = data_preprocessor(input_signal=audio, length=audio_len)
+        encoded, encoded_len = jasper_encoder(audio_signal=processed, length=processed_len)
+        log_probs = jasper_decoder(encoder_output=encoded)
+        predictions = greedy_decoder(log_probs=log_probs)
+        loss = ctc_loss(log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,)
 
-    # Create an evaluation graph.
-    audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
-    processed_e, processed_len_e = data_preprocessor(input_signal=audio_e, length=audio_len_e)
-    encoded_e, encoded_len_e = jasper_encoder(audio_signal=processed_e, length=processed_len_e)
-    log_probs_e = jasper_decoder(encoder_output=encoded_e)
-    predictions_e = greedy_decoder(log_probs=log_probs_e)
-    loss_e = ctc_loss(
-        log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
-    )
-    logging.info("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
+        # Create an evaluation graph.
+        audio_e, audio_len_e, transcript_e, transcript_len_e = data_layer_eval()
+        processed_e, processed_len_e = data_preprocessor(input_signal=audio_e, length=audio_len_e)
+        encoded_e, encoded_len_e = jasper_encoder(audio_signal=processed_e, length=processed_len_e)
+        log_probs_e = jasper_decoder(encoder_output=encoded_e)
+        predictions_e = greedy_decoder(log_probs=log_probs_e)
+        loss_e = ctc_loss(
+            log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
+        )
+    logging.error("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
 
     # Callbacks to print info to console and Tensorboard.
     train_callback = nemo.core.SimpleLossLoggerCallback(
@@ -107,6 +108,7 @@ def create_dags(model_config_file, vocab, args, nf):
         total_steps,
         log_probs_e,
         encoded_len_e,
+        g0
     )
 
 
@@ -167,7 +169,7 @@ def main():
     # Get vocabulary.
     vocab = jasper_params['labels']
 
-    (loss, eval_tensors, callbacks, total_steps, log_probs_e, encoded_len_e,) = create_dags(
+    (loss, eval_tensors, callbacks, total_steps, log_probs_e, encoded_len_e, g0) = create_dags(
         args.model_config, vocab, args, nf
     )
 
@@ -235,6 +237,15 @@ def main():
 
         args.num_epochs += 10
         previous_step_count = total_steps
+
+        # Distributed Data Parallel and amp changes the underlying class so we need to reinstantiate modules
+        # Clear the module registery
+        nemo.utils.app_state.AppState().modules.clear()
+        # Delete old graph and make a new one
+        del g0
+        loss, eval_tensors, callbacks, total_steps, _, _, new_g = create_dags(args.model_config, vocab, args, nf)
+
+        nf.reset_trainer()
         nf.train(
             tensors_to_optimize=[loss],
             callbacks=callbacks,
