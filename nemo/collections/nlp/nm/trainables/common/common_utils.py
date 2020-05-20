@@ -42,7 +42,7 @@ def get_pretrained_lm_models_list():
         return get_huggingface_lm_models_list()
 
 
-def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, checkpoint=None):
+def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, checkpoint=None, local_rank=None):
     '''
     Returns pretrained model
     Args:
@@ -81,6 +81,8 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, chec
         raise ValueError(f'{pretrained_model_name} is not supported')
 
     if checkpoint:
-        model.restore_from(checkpoint)
+        if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
+            model.megatron_restore_from(checkpoint, local_rank)
+        model.restore_from(checkpoint, local_rank)
         logging.info(f"{pretrained_model_name} model restored from {checkpoint}")
     return model
