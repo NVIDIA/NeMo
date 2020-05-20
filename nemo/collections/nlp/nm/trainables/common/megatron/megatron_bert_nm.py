@@ -130,8 +130,18 @@ class MegatronBERT(TrainableNM):
             input_ids, position_ids, extended_attention_mask, tokentype_ids=token_type_ids
         )
         return sequence_output
+    
+    def megatron_restore_from(self, path, local_rank=None): 
+        # megatron mp checkpoints must be in the form "path/mp_rank_0X/model_optim_rng.pt"
+        if self.factory.model_parallel_size is not None:
+            path = os.path.join(
+                path,
+                f'mp_rank_{self.factory.mp_rank:02d}',
+                'model_optim_rng.pt'
+                )
+        self.restore_from(path, local_rank)
 
-    def restore_from(self, path, local_rank=0):
+    def restore_from(self, path, local_rank=None):
         if self.placement == DeviceType.AllGpu:
             load_device = f"cuda:{local_rank}"
         else:
