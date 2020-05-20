@@ -17,7 +17,6 @@
 import os
 
 import torch
-
 from megatron.initialize import set_global_variables
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.language_model import get_language_model
@@ -110,7 +109,7 @@ class MegatronBERT(TrainableNM):
                 value_error = (
                     f'_random_seed {self.factory._random_seed} should be a positive integer'
                     f'for model parallel megatron'
-                    )
+                )
                 raise ValueError(value_error)
 
         init_method = init_method_normal(init_method_std)
