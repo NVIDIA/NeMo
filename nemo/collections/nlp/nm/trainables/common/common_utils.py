@@ -88,7 +88,7 @@ def get_pretrained_lm_model(
         raise ValueError(f'{pretrained_model_name} is not supported')
 
     if checkpoint:
-        if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
+        if 'megatron' in pretrained_model_name:
             model.megatron_restore_from(checkpoint, local_rank)
         else:
             model.restore_from(checkpoint, local_rank)
