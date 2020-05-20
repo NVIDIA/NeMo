@@ -17,10 +17,12 @@
 import os
 
 import torch
-from megatron.initialize import _set_random_seed, set_global_variables
+
+from megatron.initialize import set_global_variables
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
+from megatron.mpu import model_parallel_cuda_manual_seed
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import DeviceType
@@ -92,15 +94,24 @@ class MegatronBERT(TrainableNM):
         }
 
         set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
-        if self.factory._random_seed is None:
-            self.factory._random_seed = 1234
-            logging.warning(
-                (
-                    f"Megatron Neural Module requires Neural Factory to have random_seed is not None. "
-                    f"_random_seed has been set to 1234"
+
+        if self.factory.model_parallel_size is not None:
+            if self.factory._random_seed is None:
+                self.factory._random_seed = 1234
+                logging.warning(
+                    (
+                        f"Megatron Neural Module requires Neural Factory random seed to be a postive integer "
+                        f"when using model parallelism. _random_seed has been set to 1234"
+                    )
                 )
-            )
-        _set_random_seed(self.factory._random_seed)
+            if isinstance(self.factory._random_seed, int) and self.factory._random_seed > 0:
+                model_parallel_cuda_manual_seed(self.factory._random_seed)
+            else:
+                value_error = (
+                    f'_random_seed {self.factory._random_seed} should be a positive integer'
+                    f'for model parallel megatron'
+                    )
+                raise ValueError(value_error)
 
         init_method = init_method_normal(init_method_std)
 
