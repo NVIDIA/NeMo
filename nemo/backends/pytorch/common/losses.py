@@ -159,7 +159,7 @@ class CrossEntropyLossNM(LossNM):
             labels_flatten = labels_flatten[loss_mask_flatten]
 
         if len(labels_flatten) == 0:
-            return 0
+            return self._criterion(logits, torch.argmax(logits, dim=-1))
 
         loss = self._criterion(logits_flatten, labels_flatten)
         return loss
