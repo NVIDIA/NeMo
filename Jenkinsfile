@@ -200,12 +200,7 @@ pipeline {
         }
         stage('SGD Test') {
           steps {
-            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0 python dialogue_state_tracking_sgd.py \
-                --data_dir /home/TestData/nlp/sgd/ \
-                --schema_embedding_dir /home/TestData/nlp/sgd/embeddings/ --eval_dataset dev \
-                --dialogues_example_dir /home/TestData/nlp/sgd/dialogue_example_dir/ --work_dir sgd_output \
-                --task DEBUG --overwrite_schema_emb \
-                --overwrite_dial_files --num_epochs 1 --save_epoch_freq=0'
+            sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0 python dialogue_state_tracking_sgd.py --data_dir /home/TestData/nlp/sgd/ --schema_embedding_dir /home/TestData/nlp/sgd/embeddings/ --eval_dataset dev --dialogues_example_dir /home/TestData/nlp/sgd/dialogue_example_dir/ --work_dir sgd_output --task DEBUG --overwrite_schema_emb --overwrite_dial_files --num_epochs 1 --save_epoch_freq=0'
             sh 'rm -rf examples/nlp/dialogue_state_tracking/sgd_output'
           }
         }
