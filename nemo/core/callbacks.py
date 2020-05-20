@@ -541,7 +541,7 @@ class CheckpointCallback(NeMoCallback):
 
                 for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
                     mod.restore_from(checkpoint, state["local_rank"])
-            except (BaseException, ValueError) as e:
+            except (ValueError) as e:
                 if self._force_load:
                     raise ValueError(
                         "force_load was set to True for checkpoint callback but a checkpoint was not found."
@@ -555,9 +555,9 @@ class CheckpointCallback(NeMoCallback):
 
             try:
                 trainer_checkpoints = get_checkpoint_from_dir(["trainer"], path)
-                state.restore_state_from(checkpoint)
+                state.restore_state_from(trainer_checkpoints[0])
                 # for tr, checkpoint in zip([self.action], trainer_checkpoints):
-            except (BaseException, ValueError) as e:
+            except (ValueError) as e:
                 logging.warning(e)
                 logging.warning(
                     "Trainer state such as optimizer state and current step/epoch was not restored. Pretrained weights"

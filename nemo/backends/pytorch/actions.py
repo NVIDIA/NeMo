@@ -131,14 +131,35 @@ class PtActions(Actions):
             local_rank=local_rank, global_rank=global_rank, optimization_level=optimization_level,
         )
 
-        self.step = 0
-        self.epoch_num = 0
+        self._step = 0
+        self._epoch = 0
         self.optimizers = []
         self.tb_writer = tb_writer
         self.cache = None
         self.amp_initialized = False
         self.ddp_initialized = False
         self.ddp_module_dict = {}
+
+    @property
+    def step(self):
+        return self._step
+
+    @step.setter
+    def step(self, step):
+        self._step = step
+
+    @property
+    def epoch(self):
+        return self._epoch
+
+    @epoch.setter
+    def epoch(self, epoch):
+        self._epoch = epoch
+
+    @property
+    @deprecated
+    def epoch_num(self):
+        return self._epoch
 
     def __get_top_sorted_modules_and_dataloader(self, hook):
         """ TODO
@@ -311,28 +332,29 @@ class PtActions(Actions):
     def __initialize_amp(
         self, optimizer, optim_level, amp_max_loss_scale=2.0 ** 24, amp_min_loss_scale=1.0,
     ):
-        if optim_level not in AmpOptimizations:
-            raise ValueError(f"__initialize_amp() was called with unknown optim_level={optim_level}")
-        # in this case, nothing to do here
-        if optim_level == Optimization.mxprO0:
-            return optimizer
+        if not self.amp_initialized:
+            if optim_level not in AmpOptimizations:
+                raise ValueError(f"__initialize_amp() was called with unknown optim_level={optim_level}")
+            # in this case, nothing to do here
+            if optim_level == Optimization.mxprO0:
+                return optimizer
 
-        if len(AppState().modules) < 1:
-            raise ValueError("There were no modules to initialize")
-        pt_modules = []
-        for module in AppState().modules:
-            if isinstance(module, nn.Module):
-                pt_modules.append(module)
-            elif isinstance(module, TrainableNeuralModuleWrapper):
-                pt_modules.append(module._pt_module)
+            if len(AppState().modules) < 1:
+                raise ValueError("There were no modules to initialize")
+            pt_modules = []
+            for module in AppState().modules:
+                if isinstance(module, nn.Module):
+                    pt_modules.append(module)
+                elif isinstance(module, TrainableNeuralModuleWrapper):
+                    pt_modules.append(module._pt_module)
 
-        _, optimizer = amp.initialize(
-            max_loss_scale=amp_max_loss_scale,
-            min_loss_scale=amp_min_loss_scale,
-            models=pt_modules,
-            optimizers=optimizer,
-            opt_level=AmpOptimizations[optim_level],
-        )
+            _, optimizer = amp.initialize(
+                max_loss_scale=amp_max_loss_scale,
+                min_loss_scale=amp_min_loss_scale,
+                models=pt_modules,
+                optimizers=optimizer,
+                opt_level=AmpOptimizations[optim_level],
+            )
         self.amp_initialized = True
         return optimizer
 
@@ -816,43 +838,43 @@ class PtActions(Actions):
         """
         self.cache = None
 
-    def save_state_to(self, path: str):
-        """
-        Saves current state such as step, epoch and optimizer parameters
-        Args:
-          path:
+    # def save_state_to(self, path: str):
+    #     """
+    #     Saves current state such as step, epoch and optimizer parameters
+    #     Args:
+    #       path:
 
-        Returns:
+    #     Returns:
 
-        """
-        state = {
-            "step": self.step,
-            "epoch_num": self.epoch_num,
-            "optimizer_state": [opt.state_dict() for opt in self.optimizers],
-        }
-        torch.save(state, path)
+    #     """
+    #     state = {
+    #         "step": self.step,
+    #         "epoch": self.epoch,
+    #         "optimizer_state": [opt.state_dict() for opt in self.optimizers],
+    #     }
+    #     torch.save(state, path)
 
-    def restore_state_from(self, path: str):
-        """
-        Restores state such as step, epoch and optimizer parameters
-        Args:
-          path:
+    # def restore_state_from(self, path: str):
+    #     """
+    #     Restores state such as step, epoch and optimizer parameters
+    #     Args:
+    #       path:
 
-        Returns:
+    #     Returns:
 
-        """
-        if os.path.isfile(path):
-            # map_location could be cuda:<device_id> but cpu seems to be more
-            # general since we are also saving step and epoch_num
-            # load_state_dict should move the variables to the relevant device
-            checkpoint = torch.load(path, map_location="cpu")
-            self.step = checkpoint["step"]
-            self.epoch_num = checkpoint["epoch_num"]
-            if checkpoint["optimizer_state"]:
-                for opt, opt_chkpt in zip(self.optimizers, checkpoint["optimizer_state"]):
-                    opt.load_state_dict(opt_chkpt)
-        else:
-            raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
+    #     """
+    #     if os.path.isfile(path):
+    #         # map_location could be cuda:<device_id> but cpu seems to be more
+    #         # general since we are also saving step and epoch
+    #         # load_state_dict should move the variables to the relevant device
+    #         checkpoint = torch.load(path, map_location="cpu")
+    #         self.step = checkpoint["step"]
+    #         self.epoch = checkpoint["epoch"]
+    #         if checkpoint["optimizer_state"]:
+    #             for opt, opt_chkpt in zip(self.optimizers, checkpoint["optimizer_state"]):
+    #                 opt.load_state_dict(opt_chkpt)
+    #     else:
+    #         raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
 
     @staticmethod
     def _check_all_tensors(list_of_tensors):
@@ -1133,14 +1155,32 @@ class PtActions(Actions):
 
         def get_state(action):
             class StateWrapper(dict):
+                def __init__(self, action):
+                    self.action = action
+                    super().__init__(
+                        {
+                            "step": action.step,
+                            "tensors": action._training_state,
+                            "epoch": action.epoch,
+                            "local_rank": action.local_rank,
+                            "global_rank": action.global_rank,
+                            "optimizers": action.optimizers,
+                    })
                 def restore_state_from(self, path):
                     if os.path.isfile(path):
                         # map_location could be cuda:<device_id> but cpu seems to be more
-                        # general since we are also saving step and epoch_num
+                        # general since we are also saving step and epoch
                         # load_state_dict should move the variables to the relevant device
                         checkpoint = torch.load(path, map_location="cpu")
-                        self.step = checkpoint["step"]
-                        self.epoch_num = checkpoint["epoch_num"]
+                        action.step = checkpoint["step"]
+                        self["step"] = action.step
+                        epoch = checkpoint.get("epoch", None)
+                        if epoch is None:
+                            epoch = checkpoint.get("epoch_num", None)
+                        if epoch is None:
+                            raise ValueError("Epoch was not found in the trainer checkpoint")
+                        action.epoch = epoch
+                        self["epoch"] = action.epoch
                         if checkpoint["optimizer_state"]:
                             for opt, opt_chkpt in zip(self["optimizers"], checkpoint["optimizer_state"]):
                                 opt.load_state_dict(opt_chkpt)
@@ -1150,21 +1190,12 @@ class PtActions(Actions):
                 def save_state_to(self, path):
                     state = {
                         "step": self["step"],
-                        "epoch_num": self["epoch"],
+                        "epoch": self["epoch"],
                         "optimizer_state": [opt.state_dict() for opt in self["optimizers"]],
                     }
                     torch.save(state, path)
 
-            return StateWrapper(
-                {
-                    "step": action.step,
-                    "tensors": action._training_state,
-                    "epoch": action.epoch_num,
-                    "local_rank": action.local_rank,
-                    "global_rank": action.global_rank,
-                    "optimizers": action.optimizers,
-                }
-            )
+            return StateWrapper(action)
 
         self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
@@ -1410,9 +1441,9 @@ class PtActions(Actions):
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        while num_epochs is None or self.epoch_num < num_epochs:
+        while num_epochs is None or self.epoch < num_epochs:
             if train_sampler is not None:
-                train_sampler.set_epoch(self.epoch_num)
+                train_sampler.set_epoch(self.epoch)
             if max_steps is not None and self.step >= max_steps:
                 break
 
@@ -1434,7 +1465,7 @@ class PtActions(Actions):
 
                 # set learning rate policy
                 if lr_policy is not None:
-                    adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch_num)
+                    adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch)
                     for param_group in curr_optimizer.param_groups:
                         param_group["lr"] = adjusted_lr
                 if self.tb_writer is not None:
@@ -1533,7 +1564,7 @@ class PtActions(Actions):
             # End of epoch for loop
             # Register epochs end with callbacks
             _perform_on_epoch_end(callbacks, get_state(self))
-            self.epoch_num += 1
+            self.epoch += 1
         _perform_on_action_end(callbacks, get_state(self))
 
     def infer(
