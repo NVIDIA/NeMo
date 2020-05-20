@@ -233,13 +233,8 @@ def main():
             folder=checkpoint_dir, step_freq=args.checkpoint_save_freq, force_load=True,
         )
 
-        # Distributed Data Parallel changes the underlying class so we need
-        # to reinstantiate Encoder and Decoder
         args.num_epochs += 10
         previous_step_count = total_steps
-        loss, eval_tensors, callbacks, total_steps, _, _ = create_dags(args.model_config, vocab, args, nf)
-
-        nf.reset_trainer()
         nf.train(
             tensors_to_optimize=[loss],
             callbacks=callbacks,
