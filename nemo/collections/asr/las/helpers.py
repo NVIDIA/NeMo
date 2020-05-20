@@ -3,11 +3,10 @@ from pprint import pformat
 
 import torch
 
-import nemo
 from nemo.backends.pytorch.common.metrics import char_lm_metrics
 from nemo.collections.asr.metrics import word_error_rate
+from nemo.utils import logging
 
-logging = nemo.logging
 ENG_MWN = 5.3
 
 

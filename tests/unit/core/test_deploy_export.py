@@ -18,6 +18,7 @@
 
 import copy
 import os
+from inspect import signature
 from collections import OrderedDict
 from pathlib import Path
 import urllib.request
@@ -85,24 +86,19 @@ class TestDeployExport:
 
         module.eval()
         torch.manual_seed(1)
+        deploy_input_example = input_example
         if isinstance(input_example, OrderedDict):
-            outputs_fwd = module.forward(*tuple(input_example.values()))
+            deploy_input_example = tuple(input_example.values())
+            if len(deploy_input_example) == 1:
+                deploy_input_example = deploy_input_example[0]
         elif isinstance(input_example, tuple):
-            outputs_fwd = module.forward(*input_example)
-        elif input_example is not None:
-            outputs_fwd = module.forward(input_example)
-        else:
-            outputs_fwd = None
+            deploy_input_example = input_example if len(input_example) > 1 else input_example[0]
 
-        deploy_input_example = (
-            tuple(input_example.values()) if isinstance(input_example, OrderedDict) else input_example
-        )
+        sig = signature(module.forward)
+        pnum = len(sig.parameters)
+        outputs_fwd = module.forward(*deploy_input_example) if pnum > 2 else module.forward(deploy_input_example)
         self.nf.deployment_export(
-            module=module,
-            output=out_name,
-            input_example=deploy_input_example,
-            d_format=mode,
-            output_example=outputs_fwd,
+            module=module, output=out_name, input_example=deploy_input_example, d_format=mode, output_example=None,
         )
 
         assert out.exists() == True
@@ -198,14 +194,8 @@ class TestDeployExport:
 
         elif mode == DF.ONNX:
             # Must recompute because *module* might be different now
-            if isinstance(input_example, OrderedDict):
-                outputs_fwd = module.forward(*tuple(input_example.values()))
-            elif isinstance(input_example, tuple):  # or isinstance(input_example, list)
-                outputs_fwd = module.forward(*input_example)
-            elif input_example is not None:
-                outputs_fwd = module.forward(input_example)
-            else:
-                outputs_fwd = None
+            torch.manual_seed(1)
+            outputs_fwd = module.forward(*deploy_input_example) if pnum > 2 else module.forward(deploy_input_example)
 
             sess_options = ort.SessionOptions()
             sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
@@ -236,6 +226,7 @@ class TestDeployExport:
             outputs_scr = torch.from_numpy(outputs_scr[0]).cuda()
         elif mode == DF.TORCHSCRIPT:
             tscr = torch.jit.load(out_name)
+            torch.manual_seed(1)
             outputs_scr = (
                 tscr.forward(*tuple(input_example.values()))
                 if isinstance(input_example, OrderedDict)
@@ -244,7 +235,8 @@ class TestDeployExport:
                 )
             )
         elif mode == DF.PYTORCH:
-            module.load_state_dict(torch.load(out_name))
+            module.restore_from(out_name)
+            torch.manual_seed(1)
             if isinstance(input_example, OrderedDict):
                 outputs_scr = module.forward(*tuple(input_example.values()))
             elif isinstance(input_example, tuple) or isinstance(input_example, list):
@@ -344,7 +336,18 @@ class TestDeployExport:
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')
-    @pytest.mark.parametrize("df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH])
+    @pytest.mark.parametrize("df_type", [DF.TORCHSCRIPT, DF.PYTORCH])
+    #
+    # TODO WaveGlow.infer uses torch.randn which is required to be seeded
+    # for deterministic results. It gets translated to ONNX op like this:
+    #
+    #   %16020 = RandomNormalLike[dtype = 1](%16019)
+    #
+    # There is no way to seed it, thus to validate ONNX test flow
+    # please use torch.ones
+    #
+    # @pytest.mark.parametrize("df_type", [DF.ONNX, DF.TORCHSCRIPT, DF.PYTORCH])
+    #
     def test_waveglow(self, tmpdir, df_type):
         url = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ljspeech/versions/2/files/WaveGlowNM.pt"
         ptfile = "./WaveGlowNM.pt"
@@ -357,12 +360,8 @@ class TestDeployExport:
 
         torch.manual_seed(1)
         mel = torch.randn(1, 80, 96).cuda()
-        stride = 256  # value from waveglow upsample
-        n_group = 8
-        z_size2 = (mel.size(2) * stride) // n_group
-        z = torch.randn(1, z_size2).cuda()
 
-        input_example = OrderedDict([("mel_spectrogram", mel), ("z", z)])
+        input_example = OrderedDict([("mel_spectrogram", mel)])
         tmp_file_name = str(tmpdir.mkdir("export").join("waveglow"))
 
         self.__test_export_route(module=module, out_name=tmp_file_name, mode=df_type, input_example=input_example)

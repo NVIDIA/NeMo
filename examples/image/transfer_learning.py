@@ -8,8 +8,7 @@ from tensorboardX import SummaryWriter
 
 import nemo
 from nemo.backends.pytorch.torchvision.helpers import compute_accuracy, eval_epochs_done_callback, eval_iter_callback
-
-logging = nemo.logging
+from nemo.utils import logging
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 

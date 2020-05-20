@@ -15,6 +15,7 @@
 from . import models
 from .audio_preprocessing import *
 from .beam_search_decoder import BeamSearchDecoderWithLM
+from .contextnet import ContextNetDecoderForCTC, ContextNetEncoder
 from .data_layer import (
     AudioToSpeechLabelDataLayer,
     AudioToTextDataLayer,
@@ -51,6 +52,8 @@ __all__ = [
     'JasperDecoderForClassification',
     'JasperDecoderForSpkrClass',
     'JasperRNNConnector',
+    'ContextNetEncoder',
+    'ContextNetDecoderForCTC',
     'CTCLossNM',
     'CrossEntropyLossNM',
 ]

@@ -34,13 +34,17 @@ NeMo toolkit makes it possible for researchers to easily compose complex neural 
 
 The toolkit comes with extendable collections of pre-built modules for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
 
-Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
+Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes. NeMo has integration with NVIDIA Jarvis.
 
 **Introduction**
 
 * Watch `this video <https://drive.google.com/a/nvidia.com/file/d/1AcOmtx4n1BAWvPoyhE0thcQXdloGWb6q/view?usp=sharing>`_ for a quick walk-through.
 
 * `Documentation (latest released version) <https://nvidia.github.io/NeMo/>`_ and `Documentation (master branch) <http://nemo-master-docs.s3-website.us-east-2.amazonaws.com/>`_
+
+* Read NVIDIA `Developer Blog to learn how to develop speech recognition models for different languages <https://devblogs.nvidia.com/jump-start-training-for-speech-recognition-models-with-nemo/>`_
+
+* Read NVIDIA `Developer Blog announcing NeMo <https://devblogs.nvidia.com/announcing-nemo-fast-development-of-speech-and-language-models/>`_
 
 * Read NVIDIA `Developer Blog for example applications <https://devblogs.nvidia.com/how-to-build-domain-specific-automatic-speech-recognition-models-on-gpus/>`_
 
