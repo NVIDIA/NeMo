@@ -5,13 +5,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import nemo
 from .parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
-
-logging = nemo.logging
 
 
 class JasperEncoder(TrainableNM):
@@ -54,7 +52,17 @@ class JasperEncoder(TrainableNM):
                     'se_reduction_ratio' (int)  # The reduction ratio of the Squeeze
                         # sub-module.
                         # Must be an integer > 1.
-                        # Defaults to 16
+                        # Defaults to 8.
+                    'se_context_window' (int) # The size of the temporal context
+                        # provided to SE sub-module.
+                        # Must be an integer. If value <= 0, will perform global
+                        # temporal pooling (global context).
+                        # If value >= 1, will perform stride 1 average pooling to
+                        # compute context window.
+                    'se_interpolation_mode' (str) # Interpolation mode of timestep dimension.
+                        # Used only if context window is > 1.
+                        # The modes available for resizing are: `nearest`, `linear` (3D-only),
+                        # `bilinear`, `area`
                     'kernel_size_factor' (float)  # Conv kernel size multiplier
                         # Can be either an int or float
                         # Kernel size is recomputed as below:
@@ -63,16 +71,21 @@ class JasperEncoder(TrainableNM):
                         # Note: If rescaled kernel size is an even integer,
                         # adds 1 to the rescaled kernel size to allow "same"
                         # padding.
+                    'stride_last' (bool) # Bool flag to determine whether each
+                        # of the the repeated sub-blockss will perform a stride,
+                        # or only the last sub-block will perform a strided convolution.
                 }
 
         activation (str): Activation function used for each sub-blocks. Can be
-            one of ["hardtanh", "relu", "selu"].
+            one of ["hardtanh", "relu", "selu", "swish"].
         feat_in (int): Number of channels being input to this module
         normalization_mode (str): Normalization to be used in each sub-block.
             Can be one of ["batch", "layer", "instance", "group"]
             Defaults to "batch".
         residual_mode (str): Type of residual connection.
-            Can be "add" or "max".
+            Can be "add", "stride_add" or "max".
+            "stride_add" mode performs strided convolution prior to residual
+            addition.
             Defaults to "add".
         norm_groups (int): Number of groups for "group" normalization type.
             If set to -1, number of channels is used.
@@ -167,9 +180,13 @@ class JasperEncoder(TrainableNM):
             groups = lcfg.get('groups', 1)
             separable = lcfg.get('separable', False)
             heads = lcfg.get('heads', -1)
+            residual_mode = lcfg.get('residual_mode', residual_mode)
             se = lcfg.get('se', False)
-            se_reduction_ratio = lcfg.get('se_reduction_ratio', 16)
+            se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
+            se_context_window = lcfg.get('se_context_window', -1)
+            se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
             kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
+            stride_last = lcfg.get('stride_last', False)
             encoder_layers.append(
                 JasperBlock(
                     feat_in,
@@ -191,7 +208,10 @@ class JasperEncoder(TrainableNM):
                     conv_mask=conv_mask,
                     se=se,
                     se_reduction_ratio=se_reduction_ratio,
+                    se_context_window=se_context_window,
+                    se_interpolation_mode=se_interpolation_mode,
                     kernel_size_factor=kernel_size_factor,
+                    stride_last=stride_last,
                 )
             )
             feat_in = lcfg['filters']

@@ -113,40 +113,39 @@ class NeuralModule(NeuralInterface):
             Dictionary containing parameters passed to init().
         """
         # Get names of arguments of the original module init method.
-        init_keys = getfullargspec(type(self).__init__).args
+        to_set_params = getfullargspec(type(self).__init__).args
+        to_set_params.remove("self")
 
-        # Remove self.
-        if "self" in init_keys:
-            init_keys.remove("self")
+        # Create empty list of init params.
+        init_params = {}
 
-        # Create a list of params and initialize it with a special value.
-        init_params = {}.fromkeys(init_keys, "__UNSET__")
-        no_of_unset = len(init_params)
-
-        # Retrieve values of those params from the call list.
-        # Do it by removing and analysing the calls from stack one by one.
+        # Get the frame "call context".
         for frame in stack()[1:]:
-            # Get call "context".
-            localvars = getargvalues(frame[0]).locals
-            # Check if we are in the "context" of the class call.
-            if "__class__" not in localvars.keys():
-                continue
-            # Check if this is the context of the current "class".
-            if type(localvars["self"]).__name__ != localvars["__class__"].__name__:
-                # If own class is not equal to the call context class.
-                continue
-            # Ok, got the actual __init__() call!!
-            # Copy the keys.
-            for key in init_keys:
-                # Found the variable - and it is still unset!
-                if key in localvars.keys() and init_params[key] == "__UNSET__":
-                    # Save the value.
-                    init_params[key] = localvars[key]
-                    no_of_unset -= 1
-            # That should set all the init_params!
-            assert no_of_unset == 0
-            # Ok, we can terminate.
-            break
+            # Get the call arguments.
+            localvars = getargvalues(frame[0])
+
+            # Fill the parameters with call_args.
+            for key in to_set_params:
+                if key in localvars.args:
+                    init_params[key] = localvars.locals[key]
+
+            # Remove all set keys.
+            for key in init_params.keys():
+                if key in to_set_params:
+                    to_set_params.remove(key)
+
+            # Check if we have set everything.
+            if len(to_set_params) == 0:
+                break
+
+        # Make sure that we collected ALL (and ONLY) the signature params - if not, then there is a BUG!
+        if len(to_set_params) != 0:
+            raise ValueError(
+                "Could not collect all the signature params! "
+                F"Please file a bug on GitHub with the current stacktrace so that it can be resolved."
+            )
+
+        # print("! init_params of {}: {}\n".format(type(self).__name__, init_params))
 
         # Return parameters.
         return init_params

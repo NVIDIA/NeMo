@@ -67,12 +67,15 @@ First, we need to create our neural factory with the supported backend. How you 
 
 Next, we'll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing ("New York City" is easier to identify than "new york city"), so we recommend you use cased models.
 
-If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo.collections.nlp.nm.trainables.get_bert_models_list()``
+If you're using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out ``nemo_nlp.nm.trainables.get_pretrained_lm_models_list()``
 
     .. code-block:: python
 
-        tokenizer = nemo.collections.nlp.data.NemoBertTokenizer(pretrained_model="bert-base-cased")
-        bert_model = nemo_nlp.nm.trainables.huggingface.BERT(
+        bert_model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+            pretrained_model_name="bert-base-cased")
+
+        tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+            tokenizer_name="nemobert",
             pretrained_model_name="bert-base-cased")
 
 See examples/nlp/token_classification/token_classification.py on how to use a BERT model that you pre-trained yourself.

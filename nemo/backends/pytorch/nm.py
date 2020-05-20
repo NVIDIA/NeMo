@@ -50,8 +50,9 @@ class TrainableNM(NeuralModule, nn.Module):
     """
 
     def __init__(self, pretrained_model_name=None, name=None):
-        NeuralModule.__init__(self, name)  # For NeuralModule API
+        # Initialize nn.Module first - important for the inspect during the init_params collection.
         nn.Module.__init__(self)  # For PyTorch API
+        NeuralModule.__init__(self, name)  # For NeuralModule API
 
         # Set module type.
         self._type = ModuleType.trainable

@@ -9,3 +9,4 @@ youtokentome
 numpy
 tqdm
 gdown
+megatron-lm
