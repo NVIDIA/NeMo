@@ -27,8 +27,7 @@ import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.tts import waveglow_eval_log_to_tb_func, waveglow_log_to_tb_func, waveglow_process_eval_batch
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():

@@ -28,19 +28,18 @@ __all__ = [
 ]
 
 import math
-import warnings
 from abc import abstractmethod
 
 import numpy as np
 import torch
 from packaging import version
 
-import nemo
 from .parts.features import FilterbankFeatures
 from .parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.backends.pytorch import NonTrainableNM
 from nemo.core import Optimization
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
 try:
@@ -54,14 +53,12 @@ try:
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
-    warnings.warn('Could not import torchaudio. Some features might not work.')
+    logging.warning('Could not import torchaudio. Some features might not work.')
+
 try:
     from apex import amp
 except (AttributeError, ModuleNotFoundError) as e:
-    warnings.warn("Unable to import APEX. Mixed precision and distributed training will not work.")
-
-
-logging = nemo.logging
+    logging.warning("Unable to import APEX. Mixed precision and distributed training will not work.")
 
 
 class AudioPreprocessor(NonTrainableNM):

@@ -18,9 +18,9 @@ from nemo.collections.asr.helpers import (
     process_evaluation_epoch,
     word_error_rate,
 )
+from nemo.utils import logging
 from nemo.utils.lr_policies import CosineAnnealing
 
-logging = nemo.logging
 
 def create_dags(model_config_file, vocab, args, nf):
 
