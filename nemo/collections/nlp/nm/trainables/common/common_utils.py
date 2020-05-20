@@ -42,7 +42,13 @@ def get_pretrained_lm_models_list():
         return get_huggingface_lm_models_list()
 
 
-def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, checkpoint=None, local_rank=None):
+def get_pretrained_lm_model(
+    pretrained_model_name,
+    config=None,
+    vocab=None,
+    checkpoint=None,
+    local_rank=None
+    ):
     '''
     Returns pretrained model
     Args:
@@ -51,6 +57,7 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, chec
         config (str): path to the model configuration file
         vocab (str): path to the vocabulary file used during model training 
         checkpoint (str): path to the pretrained model checkpoint
+        local_rank (int): Process rank. Should be set by distributed runner
     Returns:
         Pretrained model (NM)
     '''
