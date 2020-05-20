@@ -166,6 +166,16 @@ class QuartzNet(NeMoModel):
         )
         result.append(enbase)
         result.append(zhbase)
+
+        zhbase = PretrainedModelInfo(
+            pretrained_model_name="Jasper10x5-En-BASE", location="", description="", parameters='',
+        )
+        result.append(zhbase)
+
+        zhbase = PretrainedModelInfo(
+            pretrained_model_name="ContextNet21x5-En-BASE", location="", description="", parameters='',
+        )
+        result.append(zhbase)
         return result
 
     @classmethod

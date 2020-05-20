@@ -122,16 +122,20 @@ class NeMoModel(NeuralModule):
 
             for module in self.modules:
                 module_name = module.__class__.__name__
-                try:
-                    module_checkpoint = module_name + ".onnx"
-                    module._factory.deployment_export(
-                        module=module,
-                        output=path.join(tmp_folder, module_checkpoint),
-                        d_format=DeploymentFormat.TRTONNX,
-                    )
-                except Exception as ex:
-                    print(ex)
-                    logging.warning(f"Did not convert {module_name} to .onnx")
+                if optimize_for_deployment:
+                    try:
+                        module_checkpoint = module_name + ".onnx"
+                        module._factory.deployment_export(
+                            module=module,
+                            output=path.join(tmp_folder, module_checkpoint),
+                            d_format=DeploymentFormat.TRTONNX,
+                        )
+                    except Exception as ex:
+                        print(ex)
+                        logging.warning(f"Did not convert {module_name} to .onnx")
+                        module_checkpoint = module_name + ".pt"
+                        module.save_to(path.join(tmp_folder, module_checkpoint))
+                else:
                     module_checkpoint = module_name + ".pt"
                     module.save_to(path.join(tmp_folder, module_checkpoint))
 
