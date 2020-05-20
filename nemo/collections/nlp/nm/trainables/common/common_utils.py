@@ -18,8 +18,16 @@ import json
 
 from nemo import logging
 from nemo.collections.nlp.nm.trainables.common.huggingface.huggingface_utils import *
-from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import MegatronBERT
-from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *
+
+try:
+    __megatron_utils_satisfied = True
+    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import MegatronBERT
+    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *
+
+except Exception as e:
+    logging.error('Failed to import Megatron Neural Module and utils: `{}` ({})'.format(str(e), type(e)))
+    __megatron_utils_satisfied = False
+
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
@@ -28,7 +36,10 @@ def get_pretrained_lm_models_list():
     '''
     Returns the list of support pretrained models
     '''
-    return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
+    if __megatron_utils_satisfied:
+        return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
+    else:
+        return get_huggingface_lm_models_list()
 
 
 def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, checkpoint=None):
@@ -45,7 +56,7 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, vocab=None, chec
     '''
     if pretrained_model_name in get_huggingface_lm_models_list():
         model = get_huggingface_lm_model(bert_config=config, pretrained_model_name=pretrained_model_name)
-    elif pretrained_model_name in get_megatron_lm_models_list():
+    elif __megatron_utils_satisfied and pretrained_model_name in get_megatron_lm_models_list():
         if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
             if not (config and checkpoint):
                 raise ValueError(f'Config file and pretrained checkpoint required for {pretrained_model_name}')

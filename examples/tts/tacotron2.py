@@ -28,9 +28,8 @@ from nemo.collections.tts import (
     tacotron2_process_eval_batch,
     tacotron2_process_final_eval,
 )
+from nemo.utils import logging
 from nemo.utils.lr_policies import CosineAnnealing
-
-logging = nemo.logging
 
 
 def parse_args():

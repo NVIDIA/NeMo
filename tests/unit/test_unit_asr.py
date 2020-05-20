@@ -29,15 +29,13 @@ import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts import AudioDataset, WaveformFeaturizer, collections, parsers
 from nemo.core import DeviceType
-
-logging = nemo.logging
-
+from nemo.utils import logging
 
 freq = 16000
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestASRPytorch(TestCase):
+class TestUnitASRPytorch(TestCase):
     labels = [
         " ",
         "a",
