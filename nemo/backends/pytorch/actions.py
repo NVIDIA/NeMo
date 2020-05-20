@@ -332,29 +332,28 @@ class PtActions(Actions):
     def __initialize_amp(
         self, optimizer, optim_level, amp_max_loss_scale=2.0 ** 24, amp_min_loss_scale=1.0,
     ):
-        if not self.amp_initialized:
-            if optim_level not in AmpOptimizations:
-                raise ValueError(f"__initialize_amp() was called with unknown optim_level={optim_level}")
-            # in this case, nothing to do here
-            if optim_level == Optimization.mxprO0:
-                return optimizer
+        if optim_level not in AmpOptimizations:
+            raise ValueError(f"__initialize_amp() was called with unknown optim_level={optim_level}")
+        # in this case, nothing to do here
+        if optim_level == Optimization.mxprO0:
+            return optimizer
 
-            if len(AppState().modules) < 1:
-                raise ValueError("There were no modules to initialize")
-            pt_modules = []
-            for module in AppState().modules:
-                if isinstance(module, nn.Module):
-                    pt_modules.append(module)
-                elif isinstance(module, TrainableNeuralModuleWrapper):
-                    pt_modules.append(module._pt_module)
+        if len(AppState().modules) < 1:
+            raise ValueError("There were no modules to initialize")
+        pt_modules = []
+        for module in AppState().modules:
+            if isinstance(module, nn.Module):
+                pt_modules.append(module)
+            elif isinstance(module, TrainableNeuralModuleWrapper):
+                pt_modules.append(module._pt_module)
 
-            _, optimizer = amp.initialize(
-                max_loss_scale=amp_max_loss_scale,
-                min_loss_scale=amp_min_loss_scale,
-                models=pt_modules,
-                optimizers=optimizer,
-                opt_level=AmpOptimizations[optim_level],
-            )
+        _, optimizer = amp.initialize(
+            max_loss_scale=amp_max_loss_scale,
+            min_loss_scale=amp_min_loss_scale,
+            models=pt_modules,
+            optimizers=optimizer,
+            opt_level=AmpOptimizations[optim_level],
+        )
         self.amp_initialized = True
         return optimizer
 
