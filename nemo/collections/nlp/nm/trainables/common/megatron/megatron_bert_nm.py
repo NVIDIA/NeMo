@@ -26,6 +26,7 @@ from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
+from nemo.utils import logging
 
 __all__ = ['MegatronBERT']
 
@@ -92,7 +93,13 @@ class MegatronBERT(TrainableNM):
 
         set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
         if self.factory._random_seed is None:
-            raise ValueError("Megatron Neural Module requires Neural Factory to have random_seed is not None.")
+            self.factory._random_seed = 1234
+            logging.warning(
+                (
+                    f"Megatron Neural Module requires Neural Factory to have random_seed is not None. "
+                    f"_random_seed has been set to 1234"
+                )
+            )
         _set_random_seed(self.factory._random_seed)
 
         init_method = init_method_normal(init_method_std)
