@@ -25,8 +25,8 @@ from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import ChannelType, NeuralType
-from nemo.utils.decorators import add_port_docs
 from nemo.utils import logging
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MegatronBERT']
 
