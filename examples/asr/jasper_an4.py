@@ -237,9 +237,10 @@ def main():
         nemo.utils.app_state.AppState().modules.clear()
         # Delete old graph and make a new one
         del g0
+        nf.reset_trainer()
+        # [print(p) for p in nemo.utils.app_state.AppState().modules]
         loss, eval_tensors, callbacks, total_steps, _, _, new_g = create_dags(args.model_config, vocab, args, nf)
 
-        nf.reset_trainer()
         nf.train(
             tensors_to_optimize=[loss],
             callbacks=callbacks,
