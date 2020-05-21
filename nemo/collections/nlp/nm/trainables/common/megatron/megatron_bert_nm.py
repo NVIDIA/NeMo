@@ -92,7 +92,6 @@ class MegatronBERT(TrainableNM):
             "vocab_file": vocab_file,
         }
 
-
         if self.factory.model_parallel_size is not None:
             set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
             if self.factory._random_seed is None:
