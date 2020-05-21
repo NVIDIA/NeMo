@@ -21,8 +21,8 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, NeMoCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, OperationMode, Optimization, topological_sort_from_leaves, TrainingState
-from nemo.core.neural_types import NeuralType, AxisKind
+from nemo.core.neural_factory import Actions, OperationMode, Optimization, TrainingState, topological_sort_from_leaves
+from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
 from nemo.utils.helpers import get_checkpoint_from_dir
@@ -1121,6 +1121,7 @@ class PtActions(Actions):
         def get_state(action: 'PtAction'):
             """Helper function used to create a state for callbacks
             """
+
             class StateWrapper(dict):
                 def __init__(self, action):
                     """A class that wraps a dictionary but adds the functions: restore_state_from and save_state_to

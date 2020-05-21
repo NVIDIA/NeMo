@@ -36,8 +36,9 @@ import nemo
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
 from nemo.core.neural_types import NmTensor
 from nemo.utils import ExpManager, logging
-from nemo.utils.decorators import deprecated
 from nemo.utils.app_state import AppState
+from nemo.utils.decorators import deprecated
+
 
 class TrainingState:
     def __init__(self, action: 'Actions'):
