@@ -41,7 +41,7 @@ parser.add_argument("--d_model", default=768, type=int)
 parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--data_for_eval", default="passages", type=str)
 parser.add_argument("--restore_path", type=str)
-parser.add_argument
+parser.add_argument("--chunk_id", default=0, type=int)
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -60,11 +60,11 @@ device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
-encoder.bert.embeddings.dropout.p = args.embedding_dropout
-for layer in encoder.bert.encoder.layer:
-    layer.attention.self.dropout.p = args.attn_score_dropout
-    layer.attention.output.dropout.p = args.attn_layer_dropout
-    layer.output.dropout.p = args.ffn_dropout
+# encoder.bert.embeddings.dropout.p = args.embedding_dropout
+# for layer in encoder.bert.encoder.layer:
+#     layer.attention.self.dropout.p = args.attn_score_dropout
+#     layer.attention.output.dropout.p = args.attn_layer_dropout
+#     layer.output.dropout.p = args.ffn_dropout
 encoder.restore_from(path=args.restore_path, local_rank=args.local_rank)
 
 data_layer_params = {"tokenizer": tokenizer,
@@ -72,8 +72,8 @@ data_layer_params = {"tokenizer": tokenizer,
                      "passages": None,
                      "queries": None}
 if args.data_for_eval == "passages":
-    filename = "collection.tsv"
-    data_layer_params["passages"] = f"{args.data_dir}/{filename}"
+    data_layer_params["passages"] = f"{args.data_dir}/collection.{chunk_id}.tsv"
+    filename = f"passages.{chunk_id}.tsv"
 elif args.data_for_eval == "queries":
     filename = f"queries.{args.eval_datasets[0]}.tsv"
     data_layer_params["queries"] = f"{args.data_dir}/{filename}"
@@ -87,6 +87,6 @@ evaluated_tensors = nf.infer(tensors=[hiddens, idx])
 
 
 if args.local_rank == 0:
-    vectors = np.vstack([tensor[:, 0].detach().numpy() for tensor in evaluated_tensors[0]])
+    vectors = np.vstack([tensor[:, 0].detach().numpy().astype(np.float16) for tensor in evaluated_tensors[0]])
     indices = np.hstack([tensor.detach().numpy() for tensor in evaluated_tensors[1]])
     np.savez(f"{args.work_dir}/{filename}.npz", vectors=vectors, indices=indices)
