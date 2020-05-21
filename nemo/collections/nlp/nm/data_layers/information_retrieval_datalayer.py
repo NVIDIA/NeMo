@@ -301,7 +301,7 @@ class BertDensePassageRetrievalDataLayerInfer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
-            "idx": NeuralType(tuple('B'), ChannelType()),
+            "idx": NeuralType(('B', ), ChannelType()),
         }
 
     def __init__(
@@ -310,8 +310,8 @@ class BertDensePassageRetrievalDataLayerInfer(TextDataLayer):
         passages,
         queries,
         batch_size,
-        max_query_length=32,
-        max_passage_length=192,
+        max_query_length=30,
+        max_passage_length=190,
         dataset_type=BertDensePassageRetrievalDatasetInfer,
     ):
         dataset_params = {

@@ -181,7 +181,8 @@ callbacks.append(nemo.core.EvaluatorCallback(
     eval_tensors=all_eval_tensors[args.eval_datasets[0]],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[0]),
+        x, query2rel=query2rel, topk=[1, 10],
+        baseline_name=args.eval_datasets[0]),#, save_scores="infer/bert_bm25.pkl"),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer))
 
@@ -189,7 +190,8 @@ callbacks.append(nemo.core.EvaluatorCallback(
     eval_tensors=all_eval_tensors[args.eval_datasets[1]],
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]),
+        x, query2rel=query2rel, topk=[1, 10],
+        baseline_name=args.eval_datasets[1]),#, save_scores="infer/bert_dpr.pkl"),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer))
 
@@ -197,6 +199,7 @@ callbacks.append(nemo.core.EvaluatorCallback(
 ckpt_dir = nf.checkpoint_dir
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=ckpt_dir, epoch_freq=args.save_epoch_freq,
+    load_from_folder=args.restore_checkpoint_from,
     step_freq=args.save_step_freq, checkpoints_to_keep=5)
 callbacks.append(ckpt_callback)
 

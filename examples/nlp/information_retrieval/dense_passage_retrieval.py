@@ -64,6 +64,7 @@ parser.add_argument("--num_negatives", default=5, type=int)
 parser.add_argument("--num_eval_candidates", default=100, type=int)
 parser.add_argument("--label_smoothing", default=0.0, type=float)
 parser.add_argument("--freeze_encoder", action="store_true")
+parser.add_argument("--do_eval", action="store_true")
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -192,32 +193,36 @@ def parse_qrels(qrels):
 query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.small.tsv")
 
 
-all_eval_tensors = {}
-for eval_dataset in args.eval_datasets:
-    scores, q_id, p_ids = create_eval_pipeline(eval_dataset)
-    all_eval_tensors[eval_dataset] = [scores, q_id, p_ids]
+if args.do_eval:
 
-    
-callbacks.append(nemo.core.EvaluatorCallback(
-    eval_tensors=all_eval_tensors[args.eval_datasets[0]],
-    user_iter_callback=eval_iter_callback,
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[0]),
-    eval_step=args.eval_freq,
-    tb_writer=nf.tb_writer))
+    all_eval_tensors = {}
+    for eval_dataset in args.eval_datasets:
+        scores, q_id, p_ids = create_eval_pipeline(eval_dataset)
+        all_eval_tensors[eval_dataset] = [scores, q_id, p_ids]
 
-callbacks.append(nemo.core.EvaluatorCallback(
-    eval_tensors=all_eval_tensors[args.eval_datasets[1]],
-    user_iter_callback=eval_iter_callback,
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]),
-    eval_step=args.eval_freq,
-    tb_writer=nf.tb_writer))
+    callbacks.append(nemo.core.EvaluatorCallback(
+        eval_tensors=all_eval_tensors[args.eval_datasets[0]],
+        user_iter_callback=eval_iter_callback,
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x, query2rel=query2rel, topk=[1, 10],
+            baseline_name=args.eval_datasets[0]),#, save_scores="infer/dpr0_bm25.pkl"),
+        eval_step=args.eval_freq,
+        tb_writer=nf.tb_writer))
+
+    callbacks.append(nemo.core.EvaluatorCallback(
+        eval_tensors=all_eval_tensors[args.eval_datasets[1]],
+        user_iter_callback=eval_iter_callback,
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x, query2rel=query2rel, topk=[1, 10],
+            baseline_name=args.eval_datasets[1]),#, save_scores="infer/dpr0_dpr.pkl"),
+        eval_step=args.eval_freq,
+        tb_writer=nf.tb_writer))
 
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=ckpt_dir, epoch_freq=args.save_epoch_freq,
+    load_from_folder=args.restore_checkpoint_from,
     step_freq=args.save_step_freq, checkpoints_to_keep=5)
 callbacks.append(ckpt_callback)
 
