@@ -30,7 +30,7 @@ from nemo.utils.decorators import deprecated
 
 class DeprecatedTest(TestCase):
     NEMO_ERR_MSG_FORMAT = re.compile(
-        r"\[NeMo W [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} deprecated:[0-9]+( [0-9]+)?\] "
+        r"\[NeMo W [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} deprecated:[0-9]+( rank:[0-9]+)?\] "
     )
 
     @pytest.mark.unit

@@ -130,5 +130,5 @@ class BaseNeMoFormatter(BaseFormatter):
 
 class DebugNeMoFormatter(BaseFormatter):
     DEFAULT_FORMAT = (
-        "%(color)s[NeMo %(levelname)1.1s %(asctime)s %(module)s:%(lineno)d %(rank)d]%(end_color)s %(message)s"
+        "%(color)s[NeMo %(levelname)1.1s %(asctime)s %(module)s:%(lineno)d rank:%(rank)d]%(end_color)s %(message)s"
     )
