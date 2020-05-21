@@ -18,6 +18,7 @@
 
 import os
 import tarfile
+import nemo
 from functools import partial
 from unittest import TestCase
 
@@ -340,7 +341,7 @@ class TestASRIntegrationPytorch(TestCase):
         ) as file:
             model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
-        model = nemo_asr.models.QuartzNet(
+        model = nemo_asr.models.ASRConvCTCModel(
             preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
             encoder_params=model_definition['JasperEncoder'],
             decoder_params=model_definition['JasperDecoderForCTC'],

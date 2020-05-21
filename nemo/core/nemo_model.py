@@ -65,8 +65,7 @@ class NeMoModel(NeuralModule):
         """
         if isinstance(model_info, str) and model_info.endswith(".nemo"):
             nemo_file_folder, to_delete = cls.__unpack_nemo_file(path2file=model_info)
-            # TODO: this is potentially error-prone
-            configuration_file = path.join(nemo_file_folder, cls.__name__ + ".yaml")
+            configuration_file = path.join(nemo_file_folder, 'module.yaml')
             instance = cls.import_from_config(config_file=configuration_file)
             for module in instance.modules:
                 module_checkpoint = path.join(nemo_file_folder, module.__class__.__name__ + ".pt")
@@ -91,17 +90,17 @@ class NeMoModel(NeuralModule):
         Returns:
             None
         """
-
         def make_nemo_file_from_folder(filename, source_dir):
             with tarfile.open(filename, "w:gz") as tar:
                 tar.add(source_dir, arcname=os.path.basename(source_dir))
 
         if output_folder is None:
             output_folder = ""
-
+        # create temporary folder first
         rnd_string = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(16))
         rnd_path = path.join(output_folder, f".{rnd_string}")
         tmp_folder = path.join(rnd_path, NEMO_TMP_FOLDER)
+        # resulting_file is path to the resulting .nemo file
         if output_file_name.endswith(".nemo"):
             resulting_file = path.join(output_folder, output_file_name)
         else:
@@ -109,16 +108,29 @@ class NeMoModel(NeuralModule):
         if not path.exists(tmp_folder):
             os.makedirs(tmp_folder)
         try:
-            config_file_path = path.join(tmp_folder, self.__class__.__name__ + ".yaml")
+            # create header file
+            main_configuration_file_name = "module.yaml"
+            train_graph_file_name = "train_graph.yaml"
+            eval_graph_file_name = "eval_graph.yaml"
+
+            header_file_path = path.join(tmp_folder, 'header.content')
+            with open(header_file_path, 'w') as hf:
+                hf.write(f"Main module configuration: {main_configuration_file_name}")
+                hf.write(f"Train graph: {train_graph_file_name}")
+                if self.eval_graph is not None:
+                    hf.write(f"Eval graph: {train_graph_file_name}")
+
+            # Every NeMo model is a NeuralModule, exporiting its hyperparamers to .yaml
+            config_file_path = path.join(tmp_folder, main_configuration_file_name)
             self.export_to_config(config_file=config_file_path)
 
             if self.train_graph is not None and not optimize_for_deployment:
-                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_train_graph.yaml")
-                self.train_graph.export_to_config(config_file_path_graph)
+                config_file_path_train_graph = path.join(tmp_folder, train_graph_file_name)
+                self.train_graph.export_to_config(config_file_path_train_graph)
 
             if self.eval_graph is not None:
-                config_file_path_graph = path.join(tmp_folder, self.__class__.__name__ + "_eval_graph.yaml")
-                self.eval_graph.export_to_config(config_file_path_graph)
+                config_file_path_eval_graph = path.join(tmp_folder, eval_graph_file_name)
+                self.eval_graph.export_to_config(config_file_path_eval_graph)
 
             for module in self.modules:
                 module_name = module.__class__.__name__

@@ -27,17 +27,15 @@ from nemo.core import (
     NeuralType,
     OperationMode,
     PretrainedModelInfo,
-    WeightShareTransform,
 )
 from nemo.utils import maybe_download_from_cloud
 
 
-class QuartzNet(NeMoModel):
+class ASRConvCTCModel(NeMoModel):
     """
     QuartzNet ASR Model. See: "QuartzNet: Deep Automatic Speech Recognition with 1D Time-Channel Separable Convolutions"
     https://arxiv.org/abs/1910.10261
     """
-
     def __init__(
         self,
         preprocessor_params: Dict,
@@ -140,7 +138,8 @@ class QuartzNet(NeMoModel):
 
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
-        """List all available pre-trained models (e.g. weights) for QuartzNet.
+        """List all available pre-trained models (e.g. weights) for convolutional
+        encoder-decoder CTC-based speech recognition models.
 
         Returns:
             A list of PretrainedModelInfo tuples.
@@ -148,34 +147,13 @@ class QuartzNet(NeMoModel):
             retrieve pre-trained model's weights (pass it as
             pretrained_model_name argument to the module's constructor)
         """
-        logging.warning("THIS METHOD IS NOT DONE YET")
         result = []
-        enbase = PretrainedModelInfo(
+        model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5-En-BASE",
-            location=""
-            "{'decoder': 'https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/JasperDecoderForCTC-STEP-243800.pt', "
-            " 'encoder':'https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/JasperEncoder-STEP-243800.pt', "
-            " 'config':'https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/quartznet15x5.yaml'}",
-            description="This is a checkpoint for the QuartzNet 15x5 model that was trained in NeMo "
-            "on five datasets: LibriSpeech, Mozilla Common Voice, WSJ, Fisher, "
-            "and Switchboard.",
-            parameters='',
+            location="",
+            parameters="",
         )
-        zhbase = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5-Zh-BASE", location="", description="", parameters='',
-        )
-        result.append(enbase)
-        result.append(zhbase)
-
-        zhbase = PretrainedModelInfo(
-            pretrained_model_name="Jasper10x5-En-BASE", location="", description="", parameters='',
-        )
-        result.append(zhbase)
-
-        zhbase = PretrainedModelInfo(
-            pretrained_model_name="ContextNet21x5-En-BASE", location="", description="", parameters='',
-        )
-        result.append(zhbase)
+        result.append(model)
         return result
 
     @classmethod
@@ -185,22 +163,35 @@ class QuartzNet(NeMoModel):
         if model_info.endswith(".nemo"):
             return super().from_pretrained(model_info=model_info)
         else:
-            nfname = f".nemo_files/NEMO_{nemo.__version__}/{str(model_info)}"
-            home_folder = Path.home()
-            dest_dir = os.path.join(home_folder, nfname)
+            location_in_the_cloud = None
+            for pretrained_model_info in cls.list_pretrained_models():
+                if pretrained_model_info.pretrained_model_name == model_info:
+                    location_in_the_cloud = pretrained_model_info.location
+            if location_in_the_cloud is None:
+                raise FileNotFoundError(f"Could not find {model_info} in the cloud. Please call list_pretrained_models() to see all available pre-trained models.")
 
-            url = "https://api.ngc.nvidia.com/v2/models/nvidia/multidataset_quartznet15x5/versions/1/files/"
-            maybe_download_from_cloud(url=url, filename="JasperEncoder-STEP-243800.pt", dest_dir=dest_dir)
-            maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
-            maybe_download_from_cloud(url=url, filename="JasperDecoderForCTC-STEP-243800.pt", dest_dir=dest_dir)
-            maybe_download_from_cloud(
-                url="https://nemo-public.s3.us-east-2.amazonaws.com/", filename="qn.yaml", dest_dir=dest_dir
-            )
+            filename = location_in_the_cloud.split("/")[-1]
+            url = ''.join(location_in_the_cloud.split("/")[:-1])
+
+            cache_subfolder = f"NEMO_{nemo.__version__}"
+
+            # if file exists on cache_folder/subfolder, it will be re-used
+            nemo_model_file_in_cache = maybe_download_from_cloud(url=url,
+                                                                 filename=filename,
+                                                                 subfolder=cache_subfolder)
             logging.info("Instantiating model from pre-trained checkpoint")
-            qn = QuartzNet.import_from_config(config_file=os.path.join(dest_dir, "qn.yaml"))
+            themodel = ASRConvCTCModel.from_pretrained(model_info=nemo_model_file_in_cache)
             logging.info("Model instantiated with pre-trained weights")
-            return qn
+            return themodel
 
     @property
     def modules(self) -> Iterable[NeuralModule]:
         return self._modules
+
+
+class QuartzNet(ASRConvCTCModel):
+    pass
+
+
+class JasperNet(ASRConvCTCModel):
+    pass
