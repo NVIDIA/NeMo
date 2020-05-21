@@ -324,8 +324,12 @@ class NmTensor(NeuralType):
             raise ValueError("This NmTensor does not have a unique name")
         return f"{self._output_port_name}~~~{self._producer_name}~~~{self._uuid}"
 
-    def rename(self, new_name):
-        """TODO
+    def rename(self, new_name: str):
+        """Renames the tensor from its old name to a new user-defined name for easy access within callbacks. Note,
+        a tensor's unique_name is never changed. This simply adds a reference from new_name -> tensor.unique_name
+
+        args:
+            new_name (str): the new tensor's name.
         """
         AppState().tensor_names.rename_NmTensor(self, new_name)
 

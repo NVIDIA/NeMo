@@ -79,7 +79,7 @@ def create_dags(model_config_file, vocab, args, nf):
         loss_e = ctc_loss(
             log_probs=log_probs_e, targets=transcript_e, input_length=encoded_len_e, target_length=transcript_len_e,
         )
-    logging.error("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
+    logging.info("Num of params in encoder: {0}".format(jasper_encoder.num_weights))
 
     # Callbacks to print info to console and Tensorboard.
     train_callback = nemo.core.SimpleLossLoggerCallback(

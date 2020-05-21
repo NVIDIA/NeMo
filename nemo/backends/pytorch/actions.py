@@ -20,9 +20,9 @@ from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
-from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, OperationMode, Optimization, topological_sort_from_leaves
-from nemo.core.neural_types import *
+from nemo.core.callbacks import ActionCallback, NeMoCallback, SimpleLossLoggerCallback
+from nemo.core.neural_factory import Actions, OperationMode, Optimization, topological_sort_from_leaves, TrainingState
+from nemo.core.neural_types import NeuralType, AxisKind
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
 from nemo.utils.helpers import get_checkpoint_from_dir
@@ -48,48 +48,6 @@ _float_2_half_req = {
     Optimization.mxprO2,
     Optimization.mxprO3,
 }
-
-
-class TrainingState:
-    def __init__(self, action):
-        tensor_naming_registery = AppState().tensor_names
-        self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
-        self._action = action
-
-    def tensor_list(self):
-        return self.tensor_dict.keys()
-
-    def clear_dict(self):
-        for name in self.tensor_dict:
-            self.tensor_dict[name] = None
-
-    def set_tensor(self, tensor, value):
-        self.tensor_dict[tensor.unique_name] = value
-
-    def check_tensor_cached(self, unique_name):
-        if self.tensor_dict[unique_name] is None:
-            return False
-        return True
-
-    def get_tensor(self, name):
-        if isinstance(name, NmTensor):
-            unique_name = name.unique_name
-        else:
-            unique_name = AppState().tensor_names[name]
-        tensor_value = self.tensor_dict[unique_name]
-        if tensor_value is None:
-            nmtensor = AppState().tensor_names._nmtensor_uniname_dict[unique_name]
-            callchain = topological_sort_from_leaves([nmtensor], cached_training_state=self)
-            # print(callchain)
-            callchain.insert(0, ())
-            self._action.nm_graph_forward_pass(callchain, self.tensor_dict)
-            # print(self.tensor_dict[unique_name])
-            tensor_value = self.tensor_dict[unique_name]
-        return tensor_value
-
-    #     unique_name = AppState().tensor_names[name]
-    #     return self.tensor_dict[unique_name]
-    # def get_and_compute_tensor(self, name):
 
 
 class PtActions(Actions):
@@ -161,8 +119,16 @@ class PtActions(Actions):
     def epoch_num(self):
         return self._epoch
 
-    def __get_top_sorted_modules_and_dataloader(self, hook):
-        """ TODO
+    def __get_top_sorted_modules_and_dataloader(self, hook: List[NmTensor]):
+        """A function that accepts a list of NmTensors that need to be computed and constructs a call DAG that starts
+        from a datalayerNM and can be used to compute the NmTensors.
+
+        args:
+            leaf_nmtensors (List[NmTensors]): The tensors to be computed
+
+        returns:
+            top_sorted_modules: the callchain DAG
+            tdataset: the datalayer at the top of the callchain
         """
         top_sorted_modules = topological_sort_from_leaves(hook)
 
@@ -1119,7 +1085,7 @@ class PtActions(Actions):
                     if isinstance(callback, ActionCallback):
                         continue
                     elif isinstance(callback, NeMoCallback):
-                        callback.on_epoch_start(state)
+                        callback.on_batch_start(state)
                     else:
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
@@ -1131,7 +1097,7 @@ class PtActions(Actions):
                     if isinstance(callback, ActionCallback):
                         continue
                     elif isinstance(callback, NeMoCallback):
-                        callback.on_epoch_end(state)
+                        callback.on_batch_end(state)
                     else:
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
@@ -1152,9 +1118,14 @@ class PtActions(Actions):
                     else:  # For now, we can use the old callback function. In the future we should improve this
                         registered_tensors["loss"] = final_loss
 
-        def get_state(action):
+        def get_state(action: 'PtAction'):
+            """Helper function used to create a state for callbacks
+            """
             class StateWrapper(dict):
                 def __init__(self, action):
+                    """A class that wraps a dictionary but adds the functions: restore_state_from and save_state_to
+                    which are helper functions for CheckpointCallback to use.
+                    """
                     self.action = action
                     super().__init__(
                         {
@@ -1467,6 +1438,9 @@ class PtActions(Actions):
                     # Register iteration start with callbacks
                     _perform_on_step_start(callbacks, get_state(self))
 
+                # Perform batch start callbacks
+                _perform_on_batch_start(callbacks, get_state(self))
+
                 # set learning rate policy
                 if lr_policy is not None:
                     adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch)
@@ -1549,6 +1523,9 @@ class PtActions(Actions):
                             final_loss.backward(bps_scale)
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
+
+                # Perform batch end callbacks
+                _perform_on_batch_end(callbacks, get_state(self))
 
                 batch_counter += 1
 
