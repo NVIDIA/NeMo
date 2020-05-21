@@ -85,7 +85,11 @@ class ASRConvCTCModel(NeMoModel):
         preprocessor = NeuralModule.deserialize(preprocessor_params)
         encoder = NeuralModule.deserialize(encoder_params)
         decoder = NeuralModule.deserialize(decoder_params)
-        self.__vocabulary = decoder.vocabulary
+        if hasattr(decoder, 'vocabulary'):
+            self.__vocabulary = decoder.vocabulary
+        else:
+            self.__vocabulary = None
+
         if spec_augment_params is not None:
             spec_augmentation = NeuralModule.deserialize(spec_augment_params)
         else:
