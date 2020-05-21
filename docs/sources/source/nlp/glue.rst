@@ -53,17 +53,16 @@ Specify the model to use for training with ``--pretrained_model_name``.
 Supported task names: ``"cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"``.
 
 .. note::
-
-    It's recommended to finetune the model on each task separately. <br/>
-    Based on `GLUE Benchmark FAQ#12 <https://gluebenchmark.com/faq>`_, there are might be some differences in dev/test distributions for QQP task and in train/dev for WNLI task.
+    It's recommended to finetune the model on each task separately.
+    Also, based on `GLUE Benchmark FAQ#12 <https://gluebenchmark.com/faq>`_,
+    there are might be some differences in dev/test distributions for QQP task
+    and in train/dev for WNLI task.
 
 Model results
 -------------
 
 Evaluation was performed on the dev set finetuned on the specific task:
 
-+-------+------------------------------+--------------+---------------+-----------------------+
-|       |                              |                       Model name                     |
 +-------+------------------------------+--------------+---------------+-----------------------+
 | Task  |             Metric           | Albert-large | Albert-xlarge | --------------------- |
 +=======+==============================+==============+===============+=======================+
@@ -102,7 +101,7 @@ To run the script on MRPC task on a single GPU, run:
 
 To use multi-gpu training on MNLI task, run:
 
-    .. code-block:: python
+    .. code-block:: bash
 
         export NUM_GPUS=4
         python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS glue_benchmark_with_bert.py \
