@@ -17,7 +17,7 @@
 import os
 
 import torch
-from megatron.initialize import set_global_variables
+from megatron.initialize import initialize_megatron, set_global_variables
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
@@ -92,9 +92,9 @@ class MegatronBERT(TrainableNM):
             "vocab_file": vocab_file,
         }
 
-        set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
 
         if self.factory.model_parallel_size is not None:
+            set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
             if self.factory._random_seed is None:
                 self.factory._random_seed = 1234
                 logging.warning(
@@ -111,6 +111,8 @@ class MegatronBERT(TrainableNM):
                     f'for model parallel megatron'
                 )
                 raise ValueError(value_error)
+        else:
+            initialize_megatron(None, megatron_args, ignore_unknown_args=True)
 
         init_method = init_method_normal(init_method_std)
 
@@ -147,10 +149,10 @@ class MegatronBERT(TrainableNM):
         return sequence_output
 
     def restore_model_parallel_megatron(self, path, local_rank=None):
-        if not os.path.isdir(path):
-            raise ValueError(f'Megatron checkpoint directory {path} not found')
         if self.factory.model_parallel_size is not None:
             checkpoint_directory = path
+            if not os.path.isdir(path):
+                raise ValueError(f'Model parallel Megatron checkpoint directory {checkpoint_directory} not found')
             path = os.path.join(path, f'mp_rank_{self.factory.mp_rank:02d}', 'model_optim_rng.pt')
             if not os.path.isfile(path):
                 value_error = (
