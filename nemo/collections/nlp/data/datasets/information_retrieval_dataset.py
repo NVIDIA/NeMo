@@ -23,7 +23,9 @@ import numpy as np
 import multiprocessing as mp
 from torch.utils.data import Dataset
 
-__all__ = ['BertInformationRetrievalDatasetTrain', 'BertInformationRetrievalDatasetEval']
+__all__ = ["BertInformationRetrievalDatasetTrain",
+           "BertInformationRetrievalDatasetEval",
+           "BertDensePassageRetrievalDatasetInfer"]
 
 
 class BaseInformationRetrievalDataset(Dataset):
@@ -113,6 +115,10 @@ class BaseInformationRetrievalDataset(Dataset):
         return q_input_ids[None, ...], q_input_mask[None, ...], q_type_ids[None, ...], \
             input_ids, input_mask, input_type_ids
 
+    def psgid2tokens(self, psg_id):
+        seq_len = self.passages[psg_id][0]
+        return self.passages[psg_id][1:seq_len+1].tolist()
+
 
 class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
     def __init__(self, tokenizer, passages, queries, query_to_passages,
@@ -151,10 +157,6 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
                 idx += 1
         return idx2psgs
 
-    def psgid2tokens(self, psg_id):
-        seq_len = self.passages[psg_id][0]
-        return self.passages[psg_id][1:seq_len+1].tolist()
-
 
 class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
     def __init__(self, tokenizer, passages, queries, query_to_passages,
@@ -189,9 +191,32 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
                 idx2topk[idx] = [query_and_psgs[0]] + query_and_psgs[left:right]
                 idx += 1
         return idx2topk
-    
-#     def psgid2tokens(self, psg_id):
-#         return self.passages[psg_id]
-    def psgid2tokens(self, psg_id):
-        seq_len = self.passages[psg_id][0]
-        return self.passages[psg_id][1:seq_len+1].tolist()
+
+
+class BertDensePassageRetrievalDatasetInfer(BaseInformationRetrievalDataset):
+    def __init__(self, tokenizer, passages=None, queries=None,
+                 max_query_length=31, max_passage_length=190):
+        super().__init__(tokenizer, max_query_length, max_passage_length)
+
+        if passages is not None:
+            self.passages = self.parse_npz(passages, max_passage_length)
+            self.max_seq_length = max_passage_length
+            self._get_tokens = self.psgid2tokens
+            self.idx2dataid = {psg_id: psg_id for psg_id in range(self.passages.shape[0])}
+        elif queries is not None:
+            self.queries = self.parse_pkl(queries, max_query_length)
+            self.max_seq_length = max_query_length
+            self._get_tokens = self.queryid2tokens
+            self.idx2dataid = {i: query_id for i, query_id in enumerate(self.queries)}
+
+    def __getitem__(self, idx):
+        data_id = self.idx2dataid[idx]
+        token_ids = self._get_tokens(data_id)
+        inputs = self.construct_input(token_ids, self.max_seq_length + 2)
+        return [*inputs, data_id]
+
+    def __len__(self):
+        return len(self.idx2dataid)
+
+    def queryid2tokens(self, query_id):
+        return self.queries[query_id]
