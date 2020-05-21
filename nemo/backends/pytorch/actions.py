@@ -1126,6 +1126,13 @@ class PtActions(Actions):
                 def __init__(self, action):
                     """A class that wraps a dictionary but adds the functions: restore_state_from and save_state_to
                     which are helper functions for CheckpointCallback to use.
+                    The StateWrapper is a dictionary that contains the following mapping:
+                        "step" (int): the current training step
+                        "epoch" (int): the current epoch step
+                        "local_rank" (int): the local rank that the process is running on
+                        "global_rank" (int): the global rank that the process is running on
+                        "optimizers" (list): a list of optimizers defined during the training process
+                        "tensors" (TrainingState): A TrainingState object that can be used to access tensor values
                     """
                     self.action = action
                     super().__init__(
