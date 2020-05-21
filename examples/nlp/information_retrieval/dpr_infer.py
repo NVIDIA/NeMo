@@ -72,8 +72,8 @@ data_layer_params = {"tokenizer": tokenizer,
                      "passages": None,
                      "queries": None}
 if args.data_for_eval == "passages":
-    data_layer_params["passages"] = f"{args.data_dir}/collection.{chunk_id}.tsv"
-    filename = f"passages.{chunk_id}.tsv"
+    data_layer_params["passages"] = f"{args.data_dir}/collection.{args.chunk_id}.tsv"
+    filename = f"passages.{args.chunk_id}.tsv"
 elif args.data_for_eval == "queries":
     filename = f"queries.{args.eval_datasets[0]}.tsv"
     data_layer_params["queries"] = f"{args.data_dir}/{filename}"
