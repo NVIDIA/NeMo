@@ -53,12 +53,14 @@ class NeMoModel(NeuralModule):
 
     @classmethod
     @abstractmethod
-    def from_pretrained(cls, model_info, local_rank: int = 0) -> NeuralModule:
+    def from_pretrained(cls, model_info, local_rank: int = 0, referesh_cache: bool = False) -> NeuralModule:
         """
         Instantiates NeMoModel from pretrained checkpoint. Can do so from file on disk or from the NVIDIA NGC.
         Args:
             model_info: Either path to ".nemo" file or a valid NGC Model name
             local_rank: on which GPU to instantiate.
+            referesh_cache: If set to True, then when fetching from clould, this will re-fetch the file
+                from clould even if it is  already found in a cache locally.
 
         Returns:
             NeMoModel instance

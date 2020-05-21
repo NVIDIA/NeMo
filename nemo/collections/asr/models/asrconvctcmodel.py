@@ -14,9 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional
 
 import nemo
 from nemo import logging
@@ -39,6 +37,7 @@ class ASRConvCTCModel(NeMoModel):
     ):
         super().__init__()
         # Instantiate necessary modules
+        self.__vocabulary = None
         preprocessor, spec_augmentation, encoder, decoder = self.__instantiate_modules(
             preprocessor_params, encoder_params, decoder_params, spec_augment_params
         )
@@ -86,6 +85,7 @@ class ASRConvCTCModel(NeMoModel):
         preprocessor = NeuralModule.deserialize(preprocessor_params)
         encoder = NeuralModule.deserialize(encoder_params)
         decoder = NeuralModule.deserialize(decoder_params)
+        self.__vocabulary = decoder.vocabulary
         if spec_augment_params is not None:
             spec_augmentation = NeuralModule.deserialize(spec_augment_params)
         else:
@@ -127,6 +127,10 @@ class ASRConvCTCModel(NeMoModel):
         return self._output_ports
 
     @property
+    def vocabulary(self):
+        return self.__vocabulary
+
+    @property
     def num_weights(self):
         return self._encoder.num_weights + self._decoder.num_weights
 
@@ -141,17 +145,38 @@ class ASRConvCTCModel(NeMoModel):
             retrieve pre-trained model's weights (pass it as
             pretrained_model_name argument to the module's constructor)
         """
+        logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
         result = []
-        model = PretrainedModelInfo(pretrained_model_name="QuartzNet15x5-En-BASE", location="", parameters="",)
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5-En-BASE",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/QuartzNet15x5-En-Base.nemo",
+            description="The model is trained on ~3300 hours of publicly available data and achieves a WER of 3.91% on LibriSpeech dev-clean, and a WER of 10.58% on dev-other.",
+            parameters="",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5-Zh-BASE",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/QuartzNet15x5-Zh-Base.nemo",
+            description="The model is trained on ai-shell2 mandarin chinese dataset.",
+            parameters="",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="JasperNet10x5-En-Base",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/JasperNet10x5-En-Base.nemo",
+            description="The model achieves a WER of 3.46% on LibriSpeech dev-clean, 10.40% on dev-other, 3.69% on test-clean, and 10.49% on test-other.",
+            parameters="",
+        )
         result.append(model)
         return result
 
     @classmethod
-    def from_pretrained(cls, model_info, local_rank=0) -> Optional[NeuralModule]:
+    def from_pretrained(cls, model_info, local_rank: int = 0, referesh_cache: bool = False) -> Optional[NeuralModule]:
         # Create destination folder:
-        logging.warning("THIS METHOD IS NOT YET FINISHED")
         if model_info.endswith(".nemo"):
-            return super().from_pretrained(model_info=model_info)
+            return super().from_pretrained(model_info=model_info, local_rank=local_rank)
         else:
             location_in_the_cloud = None
             for pretrained_model_info in cls.list_pretrained_models():
@@ -163,14 +188,15 @@ class ASRConvCTCModel(NeMoModel):
                 )
 
             filename = location_in_the_cloud.split("/")[-1]
-            url = ''.join(location_in_the_cloud.split("/")[:-1])
-
+            url = location_in_the_cloud.replace(filename, "")
             cache_subfolder = f"NEMO_{nemo.__version__}"
 
-            # if file exists on cache_folder/subfolder, it will be re-used
-            nemo_model_file_in_cache = maybe_download_from_cloud(url=url, filename=filename, subfolder=cache_subfolder)
+            # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
+            nemo_model_file_in_cache = maybe_download_from_cloud(
+                url=url, filename=filename, subfolder=cache_subfolder, referesh_cache=referesh_cache
+            )
             logging.info("Instantiating model from pre-trained checkpoint")
-            themodel = ASRConvCTCModel.from_pretrained(model_info=nemo_model_file_in_cache)
+            themodel = ASRConvCTCModel.from_pretrained(model_info=str(nemo_model_file_in_cache))
             logging.info("Model instantiated with pre-trained weights")
             return themodel
 

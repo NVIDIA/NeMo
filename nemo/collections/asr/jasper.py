@@ -264,9 +264,15 @@ class JasperDecoderForCTC(TrainableNM):
         # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
         return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform"):
-        super().__init__()
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
+        if vocabulary is not None:
+            if num_classes != len(vocabulary):
+                raise ValueError(
+                    f"If vocabulary is specified, it's length should be equal to the num_classes. But I got: num_classes={num_classes} and len(vocabluary)={len(vocabulary)}"
+                )
+            self.__vocabulary = vocabulary
 
+        super().__init__()
         self._feat_in = feat_in
         # Add 1 for blank char
         self._num_classes = num_classes + 1
@@ -281,6 +287,10 @@ class JasperDecoderForCTC(TrainableNM):
     def _prepare_for_deployment(self):
         input_example = torch.randn(34, self._feat_in, 1)
         return input_example, None
+
+    @property
+    def vocabulary(self):
+        return self.__vocabulary
 
 
 class JasperDecoderForClassification(TrainableNM):
