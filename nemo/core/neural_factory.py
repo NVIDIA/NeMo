@@ -25,11 +25,10 @@ __all__ = [
     'DeploymentFormat',
 ]
 
-import copy
 import random
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -37,13 +36,90 @@ import nemo
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
 from nemo.core.neural_types import NmTensor
 from nemo.utils import ExpManager, logging
-from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
+from nemo.utils.app_state import AppState
+
+class TrainingState:
+    def __init__(self, action: 'Actions'):
+        """A class used to wrap the current training state of an Actions.train() function. This class holds a mapping
+        of tensor.unique_name -> it's backend tensor (eg Pytorch Tensor) or None if the tensor has been been computed
+        on the current step.
+
+        args:
+            action (Actions): The Actions object this state is associated with.
+        """
+        tensor_naming_registery = AppState().tensor_names
+        self.tensor_dict = {}.fromkeys(tensor_naming_registery.unique_names, None)
+        self._action = action
+
+    def tensor_list(self):
+        """Returns a list the unique names of all tensors.
+        """
+        return self.tensor_dict.keys()
+
+    def clear_dict(self):
+        """Clears the dictionary by setting all values to None. Used in-between training batches to clear it's state.
+        """
+        for name in self.tensor_dict:
+            self.tensor_dict[name] = None
+
+    def set_tensor(self, tensor: NmTensor, value: 'torch.Tensor'):
+        """Sets the value of tensor
+
+        args:
+            tensor (NmTensor)
+            value (torch.Tensor)
+        """
+        self.tensor_dict[tensor.unique_name] = value
+
+    def check_tensor_cached(self, unique_name: str):
+        """Checks to see the tensor value has been computed in the current step yet.
+
+        args:
+            unique_name (str): The NmTensor.unique_name that we want to check for.
+        """
+        if self.tensor_dict[unique_name] is None:
+            return False
+        return True
+
+    def get_tensor(self, name: Union[str, NmTensor], compute: bool = True):
+        """Returns the value associated with a tensor. And optionally, computes the value of the tensor if not already
+        set.
+
+        args:
+            name (str, NmTensor): The user-defined name for a tensor or the NmTensor itself.
+            compute (bool): If True and the tensor has not already been computed, there will be an attempt to create a
+                call DAG and then do a forward pass on this call DAG to compute the tensor. If False, it will return
+                None if the tensor has not been computed yet.
+                Defaults to True.
+        """
+        if isinstance(name, NmTensor):
+            unique_name = name.unique_name
+        else:
+            unique_name = AppState().tensor_names[name]
+        tensor_value = self.tensor_dict[unique_name]
+        if tensor_value is None and compute:
+            nmtensor = AppState().tensor_names._nmtensor_uniname_dict[unique_name]
+            callchain = topological_sort_from_leaves([nmtensor], cached_training_state=self)
+            callchain.insert(0, ())
+            self._action.nm_graph_forward_pass(callchain, self.tensor_dict)
+            tensor_value = self.tensor_dict[unique_name]
+        return tensor_value
 
 
-# def topological_sort_from_leaves(leaf_nmtensors, cached_training_state: TrainingState = None):
-def topological_sort_from_leaves(leaf_nmtensors, cached_training_state=None):
-    from nemo.backends.pytorch.nm import DataLayerNM
+def topological_sort_from_leaves(leaf_nmtensors: List[NmTensor], cached_training_state: TrainingState = None):
+    """A function that accepts a list of NmTensors that need to be computed and constructs a callchain DAG that starts
+    from a datalayerNM and can be used to compute the NmTensors.
+
+    args:
+        leaf_nmtensors (List[NmTensors]): The tensors to be computed
+        cached_training_state (TrainingState): A dictionary of already computed tensors.
+            Defaults to None meaning an empty cache.
+
+    returns:
+        top_sorted_modules: the callchain DAG
+    """
+    from nemo.backends.pytorch.nm import DataLayerNM  # TODO: Replace this with a backend agnostic data layer
 
     def create_node(producer, producer_args):
         if producer_args is None:

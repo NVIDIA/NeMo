@@ -52,10 +52,10 @@ class AppState(metaclass=Singleton):
 
     @property
     def tensor_names(self):
-        """ Property returning the existing modules.
+        """ Property returning the NmTensorNameRegistry which maps user-defined names to tensor's unique_names.
 
             Returns:
-                Existing modules (a set object).
+                NmTensorNameRegistry.
         """
         return self._nmtensor_name_registry
 
