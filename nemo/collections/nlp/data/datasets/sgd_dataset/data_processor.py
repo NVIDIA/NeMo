@@ -25,7 +25,7 @@ import torch
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
-from nemo.collections.nlp.data.datasets.sgd_dataset.schema import *
+from nemo.collections.nlp.data.datasets.sgd_dataset.schema import Schema
 
 __all__ = [
     'FILE_RANGES',

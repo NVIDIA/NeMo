@@ -206,7 +206,7 @@ def process_dialogues(final_dialogues, dialogue_count, dialogues, replace_turn_p
                                 for k, v in tmp_dialogue.items():
                                     dialogue[k] = v
                                 replace_success += 1
-                            except:
+                            except Exception:
                                 replace_failed += 1
 
         for turn in dialogue["turns"]:

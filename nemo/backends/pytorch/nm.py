@@ -331,7 +331,7 @@ class DataLayerNM(NeuralModule):
 
     @property
     def pin_memory(self):
-        """ Property returning the shuffle flag. """
+        """ Property returning the pin memory flag. """
         return self._pin_memory
 
 

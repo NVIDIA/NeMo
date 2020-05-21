@@ -22,7 +22,15 @@ import torch
 
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import *
+from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import (
+    ALL_SERVICES,
+    PER_FRAME_OUTPUT_FILENAME,
+    SEEN_SERVICES,
+    UNSEEN_SERVICES,
+    get_dataset_as_dict,
+    get_in_domain_services,
+    get_metrics,
+)
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 

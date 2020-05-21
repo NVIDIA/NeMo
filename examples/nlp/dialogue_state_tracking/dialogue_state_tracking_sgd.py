@@ -19,13 +19,13 @@ import argparse
 import math
 import os
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.sgd_dataset.data_processor as data_processor
-from nemo import logging
 from nemo.collections.nlp.callbacks.sgd_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import SchemaPreprocessor
 from nemo.collections.nlp.nm.trainables import sgd_model, sgd_modules
+from nemo.core import Backend, CheckpointCallback, EvaluatorCallback, NeuralModuleFactory, SimpleLossLoggerCallback
+from nemo.utils import logging
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -241,8 +241,8 @@ else:
 if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
+nf = NeuralModuleFactory(
+    backend=Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
@@ -393,7 +393,7 @@ logging.info(f'Steps per epoch: {steps_per_epoch}')
 _, eval_tensors = create_pipeline(dataset_split=args.eval_dataset)
 
 # Create trainer and execute training action
-train_callback = nemo.core.SimpleLossLoggerCallback(
+train_callback = SimpleLossLoggerCallback(
     tensors=train_tensors,
     print_func=lambda x: logging.info("Loss: {:.8f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
@@ -413,7 +413,7 @@ prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.forma
 output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
 os.makedirs(prediction_dir, exist_ok=True)
 
-eval_callback = nemo.core.EvaluatorCallback(
+eval_callback = EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y, schema_preprocessor, args.eval_dataset),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
@@ -433,7 +433,7 @@ eval_callback = nemo.core.EvaluatorCallback(
     eval_step=args.eval_epoch_freq * steps_per_epoch,
 )
 
-ckpt_callback = nemo.core.CheckpointCallback(
+ckpt_callback = CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1
 )
 
