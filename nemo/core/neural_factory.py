@@ -78,6 +78,9 @@ class TrainingState:
 
         args:
             unique_name (str): The NmTensor.unique_name that we want to check for.
+
+        returns:
+            (bool) whether the tensor with unique_name has been computed yet.
         """
         if self.tensor_dict[unique_name] is None:
             return False
@@ -93,6 +96,10 @@ class TrainingState:
                 call DAG and then do a forward pass on this call DAG to compute the tensor. If False, it will return
                 None if the tensor has not been computed yet.
                 Defaults to True.
+
+        returns:
+            (torch.tensor or None) representing the computed value of the requested name. Returns None if compute is
+            False and the tensor has not been computed yet.
         """
         if isinstance(name, NmTensor):
             unique_name = name.unique_name
@@ -298,7 +305,7 @@ class Actions(ABC):
     def train(
         self,
         tensors_to_optimize: List[NmTensor],
-        callbacks: Optional[List[ActionCallback]],
+        callbacks: Optional[List[Union[ActionCallback, NeMoCallback]]],
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
@@ -740,7 +747,7 @@ class NeuralModuleFactory(object):
         training_graph=None,
         optimizer=None,
         optimization_params=None,
-        callbacks: Optional[List[ActionCallback]] = None,
+        callbacks: Optional[List[Union[ActionCallback, NeMoCallback]]] = None,
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
