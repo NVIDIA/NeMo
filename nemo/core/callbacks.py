@@ -43,6 +43,7 @@ class NeMoCallback(ABC):
     first argument: the current action state. This state is a StateWrapper object.
     TODO: Add a link to documentation.
     """
+
     def on_train_start(self, state):
         pass
 
@@ -72,6 +73,7 @@ def on_train_start(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_train_start callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -86,6 +88,7 @@ def on_epoch_start(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_epoch_start callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -100,6 +103,7 @@ def on_batch_start(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_batch_start callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -114,6 +118,7 @@ def on_step_start(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_step_start callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -128,6 +133,7 @@ def on_step_end(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_step_end callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -142,6 +148,7 @@ def on_batch_end(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_batch_end callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -156,6 +163,7 @@ def on_epoch_end(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_epoch_end callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -170,6 +178,7 @@ def on_train_end(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_train_end callback event.
     """
+
     class NeMoCallbackWrapper(NeMoCallback):
         def __init__(self, my_func):
             self._func = my_func
@@ -180,9 +189,8 @@ def on_train_end(func):
     return NeMoCallbackWrapper(func)
 
 
-
 class SimpleLogger(NeMoCallback):
-    def __init__(self, step_freq:int = 100, tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"]):
+    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"]):
         """A simple callback that prints tensors to screen. It's default option is to print the training loss every
         100 steps. Additional tensors can be printed by adding them to the tensors_to_log argument.
 
@@ -204,13 +212,13 @@ class SimpleLogger(NeMoCallback):
 
 class TensorboardLogger(NeMoCallback):
     def __init__(
-            self,
-            tb_writer: 'torch.utils.tensorboard.SummaryWriter',
-            step_freq:int=100,
-            tensors_to_log:List[Union[str, 'NmTensor']]=["loss"],
-            custom_tb_log_func:Callable[[Union[str, 'NmTensor']],None]=None,
-            log_epoch:bool=True
-        ):
+        self,
+        tb_writer: 'torch.utils.tensorboard.SummaryWriter',
+        step_freq: int = 100,
+        tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"],
+        custom_tb_log_func: Callable[[Union[str, 'NmTensor']], None] = None,
+        log_epoch: bool = True,
+    ):
         """A tensorboard callback that logs tensors using a tensorboard writer object. It's default option is to log
         the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
         argument. In order to log complex tensorboard entities, the custom_tb_log_func must be passed it. By default,
@@ -259,14 +267,14 @@ class TensorboardLogger(NeMoCallback):
 
 class WandBLogger(NeMoCallback):
     def __init__(
-            self,
-            step_freq:int=100,
-            tensors_to_log:List[Union[str, 'NmTensor']]=["loss"],
-            wandb_name:str=None,
-            wandb_project:str=None,
-            args=None,
-            log_epoch:bool=True
-        ):
+        self,
+        step_freq: int = 100,
+        tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"],
+        wandb_name: str = None,
+        wandb_project: str = None,
+        args=None,
+        log_epoch: bool = True,
+    ):
         """A [Weights & Biases](https://docs.wandb.com/) callback that logs tensors to W&B. It's default option is to
         log the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
         argument. By default, it always logs the current epoch and the time taken per epoch.
@@ -335,12 +343,12 @@ class WandBLogger(NeMoCallback):
 class CheckpointCallback(NeMoCallback):
     def __init__(
         self,
-        folder:str,
-        load_from_folder:str=None,
-        step_freq:int=-1,
-        epoch_freq:int=-1,
-        checkpoints_to_keep:int=4,
-        force_load:bool=False,
+        folder: str,
+        load_from_folder: str = None,
+        step_freq: int = -1,
+        epoch_freq: int = -1,
+        checkpoints_to_keep: int = 4,
+        force_load: bool = False,
     ):
         """A callback that does checkpointing of module weights and trainer (incl. optimizer) status.
 
@@ -484,7 +492,6 @@ class CheckpointCallback(NeMoCallback):
         epoch = state["epoch"]
         if self._epoch_freq > 0 and epoch % self._epoch_freq == 0 and epoch > 0:
             self.__save_to(self._folder, state)
-
 
 
 class ActionCallback(ABC):
