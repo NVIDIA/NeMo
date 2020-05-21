@@ -391,7 +391,7 @@ class NeuralModule(NeuralInterface):
         spec_list = loaded_config["header"]["full_spec"].split(".")
 
         # Check if config contains data of a compatible class.
-        if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
+        if not issubclass(cls.__deserialize_header(loaded_config["header"]), cls):
             txt = "The loaded file `{}` contains configuration of ".format(config_file)
             txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
                 spec_list[-1], cls.__name__

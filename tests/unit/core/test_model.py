@@ -22,7 +22,7 @@ from unittest import TestCase
 import pytest
 from ruamel.yaml import YAML
 
-from nemo.collections.asr.models import QuartzNet
+from nemo.collections.asr.models import ASRConvCTCModel
 
 
 @pytest.mark.usefixtures("neural_factory")
@@ -34,7 +34,7 @@ class NeMoModelsTests(TestCase):
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../examples/asr/configs/jasper_an4.yaml"))
         ) as file:
             model_definition = yaml.load(file)
-        model = QuartzNet(
+        model = ASRConvCTCModel(
             preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
             encoder_params=model_definition['JasperEncoder'],
             decoder_params=model_definition['JasperDecoderForCTC'],
@@ -49,7 +49,7 @@ class NeMoModelsTests(TestCase):
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../examples/asr/configs/jasper_an4.yaml"))
         ) as file:
             model_definition = yaml.load(file)
-        model = QuartzNet(
+        model = ASRConvCTCModel(
             preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
             encoder_params=model_definition['JasperEncoder'],
             decoder_params=model_definition['JasperDecoderForCTC'],
@@ -58,7 +58,7 @@ class NeMoModelsTests(TestCase):
         try:
             model.export(nemo_file)
             self.assertTrue(os.path.exists(nemo_file))
-            new_qn = QuartzNet.from_pretrained(model_info=nemo_file)
+            new_qn = ASRConvCTCModel.from_pretrained(model_info=nemo_file)
             self.assertEqual(model.num_weights, new_qn.num_weights)
         finally:
             os.remove(nemo_file)
