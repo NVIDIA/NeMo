@@ -1435,6 +1435,7 @@ class PtActions(Actions):
             else:
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None
+        logging.info("very start")
 
         _init_callbacks(callbacks, self)
         # Do action start callbacks
@@ -1450,6 +1451,7 @@ class PtActions(Actions):
 
             # Register epochs start with callbacks
             _perform_on_epoch_start(callbacks, get_state(self))
+            logging.info("I'm here")
 
             # iteration over batches in epoch
             batch_counter = 0
@@ -1457,12 +1459,14 @@ class PtActions(Actions):
                 if max_steps is not None and self.step >= max_steps:
                     break
 
+                logging.info("I'm there")
                 if batch_counter == 0:
                     # Started step, zero gradients
                     curr_optimizer = training_loop[self.step % len(training_loop)][0]
                     curr_optimizer.zero_grad()
                     # Register iteration start with callbacks
                     _perform_on_step_start(callbacks, get_state(self))
+                logging.info("I'm everywhere")
 
                 # set learning rate policy
                 if lr_policy is not None:
@@ -1475,6 +1479,7 @@ class PtActions(Actions):
                 if callbacks is not None:
                     for callback in callbacks:
                         callback.learning_rate = curr_optimizer.param_groups[0]['lr']
+                logging.info("I'm everywhere2")
 
                 # registered_tensors will contain created tensors
                 # named by output port and uuid of module which created them
@@ -1486,24 +1491,29 @@ class PtActions(Actions):
                 tensors = []
                 if isinstance(data, torch.Tensor):
                     data = (data,)
+                logging.info(dl_device)
                 for d in data:
                     if isinstance(d, torch.Tensor):
                         tensors.append(d.to(dl_device))
                     else:
                         tensors.append(d)
+                logging.info("I'm everywhere3")
 
                 for t, d in zip(curr_call_chain[0][2].values(), tensors):
                     if t is not None:
                         self._training_state.set_tensor(t, d)
                 disable_allreduce = batch_counter < (batches_per_step - 1)
+                logging.info("before forward")
                 self.__nm_graph_forward_pass(
                     call_chain=curr_call_chain, registered_tensors=self._training_state.tensor_dict,
                 )
+                logging.info("after forward")
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
                 for tensor in curr_tensors_to_optimize:
                     final_loss += self._training_state.tensor_dict[tensor.unique_name]
+                logging.info("Or there")
 
                 # Check for NaN/inf loss (across workers if applicable)
                 loss_nan_inf_checker = final_loss.clone()
@@ -1519,6 +1529,7 @@ class PtActions(Actions):
                         logging.warning('Loss is NaN or inf. Skipping update.')
                         continue
 
+                logging.info("Am I Here?")
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
                     with amp.scale_loss(final_loss, curr_optimizer, delay_unscale=disable_allreduce) as scaled_loss:
                         if disable_allreduce:
@@ -1549,6 +1560,7 @@ class PtActions(Actions):
 
                 batch_counter += 1
 
+                raise ValueError
                 if batch_counter == batches_per_step:
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
