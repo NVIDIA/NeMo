@@ -18,13 +18,13 @@
 
 import os
 import tarfile
-import nemo
 from functools import partial
 from unittest import TestCase
 
 import pytest
 from ruamel.yaml import YAML
 
+import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.core import EvaluatorCallback, SimpleLossLoggerCallback
 from nemo.utils import logging

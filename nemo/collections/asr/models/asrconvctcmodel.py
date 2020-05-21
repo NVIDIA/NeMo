@@ -20,14 +20,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import nemo
 from nemo import logging
-from nemo.core import (
-    NeMoModel,
-    NeuralGraph,
-    NeuralModule,
-    NeuralType,
-    OperationMode,
-    PretrainedModelInfo,
-)
+from nemo.core import NeMoModel, NeuralGraph, NeuralModule, NeuralType, OperationMode, PretrainedModelInfo
 from nemo.utils import maybe_download_from_cloud
 
 
@@ -36,6 +29,7 @@ class ASRConvCTCModel(NeMoModel):
     QuartzNet ASR Model. See: "QuartzNet: Deep Automatic Speech Recognition with 1D Time-Channel Separable Convolutions"
     https://arxiv.org/abs/1910.10261
     """
+
     def __init__(
         self,
         preprocessor_params: Dict,
@@ -148,11 +142,7 @@ class ASRConvCTCModel(NeMoModel):
             pretrained_model_name argument to the module's constructor)
         """
         result = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5-En-BASE",
-            location="",
-            parameters="",
-        )
+        model = PretrainedModelInfo(pretrained_model_name="QuartzNet15x5-En-BASE", location="", parameters="",)
         result.append(model)
         return result
 
@@ -168,7 +158,9 @@ class ASRConvCTCModel(NeMoModel):
                 if pretrained_model_info.pretrained_model_name == model_info:
                     location_in_the_cloud = pretrained_model_info.location
             if location_in_the_cloud is None:
-                raise FileNotFoundError(f"Could not find {model_info} in the cloud. Please call list_pretrained_models() to see all available pre-trained models.")
+                raise FileNotFoundError(
+                    f"Could not find {model_info} in the cloud. Please call list_pretrained_models() to see all available pre-trained models."
+                )
 
             filename = location_in_the_cloud.split("/")[-1]
             url = ''.join(location_in_the_cloud.split("/")[:-1])
@@ -176,9 +168,7 @@ class ASRConvCTCModel(NeMoModel):
             cache_subfolder = f"NEMO_{nemo.__version__}"
 
             # if file exists on cache_folder/subfolder, it will be re-used
-            nemo_model_file_in_cache = maybe_download_from_cloud(url=url,
-                                                                 filename=filename,
-                                                                 subfolder=cache_subfolder)
+            nemo_model_file_in_cache = maybe_download_from_cloud(url=url, filename=filename, subfolder=cache_subfolder)
             logging.info("Instantiating model from pre-trained checkpoint")
             themodel = ASRConvCTCModel.from_pretrained(model_info=nemo_model_file_in_cache)
             logging.info("Model instantiated with pre-trained weights")
