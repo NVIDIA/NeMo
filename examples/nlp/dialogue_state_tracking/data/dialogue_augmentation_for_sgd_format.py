@@ -23,9 +23,11 @@ import re
 from collections import defaultdict
 from pprint import pprint
 
+import inflect
 import numpy as np
-from num2words import num2words
 from tqdm import tqdm
+
+p = inflect.engine()
 
 
 def get_ontology(dialogues, schemas):
@@ -170,12 +172,11 @@ def validate(dialogue):
                             if action["slot"] == key:
                                 if word in action["values"]:
                                     found_key = True
-
                         assert found_key
                     else:
                         if key in frame["state"]["slot_values"]:
                             assert word in frame["state"]["slot_values"][key]
-                except:
+                except Exception:
                     raise ValueError(f"Turn {turn_id}, frame {frame_id}")
 
 
@@ -206,7 +207,7 @@ def process_dialogues(final_dialogues, dialogue_count, dialogues, replace_turn_p
                                 for k, v in tmp_dialogue.items():
                                     dialogue[k] = v
                                 replace_success += 1
-                            except Exception:
+                            except:
                                 replace_failed += 1
 
         for turn in dialogue["turns"]:
@@ -371,13 +372,13 @@ def replace(dialogue, turn_id, start_idx, end_idx, new_value):
         turn["utterance"] = turn["utterance"][:start_idx] + new_value + turn["utterance"][end_idx:]
 
 
-def digit2str(dialogue, turn_id, old_value, start_idx, end_idx):
+def num2str(dialogue, turn_id, old_value, start_idx, end_idx):
     """
-    gets old_value and returns stringified version if old_value was single digit and does not belong to non-cat span value
+    gets old_value and returns stringified version if old_value was number and does not belong to non-cat span value
     """
     res = find_word_in_turn(dialogue, turn_id, old_value, start_idx, end_idx)
-    if not res and old_value.isdigit():
-        return num2words(old_value)
+    if not res and old_value.isnumeric():
+        return p.number_to_words(int(old_value)) + " " + old_value
     return None
 
 
@@ -452,6 +453,14 @@ if __name__ == "__main__":
 
     dialogue_count = defaultdict(int)
     final_dialogues = defaultdict(list)
+
+    ontology = get_ontology(dialogues=orig_dialog, schemas=orig_schema)
+
+    for dialogue_id, dialogue in tqdm(enumerate(orig_dialog)):
+        validate(dialogue)  # for test purposes
+        augment_dialog_by_auxiliary_entries(dialogue)
+        validate(dialogue)  # for test purposes
+
     if args.num2string:
         if args.concat_orig_dialogue:
             process_dialogues(
@@ -460,7 +469,7 @@ if __name__ == "__main__":
                 dialogues=orig_dialog,
                 replace_turn_prob=1.0,
                 replace_word_prob=1.0,
-                new_val_func=digit2str,
+                new_val_func=num2str,
             )
         else:
             process_dialogues(
@@ -469,15 +478,8 @@ if __name__ == "__main__":
                 dialogues=orig_dialog,
                 replace_turn_prob=1.0,
                 replace_word_prob=1.0,
-                new_val_func=digit2str,
+                new_val_func=num2str,
             )
-
-    ontology = get_ontology(dialogues=orig_dialog, schemas=orig_schema)
-
-    for dialogue_id, dialogue in tqdm(enumerate(orig_dialog)):
-        validate(dialogue)  # for test purposes
-        augment_dialog_by_auxiliary_entries(dialogue)
-        validate(dialogue)  # for test purposes
 
     for _ in range(args.repeat):
         dialogues = copy.deepcopy(orig_dialog)
@@ -498,6 +500,14 @@ if __name__ == "__main__":
             dialogue_count[d_id] += 1
             final_dialogues[d_id].append(dialogue)
 
+    for dir_id, dialogues in final_dialogues.items():
+        for dialogue in dialogues:
+            for turn in dialogue["turns"]:
+                for frame in turn["frames"]:
+                    if 'state_update' in frame:
+                        frame.pop("state_update")
+                    if 'slot_to_span' in frame:
+                        frame.pop("slot_to_span")
     if args.output_dir is None:
         output_dir = f"augmented_repeat{args.repeat}_replace_turn_prob{args.replace_turn_prob}_replace_word_prob{args.replace_word_prob}_concatorig{args.concat_orig_dialogue}_num2string{args.num2string}"
     else:
@@ -506,3 +516,6 @@ if __name__ == "__main__":
     for dir_id, dialogues in final_dialogues.items():
         with open(os.path.join(output_dir, f"dialogues_{dir_id:03d}.json"), 'w') as outfile:
             json.dump(dialogues, outfile, indent=2)
+
+    with open(os.path.join(output_dir, f"schema.json"), 'w') as outfile:
+        json.dump(orig_schema, outfile, indent=2)
