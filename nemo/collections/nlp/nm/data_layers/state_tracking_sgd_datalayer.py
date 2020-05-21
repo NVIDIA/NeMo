@@ -15,15 +15,15 @@
 # limitations under the License.
 # =============================================================================
 
+from nemo.backends.pytorch import DataLayerNM
 from nemo.collections.nlp.data.datasets.sgd_dataset.sgd_dataset import SGDDataset
-from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDataLayer']
 
 
-class SGDDataLayer(TextDataLayer):
+class SGDDataLayer(DataLayerNM):
     """
     Data layer for Schema Guided Dialogue State Tracking Dataset.
     Args:
@@ -95,16 +95,25 @@ class SGDDataLayer(TextDataLayer):
         num_workers=-1,
         pin_memory=False,
     ):
-
+        super().__init__()
         dataset_params = {
             'dataset_split': dataset_split,
             'dialogues_processor': dialogues_processor,
         }
-        super().__init__(
-            dataset_type,
-            dataset_params,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-        )
+        self._dataset = dataset_type(**dataset_params)
+        self._batch_size = batch_size
+        self._shuffle = shuffle
+        self._pin_memory = pin_memory
+        if num_workers >= 0:
+            self._num_workers = num_workers
+
+    def __len__(self):
+        return len(self._dataset)
+
+    @property
+    def dataset(self):
+        return self._dataset
+
+    @property
+    def data_iterator(self):
+        return None

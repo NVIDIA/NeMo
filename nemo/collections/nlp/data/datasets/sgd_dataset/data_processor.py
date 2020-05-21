@@ -23,9 +23,8 @@ import re
 import numpy as np
 import torch
 
-from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
-from nemo.collections.nlp.data.datasets.sgd_dataset.schema import Schema
+from nemo.utils import logging
 
 __all__ = [
     'FILE_RANGES',
