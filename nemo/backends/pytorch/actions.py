@@ -1491,8 +1491,11 @@ class PtActions(Actions):
                 tensors = []
                 if isinstance(data, torch.Tensor):
                     data = (data,)
+                dl_device = f"cuda:{self._local_rank}"
                 logging.info(dl_device)
                 for d in data:
+                    logging.info(d)
+                    d.to(dl_device)
                     if isinstance(d, torch.Tensor):
                         tensors.append(d.to(dl_device))
                     else:
