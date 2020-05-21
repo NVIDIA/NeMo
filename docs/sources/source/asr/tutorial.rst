@@ -288,6 +288,7 @@ The command above should trigger 8-GPU training with mixed precision. In the com
 .. tip::
     You can pass several manifests (comma-separated) to train on a combined dataset like this: `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`. Here it combines 3 data sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed.
 
+.. _fine-tune:
 
 Fine-tuning
 -----------
