@@ -23,3 +23,10 @@ Jasper10x5dr  | Librispeech,          `here <https://ngc.nvidia.com/catalog/mode
               | Switchboard
 Jasper15x5SEP Aishell2                `here <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_jasper10x5dr>`__
 ============= ======================= =================================================================================
+
+References
+^^^^^^^^^^
+.. bibliography:: asr_all.bib
+    :style: plain
+    :labelprefix: ASR-MODELS
+    :keyprefix: asr-models-
