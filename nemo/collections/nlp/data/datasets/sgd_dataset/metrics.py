@@ -47,7 +47,7 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import collections
 
 import numpy as np
-from fuzzywuzzy import fuzz
+from rapidfuzz import fuzz
 
 F1Scores = collections.namedtuple("F1Scores", ["f1", "precision", "recall"])
 
