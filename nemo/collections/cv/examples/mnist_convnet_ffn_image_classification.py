@@ -15,22 +15,27 @@
 # =============================================================================
 
 import argparse
+from copy import deepcopy
 
+import numpy as np
 from torch import max, mean, stack, tensor
 
 import nemo.utils.argparse as nm_argparse
+from nemo.backends import get_state_dict
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
-from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
 from nemo.collections.cv.modules.trainables.convnet_encoder import ConvNetEncoder
-from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback, WandbCallback
+from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
+from nemo.core import (
+    DeviceType,
+    NeuralGraph,
+    NeuralModuleFactory,
+    OperationMode,
+    SimpleLossLoggerCallback,
+    WandbCallback,
+)
 from nemo.utils import logging
-
-from copy import deepcopy
-import numpy as np
-from nemo.backends import get_state_dict
-
 
 if __name__ == "__main__":
     # Create the default parser.
@@ -46,8 +51,7 @@ if __name__ == "__main__":
     # Model.
     cnn = ConvNetEncoder(input_depth=1, input_height=28, input_width=28)
     reshaper = ReshapeTensor(input_dims=[-1, 16, 1, 1], output_dims=[-1, 16])
-    ffn = FeedForwardNetwork(
-        input_size=16, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
+    ffn = FeedForwardNetwork(input_size=16, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
     # Loss.
     nll_loss = NLLLoss()
 
@@ -67,12 +71,11 @@ if __name__ == "__main__":
     )
 
     # Log training metrics to W&B.
-    #wand_callback = WandbCallback(
+    # wand_callback = WandbCallback(
     #    train_tensors=[loss],
     #    wandb_name="simple-mnist-fft",
     #    wandb_project="cv-collection-image-classification",
-    #)
-
+    # )
 
     # Get CNN weights before training.
     weights = deepcopy(get_state_dict(cnn)["_conv3.bias"]).numpy()

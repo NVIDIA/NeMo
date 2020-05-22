@@ -37,17 +37,16 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/con
 """
 
 
-import torch
 import numpy as np
+import torch
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import NeuralType, AxisType, AxisKind, VoidType
+from nemo.core.neural_types import AxisKind, AxisType, NeuralType, VoidType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['ConvNetEncoder']
-
 
 
 class ConvNetEncoder(TrainableNM):
@@ -57,23 +56,28 @@ class ConvNetEncoder(TrainableNM):
     so the encoder can be adjusted for a given application (image dimensions).
     """
 
-    def __init__(self, input_depth, input_height, input_width,  
-        conv1_out_channels = 64, 
-        conv1_kernel_size = 3,
-        conv1_stride = 1,
-        conv1_padding = 0,
-        maxpool1_kernel_size = 2,
-        conv2_out_channels = 32, 
-        conv2_kernel_size = 3,
-        conv2_stride = 1,
-        conv2_padding = 0,
-        maxpool2_kernel_size = 2,
-        conv3_out_channels = 16, 
-        conv3_kernel_size = 3,
-        conv3_stride = 1,
-        conv3_padding = 0,
-        maxpool3_kernel_size = 2,
-        name=None):
+    def __init__(
+        self,
+        input_depth,
+        input_height,
+        input_width,
+        conv1_out_channels=64,
+        conv1_kernel_size=3,
+        conv1_stride=1,
+        conv1_padding=0,
+        maxpool1_kernel_size=2,
+        conv2_out_channels=32,
+        conv2_kernel_size=3,
+        conv2_stride=1,
+        conv2_padding=0,
+        maxpool2_kernel_size=2,
+        conv3_out_channels=16,
+        conv3_kernel_size=3,
+        conv3_stride=1,
+        conv3_padding=0,
+        maxpool3_kernel_size=2,
+        name=None,
+    ):
         """
         Constructor of the a simple CNN.
 
@@ -141,80 +145,104 @@ class ConvNetEncoder(TrainableNM):
 
         # ----------------------------------------------------
         # Conv1
-        self._conv1 = nn.Conv2d(in_channels=self._input_depth,
-                               out_channels=self._conv1_out_channels,
-                               kernel_size=self._conv1_kernel_size,
-                               stride=self._conv1_stride,
-                               padding=self._conv1_padding,
-                               dilation=1,
-                               groups=1,
-                               bias=True)
+        self._conv1 = nn.Conv2d(
+            in_channels=self._input_depth,
+            out_channels=self._conv1_out_channels,
+            kernel_size=self._conv1_kernel_size,
+            stride=self._conv1_stride,
+            padding=self._conv1_padding,
+            dilation=1,
+            groups=1,
+            bias=True,
+        )
 
         width_features_conv1 = np.floor(
-            ((self._input_width - self._conv1_kernel_size + 2*self._conv1_padding) / self._conv1_stride) + 1)
+            ((self._input_width - self._conv1_kernel_size + 2 * self._conv1_padding) / self._conv1_stride) + 1
+        )
         height_features_conv1 = np.floor(
-            ((self._input_height - self._conv1_kernel_size + 2*self._conv1_padding) / self._conv1_stride) + 1)
+            ((self._input_height - self._conv1_kernel_size + 2 * self._conv1_padding) / self._conv1_stride) + 1
+        )
 
         # ----------------------------------------------------
         # MaxPool1
         self._maxpool1 = nn.MaxPool2d(kernel_size=self._maxpool1_kernel_size)
 
         width_features_maxpool1 = np.floor(
-            ((width_features_conv1 - self._maxpool1_kernel_size + 2 * self._maxpool1.padding) / self._maxpool1.stride) + 1)
+            ((width_features_conv1 - self._maxpool1_kernel_size + 2 * self._maxpool1.padding) / self._maxpool1.stride)
+            + 1
+        )
 
         height_features_maxpool1 = np.floor(
-            ((height_features_conv1 - self._maxpool1_kernel_size + 2 * self._maxpool1.padding) / self._maxpool1.stride) + 1)
+            ((height_features_conv1 - self._maxpool1_kernel_size + 2 * self._maxpool1.padding) / self._maxpool1.stride)
+            + 1
+        )
 
         # ----------------------------------------------------
         # Conv2
-        self._conv2 = nn.Conv2d(in_channels=self._conv1_out_channels,
-                               out_channels=self._conv2_out_channels,
-                               kernel_size=self._conv2_kernel_size,
-                               stride=self._conv2_stride,
-                               padding=self._conv2_padding,
-                               dilation=1,
-                               groups=1,
-                               bias=True)
+        self._conv2 = nn.Conv2d(
+            in_channels=self._conv1_out_channels,
+            out_channels=self._conv2_out_channels,
+            kernel_size=self._conv2_kernel_size,
+            stride=self._conv2_stride,
+            padding=self._conv2_padding,
+            dilation=1,
+            groups=1,
+            bias=True,
+        )
 
         width_features_conv2 = np.floor(
-            ((width_features_maxpool1 - self._conv2_kernel_size + 2*self._conv2_padding) / self._conv2_stride) + 1)
+            ((width_features_maxpool1 - self._conv2_kernel_size + 2 * self._conv2_padding) / self._conv2_stride) + 1
+        )
         height_features_conv2 = np.floor(
-            ((height_features_maxpool1 - self._conv2_kernel_size + 2*self._conv2_padding) / self._conv2_stride) + 1)
+            ((height_features_maxpool1 - self._conv2_kernel_size + 2 * self._conv2_padding) / self._conv2_stride) + 1
+        )
 
         # ----------------------------------------------------
         # MaxPool2
         self._maxpool2 = nn.MaxPool2d(kernel_size=self._maxpool2_kernel_size)
 
         width_features_maxpool2 = np.floor(
-            ((width_features_conv2 - self._maxpool2_kernel_size + 2 * self._maxpool2.padding) / self._maxpool2.stride) + 1)
+            ((width_features_conv2 - self._maxpool2_kernel_size + 2 * self._maxpool2.padding) / self._maxpool2.stride)
+            + 1
+        )
         height_features_maxpool2 = np.floor(
-            ((height_features_conv2 - self._maxpool2_kernel_size + 2 * self._maxpool2.padding) / self._maxpool2.stride) + 1)
+            ((height_features_conv2 - self._maxpool2_kernel_size + 2 * self._maxpool2.padding) / self._maxpool2.stride)
+            + 1
+        )
 
         # ----------------------------------------------------
         # Conv3
-        self._conv3 = nn.Conv2d(in_channels=self._conv2_out_channels,
-                               out_channels=self._conv3_out_channels,
-                               kernel_size=self._conv3_kernel_size,
-                               stride=self._conv3_stride,
-                               padding=self._conv3_padding,
-                               dilation=1,
-                               groups=1,
-                               bias=True)
+        self._conv3 = nn.Conv2d(
+            in_channels=self._conv2_out_channels,
+            out_channels=self._conv3_out_channels,
+            kernel_size=self._conv3_kernel_size,
+            stride=self._conv3_stride,
+            padding=self._conv3_padding,
+            dilation=1,
+            groups=1,
+            bias=True,
+        )
 
         width_features_conv3 = np.floor(
-            ((width_features_maxpool2 - self._conv3_kernel_size + 2*self._conv3_padding) / self._conv3_stride) + 1)
+            ((width_features_maxpool2 - self._conv3_kernel_size + 2 * self._conv3_padding) / self._conv3_stride) + 1
+        )
         height_features_conv3 = np.floor(
-            ((height_features_maxpool2 - self._conv3_kernel_size + 2*self._conv3_padding) / self._conv3_stride) + 1)
+            ((height_features_maxpool2 - self._conv3_kernel_size + 2 * self._conv3_padding) / self._conv3_stride) + 1
+        )
 
         # ----------------------------------------------------
         # MaxPool3
         self._maxpool3 = nn.MaxPool2d(kernel_size=self._maxpool3_kernel_size)
 
         width_features_maxpool3 = np.floor(
-            ((width_features_conv3 - self._maxpool3_kernel_size + 2 * self._maxpool3.padding) / self._maxpool3.stride) + 1)
+            ((width_features_conv3 - self._maxpool3_kernel_size + 2 * self._maxpool3.padding) / self._maxpool3.stride)
+            + 1
+        )
 
         height_features_maxpool3 = np.floor(
-            ((height_features_conv3 - self._maxpool1_kernel_size + 2 * self._maxpool3.padding) / self._maxpool3.stride) + 1)
+            ((height_features_conv3 - self._maxpool1_kernel_size + 2 * self._maxpool3.padding) / self._maxpool3.stride)
+            + 1
+        )
 
         # Rememvber the output dims.
         self._feature_map_height = height_features_maxpool3
@@ -224,20 +252,37 @@ class ConvNetEncoder(TrainableNM):
         # Log info about dimensions.
         logging.info('Input shape: [-1, {}, {}, {}]'.format(self._input_depth, self._input_height, self._input_width))
         logging.debug('Computed output shape of each layer:')
-        logging.debug('  * Conv1: [-1, {}, {}, {}]'.format(self._conv1_out_channels, height_features_conv1, width_features_conv1
-                                                      ))
-        logging.debug('  * MaxPool1: [-1, {}, {}, {}]'.format(self._conv1_out_channels, height_features_maxpool1, width_features_maxpool1
-                                                      ))
-        logging.debug('  * Conv2: [-1, {}, {}, {}]'.format(self._conv2_out_channels, height_features_conv2, width_features_conv2
-                                                      ))
-        logging.debug('  * MaxPool2: [-1, {}, {}, {}]'.format(self._conv2_out_channels, height_features_maxpool2, width_features_maxpool2
-                                                         ))
-        logging.debug('  * Conv3: [-1, {}, {}, {}]'.format(self._conv3_out_channels, height_features_conv3, width_features_conv3,
-                                                      ))
-        logging.debug('  * MaxPool3: [-1, {}, {}, {}]'.format(self._conv3_out_channels, width_features_maxpool3, height_features_maxpool3
-                                                         ))
-        logging.info('Output shape: [-1, {}, {}, {}]'.format(self._feature_map_depth, self._feature_map_height, self._feature_map_width))
-
+        logging.debug(
+            '  * Conv1: [-1, {}, {}, {}]'.format(self._conv1_out_channels, height_features_conv1, width_features_conv1)
+        )
+        logging.debug(
+            '  * MaxPool1: [-1, {}, {}, {}]'.format(
+                self._conv1_out_channels, height_features_maxpool1, width_features_maxpool1
+            )
+        )
+        logging.debug(
+            '  * Conv2: [-1, {}, {}, {}]'.format(self._conv2_out_channels, height_features_conv2, width_features_conv2)
+        )
+        logging.debug(
+            '  * MaxPool2: [-1, {}, {}, {}]'.format(
+                self._conv2_out_channels, height_features_maxpool2, width_features_maxpool2
+            )
+        )
+        logging.debug(
+            '  * Conv3: [-1, {}, {}, {}]'.format(
+                self._conv3_out_channels, height_features_conv3, width_features_conv3,
+            )
+        )
+        logging.debug(
+            '  * MaxPool3: [-1, {}, {}, {}]'.format(
+                self._conv3_out_channels, width_features_maxpool3, height_features_maxpool3
+            )
+        )
+        logging.info(
+            'Output shape: [-1, {}, {}, {}]'.format(
+                self._feature_map_depth, self._feature_map_height, self._feature_map_width
+            )
+        )
 
     @property
     @add_port_docs()
@@ -253,7 +298,7 @@ class ConvNetEncoder(TrainableNM):
                     AxisType(kind=AxisKind.Height, size=self._input_height),
                     AxisType(kind=AxisKind.Width, size=self._input_width),
                 ),
-                elements_type=VoidType()
+                elements_type=VoidType(),
             )
         }
 
@@ -271,7 +316,7 @@ class ConvNetEncoder(TrainableNM):
                     AxisType(kind=AxisKind.Height, size=self._feature_map_height),
                     AxisType(kind=AxisKind.Width, size=self._feature_map_width),
                 ),
-                elements_type=VoidType()
+                elements_type=VoidType(),
             )
         }
 

@@ -23,7 +23,14 @@ from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLay
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
 from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
-from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback, WandbCallback
+from nemo.core import (
+    DeviceType,
+    NeuralGraph,
+    NeuralModuleFactory,
+    OperationMode,
+    SimpleLossLoggerCallback,
+    WandbCallback,
+)
 from nemo.utils import logging
 
 if __name__ == "__main__":
@@ -61,9 +68,7 @@ if __name__ == "__main__":
 
     # Log training metrics to W&B.
     wand_callback = WandbCallback(
-        train_tensors=[loss],
-        wandb_name="simple-mnist-fft",
-        wandb_project="cv-collection-image-classification",
+        train_tensors=[loss], wandb_name="simple-mnist-fft", wandb_project="cv-collection-image-classification",
     )
 
     # Invoke the "train" action.
