@@ -23,8 +23,14 @@ from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLay
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
 from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
+from nemo.collections.cv.modules.trainables.convnet_encoder import ConvNetEncoder
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback, WandbCallback
 from nemo.utils import logging
+
+from copy import deepcopy
+import numpy as np
+from nemo.backends import get_state_dict
+
 
 if __name__ == "__main__":
     # Create the default parser.
@@ -38,17 +44,18 @@ if __name__ == "__main__":
     # Data layers for training and validation.
     dl = MNISTDataLayer(height=28, width=28, train=True)
     # Model.
-    reshaper = ReshapeTensor(input_dims=[-1, 1, 32, 32], output_dims=[-1, 784])
+    cnn = ConvNetEncoder(input_depth=1, input_height=28, input_width=28)
+    reshaper = ReshapeTensor(input_dims=[-1, 16, 1, 1], output_dims=[-1, 16])
     ffn = FeedForwardNetwork(
-        input_size=784, output_size=10, hidden_sizes=[100, 100], dropout_rate=0.1, final_logsoftmax=True
-    )
+        input_size=16, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
     # Loss.
     nll_loss = NLLLoss()
 
     # 2. Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
         img, tgt = dl()
-        res_img = reshaper(inputs=img)
+        feat_map = cnn(inputs=img)
+        res_img = reshaper(inputs=feat_map)
         pred = ffn(inputs=res_img)
         loss = nll_loss(predictions=pred, targets=tgt)
         # Set output - that output will be used for training.
@@ -60,16 +67,29 @@ if __name__ == "__main__":
     )
 
     # Log training metrics to W&B.
-    wand_callback = WandbCallback(
-        train_tensors=[loss],
-        wandb_name="simple-mnist-fft",
-        wandb_project="cv-collection-image-classification",
-    )
+    #wand_callback = WandbCallback(
+    #    train_tensors=[loss],
+    #    wandb_name="simple-mnist-fft",
+    #    wandb_project="cv-collection-image-classification",
+    #)
+
+
+    # Get CNN weights before training.
+    weights = deepcopy(get_state_dict(cnn)["_conv3.bias"]).numpy()
 
     # Invoke the "train" action.
     nf.train(
         training_graph=training_graph,
-        callbacks=[callback, wand_callback],
-        optimization_params={"num_epochs": 10, "lr": 0.001},
+        callbacks=[callback],
+        optimization_params={"max_steps": 100, "lr": 0.001},
         optimizer="adam",
     )
+
+    # Get CNN weights after training.
+    weights2 = deepcopy(get_state_dict(cnn)["_conv3.bias"]).numpy()
+
+    logging.info("Before training:\n{}".format(weights))
+    logging.info("After training:\n{}".format(weights2))
+
+    if np.array_equal(weights, weights2):
+        logging.error("Module weights not updated during training")
