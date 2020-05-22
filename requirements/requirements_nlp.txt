@@ -8,7 +8,6 @@ unidecode
 youtokentome
 numpy
 tqdm
-scikit-learn
 rapidfuzz
 gdown
 megatron-lm
