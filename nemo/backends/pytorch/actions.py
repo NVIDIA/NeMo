@@ -115,7 +115,12 @@ class PtActions(Actions):
         self._epoch = epoch
 
     @property
-    @deprecated
+    @deprecated(version="0.12", explanation="epoch_num has been deprecated in favour of epoch.")
+    def epoch_num(self):
+        return self._epoch
+
+    @epoch_num.setter
+    @deprecated(version="0.12", explanation="epoch_num has been deprecated in favour of epoch.")
     def epoch_num(self):
         return self._epoch
 

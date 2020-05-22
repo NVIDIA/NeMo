@@ -28,6 +28,7 @@ from typing import Callable, List, Union
 import nemo
 from nemo.utils import get_checkpoint_from_dir, logging
 from nemo.utils.app_state import AppState
+from nemo.utils.decorators import deprecated
 
 try:
     import wandb
@@ -560,6 +561,7 @@ class ModuleSaverCallback(ActionCallback):
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
+    @deprecated(version="0.12", explanation="The callback section of NeMo has been updated.")
     def __init__(
         self, save_modules_list, step_freq=1000, folder=None, checkpoints_to_keep=4,
     ):
@@ -618,6 +620,7 @@ class SimpleLossLoggerCallback(ActionCallback):
     https://nvidia.github.io/NeMo/tutorials/callbacks.html
     """
 
+    @deprecated(version="0.12", explanation="The callback section of NeMo has been updated.")
     def __init__(
         self, tensors, print_func=None, get_tb_values=None, log_to_tb_func=None, step_freq=25, tb_writer=None,
     ):
@@ -835,6 +838,7 @@ class ValueSetterCallback(ActionCallback):
     Policy = _Policy
     Method = _Method
 
+    @deprecated(version="0.12", explanation="The callback section of NeMo has been updated.")
     def __init__(self, module, arg_name, policies=None, total_steps=None, tb_writer=None):
         super().__init__()
 
@@ -880,6 +884,7 @@ class ValueSetterCallback(ActionCallback):
 
 
 class UnfreezeCallback(ActionCallback):
+    @deprecated(version="0.12", explanation="The callback section of NeMo has been updated.")
     def __init__(self, modules, start_epoch=0):
         super().__init__()
 
@@ -897,6 +902,7 @@ class OldWandbCallback(ActionCallback):
     Log metrics to [Weights & Biases](https://docs.wandb.com/)
     """
 
+    @deprecated(version="0.12", explanation="The callback section of NeMo has been updated.")
     def __init__(
         self, train_tensors=[], wandb_name=None, wandb_project=None, args=None, update_freq=25,
     ):
