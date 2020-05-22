@@ -309,6 +309,7 @@ sgd_decoder = SGDDecoderNM(
 )
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
 
+
 def create_pipeline(dataset_split='train'):
     datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
         dataset_split=dataset_split,

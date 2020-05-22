@@ -257,7 +257,9 @@ class SGDDecoderNM(TrainableNM):
         noncat_slot_emb = self.noncat_slot_emb(service_ids).view(batch_size, -1, emb_dim)
         req_slot_emb = self.req_slot_emb(service_ids).view(batch_size, -1, emb_dim)
 
-        logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, intent_status_mask, token_embeddings)
+        logit_intent_status = self._get_intents(
+            encoded_utterance, intent_embeddings, intent_status_mask, token_embeddings
+        )
 
         logit_req_slot_status = self._get_requested_slots(encoded_utterance, req_slot_emb, token_embeddings)
 
@@ -304,7 +306,7 @@ class SGDDecoderNM(TrainableNM):
         negative_logits = self._get_negative_logits(logits)
         return torch.where(intent_status_mask.to(dtype=torch.bool), logits, negative_logits)
 
-    def _get_requested_slots(self, encoded_utterance, requested_slot_emb, req_num_slots, token_embeddings):
+    def _get_requested_slots(self, encoded_utterance, requested_slot_emb, token_embeddings):
         """Obtain logits for requested slots."""
 
         logits = self.requested_slots_layer(
@@ -318,19 +320,9 @@ class SGDDecoderNM(TrainableNM):
         logits = logits.squeeze(axis=-1)
         return logits
 
-<<<<<<< HEAD:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_decoder_nm.py
-    def _get_categorical_slot_goals(self, encoded_utterance, cat_slot_emb, cat_slot_value_emb, cat_slot_values_mask):
-=======
     def _get_categorical_slot_goals(
-        self,
-        encoded_utterance,
-        cat_slot_emb,
-        cat_slot_value_emb,
-        num_categorical_slots,
-        num_categorical_slot_values,
-        token_embeddings,
+        self, encoded_utterance, cat_slot_emb, cat_slot_value_emb, cat_slot_values_mask, token_embeddings
     ):
->>>>>>> b21308820aa030a0cfbc60ea37cf7def17ae846b:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_model.py
         """
         Obtain logits for status and values for categorical slots
         Slot status values: none, dontcare, active
@@ -367,14 +359,9 @@ class SGDDecoderNM(TrainableNM):
         """
         # Predict the status of all non-categorical slots.
         max_num_slots = noncat_slot_emb.size()[1]
-<<<<<<< HEAD:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_decoder_nm.py
-        status_logits = self.noncat_slot_layer(encoded_utterance, noncat_slot_emb)
-=======
         status_logits = self.noncat_slot_layer(
             encoded_utterance=encoded_utterance, token_embeddings=token_embeddings, element_embeddings=noncat_slot_emb
         )
-        non_cat_slot_status_mask = self._get_loss_mask(max_num_slots, num_noncategorical_slots)
->>>>>>> b21308820aa030a0cfbc60ea37cf7def17ae846b:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_model.py
 
         # Predict the distribution for span indices.
         max_num_tokens = token_embeddings.size()[1]
