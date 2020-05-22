@@ -87,15 +87,23 @@ class InputExample(object):
         self.num_categorical_slots = 0
         # The status of each categorical slot in the service.
         self.categorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_CAT_SLOT"]
+        # Masks out categorical status for padded cat slots
+        self.cat_slot_status_mask = [0] * len(self.categorical_slot_status)
         # Number of values taken by each categorical slot.
         self.num_categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
         # The index of the correct value for each categorical slot.
         self.categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
+        # Masks out categorical slots values for slots not used in the service
+        self.cat_slot_values_mask = [
+            [0] * schema_config["MAX_NUM_VALUE_PER_CAT_SLOT"] for _ in range(schema_config["MAX_NUM_CAT_SLOT"])
+        ]
 
         # Number of non-categorical slots present in the service.
         self.num_noncategorical_slots = 0
         # The status of each non-categorical slot in the service.
         self.noncategorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_NONCAT_SLOT"]
+        # Masks out non-categorical status for padded cat slots
+        self.noncat_slot_status_mask = [0] * len(self.noncategorical_slot_status)
         # The index of the starting subword corresponding to the slot span for a
         # non-categorical slot value.
         self.noncategorical_slot_value_start = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
@@ -110,11 +118,16 @@ class InputExample(object):
         self.requested_slot_status = [STATUS_OFF] * (
             schema_config["MAX_NUM_CAT_SLOT"] + schema_config["MAX_NUM_NONCAT_SLOT"]
         )
+        # Masks out requested slots that are not used for the service
+        self.requested_slot_mask = [0] * len(self.requested_slot_status)
 
         # Total number of intents present in the service.
         self.num_intents = 0
         # Takes value 1 if the intent is active, 0 otherwise.
         self.intent_status = [STATUS_OFF] * schema_config["MAX_NUM_INTENT"]
+        # Masks out intents that are not used for the service, [1] for none intent
+        self.intent_status_mask = [1] + [0] * len(self.intent_status)
+        # Label for active intent in the turn
         self.intent_status_labels = 0
 
     @property
@@ -285,6 +298,12 @@ class InputExample(object):
             # Add categorical slot value features.
             slot_values = self.service_schema.get_categorical_slot_values(slot)
             self.num_categorical_slot_values[slot_idx] = len(slot_values)
+            # set slot mask to 1, i.e. the slot is active in the service
+            self.cat_slot_status_mask[slot_idx] = 1
+            # set the number of active slot values for this slots in the service
+            for slot_value_idx in range(len(self.service_schema._categorical_slot_values[slot])):
+                self.cat_slot_values_mask[slot_idx][slot_value_idx] = 1
+
             if not values:
                 self.categorical_slot_status[slot_idx] = STATUS_OFF
             elif values[0] == STR_DONTCARE:
@@ -301,6 +320,7 @@ class InputExample(object):
         self.num_noncategorical_slots = len(noncategorical_slots)
         for slot_idx, slot in enumerate(noncategorical_slots):
             values = state_update.get(slot, [])
+            self.noncat_slot_status_mask[slot_idx] = 1
             if not values:
                 self.noncategorical_slot_status[slot_idx] = STATUS_OFF
             elif values[0] == STR_DONTCARE:
@@ -331,6 +351,7 @@ class InputExample(object):
         all_slots = self.service_schema.slots
         self.num_slots = len(all_slots)
         for slot_idx, slot in enumerate(all_slots):
+            self.requested_slot_mask[slot_idx] = 1
             if slot in frame["state"]["requested_slots"]:
                 self.requested_slot_status[slot_idx] = STATUS_ACTIVE
 
@@ -341,7 +362,9 @@ class InputExample(object):
             if intent == frame["state"]["active_intent"]:
                 self.intent_status[intent_idx] = STATUS_ACTIVE
                 # adding +1 to take none intent into account
+                # supports only 1 active intent in the turn
                 self.intent_status_labels = intent_idx + 1
+            self.intent_status_mask[intent_idx + 1] = 1
 
 
 # Modified from run_classifier._truncate_seq_pair in the public bert model repo.

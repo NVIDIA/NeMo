@@ -14,5 +14,5 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd.sgd_model import *
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd.sgd_modules import *
+from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd.sgd_decoder_nm import *
+from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd.sgd_encoder_nm import *

@@ -22,7 +22,7 @@ from nemo.collections.nlp.utils.transformer_utils import transformer_weights_ini
 from nemo.core import ChannelType, EmbeddedTextType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['EncoderNM']
+__all__ = ['SGDEncoderNM']
 
 ACTIVATIONS_F = {
     "tanh": nn.Tanh,
@@ -30,7 +30,7 @@ ACTIVATIONS_F = {
 }
 
 
-class EncoderNM(TrainableNM):
+class SGDEncoderNM(TrainableNM):
     """
     Neural module which extracts the first token from the BERT representation of the utterance
     followed by a fully connected layer.

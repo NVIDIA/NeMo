@@ -23,7 +23,7 @@ import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.datasets.sgd_dataset.data_processor as data_processor
 from nemo.collections.nlp.callbacks.sgd_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import SchemaPreprocessor
-from nemo.collections.nlp.nm.trainables import sgd_model, sgd_modules
+from nemo.collections.nlp.nm.trainables import SGDDecoderNM, SGDEncoderNM
 from nemo.core import Backend, CheckpointCallback, EvaluatorCallback, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.utils import logging
 from nemo.utils.lr_policies import get_lr_policy
@@ -296,8 +296,8 @@ dialogues_processor = data_processor.Dstc8DataProcessor(
 )
 
 # define model pipeline
-encoder = sgd_modules.EncoderNM(hidden_size=hidden_size, dropout=args.dropout)
-model = sgd_model.SGDModel(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
+sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
+sgd_decoder = SGDDecoderNM(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
 
 
@@ -316,27 +316,21 @@ def create_pipeline(dataset_split='train'):
     token_embeddings = pretrained_bert_model(
         input_ids=data.utterance_ids, attention_mask=data.utterance_mask, token_type_ids=data.utterance_segment,
     )
-    encoded_utterance, token_embeddings = encoder(hidden_states=token_embeddings)
+    encoded_utterance, token_embeddings = sgd_encoder(hidden_states=token_embeddings)
     (
         logit_intent_status,
         logit_req_slot_status,
-        req_slot_mask,
         logit_cat_slot_status,
-        cat_slot_status_mask,
         logit_cat_slot_value,
         logit_noncat_slot_status,
-        non_cat_slot_status_mask,
         logit_noncat_slot_start,
         logit_noncat_slot_end,
-    ) = model(
+    ) = sgd_decoder(
         encoded_utterance=encoded_utterance,
         token_embeddings=token_embeddings,
         utterance_mask=data.utterance_mask,
-        num_categorical_slots=data.num_categorical_slots,
-        num_categorical_slot_values=data.num_categorical_slot_values,
-        num_intents=data.num_intents,
-        req_num_slots=data.num_slots,
-        num_noncategorical_slots=data.num_noncategorical_slots,
+        cat_slot_values_mask=data.cat_slot_values_mask,
+        intent_status_mask=data.intent_status_mask,
         service_ids=data.service_id,
     )
 
@@ -346,15 +340,15 @@ def create_pipeline(dataset_split='train'):
             intent_status_labels=data.intent_status_labels,
             logit_req_slot_status=logit_req_slot_status,
             requested_slot_status=data.requested_slot_status,
-            req_slot_mask=req_slot_mask,
+            req_slot_mask=data.req_slot_mask,
             logit_cat_slot_status=logit_cat_slot_status,
             categorical_slot_status=data.categorical_slot_status,
-            cat_slot_status_mask=cat_slot_status_mask,
+            cat_slot_status_mask=data.cat_slot_status_mask,
             logit_cat_slot_value=logit_cat_slot_value,
             categorical_slot_values=data.categorical_slot_values,
             logit_noncat_slot_status=logit_noncat_slot_status,
             noncategorical_slot_status=data.noncategorical_slot_status,
-            non_cat_slot_status_mask=non_cat_slot_status_mask,
+            noncat_slot_status_mask=data.noncat_slot_status_mask,
             logit_noncat_slot_start=logit_noncat_slot_start,
             logit_noncat_slot_end=logit_noncat_slot_end,
             noncategorical_slot_value_start=data.noncategorical_slot_value_start,
@@ -378,10 +372,8 @@ def create_pipeline(dataset_split='train'):
             data.intent_status_labels,
             data.requested_slot_status,
             data.categorical_slot_status,
-            data.num_categorical_slots,
             data.categorical_slot_values,
             data.noncategorical_slot_status,
-            data.num_noncategorical_slots,
         ]
 
     steps_per_epoch = math.ceil(len(datalayer) / (args.train_batch_size * args.num_gpus))

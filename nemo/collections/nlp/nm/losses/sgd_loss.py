@@ -47,7 +47,7 @@ class SGDDialogueStateLossNM(LossNM):
             categorical_slot_values (int): The index of the correct value for each categorical slot
             logit_noncat_slot_status (float): Output of SGD model
             noncategorical_slot_status (int): The status of each noncategorical slot in the service
-            non_cat_slot_status_mask (bool): masks noncategorical slots not used for the particular service
+            noncat_slot_status_mask (bool): masks noncategorical slots not used for the particular service
             logit_noncat_slot_start (float): Output of SGD model
             logit_noncat_slot_end (float): Output of SGD model
             noncategorical_slot_value_start (int): The index of the starting subword corresponding to the slot span for a non-categorical slot value
@@ -61,12 +61,12 @@ class SGDDialogueStateLossNM(LossNM):
             "req_slot_mask": NeuralType(('B', 'T'), ChannelType()),
             "logit_cat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
             "categorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
-            "cat_slot_status_mask": NeuralType(('B'), ChannelType()),
+            "cat_slot_status_mask": NeuralType(('B', 'T'), ChannelType()),
             "logit_cat_slot_value": NeuralType(('B', 'T', 'C'), LogitsType()),
             "categorical_slot_values": NeuralType(('B', 'T'), LabelsType()),
             "logit_noncat_slot_status": NeuralType(('B', 'T', 'C'), LogitsType()),
             "noncategorical_slot_status": NeuralType(('B', 'T'), LabelsType()),
-            "non_cat_slot_status_mask": NeuralType(('B'), ChannelType()),
+            "noncat_slot_status_mask": NeuralType(('B', 'T'), ChannelType()),
             "logit_noncat_slot_start": NeuralType(('B', 'T', 'C'), LogitsType()),
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
             "noncategorical_slot_value_start": NeuralType(('B', 'T'), LabelsType()),
@@ -111,13 +111,12 @@ class SGDDialogueStateLossNM(LossNM):
         categorical_slot_values,
         logit_noncat_slot_status,
         noncategorical_slot_status,
-        non_cat_slot_status_mask,
+        noncat_slot_status_mask,
         logit_noncat_slot_start,
         logit_noncat_slot_end,
         noncategorical_slot_value_start,
         noncategorical_slot_value_end,
     ):
-
         # Intent loss
         intent_loss = self._cross_entropy(logit_intent_status, intent_status_labels)
 
@@ -131,6 +130,7 @@ class SGDDialogueStateLossNM(LossNM):
 
         # Categorical slot status
         # Shape of logit_cat_slot_status: (batch_size, max_num_cat_slots, 3)
+        cat_slot_status_mask = cat_slot_status_mask.view(-1) > 0.5
         if sum(cat_slot_status_mask) == 0:
             logging.warning(f'No active categorical slots in the batch')
             cat_slot_status_loss = self._cross_entropy(
@@ -149,6 +149,7 @@ class SGDDialogueStateLossNM(LossNM):
         # Zero out losses for categorical slot value when the slot status is not active.
         cat_slot_value_mask = (categorical_slot_status == STATUS_ACTIVE).view(-1)
         # to handle cases with no active categorical slot value
+        cat_slot_value_mask = cat_slot_value_mask.view(-1) > 0.5
         if sum(cat_slot_value_mask) == 0:
             logging.warning(f'No active values for categorical slots in the batch.')
             cat_slot_value_loss = self._cross_entropy(
@@ -162,15 +163,16 @@ class SGDDialogueStateLossNM(LossNM):
 
         # Non-categorical slot status.
         # Shape: (batch_size, max_num_noncat_slots, 3).
-        if sum(non_cat_slot_status_mask) == 0:
+        noncat_slot_status_mask = noncat_slot_status_mask.view(-1) > 0.5
+        if sum(noncat_slot_status_mask) == 0:
             logging.warning(f'No active non-categorical slots in the batch.')
             noncat_slot_status_loss = self._cross_entropy(
                 logit_noncat_slot_status.view(-1, 3), torch.argmax(logit_noncat_slot_status.view(-1, 3), dim=-1)
             )
         else:
             noncat_slot_status_loss = self._cross_entropy(
-                logit_noncat_slot_status.view(-1, 3)[non_cat_slot_status_mask],
-                noncategorical_slot_status.view(-1)[non_cat_slot_status_mask],
+                logit_noncat_slot_status.view(-1, 3)[noncat_slot_status_mask],
+                noncategorical_slot_status.view(-1)[noncat_slot_status_mask],
             )
 
         # Non-categorical slot spans.
@@ -181,6 +183,7 @@ class SGDDialogueStateLossNM(LossNM):
         non_cat_slot_value_mask = (noncategorical_slot_status == STATUS_ACTIVE).view(-1)
         # non_cat_slot_value_mask = (noncategorical_slot_status > -1 ).view(-1)
         # to handle cases with no active categorical slot value
+        non_cat_slot_value_mask = non_cat_slot_value_mask.view(-1)
         if sum(non_cat_slot_value_mask) == 0:
             logging.warning(f'No active values for non-categorical slots in the batch.')
             span_start_loss = self._cross_entropy(
