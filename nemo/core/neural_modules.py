@@ -121,10 +121,10 @@ class NeuralModule(NeuralInterface):
 
         # Get the frame "call context".
         for frame in stack()[1:]:
-            # Get the call arguments.
+            # Get the current call arguments.
             localvars = getargvalues(frame[0])
 
-            # Fill the parameters with call_args.
+            # Fill the parameters with call arguments.
             for key in to_set_params:
                 if key in localvars.args:
                     init_params[key] = localvars.locals[key]
@@ -142,7 +142,7 @@ class NeuralModule(NeuralInterface):
         if len(to_set_params) != 0:
             raise ValueError(
                 "Could not collect all the signature params! "
-                F"Please file a bug on GitHub with the current stacktrace so that it can be resolved."
+                f"Please file a bug on GitHub with the current stack trace so that it can be reproduced."
             )
 
         # print("! init_params of {}: {}\n".format(type(self).__name__, init_params))
@@ -228,7 +228,7 @@ class NeuralModule(NeuralInterface):
             YAML.dump(to_export, outfile)
 
         logging.info(
-            "Configuration of module `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
+            "Configuration of module `{}` ({}) exported to '{}'".format(self.name, type(self).__name__, abs_path_file)
         )
 
     def serialize(self) -> Dict[str, Any]:

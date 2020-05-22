@@ -13,5 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd import *
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm import *
+
+from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd.sgd_decoder_nm import *
+from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd.sgd_encoder_nm import *

@@ -477,7 +477,7 @@ class NeuralGraph(NeuralInterface):
             YAML.dump(to_export, outfile)
 
         logging.info(
-            "Configuration of graph `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
+            "Configuration of graph `{}` ({}) exported to '{}'".format(self.name, type(self).__name__, abs_path_file)
         )
 
     def serialize(self) -> Dict[str, Any]:
@@ -874,14 +874,21 @@ class NeuralGraph(NeuralInterface):
             A nice, full graph summary.
         """
         # Line "decorator".
-        desc = "\n" + 120 * '=' + "\n"
+        desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
-        desc += "The `{}` Neural Graph:\n".format(self.name)
+        desc += "The `{}` Neural Graph [{}]".format(self.name, self.operation_mode)
+        if self.is_complete():
+            desc += " [COMPLETE]:\n"
+        else:
+            desc += " [INCOMPLETE]:\n"
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
         for key, module in self._modules.items():
-            desc += "    * `{}` ({})\n".format(key, type(module).__name__)
+            if module.type == ModuleType.trainable and module.is_frozen():
+                desc += "    * `{}` ({}) [FROZEN]\n".format(key, type(module).__name__)
+            else:
+                desc += "    * `{}` ({})\n".format(key, type(module).__name__)
 
         # 3. steps.
         desc += " * Steps ({}):\n".format(len(self._steps))
@@ -912,7 +919,7 @@ class NeuralGraph(NeuralInterface):
         for output in outputs["mappings"]:
             desc += "    * {}\n".format(output)
         # Line "decorator".
-        desc += 120 * '='
+        desc += 113 * '='
 
         # Return the result.
         return desc
@@ -1030,9 +1037,10 @@ class NeuralGraph(NeuralInterface):
             try:
                 # Get module.
                 module = self._modules[name]
-                # Restore module weights
-                set_state_dict(module, chkpt["modules"][name])
-                log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
+                if module.type == ModuleType.trainable:
+                    # Restore module weights
+                    set_state_dict(module, chkpt["modules"][name])
+                    log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
             except KeyError:
                 log_str += "  ! Module '{}' params not found in checkpoint\n".format(name)
                 warning = True
@@ -1042,3 +1050,32 @@ class NeuralGraph(NeuralInterface):
             logging.warning(log_str)
         else:
             logging.info(log_str)
+
+    def is_complete(self) -> bool:
+        """
+        Method checks if graph is "complete". In here the "complete" means that the graph has:
+            * exactly one DataLayer
+            * zero bound input ports
+
+        In short it means that the graph can be complete.
+        
+        Returns:
+            True or false.
+        """
+        has_datalayer = False
+        # Iterate through the modules one by one.
+        for module in self._modules.values():
+            # Get module.
+            if module.type == ModuleType.datalayer:
+                if has_datalayer:
+                    # More than one DL is not acceptable.
+                    return False
+                else:
+                    has_datalayer = True
+
+        # Now check the ports.
+        if len(self._inputs) != 0:
+            return False
+
+        # Else:
+        return True

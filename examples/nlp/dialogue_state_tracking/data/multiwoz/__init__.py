@@ -1,5 +1,6 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,5 +14,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.sgd import *
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm import *

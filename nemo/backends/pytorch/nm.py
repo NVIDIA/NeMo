@@ -54,6 +54,9 @@ class TrainableNM(NeuralModule, nn.Module):
         nn.Module.__init__(self)  # For PyTorch API
         NeuralModule.__init__(self, name)  # For NeuralModule API
 
+        # Unfrozen by default.
+        self._frozen = False
+
         # Set module type.
         self._type = ModuleType.trainable
 
@@ -130,6 +133,8 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = False
+        # Freeze.
+        self._frozen = True
 
     @t.jit.ignore
     def unfreeze(self, weights=None):
@@ -141,6 +146,15 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = True
+        # Unfreeze.
+        self._frozen = False
+
+    @t.jit.ignore
+    def is_frozen(self) -> bool:
+        """ Returns:
+                True/False depending whether there are any frozen weights or not.
+        """
+        return self._frozen
 
     @property
     def num_weights(self):
@@ -230,6 +244,7 @@ class DataLayerNM(NeuralModule):
         self._batch_size = 1
         self._num_workers = os.cpu_count()  # Use all CPUs by default.
         self._shuffle = False  # Don't shuffle by default.
+        self._pin_memory = False
 
     @property
     def input_ports(self):
@@ -342,6 +357,11 @@ class DataLayerNM(NeuralModule):
     # def num_workers(self, nw):
     #    """ Property setting the number of workers. """
     #    self._num_workers = nw
+
+    @property
+    def pin_memory(self):
+        """ Property returning the pin memory flag. """
+        return self._pin_memory
 
 
 class LossNM(NeuralModule):
