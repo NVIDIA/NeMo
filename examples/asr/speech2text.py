@@ -21,13 +21,8 @@ from nemo.collections.asr.helpers import monitor_asr_train_progress
 
 # Usage and Command line arguments
 parser = ArgumentParser()
-parser.add_argument()
 parser.add_argument(
-    "--local_rank",
-    default=os.getenv('LOCAL_RANK', None),
-    required=True,
-    type=int,
-    help="node rank for distributed training",
+    "--local_rank", default=os.getenv('LOCAL_RANK', None), type=int, help="node rank for distributed training",
 )
 parser.add_argument(
     "--amp_opt_level",
@@ -43,6 +38,10 @@ parser.add_argument(
     required=True,
     help="Pass: 'QuartzNet15x5-En-BASE', 'QuartzNet15x5-Zh-BASE', or 'JasperNet10x5-En-Base' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
 )
+parser.add_argument(
+    "--train_dataset", type=str, required=True, default=None, help="training dataset path",
+)
+parser.add_argument("--batch_size", required=True, type=int, help="train batch size per GPU")
 
 
 args = parser.parse_args()
@@ -66,7 +65,9 @@ def main():
         asr_model = nemo_asr.models.ASRConvCTCModel.import_from_config(args.asr_model)
     else:
         logging.info(f"Speech2Text: Will fine-tune from {args.asr_model}")
-        asr_model = nemo_asr.models.ASRConvCTCModel.from_pretrained()
+        asr_model = nemo_asr.models.ASRConvCTCModel.from_pretrained(
+            model_info=args.asr_model, local_rank=args.local_rank
+        )
 
     train_data_layer = nemo_asr.AudioToTextDataLayer(
         manifest_filepath=args.train_dataset,
@@ -94,7 +95,7 @@ def main():
         tensors_to_optimize=[loss],
         callbacks=[train_callback],
         optimizer="novograd",
-        optimization_params={"num_epochs": 30, "lr": 1e-2, "weight_decay": 1e-3},
+        optimization_params={"num_epochs": 30, "lr": 0.001, "weight_decay": 1e-3},
     )
     # Export trained model
 

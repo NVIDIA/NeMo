@@ -168,6 +168,6 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
     logging.info(f"Downloading from: {wget_uri} to {str(destination_file)}")
     wget.download(wget_uri, str(destination_file))
     if os.path.exists(destination_file):
-        return destination
+        return destination_file
     else:
         return ""
