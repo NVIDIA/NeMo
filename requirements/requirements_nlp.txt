@@ -9,8 +9,7 @@ youtokentome
 numpy
 tqdm
 sklearn
-fuzzywuzzy
-python-Levenshtein
+rapidfuzz
 gdown
 megatron-lm
 inflect
