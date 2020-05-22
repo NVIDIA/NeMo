@@ -5,7 +5,7 @@ from nemo.backends.pytorch.nm import LossNM
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType, RegressionValuesType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss', 'LossAggregatorNM']
+__all__ = ['SequenceLoss', 'CrossEntropyLossNM', 'MSELoss', 'LossAggregatorNM', 'BCEWithLogitsLossNM']
 
 
 class SequenceLoss(LossNM):
@@ -159,7 +159,7 @@ class CrossEntropyLossNM(LossNM):
             labels_flatten = labels_flatten[loss_mask_flatten]
 
         if len(labels_flatten) == 0:
-            return 0
+            return self._criterion(logits, torch.argmax(logits, dim=-1))
 
         loss = self._criterion(logits_flatten, labels_flatten)
         return loss
@@ -247,4 +247,66 @@ class LossAggregatorNM(LossNM):
                 loss = loss.add(loss_value, alpha=self._weights[loss_idx])
             else:
                 loss = loss.add(loss_value)
+        return loss
+
+
+class BCEWithLogitsLossNM(LossNM):
+    """
+    CrossEntropyLoss
+    Args:
+        logits_ndim (int): number of dimensions (or rank) of the logits tensor
+        weight (list): list of rescaling weight given to each class
+        reduction (str): type of the reduction over the batch
+    """
+
+    @property
+    @add_port_docs()
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "logits": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), LogitsType()),
+            "labels": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), LabelsType()),
+            "loss_mask": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), MaskType(), optional=True),
+        }
+
+    @property
+    @add_port_docs()
+    def output_ports(self):
+        """Returns definitions of module output ports.
+
+        loss:
+            NeuralType(None)
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, logits_ndim=2, weight=None, reduction='mean'):
+        super().__init__()
+
+        if weight:
+            weight = torch.FloatTensor(weight).to(self._device)
+        self._criterion = nn.BCEWithLogitsLoss(weight=weight, reduction=reduction)
+        self._logits_dim = logits_ndim
+
+    def _loss_function(self, logits, labels, loss_mask=None):
+        """
+        Args:
+            logits (float): output of the classifier
+            labels (long): ground truth labels
+            loss_mask (bool/float/int): tensor to specify the masking
+        """
+        logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
+        labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
+
+        if loss_mask is not None:
+            if loss_mask.dtype is not torch.bool:
+                loss_mask = loss_mask > 0.5
+            loss_mask_flatten = torch.flatten(loss_mask, start_dim=0, end_dim=-1)
+            logits_flatten = logits_flatten[loss_mask_flatten]
+            labels_flatten = labels_flatten[loss_mask_flatten]
+
+        if len(labels_flatten) == 0:
+            return 0
+
+        loss = self._criterion(logits_flatten, labels_flatten)
         return loss

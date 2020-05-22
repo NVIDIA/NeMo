@@ -8,5 +8,8 @@ unidecode
 youtokentome
 numpy
 tqdm
+sklearn
+rapidfuzz
 gdown
 megatron-lm
+inflect

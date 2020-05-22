@@ -17,7 +17,9 @@
 import re
 import string
 
-__all__ = ['get_vocab', 'get_tokens', 'normalize_answer', 'mask_padded_tokens']
+import numpy as np
+
+__all__ = ['get_vocab', 'get_tokens', 'normalize_answer', 'mask_padded_tokens', 'concatenate']
 
 
 def get_vocab(file):
@@ -55,3 +57,10 @@ def get_tokens(s):
 def mask_padded_tokens(tokens, pad_id):
     mask = tokens != pad_id
     return mask
+
+
+def concatenate(lists):
+    """
+    Helper function for inference
+    """
+    return np.concatenate([t.cpu() for t in lists])
