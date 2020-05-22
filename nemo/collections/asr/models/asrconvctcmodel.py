@@ -177,10 +177,13 @@ class ASRConvCTCModel(NeMoModel):
         return result
 
     @classmethod
-    def from_pretrained(cls, model_info, local_rank: int = 0, referesh_cache: bool = False) -> Optional[NeuralModule]:
+    def from_pretrained(
+        cls, model_info, local_rank: int = 0, refresh_cache: bool = False, new_vocab: List[str] = None
+    ) -> Optional[NeuralModule]:
         # Create destination folder:
+        instance = None
         if model_info.endswith(".nemo"):
-            return super().from_pretrained(model_info=model_info, local_rank=local_rank)
+            instance = super().from_pretrained(model_info=model_info, local_rank=local_rank)
         else:
             location_in_the_cloud = None
             for pretrained_model_info in cls.list_pretrained_models():
@@ -197,12 +200,20 @@ class ASRConvCTCModel(NeMoModel):
 
             # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
             nemo_model_file_in_cache = maybe_download_from_cloud(
-                url=url, filename=filename, subfolder=cache_subfolder, referesh_cache=referesh_cache
+                url=url, filename=filename, subfolder=cache_subfolder, referesh_cache=refresh_cache
             )
             logging.info("Instantiating model from pre-trained checkpoint")
             themodel = ASRConvCTCModel.from_pretrained(model_info=str(nemo_model_file_in_cache))
             logging.info("Model instantiated with pre-trained weights")
-            return themodel
+            instance = themodel
+        if new_vocab is None:
+            return instance
+        else:
+            logging.info(f"Changing model's vocabulary to: {new_vocab}")
+            instance._decoder = nemo.collections.asr.JasperDecoderForCTC(
+                feat_in=instance._decoder._feat_in, num_classes=len(new_vocab), vocabulary=new_vocab
+            )
+            return instance
 
     @property
     def modules(self) -> Iterable[NeuralModule]:
