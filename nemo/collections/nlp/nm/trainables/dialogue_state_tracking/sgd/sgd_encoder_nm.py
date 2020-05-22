@@ -15,6 +15,11 @@
 # limitations under the License.
 # =============================================================================
 
+'''
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/train_and_predict.py
+'''
+
 from torch import nn
 
 from nemo.backends.pytorch.nm import TrainableNM

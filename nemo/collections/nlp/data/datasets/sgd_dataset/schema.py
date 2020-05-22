@@ -15,7 +15,12 @@
 # limitations under the License.
 # =============================================================================
 
-"""Wrappers for schemas of different services."""
+"""
+Wrappers for schemas of different services.
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/schema.py
+https://github.com/google-research/google-research/blob/master/schema_guided_dst
+"""
 
 import json
 

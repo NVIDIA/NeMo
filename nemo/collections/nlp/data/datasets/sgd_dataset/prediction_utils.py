@@ -15,7 +15,11 @@
 # limitations under the License.
 # =============================================================================
 
-"""Prediction and evaluation-related utility functions."""
+"""
+Prediction and evaluation-related utility functions.
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/pred_utils.py
+"""
 
 import collections
 import json

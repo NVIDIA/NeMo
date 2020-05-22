@@ -15,6 +15,11 @@
 # limitations under the License.
 # =============================================================================
 
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst
+"""
+
 import collections
 import os
 

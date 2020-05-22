@@ -39,6 +39,9 @@ single dialogue. The following metrics are defined:
   assignments for a turn correctly. A fuzzy matching based score is used for
   non-categorical slots. This is the primary evaluation metric used for ranking
   submissions. More details to follow with the evaluation script.
+
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/metrics.py
 """
 
 import collections

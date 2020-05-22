@@ -15,8 +15,12 @@
 # limitations under the License.
 # =============================================================================
 
-"""Extract BERT embeddings for slots, values, intents in schema."""
-# Modified from bert.extract_features
+"""
+Extract BERT embeddings for slots, values, intents in schema.
+
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/extract_schema_embedding.py
+"""
 
 import collections
 import random

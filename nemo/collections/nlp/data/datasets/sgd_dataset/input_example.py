@@ -14,6 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
+"""
+
 from nemo import logging
 
 __all__ = ['InputExample', 'STR_DONTCARE', 'STATUS_OFF', 'STATUS_ACTIVE', 'STATUS_DONTCARE', 'truncate_seq_pair']

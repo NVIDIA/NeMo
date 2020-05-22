@@ -15,7 +15,11 @@
 # limitations under the License.
 # =============================================================================
 
-"""Evaluate predictions JSON file, w.r.t. ground truth file."""
+"""
+Evaluate predictions JSON file, w.r.t. ground truth file.
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/google-research/blob/master/schema_guided_dst/evaluate.py
+"""
 
 import collections
 import glob
