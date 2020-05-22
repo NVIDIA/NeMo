@@ -28,8 +28,9 @@ from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, Tayl
 from nemo.core.callbacks import *
 from nemo.utils import logging
 
+
 @pytest.mark.usefixtures("neural_factory")
-class TestNeMoCallbacks():
+class TestNeMoCallbacks:
     @pytest.fixture()
     def clean_up(self):
         yield
@@ -59,7 +60,7 @@ class TestNeMoCallbacks():
                 tensors_to_optimize=[loss_tensor],
                 callbacks=[SimpleLogger(step_freq=1)],
                 optimization_params={"max_steps": 4, "lr": 0.01},
-                optimizer="sgd"
+                optimizer="sgd",
             )
 
         output_lines = std_out.getvalue().splitlines()
@@ -86,7 +87,7 @@ class TestNeMoCallbacks():
                 tensors_to_optimize=[loss_tensor],
                 callbacks=[SimpleLogger(step_freq=1, tensors_to_log=['y_pred'])],
                 optimization_params={"max_steps": 4, "lr": 0.01},
-                optimizer="sgd"
+                optimizer="sgd",
             )
 
         output_lines = std_out.getvalue().splitlines()
@@ -112,7 +113,7 @@ class TestNeMoCallbacks():
             tensors_to_optimize=[loss_tensor],
             callbacks=callbacks,
             optimization_params={"max_steps": 4, "lr": 0.01},
-            optimizer="sgd"
+            optimizer="sgd",
         )
 
         # efi.inspect("temp", tag="loss")
@@ -137,6 +138,7 @@ class TestNeMoCallbacks():
 
         epoch_start_counter = [0]
         epoch_end_counter = [0]
+
         @on_epoch_start
         def count_epoch_starts(state, counter=epoch_start_counter):
             counter[0] += 1
@@ -151,7 +153,7 @@ class TestNeMoCallbacks():
             tensors_to_optimize=[loss_tensor],
             callbacks=callbacks,
             optimization_params={"max_steps": 4, "lr": 0.01},
-            optimizer="sgd"
+            optimizer="sgd",
         )
 
         assert epoch_start_counter[0] == 2
@@ -171,6 +173,7 @@ class TestNeMoCallbacks():
 
         epoch_step_counter = [0]
         epoch_batch_counter = [0]
+
         @on_step_end
         def count_steps(state, counter=epoch_step_counter):
             counter[0] += 1
@@ -185,7 +188,7 @@ class TestNeMoCallbacks():
             tensors_to_optimize=[loss_tensor],
             callbacks=callbacks,
             optimization_params={"max_steps": 4, "lr": 0.01},
-            optimizer="sgd"
+            optimizer="sgd",
         )
 
         # when grad accumlation steps (aka iter_per_step or batches_per_step) = 1, num_steps == num_batches
@@ -201,7 +204,7 @@ class TestNeMoCallbacks():
             optimization_params={"max_steps": 4, "lr": 0.01},
             optimizer="sgd",
             reset=True,
-            batches_per_step=2
+            batches_per_step=2,
         )
 
         # when grad accumlation steps != 1, num_steps != num_batches
