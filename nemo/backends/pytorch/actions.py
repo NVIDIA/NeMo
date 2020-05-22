@@ -537,6 +537,7 @@ class PtActions(Actions):
                         'num_workers': dl_nm.num_workers,
                         'batch_size': dl_nm.batch_size,
                         'shuffle': False,
+                        'pin_memory': dl_nm.pin_memory,
                     }
                     if hasattr(dl_nm, 'collate_fn'):
                         dataloader_params['collate_fn'] = dl_nm.collate_fn
@@ -555,6 +556,7 @@ class PtActions(Actions):
                         'num_workers': dl_nm.num_workers,
                         'batch_size': dl_nm.batch_size,
                         'shuffle': dl_nm.shuffle,
+                        'pin_memory': dl_nm.pin_memory,
                     }
                     if hasattr(dl_nm, 'collate_fn'):
                         dataloader_params['collate_fn'] = dl_nm.collate_fn
@@ -712,6 +714,7 @@ class PtActions(Actions):
                         'num_workers': dl_nm.num_workers,
                         'batch_size': dl_nm.batch_size,
                         'shuffle': False,
+                        'pin_memory': dl_nm.pin_memory,
                     }
                     if hasattr(dl_nm, 'collate_fn'):
                         dataloader_params['collate_fn'] = dl_nm.collate_fn
@@ -730,6 +733,7 @@ class PtActions(Actions):
                         'num_workers': dl_nm.num_workers,
                         'batch_size': dl_nm.batch_size,
                         'shuffle': dl_nm.shuffle,
+                        'pin_memory': dl_nm.pin_memory,
                     }
                     if hasattr(dl_nm, 'collate_fn'):
                         dataloader_params['collate_fn'] = dl_nm.collate_fn
@@ -1241,6 +1245,7 @@ class PtActions(Actions):
                     'num_workers': dataNM.num_workers,
                     'batch_size': dataNM.batch_size,
                     'shuffle': False,
+                    'pin_memory': dataNM.pin_memory,
                 }
                 if hasattr(dataNM, 'collate_fn'):
                     dataloader_params['collate_fn'] = dataNM.collate_fn
@@ -1323,6 +1328,7 @@ class PtActions(Actions):
                     'num_workers': dataNM.num_workers,
                     'batch_size': dataNM.batch_size,
                     'shuffle': dataNM.shuffle,
+                    'pin_memory': dataNM.pin_memory,
                 }
                 if hasattr(dataNM, 'collate_fn'):
                     dataloader_params['collate_fn'] = dataNM.collate_fn

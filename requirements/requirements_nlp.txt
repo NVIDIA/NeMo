@@ -8,5 +8,9 @@ unidecode
 youtokentome
 numpy
 tqdm
+sklearn
+fuzzywuzzy
+python-Levenshtein
 gdown
 megatron-lm
+inflect
