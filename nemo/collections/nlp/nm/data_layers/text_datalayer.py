@@ -31,11 +31,14 @@ class TextDataLayer(DataLayerNM):
         shuffle (bool): whether to shuffle data
     """
 
-    def __init__(self, dataset_type, dataset_params, batch_size, shuffle=False):
+    def __init__(self, dataset_type, dataset_params, batch_size, shuffle=False, num_workers=-1, pin_memory=False):
         super().__init__()
         self._dataset = dataset_type(**dataset_params)
         self._batch_size = batch_size
         self._shuffle = shuffle
+        self._pin_memory = pin_memory
+        if num_workers >= 0:
+            self._num_workers = num_workers
 
     def __len__(self):
         return len(self._dataset)

@@ -215,6 +215,7 @@ class DataLayerNM(NeuralModule):
         self._batch_size = 1
         self._num_workers = os.cpu_count()  # Use all CPUs by default.
         self._shuffle = False  # Don't shuffle by default.
+        self._pin_memory = False
 
     @property
     def input_ports(self):
@@ -327,6 +328,11 @@ class DataLayerNM(NeuralModule):
     # def num_workers(self, nw):
     #    """ Property setting the number of workers. """
     #    self._num_workers = nw
+
+    @property
+    def pin_memory(self):
+        """ Property returning the pin memory flag. """
+        return self._pin_memory
 
 
 class LossNM(NeuralModule):
