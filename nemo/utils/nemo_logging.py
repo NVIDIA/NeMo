@@ -213,6 +213,39 @@ class Logger(metaclass=Singleton):
             raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
 
     @contextmanager
+    def patch_stdout_handler(self, stream):
+        """ Useful for unittests
+        """
+        if self._logger is not None:
+            try:
+                old_stream = self._handlers["stream_stdout"].stream
+                if old_stream is None:
+                    raise ValueError
+
+                # Port backwards set_stream() from python 3.7
+                self._handlers["stream_stdout"].acquire()
+                try:
+                    self._handlers["stream_stdout"].flush()
+                    self._handlers["stream_stdout"].stream = stream
+                finally:
+                    self._handlers["stream_stdout"].release()
+
+                yield stream
+            except (KeyError, ValueError):
+                raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+            finally:
+                # Port backwards set_stream() from python 3.7
+                self._handlers["stream_stdout"].acquire()
+                try:
+                    self._handlers["stream_stdout"].flush()
+                    self._handlers["stream_stdout"].stream = old_stream
+                finally:
+                    self._handlers["stream_stdout"].release()
+
+        else:
+            raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+
+    @contextmanager
     def temp_verbosity(self, verbosity_level):
         """Sets the a temporary threshold for what messages will be logged."""
 
