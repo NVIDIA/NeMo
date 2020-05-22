@@ -22,7 +22,7 @@ from torch import max, mean, stack, tensor
 
 import nemo.utils.argparse as nm_argparse
 from nemo.backends import get_state_dict
-from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
+from nemo.collections.cv.modules.data_layers.cifar10_datalayer import CIFAR10DataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
 from nemo.collections.cv.modules.trainables.convnet_encoder import ConvNetEncoder
@@ -47,11 +47,11 @@ if __name__ == "__main__":
     nf = NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.CPU)
 
     # Data layers for training and validation.
-    dl = MNISTDataLayer(height=28, width=28, train=True)
+    dl = CIFAR10DataLayer(train=True)
     # Model.
-    cnn = ConvNetEncoder(input_depth=1, input_height=28, input_width=28)
-    reshaper = ReshapeTensor(input_dims=[-1, 16, 1, 1], output_dims=[-1, 16])
-    ffn = FeedForwardNetwork(input_size=16, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
+    cnn = ConvNetEncoder(input_depth=3, input_height=32, input_width=32)
+    reshaper = ReshapeTensor(input_dims=[-1, 16, 2, 2], output_dims=[-1, 64])
+    ffn = FeedForwardNetwork(input_size=64, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
     # Loss.
     nll_loss = NLLLoss()
 

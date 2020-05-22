@@ -64,7 +64,7 @@ class FeedForwardNetwork(TrainableNM):
         Initializes the classifier.
 
         """
-        # Call constructor of parent classes.
+        # Call constructor of the parent class.
         TrainableNM.__init__(self, name=name)
 
         # Get input size.

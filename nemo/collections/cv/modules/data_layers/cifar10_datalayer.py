@@ -18,32 +18,32 @@
 from os.path import expanduser
 
 import torch
-from torchvision.datasets import MNIST
+from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core.neural_types import AxisKind, AxisType, LabelsType, NeuralType, NormalizedValueType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['MNISTDataLayer']
+__all__ = ['CIFAR10DataLayer']
 
 
-class MNISTDataLayer(DataLayerNM, MNIST):
+class CIFAR10DataLayer(DataLayerNM, CIFAR10):
     """
-    A "thin DataLayer" -  wrapper around the torchvision's MNIST dataset.
+    A "thin DataLayer" -  wrapper around the torchvision's CIFAR10 dataset.
     """
 
     def __init__(
-        self, name=None, height=28, width=28, data_folder="~/data/mnist", train=True, batch_size=64, shuffle=True
+        self, name=None, height=32, width=32, data_folder="~/data/cifar10", train=True, batch_size=64, shuffle=True
     ):
         """
-        Initializes the MNIST datalayer.
+        Initializes the CIFAR10 datalayer.
 
         Args:
             name: Name of the module (DEFAULT: None)
-            height: image height (DEFAULT: 28)
-            width: image width (DEFAULT: 28)
-            data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
+            height: image height (DEFAULT: 32)
+            width: image width (DEFAULT: 32)
+            data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/cifar10")
             train: use train or test splits (DEFAULT: True)
             batch_size: size of batch (DEFAULT: 64) [PARAMETER OF DATALOADER]
             shuffle: shuffle data (DEFAULT: True) [PARAMETER OF DATALOADER]
@@ -62,18 +62,11 @@ class MNISTDataLayer(DataLayerNM, MNIST):
         abs_data_folder = expanduser(data_folder)
 
         # Call the base class constructor of MNIST dataset.
-        MNIST.__init__(self, root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
+        CIFAR10.__init__(self, root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
 
         # Remember the params passed to DataLoader. :]
         self._batch_size = batch_size
         self._shuffle = shuffle
-
-        # Class names.
-        labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')
-        word_to_ix = {labels[i]: i for i in range(10)}
-
-        # Reverse mapping - for labels.
-        self.ix_to_word = {value: key for (key, value) in word_to_ix.items()}
 
     @property
     @add_port_docs()
@@ -86,7 +79,7 @@ class MNISTDataLayer(DataLayerNM, MNIST):
             "images": NeuralType(
                 axes=(
                     AxisType(kind=AxisKind.Batch),
-                    AxisType(kind=AxisKind.Channel, size=1),
+                    AxisType(kind=AxisKind.Channel, size=3),
                     AxisType(kind=AxisKind.Height, size=self._height),
                     AxisType(kind=AxisKind.Width, size=self._width),
                 ),

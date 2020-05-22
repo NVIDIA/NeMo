@@ -15,3 +15,4 @@
 # =============================================================================
 
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import *
+from nemo.collections.cv.modules.data_layers.cifar10_datalayer import *
