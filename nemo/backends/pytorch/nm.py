@@ -142,8 +142,7 @@ class NonTrainableNM(NeuralModule):
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
         if pt_call:
-            with t.no_grad():
-                return self.forward(*input, **kwargs)
+            return self.forward(*input, **kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)
 
