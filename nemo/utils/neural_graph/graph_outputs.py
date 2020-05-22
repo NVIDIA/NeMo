@@ -75,12 +75,12 @@ class GraphOutputs(MutableMapping):
         # Tensors[step][output_port_name] passed from the external neural graph object.
         self._tensors_ref = tensors_ref
 
-        # This dictionary stores the output tensors collected during the "default" tensor recording.
+        # This dictionary stores the bound outputs collected during the "default" recording of produced tensors.
         # As they are using the default port names, the second/next tensor published on the same port
         # will generate a new unique name following the (step_number.module.port_name) pattern.
         self._default_outputs = {}
 
-        # This dictionary stores list of output tensors of module "manually" indicated by the user.
+        # This dictionary stores list of outputs of modules "manually" bound by the user.
         # In this case tring to overwriting the existing ports with new tensors will be forbidden (Exception).
         self._manual_outputs = {}
 

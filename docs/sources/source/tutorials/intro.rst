@@ -12,3 +12,4 @@ Getting started
    weightsharing
    callbacks
    complex_training
+   neural_graphs
