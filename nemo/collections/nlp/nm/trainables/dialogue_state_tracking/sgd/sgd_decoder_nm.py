@@ -29,7 +29,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core import ChannelType, EmbeddedTextType, LengthsType, LogitsType, NeuralType
+from nemo.core import ChannelType, EmbeddedTextType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDecoderNM']
