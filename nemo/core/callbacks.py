@@ -897,7 +897,7 @@ class UnfreezeCallback(ActionCallback):
                 m.unfreeze()
 
 
-class OldWandbCallback(ActionCallback):
+class WandbCallback(ActionCallback):
     """
     Log metrics to [Weights & Biases](https://docs.wandb.com/)
     """
