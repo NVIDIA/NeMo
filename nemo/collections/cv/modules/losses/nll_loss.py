@@ -26,9 +26,15 @@ __all__ = ['NLLLoss']
 class NLLLoss(LossNM):
     """ Class representing a simple NLL loss. """
 
-    def __init__(self):
+    def __init__(self, name=None):
+        """
+        Constructor.
+
+        Args:
+            name: Name of the module (DEFAULT: None)
+        """
         # Call the base class constructor.
-        super().__init__()
+        LossNM.__init__(self, name=name)
         # Set criterion.
         self._criterion = torch.nn.NLLLoss()
 
@@ -37,7 +43,7 @@ class NLLLoss(LossNM):
     def input_ports(self):
         """ Returns definitions of module input ports. """
         return {
-            "predictions": NeuralType(axes=('B', 'D'), elements_type=LogprobsType()),
+            "predictions": NeuralType(axes=('B', 'ANY'), elements_type=LogprobsType()),
             # "targets": NeuralType(axes=tuple(AxisType(AxisKind.Batch)), elements_type=LabelsType()),# NOT WORKING!
             "targets": NeuralType(axes=('B'), elements_type=LabelsType()),
         }

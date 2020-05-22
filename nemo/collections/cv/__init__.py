@@ -17,7 +17,4 @@
 from nemo.collections.cv.modules import *
 
 # __version__ = "0.1"
-# name = "nemo.collections.cv"
-
-
-__all__ = ['LeNet5', 'MNISTDataLayer', 'NLLLoss']
+# __name__ = "nemo.collections.cv"

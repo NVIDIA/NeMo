@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
@@ -17,22 +18,26 @@
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, NormalizedValueType
+from nemo.core.neural_types import NeuralType, AxisKind, AxisType, LogprobsType, NormalizedValueType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['LeNet5']
 
 
 class LeNet5(TrainableNM):
-    """Classical LeNet-5 model for MNIST image classification.
+    """
+    Classical LeNet-5 model for MNIST image classification.
     """
 
-    def __init__(self):
+    def __init__(self, name=None):
         """
         Creates the LeNet-5 model.
+
+        Args:
+            name: Name of the module (DEFAULT: None)
         """
         # Call the base class constructor.
-        super().__init__()
+        super().__init__(name=name)
 
         # Create the LeNet-5 model.
         self.model = torch.nn.Sequential(
@@ -81,7 +86,7 @@ class LeNet5(TrainableNM):
 
     def forward(self, images):
         """
-        Performs the forward step of the model.
+        Performs the forward step of the LeNet-5 model.
 
         Args:
             images: Batch of images to be classified.

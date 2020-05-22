@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2020 NVIDIA. All Rights Reserved.
 #
@@ -32,11 +33,12 @@ class MNISTDataLayer(DataLayerNM, MNIST):
     A "thin DataLayer" -  wrapper around the torchvision's MNIST dataset.
     """
 
-    def __init__(self, height=28, width=28, data_folder="~/data/mnist", train=True, batch_size=64, shuffle=True):
+    def __init__(self, name=None, height=28, width=28, data_folder="~/data/mnist", train=True, batch_size=64, shuffle=True):
         """
         Initializes the MNIST datalayer.
 
         Args:
+            name: Name of the module (DEFAULT: None)
             height: image height (DEFAULT: 28)
             width: image width (DEFAULT: 28)
             data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
@@ -45,7 +47,7 @@ class MNISTDataLayer(DataLayerNM, MNIST):
             shuffle: shuffle data (DEFAULT: True) [PARAMETER OF DATALOADER]
         """
         # Call the base class constructor of DataLayer.
-        DataLayerNM.__init__(self)
+        DataLayerNM.__init__(self, name=name)
 
         # Store height and width.
         self._height = height
