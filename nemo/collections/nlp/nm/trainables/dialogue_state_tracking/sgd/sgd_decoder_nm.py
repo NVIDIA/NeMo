@@ -15,6 +15,9 @@
 # limitations under the License.
 # =============================================================================
 
+import math
+import sys
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -25,6 +28,61 @@ from nemo.core import ChannelType, EmbeddedTextType, LengthsType, LogitsType, Ne
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['SGDDecoderNM']
+
+
+class LogitsAttention(nn.Module):
+    def __init__(self, num_classes, embedding_dim):
+        """Get logits for elements by using attention on token embedding.
+        Args:
+          num_classes (int): An int containing the number of classes for which logits are to be generated.
+          embedding_dim (int): hidden size of the BERT
+    
+        Returns:
+          A tensor of shape (batch_size, num_elements, num_classes) containing the logits.
+        """
+        super().__init__()
+        self.num_attention_heads = 16
+        self.attention_head_size = embedding_dim // self.num_attention_heads
+        self.embedding_dim = embedding_dim
+        self.num_classes = num_classes
+        self.dropout = nn.Dropout(0.1)
+
+        self.key = nn.Linear(embedding_dim, embedding_dim)
+        self.query = nn.Linear(embedding_dim, embedding_dim)
+        self.value = nn.Linear(embedding_dim, embedding_dim)
+        self.layer = nn.Linear(embedding_dim, num_classes)
+
+    def transpose_for_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1, 3)
+
+    def forward(self, encoded_utterance, token_embeddings, element_embeddings):
+        """
+        token_embeddings - token hidden states from BERT encoding of the utterance
+        encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
+        element_embeddings: A tensor of shape (batch_size, num_elements, embedding_dim).
+        """
+        _, num_elements, _ = element_embeddings.size()
+
+        query_layer = self.query(element_embeddings)
+        key_layer = self.key(token_embeddings)
+        value_layer = self.value(token_embeddings)
+
+        query_layer = self.transpose_for_scores(query_layer)
+        key_layer = self.transpose_for_scores(key_layer)
+        value_layer = self.transpose_for_scores(value_layer)
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        attention_scores = attention_scores / math.sqrt(self.embedding_dim)
+        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        attention_probs = self.dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.embedding_dim,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+
+        logits = self.layer(context_layer)
+        return logits
 
 
 class Logits(nn.Module):
@@ -45,8 +103,9 @@ class Logits(nn.Module):
         self.layer1 = nn.Linear(2 * embedding_dim, embedding_dim)
         self.layer2 = nn.Linear(embedding_dim, num_classes)
 
-    def forward(self, encoded_utterance, element_embeddings):
+    def forward(self, encoded_utterance, token_embeddings, element_embeddings):
         """
+        token_embeddings - token hidden states from BERT encoding of the utterance
         encoded_utterance - [CLS] token hidden state from BERT encoding of the utterance
         element_embeddings: A tensor of shape (batch_size, num_elements, embedding_dim).
         """
@@ -113,12 +172,13 @@ class SGDDecoderNM(TrainableNM):
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, embedding_dim, schema_emb_processor):
+    def __init__(self, embedding_dim, schema_emb_processor, head_transform):
         """Get logits for elements by conditioning on utterance embedding.
 
         Args:
             embedding_dim (int): hidden size of the BERT
             schema_emb_processor (obj): contains schema embeddings for services and config file
+            head_transform (str): transformation to use for computing head
         """
         super().__init__()
 
@@ -127,15 +187,14 @@ class SGDDecoderNM(TrainableNM):
         # TODO truncated norm init
         nn.init.normal_(self.none_intent_vector, std=0.02)
         self.none_intent_vector = torch.nn.Parameter(self.none_intent_vector).to(self._device)
+        self.intent_layer = getattr(sys.modules[__name__], head_transform)(1, embedding_dim).to(self._device)
+        self.requested_slots_layer = getattr(sys.modules[__name__], head_transform)(1, embedding_dim).to(self._device)
 
-        self.intent_layer = Logits(1, embedding_dim).to(self._device)
-        self.requested_slots_layer = Logits(1, embedding_dim).to(self._device)
-
-        self.cat_slot_value_layer = Logits(1, embedding_dim).to(self._device)
+        self.cat_slot_value_layer = getattr(sys.modules[__name__], head_transform)(1, embedding_dim).to(self._device)
 
         # Slot status values: none, dontcare, active.
-        self.cat_slot_status_layer = Logits(3, embedding_dim).to(self._device)
-        self.noncat_slot_layer = Logits(3, embedding_dim).to(self._device)
+        self.cat_slot_status_layer = getattr(sys.modules[__name__], head_transform)(3, embedding_dim).to(self._device)
+        self.noncat_slot_layer = getattr(sys.modules[__name__], head_transform)(3, embedding_dim).to(self._device)
 
         # dim 2 for non_categorical slot - to represent start and end position
         self.noncat_layer1 = nn.Linear(2 * embedding_dim, embedding_dim).to(self._device)
@@ -198,12 +257,12 @@ class SGDDecoderNM(TrainableNM):
         noncat_slot_emb = self.noncat_slot_emb(service_ids).view(batch_size, -1, emb_dim)
         req_slot_emb = self.req_slot_emb(service_ids).view(batch_size, -1, emb_dim)
 
-        logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, intent_status_mask)
+        logit_intent_status = self._get_intents(encoded_utterance, intent_embeddings, intent_status_mask, token_embeddings)
 
-        logit_req_slot_status = self._get_requested_slots(encoded_utterance, req_slot_emb)
+        logit_req_slot_status = self._get_requested_slots(encoded_utterance, req_slot_emb, token_embeddings)
 
         logit_cat_slot_status, logit_cat_slot_value = self._get_categorical_slot_goals(
-            encoded_utterance, cat_slot_emb, cat_slot_value_emb, cat_slot_values_mask
+            encoded_utterance, cat_slot_emb, cat_slot_value_emb, cat_slot_values_mask, token_embeddings
         )
 
         (
@@ -222,7 +281,7 @@ class SGDDecoderNM(TrainableNM):
             logit_noncat_slot_end,
         )
 
-    def _get_intents(self, encoded_utterance, intent_embeddings, intent_status_mask):
+    def _get_intents(self, encoded_utterance, intent_embeddings, intent_status_mask, token_embeddings):
         """
         Args:
             intent_embedding - BERT schema embeddings
@@ -234,36 +293,64 @@ class SGDDecoderNM(TrainableNM):
         # Add a trainable vector for the NONE intent.
         repeated_none_intent_vector = self.none_intent_vector.repeat(batch_size, 1, 1)
         intent_embeddings = torch.cat([repeated_none_intent_vector, intent_embeddings], axis=1)
-        logits = self.intent_layer(encoded_utterance, intent_embeddings)
+        logits = self.intent_layer(
+            encoded_utterance=encoded_utterance,
+            token_embeddings=token_embeddings,
+            element_embeddings=intent_embeddings,
+        )
         logits = logits.squeeze(axis=-1)  # Shape: (batch_size, max_intents + 1)
 
         # Mask out logits for padded intents
         negative_logits = self._get_negative_logits(logits)
         return torch.where(intent_status_mask.to(dtype=torch.bool), logits, negative_logits)
 
-    def _get_requested_slots(self, encoded_utterance, requested_slot_emb):
+    def _get_requested_slots(self, encoded_utterance, requested_slot_emb, req_num_slots, token_embeddings):
         """Obtain logits for requested slots."""
 
-        logits = self.requested_slots_layer(encoded_utterance, requested_slot_emb)
+        logits = self.requested_slots_layer(
+            encoded_utterance=encoded_utterance,
+            token_embeddings=token_embeddings,
+            element_embeddings=requested_slot_emb,
+        )
+        logits = logits.squeeze(axis=-1)
+
         # logits shape: (batch_size, max_num_slots)
         logits = logits.squeeze(axis=-1)
         return logits
 
+<<<<<<< HEAD:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_decoder_nm.py
     def _get_categorical_slot_goals(self, encoded_utterance, cat_slot_emb, cat_slot_value_emb, cat_slot_values_mask):
+=======
+    def _get_categorical_slot_goals(
+        self,
+        encoded_utterance,
+        cat_slot_emb,
+        cat_slot_value_emb,
+        num_categorical_slots,
+        num_categorical_slot_values,
+        token_embeddings,
+    ):
+>>>>>>> b21308820aa030a0cfbc60ea37cf7def17ae846b:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_model.py
         """
         Obtain logits for status and values for categorical slots
         Slot status values: none, dontcare, active
         """
 
         # Predict the status of all categorical slots.
-        status_logits = self.cat_slot_status_layer(encoded_utterance, cat_slot_emb)
+        status_logits = self.cat_slot_status_layer(
+            encoded_utterance=encoded_utterance, token_embeddings=token_embeddings, element_embeddings=cat_slot_emb
+        )
 
         # Predict the goal value.
         # Shape: (batch_size, max_categorical_slots, max_categorical_values, embedding_dim).
         _, max_num_slots, max_num_values, embedding_dim = cat_slot_value_emb.size()
         cat_slot_value_emb_reshaped = cat_slot_value_emb.view(-1, max_num_slots * max_num_values, embedding_dim)
 
-        value_logits = self.cat_slot_value_layer(encoded_utterance, cat_slot_value_emb_reshaped)
+        value_logits = self.cat_slot_value_layer(
+            encoded_utterance=encoded_utterance,
+            token_embeddings=token_embeddings,
+            element_embeddings=cat_slot_value_emb_reshaped,
+        )
 
         # Reshape to obtain the logits for all slots.
         value_logits = value_logits.view(-1, max_num_slots, max_num_values)
@@ -280,7 +367,14 @@ class SGDDecoderNM(TrainableNM):
         """
         # Predict the status of all non-categorical slots.
         max_num_slots = noncat_slot_emb.size()[1]
+<<<<<<< HEAD:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_decoder_nm.py
         status_logits = self.noncat_slot_layer(encoded_utterance, noncat_slot_emb)
+=======
+        status_logits = self.noncat_slot_layer(
+            encoded_utterance=encoded_utterance, token_embeddings=token_embeddings, element_embeddings=noncat_slot_emb
+        )
+        non_cat_slot_status_mask = self._get_loss_mask(max_num_slots, num_noncategorical_slots)
+>>>>>>> b21308820aa030a0cfbc60ea37cf7def17ae846b:nemo/collections/nlp/nm/trainables/dialogue_state_tracking/sgd/sgd_model.py
 
         # Predict the distribution for span indices.
         max_num_tokens = token_embeddings.size()[1]

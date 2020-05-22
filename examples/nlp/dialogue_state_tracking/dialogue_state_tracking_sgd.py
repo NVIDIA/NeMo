@@ -210,6 +210,13 @@ parser.add_argument(
     "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
+    "--head_transform",
+    default="",
+    type=str,
+    choices=["", "Attention"],
+    help="transformation to use for computing head. Default uses linear projection.",
+)
+parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
 )
 
@@ -297,9 +304,10 @@ dialogues_processor = data_processor.Dstc8DataProcessor(
 
 # define model pipeline
 sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
-sgd_decoder = SGDDecoderNM(embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor)
+sgd_decoder = SGDDecoderNM(
+    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, head_transform="Logits" + args.head_transform
+)
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
-
 
 def create_pipeline(dataset_split='train'):
     datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
