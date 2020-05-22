@@ -290,13 +290,13 @@ class DataLayerNM(NeuralModule):
         pass
 
     @property
-    @abstractmethod
     def data_iterator(self):
         """"Iterator over the dataset. It is a good idea to return
         torch.utils.data.DataLoader here. Should implement either this or
         `dataset`.
         If this is implemented, `dataset` property should return None.
         """
+        return None
 
     @property
     def batch_size(self):
