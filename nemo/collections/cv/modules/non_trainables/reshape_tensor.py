@@ -40,9 +40,9 @@ import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import NeuralType, VoidType
-from nemo.utils.decorators import add_port_docs
-from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils import logging
+from nemo.utils.configuration_error import ConfigurationError
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['ReshapeTensor']
 
@@ -74,7 +74,7 @@ class ReshapeTensor(NonTrainableNM):
         """
         return {
             "inputs": NeuralType(['B'] + ['ANY'] * (len(self._input_dims) - 1), VoidType())
-        } # TODO: set proper sizes.
+        }  # TODO: set proper sizes.
 
     @property
     @add_port_docs()
@@ -84,8 +84,7 @@ class ReshapeTensor(NonTrainableNM):
         """
         return {
             "outputs": NeuralType(['B'] + ['ANY'] * (len(self._output_dims) - 1), VoidType())
-        } # TODO: set proper sizes of consecutive dimensions.
-
+        }  # TODO: set proper sizes of consecutive dimensions.
 
     def forward(self, inputs):
         """
@@ -98,8 +97,7 @@ class ReshapeTensor(NonTrainableNM):
         Returns:
             Outputs a tensor [BATCH_SIZE x ...] 
         """
-        #print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
+        # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
 
         # Reshape.
-        return inputs.view(self._output_dims) 
-
+        return inputs.view(self._output_dims)

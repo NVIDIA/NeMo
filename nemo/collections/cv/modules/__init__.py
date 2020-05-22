@@ -16,5 +16,5 @@
 
 import nemo.collections.cv.modules.data_layers
 import nemo.collections.cv.modules.losses
-import nemo.collections.cv.modules.trainables
 import nemo.collections.cv.modules.non_trainables
+import nemo.collections.cv.modules.trainables

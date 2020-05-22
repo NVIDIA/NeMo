@@ -39,16 +39,15 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/general_us
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import NeuralType, LogprobsType, VoidType
-from nemo.utils.decorators import add_port_docs
-from nemo.utils.configuration_error import ConfigurationError
+from nemo.core.neural_types import LogprobsType, NeuralType, VoidType
 from nemo.utils import logging
-
+from nemo.utils.configuration_error import ConfigurationError
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['FeedForwardNetwork']
 
 
-class FeedForwardNetwork(TrainableNM): 
+class FeedForwardNetwork(TrainableNM):
     """
     A simple trainable module consisting of several stacked fully connected layers
     with ReLU non-linearities and dropout between them.
@@ -57,7 +56,10 @@ class FeedForwardNetwork(TrainableNM):
     
     Additionally, the module applies log softmax non-linearity on the output of the last layer (logits).
     """
-    def __init__(self, input_size, output_size, hidden_sizes=[], dimensions=2, dropout_rate=0, final_logsoftmax=False, name=None):
+
+    def __init__(
+        self, input_size, output_size, hidden_sizes=[], dimensions=2, dropout_rate=0, final_logsoftmax=False, name=None
+    ):
         """
         Initializes the classifier.
 
@@ -85,9 +87,15 @@ class FeedForwardNetwork(TrainableNM):
             if len(self._output_size) == 1:
                 self._output_size = self._output_size[0]
             else:
-                raise ConfigurationError("'output_size' must be a single value (received {})".format(self._output_size))
-        
-        logging.info("Initializing network with input size = {} and output size = {}".format(self._input_size, self._output_size))
+                raise ConfigurationError(
+                    "'output_size' must be a single value (received {})".format(self._output_size)
+                )
+
+        logging.info(
+            "Initializing network with input size = {} and output size = {}".format(
+                self._input_size, self._output_size
+            )
+        )
 
         # Create the module list.
         modules = []
@@ -98,31 +106,34 @@ class FeedForwardNetwork(TrainableNM):
             input_dim = self._input_size
             for hidden_dim in hidden_sizes:
                 # Add linear layer.
-                modules.append( torch.nn.Linear(input_dim, hidden_dim) )
+                modules.append(torch.nn.Linear(input_dim, hidden_dim))
                 # Add activation.
-                modules.append( torch.nn.ReLU() )
+                modules.append(torch.nn.ReLU())
                 # Add dropout.
-                if (dropout_rate > 0):
-                    modules.append( torch.nn.Dropout(dropout_rate) )
+                if dropout_rate > 0:
+                    modules.append(torch.nn.Dropout(dropout_rate))
                 # Remember size.
                 input_dim = hidden_dim
 
             # Add the last output" (or in a special case: the only) layer.
-            modules.append( torch.nn.Linear(input_dim, self._output_size) )
+            modules.append(torch.nn.Linear(input_dim, self._output_size))
 
             logging.info("Created {} hidden layers with sizes {}".format(len(hidden_sizes), hidden_sizes))
 
         else:
-            raise ConfigurationError("'hidden_sizes' must contain a list with numbers of neurons in consecutive hidden layers (received {})".format(hidden_sizes))
+            raise ConfigurationError(
+                "'hidden_sizes' must contain a list with numbers of neurons in consecutive hidden layers (received {})".format(
+                    hidden_sizes
+                )
+            )
 
         # Create the final non-linearity.
         self._final_logsoftmax = final_logsoftmax
         if self._final_logsoftmax:
-            modules.append( torch.nn.LogSoftmax(dim=1) )
+            modules.append(torch.nn.LogSoftmax(dim=1))
 
         # Finally create the sequential model out of those modules.
         self.layers = torch.nn.Sequential(*modules)
-
 
     @property
     @add_port_docs()
@@ -131,9 +142,7 @@ class FeedForwardNetwork(TrainableNM):
         Returns definitions of module input ports.
         Batch of inputs, each represented as index [BATCH_SIZE x ... x INPUT_SIZE]
         """
-        return {
-            "inputs": NeuralType(['B'] + ['ANY'] * (self._dimensions - 1), VoidType())
-        }
+        return {"inputs": NeuralType(['B'] + ['ANY'] * (self._dimensions - 1), VoidType())}
 
     @property
     @add_port_docs()
@@ -160,13 +169,17 @@ class FeedForwardNetwork(TrainableNM):
         Returns:
             Batch of outputs/predictions (log_probs) [BATCH_SIZE x ... x NUM_CLASSES]
         """
-        
-        #print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
+
+        # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
 
         # Check that the input has the number of dimensions that we expect
-        assert len(inputs.shape) == self._dimensions, \
-            "Expected " + str(self._dimensions) + " dimensions for input, got " + str(len(inputs.shape))\
-                 + " instead. Check number of dimensions in the config."
+        assert len(inputs.shape) == self._dimensions, (
+            "Expected "
+            + str(self._dimensions)
+            + " dimensions for input, got "
+            + str(len(inputs.shape))
+            + " instead. Check number of dimensions in the config."
+        )
 
         # Reshape such that we do a broadcast over the last dimension
         origin_shape = inputs.shape
@@ -176,7 +189,7 @@ class FeedForwardNetwork(TrainableNM):
         outputs = self.layers(inputs)
 
         # Restore the input dimensions but the last one (as it's been resized by the FFN)
-        outputs = outputs.view(*origin_shape[0:self._dimensions-1], -1)
+        outputs = outputs.view(*origin_shape[0 : self._dimensions - 1], -1)
 
         # Return the result.
         return outputs

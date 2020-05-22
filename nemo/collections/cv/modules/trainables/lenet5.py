@@ -18,7 +18,7 @@
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import NeuralType, AxisKind, AxisType, LogprobsType, NormalizedValueType
+from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, NormalizedValueType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['LeNet5']

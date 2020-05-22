@@ -33,7 +33,9 @@ class MNISTDataLayer(DataLayerNM, MNIST):
     A "thin DataLayer" -  wrapper around the torchvision's MNIST dataset.
     """
 
-    def __init__(self, name=None, height=28, width=28, data_folder="~/data/mnist", train=True, batch_size=64, shuffle=True):
+    def __init__(
+        self, name=None, height=28, width=28, data_folder="~/data/mnist", train=True, batch_size=64, shuffle=True
+    ):
         """
         Initializes the MNIST datalayer.
 

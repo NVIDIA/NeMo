@@ -51,8 +51,10 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/IBM/pytorchpipe/blob/develop/ptp/configuration/configuration_error.py
 """
 
+
 class ConfigurationError(Exception):
     """ Error thrown when encountered a configuration issue. """
+
     def __init__(self, msg):
         """ Stores message """
         self.msg = msg

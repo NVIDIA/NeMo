@@ -16,16 +16,15 @@
 
 import argparse
 
-from torch import mean, stack, max, tensor
+from torch import max, mean, stack, tensor
 
-from nemo.utils import logging
 import nemo.utils.argparse as nm_argparse
-from nemo.core import NeuralModuleFactory, DeviceType, NeuralGraph, OperationMode, SimpleLossLoggerCallback
-
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
-from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
+from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
+from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
+from nemo.utils import logging
 
 if __name__ == "__main__":
     # Create the default parser.
@@ -39,8 +38,10 @@ if __name__ == "__main__":
     # Data layers for training and validation.
     dl = MNISTDataLayer(height=28, width=28, train=True)
     # Model.
-    reshaper = ReshapeTensor(input_dims=[-1, 1, 32,32], output_dims=[-1, 784])
-    ffn = FeedForwardNetwork(input_size=784, output_size=10, hidden_sizes=[100, 100], dropout_rate=0.1, final_logsoftmax=True)
+    reshaper = ReshapeTensor(input_dims=[-1, 1, 32, 32], output_dims=[-1, 784])
+    ffn = FeedForwardNetwork(
+        input_size=784, output_size=10, hidden_sizes=[100, 100], dropout_rate=0.1, final_logsoftmax=True
+    )
     # Loss.
     nll_loss = NLLLoss()
 

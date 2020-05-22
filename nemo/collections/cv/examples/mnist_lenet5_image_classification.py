@@ -16,15 +16,21 @@
 
 import argparse
 
-from torch import mean, stack, max, tensor
+from torch import max, mean, stack, tensor
 
-from nemo.utils import logging
 import nemo.utils.argparse as nm_argparse
-from nemo.core import NeuralModuleFactory, DeviceType, NeuralGraph, OperationMode, EvaluatorCallback, SimpleLossLoggerCallback
-
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.trainables.lenet5 import LeNet5
+from nemo.core import (
+    DeviceType,
+    EvaluatorCallback,
+    NeuralGraph,
+    NeuralModuleFactory,
+    OperationMode,
+    SimpleLossLoggerCallback,
+)
+from nemo.utils import logging
 
 if __name__ == "__main__":
     # Create the default parser.
