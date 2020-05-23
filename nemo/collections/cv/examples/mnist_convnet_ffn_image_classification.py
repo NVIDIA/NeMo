@@ -17,11 +17,10 @@
 import argparse
 
 import nemo.utils.argparse as nm_argparse
-from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
-from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
-from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
-from nemo.collections.cv.modules.trainables.convnet_encoder import ConvNetEncoder
-from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
+from nemo.collections.cv.modules.data_layers import MNISTDataLayer
+from nemo.collections.cv.modules.losses import NLLLoss
+from nemo.collections.cv.modules.non_trainables import NonLinearity, ReshapeTensor
+from nemo.collections.cv.modules.trainables import ConvNetEncoder, FeedForwardNetwork
 from nemo.core import (
     DeviceType,
     NeuralGraph,
@@ -43,19 +42,21 @@ if __name__ == "__main__":
 
     # Data layers for training and validation.
     dl = MNISTDataLayer(height=28, width=28, train=True)
-    # Model.
+    # The "model".
     cnn = ConvNetEncoder(input_depth=1, input_height=28, input_width=28)
     reshaper = ReshapeTensor(input_sizes=[-1, 16, 1, 1], output_sizes=[-1, 16])
-    ffn = FeedForwardNetwork(input_size=16, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
+    ffn = FeedForwardNetwork(input_size=16, output_size=10, dropout_rate=0.1)
+    nl = NonLinearity(type="logsoftmax", sizes=[-1, 10])
     # Loss.
     nll_loss = NLLLoss()
 
-    # 2. Create a training graph.
+    # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
         img, tgt = dl()
         feat_map = cnn(inputs=img)
         res_img = reshaper(inputs=feat_map)
-        pred = ffn(inputs=res_img)
+        logits = ffn(inputs=res_img)
+        pred = nl(inputs=logits)
         loss = nll_loss(predictions=pred, targets=tgt)
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss

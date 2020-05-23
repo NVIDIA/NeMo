@@ -49,10 +49,12 @@ from nemo.utils.decorators import add_port_docs
 
 __all__ = ['GenericImageEncoder']
 
+
 class GenericImageEncoder(TrainableNM):
     """
     Class
     """
+
     def __init__(self, model_type, output_size=None, return_feature_maps=False, pretrained=False, name=None):
         """
         Initializes the ``GenericImageEncoder`` model, creates the required backend.
@@ -64,12 +66,14 @@ class GenericImageEncoder(TrainableNM):
         self._return_feature_maps = return_feature_maps
 
         # Get model type.
-        self._model_type = get_value_from_dictionary(model_type, "vgg16 | densenet121 | resnet152 | resnet50".split(" | "))
+        self._model_type = get_value_from_dictionary(
+            model_type, "vgg16 | densenet121 | resnet152 | resnet50".split(" | ")
+        )
 
-        # Get output size (optional).
+        # Get output size (optional - not in feature_maps).
         self._output_size = output_size
 
-        if(self._model_type == 'vgg16'):
+        if self._model_type == 'vgg16':
             # Get VGG16
             self._model = models.vgg16(pretrained=pretrained)
 
@@ -86,7 +90,7 @@ class GenericImageEncoder(TrainableNM):
                 # Use the whole model, but "reshape"/reinstantiate the last layer ("FC6").
                 self._model.classifier._modules['6'] = torch.nn.Linear(4096, self._output_size)
 
-        elif(self._model_type == 'densenet121'):
+        elif self._model_type == 'densenet121':
             # Get densenet121
             self._model = models.densenet121(pretrained=pretrained)
 
@@ -96,15 +100,14 @@ class GenericImageEncoder(TrainableNM):
             # Use the whole model, but "reshape"/reinstantiate the last layer ("FC6").
             self._model.classifier = torch.nn.Linear(1024, self._output_size)
 
-
-        elif(self._model_type == 'resnet152'):
+        elif self._model_type == 'resnet152':
             # Get resnet152
             self._model = models.resnet152(pretrained=pretrained)
 
             if self._return_feature_maps:
                 # Get all modules exluding last (avgpool) and (fc)
-                modules=list(self._model.children())[:-2]
-                self._model=torch.nn.Sequential(*modules)                
+                modules = list(self._model.children())[:-2]
+                self._model = torch.nn.Sequential(*modules)
 
                 # Remember the output feature map dims.
                 self._feature_map_height = 7
@@ -115,14 +118,14 @@ class GenericImageEncoder(TrainableNM):
                 # Use the whole model, but "reshape"/reinstantiate the last layer ("FC6").
                 self._model.fc = torch.nn.Linear(2048, self._output_size)
 
-        elif(self._model_type == 'resnet50'):
+        elif self._model_type == 'resnet50':
             # Get resnet50
             self._model = models.resnet50(pretrained=pretrained)
 
             if self._return_feature_maps:
                 # Get all modules exluding last (avgpool) and (fc)
-                modules=list(self._model.children())[:-2]
-                self._model=torch.nn.Sequential(*modules)                
+                modules = list(self._model.children())[:-2]
+                self._model = torch.nn.Sequential(*modules)
 
                 # Remember the output feature map dims.
                 self._feature_map_height = 7
@@ -132,7 +135,6 @@ class GenericImageEncoder(TrainableNM):
             else:
                 # Use the whole model, but "reshape"/reinstantiate the last layer ("FC6").
                 self._model.fc = torch.nn.Linear(2048, self._output_size)
-
 
     @property
     @add_port_docs()
@@ -174,14 +176,10 @@ class GenericImageEncoder(TrainableNM):
         else:
             return {
                 "outputs": NeuralType(
-                    axes=(
-                        AxisType(kind=AxisKind.Batch),
-                        AxisType(kind=AxisKind.Any, size=self._output_size),
-                    ),
+                    axes=(AxisType(kind=AxisKind.Batch), AxisType(kind=AxisKind.Any, size=self._output_size),),
                     elements_type=VoidType(),
                 )
             }
-
 
     def forward(self, inputs):
         """
@@ -194,7 +192,7 @@ class GenericImageEncoder(TrainableNM):
             outpus: added stream containing outputs [BATCH_SIZE x OUTPUT_SIZE]
                 OR [BATCH_SIZE x OUTPUT_DEPTH x OUTPUT_HEIGHT x OUTPUT_WIDTH]
         """
-        #print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
+        # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
 
         outputs = self._model(inputs)
 

@@ -14,4 +14,5 @@
 # limitations under the License.
 # =============================================================================
 
+from nemo.collections.cv.modules.non_trainables.non_linearity import *
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import *

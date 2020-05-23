@@ -39,7 +39,7 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/general_us
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, VoidType
+from nemo.core.neural_types import AxisKind, AxisType, NeuralType, VoidType
 from nemo.utils import logging
 from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils.decorators import add_port_docs
@@ -57,9 +57,7 @@ class FeedForwardNetwork(TrainableNM):
     Additionally, the module applies log softmax non-linearity on the output of the last layer (logits).
     """
 
-    def __init__(
-        self, input_size, output_size, hidden_sizes=[], dimensions=2, dropout_rate=0, final_logsoftmax=False, name=None
-    ):
+    def __init__(self, input_size, output_size, hidden_sizes=[], dimensions=2, dropout_rate=0, name=None):
         """
         Initializes the classifier.
 
@@ -127,11 +125,6 @@ class FeedForwardNetwork(TrainableNM):
                 )
             )
 
-        # Create the final non-linearity.
-        self._final_logsoftmax = final_logsoftmax
-        if self._final_logsoftmax:
-            modules.append(torch.nn.LogSoftmax(dim=1))
-
         # Finally create the sequential model out of those modules.
         self.layers = torch.nn.Sequential(*modules)
 
@@ -165,13 +158,8 @@ class FeedForwardNetwork(TrainableNM):
             axes.append(AxisType(kind=AxisKind.Any))
         # Add the last axis: input_size
         axes.append(AxisType(kind=AxisKind.Any, size=self._output_size))
-        # Return neural type.
-        if self._final_logsoftmax:
-            # Batch of predictions, each represented as probability distribution over classes.
-            return {"outputs": NeuralType(axes, LogprobsType())}
-        else:
-            # Batch of "logits" of "any type".
-            return {"outputs": NeuralType(axes, VoidType())}
+        # Return neural type: batch of "logits" of "any type".
+        return {"outputs": NeuralType(axes, VoidType())}
 
     def forward(self, inputs):
         """

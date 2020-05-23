@@ -43,9 +43,7 @@ if __name__ == "__main__":
     # Data layer - upscale the CIFAR10 images to ImageNet resolution.
     cifar10_dl = CIFAR10DataLayer(height=224, width=224, train=True)
     # The "model".
-    image_encoder = GenericImageEncoder(model_type="vgg16", return_feature_maps=True, pretrained=True, name="vgg16")
-    reshaper = ReshapeTensor(input_sizes=[-1, 7, 7, 512], output_sizes=[-1, 25088])
-    ffn = FeedForwardNetwork(input_size=25088, output_size=10, hidden_sizes=[1000, 1000], dropout_rate=0.1)
+    image_classifier = GenericImageEncoder(model_type="resnet50", output_size=10, pretrained=True, name="resnet50")
     nl = NonLinearity(type="logsoftmax", sizes=[-1, 10])
     # Loss.
     nll_loss = NLLLoss()
@@ -53,16 +51,13 @@ if __name__ == "__main__":
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
         img, tgt = cifar10_dl()
-        feat_map = image_encoder(inputs=img)
-        res_img = reshaper(inputs=feat_map)
-        logits = ffn(inputs=res_img)
+        logits = image_classifier(inputs=img)
         pred = nl(inputs=logits)
         loss = nll_loss(predictions=pred, targets=tgt)
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss
 
-    # Freeze the pretrained encoder.
-    training_graph.freeze(["vgg16"])
+    # Show info.
     logging.info(training_graph.summary())
 
     # SimpleLossLoggerCallback will print loss values to console.

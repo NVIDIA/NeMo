@@ -37,7 +37,7 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/configuration/config_parsing
 from nemo.utils.configuration_error import ConfigurationError
 
 
-def get_value_list_from_dictionary(parameter: str, accepted_values = []):
+def get_value_list_from_dictionary(parameter: str, accepted_values=[]):
     """
     Parses parameter values retrieved from a given parameter dictionary using key.
     Optionally, checks is all values are accepted.
@@ -50,15 +50,15 @@ def get_value_list_from_dictionary(parameter: str, accepted_values = []):
         List of parsed values
     """
     # Preprocess parameter value.
-    if (type(parameter) == str):
+    if type(parameter) == str:
         if parameter == '':
             # Return empty list.
             return []
         else:
             # Process and split.
-            values = parameter.replace(" ","").split(",")
+            values = parameter.replace(" ", "").split(",")
     else:
-        values = parameter # list
+        values = parameter  # list
     if type(values) != list:
         ConfigurationError("'parameter' must be a list")
 
@@ -66,13 +66,17 @@ def get_value_list_from_dictionary(parameter: str, accepted_values = []):
     if len(accepted_values) > 0:
         for value in values:
             if value not in accepted_values:
-                raise ConfigurationError("One of the values in '{}' is invalid (current: '{}', accepted: {})".format(key, value, accepted_values))
+                raise ConfigurationError(
+                    "One of the values in '{}' is invalid (current: '{}', accepted: {})".format(
+                        key, value, accepted_values
+                    )
+                )
 
     # Return list.
     return values
 
 
-def get_value_from_dictionary(parameter: str, accepted_values = []):
+def get_value_from_dictionary(parameter: str, accepted_values=[]):
     """
     Parses value of the parameter retrieved from a given parameter dictionary using key.
     Optionally, checks is the values is one of the accepted values.
@@ -93,7 +97,11 @@ def get_value_from_dictionary(parameter: str, accepted_values = []):
     # Test values one by one.
     if len(accepted_values) > 0:
         if parameter not in accepted_values:
-            raise ConfigurationError("One of the values in '{}' is invalid (current: '{}', accepted: {})".format(key, value, accepted_values))
+            raise ConfigurationError(
+                "One of the values in '{}' is invalid (current: '{}', accepted: {})".format(
+                    key, value, accepted_values
+                )
+            )
 
     # Return value.
     return parameter

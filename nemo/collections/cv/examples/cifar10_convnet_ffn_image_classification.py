@@ -17,11 +17,10 @@
 import argparse
 
 import nemo.utils.argparse as nm_argparse
-from nemo.collections.cv.modules.data_layers.cifar10_datalayer import CIFAR10DataLayer
-from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
-from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
-from nemo.collections.cv.modules.trainables.convnet_encoder import ConvNetEncoder
-from nemo.collections.cv.modules.trainables.feed_forward_network import FeedForwardNetwork
+from nemo.collections.cv.modules.data_layers import CIFAR10DataLayer
+from nemo.collections.cv.modules.losses import NLLLoss
+from nemo.collections.cv.modules.non_trainables import NonLinearity, ReshapeTensor
+from nemo.collections.cv.modules.trainables import ConvNetEncoder, FeedForwardNetwork
 from nemo.core import (
     DeviceType,
     NeuralGraph,
@@ -38,24 +37,26 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    # 0. Instantiate Neural Factory.
+    # Instantiate Neural Factory.
     nf = NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.CPU)
 
-    # Data layers for training and validation.
-    dl = CIFAR10DataLayer(train=True)
-    # Model.
+    # Data layer for training.
+    cifar10_dl = CIFAR10DataLayer(train=True)
+    # The "model".
     cnn = ConvNetEncoder(input_depth=3, input_height=32, input_width=32)
     reshaper = ReshapeTensor(input_sizes=[-1, 16, 2, 2], output_sizes=[-1, 64])
-    ffn = FeedForwardNetwork(input_size=64, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
+    ffn = FeedForwardNetwork(input_size=64, output_size=10, dropout_rate=0.1)
+    nl = NonLinearity(type="logsoftmax", sizes=[-1, 10])
     # Loss.
     nll_loss = NLLLoss()
 
-    # 2. Create a training graph.
+    # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
-        img, tgt = dl()
+        img, tgt = cifar10_dl()
         feat_map = cnn(inputs=img)
         res_img = reshaper(inputs=feat_map)
-        pred = ffn(inputs=res_img)
+        logits = ffn(inputs=res_img)
+        pred = nl(inputs=logits)
         loss = nll_loss(predictions=pred, targets=tgt)
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss

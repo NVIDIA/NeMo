@@ -19,9 +19,9 @@ import argparse
 from torch import max, mean, stack, tensor
 
 import nemo.utils.argparse as nm_argparse
-from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
-from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
-from nemo.collections.cv.modules.trainables.lenet5 import LeNet5
+from nemo.collections.cv.modules.data_layers import MNISTDataLayer
+from nemo.collections.cv.modules.losses import NLLLoss
+from nemo.collections.cv.modules.trainables import LeNet5
 from nemo.core import (
     DeviceType,
     EvaluatorCallback,
@@ -38,18 +38,18 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    # 0. Instantiate Neural Factory.
+    # Instantiate Neural Factory.
     nf = NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.GPU)
 
     # Data layers for training and validation.
     dl = MNISTDataLayer(height=32, width=32, train=True)
     dl_e = MNISTDataLayer(height=32, width=32, train=False)
-    # Model.
+    # The "model".
     lenet5 = LeNet5()
     # Loss.
     nll_loss = NLLLoss()
 
-    # 2. Create a training graph.
+    # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
         x, y = dl()
         p = lenet5(images=x)
@@ -57,13 +57,13 @@ if __name__ == "__main__":
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss
 
-    # 3. Create a validation graph, starting from the second data layer.
+    # Create a validation graph, starting from the second data layer.
     with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
         x, y = dl_e()
         p = lenet5(images=x)
         loss_e = nll_loss(predictions=p, targets=y)
 
-    # 4. Create the callbacks.
+    # Create the callbacks.
     def eval_loss_per_batch_callback(tensors, global_vars):
         if "eval_loss" not in global_vars.keys():
             global_vars["eval_loss"] = []

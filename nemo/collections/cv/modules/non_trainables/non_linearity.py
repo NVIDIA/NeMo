@@ -14,44 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-# Copyright (C) tkornuta, IBM Corporation 2019
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# =============================================================================
 
-__author__ = "Tomasz Kornuta"
 
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/transforms/reshape_tensor.py
-"""
+import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, NeuralType, VoidType
+from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, VoidType
 from nemo.utils import logging
-from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['ReshapeTensor']
+__all__ = ['NonLinearity']
 
 
-class ReshapeTensor(NonTrainableNM):
+class NonLinearity(NonTrainableNM):
     """
-    Class responsible for reshaping the input tensor.
+    Class responsible for applying additional non-linearity along the last axis of the input tensor.
 
     """
 
-    def __init__(self, input_sizes, output_sizes, name=None):
+    def __init__(self, type="logsoftmax", sizes=[-1], name=None):
         """
         Initializes the object.
 
@@ -59,19 +40,15 @@ class ReshapeTensor(NonTrainableNM):
         # Call constructor of parent classes.
         NonTrainableNM.__init__(self, name=name)
 
-        # Validate params.
-        if type(input_sizes) != list or len(input_sizes) < 2:
-            raise ConfigurationError(
-                "'input_sizes' must be at least a list with two values (received {})".format(self.input_sizes)
-            )
-        if type(output_sizes) != list or len(output_sizes) < 2:
-            raise ConfigurationError(
-                "'output_sizes' must be at least a list with two values (received {})".format(self.output_sizes)
-            )
+        # Store params.
+        self._type = type
+        self._sizes = sizes
 
-        # Get input and output shapes from configuration.
-        self._input_sizes = input_sizes
-        self._output_sizes = output_sizes
+        # Apply the non-linearity along the last dimension.
+        # TODO: if self._type != "logsoftmax"
+        assert type == "logsoftmax"
+        dim = len(sizes) - 1
+        self._non_linearity = torch.nn.LogSoftmax(dim=dim)
 
     @property
     @add_port_docs()
@@ -82,7 +59,7 @@ class ReshapeTensor(NonTrainableNM):
         """
         # Prepare list of axes.
         axes = [AxisType(kind=AxisKind.Batch)]
-        for size in self._input_sizes[1:]:
+        for size in self._sizes[1:]:
             axes.append(AxisType(kind=AxisKind.Any, size=size))
         # Return neural type.
         return {"inputs": NeuralType(axes, VoidType())}
@@ -95,10 +72,11 @@ class ReshapeTensor(NonTrainableNM):
         """
         # Prepare list of axes.
         axes = [AxisType(kind=AxisKind.Batch)]
-        for size in self._output_sizes[1:]:
+        for size in self._sizes[1:]:
             axes.append(AxisType(kind=AxisKind.Any, size=size))
         # Return neural type.
-        return {"outputs": NeuralType(axes, VoidType())}
+        # TODO: if self._type != "logsoftmax"
+        return {"outputs": NeuralType(axes, LogprobsType())}
 
     def forward(self, inputs):
         """
@@ -114,4 +92,5 @@ class ReshapeTensor(NonTrainableNM):
         # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
 
         # Reshape.
-        return inputs.view(self._output_sizes)
+        # TODO: if self._type != "logsoftmax"
+        return self._non_linearity(inputs)
