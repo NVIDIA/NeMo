@@ -31,9 +31,9 @@ parser = ArgumentParser()
 parser.add_argument(
     "--asr_model",
     type=str,
-    default="QuartzNet15x5-En-BASE",
+    default="QuartzNet15x5-En",
     required=True,
-    help="Pass: 'QuartzNet15x5-En-BASE', 'QuartzNet15x5-Zh-BASE', or 'JasperNet10x5-En-Base'",
+    help="Pass: 'QuartzNet15x5-En', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En'",
 )
 parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
 parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
@@ -82,7 +82,7 @@ def main():
     logging.info("Greedy WER {:.2f}%".format(wer * 100))
     if args.wer_target is not None:
         if args.wer_target < wer:
-            raise ValueError(f"Resulting WER {wer} is higher than targer {args.wer_target}")
+            raise ValueError(f"Resulting WER {wer} is higher than the target {args.wer_target}")
 
 
 if __name__ == '__main__':
