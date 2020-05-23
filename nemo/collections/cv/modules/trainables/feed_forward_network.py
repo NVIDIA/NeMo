@@ -145,7 +145,7 @@ class FeedForwardNetwork(TrainableNM):
         # Prepare list of axes.
         axes = [AxisType(kind=AxisKind.Batch)]
         # Add the "additional dimensions".
-        for size in range(self._dimensions)[1:-1]:
+        for _ in range(self._dimensions)[1:-1]:
             axes.append(AxisType(kind=AxisKind.Any))
         # Add the last axis: input_size
         axes.append(AxisType(kind=AxisKind.Any, size=self._input_size))
@@ -161,7 +161,7 @@ class FeedForwardNetwork(TrainableNM):
         # Prepare list of axes.
         axes = [AxisType(kind=AxisKind.Batch)]
         # Add the "additional dimensions".
-        for size in range(self._dimensions)[1:-1]:
+        for _ in range(self._dimensions)[1:-1]:
             axes.append(AxisType(kind=AxisKind.Any))
         # Add the last axis: input_size
         axes.append(AxisType(kind=AxisKind.Any, size=self._output_size))
