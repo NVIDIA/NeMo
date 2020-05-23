@@ -329,15 +329,15 @@ def write_predictions_to_file(
     for idx, prediction in enumerate(predictions):
         if not prediction["is_real_example"]:
             continue
-        _, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
+        eval_dataset, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
         all_predictions[(dialog_id, turn_id, service_name)] = prediction
-    logging.info(f'Predictions for {idx} examples are getting processed.')
+    logging.info(f'Predictions for {idx} examples in {eval_dataset} dataset are getting processed.')
 
     # Read each input file and write its predictions.
     for input_file_path in input_json_files:
         with open(input_file_path) as f:
             dialogs = json.load(f)
-            logging.info(f'{input_file_path} file is loaded')
+            logging.debug(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
                 if state_tracker == 'baseline':

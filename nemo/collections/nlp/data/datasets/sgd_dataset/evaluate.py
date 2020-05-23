@@ -27,8 +27,8 @@ import json
 
 import numpy as np
 
-import nemo
 import nemo.collections.nlp.data.datasets.sgd_dataset.metrics as metrics
+from nemo.utils import logging
 
 __all__ = [
     'get_in_domain_services',
@@ -74,7 +74,7 @@ def get_dataset_as_dict(file_path_patterns):
     for fp in list_fp:
         if PER_FRAME_OUTPUT_FILENAME in fp:
             continue
-        nemo.logging.info("Loading file: %s", fp)
+        logging.debug("Loading file: %s", fp)
         with open(fp) as f:
             data = json.load(f)
             if isinstance(data, list):
@@ -113,7 +113,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
 
     # Ensure the dialogs in dataset_hyp also occur in dataset_ref.
     assert set(dataset_hyp.keys()).issubset(set(dataset_ref.keys()))
-    nemo.logging.info("len(dataset_hyp)=%d, len(dataset_ref)=%d", len(dataset_hyp), len(dataset_ref))
+    logging.debug("len(dataset_hyp)=%d, len(dataset_ref)=%d", len(dataset_hyp), len(dataset_ref))
 
     # Store metrics for every frame for debugging.
     per_frame_metric = {}
@@ -137,8 +137,8 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                 continue
 
             if turn_ref["utterance"] != turn_hyp["utterance"]:
-                nemo.logging.info("Ref utt: %s", turn_ref["utterance"])
-                nemo.logging.info("Hyp utt: %s", turn_hyp["utterance"])
+                logging.debug("Ref utt: %s", turn_ref["utterance"])
+                logging.debug("Hyp utt: %s", turn_hyp["utterance"])
                 raise ValueError("Utterances don't match for dialogue with id {}".format(dial_id))
 
             hyp_frames_by_service = {frame["service"]: frame for frame in turn_hyp["frames"]}

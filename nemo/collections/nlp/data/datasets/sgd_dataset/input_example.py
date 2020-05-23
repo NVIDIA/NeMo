@@ -31,6 +31,8 @@ STATUS_OFF = 0
 STATUS_ACTIVE = 1
 STATUS_DONTCARE = 2
 
+IGNORE_INDEX = -100
+
 
 class InputExample(object):
     """An example for training/inference."""
@@ -91,13 +93,13 @@ class InputExample(object):
         # Number of categorical slots present in the service.
         self.num_categorical_slots = 0
         # The status of each categorical slot in the service.
-        self.categorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_CAT_SLOT"]
+        self.categorical_slot_status = [IGNORE_INDEX] * schema_config["MAX_NUM_CAT_SLOT"]
         # Masks out categorical status for padded cat slots
         self.cat_slot_status_mask = [0] * len(self.categorical_slot_status)
         # Number of values taken by each categorical slot.
         self.num_categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
         # The index of the correct value for each categorical slot.
-        self.categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
+        self.categorical_slot_values = [IGNORE_INDEX] * schema_config["MAX_NUM_CAT_SLOT"]
         # Masks out categorical slots values for slots not used in the service
         self.cat_slot_values_mask = [
             [0] * schema_config["MAX_NUM_VALUE_PER_CAT_SLOT"] for _ in range(schema_config["MAX_NUM_CAT_SLOT"])

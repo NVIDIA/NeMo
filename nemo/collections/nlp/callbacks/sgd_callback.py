@@ -27,6 +27,7 @@ import torch
 
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging
+from nemo.collections.nlp.data.datasets.sgd_dataset.data_processor import FILE_RANGES
 from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import (
     ALL_SERVICES,
     PER_FRAME_OUTPUT_FILENAME,
@@ -150,7 +151,7 @@ def combine_predictions_in_example(predictions, batch_size):
 
 def eval_epochs_done_callback(
     global_vars,
-    input_json_files,
+    task_name,
     eval_dataset,
     data_dir,
     prediction_dir,
@@ -166,6 +167,11 @@ def eval_epochs_done_callback(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
     )
     ##############
+    # we'll write predictions to file in DSTC8 format during evaluation callback
+    input_json_files = [
+        os.path.join(data_dir, eval_dataset, 'dialogues_{:03d}.json'.format(fid))
+        for fid in FILE_RANGES[task_name][eval_dataset]
+    ]
     pred_utils.write_predictions_to_file(
         global_vars['predictions'],
         input_json_files,

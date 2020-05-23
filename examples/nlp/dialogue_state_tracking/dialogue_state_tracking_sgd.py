@@ -156,7 +156,11 @@ parser.add_argument(
 parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
-    "--eval_dataset", type=str, default="dev", choices=["dev", "test"], help="Dataset split for evaluation."
+    "--eval_dataset",
+    type=str,
+    default="dev_test",
+    choices=["dev", "test", "dev_test"],
+    help="Dataset split for evaluation.",
 )
 parser.add_argument(
     "--save_epoch_freq",
@@ -233,7 +237,7 @@ args = parser.parse_args()
 logging.info(args)
 
 if args.debug_mode:
-    logging.setLevel(10)
+    logging.setLevel("DEBUG")
 
 if args.task_name == "multiwoz":
     schema_config = {
@@ -357,12 +361,10 @@ def create_pipeline(dataset_split='train'):
             req_slot_mask=data.req_slot_mask,
             logit_cat_slot_status=logit_cat_slot_status,
             categorical_slot_status=data.categorical_slot_status,
-            cat_slot_status_mask=data.cat_slot_status_mask,
             logit_cat_slot_value=logit_cat_slot_value,
             categorical_slot_values=data.categorical_slot_values,
             logit_noncat_slot_status=logit_noncat_slot_status,
             noncategorical_slot_status=data.noncategorical_slot_status,
-            noncat_slot_status_mask=data.noncat_slot_status_mask,
             logit_noncat_slot_start=logit_noncat_slot_start,
             logit_noncat_slot_end=logit_noncat_slot_end,
             noncategorical_slot_value_start=data.noncategorical_slot_value_start,
@@ -396,7 +398,6 @@ def create_pipeline(dataset_split='train'):
 
 steps_per_epoch, train_tensors = create_pipeline()
 logging.info(f'Steps per epoch: {steps_per_epoch}')
-_, eval_tensors = create_pipeline(dataset_split=args.eval_dataset)
 
 # Create trainer and execute training action
 train_callback = SimpleLossLoggerCallback(
@@ -407,37 +408,41 @@ train_callback = SimpleLossLoggerCallback(
     step_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
 )
 
-# we'll write predictions to file in DSTC8 format during evaluation callback
-input_json_files = [
-    os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
-    for fid in data_processor.FILE_RANGES[args.task_name][args.eval_dataset]
-]
-schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
-# Write predictions to file in DSTC8 format.
-prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
-output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
-os.makedirs(prediction_dir, exist_ok=True)
+def get_eval_callback(eval_dataset):
+    # Write predictions to file in DSTC8 format.
+    prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, args.task_name))
+    os.makedirs(prediction_dir, exist_ok=True)
+    output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
 
-eval_callback = EvaluatorCallback(
-    eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y, schema_preprocessor, args.eval_dataset),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x,
-        input_json_files,
-        args.eval_dataset,
-        args.data_dir,
-        prediction_dir,
-        output_metric_file,
-        args.state_tracker,
-        args.debug_mode,
-        schema_preprocessor,
-        args.joint_acc_across_turn,
-        args.no_fuzzy_match,
-    ),
-    tb_writer=nf.tb_writer,
-    eval_step=args.eval_epoch_freq * steps_per_epoch,
-)
+    _, eval_tensors = create_pipeline(dataset_split=eval_dataset)
+    eval_callback = EvaluatorCallback(
+        eval_tensors=eval_tensors,
+        user_iter_callback=lambda x, y: eval_iter_callback(x, y, schema_preprocessor, eval_dataset),
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x,
+            args.task_name,
+            eval_dataset,
+            args.data_dir,
+            prediction_dir,
+            output_metric_file,
+            args.state_tracker,
+            args.debug_mode,
+            schema_preprocessor,
+            args.joint_acc_across_turn,
+            args.no_fuzzy_match,
+        ),
+        tb_writer=nf.tb_writer,
+        eval_step=args.eval_epoch_freq * steps_per_epoch,
+    )
+    return eval_callback
+
+
+if args.eval_dataset == 'dev_test':
+    eval_callbacks = [get_eval_callback('dev')]
+    eval_callbacks.append(get_eval_callback('test'))
+else:
+    eval_callbacks = [get_eval_callback(args.eval_dataset)]
 
 ckpt_callback = CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1
@@ -449,7 +454,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=train_tensors,
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=[train_callback, ckpt_callback] + eval_callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={
