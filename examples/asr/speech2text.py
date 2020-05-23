@@ -25,9 +25,9 @@ parser = ArgumentParser()
 parser.add_argument(
     "--asr_model",
     type=str,
-    default="QuartzNet15x5-En-BASE",
+    default="QuartzNet15x5-En",
     required=True,
-    help="Pass: 'QuartzNet15x5-En-BASE', 'QuartzNet15x5-Zh-BASE', or 'JasperNet10x5-En-Base' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
+    help="Pass: 'QuartzNet15x5', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
 )
 parser.add_argument(
     "--amp_opt_level",
@@ -129,6 +129,7 @@ def main():
 
     # Evaluation
     if args.eval_datasets is not None and args.eval_freq is not None:
+        asr_model.eval()
         logging.info(f"Will perform evaluation every {args.eval_freq} steps.")
         for ind, eval_dataset in enumerate(args.eval_datasets):
             eval_data_layer = nemo_asr.AudioToTextDataLayer(
@@ -154,6 +155,7 @@ def main():
     steps_in_epoch = len(train_data_layer) / (args.batch_size * args.iter_per_step * nf.world_size)
     lr_policy = CosineAnnealing(total_steps=args.num_epochs * steps_in_epoch, warmup_ratio=args.warmup_ratio)
 
+    asr_model.train()
     nf.train(
         tensors_to_optimize=[loss],
         callbacks=callbacks,

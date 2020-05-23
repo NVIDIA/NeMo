@@ -17,9 +17,14 @@ from functools import partial
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.helpers import monitor_asr_train_progress, process_evaluation_batch, process_evaluation_epoch
-from nemo.collections.asr.helpers import post_process_predictions, post_process_transcripts, word_error_rate
-
+from nemo.collections.asr.helpers import (
+    monitor_asr_train_progress,
+    post_process_predictions,
+    post_process_transcripts,
+    process_evaluation_batch,
+    process_evaluation_epoch,
+    word_error_rate,
+)
 
 # Usage and Command line arguments
 parser = ArgumentParser()
@@ -35,6 +40,7 @@ parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size t
 
 logging = nemo.logging
 args = parser.parse_args()
+
 
 def main():
     # Setup NeuralModuleFactory to control training
@@ -73,6 +79,7 @@ def main():
 
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
     logging.info("Greedy WER {:.2f}%".format(wer * 100))
+
 
 if __name__ == '__main__':
     main()
