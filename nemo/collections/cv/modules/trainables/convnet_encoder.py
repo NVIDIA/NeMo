@@ -38,7 +38,6 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/con
 
 
 import numpy as np
-import torch
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
@@ -337,19 +336,19 @@ class ConvNetEncoder(TrainableNM):
         out_conv1 = self._conv1(inputs)
 
         # apply max_pooling and relu
-        out_maxpool1 = torch.nn.functional.relu(self._maxpool1(out_conv1))
+        out_maxpool1 = nn.functional.relu(self._maxpool1(out_conv1))
 
         # apply Convolutional layer 2
         out_conv2 = self._conv2(out_maxpool1)
 
         # apply max_pooling and relu
-        out_maxpool2 = torch.nn.functional.relu(self._maxpool2(out_conv2))
+        out_maxpool2 = nn.functional.relu(self._maxpool2(out_conv2))
 
         # apply Convolutional layer 3
         out_conv3 = self._conv3(out_maxpool2)
 
         # apply max_pooling and relu
-        out_maxpool3 = torch.nn.functional.relu(self._maxpool3(out_conv3))
+        out_maxpool3 = nn.functional.relu(self._maxpool3(out_conv3))
 
         # Return output.
         return out_maxpool3

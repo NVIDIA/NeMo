@@ -16,4 +16,5 @@
 
 from nemo.collections.cv.modules.trainables.convnet_encoder import *
 from nemo.collections.cv.modules.trainables.feed_forward_network import *
+from nemo.collections.cv.modules.trainables.generic_image_encoder import *
 from nemo.collections.cv.modules.trainables.lenet5 import *
