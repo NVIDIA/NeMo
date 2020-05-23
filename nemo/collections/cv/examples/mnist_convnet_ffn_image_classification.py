@@ -15,13 +15,8 @@
 # =============================================================================
 
 import argparse
-from copy import deepcopy
-
-import numpy as np
-from torch import max, mean, stack, tensor
 
 import nemo.utils.argparse as nm_argparse
-from nemo.backends import get_state_dict
 from nemo.collections.cv.modules.data_layers.mnist_datalayer import MNISTDataLayer
 from nemo.collections.cv.modules.losses.nll_loss import NLLLoss
 from nemo.collections.cv.modules.non_trainables.reshape_tensor import ReshapeTensor
