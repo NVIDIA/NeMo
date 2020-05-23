@@ -279,6 +279,42 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             Defaults to 31.
     """
 
+    def __init__(
+        self,
+        n_mel_channels: int,
+        n_frames_per_step: int = 1,
+        encoder_embedding_dim: int = 512,
+        gate_threshold: float = 0.5,
+        prenet_dim: int = 256,
+        max_decoder_steps: int = 1000,
+        decoder_rnn_dim: int = 1024,
+        p_decoder_dropout: float = 0.1,
+        p_attention_dropout: float = 0.1,
+        attention_rnn_dim: int = 1024,
+        attention_dim: int = 128,
+        attention_location_n_filters: int = 32,
+        attention_location_kernel_size: int = 31,
+        prenet_p_dropout: float = 0.5,
+        force: bool = False,
+    ):
+        super().__init__(
+            n_mel_channels=n_mel_channels,
+            n_frames_per_step=n_frames_per_step,
+            encoder_embedding_dim=encoder_embedding_dim,
+            gate_threshold=gate_threshold,
+            prenet_dim=prenet_dim,
+            max_decoder_steps=max_decoder_steps,
+            decoder_rnn_dim=decoder_rnn_dim,
+            p_decoder_dropout=p_decoder_dropout,
+            p_attention_dropout=p_attention_dropout,
+            attention_rnn_dim=attention_rnn_dim,
+            attention_dim=attention_dim,
+            attention_location_n_filters=attention_location_n_filters,
+            attention_location_kernel_size=attention_location_kernel_size,
+            prenet_p_dropout=prenet_p_dropout,
+            force=force,
+        )
+
     @property
     @add_port_docs()
     def input_ports(self):
@@ -482,6 +518,9 @@ class Tacotron2Loss(LossNM):
 class MakeGate(NonTrainableNM):
     """MakeGate is a helper Neural Module that makes the target stop value.
     """
+
+    def __init__(self):
+        super().__init__()
 
     @property
     @add_port_docs()

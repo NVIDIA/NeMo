@@ -20,9 +20,9 @@ import warnings
 from contextlib import contextmanager
 
 # from nemo.constants import NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR
-from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR
+from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, NEMO_ENV_VARNAME_TESTING
 from nemo.utils.env_var_parsing import get_envbool, get_envint
-from nemo.utils.formatters.base import BaseNeMoFormatter
+from nemo.utils.formatters.base import BaseNeMoFormatter, DebugNeMoFormatter
 from nemo.utils.metaclasses import Singleton
 
 __all__ = ["Logger", "LogMode"]
@@ -88,7 +88,17 @@ class Logger(metaclass=Singleton):
                 self._logger = _logging.getLogger("nemo_logger")
                 # By default, silence all loggers except the logger for rank 0
                 self.remove_stream_handlers()
-                if get_envint("RANK", 0) == 0:
+                if get_envbool(NEMO_ENV_VARNAME_TESTING, False):
+                    old_factory = _logging.getLogRecordFactory()
+
+                    def record_factory(*args, **kwargs):
+                        record = old_factory(*args, **kwargs)
+                        record.rank = get_envint("RANK", 0)
+                        return record
+
+                    _logging.setLogRecordFactory(record_factory)
+                    self.add_stream_handlers(formatter=DebugNeMoFormatter)
+                elif get_envint("RANK", 0) == 0:
                     self.add_stream_handlers()
 
             finally:
@@ -112,7 +122,7 @@ class Logger(metaclass=Singleton):
         except KeyError:
             pass
 
-    def add_stream_handlers(self):
+    def add_stream_handlers(self, formatter=BaseNeMoFormatter):
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -127,8 +137,6 @@ class Logger(metaclass=Singleton):
             self._handlers["stream_stderr"] = _logging.StreamHandler(sys.stderr)
             self._handlers["stream_stderr"].addFilter(lambda record: record.levelno > _logging.INFO)
 
-        formatter = BaseNeMoFormatter
-
         self._handlers["stream_stdout"].setFormatter(formatter())
         self._logger.addHandler(self._handlers["stream_stdout"])
 
@@ -138,9 +146,9 @@ class Logger(metaclass=Singleton):
         except KeyError:
             pass
 
-    def reset_stream_handler(self):
+    def reset_stream_handler(self, formatter=BaseNeMoFormatter):
         self.remove_stream_handlers()
-        self.add_stream_handlers()
+        self.add_stream_handlers(formatter=formatter)
 
     def add_file_handler(self, log_file):
         if self._logger is None:
