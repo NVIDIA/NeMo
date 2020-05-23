@@ -24,8 +24,10 @@ from nemo.utils import maybe_download_from_cloud
 
 class ASRConvCTCModel(NeMoModel):
     """
-    QuartzNet ASR Model. See: "QuartzNet: Deep Automatic Speech Recognition with 1D Time-Channel Separable Convolutions"
-    https://arxiv.org/abs/1910.10261
+    Generic convolutional CTC-based model with encoder and decoder. It also contains pre-processing module and
+    data augmentation model.
+
+    Example models of this type are: JasperNet and QuartzNet
     """
 
     def __init__(
@@ -62,7 +64,8 @@ class ASRConvCTCModel(NeMoModel):
             self.__training_neural_graph.outputs["log_probs"] = i_log_probs
             self.__training_neural_graph.outputs["encoded_len"] = i_encoded_len
 
-        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.both)
+        # self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.evaluation)
+        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode)
         with self.__evaluation_neural_graph:
             # Copy one input port definitions - using "user" port names.
             self.__evaluation_neural_graph.inputs["input_signal"] = preprocessor.input_ports["input_signal"]
@@ -152,7 +155,7 @@ class ASRConvCTCModel(NeMoModel):
         logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
         result = []
         model = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5-En-BASE",
+            pretrained_model_name="QuartzNet15x5-En",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/QuartzNet15x5-En-Base.nemo",
             description="The model is trained on ~3300 hours of publicly available data and achieves a WER of 3.91% on LibriSpeech dev-clean, and a WER of 10.58% on dev-other.",
             parameters="",
@@ -160,7 +163,7 @@ class ASRConvCTCModel(NeMoModel):
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="QuartzNet15x5-Zh-BASE",
+            pretrained_model_name="QuartzNet15x5-Zh",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/QuartzNet15x5-Zh-Base.nemo",
             description="The model is trained on ai-shell2 mandarin chinese dataset.",
             parameters="",
@@ -168,7 +171,7 @@ class ASRConvCTCModel(NeMoModel):
         result.append(model)
 
         model = PretrainedModelInfo(
-            pretrained_model_name="JasperNet10x5-En-Base",
+            pretrained_model_name="JasperNet10x5-En",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/JasperNet10x5-En-Base.nemo",
             description="The model achieves a WER of 3.46% on LibriSpeech dev-clean, 10.40% on dev-other, 3.69% on test-clean, and 10.49% on test-other.",
             parameters="",
@@ -221,8 +224,14 @@ class ASRConvCTCModel(NeMoModel):
 
 
 class QuartzNet(ASRConvCTCModel):
+    """QuartzNet ASR Model. See: "QuartzNet: Deep Automatic Speech Recognition with 1D Time-Channel Separable Convolutions."
+    https://arxiv.org/abs/1910.10261"""
+
     pass
 
 
 class JasperNet(ASRConvCTCModel):
+    """QuartzNet ASR Model. See: "Jasper: An End-to-End Convolutional Neural Acoustic Model."
+    https://arxiv.org/abs/1904.03288"""
+
     pass
