@@ -60,7 +60,7 @@ def get_value_list_from_dictionary(parameter: str, accepted_values=[]):
     else:
         values = parameter  # list
     if type(values) != list:
-        ConfigurationError("'parameter' must be a list")
+        raise ConfigurationError("'parameter' must be a list")
 
     # Test values one by one.
     if len(accepted_values) > 0:
@@ -89,7 +89,7 @@ def get_value_from_dictionary(parameter: str, accepted_values=[]):
         List of parsed values
     """
     if type(parameter) != str:
-        ConfigurationError("'parameter' must be a string")
+        raise ConfigurationError("'parameter' must be a string")
     # Preprocess parameter value.
     if parameter == '':
         return None

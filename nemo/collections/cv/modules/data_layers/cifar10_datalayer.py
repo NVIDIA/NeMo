@@ -17,7 +17,6 @@
 
 from os.path import expanduser
 
-import torch
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Resize, ToTensor
 

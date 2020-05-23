@@ -19,8 +19,8 @@ import argparse
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers import CIFAR10DataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
-from nemo.collections.cv.modules.non_trainables import NonLinearity, ReshapeTensor
-from nemo.collections.cv.modules.trainables import FeedForwardNetwork, GenericImageEncoder
+from nemo.collections.cv.modules.non_trainables import NonLinearity
+from nemo.collections.cv.modules.trainables import GenericImageEncoder
 from nemo.core import (
     DeviceType,
     NeuralGraph,
