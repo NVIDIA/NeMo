@@ -50,7 +50,7 @@ if __name__ == "__main__":
     dl = CIFAR10DataLayer(train=True)
     # Model.
     cnn = ConvNetEncoder(input_depth=3, input_height=32, input_width=32)
-    reshaper = ReshapeTensor(input_dims=[-1, 16, 2, 2], output_dims=[-1, 64])
+    reshaper = ReshapeTensor(input_sizes=[-1, 16, 2, 2], output_sizes=[-1, 64])
     ffn = FeedForwardNetwork(input_size=64, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
     # Loss.
     nll_loss = NLLLoss()

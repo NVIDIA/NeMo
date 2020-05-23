@@ -39,7 +39,7 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/transforms/reshap
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import NeuralType, VoidType
+from nemo.core.neural_types import NeuralType, AxisType, AxisKind, VoidType
 from nemo.utils import logging
 from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils.decorators import add_port_docs
@@ -53,7 +53,7 @@ class ReshapeTensor(NonTrainableNM):
 
     """
 
-    def __init__(self, input_dims, output_dims, name=None):
+    def __init__(self, input_sizes, output_sizes, name=None):
         """
         Initializes object.
 
@@ -61,9 +61,15 @@ class ReshapeTensor(NonTrainableNM):
         # Call constructor of parent classes.
         NonTrainableNM.__init__(self, name=name)
 
+        # Validate params.
+        if type(input_sizes) != list or len(input_sizes) < 2:
+            raise ConfigurationError("'input_sizes' must be at least a list with two values (received {})".format(self.input_sizes))
+        if type(output_sizes) != list or len(output_sizes) < 2:
+            raise ConfigurationError("'output_sizes' must be at least a list with two values (received {})".format(self.output_sizes))
+
         # Get input and output shapes from configuration.
-        self._input_dims = input_dims
-        self._output_dims = output_dims
+        self._input_sizes = input_sizes
+        self._output_sizes = output_sizes
 
     @property
     @add_port_docs()
@@ -72,9 +78,14 @@ class ReshapeTensor(NonTrainableNM):
         Returns definitions of module input ports.
         Batch of inputs, each represented as index [BATCH_SIZE x ... x INPUT_SIZE]
         """
+        # Prepare list of axes.
+        axes = [AxisType(kind=AxisKind.Batch)]
+        for size in self._input_sizes[1:]:
+            axes.append(AxisType(kind=AxisKind.Any, size=size))
+        # Return neural type.
         return {
-            "inputs": NeuralType(['B'] + ['ANY'] * (len(self._input_dims) - 1), VoidType())
-        }  # TODO: set proper sizes.
+            "inputs": NeuralType(axes, VoidType())
+        }  
 
     @property
     @add_port_docs()
@@ -82,9 +93,14 @@ class ReshapeTensor(NonTrainableNM):
         """
         Returns definitions of module output ports.
         """
+        # Prepare list of axes.
+        axes = [AxisType(kind=AxisKind.Batch)]
+        for size in self._output_sizes[1:]:
+            axes.append(AxisType(kind=AxisKind.Any, size=size))
+        # Return neural type.
         return {
-            "outputs": NeuralType(['B'] + ['ANY'] * (len(self._output_dims) - 1), VoidType())
-        }  # TODO: set proper sizes of consecutive dimensions.
+            "outputs": NeuralType(axes, VoidType())
+        }  
 
     def forward(self, inputs):
         """
@@ -100,4 +116,4 @@ class ReshapeTensor(NonTrainableNM):
         # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
 
         # Reshape.
-        return inputs.view(self._output_dims)
+        return inputs.view(self._output_sizes)

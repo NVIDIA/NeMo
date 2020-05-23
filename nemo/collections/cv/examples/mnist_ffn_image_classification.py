@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # Data layers for training and validation.
     dl = MNISTDataLayer(height=28, width=28, train=True)
     # Model.
-    reshaper = ReshapeTensor(input_dims=[-1, 1, 32, 32], output_dims=[-1, 784])
+    reshaper = ReshapeTensor(input_sizes=[-1, 1, 32, 32], output_sizes=[-1, 784])
     ffn = FeedForwardNetwork(
         input_size=784, output_size=10, hidden_sizes=[100, 100], dropout_rate=0.1, final_logsoftmax=True
     )

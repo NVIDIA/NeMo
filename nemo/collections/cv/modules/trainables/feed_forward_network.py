@@ -39,7 +39,7 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/general_us
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import LogprobsType, NeuralType, VoidType
+from nemo.core.neural_types import LogprobsType, NeuralType, AxisType, AxisKind, VoidType
 from nemo.utils import logging
 from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils.decorators import add_port_docs
@@ -142,7 +142,17 @@ class FeedForwardNetwork(TrainableNM):
         Returns definitions of module input ports.
         Batch of inputs, each represented as index [BATCH_SIZE x ... x INPUT_SIZE]
         """
-        return {"inputs": NeuralType(['B'] + ['ANY'] * (self._dimensions - 1), VoidType())}
+        # Prepare list of axes.
+        axes = [AxisType(kind=AxisKind.Batch)]
+        # Add the "additional dimensions".
+        for size in range(self._dimensions)[1:-1]:
+            axes.append(AxisType(kind=AxisKind.Any))
+        # Add the last axis: input_size
+        axes.append(AxisType(kind=AxisKind.Any, size=self._input_size))
+        # Return neural type.
+        return {
+            "inputs": NeuralType(axes, VoidType())
+        }  
 
     @property
     @add_port_docs()
@@ -150,14 +160,20 @@ class FeedForwardNetwork(TrainableNM):
         """
         Returns definitions of module output ports.
         """
+        # Prepare list of axes.
+        axes = [AxisType(kind=AxisKind.Batch)]
+        # Add the "additional dimensions".
+        for size in range(self._dimensions)[1:-1]:
+            axes.append(AxisType(kind=AxisKind.Any))
+        # Add the last axis: input_size
+        axes.append(AxisType(kind=AxisKind.Any, size=self._output_size))
+        # Return neural type.
         if self._final_logsoftmax:
             # Batch of predictions, each represented as probability distribution over classes.
-            # [BATCH_SIZE x ... x OUTPUT_SIZE]
-            return {"inputs": NeuralType(['B'] + ['ANY'] * (self._dimensions - 1), LogprobsType())}
+            return {"outputs": NeuralType(axes, LogprobsType())}
         else:
-            # Batch of logits.
-            # [BATCH_SIZE x ... x OUTPUT_SIZE]
-            return {"outputs": NeuralType(['B'] + ['ANY'] * (self._dimensions - 1), VoidType())}
+            # Batch of "logits" of "any type".
+            return {"outputs": NeuralType(axes, VoidType())}
 
     def forward(self, inputs):
         """

@@ -50,7 +50,7 @@ if __name__ == "__main__":
     dl = MNISTDataLayer(height=28, width=28, train=True)
     # Model.
     cnn = ConvNetEncoder(input_depth=1, input_height=28, input_width=28)
-    reshaper = ReshapeTensor(input_dims=[-1, 16, 1, 1], output_dims=[-1, 16])
+    reshaper = ReshapeTensor(input_sizes=[-1, 16, 1, 1], output_sizes=[-1, 16])
     ffn = FeedForwardNetwork(input_size=16, output_size=10, dropout_rate=0.1, final_logsoftmax=True)
     # Loss.
     nll_loss = NLLLoss()
