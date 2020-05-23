@@ -62,7 +62,7 @@ class ASRConvCTCModel(NeMoModel):
             self.__training_neural_graph.outputs["log_probs"] = i_log_probs
             self.__training_neural_graph.outputs["encoded_len"] = i_encoded_len
 
-        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.evaluation)
+        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.both)
         with self.__evaluation_neural_graph:
             # Copy one input port definitions - using "user" port names.
             self.__evaluation_neural_graph.inputs["input_signal"] = preprocessor.input_ports["input_signal"]
