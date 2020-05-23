@@ -39,7 +39,7 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/general_us
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import LogprobsType, NeuralType, AxisType, AxisKind, VoidType
+from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, VoidType
 from nemo.utils import logging
 from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils.decorators import add_port_docs
@@ -150,9 +150,7 @@ class FeedForwardNetwork(TrainableNM):
         # Add the last axis: input_size
         axes.append(AxisType(kind=AxisKind.Any, size=self._input_size))
         # Return neural type.
-        return {
-            "inputs": NeuralType(axes, VoidType())
-        }  
+        return {"inputs": NeuralType(axes, VoidType())}
 
     @property
     @add_port_docs()
