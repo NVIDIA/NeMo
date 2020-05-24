@@ -6,7 +6,6 @@ This model for 16 kHz speech was trained on multiple datasets including about 17
 Fisher and Switchboard datasets. In our experiments, we found that this model's accuracy on 8 kHz
 speech is at par with a model trained exclusively on narrowband speech.
 
-If your application is based on telephony speech, you would need to upsample your audio to 16 kHz to use the model mentioned above. For best accuracy
-in your application, you may choose to :ref:`fine-tune <fine-tune>` this model using data collected from your application.
+For best accuracy in your application, you may choose to :ref:`fine-tune <fine-tune>` this model using data collected from your application.
 
 
