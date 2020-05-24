@@ -10,5 +10,6 @@ torchvision
 wget
 wrapt
 ruamel.yaml
-sklearn
+scikit-learn
 scipy
+
