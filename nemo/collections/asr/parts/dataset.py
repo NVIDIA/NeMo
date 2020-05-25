@@ -9,9 +9,9 @@ import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collctions.asr.parts.features import WaveformFeaturizer
-from nemo.collctions.asr.parts.perturb import AudioAugmentor, perturbation_types
 from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.asr.parts.perturb import AudioAugmentor, perturbation_types
 from nemo.collections.nlp.data.tokenizers import NemoBertTokenizer, SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.utils.decorators import deprecated
 
