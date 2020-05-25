@@ -431,11 +431,7 @@ transcript_n}
             int_values=int_values,
         )
         super().__init__(
-            batch_size=batch_size,
-            pad_id=pad_id,
-            drop_last=drop_last,
-            shuffle=shuffle,
-            num_workers=num_workers,
+            batch_size=batch_size, pad_id=pad_id, drop_last=drop_last, shuffle=shuffle, num_workers=num_workers,
         )
 
 
@@ -533,11 +529,7 @@ transcript_n}
             int_values=int_values,
         )
         super().__init__(
-            batch_size=batch_size,
-            pad_id=pad_id,
-            drop_last=drop_last,
-            shuffle=shuffle,
-            num_workers=num_workers,
+            batch_size=batch_size, pad_id=pad_id, drop_last=drop_last, shuffle=shuffle, num_workers=num_workers,
         )
 
 
