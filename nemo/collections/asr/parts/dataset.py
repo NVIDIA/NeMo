@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 
 from nemo import logging
 from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.nlp.data.tokenizers import NemoBertTokenizer, SentencePieceTokenizer, YouTokenToMeTokenizer
 
 
 def seq_collate_fn(batch, token_pad_value=0):
@@ -166,6 +167,7 @@ class AudioDataset(Dataset):
         load_audio: Boolean flag indicate whether do or not load audio
     """
 
+    @deprecated(version=0.12)
     def __init__(
         self,
         manifest_filepath,
@@ -226,6 +228,192 @@ class AudioDataset(Dataset):
 
     def __len__(self):
         return len(self.collection)
+
+
+class _AudioDataset(Dataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        labels: String containing all the possible characters to map to
+        featurizer: Initialized featurizer class that converts paths of
+            audio to feature tensors
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        blank_index: blank character index, default = -1
+        unk_index: unk_character index, default = -1
+        normalize: whether to normalize transcript text (default): True
+        bos_id: Id of beginning of sequence symbol to append if not None
+        eos_id: Id of end of sequence symbol to append if not None
+        load_audio: Boolean flag indicate whether do or not load audio
+    """
+
+    def __init__(
+        self,
+        manifest_filepath,
+        parser,
+        max_duration=None,
+        min_duration=None,
+        max_utts=0,
+        trim=False,
+        bos_id=None,
+        eos_id=None,
+        load_audio=True,
+        augmentor=None,
+        sample_rate=16000,
+        int_values=False,
+    ):
+        if augmentor is not None:
+            augmentor = _process_augmentations(augmentor)
+
+        self._featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
+        self.collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath.split(','),
+            parser=parser,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+        )
+
+        self.featurizer = featurizer
+        self.trim = trim
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+        self.load_audio = load_audio
+
+    def __getitem__(self, index):
+        sample = self.collection[index]
+        if self.load_audio:
+            offset = sample.offset
+
+            if offset is None:
+                offset = 0
+
+            features = self.featurizer.process(
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
+            )
+            f, fl = features, torch.tensor(features.shape[0]).long()
+        else:
+            f, fl = None, None
+
+        t, tl = sample.text_tokens, len(sample.text_tokens)
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __len__(self):
+        return len(self.collection)
+
+
+class AudioCharDataset(_AudioDataset):
+    def __init__(
+        self,
+        manifest_filepath,
+        labels,
+        max_duration=None,
+        min_duration=None,
+        max_utts=0,
+        blank_index=-1,
+        unk_index=-1,
+        normalize=True,
+        trim=False,
+        bos_id=None,
+        eos_id=None,
+        load_audio=True,
+        parser='en',
+        augmentor=None,
+        sample_rate=16000,
+        int_values=False,
+    ):
+        parser=parsers.make_parser(
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+        )
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            parser=parser,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            load_audio=load_audio,
+            augmentor=augmentor,
+            sample_rate=sample_rate,
+            int_values=int_values,
+        )
+
+
+class AudioBPEDataset(_AudioDataset):
+    def __init__(
+        self,
+        manifest_filepath,
+        tokenizer,
+        max_duration=None,
+        min_duration=None,
+        max_utts=0,
+        trim=False,
+        bos_id=None,
+        eos_id=None,
+        load_audio=True,
+        parser='en',
+        augmentor=None,
+        sample_rate=16000,
+        int_values=False,
+    ):
+        class TokenizerWrapper():
+            def __init__(self, tokenizer):
+                self._tokenizer = tokenizer
+                if isinstance(self._tokenizer, YouTokenToMeTokenizer):
+                    self.bos_id = self._tokenizer.bos_id()
+                    self.eos_id = self._tokenizer.eos_id()
+                elif isinstance(self._tokenizer, SentencePieceTokenizer):
+                    self.bos_id = self._tokenizer.token_to_id("<s>")
+                    self.eos_id = self._tokenizer.token_to_id("</s>")
+                elif isinstance(self._tokenizer, NemoBertTokenizer):
+                    self.bos_id = self._tokenizer.bos_id()
+                    self.eos_id = self._tokenizer.eos_id()
+
+            def __call__(self, text):
+                t = self._tokenizer.text_to_ids(text)
+                t = [self.bos_id] + t + [self.eos_id]
+                return t
+
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            parser=TokenizerWrapper(tokenizer),
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            load_audio=load_audio,
+            augmentor=augmentor,
+            sample_rate=sample_rate,
+            int_values=int_values,
+        )
 
 
 class KaldiFeatureDataset(Dataset):
@@ -405,7 +593,7 @@ class AudioLabelDataset(Dataset):
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
         labels (Optional[list]): String containing all the possible labels to map to
-            if None then automatically picks from ASRSpeechLabel collection. 
+            if None then automatically picks from ASRSpeechLabel collection.
         featurizer: Initialized featurizer class that converts paths of
             audio to feature tensors
         max_duration: If audio exceeds this length, do not include in dataset
