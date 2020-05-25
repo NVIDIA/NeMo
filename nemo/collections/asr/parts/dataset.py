@@ -1,17 +1,17 @@
 # Audio dataset and corresponding functions taken from Patter
 # https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
-import os
 import copy
+import os
 
 import kaldi_io
 import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.asr.parts import collections, parsers
-from nemo.collctions.asr.parts.perturb import AudioAugmentor, perturbation_types
 from nemo.collctions.asr.parts.features import WaveformFeaturizer
+from nemo.collctions.asr.parts.perturb import AudioAugmentor, perturbation_types
+from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.nlp.data.tokenizers import NemoBertTokenizer, SentencePieceTokenizer, YouTokenToMeTokenizer
 from nemo.utils.decorators import deprecated
 
@@ -415,9 +415,7 @@ class _AudioDataset(Dataset):
         if augmentor is not None:
             augmentor = _process_augmentations(augmentor)
 
-        self.featurizer = WaveformFeaturizer(
-            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
-        )
+        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
             parser=parser,
@@ -472,14 +470,14 @@ class AudioCharDataset(_AudioDataset):
         sample_rate=16000,
         int_values=False,
     ):
-        parser=parsers.make_parser(
+        parser = parsers.make_parser(
             labels=labels,
             name=parser,
             unk_id=unk_index,
             blank_id=blank_index,
             do_normalize=normalize,
             bos_id=bos_id,
-            eos_id=eos_id
+            eos_id=eos_id,
         )
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -512,7 +510,7 @@ class AudioBPEDataset(_AudioDataset):
         sample_rate=16000,
         int_values=False,
     ):
-        class TokenizerWrapper():
+        class TokenizerWrapper:
             def __init__(self, tokenizer):
                 self._tokenizer = tokenizer
                 if isinstance(self._tokenizer, YouTokenToMeTokenizer):
@@ -529,7 +527,6 @@ class AudioBPEDataset(_AudioDataset):
                 t = self._tokenizer.text_to_ids(text)
                 t = [self.bos_id] + t + [self.eos_id]
                 return t
-
 
         super().__init__(
             manifest_filepath=manifest_filepath,

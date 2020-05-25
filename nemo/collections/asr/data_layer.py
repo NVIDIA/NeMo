@@ -24,21 +24,21 @@ import braceexpand
 import torch
 import webdataset as wd
 
+from nemo.backends.pytorch import DataLayerNM
 from nemo.collctions.asr.parts.collections import ASRAudioText
 from nemo.collctions.asr.parts.dataset import (
-    AudioDataset,
-    AudioCharDataset,
     AudioBPEDataset,
+    AudioCharDataset,
+    AudioDataset,
     AudioLabelDataset,
     KaldiFeatureDataset,
     TranscriptDataset,
+    _process_augmentations,
     fixed_seq_collate_fn,
     seq_collate_fn,
-    _process_augmentations
 )
 from nemo.collctions.asr.parts.features import WaveformFeaturizer
 from nemo.collctions.asr.parts.parsers import make_parser
-from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils import logging
@@ -295,12 +295,7 @@ transcript_n}
         }
 
     def __init__(
-        self,
-        batch_size=None,
-        pad_id=None,
-        drop_last=False,
-        shuffle=True,
-        num_workers=0,
+        self, batch_size=None, pad_id=None, drop_last=False, shuffle=True, num_workers=0,
     ):
         super().__init__()
         self._batch_size = batch_size
