@@ -451,11 +451,7 @@ transcript_n}
 
     Args:
         manifest_filepath (str): Dataset parameter. Path to JSON containing data.
-        tokenizer (nemo_nlp.data.tokzenizers.TokenizerSpec): The tokenizer used to parse the transcripts. Currently
-            supported tokenizers are:
-                - NemoBertTokenizer
-                - SentencePieceTokenizer
-                - YouTokenToMeTokenizer
+        tokenizer (nemo_nlp.data.tokzenizers.TokenizerSpec): The tokenizer used to parse the transcripts.
         batch_size (int): batch size
         sample_rate (int): Target sampling rate for data. Audio files will be resampled to sample_rate if it is not
             already.
