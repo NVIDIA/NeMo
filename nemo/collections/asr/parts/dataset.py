@@ -2,6 +2,7 @@
 # https://github.com/ryanleary/patter
 # TODO: review, and copyright and fix/add comments
 import os
+import copy
 
 import kaldi_io
 import torch
@@ -9,7 +10,144 @@ from torch.utils.data import Dataset
 
 from nemo import logging
 from nemo.collections.asr.parts import collections, parsers
+from nemo.collctions.asr.parts.perturb import AudioAugmentor, perturbation_types
+from nemo.collctions.asr.parts.features import WaveformFeaturizer
 from nemo.collections.nlp.data.tokenizers import NemoBertTokenizer, SentencePieceTokenizer, YouTokenToMeTokenizer
+from nemo.utils.decorators import deprecated
+
+
+def _process_augmentations(augmenter) -> AudioAugmentor:
+    """Process list of online data augmentations.
+
+    Accepts either an AudioAugmentor object with pre-defined augmentations,
+    or a dictionary that points to augmentations that have been defined.
+
+    If a dictionary is passed, must follow the below structure:
+    Dict[str, Dict[str, Any]]: Which refers to a dictionary of string
+    names for augmentations, defined in `asr/parts/perturb.py`.
+
+    The inner dictionary may contain key-value arguments of the specific
+    augmentation, along with an essential key `prob`. `prob` declares the
+    probability of the augmentation being applied, and must be a float
+    value in the range [0, 1].
+
+    # Example in YAML config file
+
+    Augmentations are generally applied only during training, so we can add
+    these augmentations to our yaml config file, and modify the behaviour
+    for training and evaluation.
+
+    ```yaml
+    AudioToSpeechLabelDataLayer:
+        ...  # Parameters shared between train and evaluation time
+        train:
+            augmentor:
+                shift:
+                    prob: 0.5
+                    min_shift_ms: -5.0
+                    max_shift_ms: 5.0
+                white_noise:
+                    prob: 1.0
+                    min_level: -90
+                    max_level: -46
+                ...
+        eval:
+            ...
+    ```
+
+    Then in the training script,
+
+    ```python
+    import copy
+    from ruamel.yaml import YAML
+
+    yaml = YAML(typ="safe")
+    with open(model_config) as f:
+        params = yaml.load(f)
+
+    # Train Config for Data Loader
+    train_dl_params = copy.deepcopy(params["AudioToTextDataLayer"])
+    train_dl_params.update(params["AudioToTextDataLayer"]["train"])
+    del train_dl_params["train"]
+    del train_dl_params["eval"]
+
+    data_layer_train = nemo_asr.AudioToTextDataLayer(
+        ...,
+        **train_dl_params,
+    )
+
+    # Evaluation Config for Data Loader
+    eval_dl_params = copy.deepcopy(params["AudioToTextDataLayer"])
+    eval_dl_params.update(params["AudioToTextDataLayer"]["eval"])
+    del eval_dl_params["train"]
+    del eval_dl_params["eval"]
+
+    data_layer_eval = nemo_asr.AudioToTextDataLayer(
+        ...,
+        **eval_dl_params,
+    )
+    ```
+
+    # Registering your own Augmentations
+
+    To register custom augmentations to obtain the above convenience of
+    the declaring the augmentations in YAML, you can put additional keys in
+    `perturbation_types` dictionary as follows.
+
+    ```python
+    from nemo.collections.asr.parts import perturb
+
+    # Define your own perturbation here
+    class CustomPerturbation(perturb.Perturbation):
+        ...
+
+    perturb.register_perturbation(name_of_perturbation, CustomPerturbation)
+    ```
+
+    Args:
+        augmenter: AudioAugmentor object or
+            dictionary of str -> kwargs (dict) which is parsed and used
+            to initialize an AudioAugmentor.
+            Note: It is crucial that each individual augmentation has
+            a keyword `prob`, that defines a float probability in the
+            the range [0, 1] of this augmentation being applied.
+            If this keyword is not present, then the augmentation is
+            disabled and a warning is logged.
+
+    Returns: AudioAugmentor object
+    """
+    if isinstance(augmenter, AudioAugmentor):
+        return augmenter
+
+    if not type(augmenter) == dict:
+        raise ValueError("Cannot parse augmenter. Must be a dict or an AudioAugmentor object ")
+
+    augmenter = copy.deepcopy(augmenter)
+
+    augmentations = []
+    for augment_name, augment_kwargs in augmenter.items():
+        prob = augment_kwargs.get('prob', None)
+
+        if prob is None:
+            raise KeyError(
+                f'Augmentation "{augment_name}" will not be applied as '
+                f'keyword argument "prob" was not defined for this augmentation.'
+            )
+
+        else:
+            _ = augment_kwargs.pop('prob')
+
+            if prob < 0.0 or prob > 1.0:
+                raise ValueError("`prob` must be a float value between 0 and 1.")
+
+            try:
+                augmentation = perturbation_types[augment_name](**augment_kwargs)
+                augmentations.append([prob, augmentation])
+            except KeyError:
+                raise KeyError(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
+
+    augmenter = AudioAugmentor(perturbations=augmentations)
+    return augmenter
 
 
 def seq_collate_fn(batch, token_pad_value=0):
@@ -269,8 +407,6 @@ class _AudioDataset(Dataset):
         min_duration=None,
         max_utts=0,
         trim=False,
-        bos_id=None,
-        eos_id=None,
         load_audio=True,
         augmentor=None,
         sample_rate=16000,
@@ -279,7 +415,7 @@ class _AudioDataset(Dataset):
         if augmentor is not None:
             augmentor = _process_augmentations(augmentor)
 
-        self._featurizer = WaveformFeaturizer(
+        self.featurizer = WaveformFeaturizer(
             sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
         )
         self.collection = collections.ASRAudioText(
@@ -290,10 +426,7 @@ class _AudioDataset(Dataset):
             max_number=max_utts,
         )
 
-        self.featurizer = featurizer
         self.trim = trim
-        self.eos_id = eos_id
-        self.bos_id = bos_id
         self.load_audio = load_audio
 
     def __getitem__(self, index):
@@ -312,12 +445,6 @@ class _AudioDataset(Dataset):
             f, fl = None, None
 
         t, tl = sample.text_tokens, len(sample.text_tokens)
-        if self.bos_id is not None:
-            t = [self.bos_id] + t
-            tl += 1
-        if self.eos_id is not None:
-            t = t + [self.eos_id]
-            tl += 1
 
         return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
@@ -346,7 +473,13 @@ class AudioCharDataset(_AudioDataset):
         int_values=False,
     ):
         parser=parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
+            bos_id=bos_id,
+            eos_id=eos_id
         )
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -355,8 +488,6 @@ class AudioCharDataset(_AudioDataset):
             min_duration=min_duration,
             max_utts=max_utts,
             trim=trim,
-            bos_id=bos_id,
-            eos_id=eos_id,
             load_audio=load_audio,
             augmentor=augmentor,
             sample_rate=sample_rate,

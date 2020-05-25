@@ -22,6 +22,8 @@ class CharParser:
         *,
         unk_id: int = -1,
         blank_id: int = -1,
+        bos_id: int = None,
+        eos_id: int = None,
         do_normalize: bool = True,
         do_lowercase: bool = True,
     ):
@@ -42,6 +44,8 @@ class CharParser:
         self._labels = labels
         self._unk_id = unk_id
         self._blank_id = blank_id
+        self._bos_id = bos_id
+        self._eos_id = eos_id
         self._do_normalize = do_normalize
         self._do_lowercase = do_lowercase
 
@@ -83,6 +87,10 @@ class CharParser:
         # If unk_id == blank_id, OOV tokens are removed.
         tokens = [token for token in tokens if token != self._blank_id]
 
+        if self._bos_id:
+            tokens = [self._bos_id] + tokens
+        if self._eos_id:
+            tokens = tokens + [self._eos_id]
         return tokens
 
 
@@ -133,7 +141,7 @@ class ENCharParser(CharParser):
 NAME_TO_PARSER = frozendict.frozendict({'base': CharParser, 'en': ENCharParser})
 
 
-def make_parser(labels: Optional[List[str]] = None, name: str = 'base', **kwargs,) -> CharParser:
+def make_parser(labels: Optional[List[str]] = None, name: str = 'base', **kwargs) -> CharParser:
     """Creates parser from labels, set of arguments and concise parser name.
 
     Args:

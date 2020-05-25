@@ -34,10 +34,10 @@ from nemo.collctions.asr.parts.dataset import (
     TranscriptDataset,
     fixed_seq_collate_fn,
     seq_collate_fn,
+    _process_augmentations
 )
 from nemo.collctions.asr.parts.features import WaveformFeaturizer
 from nemo.collctions.asr.parts.parsers import make_parser
-from nemo.collctions.asr.parts.perturb import AudioAugmentor, perturbation_types
 from nemo.backends.pytorch import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import *
@@ -54,140 +54,6 @@ __all__ = [
     'TranscriptDataLayer',
     'AudioToSpeechLabelDataLayer',
 ]
-
-
-def _process_augmentations(augmenter) -> AudioAugmentor:
-    """Process list of online data augmentations.
-
-    Accepts either an AudioAugmentor object with pre-defined augmentations,
-    or a dictionary that points to augmentations that have been defined.
-
-    If a dictionary is passed, must follow the below structure:
-    Dict[str, Dict[str, Any]]: Which refers to a dictionary of string
-    names for augmentations, defined in `asr/parts/perturb.py`.
-
-    The inner dictionary may contain key-value arguments of the specific
-    augmentation, along with an essential key `prob`. `prob` declares the
-    probability of the augmentation being applied, and must be a float
-    value in the range [0, 1].
-
-    # Example in YAML config file
-
-    Augmentations are generally applied only during training, so we can add
-    these augmentations to our yaml config file, and modify the behaviour
-    for training and evaluation.
-
-    ```yaml
-    AudioToSpeechLabelDataLayer:
-        ...  # Parameters shared between train and evaluation time
-        train:
-            augmentor:
-                shift:
-                    prob: 0.5
-                    min_shift_ms: -5.0
-                    max_shift_ms: 5.0
-                white_noise:
-                    prob: 1.0
-                    min_level: -90
-                    max_level: -46
-                ...
-        eval:
-            ...
-    ```
-
-    Then in the training script,
-
-    ```python
-    import copy
-    from ruamel.yaml import YAML
-
-    yaml = YAML(typ="safe")
-    with open(model_config) as f:
-        params = yaml.load(f)
-
-    # Train Config for Data Loader
-    train_dl_params = copy.deepcopy(params["AudioToTextDataLayer"])
-    train_dl_params.update(params["AudioToTextDataLayer"]["train"])
-    del train_dl_params["train"]
-    del train_dl_params["eval"]
-
-    data_layer_train = nemo_asr.AudioToTextDataLayer(
-        ...,
-        **train_dl_params,
-    )
-
-    # Evaluation Config for Data Loader
-    eval_dl_params = copy.deepcopy(params["AudioToTextDataLayer"])
-    eval_dl_params.update(params["AudioToTextDataLayer"]["eval"])
-    del eval_dl_params["train"]
-    del eval_dl_params["eval"]
-
-    data_layer_eval = nemo_asr.AudioToTextDataLayer(
-        ...,
-        **eval_dl_params,
-    )
-    ```
-
-    # Registering your own Augmentations
-
-    To register custom augmentations to obtain the above convenience of
-    the declaring the augmentations in YAML, you can put additional keys in
-    `perturbation_types` dictionary as follows.
-
-    ```python
-    from nemo.collections.asr.parts import perturb
-
-    # Define your own perturbation here
-    class CustomPerturbation(perturb.Perturbation):
-        ...
-
-    perturb.register_perturbation(name_of_perturbation, CustomPerturbation)
-    ```
-
-    Args:
-        augmenter: AudioAugmentor object or
-            dictionary of str -> kwargs (dict) which is parsed and used
-            to initialize an AudioAugmentor.
-            Note: It is crucial that each individual augmentation has
-            a keyword `prob`, that defines a float probability in the
-            the range [0, 1] of this augmentation being applied.
-            If this keyword is not present, then the augmentation is
-            disabled and a warning is logged.
-
-    Returns: AudioAugmentor object
-    """
-    if isinstance(augmenter, AudioAugmentor):
-        return augmenter
-
-    if not type(augmenter) == dict:
-        raise ValueError("Cannot parse augmenter. Must be a dict or an AudioAugmentor object ")
-
-    augmenter = copy.deepcopy(augmenter)
-
-    augmentations = []
-    for augment_name, augment_kwargs in augmenter.items():
-        prob = augment_kwargs.get('prob', None)
-
-        if prob is None:
-            raise KeyError(
-                f'Augmentation "{augment_name}" will not be applied as '
-                f'keyword argument "prob" was not defined for this augmentation.'
-            )
-
-        else:
-            _ = augment_kwargs.pop('prob')
-
-            if prob < 0.0 or prob > 1.0:
-                raise ValueError("`prob` must be a float value between 0 and 1.")
-
-            try:
-                augmentation = perturbation_types[augment_name](**augment_kwargs)
-                augmentations.append([prob, augmentation])
-            except KeyError:
-                raise KeyError(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
-
-    augmenter = AudioAugmentor(perturbations=augmentations)
-    return augmenter
 
 
 class AudioToTextDataLayer(DataLayerNM):
@@ -287,7 +153,7 @@ transcript_n}
         drop_last=False,
         shuffle=True,
         num_workers=0,
-        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        augmentor: Optional[Union['AudioAugmentor', Dict[str, Dict[str, Any]]]] = None,
     ):
         super().__init__()
         self._sample_rate = sample_rate
@@ -535,23 +401,6 @@ transcript_n}
             then the augmentation is disabled and a warning is logged.
     """
 
-    @property
-    @add_port_docs()
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        """
-        return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and self._sample_rate is not None
-                else AudioSignal(),
-            ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-        }
-
     def __init__(
         self,
         manifest_filepath,
@@ -570,7 +419,7 @@ transcript_n}
         drop_last=False,
         shuffle=True,
         num_workers=0,
-        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        augmentor: Optional[Union['AudioAugmentor', Dict[str, Dict[str, Any]]]] = None,
     ):
         self._dataset = AudioCharDataset(
             manifest_filepath=manifest_filepath,
@@ -662,23 +511,6 @@ transcript_n}
             then the augmentation is disabled and a warning is logged.
     """
 
-    @property
-    @add_port_docs()
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        """
-        return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and self._sample_rate is not None
-                else AudioSignal(),
-            ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-        }
-
     def __init__(
         self,
         manifest_filepath,
@@ -694,7 +526,7 @@ transcript_n}
         drop_last=False,
         shuffle=True,
         num_workers=0,
-        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        augmentor: Optional[Union['AudioAugmentor', Dict[str, Dict[str, Any]]]] = None,
     ):
         self._dataset = AudioBPEDataset(
             manifest_filepath=manifest_filepath,
@@ -826,7 +658,7 @@ class TarredAudioToTextDataLayer(DataLayerNM):
         trim_silence=False,
         shuffle_n=0,
         num_workers=0,
-        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        augmentor: Optional[Union['AudioAugmentor', Dict[str, Dict[str, Any]]]] = None,
     ):
         super().__init__()
         self._sample_rate = sample_rate
@@ -1291,7 +1123,7 @@ target_label_n, "offset": offset_in_sec_n}
         trim_silence: bool = False,
         drop_last: bool = False,
         load_audio: bool = True,
-        augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
+        augmentor: Optional[Union['AudioAugmentor', Dict[str, Dict[str, Any]]]] = None,
         time_length: int = 0,
     ):
         super(AudioToSpeechLabelDataLayer, self).__init__()
