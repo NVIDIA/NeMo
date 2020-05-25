@@ -37,7 +37,16 @@ More details about GLUE benchmark could be found `here <https://gluebenchmark.co
 
 Training the model
 ------------------
-Before running ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``, download the GLUE data with `this script <https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e>`_.
+Before running ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``, download the GLUE data with `this script <https://gist.github.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e>`_ by running:
+
+.. code-block:: bash
+
+    # download the script to get the GLUE data
+    wget https://gist.githubusercontent.com/W4ngatang/60c2bdb54d156a41194446737ce03e2e/raw/17b8dd0d724281ed7c3b2aeeda662b92809aadd5/download_glue_data.py
+    # run the script to download the GLUE data
+    python download_glue_data.py
+
+After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE tasks that is named accordinly. For example, data for MRPC task would be under ``glue_data/MRPC``, use lower cased task name to run the training script.
 
 The GLUE tasks can be fine-tuned on 4 pretrained back-bone models supported in NeMo: Megatron-LM BERT, BERT, AlBERT and RoBERTa.
 See the list of available pretrained Huggingface models `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
@@ -45,8 +54,8 @@ To get the list of all NeMo supported pretrained models run:
 
 .. code-block:: python
     
-        import nemo.collections.nlp as nemo_nlp
-        nemo_nlp.nm.trainables.get_pretrained_lm_models_list()
+    import nemo.collections.nlp as nemo_nlp
+    nemo_nlp.nm.trainables.get_pretrained_lm_models_list()
 
 Specify the model to use for training with ``--pretrained_model_name``.
 
