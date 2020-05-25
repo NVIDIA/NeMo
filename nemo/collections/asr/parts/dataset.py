@@ -513,15 +513,8 @@ class AudioBPEDataset(_AudioDataset):
         class TokenizerWrapper:
             def __init__(self, tokenizer):
                 self._tokenizer = tokenizer
-                if isinstance(self._tokenizer, YouTokenToMeTokenizer):
-                    self.bos_id = self._tokenizer.bos_id()
-                    self.eos_id = self._tokenizer.eos_id()
-                elif isinstance(self._tokenizer, SentencePieceTokenizer):
-                    self.bos_id = self._tokenizer.token_to_id("<s>")
-                    self.eos_id = self._tokenizer.token_to_id("</s>")
-                elif isinstance(self._tokenizer, NemoBertTokenizer):
-                    self.bos_id = self._tokenizer.bos_id()
-                    self.eos_id = self._tokenizer.eos_id()
+                self.bos_id = self._tokenizer.bos_id
+                self.eos_id = self._tokenizer.eos_id
 
             def __call__(self, text):
                 t = self._tokenizer.text_to_ids(text)
@@ -535,8 +528,6 @@ class AudioBPEDataset(_AudioDataset):
             min_duration=min_duration,
             max_utts=max_utts,
             trim=trim,
-            bos_id=bos_id,
-            eos_id=eos_id,
             load_audio=load_audio,
             augmentor=augmentor,
             sample_rate=sample_rate,
