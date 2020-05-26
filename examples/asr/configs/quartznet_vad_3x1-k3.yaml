@@ -60,7 +60,7 @@ JasperEncoder:
     jasper:
         - filters: 128
           repeat: 1
-          kernel: [11]
+          kernel: [3]
           stride: [1]
           dilation: [1]
           dropout: *drop
@@ -70,7 +70,7 @@ JasperEncoder:
 
         - filters: 64
           repeat: *rep
-          kernel: [13]
+          kernel: [5]
           stride: [1]
           dilation: [1]
           dropout: *drop
@@ -80,7 +80,7 @@ JasperEncoder:
 
         - filters: 64
           repeat: *rep
-          kernel: [15]
+          kernel: [7]
           stride: [1]
           dilation: [1]
           dropout: *drop
@@ -90,7 +90,7 @@ JasperEncoder:
 
         - filters: 64
           repeat: *rep
-          kernel: [17]
+          kernel: [9]
           stride: [1]
           dilation: [1]
           dropout: *drop
@@ -100,7 +100,7 @@ JasperEncoder:
 
         - filters: 128
           repeat: 1
-          kernel: [29]
+          kernel: [11]
           stride: [1]
           dilation: [2]
           dropout: *drop

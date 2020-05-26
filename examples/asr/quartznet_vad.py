@@ -1,6 +1,5 @@
 # Copyright (c) 2019 NVIDIA Corporation
-# import sys
-# sys.path.insert(0, '/home/fjia/code/NeMo-fei')
+
 import argparse
 import copy
 import glob
@@ -19,6 +18,7 @@ from nemo.collections.asr.helpers import (
     process_classification_evaluation_batch,
     process_classification_evaluation_epoch,
 )
+
 from nemo.utils.lr_policies import CosineAnnealing, PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing
 
 logging = nemo.logging
@@ -26,7 +26,7 @@ logging = nemo.logging
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='Jasper Speech Commands', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='Jasper VAD', conflict_handler='resolve',
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -60,9 +60,6 @@ def parse_args():
     parser.add_argument(
         "--load_dir", default=None, type=str, help="directory with pre-trained checkpoint",
     )
-    ## fei question
-    parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', None), type = int)
-    parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', None), type = int)
 
     args = parser.parse_args()
 
@@ -121,13 +118,13 @@ def create_all_dags(args, neural_factory):
     logging.info('Steps per epoch : {0}'.format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
 
-#     data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
-#         sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
-#     )
-
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+    data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
+        sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
     )
+
+#     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+#         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+#     )
 
     
     spectr_augment_config = jasper_params.get('SpectrogramAugmentation', None)
@@ -173,7 +170,7 @@ def create_all_dags(args, neural_factory):
 
     # Train DAG
     # --- Assemble Training DAG --- #
-    audio_signal, audio_signal_len, commands, command_len = data_layer()
+    audio_signal, audio_signal_len, labels, command_len = data_layer()
 
     processed_signal, processed_signal_len = data_preprocessor(input_signal=audio_signal, length=audio_signal_len)
 
@@ -188,14 +185,14 @@ def create_all_dags(args, neural_factory):
 
     decoded = jasper_decoder(encoder_output=encoded)
 
-    loss = ce_loss(logits=decoded, labels=commands)
+    loss = ce_loss(logits=decoded, labels=labels)
 
     # Callbacks needed to print info to console and Tensorboard
     train_callback = nemo.core.SimpleLossLoggerCallback(
-        # Notice that we pass in loss, predictions, and the labels (commands).
+        # Notice that we pass in loss, predictions, and the labels.
         # Of course we would like to see our training loss, but we need the
         # other arguments to calculate the accuracy.
-        tensors=[loss, decoded, commands],
+        tensors=[loss, decoded, labels],
         # The print_func defines what gets printed.
         print_func=partial(monitor_classification_training_progress, eval_metric=None),
         get_tb_values=lambda x: [("loss", x[0])],
@@ -211,7 +208,7 @@ def create_all_dags(args, neural_factory):
     # assemble eval DAGs
     for i, eval_dl in enumerate(data_layers_eval):
         # --- Assemble Training DAG --- #
-        test_audio_signal, test_audio_signal_len, test_commands, test_command_len = eval_dl()
+        test_audio_signal, test_audio_signal_len, test_labels, test_command_len = eval_dl()
 
         test_processed_signal, test_processed_signal_len = data_preprocessor(
             input_signal=test_audio_signal, length=test_audio_signal_len
@@ -227,12 +224,12 @@ def create_all_dags(args, neural_factory):
 
         test_decoded = jasper_decoder(encoder_output=test_encoded)
 
-        test_loss = ce_loss(logits=test_decoded, labels=test_commands)
+        test_loss = ce_loss(logits=test_decoded, labels=test_labels)
 
         # create corresponding eval callback
         tagname = os.path.basename(args.eval_datasets[i]).split(".")[0]
         eval_callback = nemo.core.EvaluatorCallback(
-            eval_tensors=[test_loss, test_decoded, test_commands],
+            eval_tensors=[test_loss, test_decoded, test_labels],
             user_iter_callback=partial(process_classification_evaluation_batch, top_k=1),
             user_epochs_done_callback=partial(process_classification_evaluation_epoch, eval_metric=1, tag=tagname),
             eval_step=args.eval_freq,  # How often we evaluate the model on the test set
