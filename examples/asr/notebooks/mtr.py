@@ -4,6 +4,7 @@ from multiprocessing import Pool
 import os
 from process_vad_data import * 
 
+start = time.time()
 
 clean_speech_file_list_path = '/home/fjia/data/google_dataset_v2/google_speech_recognition_v2/training_list.txt'
 noise_file_list_path = '/home/fjia/data/freesound_resampled/background_training_list.txt'
@@ -31,23 +32,17 @@ with open(clean_speech_file_list_path) as f:
     clean_speech_file_list = f.read().splitlines() 
 
 
-
-
 with open(noise_file_list_path) as f:
     noise_file_list = f.read().splitlines() 
     
 
 def process_one_file(clean_speech_file):
     noise_file = random.choice(noise_file_list)
-     ## [TODO]Adjust SNR 0-30 from google paper
+     ## [TODO] Adjust SNR 0-30 from google paper
     output_mixed_file, snr = make_noisy_speech(clean_speech_file, noise_file, 
                                                clean_data_dir, noise_dir, out_dir, 0, 30, None) 
     output_mixed_file_shortpath =  output_mixed_file.split(out_dir)[1]
     
-#     with open('/home/fjia/data/google_dataset_v2/google_speech_recognition_v2_noisy/training_list.txt', 'a') as f:
-#         f.write(output_mixed_file_shortpath) 
-#         f.write('\n')
-     
     return output_mixed_file_shortpath
 
 
@@ -63,3 +58,6 @@ with open('/home/fjia/data/google_dataset_v2/google_speech_recognition_v2_noisy/
     for i in data:
         f.write(i) 
         f.write('\n')
+        
+end = time.time()
+print(f'Process {len(data)} files takes {end-start} seconds!')

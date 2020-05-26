@@ -7,157 +7,73 @@ import wrapt
 import inspect
 import librosa
 import re
-
+import logging
+import argparse
 # import argparse
 import array
 import math
 import numpy as np
 import random
-import wave
+# import wave
+import tarfile
+import urllib.request
 
+from sklearn.model_selection import train_test_split
 sr = 16000
 duration_stride = 1.0
 
-background_classes = [
-    "Air brake",
-    "Static",
-    "Acoustic environment",
-    "Distortion",
-    "Tape hiss",
-    "Hubbub",
-    "Vibration",
-    "Cacophony",
-    "Throbbing",
-    "Reverberation",
-    "Inside, public space",
-    "Inside, small room",
-    "Echo",
-    "Outside, rural",
-    "Outside, natural",
-    "Outside, urban",
-    "Outside, manmade",
-    "Car",
-    "Bus",
-    "Traffic noise",
-    "Roadway noise",
-    "Truck",
-    "Emergency vehicle",
-    "Motorcycle",
-    "Aircraft engine",
-    "Aircraft",
-    "Helicopter",
-    "Bicycle",
-    "Skateboard",
-    "Subway, metro, underground",
-    "Railroad car",
-    "Train wagon",
-    "Train",
-    "Sailboat",
-    "Rowboat",
-    "Ship",
-]
-
-speech_classes = [
-    "Male speech",
-    "Female speech",
-    "Speech synthesizer",
-    "Babbling",
-    "Conversation",
-    "Child speech",
-    "Narration",
-    "Laughter",
-    "Yawn",
-    "Whispering",
-    "Whimper",
-    "Baby cry",
-    "Sigh",
-    "Groan",
-    "Humming",
-    "Male singing",
-    "Female singing",
-    "Child singing",
-    "Children shouting",
-]
-
-def normalize_str(x: str):
-    x = x.replace(' ', '_')
-    return x
-
-# Normalize classes
-background_classes = {normalize_str(s):idx for idx, s in enumerate(background_classes)}
-speech_classes = {normalize_str(s):idx for idx, s in enumerate(speech_classes)}
+# google speech command v2
+URL = "http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz"
 
 
-# [TODO] cross validation
-# To make it similar to speech command, we use txt here. Could be modified to json.
 
-from sklearn.model_selection import train_test_split
-def split_dataset_class(data_dir):
-    speech_num = 0
-    background_num = 0
-    all_num = 0
+def __maybe_download_file(destination: str, source: str):
+    """
+    Downloads source to destination if it doesn't exist.
+    If exists, skips download
+    Args:
+        destination: local filepath
+        source: url of resource
+
+    Returns:
+
+    """
+    if not os.path.exists(destination):
+        logging.info(f"{destination} does not exist. Downloading ...")
+        urllib.request.urlretrieve(source, filename=destination + '.tmp')
+        os.rename(destination + '.tmp', destination)
+        logging.info(f"Downloaded {destination}.")
+    else:
+        logging.info(f"Destination {destination} exists. Skipping.")
+    return destination
+
+
+def extract_file(filepath: str, data_dir: str):
+    try:
+        tar = tarfile.open(filepath)
+        tar.extractall(data_dir)
+        tar.close()
+    except Exception:
+        logging.info('Not extracting. Maybe already there?')
+     
     
-#     files = sorted(glob.glob(data_dir + '//.wav'))
-    files = sorted(glob.glob(data_dir + '/*/*.wav'))
+def __extract_all_files(filepath: str, data_root: str, data_dir: str):
+    if not os.path.exists(data_dir):
+        extract_file(filepath, data_dir)
+    else:
+        logging.info(f'Skipping extracting. Data already there {data_dir}')
+    
 
-    all_path = os.path.join(data_dir, 'all.txt')
-    background_path = os.path.join(data_dir, 'background.txt')
-    speech_path = os.path.join(data_dir, 'speech.txt')
-    
-    paths = [all_path, background_path, speech_path]
-    for i in paths:
-        if os.path.exists(i):
-            print(f'File {i} exists. Overwrite it!')
-            os.remove(i)
-    
-    with open(all_path, 'a') as allfile:
-        for filepath in files:
-            head, filename = os.path.split(filepath)
-            _, clsname = os.path.split(head)
-            clsname = normalize_str(clsname)
-            if clsname in background_classes:
-#                 label = 'background'
-                background_num += 1
-                with open(background_path, 'a') as bfile:
-                    bfile.write(filepath.split(data_dir)[1]) 
-                    bfile.write('\n')
-            elif clsname in speech_classes:
-#                 label = 'speech'
-                speech_num += 1
-                with open(speech_path, 'a') as sfile:
-                    sfile.write(filepath.split(data_dir)[1]) 
-                    sfile.write('\n')
-            else:
-                raise ValueError(f'Label {clsname} doesnt belong to either backgound or speech class sets !')
-            all_num += 1
-            allfile.write(filepath.split(data_dir)[1]) 
-            allfile.write('\n')
-    print(f'=== {all_num} total samples! {speech_num} speech samples, {background_num} background samples! ===')     
-        
-#         all_command_files = glob.glob(os.path.join(sc_data_folder, '*/*wav'))
-        
-#         for entry in all_command_files:
-#             pattern = re.compile(r"(.+\/)?(\w+)\/([^_]+)_.+wav")
-#             r = re.match(pattern, entry)
-#             if r:
-#                 label, uid = r.group(2), r.group(3)
-#                 if label == '_background_noise_':
-#                     continue
-#                 allfile.write(filepath.split(data_dir)[1]) 
-#             allfile.write('\n')
-    print("Finished split and write to file by class !")
-    
-    
-def split_train_val_test(data_dir, to_split_file, test_size, val_size):
-    all_file_list = []
-    file_type = to_split_file.split('.txt')[0] 
-    with open(os.path.join(data_dir, to_split_file), 'r') as allfile:
-        all_file_list = allfile.read().splitlines() 
-    
-    X = all_file_list
+def split_train_val_test(data_dir, file_type, test_size = 0.1, val_size = 0.1):
+
+#     X = glob.glob(data_dir + '/*/*.wav')
+    X = []
+    for o in os.listdir(data_dir):
+        if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
+            X.extend(glob.glob(os.path.join(data_dir, o) + '/*.wav'))
+            
     X_train, X_test = train_test_split(X, test_size = test_size, random_state=1)
     val_size_tmp = val_size / (1-test_size)
-#     print(val_size_tmp)
     X_train, X_val = train_test_split(X_train, test_size = val_size_tmp, random_state=1)
     
     with open(os.path.join(data_dir, file_type + "_training_list.txt"), "w") as outfile:
@@ -167,11 +83,38 @@ def split_train_val_test(data_dir, to_split_file, test_size, val_size):
     with open(os.path.join(data_dir, file_type + "_validation_list.txt"), "w") as outfile:
         outfile.write("\n".join(X_val))
 
-    print(f'Overall: {len(all_file_list)}, Train: {len(X_train)}, Validatoin: {len(X_val)}, Test: {len(X_test)}')
-    print(f"Finished split train, val and test for {to_split_file}. Write to files !")
+    print(f'Overall: {len(X)}, Train: {len(X_train)}, Validatoin: {len(X_val)}, Test: {len(X_test)}')
+    print(f"Finished split train, val and test for {file_type}. Write to files !")
+   
+
+def process_google_speech_train(data_dir):
+#     files = sorted(glob.glob(data_dir + '/*/*.wav'))
+    X = []
+    for o in os.listdir(data_dir):
+        if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
+            X.extend(glob.glob(os.path.join(data_dir, o) + '/*.wav'))
+            
+    short_files = [i.split(data_dir)[1] for i in files]
+    
+    with open(os.path.join(data_dir, 'testing_list.txt'), 'r') as allfile:
+        testing_list = allfile.read().splitlines() 
+    
+    with open(os.path.join(data_dir, 'validation_list.txt'), 'r') as allfile:
+        validation_list = allfile.read().splitlines()  
+
+    exist_set = set(testing_list).copy()
+    exist_set.update(set(validation_list))
     
     
-def write_manifest(data_dir, out_dir, files, manifest_name, duration_stride=1.0, duration_max=None, filter_long=False, duration_limit=10.0):
+    training_list = [i for i in short_files if i not in exist_set]
+    
+    with open(os.path.join(data_dir,  "training_list.txt"), "w") as outfile:
+        outfile.write("\n".join(training_list))
+
+    logging.info(f'Overall: {len(files)}, Train: {len(training_list)}, Validatoin: {len(validation_list)}, Test: {len(testing_list)}')
+    
+
+def write_manifest(data_dir, out_dir, files, prefix, manifest_name, duration_stride=1.0, duration_max=None, filter_long=False, duration_limit=10.0):
     seg_num = 0
     skip_num = 0
     if duration_max is None:
@@ -184,25 +127,11 @@ def write_manifest(data_dir, out_dir, files, manifest_name, duration_stride=1.0,
     output_path = os.path.join(out_dir, manifest_name + '.json')
     with open(output_path, 'w') as fout:
         for file in files:
-#             head, filename = os.path.split(filepath)
-#             _, clsname = os.path.split(head)
-            clsname, filename = file.split('/')
-
-            clsname = normalize_str(clsname)
-            label = None
-
-            filepath = os.path.join(data_dir, file)
             
-            if clsname in background_classes:
-                label = 'background'
-            elif clsname in speech_classes:
-                label = 'speech'
-            else:
-                label = 'commands'
-#                 raise ValueError(f'Label {clsname} doesnt belong to either backgound or speech class sets !')
+            label = prefix
             
             try:
-                x, _sr = librosa.load(filepath, sr=sr)
+                x, _sr = librosa.load(file, sr=sr)
                 duration = librosa.get_duration(x, sr=sr)
                 
             except Exception:
@@ -236,7 +165,7 @@ def write_manifest(data_dir, out_dir, files, manifest_name, duration_stride=1.0,
 
             for duration, offset in zip(durations, offsets):
                 metadata = {
-                    'audio_filepath': filepath,
+                    'audio_filepath': file,
                     'duration': duration,
                     'label': label,
                     'text': '_',  # for compatibility with ASRAudioText
@@ -248,31 +177,36 @@ def write_manifest(data_dir, out_dir, files, manifest_name, duration_stride=1.0,
                 fout.flush()
                 
                 seg_num += 1
-#             print(f"Wrote {len(durations)} segments for filename {filename} with label {label}")
-            
-    print(f"=== Finished preparing manifest ! Skip {skip_num} samples ===")
-    print(f'=== Writing {seg_num} to {output_path} ===' )
-    return skip_num, seg_num
+#             print(f"Wrote {len(durations)} segments for filename {filename} with label {label}")      
+  
+    return skip_num, seg_num, output_path
 
 
 def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_stride = 1.0, duration_max = 1.0):
     
-    file_path = os.path.join(data_dir + filename)
-    with open(os.path.join(data_dir, file_path), 'r') as allfile:
+    
+    filename = prefix + '_' + filename
+    file_path = os.path.join(data_dir, filename)
+    
+    with open(file_path, 'r') as allfile:
         files = allfile.read().splitlines() 
-
-    skip_num, seg_num = write_manifest(data_dir, out_dir, files, 
-                                       prefix + '_' + filename.split('_list.txt')[0] + '_manifest',
+    
+    manifest_name =  filename.split('_list.txt')[0] + '_manifest'
+    skip_num, seg_num, output_path = write_manifest(data_dir, out_dir, files, prefix, manifest_name,
                                        duration_stride, duration_max, filter_long=True, duration_limit=100.0)   
-    return skip_num, seg_num
+    return skip_num, seg_num, output_path
+
 
 def combine_test_set(manifest_to_combine, fout_path):
     num = 0
-    list_to_combine = manifest_to_combine.split(",")
+#     list_to_combine = manifest_to_combine.split(",")
+    list_to_combine = manifest_to_combine
     with open(fout_path, 'a') as fout:
         for filepath in list_to_combine:
             print(filepath)
             for line in open(filepath, 'r'):
+                if num > 400:
+                    break
                 data = json.loads(line)
                 json.dump(data, fout)
                 fout.write('\n')
@@ -280,7 +214,8 @@ def combine_test_set(manifest_to_combine, fout_path):
                 num += 1
     return num
 
-def get_clean_max_json(data_dir , out_dir, sc_data_json, max_limit, prefix):
+
+def get_max_json(data_dir , out_dir, sc_data_json, max_limit, prefix):
 
     data = []
     sc_seg = 0
@@ -289,284 +224,122 @@ def get_clean_max_json(data_dir , out_dir, sc_data_json, max_limit, prefix):
         data.append(json.loads(line))    
     fout_path = os.path.join(out_dir, prefix + "_" + sc_data_json)
 
-    for i in data:
-        if sc_seg <= max_limit:
-            with open(fout_path, 'a') as fout:
-                sc_seg += 1
-                if 'label' not in i:
-                    i['label'] = 'commands'
-                
-                if 'command' in i:
-                    del(i['command'])
-                json.dump(i, fout)
-                fout.write('\n')
-                fout.flush()
-        else:
-            break
-    print(f'Get {sc_seg}/{max_limit} speech command to {fout_path} from speech commands')
     
+    selected_sample = random.sample(data, max_limit)
     
-def process_google_speech_train(data_dir):
-
-    # TODO filter out _background_noise_
-    files = sorted(glob.glob(data_dir + '/*/*.wav'))
-    short_files = [i.split(data_dir)[1] for i in files]
-    
-    with open(os.path.join(data_dir, 'testing_list.txt'), 'r') as allfile:
-        testing_list = allfile.read().splitlines() 
-    
-    with open(os.path.join(data_dir, 'validation_list.txt'), 'r') as allfile:
-        validation_list = allfile.read().splitlines()  
-
-    exist_set = set(testing_list).copy()
-    exist_set.update(set(validation_list))
-    
-    
-    training_list = [i for i in short_files if i not in exist_set]
-    
-    with open(os.path.join(data_dir,  "training_list.txt"), "w") as outfile:
-        outfile.write("\n".join(training_list))
-
-    print(f'Overall: {len(files)}, Train: {len(training_list)}, Validatoin: {len(validation_list)}, Test: {len(testing_list)}')
-    
-    
-def infer_single_by_manifest(filepath, out_dir, manifest_name, duration_stride, step):
-    
-    if not os.path.exists(out_dir):
-        print(f'outdir {out_dir} does not exist. Creat directory.')
-        os.mkdir(out_dir)
-    
-    output_path = os.path.join(out_dir, manifest_name + '.json')
-    with open(output_path, 'w') as fout:       
-        try:
-            x, _sr = librosa.load(filepath, sr=sr)
-            duration = librosa.get_duration(x, sr=sr)
-
-        except Exception:
-            print(f"\n>>>>>>>>> WARNING: Librosa failed to load file {filepath}. Skipping this file !\n")
-
-
-        offsets = []
-        durations = []
-
-        if duration < duration_stride:
-            offsets.append(0.0)
-            durations.append(duration)
-        else:
-            
-            current_offset = 0.0
-            while current_offset < duration:
-                difference = duration - current_offset
-                segment_duration = min(duration_stride, difference)
-                offsets.append(current_offset)
-                durations.append(segment_duration)
-                current_offset += step
-                
-        seg_num = 0
-        for duration, offset in zip(durations, offsets):
-            metadata = {
-                'audio_filepath': filepath,
-                'duration': duration,
-                'label': 'commands', ###
-                'text': '_',  # for compatibility with ASRAudioText
-                'offset': offset,
-            }
-
-            json.dump(metadata, fout)
+    with open(fout_path, 'a') as fout:
+        for i in selected_sample:
+            sc_seg += 1
+            json.dump(i, fout)
             fout.write('\n')
             fout.flush()
-            seg_num+= 1
-#             print(f"Wrote {len(durations)} segments for filename {filename} with label {label}")
-
-    print(f'=== Writing {seg_num} to {output_path} ===' )
+#     for i in data:
+#         if sc_seg <= max_limit:
+#             with open(fout_path, 'a') as fout:
+#                 sc_seg += 1
+                
+#                 json.dump(i, fout)
+#                 fout.write('\n')
+#                 fout.flush()
+#         else:
+#             break
+    print(f'Get {sc_seg}/{max_limit} to  {fout_path} from {sc_data_json}')
     
-    
-# # -*- coding: utf-8 -*-
-
-
-# # def get_args():
-# #     parser = argparse.ArgumentParser()
-# #     parser.add_argument('--clean_file', type=str, required=True)
-# #     parser.add_argument('--noise_file', type=str, required=True)
-# #     parser.add_argument('--output_mixed_file', type=str, default='', required=True)
-# #     parser.add_argument('--output_clean_file', type=str, default='')
-# #     parser.add_argument('--output_noise_file', type=str, default='')
-# #     parser.add_argument('--snr', type=float, default='', required=True)
-# #     args = parser.parse_args()
-# #     return args
-
-# def cal_adjusted_rms(clean_rms, snr):
-#     a = float(snr) / 20
-#     noise_rms = clean_rms / (10**a) 
-#     return noise_rms
-
-# def cal_amp(wf):
-# #     buffer = wf.readframes(wf.getnframes())
-# #     # The dtype depends on the value of pulse-code modulation. The int16 is set for 16-bit PCM.
-# #     amptitude = (np.frombuffer(buffer, dtype="int16")).astype(np.float64)
-    
-#     return amptitude
-
-# def cal_rms(amp):
-#     return np.sqrt(np.mean(np.square(amp), axis=-1))
-
-# def save_waveform(output_path, params, amp):
-#     output_file = wave.Wave_write(output_path)
-#     output_file.setparams(params) #nchannels, sampwidth, framerate, nframes, comptype, compname
-#     output_file.writeframes(array.array('h', amp.astype(np.int16)).tobytes() )
-#     output_file.close()
-
-
-# def make_noisy_speech(clean_speech_file, noise_file, 
-#                       clean_speech_dir, noise_dir,  out_dir, 
-#                       min_snr_level = 1, max_snr_level = 20,
-#                       snr = None):
-
-#     # args = get_args()
-#     # clean_file = args.clean_file
-#     # noise_file = args.noise_file
-
-#     # clean_speech_file 'down/b4aa9fef_nohash_4.wav'
-    
-#     clean_speech_file = os.path.join(clean_speech_dir, clean_speech_file)
-#     noise_file = os.path.join(noise_dir, noise_file)
-    
-#     if not os.path.exists(out_dir):
-#         print('Create output dir for noisy output!')
-#         os.mkdir(out_dir)
-       
-#     subdir, filename = clean_speech_file.split(clean_speech_dir)[1].split('/')
-#     out_subdir = os.path.join(out_dir, subdir)
-#     if not os.path.exists(out_subdir):
-#         print('Create output subdir for noisy output!')
-#         os.mkdir(out_subdir)
-        
-#     if not snr:
-#         snr = random.randint(min_snr_level, max_snr_level)
-        
-#     output_mixed_filename = filename.split('.wav')[0] + '_n' + str(snr) + '.wav'
-#     output_mixed_file = os.path.join(out_subdir, output_mixed_filename)
-    
-#     clean_wav = wave.open(clean_speech_file, "r")
-#     noise_wav = wave.open(noise_file, "r")
-
-#     clean_amp = cal_amp(clean_wav)
-#     noise_amp = cal_amp(noise_wav)
-
-#     clean_rms = cal_rms(clean_amp)
-
-#     start = random.randint(0, len(noise_amp)-len(clean_amp))
-#     divided_noise_amp = noise_amp[start: start + len(clean_amp)]
-#     noise_rms = cal_rms(divided_noise_amp)
-    
-        
-#     adjusted_noise_rms = cal_adjusted_rms(clean_rms, snr)
-
-#     adjusted_noise_amp = divided_noise_amp * (adjusted_noise_rms / noise_rms) 
-#     mixed_amp = (clean_amp + adjusted_noise_amp)
-
-#     #Avoid clipping noise
-#     max_int16 = np.iinfo(np.int16).max
-#     min_int16 = np.iinfo(np.int16).min
-#     if mixed_amp.max(axis=0) > max_int16 or mixed_amp.min(axis=0) < min_int16:
-#         if mixed_amp.max(axis=0) >= abs(mixed_amp.min(axis=0)): 
-#             reduction_rate = max_int16 / mixed_amp.max(axis=0)
-#         else :
-#             reduction_rate = min_int16 / mixed_amp.min(axis=0)
-#         mixed_amp = mixed_amp * (reduction_rate)
-#         clean_amp = clean_amp * (reduction_rate)
-
-#     save_waveform(output_mixed_file, clean_wav.getparams(), mixed_amp)
-#     return output_mixed_file
-
-
-# -*- coding: utf-8 -*-
-
-
-# def get_args():
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--clean_file', type=str, required=True)
-#     parser.add_argument('--noise_file', type=str, required=True)
-#     parser.add_argument('--output_mixed_file', type=str, default='', required=True)
-#     parser.add_argument('--output_clean_file', type=str, default='')
-#     parser.add_argument('--output_noise_file', type=str, default='')
-#     parser.add_argument('--snr', type=float, default='', required=True)
-#     args = parser.parse_args()
-#     return args
-
-def cal_adjusted_rms(clean_rms, snr):
-    a = float(snr) / 20
-    noise_rms = clean_rms / (10**a) 
-    return noise_rms
-
-# def cal_amp(wf):
-# #     buffer = wf.readframes(wf.getnframes())
-# #     # The dtype depends on the value of pulse-code modulation. The int16 is set for 16-bit PCM.
-# #     amptitude = (np.frombuffer(buffer, dtype="int16")).astype(np.float64)
-    
-#     return amptitude
-
-# def cal_rms(amp):
-#     return np.sqrt(np.mean(np.square(amp), axis=-1))
-
-# def save_waveform(output_path, params, amp):
-#     output_file = wave.Wave_write(output_path)
-#     output_file.setparams(params) #nchannels, sampwidth, framerate, nframes, comptype, compname
-#     output_file.writeframes(array.array('h', amp.astype(np.int16)).tobytes() )
-#     output_file.close()
-
-
-def make_noisy_speech(clean_speech_file, noise_file, 
-                      clean_speech_dir, noise_dir,  out_dir, 
-                      min_snr_level = 1, max_snr_level = 20,
-                      snr = None):
-
-    # args = get_args()
-    # clean_file = args.clean_file
-    # noise_file = args.noise_file
-
-    # clean_speech_file 'down/b4aa9fef_nohash_4.wav'
   
-#     if not os.path.exists(out_dir):
-#         print('Create output dir for noisy output!')
-#         os.mkdir(out_dir)
 
-    subdir, filename = clean_speech_file.split('/')
-    out_subdir = os.path.join(out_dir, subdir)
-#     if not os.path.exists(out_subdir):
-#         print('Create output subdir for noisy output!')
-#         os.mkdir(out_subdir)
+def main():
+  
+    parser = argparse.ArgumentParser(description='Speech and backgound data download and preprocess')
+    parser.add_argument("--speech_data_root", required=True, default=None, type=str)
+    parser.add_argument("--background_data_root", required=True, default=None, type=str)
+#     parser.add_argument('--data_version', required=True, default=1, type=int, choices=[1, 2])
+    parser.add_argument('--test_size', required=False, default=0.1)
+    parser.add_argument('--val_size', required=False, default=0.1)
+    parser.add_argument('--log', required=False)
+    parser.add_argument('--rebalance', required=False)
+    parser.set_defaults(log=True, rebalance=False)
+    
+    args = parser.parse_args()
+
+    if args.log:
+        logging.basicConfig(level=logging.DEBUG)
+
+    # Download speech data
+    speech_data_root = args.speech_data_root
+    data_set = "google_speech_recognition_v2"
+    speech_data_folder = os.path.join(speech_data_root, data_set)
+    
+    background_data_folder = args.background_data_root
+    logging.info(f"Working on: {data_set}")
+
+    """
+    # Download and extract speech data
+    if not os.path.exists(speech_data_folder):
+        file_path = os.path.join(speech_data_root, data_set + ".tar.bz2")
+        logging.info(f"Getting {data_set}")
+        __maybe_download_file(file_path, URL)
+        logging.info(f"Extracting {data_set}")
+        __extract_all_files(file_path, speech_data_root, speech_data_folder)
+
+    logging.info(f"Split speech data!")
+    # dataset provide testing.txt and validation.txt feel free to split data using that with process_google_speech_train
+    # Train val test split speech data 
+#     split_train_val_test(speech_data_folder, "speech", args.test_size , args.val_size)
+    
+    logging.info(f"Split background data!")
+    # Train val test split background data
+   
+#     split_train_val_test(background_data_folder, "background", args.test_size, args.val_size)
+
+    out_dir = './manifest_half'
+    # Process Speech manifest
+    
+
+    logging.info(f"=== Write speech data to manifest!")
+    skip_num_val, seg_num_val, speech_val = load_list_write_manifest(speech_data_folder, out_dir, 'validation_list.txt', 'speech', 0.5, 0.5)
+    skip_num_test, seg_num_test, speech_test = load_list_write_manifest(speech_data_folder, out_dir, 'testing_list.txt', 'speech', 0.5, 0.5)
+    skip_num_train, seg_num_train, speech_train = load_list_write_manifest(speech_data_folder, out_dir, 'training_list.txt', 'speech', 0.5, 0.5)
+    
+    logging.info(f'Val: Skip {skip_num_val} samples. Get {seg_num_val} segments! => {speech_val} ')
+    logging.info(f'Test: Skip {skip_num_test} samples. Get {seg_num_test} segments! => {speech_test}')
+    logging.info(f'Train: Skip {skip_num_train} samples. Get {seg_num_train} segments!=> {speech_train}')
+    min_seg_num_val = seg_num_val
+    min_seg_num_test = seg_num_test
+    min_seg_num_train = seg_num_train
+
+    logging.info(f"=== Write background data to manifest!")
+    # Process background manifest
+    skip_num_val, seg_num_val, background_val = load_list_write_manifest(background_data_folder, out_dir, 'validation_list.txt', 'background', 0.5, 0.5)
+    skip_num_test, seg_num_test, background_test = load_list_write_manifest(background_data_folder, out_dir, 'testing_list.txt', 'background', 0.5, 0.5)
+    skip_num_train, seg_num_train, background_train = load_list_write_manifest(background_data_folder, out_dir, 'training_list.txt', 'background', 0.5, 0.5)
+    
+    logging.info(f'Val: Skip {skip_num_val} samples. Get {seg_num_val} segments! => {backgound_val}')
+    logging.info(f'Test: Skip {skip_num_test} samples. Get {seg_num_test} segments! => {backgound_test}')
+    logging.info(f'Train: Skip {skip_num_train} samples. Get {seg_num_train} segments! =>{background_train}')
+    min_seg_num_val = min(min_seg_num_val, seg_num_val)
+    min_seg_num_test = min(min_seg_num_test, seg_num_test)
+    min_seg_num_train = min(min_seg_num_train, seg_num_train)
+    
+    logging.info('Done!')
+                 
+    if args.rebalance:
+        logging.info("Rebalancing number of samples in classes.")
+        logging.info(f'Val: {min_seg_num_val} Test: {min_seg_num_test} Train: {min_seg_num_train}!')
+                
+                 
+    else:
+        logging.info("Don't rebalance number of samples in classes.")
         
-    
-    clean_speech_file = os.path.join(clean_speech_dir, clean_speech_file)
-    noise_file = os.path.join(noise_dir, noise_file)
-    
-    
-    if not snr:
-        snr = random.randint(min_snr_level, max_snr_level)
+    logging.info("Combine test set.")
+    combine_test_set([speech_test, background_test] , os.path.join(out_dir,'all_test.json'))
+    """ 
+    # frame
+    out_dir = "./frame_manifest"
+#     skip_num_train, seg_num_train, speech_test = load_list_write_manifest(speech_data_folder, "frame_manifest", 'testing_list.txt', 'speech', 0.010, 0.025)
+#     skip_num_test, seg_num_test, background_test = load_list_write_manifest(background_data_folder, "frame_manifest", 'testing_list.txt', 'background', 0.010, 0.025)
         
-    output_mixed_filename = filename.split('.wav')[0] + '_n' + str(snr) + '.wav'
-    output_mixed_file = os.path.join(out_subdir, output_mixed_filename)
-    
-    clean_y, clean_sr = librosa.load(clean_speech_file)
-    noise_y, noise_sr = librosa.load(noise_file)
-    
-    while len(noise_y) < 2 * len(clean_y):
-        print('Duplicate noise!')
-        noise_y = np.concatenate((noise_y, noise_y), axis=0)
-
-    
-    clean_rms = np.sqrt(np.mean(np.square(clean_y), axis=-1))
-    start = random.randint(0, len(noise_y)-len(clean_y))
-    divided_noise_y = noise_y[start: start + len(clean_y)]
-#     noise_rms = librosa.feature.rms(y = divided_noise_y)
-    
-    noise_rms = np.sqrt(np.mean(np.square(noise_y), axis=-1))
-
-    adjusted_noise_rms = cal_adjusted_rms(clean_rms, snr) 
-    adjusted_noise_y = divided_noise_y * (adjusted_noise_rms / noise_rms) 
-    mixed_y = (clean_y + divided_noise_y)
-    
-    librosa.output.write_wav(output_mixed_file, mixed_y, clean_sr)
-    
-    return output_mixed_file, snr
+    speech_test = os.path.join(out_dir, "speech_testing_manifest.json")
+    background_test = os.path.join(out_dir, "background_testing_manifest.json")
+    combine_test_set([speech_test, background_test] , os.path.join(out_dir,'all_test_short.json'))
+if __name__ == '__main__':
+    main()
