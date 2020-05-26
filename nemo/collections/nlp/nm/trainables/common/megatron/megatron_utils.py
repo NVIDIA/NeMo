@@ -21,6 +21,7 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 __all__ = [
+    'MEGATRON_CACHE',
     'MEGATRON_CONFIG_MAP',
     'CONFIGS',
     'get_megatron_lm_models_list',
