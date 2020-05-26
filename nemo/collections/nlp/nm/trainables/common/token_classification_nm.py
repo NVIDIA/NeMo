@@ -124,7 +124,6 @@ class TokenClassifier(TrainableNM):
         self,
         hidden_size,
         num_classes,
-        name=None,
         num_layers=2,
         activation='relu',
         log_softmax=True,
@@ -132,16 +131,13 @@ class TokenClassifier(TrainableNM):
         use_transformer_pretrained=True,
     ):
         # Pass name up the module class hierarchy.
-        super().__init__(name=name)
+        super().__init__()
 
         self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self._device, num_layers, activation, log_softmax)
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
-
-    def __str__(self):
-        return self.name
 
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
