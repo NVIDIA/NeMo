@@ -1,6 +1,3 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +24,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
-from .neural_factory import NeuralModuleFactory, OperationMode
+from nemo.core.neural_factory import NeuralModuleFactory, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version

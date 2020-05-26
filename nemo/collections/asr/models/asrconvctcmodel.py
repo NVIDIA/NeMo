@@ -1,6 +1,3 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +17,7 @@ import nemo
 from nemo import logging
 from nemo.core import NeMoModel, NeuralGraph, NeuralModule, NeuralType, OperationMode, PretrainedModelInfo
 from nemo.utils import maybe_download_from_cloud
+from nemo.utils.decorators import add_port_docs
 
 
 class ASRConvCTCModel(NeMoModel):
@@ -65,7 +63,7 @@ class ASRConvCTCModel(NeMoModel):
             self.__training_neural_graph.outputs["encoded_len"] = i_encoded_len
 
         # self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.evaluation)
-        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode)
+        self.__evaluation_neural_graph = NeuralGraph(operation_mode=OperationMode.both)
         with self.__evaluation_neural_graph:
             # Copy one input port definitions - using "user" port names.
             self.__evaluation_neural_graph.inputs["input_signal"] = preprocessor.input_ports["input_signal"]
@@ -124,13 +122,13 @@ class ASRConvCTCModel(NeMoModel):
         return self.__evaluation_neural_graph
 
     @property
+    @add_port_docs()
     def input_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """TODO: write manual docstring here"""
         return self._input_ports
 
     @property
+    @add_port_docs()
     def output_ports(self) -> Optional[Dict[str, NeuralType]]:
-        """TODO: write manual docstring here"""
         return self._output_ports
 
     @property
@@ -183,6 +181,20 @@ class ASRConvCTCModel(NeMoModel):
     def from_pretrained(
         cls, model_info, local_rank: int = 0, refresh_cache: bool = False, new_vocab: List[str] = None
     ) -> Optional[NeuralModule]:
+        """Instantiates a particular kind of ASRConvCTCModel from pretrained checkpoint.
+        Can do so from file on disk or from the NVIDIA NGC.
+
+        Args:
+            model_info: Either path to ".nemo" file or a valid NGC Model name
+            local_rank: on which GPU to instantiate.
+            refresh_cache: If set to True, then when fetching from clould, this will re-fetch the file
+                from clould even if it is  already found in a cache locally.
+            new_vocab: If you would like to do fine-tuning with different vocabulary, pass it here. This will keep all
+                weghts from the encoder (most of the network) but will randomly re-initialize the decoder with target vocab.
+
+        Returns:
+            NeMoModel instance
+        """
         # Create destination folder:
         instance = None
         if model_info.endswith(".nemo"):

@@ -1,16 +1,16 @@
-# Copyright (C) NVIDIA CORPORATION. All Rights Reserved.
+# Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.****
+# limitations under the License.
 import os
 from argparse import ArgumentParser
 from functools import partial
@@ -18,48 +18,48 @@ from functools import partial
 import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.helpers import monitor_asr_train_progress, process_evaluation_batch, process_evaluation_epoch
+from nemo.utils import logging
 from nemo.utils.lr_policies import CosineAnnealing
-
-# Usage and Command line arguments
-parser = ArgumentParser()
-parser.add_argument(
-    "--asr_model",
-    type=str,
-    default="QuartzNet15x5-En",
-    required=True,
-    help="Pass: 'QuartzNet15x5', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
-)
-parser.add_argument(
-    "--amp_opt_level",
-    default="O0",
-    type=str,
-    choices=["O0", "O1", "O2", "O3"],
-    help="See: https://nvidia.github.io/apex/amp.html",
-)
-parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
-parser.add_argument("--eval_datasets", type=str, nargs="*", help="evaluation datasets paths")
-parser.add_argument("--eval_freq", default=1000, type=int, help="Evaluation frequency")
-parser.add_argument("--eval_batch_size", type=int, default=8, help="batch size to use for evaluation")
-parser.add_argument("--local_rank", default=None, type=int, help="node rank for distributed training")
-parser.add_argument("--stats_freq", default=25, type=int, help="frequency with which to update train stats")
-parser.add_argument("--checkpoint_dir", default=None, type=str, help="Folder where to save checkpoints")
-parser.add_argument("--checkpoint_save_freq", required=False, type=int, help="how often (steps) to save checkpoints")
-parser.add_argument("--optimizer", default="novograd", type=str)
-parser.add_argument("--warmup_ratio", default=0.02, type=float, help="learning rate warmup ratio")
-parser.add_argument("--batch_size", required=True, type=int, help="train batch size per GPU")
-parser.add_argument("--num_epochs", default=5, type=int, help="number of epochs to train")
-parser.add_argument("--lr", default=0.01, type=float)
-parser.add_argument("--beta1", default=0.95, type=float)
-parser.add_argument("--beta2", default=0.5, type=float)
-parser.add_argument("--weight_decay", default=0.001, type=float)
-parser.add_argument("--iter_per_step", default=1, type=int, help="number of grad accumulations per batch")
-parser.add_argument("--wandb_exp_name", default=None, type=str)
-parser.add_argument("--wandb_project", default=None, type=str)
-args = parser.parse_args()
-logging = nemo.logging
 
 
 def main():
+    # Usage and Command line arguments
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
+    )
+    parser.add_argument(
+        "--amp_opt_level",
+        default="O0",
+        type=str,
+        choices=["O0", "O1", "O2", "O3"],
+        help="See: https://nvidia.github.io/apex/amp.html",
+    )
+    parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
+    parser.add_argument("--eval_datasets", type=str, nargs="*", help="evaluation datasets paths")
+    parser.add_argument("--eval_freq", default=1000, type=int, help="Evaluation frequency")
+    parser.add_argument("--eval_batch_size", type=int, default=8, help="batch size to use for evaluation")
+    parser.add_argument("--local_rank", default=None, type=int, help="node rank for distributed training")
+    parser.add_argument("--stats_freq", default=25, type=int, help="frequency with which to update train stats")
+    parser.add_argument("--checkpoint_dir", default=None, type=str, help="Folder where to save checkpoints")
+    parser.add_argument("--checkpoint_save_freq", required=False, type=int, help="how often to checkpoint")
+    parser.add_argument("--optimizer", default="novograd", type=str)
+    parser.add_argument("--warmup_ratio", default=0.02, type=float, help="learning rate warmup ratio")
+    parser.add_argument("--batch_size", required=True, type=int, help="train batch size per GPU")
+    parser.add_argument("--num_epochs", default=5, type=int, help="number of epochs to train")
+    parser.add_argument("--lr", default=0.01, type=float)
+    parser.add_argument("--beta1", default=0.95, type=float)
+    parser.add_argument("--beta2", default=0.5, type=float)
+    parser.add_argument("--weight_decay", default=0.001, type=float)
+    parser.add_argument("--iter_per_step", default=1, type=int, help="number of grad accumulations per batch")
+    parser.add_argument("--wandb_exp_name", default=None, type=str)
+    parser.add_argument("--wandb_project", default=None, type=str)
+    args = parser.parse_args()
+
     # Setup NeuralModuleFactory to control training
     # instantiate Neural Factory with supported backend
     nf = nemo.core.NeuralModuleFactory(
