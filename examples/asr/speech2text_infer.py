@@ -1,49 +1,40 @@
-# Copyright (C) NVIDIA CORPORATION. All Rights Reserved.
+# Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.****
-import os
+# limitations under the License.
+
 from argparse import ArgumentParser
-from functools import partial
 
 import nemo
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.helpers import (
-    monitor_asr_train_progress,
-    post_process_predictions,
-    post_process_transcripts,
-    process_evaluation_batch,
-    process_evaluation_epoch,
-    word_error_rate,
-)
-
-# Usage and Command line arguments
-parser = ArgumentParser()
-parser.add_argument(
-    "--asr_model",
-    type=str,
-    default="QuartzNet15x5-En",
-    required=True,
-    help="Pass: 'QuartzNet15x5-En', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En'",
-)
-parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
-parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
-parser.add_argument("--wer_target", type=float, default=None, help="used by test")
-
-logging = nemo.logging
-args = parser.parse_args()
+from nemo.collections.asr.helpers import post_process_predictions, post_process_transcripts, word_error_rate
+from nemo.utils import logging
 
 
 def main():
+    # Usage and Command line arguments
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5-En', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En'",
+    )
+    parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
+    parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
+    parser.add_argument("--wer_target", type=float, default=None, help="used by test")
+    args = parser.parse_args()
+
     # Setup NeuralModuleFactory to control training
     # instantiate Neural Factory with supported backend
     nf = nemo.core.NeuralModuleFactory()

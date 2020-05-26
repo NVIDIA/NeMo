@@ -24,10 +24,10 @@ from abc import abstractmethod
 from os import path
 from typing import Iterable
 
-from .neural_factory import DeploymentFormat, OperationMode
-from .neural_graph import NeuralGraph
-from .neural_modules import ModuleType, NeuralModule
-from nemo import logging
+from nemo.core.neural_factory import DeploymentFormat, OperationMode
+from nemo.core.neural_graph import NeuralGraph
+from nemo.core.neural_modules import ModuleType, NeuralModule
+from nemo.utils import logging
 
 __all__ = ['NeMoModel']
 
