@@ -46,7 +46,7 @@ Before running ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``, down
     # run the script to download the GLUE data
     python download_glue_data.py
 
-After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE tasks that is named accordinly. For example, data for MRPC task would be under ``glue_data/MRPC``, use lower cased task name to run the training script.
+After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE task. For example, data for MRPC task would be under ``glue_data/MRPC``, use lower cased task name to run the training script: ``cola, sst-2, mrpc, sts-b, qqp, mnli, qnli, rte, wnli``.
 
 The GLUE tasks can be fine-tuned on 4 pretrained back-bone models supported in NeMo: Megatron-LM BERT, BERT, AlBERT and RoBERTa.
 See the list of available pretrained Huggingface models `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
@@ -59,41 +59,11 @@ To get the list of all NeMo supported pretrained models run:
 
 Specify the model to use for training with ``--pretrained_model_name``.
 
-Supported task names: ``"cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"``.
-
 .. note::
     It's recommended to finetune the model on each task separately.
     Also, based on `GLUE Benchmark FAQ#12 <https://gluebenchmark.com/faq>`_,
     there are might be some differences in dev/test distributions for QQP task
     and in train/dev for WNLI task.
-
-Model results
--------------
-
-Evaluation was performed on the dev set finetuned on the specific task:
-
-+-------+------------------------------+--------------+---------------+----------------+
-| Task  |             Metric           | Albert-large | Albert-xlarge | BERT base paper|
-+=======+==============================+==============+===============+================+
-| CoLA  | Matthew's correlation        |     54.94    |     --.--     |                |
-+-------+------------------------------+--------------+---------------+----------------+
-| SST-2 | Accuracy                     |     94.84    |     91.86     |                |
-+-------+------------------------------+--------------+---------------+----------------+
-| MRPC  | F1/Accuracy                  |  92.50/89.46 |  --.--/--.--  |     88.9/-     |
-+-------+------------------------------+--------------+---------------+----------------+
-| STS-B | Person/Spearman corr.        |  91.25/--.-- |  --.--/--.--  |     85.8       |
-+-------+------------------------------+--------------+---------------+----------------+
-| QQP   | F1/Accuracy                  |  88.26/91.26 |  --.--/--.--  |     71.2/-     |
-+-------+------------------------------+--------------+---------------+----------------+
-| MNLI  | Matched acc./Mismatched acc. |  --.--/--.-- |  --.--/--.--  |                |
-+-------+------------------------------+--------------+---------------+----------------+
-| QNLI  | Accuracy                     |     92.71    |     --.--     |                |
-+-------+------------------------------+--------------+---------------+----------------+
-| RTE   | Accuracy                     |     80.87    |     --.--     |                |
-+-------+------------------------------+--------------+---------------+----------------+
-| WNLI  | Accuracy                     |     --.--    |     --.--     |                |
-+-------+------------------------------+--------------+---------------+----------------+
-Dev set was used for evaluation for Albert models, test set for BERT results from :cite:`nlp-glue-devlin2018bert`.
 
 Model training
 --------------
@@ -122,8 +92,68 @@ To use multi-gpu training on MNLI task, run:
             --pretrained_model_name bert-base-uncased \
 
 
-To use mixed precision, set optimization_level to ``O1`` or ``O2`` with ``--amp_opt_level`` argument.
-For model configuration files and checkpoints, see :ref:`pretrained_models_squad`.
+For additional model training parameters, please see ``examples/nlp/glue_benchmark_with_bert.py``.
+
+Model results
+-------------
+
+Results after finetuning on the specific task using (average result after 3 runs):
+.. code-block:: python
+    # to reproduce BERT base paper results
+    --pretrained_model_name bert-base-uncased 
+
+    # Albert-large
+    --pretrained_model_name albert-large-v2
+
+    #Albert-xlarge
+    --pretrained_model_name albert-xlarge-v2
+
++-------+------------------------------+--------------+---------------+----------------+
+| Task  |             Metric           | Albert-large | Albert-xlarge | BERT base paper|
++=======+==============================+==============+===============+================+
+| CoLA  | Matthew's correlation        |     54.94    |     61.72     |     52.1       |
++-------+------------------------------+--------------+---------------+----------------+
+| SST-2 | Accuracy                     |     92.74    |               |     93.5       |
++-------+------------------------------+--------------+---------------+----------------+
+| MRPC  | F1/Accuracy                  |  92.50/89.46 |  --.--/--.--  |     88.9/-     |
++-------+------------------------------+--------------+---------------+----------------+
+| STS-B | Person/Spearman corr.        |  90.41/90.21 |  --.--/--.--  |     85.8       |
++-------+------------------------------+--------------+---------------+----------------+
+| QQP   | F1/Accuracy                  |  88.26/91.26 |  --.--/--.--  |     71.2/-     |
++-------+------------------------------+--------------+---------------+----------------+
+| MNLI  | Matched acc./Mismatched acc. |  --.--/--.-- |  --.--/--.--  |   84.6/83.4    |
++-------+------------------------------+--------------+---------------+----------------+
+| QNLI  | Accuracy                     |     92.71    |     --.--     |      90.5      |
++-------+------------------------------+--------------+---------------+----------------+
+| RTE   | Accuracy                     |     80.87    |     --.--     |      66.4      |
++-------+------------------------------+--------------+---------------+----------------+
+WNLI task was excluded from the experiments due to the problematic WNLI set.
+Dev set was used for evaluation for Albert models, test set for BERT-base paper results from :cite:`nlp-glue-devlin2018bert`.
+
+Hyperparameters used to get the results from the above table, could be found in the table below.
+Each cell in the table represents the following parameters:
+Number of GPUs used/ Batch Size/ Learning Rate/ Number of Epochs. For not specified parameters, please refer to the default parameters in the training script.
+
++-------+--------------+---------------+
+| Task  | Albert-large | Albert-xlarge |
++=======+==============================+
+| CoLA  | 1/32/1e-5/3  |  1/32/1e-5/10 |      
++-------+------------------------------+
+| SST-2 | 4/16/2e-5/5  |     -     |     
++-------+------------------------------+
+| MRPC  |  - |  --.--/--.--  |     -     |
++-------+------------------------------+
+| STS-B | 1/16/2e-5/5  |  --.--/--.--  |    
++-------+------------------------------+
+| QQP   |  - |  --.--/--.--  |     
++-------+------------------------------+
+| MNLI  |  --.--/--.-- |  --.--/--.--  |   
++-------+------------------------------+
+| QNLI  |     92.71    |     --.--     |      
++-------+------------------------------+
+| RTE   |     80.87    |     --.--     |      
++-------+------------------------------+
+
 
 References
 ----------

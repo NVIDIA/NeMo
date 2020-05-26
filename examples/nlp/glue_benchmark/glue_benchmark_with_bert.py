@@ -166,7 +166,7 @@ parser.add_argument(
     type=int,
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
-parser.add_argument("--loss_step_freq", default=25, type=int, help="Frequency of printing loss")
+parser.add_argument("--loss_step_freq", default=-1, type=int, help="Frequency of printing loss")
 parser.add_argument(
     "--no_data_cache", action="store_true", help="When specified do not load and store cache preprocessed data.",
 )
