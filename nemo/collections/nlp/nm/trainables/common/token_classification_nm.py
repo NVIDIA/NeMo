@@ -124,7 +124,7 @@ class TokenClassifier(TrainableNM):
         self,
         hidden_size,
         num_classes,
-        name="TokenClassifier",
+        name=None,
         num_layers=2,
         activation='relu',
         log_softmax=True,

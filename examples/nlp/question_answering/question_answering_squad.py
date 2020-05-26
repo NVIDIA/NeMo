@@ -357,7 +357,7 @@ if __name__ == "__main__":
     hidden_size = model.hidden_size
 
     qa_head = nemo_nlp.nm.trainables.TokenClassifier(
-        hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False
+        hidden_size=hidden_size, num_classes=2, num_layers=1, log_softmax=False, name="TokenClassifier"
     )
     squad_loss = nemo_nlp.nm.losses.SpanningLoss()
 
