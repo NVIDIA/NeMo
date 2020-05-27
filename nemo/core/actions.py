@@ -18,11 +18,10 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
-
+from nemo.core.neural_factory import Optimization
+from nemo.core.neural_modules import ModuleType
 from nemo.core.neural_types import NmTensor
 from nemo.utils.app_state import AppState
-from nemo.core.neural_modules import ModuleType
-from nemo.core.neural_factory import Optimization
 
 
 def topological_sort_from_leaves(leaf_nmtensors: List[NmTensor], cached_training_state: 'TrainingState' = None):

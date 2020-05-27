@@ -20,9 +20,9 @@ from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
+from nemo.core.actions import Actions, TrainingState, topological_sort_from_leaves
 from nemo.core.callbacks import ActionCallback, NeMoCallback, SimpleLossLoggerCallback
 from nemo.core.neural_factory import OperationMode, Optimization
-from nemo.core.actions import Actions, TrainingState, topological_sort_from_leaves
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
