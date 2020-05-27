@@ -133,7 +133,7 @@ class SGDDialogueStateLossNM(LossNM):
         categorical_slot_status = categorical_slot_status.view(-1)
         if sum(categorical_slot_status != IGNORE_INDEX) == 0:
             logging.warning(f'No active categorical slots in the batch')
-            cat_slot_status_loss = 0 * torch.sum(logit_cat_slot_status.view(-1))
+            cat_slot_status_loss = torch.clamp(torch.max(logit_cat_slot_status.view(-1)), 0, 0)
         else:
             cat_slot_status_loss = self._cross_entropy(logit_cat_slot_status.view(-1, 3), categorical_slot_status)
 
@@ -146,7 +146,7 @@ class SGDDialogueStateLossNM(LossNM):
         # to handle cases with no active categorical slot value
         if sum(categorical_slot_values.view(-1) != IGNORE_INDEX) == 0:
             logging.warning(f'No active values for categorical slots in the batch.')
-            cat_slot_value_loss = 0 * torch.sum(logit_cat_slot_value.view(-1))
+            cat_slot_value_loss = torch.clamp(torch.max(logit_cat_slot_value.view(-1)), 0, 0)
         else:
             cat_slot_value_loss = self._cross_entropy(
                 logit_cat_slot_value.view(-1, max_num_slot_values), categorical_slot_values
@@ -157,7 +157,7 @@ class SGDDialogueStateLossNM(LossNM):
         noncategorical_slot_status = noncategorical_slot_status.view(-1)
         if sum(noncategorical_slot_status != IGNORE_INDEX) == 0:
             logging.warning(f'No active non-categorical slots in the batch.')
-            noncat_slot_status_loss = 0 * torch.sum(logit_noncat_slot_status.view(-1))
+            noncat_slot_status_loss = torch.clamp(torch.max(logit_noncat_slot_status.view(-1)), 0, 0)
         else:
             noncat_slot_status_loss = self._cross_entropy(
                 logit_noncat_slot_status.view(-1, 3), noncategorical_slot_status,
@@ -172,8 +172,8 @@ class SGDDialogueStateLossNM(LossNM):
         # to handle cases with no active categorical slot value
         if sum(noncategorical_slot_value_start != IGNORE_INDEX) == 0:
             logging.warning(f'No active values for non-categorical slots in the batch.')
-            span_start_loss = 0 * torch.sum(logit_noncat_slot_start.view(-1))
-            span_end_loss = 0 * torch.sum(logit_noncat_slot_end.view(-1))
+            span_start_loss = torch.clamp(torch.max(logit_noncat_slot_start.view(-1)), 0, 0)
+            span_end_loss = torch.clamp(torch.max(logit_noncat_slot_end.view(-1)), 0, 0)
         else:
             span_start_loss = self._cross_entropy(
                 logit_noncat_slot_start.view(-1, max_num_tokens), noncategorical_slot_value_start

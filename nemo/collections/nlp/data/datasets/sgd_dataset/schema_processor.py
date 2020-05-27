@@ -83,13 +83,6 @@ class SchemaPreprocessor:
         # Dimension of the embedding for intents, slots and categorical slot values in
         # Maximum allowed number of categorical trackable slots for a service.
         self.schema_config = schema_config.copy()
-        # self.MAX_NUM_CAT_SLOT = config["MAX_NUM_CAT_SLOT"]
-        # # Maximum allowed number of non-categorical trackable slots for a service.
-        # self.MAX_NUM_NONCAT_SLOT = config["MAX_NUM_NONCAT_SLOT"]
-        # # Maximum allowed number of values per categorical trackable slot.
-        # self.MAX_NUM_VALUE_PER_CAT_SLOT = config["MAX_NUM_VALUE_PER_CAT_SLOT"]
-        # # Maximum allowed number of intents for a service.
-        # self.MAX_NUM_INTENT = config["MAX_NUM_INTENT"]
 
         self.is_trainable = is_trainable
         self.datasets = datasets
