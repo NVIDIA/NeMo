@@ -2,7 +2,7 @@
 Tutorial
 ========
 
-In this tutorial, we are going to describe how to finetune a BERT-like models based on `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`_ :cite:`nlp-glue-devlin2018bert` on `GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding <https://openreview.net/pdf?id=rJ4km2R5t7>`_ :cite:`nlp-glue-wang2018glue`. 
+In this tutorial, we are going to describe how to finetune a BERT-like model based on `BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding <https://arxiv.org/abs/1810.04805>`_ :cite:`nlp-glue-devlin2018bert` on `GLUE: A Multi-Task Benchmark and Analysis Platform for Natural Language Understanding <https://openreview.net/pdf?id=rJ4km2R5t7>`_ :cite:`nlp-glue-wang2018glue`. 
 The code used in this tutorial is based on ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``.
 
 GLUE tasks description
@@ -12,7 +12,7 @@ GLUE Benchmark includes 9 natural language understanding tasks:
 
 Single-Sentence Tasks:
 
-- **CoLA** The Corpus of Linguistic Acceptability :cite:`nlp-glue-warstadt2018neural` is a set of English sentences from published linguistics literature. The task is to predict whether a given sentences is grammatically correct or not.
+- **CoLA** The Corpus of Linguistic Acceptability :cite:`nlp-glue-warstadt2018neural` is a set of English sentences from published linguistics literature. The task is to predict whether a given sentence is grammatically correct or not.
 - **SST-2** The Stanford Sentiment Treebank :cite:`nlp-glue-socher2013recursive` consists of sentences from movie reviews and human annotations of their sentiment. The task is to predict the sentiment of a given sentence: positive or negative.
 
 
@@ -20,7 +20,7 @@ Similarity and Paraphrase tasks:
 
 - **MRPC** The Microsoft Research Paraphrase Corpus :cite:`nlp-glue-dolan-brockett-2005-automatically` is a corpus of sentence pairs automatically extracted from online news sources, with human annotations for whether the sentences in the pair are semantically equivalent.
 - **QQP** `The Quora Question Pairs2 <https://www.quora.com/q/quoradata/First-Quora-Dataset-Release-Question-Pairs>`_ dataset is a collection of question pairs from the community question-answering website Quora. The task is to determine whether a pair of questions are semantically equivalent. 
-- **STS-B** The Semantic Textual Similarity Benchmark :cite:`nlp-glue-cer2017semeval` is a collection of sentence pairs drawn from news headlines, video and image captions, and natural language inference data.
+- **STS-B** The Semantic Textual Similarity Benchmark :cite:`nlp-glue-cer2017semeval` is a collection of sentence pairs drawn from news headlines, video and image captions, and natural language inference data. The task is to determini how similar two sentences are.
 
 
 Inference Tasks:
@@ -46,7 +46,8 @@ Before running ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``, down
     # run the script to download the GLUE data
     python download_glue_data.py
 
-After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE task. For example, data for MRPC task would be under ``glue_data/MRPC``, use lower cased task name to run the training script: ``cola, sst-2, mrpc, sts-b, qqp, mnli, qnli, rte, wnli``.
+After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE task. For example, data for MRPC task would be under ``glue_data/MRPC``.
+Use ``--task_name`` argument to run the training script on a specific task, use lower cased task name: ``cola, sst-2, mrpc, sts-b, qqp, mnli, qnli, rte, wnli``.
 
 The GLUE tasks can be fine-tuned on 4 pretrained back-bone models supported in NeMo: Megatron-LM BERT, BERT, AlBERT and RoBERTa.
 See the list of available pretrained Huggingface models `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
@@ -97,8 +98,10 @@ For additional model training parameters, please see ``examples/nlp/glue_benchma
 Model results
 -------------
 
-Results after finetuning on the specific task using (average result after 3 runs):
-.. code-block:: python
+Results after finetuning on the specific task (average result after 3 runs) using different pretrained models:
+ 
+ .. code-block:: python
+    
     # to reproduce BERT base paper results
     --pretrained_model_name bert-base-uncased 
 
@@ -115,18 +118,19 @@ Results after finetuning on the specific task using (average result after 3 runs
 +-------+------------------------------+--------------+---------------+----------------+
 | SST-2 | Accuracy                     |     92.74    |               |     93.5       |
 +-------+------------------------------+--------------+---------------+----------------+
-| MRPC  | F1/Accuracy                  |  92.50/89.46 |  --.--/--.--  |     88.9/-     |
+| MRPC  | F1/Accuracy                  |  92.05/88.97 |  91.87/88.61  |     88.9/-     |
 +-------+------------------------------+--------------+---------------+----------------+
-| STS-B | Person/Spearman corr.        |  90.41/90.21 |  --.--/--.--  |     85.8       |
+| STS-B | Person/Spearman corr.        |  90.41/90.21 |  90.07/90.10  |     85.8       |
 +-------+------------------------------+--------------+---------------+----------------+
 | QQP   | F1/Accuracy                  |  88.26/91.26 |  --.--/--.--  |     71.2/-     |
 +-------+------------------------------+--------------+---------------+----------------+
 | MNLI  | Matched acc./Mismatched acc. |  --.--/--.-- |  --.--/--.--  |   84.6/83.4    |
 +-------+------------------------------+--------------+---------------+----------------+
-| QNLI  | Accuracy                     |     92.71    |     --.--     |      90.5      |
+| QNLI  | Accuracy                     |     92.68    |     93.66     |      90.5      |
 +-------+------------------------------+--------------+---------------+----------------+
 | RTE   | Accuracy                     |     80.87    |     --.--     |      66.4      |
 +-------+------------------------------+--------------+---------------+----------------+
+
 WNLI task was excluded from the experiments due to the problematic WNLI set.
 Dev set was used for evaluation for Albert models, test set for BERT-base paper results from :cite:`nlp-glue-devlin2018bert`.
 
@@ -136,23 +140,23 @@ Number of GPUs used/ Batch Size/ Learning Rate/ Number of Epochs. For not specif
 
 +-------+--------------+---------------+
 | Task  | Albert-large | Albert-xlarge |
-+=======+==============================+
++=======+==============+===============+
 | CoLA  | 1/32/1e-5/3  |  1/32/1e-5/10 |      
-+-------+------------------------------+
-| SST-2 | 4/16/2e-5/5  |     -     |     
-+-------+------------------------------+
-| MRPC  |  - |  --.--/--.--  |     -     |
-+-------+------------------------------+
-| STS-B | 1/16/2e-5/5  |  --.--/--.--  |    
-+-------+------------------------------+
-| QQP   |  - |  --.--/--.--  |     
-+-------+------------------------------+
++-------+--------------+---------------+
+| SST-2 | 4/16/2e-5/5  |  1/16/4e-5/12 |     
++-------+--------------+---------------+
+| MRPC  |  1/32/1e-5/5 |  1/16/2e-5/5  |
++-------+--------------+---------------+
+| STS-B | 1/16/2e-5/5  |  1/16/4e-5/12 |    
++-------+--------------+---------------+
+| QQP   |  -           |  --.--/--.--  |     
++-------+--------------+---------------+
 | MNLI  |  --.--/--.-- |  --.--/--.--  |   
-+-------+------------------------------+
-| QNLI  |     92.71    |     --.--     |      
-+-------+------------------------------+
++-------+--------------+---------------+
+| QNLI  | 4/16/1e-5/5  |  4/16/1e-5/5  |      
++-------+--------------+---------------+
 | RTE   |     80.87    |     --.--     |      
-+-------+------------------------------+
++-------+--------------+---------------+
 
 
 References

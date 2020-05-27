@@ -60,7 +60,9 @@ parser.add_argument(
     type=int,
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
-parser.add_argument("--eval_step_freq", default=-1, type=int, help="Frequency of evaluation, -1 to evaluate every epoch")
+parser.add_argument(
+    "--eval_step_freq", default=-1, type=int, help="Frequency of evaluation, -1 to evaluate every epoch"
+)
 parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
 parser.add_argument("--use_weighted_loss", action='store_true', help="Flag to indicate whether to use weighted loss")
 
@@ -231,7 +233,7 @@ def create_pipeline(
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
     logits = classifier(hidden_states=hidden_states)
-    
+
     if mode == 'train':
         loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
         steps_per_epoch = len(data_layer) // (batch_size * num_gpus * batches_per_step)
