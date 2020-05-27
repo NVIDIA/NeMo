@@ -1,7 +1,7 @@
 # ! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright 2019 NVIDIA. All Rights Reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,13 +35,6 @@ class TestNeMoCallbacks:
     def clean_up(self):
         yield
         self.nf.reset_trainer()
-
-    @pytest.fixture()
-    def create_tensorboard_file(self):
-        os.makedirs("temp")
-        summary_writter = SummaryWriter("temp")
-        yield summary_writter
-        shutil.rmtree("temp")
 
     @pytest.mark.unit
     def test_SimpleLogger(self, clean_up):
@@ -96,7 +89,7 @@ class TestNeMoCallbacks:
             assert "y_pred" in line
 
     @pytest.mark.unit
-    def test_TensorboardLogger(self, clean_up, create_tensorboard_file):
+    def test_TensorboardLogger(self, clean_up, tmpdir):
         data_source = RealFunctionDataLayer(n=100, batch_size=1)
         trainable_module = TaylorNet(dim=4)
         loss = MSELoss()
@@ -106,7 +99,11 @@ class TestNeMoCallbacks:
         y_pred = trainable_module(x=x)
         loss_tensor = loss(predictions=y_pred, target=y)
 
-        tb_logger = TensorboardLogger(create_tensorboard_file, step_freq=1)
+        logging_dir = tmpdir.mkdir("temp")
+
+        writer = SummaryWriter(logging_dir)
+
+        tb_logger = TensorboardLogger(writer, step_freq=1)
         callbacks = [tb_logger]
 
         self.nf.train(
@@ -117,7 +114,7 @@ class TestNeMoCallbacks:
         )
 
         # efi.inspect("temp", tag="loss")
-        inspection_units = efi.get_inspection_units("temp", "", "loss")
+        inspection_units = efi.get_inspection_units(logging_dir, "", "loss")
 
         # Make sure there is only 1 tensorboard file
         assert len(inspection_units) == 1

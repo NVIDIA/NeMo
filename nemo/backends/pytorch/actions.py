@@ -21,7 +21,8 @@ from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
 from nemo.core.callbacks import ActionCallback, NeMoCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, OperationMode, Optimization, TrainingState, topological_sort_from_leaves
+from nemo.core.neural_factory import OperationMode, Optimization
+from nemo.core.actions import Actions, TrainingState, topological_sort_from_leaves
 from nemo.core.neural_types import AxisKind, NeuralType
 from nemo.utils.app_state import AppState
 from nemo.utils.decorators import deprecated
@@ -1387,23 +1388,6 @@ class PtActions(Actions):
                     )
                     self.ddp_module_dict[key] = module
 
-                # # Convert batchnorm modules to synced if applicable
-                # if synced_batchnorm and isinstance(pmodule, torch.nn.Module):
-                #     world_size = dist.get_world_size()
-                #     if synced_batchnorm_groupsize > 0 and world_size % synced_batchnorm_groupsize != 0:
-                #         raise ValueError(
-                #             f"Synchronized batch norm group size"
-                #             f" ({synced_batchnorm_groupsize}) must be 0"
-                #             f" or divide total number of GPUs"
-                #             f" ({world_size})."
-                #         )
-                #     process_group = create_syncbn_process_group(synced_batchnorm_groupsize)
-                #     pmodule = convert_syncbn(pmodule, process_group=process_group)
-
-                # self.module_reference_table[key] = (
-                #     self.module_reference_table[key][0],
-                #     pmodule,
-                # )
         # single GPU/CPU training
         else:
             if t_dataset is not None:

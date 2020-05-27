@@ -25,13 +25,14 @@ class NmTensorNameRegistry:
         # Create the nmtensor_naming_dict
         # which contains a mapping of str to NMTensor.unique_name
         self._nmtensor_naming_dict = {"loss": "loss"}  # Reserve keyname of 'loss'
-        self._nmtensor_uniname_dict = {"loss": None}
+        # Create a set object to track all unique_names
+        self._nmtensor_uniname_dict = set(["loss"])
 
     @property
     def unique_names(self):
         """Returns the set of all NmTensors.unique_names + 'loss'
         """
-        return self._nmtensor_uniname_dict.keys()
+        return list(self._nmtensor_uniname_dict)
 
     def register(self, tensor: 'NmTensor'):
         """Helper function to register a newly created NmTensor by adding it to self.__nmtensor_uniname_dict.
@@ -46,7 +47,7 @@ class NmTensorNameRegistry:
             pass
 
         # Finally, add object to the set.
-        self._nmtensor_uniname_dict[tensor.unique_name] = tensor
+        self._nmtensor_uniname_dict.add(tensor.unique_name)
 
     def rename_NmTensor(self, tensor: 'NmTensor', new_name: str):
         """Helper function that changes the naming dictionary to facilitate user name -> tensor.unique_name lookup.
