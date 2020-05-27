@@ -23,8 +23,7 @@ from ruamel.yaml import YAML
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.utils.argparse as nm_argparse
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():

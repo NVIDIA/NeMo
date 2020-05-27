@@ -24,14 +24,13 @@ from unittest import TestCase
 import pytest
 from ruamel.yaml import YAML
 
-import nemo
 import nemo.collections.asr as nemo_asr
-
-logging = nemo.logging
+from nemo.core import EvaluatorCallback, SimpleLossLoggerCallback
+from nemo.utils import logging
 
 
 @pytest.mark.usefixtures("neural_factory")
-class TestASRPytorch(TestCase):
+class TestASRIntegrationPytorch(TestCase):
     labels = [
         " ",
         "a",
@@ -148,7 +147,7 @@ class TestASRPytorch(TestCase):
         )
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
@@ -200,7 +199,7 @@ class TestASRPytorch(TestCase):
         )
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
@@ -258,7 +257,7 @@ class TestASRPytorch(TestCase):
         )
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
@@ -315,7 +314,7 @@ class TestASRPytorch(TestCase):
         )
 
         loss_list = []
-        callback = nemo.core.SimpleLossLoggerCallback(
+        callback = SimpleLossLoggerCallback(
             tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 
@@ -373,7 +372,7 @@ class TestASRPytorch(TestCase):
             process_evaluation_epoch,
         )
 
-        eval_callback = nemo.core.EvaluatorCallback(
+        eval_callback = EvaluatorCallback(
             eval_tensors=[loss, predictions, transcript, transcript_len],
             user_iter_callback=lambda x, y: process_evaluation_batch(x, y, labels=self.labels),
             user_epochs_done_callback=process_evaluation_epoch,

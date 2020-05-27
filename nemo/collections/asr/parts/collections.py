@@ -6,10 +6,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
-import nemo
 from nemo.collections.asr.parts import manifest, parsers
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 class _Collection(collections.UserList):

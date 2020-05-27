@@ -9,11 +9,11 @@ from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
 
-# logging = nemo.logging
+# from nemo.utils import logging
 @deprecated(
     version=0.11,
     explanation=(
-        "Please use nemo.logging instead by using logging = nemo.logging and logging.info(), "
+        "Please use nemo.logging instead by using from nemo.utils import logging and logging.info(), "
         "logging.warning() , etc."
     ),
 )

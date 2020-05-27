@@ -14,4 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import *
+from nemo.utils import logging
+
+try:
+    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_bert_nm import *
+
+except Exception as e:
+    logging.error('Failed to import Megatron Neural Module: `{}` ({})'.format(str(e), type(e)))

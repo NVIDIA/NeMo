@@ -29,11 +29,3 @@ QuartzNet3x2        voxceleb1             ffsvc-dev            14.22%	         7
                     voxceleb2
 ============== ================= ===================== ====================== ==========
 
-
-References
-----------
-
-    .. bibliography:: speaker.bib
-        :style: plain
-        :labelprefix: SPEAKER-TUT
-        :keyprefix: speaker-tut-
