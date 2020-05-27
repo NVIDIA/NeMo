@@ -22,6 +22,7 @@ import nemo
 from nemo.utils.metaclasses import Singleton
 from nemo.utils.neural_graph.neural_graph_manager import NeuralGraphManager
 from nemo.utils.neural_graph.object_registry import ObjectRegistry
+from nemo.core.neural_types import NmTensorNameRegistry
 
 
 class AppState(metaclass=Singleton):
@@ -48,7 +49,7 @@ class AppState(metaclass=Singleton):
         # Create graph manager (registry with some additional functionality).
         self._neural_graph_manager = NeuralGraphManager()
         # Create NmTensor registry
-        self._nmtensor_name_registry = nemo.core.neural_types.NmTensorNameRegistry()
+        self._nmtensor_name_registry = NmTensorNameRegistry()
 
     @property
     def tensor_names(self):
