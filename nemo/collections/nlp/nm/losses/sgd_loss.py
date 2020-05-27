@@ -24,7 +24,7 @@ import torch
 
 from nemo import logging
 from nemo.backends.pytorch import LossNM
-from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import IGNORE_INDEX, STATUS_ACTIVE
+from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import IGNORE_INDEX
 from nemo.core import ChannelType, LabelsType, LogitsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
