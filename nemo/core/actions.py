@@ -243,7 +243,7 @@ class Actions(ABC):
     def train(
         self,
         tensors_to_optimize: List[NmTensor],
-        callbacks: Optional[List[Union[ActionCallback, NeMoCallback]]],
+        callbacks: Optional[List[Union['ActionCallback', 'NeMoCallback']]],
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
