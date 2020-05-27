@@ -20,7 +20,7 @@ Similarity and Paraphrase tasks:
 
 - **MRPC** The Microsoft Research Paraphrase Corpus :cite:`nlp-glue-dolan-brockett-2005-automatically` is a corpus of sentence pairs automatically extracted from online news sources, with human annotations for whether the sentences in the pair are semantically equivalent.
 - **QQP** `The Quora Question Pairs2 <https://www.quora.com/q/quoradata/First-Quora-Dataset-Release-Question-Pairs>`_ dataset is a collection of question pairs from the community question-answering website Quora. The task is to determine whether a pair of questions are semantically equivalent. 
-- **STS-B** The Semantic Textual Similarity Benchmark :cite:`nlp-glue-cer2017semeval` is a collection of sentence pairs drawn from news headlines, video and image captions, and natural language inference data. The task is to determini how similar two sentences are.
+- **STS-B** The Semantic Textual Similarity Benchmark :cite:`nlp-glue-cer2017semeval` is a collection of sentence pairs drawn from news headlines, video, and image captions, and natural language inference data. The task is to determine how similar two sentences are.
 
 
 Inference Tasks:
@@ -49,9 +49,9 @@ Before running ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``, down
 After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE task. For example, data for MRPC task would be under ``glue_data/MRPC``.
 Use ``--task_name`` argument to run the training script on a specific task, use lower cased task name: ``cola, sst-2, mrpc, sts-b, qqp, mnli, qnli, rte, wnli``.
 
-The GLUE tasks can be fine-tuned on 4 pretrained back-bone models supported in NeMo: Megatron-LM BERT, BERT, AlBERT and RoBERTa.
-See the list of available pretrained Huggingface models `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
-To get the list of all NeMo supported pretrained models run:
+The GLUE tasks can be fine-tuned on 4 pre-trained back-bone models supported in NeMo: Megatron-LM BERT, BERT, AlBERT and RoBERTa.
+See the list of available pre-trained Huggingface models `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
+To get the list of all NeMo supported pre-trained models run:
 
 .. code-block:: python
     
@@ -98,7 +98,7 @@ For additional model training parameters, please see ``examples/nlp/glue_benchma
 Model results
 -------------
 
-Results after finetuning on the specific task (average result after 3 runs) using different pretrained models:
+Results after finetuning on the specific task (average result after 3 runs) using different pre-trained models:
  
  .. code-block:: python
     
@@ -132,7 +132,7 @@ Results after finetuning on the specific task (average result after 3 runs) usin
 +-------+------------------------------+--------------+---------------+----------------+
 
 WNLI task was excluded from the experiments due to the problematic WNLI set.
-Dev set was used for evaluation for Albert models, test set for BERT-base paper results from :cite:`nlp-glue-devlin2018bert`.
+The dev sets were used for evaluation for Albert models, and the test sets for BERT-base paper results from :cite:`nlp-glue-devlin2018bert`.
 
 Hyperparameters used to get the results from the above table, could be found in the table below.
 Each cell in the table represents the following parameters:
