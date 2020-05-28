@@ -50,6 +50,8 @@ if __name__ == "__main__":
     # Loss.
     nll_loss = NLLLoss()
 
+    print(str(reshaper.input_ports["inputs"]))
+
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
         img, tgt = cifar10_dl()

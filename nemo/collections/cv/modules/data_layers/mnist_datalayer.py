@@ -21,7 +21,7 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core.neural_types import AxisKind, AxisType, LabelsType, NeuralType, NormalizedValueType
+from nemo.core.neural_types import AxisKind, AxisType, NeuralType, NormalizedImageType, ClassificationTargetType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MNISTDataLayer']
@@ -71,7 +71,7 @@ class MNISTDataLayer(DataLayerNM, MNIST):
         labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')
         word_to_ix = {labels[i]: i for i in range(10)}
 
-        # Reverse mapping - for labels.
+        # Reverse mapping - for labels. (NOT USED NOW)
         self.ix_to_word = {value: key for (key, value) in word_to_ix.items()}
 
     @property
@@ -89,9 +89,9 @@ class MNISTDataLayer(DataLayerNM, MNIST):
                     AxisType(kind=AxisKind.Height, size=self._height),
                     AxisType(kind=AxisKind.Width, size=self._width),
                 ),
-                elements_type=NormalizedValueType(),
+                elements_type=NormalizedImageType(),
             ),
-            "targets": NeuralType(tuple('B'), elements_type=LabelsType()),
+            "targets": NeuralType(tuple('B'), elements_type=ClassificationTargetType()),
         }
 
     def __len__(self):

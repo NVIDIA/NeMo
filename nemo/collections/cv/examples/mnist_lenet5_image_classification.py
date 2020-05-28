@@ -57,11 +57,17 @@ if __name__ == "__main__":
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss
 
+    # Display the graph summmary.
+    logging.info(training_graph.summary())
+
     # Create a validation graph, starting from the second data layer.
     with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
         x, y = dl_e()
         p = lenet5(images=x)
         loss_e = nll_loss(predictions=p, targets=y)
+
+    # Display the graph summmary.
+    logging.info(evaluation_graph.summary())
 
     # Create the callbacks.
     def eval_loss_per_batch_callback(tensors, global_vars):

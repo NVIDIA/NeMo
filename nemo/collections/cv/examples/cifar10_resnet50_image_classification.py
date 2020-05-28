@@ -57,7 +57,7 @@ if __name__ == "__main__":
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss
 
-    # Show info.
+    # Display the graph summmary.
     logging.info(training_graph.summary())
 
     # SimpleLossLoggerCallback will print loss values to console.

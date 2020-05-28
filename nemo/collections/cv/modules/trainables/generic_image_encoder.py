@@ -42,7 +42,7 @@ import torch
 import torchvision.models as models
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, NeuralType, VoidType
+from nemo.core.neural_types import AxisKind, AxisType, NeuralType, ImageType, FeatureMapsType, LogitsType
 from nemo.utils import logging
 from nemo.utils.configuration_parsing import get_value_from_dictionary
 from nemo.utils.decorators import add_port_docs
@@ -150,7 +150,9 @@ class GenericImageEncoder(TrainableNM):
                     AxisType(kind=AxisKind.Height, size=224),
                     AxisType(kind=AxisKind.Width, size=224),
                 ),
-                elements_type=VoidType(),
+                elements_type=ImageType(),
+                # TODO: actually encoders pretrained on ImageNet require special image normalization.
+                # Probably this should be a new image type.
             )
         }
 
@@ -170,14 +172,14 @@ class GenericImageEncoder(TrainableNM):
                         AxisType(kind=AxisKind.Height, size=self._feature_map_height),
                         AxisType(kind=AxisKind.Width, size=self._feature_map_width),
                     ),
-                    elements_type=VoidType(),
+                    elements_type=FeatureMapsType(),
                 )
             }
         else:
             return {
                 "outputs": NeuralType(
                     axes=(AxisType(kind=AxisKind.Batch), AxisType(kind=AxisKind.Any, size=self._output_size),),
-                    elements_type=VoidType(),
+                    elements_type=LogitsType(),
                 )
             }
 

@@ -35,8 +35,13 @@ __all__ = [
     'EmbeddedTextType',
     'EncodedRepresentation',
     'MaskType',
-    'NormalizedValueType',
+    'TargetType',
+    'ClassificationTargetType',
+    'FeatureMapsType',
+    'ImageType',
+    'NormalizedImageType',
 ]
+
 import abc
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Tuple
@@ -193,11 +198,31 @@ class CategoricalValuesType(PredictionsType):
 
 
 class MaskType(PredictionsType):
-    """Element type to represent boolean mask"""
+    """Element type to represent a boolean mask"""
 
 
-class NormalizedValueType(ElementType):
+class TargetType(ElementType):
     """
-        Element type to represent a value normalized to <0-1> range,
+        Element type to represent a target value.
+    """
+
+class ClassificationTargetType(ElementType):
+    """
+        Element type to represent classification a target value, i.e. identifier of a desired class.
+    """
+
+class FeatureMapsType(ElementType):
+    """Element type to feature maps"""
+    
+
+class ImageType(ElementType):
+    """
+        Element type to represent a value of a single image channel,
+        e.g. a single element (R) of RGB image.
+    """
+
+class NormalizedImageType(ImageType):
+    """
+        Element type to represent a value of a single image channel normalized to <0-1> range,
         e.g. a single element (R) of normalized RGB image.
     """
