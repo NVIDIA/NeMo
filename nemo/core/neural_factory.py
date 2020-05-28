@@ -20,23 +20,20 @@ __all__ = [
     'OperationMode',
     'Optimization',
     'DeviceType',
-    'Actions',
     'NeuralModuleFactory',
     'DeploymentFormat',
 ]
 
 import random
-from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 
 import nemo
-from ..utils import ExpManager
-from .callbacks import ActionCallback, EvaluatorCallback
-from .neural_types import *
-from nemo.utils import logging
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
+from nemo.core.neural_types import NmTensor
+from nemo.utils import ExpManager, logging
 from nemo.utils.decorators import deprecated
 
 
@@ -81,163 +78,6 @@ class DeviceType(Enum):
     GPU = 1
     CPU = 2
     AllGpu = 3
-
-
-class Actions(ABC):
-    """Basic actions allowed on graphs of Neural Modules"""
-
-    def __init__(self, local_rank, global_rank, optimization_level=Optimization.mxprO0):
-        self._local_rank = local_rank
-        self._global_rank = global_rank
-        self._optim_level = optimization_level
-        self.step = None
-        self.epoch_num = None
-
-    @property
-    def local_rank(self):
-        """Local rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._local_rank
-
-    @property
-    def global_rank(self):
-        """Global rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._global_rank
-
-    @abstractmethod
-    def train(
-        self,
-        tensors_to_optimize: List[NmTensor],
-        callbacks: Optional[List[ActionCallback]],
-        lr_policy=None,
-        batches_per_step=None,
-        stop_on_nan_loss=False,
-    ):
-        """This action executes training and (optionally) evaluation.
-
-        Args:
-            tensors_to_optimize: which tensors to optimize. Typically this is
-                single loss tesnor.
-            callbacks: list of callback objects
-            lr_policy: function which should take (initial_lr, step, epoch) and
-                return learning rate
-            batches_per_step: number of mini-batches to process before one
-                optimizer step. (default: None, same as 1). Use this
-                to simulate larger batch sizes on hardware which could not fit
-                larger batch in memory otherwise. Effectively, this will make
-                "algorithmic" batch size per GPU/worker = batches_per_step*
-                batch_size
-            stop_on_nan_loss: (default: False) If set to True, the training
-                will stop if loss=nan or inf. If set to False, the training
-                will continue.
-
-        Returns:
-            None
-        """
-        pass
-
-    @abstractmethod
-    def infer(self, tensors: List[NmTensor]):
-        """This action executes inference. Nothing is optimized.
-        Args:
-          tensors: which tensors to evaluate.
-
-        Returns:
-          None
-        """
-        pass
-
-    @abstractmethod
-    def save_state_to(self, path: str):
-        """
-        Saves current state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def restore_state_from(self, path: str):
-        """
-        Restores state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
-        """
-        Creates an optimizer object to be use in the train() method.
-
-        Args:
-            optimizer: Specifies which optimizer to use.
-            things_to_optimize: A list of neural modules or tensors to be
-                optimized.
-            optimizer_params: Specifies the parameters of the optimizer
-
-        Returns:
-            Optimizer
-        """
-        pass
-
-    def _perform_on_iteration_start(self, callbacks):
-        # TODO: Most of these checks can be relaxed since we enforce callbacks
-        # to be a list of ActionCallback objects
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_start()
-
-    def _perform_on_iteration_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_end()
-
-    def _perform_on_action_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_start()
-
-    def _perform_on_action_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_end()
-
-    def _perform_on_epoch_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_start()
-
-    def _perform_on_epoch_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_end()
-
-    def _init_callbacks(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.action = self
-
-    def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
-    ):
-        # if self.local_rank is None or self.local_rank == 0:
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback._registered_tensors = registered_tensors
 
 
 def _str_to_opt_level(opt_str: str) -> Optimization:
@@ -439,86 +279,6 @@ class NeuralModuleFactory(object):
         return mod
 
     @deprecated(version=0.11)
-    def __get_pytorch_module(self, name, collection, params, pretrained):
-        # TK: "factory" is not passed as parameter anymore.
-        # params["factory"] = self
-
-        if collection == "toys" or collection == "tutorials" or collection == "other":
-            constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.tutorials." + name)
-        elif collection == "nemo_nlp":
-            constructor = NeuralModuleFactory.__name_import("nemo_nlp." + name)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-        elif collection == "nemo_asr":
-            constructor = NeuralModuleFactory.__name_import("nemo_asr." + name)
-        elif collection == "nemo_lpr":
-            constructor = NeuralModuleFactory.__name_import("nemo_lpr." + name)
-        elif collection == 'common':
-            constructor = NeuralModuleFactory.__name_import('nemo.backends.pytorch.common.' + name)
-        elif collection == "torchvision":
-            import torchvision.models as tv_models
-            import nemo.backends.pytorch.module_wrapper as mw
-            import torch.nn as nn
-
-            if name == "ImageFolderDataLayer":
-                constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.torchvision.data." + name)
-                instance = constructor(**params)
-                return instance
-            else:
-                _nm_name = name.lower()
-                if _nm_name == "resnet18":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet18(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(512, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-                elif _nm_name == "resnet50":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet50(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(2048, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-        else:
-            collection_path = "nemo.collections." + collection + "." + name
-            constructor = NeuralModuleFactory.__name_import(collection_path)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-
-        # TK: "placement" is not passed as parameter anymore.
-        # if "placement" not in params:
-        #    params["placement"] = self._placement
-        instance = constructor(**params)
-        return instance
-
-    @deprecated(version=0.11)
     def get_module(self, name, collection, params, pretrained=False):
         """
         Creates NeuralModule instance
@@ -536,21 +296,6 @@ class NeuralModuleFactory(object):
           NeuralModule instance
         """
 
-        # TK: "optimization_level" is not passed as parameter anymore.
-        # if params is not None and "optimization_level" in params:
-        #    if params["optimization_level"] != self._optim_level:
-        #        logging.warning(
-        #            "Module's {0} requested optimization level {1} is"
-        #            "different from the one specified by factory - {2}."
-        #            "Using: {3} for this module".format(
-        #                name, params["optimization_level"], self._optim_level, params["optimization_level"],
-        #            )
-        #        )
-        # else:
-        #    if params is None:
-        #        params = {}
-        #    params["optimization_level"] = self._optim_level
-
         if self._backend == Backend.PyTorch:
             return self.__get_pytorch_module(name=name, collection=collection, params=params, pretrained=pretrained,)
         else:
@@ -567,7 +312,7 @@ class NeuralModuleFactory(object):
         training_graph=None,
         optimizer=None,
         optimization_params=None,
-        callbacks: Optional[List[ActionCallback]] = None,
+        callbacks: Optional[List[Union[ActionCallback, NeMoCallback]]] = None,
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
