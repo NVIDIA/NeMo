@@ -47,7 +47,6 @@ Before running ``examples/nlp/glue_benchmark/glue_benchmark_with_bert.py``, down
     python download_glue_data.py
 
 After running the above commands, you will have a folder ``glue_data`` with data folders for every GLUE task. For example, data for MRPC task would be under ``glue_data/MRPC``.
-Use ``--task_name`` argument to run the training script on a specific task, use lower cased task name: ``cola, sst-2, mrpc, sts-b, qqp, mnli, qnli, rte, wnli``.
 
 The GLUE tasks can be fine-tuned on 4 pre-trained back-bone models supported in NeMo: Megatron-LM BERT, BERT, AlBERT and RoBERTa.
 See the list of available pre-trained Huggingface models `here <https://huggingface.co/transformers/pretrained_models.html>`__. 
@@ -68,10 +67,11 @@ Specify the model to use for training with ``--pretrained_model_name``.
 
 Model training
 --------------
+Use ``--task_name`` argument to run the training script on a specific task, use lower cased task name: ``cola, sst-2, mrpc, sts-b, qqp, mnli, qnli, rte, wnli``.
 
 To run the script on MRPC task on a single GPU, run:
     
-    .. code-block:: python
+    .. code-block:: bash
 
         python glue_benchmark_with_bert.py  \
             --data_dir /path_to_data_dir/MRPC \
@@ -92,6 +92,7 @@ To use multi-gpu training on MNLI task, run:
             --num_gpus=$NUM_GPUS \
             --pretrained_model_name bert-base-uncased \
 
+More details about multi-gpu training could be found in the `Fast Training <https://nvidia.github.io/NeMo/training.html>`_ section.
 
 For additional model training parameters, please see ``examples/nlp/glue_benchmark_with_bert.py``.
 
@@ -158,6 +159,24 @@ Number of GPUs used/ Batch Size/ Learning Rate/ Number of Epochs. For not specif
 | RTE   | 1/16/1e-5/5  | 1//16/1e-5/12 |      
 +-------+--------------+---------------+
 
+Evaluating Checkpoints
+----------------------
+
+During training, the model is evaluated after every epoch and by default a folder named "checkpoints" would be created under the working folder specified by `--work_dir` and \
+checkpoints would be stored there. To do evaluation of a pre-trained checkpoint on a dev set, \
+run the same training script by passing `--checkpoint_dir` and setting `--num_epochs` as zero to avoid the training.
+For example, to evaluate a checkpoint trained on MRPC task, run:
+
+.. code-block:: bash
+
+    cd examples/nlp/glue_benchmark
+    python glue_benchmark_with_bert.py  \
+        --data_dir /path_to_data_dir/MRPC \
+        --task_name mrpc \
+        --work_dir /path_to_output_folder \
+        --pretrained_model_name bert-base-uncased \
+        --checkpoint_dir /path_to_output_folder/checkpoints \
+        --num_epochs 0
 
 References
 ----------

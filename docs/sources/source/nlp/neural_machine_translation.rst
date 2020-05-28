@@ -225,9 +225,6 @@ Translation with pretrained model
 References
 ----------
 
-References
-------------------
-
 .. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-NMT
