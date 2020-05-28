@@ -16,7 +16,7 @@ if [[ -z $WANDB_TOKEN ]]; then
 fi
 
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
-# NGC
+# NGC defaults
 IMAGE="nvidian/pytorch:19.12-py3"
 GPU_MEM=16     # Default is 32.
 NUM_GPU=1      # Default is 8.
@@ -27,14 +27,17 @@ RESULT=/result # Results dir
 # Script
 SCRIPT=examples/tts/fasterspeech_mels.py
 CONFIG=examples/tts/configs/fasterspeech-mels-lj.yaml
+#read -r DURS_NAME DOUBLING <<<'ljspeech_300epochs-qn15x5-eqlen_all-1s_split3 '
+read -r DURS_NAME DOUBLING <<<'ljspeech_original-qn-15x5_2x-less --doubling'
 # LJSpeech
 DATASET_SIZE=12500 # Train
 NUM_EPOCHS=100     # Total number of epochs
-BATCH_SIZE=128     # [1GPU,16G]: 97 its/e, 194 warmup
-#BATCH_SIZE=256     # [1GPU,32G]: 48 its/e, 96 warmup
-#BATCH_SIZE=128     # [8GPU,32G]: 97 its/e, 194 warmup
+#BATCH_SIZE=64      # [1GPU,16G]: 195 its/e, 390 warmup
+BATCH_SIZE=128     # [1GPU,16G,DOUBLING]: 97 its/e, 194 warmup
+#BATCH_SIZE=256     # [1GPU,32G,DOUBLING]: 48 its/e, 96 warmup
+#BATCH_SIZE=128     # [8GPU,32G,DOUBLING]: 97 its/e, 194 warmup
 # Megatron run
-#read GPU_MEM NUM_GPU BATCH_SIZE NUM_EPOCHS <<< '32 8 128 1500'
+read -r GPU_MEM NUM_GPU OPT BATCH_SIZE NUM_EPOCHS <<<'32 8 O0 128 1500'
 
 # ---------------------------------------------------- SAVE STATE ----------------------------------------------------
 echo "Updating source code..."
@@ -61,11 +64,11 @@ nvidia-smi \
 && cp -R ${WORKSPACE}/nemos/${id} /nemo && cd /nemo && pip install .[all] \
 && pip install -U wandb && wandb login ${WANDB_TOKEN} \
 && python -m torch.distributed.launch --nproc_per_node=${NUM_GPU} ${SCRIPT} \
---model_config=${CONFIG} \
 --amp_opt_level=${OPT} \
+--model_config=${CONFIG} \
 --batch_size=${BATCH_SIZE} \
 --eval_batch_size=${BATCH_SIZE} \
---lr=$((BATCH_SIZE / 64))e-3 \
+--lr=$((BATCH_SIZE * NUM_GPU / 64))e-3 \
 --train_freq=10 \
 --eval_freq=${eval_freq} \
 --warmup=$((total_steps / 50)) \
@@ -76,7 +79,7 @@ nvidia-smi \
 --wdb_name=${name_id} \
 --wdb_tags=mels,ljspeech,opt \
 --train_dataset=/data/ljspeech/split3/train.json \
---train_durs=/data/librimeta/durs/ljspeech_original-qn-15x5_2x-less/train.npy \
+--train_durs=/data/librimeta/durs/${DURS_NAME}/train.npy \
 --eval_names \
 eval \
 test \
@@ -84,10 +87,10 @@ test \
 /data/ljspeech/split3/eval.json \
 /data/ljspeech/split3/test.json \
 --eval_durs \
-/data/librimeta/durs/ljspeech_original-qn-15x5_2x-less/eval.npy \
-/data/librimeta/durs/ljspeech_original-qn-15x5_2x-less/test.npy \
+/data/librimeta/durs/${DURS_NAME}/eval.npy \
+/data/librimeta/durs/${DURS_NAME}/test.npy \
 --waveglow_checkpoint=/data/checkpoints/waveglow.pth \
---doubling
+${DOUBLING}
 EOF
 
 # ------------------------------------------------------- FIRE -------------------------------------------------------

@@ -14,8 +14,8 @@
 # =============================================================================
 
 from nemo.collections.tts.data_layers import AudioDataLayer
-from nemo.collections.tts.fasterspeech_modules import *
-from nemo.collections.tts.fasterspeech_modules import __all__ as fasterspeech__all__
+from nemo.collections.tts.talknet_modules import *
+from nemo.collections.tts.talknet_modules import __all__ as fasterspeech__all__
 from nemo.collections.tts.fastspeech_modules import *
 from nemo.collections.tts.fastspeech_modules import __all__ as fastspeech__all__
 from nemo.collections.tts.parts.helpers import *

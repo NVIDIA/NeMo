@@ -16,10 +16,10 @@ if [[ -z $WANDB_TOKEN ]]; then
 fi
 
 # ------------------------------------------------------ CONSTS ------------------------------------------------------
-# NGC
+# NGC defaults
 IMAGE="nvidian/pytorch:19.12-py3"
-GPU_MEM=16     # Default is 32.
-NUM_GPU=1      # Default is 8.
+GPU_MEM=32     # Default is 32.
+NUM_GPU=8      # Default is 8.
 OPT=O2         # Default is O0.
 WS=stan        # Workspace name
 WORKSPACE=/ws  # Workspace mount point
@@ -30,9 +30,9 @@ CONFIG=examples/tts/configs/fasterspeech-durs-lj.yaml
 # LJSpeech
 DATASET_SIZE=12500 # Train
 NUM_EPOCHS=100     # Total number of epochs
-BATCH_SIZE=352     # [1GPU,16G]: 35 its/e
-#BATCH_SIZE=704      # [1GPU,32G]: 17 its/e
-#BATCH_SIZE=704      # [8GPU,32G]: 2 its/e
+#BATCH_SIZE=256     # [1GPU,16G]: 35 its/e
+#BATCH_SIZE=512      # [1GPU,32G]: 17 its/e
+BATCH_SIZE=512 # [8GPU,32G]: 3 its/e
 
 # ---------------------------------------------------- SAVE STATE ----------------------------------------------------
 echo "Updating source code..."
@@ -62,6 +62,7 @@ nvidia-smi \
 --model_config=${CONFIG} \
 --batch_size=${BATCH_SIZE} \
 --eval_batch_size=${BATCH_SIZE} \
+--lr=$((BATCH_SIZE * NUM_GPU / 64))e-3 \
 --train_freq=10 \
 --eval_freq=100 \
 --warmup=$((total_steps / 50)) \
