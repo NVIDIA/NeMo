@@ -209,13 +209,6 @@ def process_dialogues(final_dialogues, dialogue_count, dialogues, replace_turn_p
                                 replace_success += 1
                             except Exception:
                                 replace_failed += 1
-
-        for turn in dialogue["turns"]:
-            for frame in turn["frames"]:
-                if 'state_update' in frame:
-                    frame.pop("state_update")
-                if 'slot_to_span' in frame:
-                    frame.pop("slot_to_span")
         final_dialogues[d_id].append(dialogue)
     print(f"Replacement success {replace_success}, failed {replace_failed}\n")
 
