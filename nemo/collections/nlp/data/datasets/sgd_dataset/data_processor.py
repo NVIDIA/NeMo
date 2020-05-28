@@ -93,6 +93,10 @@ class Dstc8DataProcessor(object):
         self._max_seq_length = self.schema_config["MAX_SEQ_LENGTH"]
 
         self.dial_files = {}
+        slots_relation_file = "slots_relation_list.np"
+        slots_relation_file = os.path.join(dialogues_example_dir, slots_relation_file)
+        self.slots_relation_file = slots_relation_file
+
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         for dataset in ["train", "dev", "test"]:
             # Process dialogue files
@@ -112,10 +116,7 @@ class Dstc8DataProcessor(object):
                         np.save(f, dial_examples)
 
                     if dataset == "train":
-                        slots_relation_file = "slots_relation_list.np"
-                        slots_relation_file = os.path.join(dialogues_example_dir, slots_relation_file)
-                        self.slots_relation_file = slots_relation_file
-                        with open(slots_relation_file, "wb") as f:
+                        with open(self.slots_relation_file, "wb") as f:
                             pickle.dump(slots_relation_list, f)
                         logging.debug(
                             f"The slot carry-over list for train set is stored at {self.slots_relation_file}"
