@@ -80,6 +80,13 @@ class DeviceType(Enum):
     AllGpu = 3
 
 
+def _str_to_opt_level(opt_str: str) -> Optimization:
+    number = int(opt_str[1:])
+    if number not in Optimization._value2member_map_:
+        raise ValueError(f"Unknown optimization value {opt_str}")
+    return Optimization(number)
+
+
 class NeuralModuleFactory(object):
     _DEFAULT = None
 
