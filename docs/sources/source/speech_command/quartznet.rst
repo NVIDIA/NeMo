@@ -1,7 +1,7 @@
 QuartzNet
 ---------
 
-QuartzNet is a version of Jasper :cite:`asr-models-li2019jasper` model with separable convolutions and larger filters. It can achieve performance
+QuartzNet is a version of Jasper :cite:`speech-recognition-models-li2019jasper` model with separable convolutions and larger filters. It can achieve performance
 similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
@@ -11,8 +11,6 @@ These models are trained on Google Speech Commands dataset (V1 - all 30 classes)
         :align: center
         :alt: quartznet model
    
-    .. note:: This checkpoint was trained on LibriSpeech :cite:`panayotov2015librispeech` and full "validated" part of En Mozilla Common Voice :cite:`ardila2019common`
-
 `QuartzNet paper <https://arxiv.org/abs/1910.10261>`_.
 
 These QuartzNet models were trained for 200 epochs using mixed precision on 2 GPUs with a batch size of 128 over 200 epochs.
@@ -32,7 +30,7 @@ QuartzNet3x2 (93k params)       Speech Commands V2    97.29% Test
 
 
 References
-----------
+^^^^^^^^^^
 
 .. bibliography:: speech_recognition_all.bib
     :style: plain
