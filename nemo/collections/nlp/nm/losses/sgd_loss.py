@@ -154,7 +154,7 @@ class SGDDialogueStateLossNM(LossNM):
         # Zero out losses for categorical slot value when the slot status is not active.
         cat_slot_value_mask = (categorical_slot_status == STATUS_ACTIVE).view(-1)
         # to handle cases with no active categorical slot value
-        cat_slot_value_mask = cat_slot_value_mask.view(-1) > 0.5
+        # cat_slot_value_mask = cat_slot_value_mask.view(-1) > 0.5
         if sum(cat_slot_value_mask) == 0:
             logging.warning(f'No active values for categorical slots in the batch.')
             cat_slot_value_loss = self._cross_entropy(
