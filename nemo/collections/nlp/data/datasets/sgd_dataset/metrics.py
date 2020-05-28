@@ -51,7 +51,7 @@ from rapidfuzz import fuzz
 
 F1Scores = collections.namedtuple("F1Scores", ["f1", "precision", "recall"])
 
-# Evaluation and other relevant metrics for DSTC8 Schema-guided DST.
+# Evaluation and other relevant metrics for DSTC8/SGD Schema-guided DST.
 # (1) Active intent accuracy.
 ACTIVE_INTENT_ACCURACY = "active_intent_accuracy"
 # (2) Slot tagging F1.

@@ -27,6 +27,7 @@ import torch
 
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging
+from nemo.collections.nlp.data.datasets.sgd_dataset.data_processor import SGDDataProcessor
 from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import (
     ALL_SERVICES,
     PER_FRAME_OUTPUT_FILENAME,
@@ -150,11 +151,10 @@ def combine_predictions_in_example(predictions, batch_size):
 
 def eval_epochs_done_callback(
     global_vars,
-    input_json_files,
+    task_name,
     eval_dataset,
     data_dir,
     prediction_dir,
-    output_metric_file,
     state_tracker,
     eval_debug,
     schema_emb_preprocessor,
@@ -166,6 +166,11 @@ def eval_epochs_done_callback(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
     )
     ##############
+    # we'll write predictions to file in Dstc8/SGD format during evaluation callback
+    prediction_dir = os.path.join(prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, task_name))
+    os.makedirs(prediction_dir, exist_ok=True)
+
+    input_json_files = SGDDataProcessor.get_dialogue_files(data_dir, eval_dataset, task_name)
     pred_utils.write_predictions_to_file(
         global_vars['predictions'],
         input_json_files,
@@ -176,20 +181,12 @@ def eval_epochs_done_callback(
         in_domain_services=in_domain_services,
     )
     metrics = evaluate(
-        prediction_dir,
-        data_dir,
-        eval_dataset,
-        output_metric_file,
-        schema_emb_preprocessor.schemas,
-        joint_acc_across_turn,
-        no_fuzzy_match,
+        prediction_dir, data_dir, eval_dataset, schema_emb_preprocessor.schemas, joint_acc_across_turn, no_fuzzy_match,
     )
     return metrics
 
 
-def evaluate(
-    prediction_dir, data_dir, eval_dataset, output_metric_file, schemas, joint_acc_across_turn, no_fuzzy_match
-):
+def evaluate(prediction_dir, data_dir, eval_dataset, schemas, joint_acc_across_turn, no_fuzzy_match):
 
     in_domain_services = get_in_domain_services(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
@@ -214,10 +211,7 @@ def evaluate(
         logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
     if ALL_SERVICES in all_metric_aggregate:
         logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
-    # Write the aggregated metrics values.
-    with open(output_metric_file, "w") as f:
-        json.dump(all_metric_aggregate, f, indent=2, separators=(",", ": "), sort_keys=True)
-        f.close()
+
     # Write the per-frame metrics values with the corrresponding dialogue frames.
     with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
