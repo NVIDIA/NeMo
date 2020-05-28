@@ -49,9 +49,9 @@ class NeuralType(object):
     def __str__(self):
 
         if self.axes is not None:
-            return f"axes: {self.axes}; " f" elements_type: {self.elements_type.__class__.__name__}"
+            return f"axes: {self.axes}; elements_type: {self.elements_type.__class__.__name__}"
         else:
-            return f"axes: None; " f" elements_type: {self.elements_type.__class__.__name__}"
+            return f"axes: None; elements_type: {self.elements_type.__class__.__name__}"
 
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
@@ -223,6 +223,7 @@ class NmTensor(NeuralType):
         self._step_number = AppState().active_graph.step_number
         # List of tuples (step number, module name, input port name)
         self._consumers = []
+        AppState().tensor_names.register(self)
 
     @property
     def producer(self):
@@ -322,6 +323,15 @@ class NmTensor(NeuralType):
         if self._producer_name is None:
             raise ValueError("This NmTensor does not have a unique name")
         return f"{self._output_port_name}~~~{self._producer_name}~~~{self._uuid}"
+
+    def rename(self, new_name: str):
+        """Renames the tensor from its old name to a new user-defined name for easy access within callbacks. Note,
+        a tensor's unique_name is never changed. This simply adds a reference from new_name -> tensor.unique_name
+
+        args:
+            new_name (str): the new tensor's name.
+        """
+        AppState().tensor_names.rename_NmTensor(self, new_name)
 
 
 class NeuralTypeError(Exception):
