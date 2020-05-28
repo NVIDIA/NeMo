@@ -44,8 +44,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
     A json object containing the dialogue with labels predicted by the model.
   """
     # This approach retreives slot values from the history of system actions if slot is active but it can not find it in user utterance
-    # Overwrite the labels in the turn with the predictions from the model. For
-    # test set, these labels are missing from the data and hence they are added.
+    # Overwrite the labels in the turn with the predictions from the model.
     dialog_id = dialog["dialogue_id"]
     # The slot values tracked for each service.
     all_slot_values = collections.defaultdict(dict)
@@ -76,12 +75,10 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                 true_slots = frame.pop("slots", None)
                 true_state = frame.pop("state", None)
 
-                # The baseline model doesn't predict slot spans. Only state predictions
-                # are added.
+                # The baseline model doesn't predict slot spans. Only state predictions are added.
                 state = {}
 
-                # Add prediction for active intent. Offset is subtracted to account for
-                # NONE intent.
+                # Add prediction for active intent. Offset is subtracted to account for NONE intent.
                 active_intent_id = predictions["intent_status"]
                 state["active_intent"] = (
                     service_schema.get_intent_from_id(active_intent_id - 1) if active_intent_id else "NONE"
@@ -126,12 +123,11 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
 
                     if predictions["cat_slot_status_GT"][slot_idx] == predictions["cat_slot_status"][slot_idx]:
                         cat_slot_status_acc += 1
-                    ####
+
                     slot_status = predictions["cat_slot_status"][slot_idx]
                     if slot_status == STATUS_DONTCARE:
                         slot_values[slot] = STR_DONTCARE
                     elif slot_status == STATUS_ACTIVE:
-                        # print(predictions["cat_slot_status_p"][slot_idx])
                         if (
                             predictions["cat_slot_status_p"][slot_idx] + predictions["cat_slot_value_p"][slot_idx]
                         ) / 2 > 0.9:
@@ -141,9 +137,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                             if slot in sys_prev_slots[frame["service"]]:
                                 # debugging info
                                 sys_rets[slot] = sys_prev_slots[frame["service"]][slot]
-                                ##
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
-                                print("pooooy", slot_values[slot])
                             else:
                                 value_idx = predictions["cat_slot_value"][slot_idx]
                                 slot_values[slot] = service_schema.get_categorical_slot_values(slot)[value_idx]
@@ -178,24 +172,15 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
-                        # logging.debug(ch_start_idx, ch_end_idx)
-                        # logging.debug(f'Active Slot: {slot}')
-                        # logging.debug(f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}')
+
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]
-                        # elif ch_start_idx < 0 and ch_end_idx < 0:
-                        # Add span from the system utterance.
-                        #    slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
                         else:
                             if slot in sys_prev_slots[frame["service"]]:
                                 # debugging info
                                 sys_rets[slot] = sys_prev_slots[frame["service"]][slot]
-                                ##
                                 slot_values[slot] = sys_prev_slots[frame["service"]][slot]
-                            # elif ch_start_idx < 0 and ch_end_idx < 0:
-                            #     slot_values[slot] = system_utterance[-ch_start_idx - 1 : -ch_end_idx]
-                            #     print("hoooy", slot_values[slot])
 
                 if eval_debug and frame["service"] in in_domain_services:
                     logging.debug("-----------------------------------New Frame------------------------------")
@@ -329,15 +314,15 @@ def write_predictions_to_file(
     for idx, prediction in enumerate(predictions):
         if not prediction["is_real_example"]:
             continue
-        _, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
+        eval_dataset, dialog_id, turn_id, service_name = prediction['example_id'].split('-')
         all_predictions[(dialog_id, turn_id, service_name)] = prediction
-    logging.info(f'Predictions for {idx} examples are getting processed.')
+    logging.info(f'Predictions for {idx} examples in {eval_dataset} dataset are getting processed.')
 
     # Read each input file and write its predictions.
     for input_file_path in input_json_files:
         with open(input_file_path) as f:
             dialogs = json.load(f)
-            logging.info(f'{input_file_path} file is loaded')
+            logging.debug(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
                 if state_tracker == 'baseline':

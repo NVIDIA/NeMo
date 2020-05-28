@@ -21,7 +21,6 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 '''
 
 import math
-import sys
 
 import numpy as np
 import torch
@@ -177,7 +176,7 @@ class SGDDecoderNM(TrainableNM):
             "logit_noncat_slot_end": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, embedding_dim, schema_emb_processor, head_transform):
+    def __init__(self, embedding_dim, schema_emb_processor, add_attention_head=False):
         """Get logits for elements by conditioning on utterance embedding.
 
         Args:
@@ -192,14 +191,20 @@ class SGDDecoderNM(TrainableNM):
         # TODO truncated norm init
         nn.init.normal_(self.none_intent_vector, std=0.02)
         self.none_intent_vector = torch.nn.Parameter(self.none_intent_vector).to(self._device)
-        self.intent_layer = getattr(sys.modules[__name__], head_transform)(1, embedding_dim).to(self._device)
-        self.requested_slots_layer = getattr(sys.modules[__name__], head_transform)(1, embedding_dim).to(self._device)
 
-        self.cat_slot_value_layer = getattr(sys.modules[__name__], head_transform)(1, embedding_dim).to(self._device)
+        if add_attention_head:
+            projection_module = LogitsAttention
+        else:
+            projection_module = Logits
+
+        self.intent_layer = projection_module(1, embedding_dim).to(self._device)
+        self.requested_slots_layer = projection_module(1, embedding_dim).to(self._device)
+
+        self.cat_slot_value_layer = projection_module(1, embedding_dim).to(self._device)
 
         # Slot status values: none, dontcare, active.
-        self.cat_slot_status_layer = getattr(sys.modules[__name__], head_transform)(3, embedding_dim).to(self._device)
-        self.noncat_slot_layer = getattr(sys.modules[__name__], head_transform)(3, embedding_dim).to(self._device)
+        self.cat_slot_status_layer = projection_module(3, embedding_dim).to(self._device)
+        self.noncat_slot_layer = projection_module(3, embedding_dim).to(self._device)
 
         # dim 2 for non_categorical slot - to represent start and end position
         self.noncat_layer1 = nn.Linear(2 * embedding_dim, embedding_dim).to(self._device)

@@ -734,7 +734,7 @@ class Processor(object):
         return converted_turns, list(appear_services)
 
     def convert_to_dstc(self, id_list, dialogs):
-        """Generate a list of dialogues in the dstc8 data format."""
+        """Generate a list of dialogues in the dstc8/SGD data format."""
         converted_dialogs = []
         for dial_id in id_list:
             converted_turns, covered_services = self._generate_dial_turns(dialogs[dial_id]['log'], dial_id)
