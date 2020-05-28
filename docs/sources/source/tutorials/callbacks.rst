@@ -1,7 +1,7 @@
-Callbacks
-=========
+Old Callbacks
+=============
 NeMo uses callbacks to do a variety of helper functions during training.
-NeMo comes with three useful callbacks: SimpleLossLoggerCallback, 
+NeMo comes with three useful callbacks: SimpleLossLoggerCallback,
 CheckpointCallback, and EvaluatorCallback. Callbacks are defined prior to
 calling the train() function, and are passed to the train() function.
 For example, a common training script will look like:
