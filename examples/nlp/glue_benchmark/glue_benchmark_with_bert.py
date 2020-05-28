@@ -153,6 +153,12 @@ parser.add_argument(
     type=str,
     help="The output directory where the model predictions and checkpoints will be written.",
 )
+parser.add_argument(
+    "--checkpoint_dir",
+    default=None,
+    type=str,
+    help="The folder containing the checkpoints for the model to continue training",
+)
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
     "--save_epoch_freq",
@@ -208,6 +214,7 @@ nf = nemo_core.NeuralModuleFactory(
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
+    checkpoint_dir=args.checkpoint_dir,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
