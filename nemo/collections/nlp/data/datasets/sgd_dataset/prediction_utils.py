@@ -172,11 +172,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                         ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                         ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
-                        logging.debug(ch_start_idx, ch_end_idx)
-                        logging.debug(f'Active Slot: {slot}')
-                        logging.debug(
-                            f'{predictions["noncat_slot_p"][slot_idx]}, ({ch_start_idx}, {ch_end_idx}), {user_utterance[ch_start_idx - 1 : ch_end_idx]}'
-                        )
+                        
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
                             slot_values[slot] = user_utterance[ch_start_idx - 1 : ch_end_idx]

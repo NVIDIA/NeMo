@@ -104,7 +104,7 @@ def fuzzy_string_match(str_ref, str_hyp):
     """Returns fuzzy string similarity score in range [0.0, 1.0]."""
 
     # The higher the score, the higher the similarity between the two strings.
-    return fuzz.token_sort_ratio(str_ref, str_hyp) / 100.0
+    return np.round(fuzz.token_sort_ratio(str_ref, str_hyp)) / 100.0
 
 
 def noncat_slot_value_match(str_ref_list, str_hyp, no_fuzzy_match):

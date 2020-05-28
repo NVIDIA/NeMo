@@ -30,11 +30,7 @@ import torch
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
 
-__all__ = [
-    'FILE_RANGES',
-    'PER_FRAME_OUTPUT_FILENAME',
-    'Dstc8DataProcessor',
-]
+__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'Dstc8DataProcessor', 'get_dialogue_files']
 
 
 FILE_RANGES = {
@@ -399,3 +395,19 @@ class Dstc8DataProcessor(object):
                 dialogs.extend(json.load(f))
                 f.close()
         return dialogs
+
+    @classmethod
+    def get_dialogue_files(cls, data_dir, dataset_split, task_name):
+        """
+        Obtain the list of all dialogue json files
+        Args:
+            data_dir (str): path to the data folde
+            dataset_split (str): dev, test or train
+            task_name (str): DSTC-8 task name, see keys of the FILE_RANGES
+        Returns:
+            dialogs (list): the list of all dialogue json files paths
+        """
+        return [
+            os.path.join(data_dir, dataset_split, 'dialogues_{:03d}.json'.format(fid))
+            for fid in FILE_RANGES[task_name][dataset_split]
+        ]

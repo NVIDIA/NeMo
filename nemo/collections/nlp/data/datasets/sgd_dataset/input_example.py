@@ -94,6 +94,8 @@ class InputExample(object):
         self.num_categorical_slots = 0
         # The status of each categorical slot in the service.
         self.categorical_slot_status = [IGNORE_INDEX] * schema_config["MAX_NUM_CAT_SLOT"]
+        # # Mask to mask out non active slots (that have status OFF or DONTCARE)
+        # self.cat_slot_active_status_mask = [0] * * schema_config["MAX_NUM_CAT_SLOT"]
         # Number of values taken by each categorical slot.
         self.num_categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
         # The index of the correct value for each categorical slot.
@@ -107,6 +109,8 @@ class InputExample(object):
         self.num_noncategorical_slots = 0
         # The status of each non-categorical slot in the service.
         self.noncategorical_slot_status = [IGNORE_INDEX] * schema_config["MAX_NUM_NONCAT_SLOT"]
+        # # Mask to mask out non active slots (that have status OFF or DONTCARE)
+        # self.noncat_slot_active_status_mask = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
         # The index of the starting subword corresponding to the slot span for a
         # non-categorical slot value.
         self.noncategorical_slot_value_start = [IGNORE_INDEX] * schema_config["MAX_NUM_NONCAT_SLOT"]
@@ -137,7 +141,7 @@ class InputExample(object):
     def readable_summary(self):
         """Get a readable dict that summarizes the attributes of an InputExample."""
         seq_length = sum(self.utterance_mask)
-        utt_toks = self._tokenizer.convert_ids_to_tokens(self.utterance_ids[:seq_length])
+        utt_toks = self._tokenizer.ids_to_tokens(self.utterance_ids[:seq_length])
         utt_tok_mask_pairs = list(zip(utt_toks, self.utterance_segment[:seq_length]))
         active_intents = [
             self.service_schema.get_intent_from_id(idx)
@@ -304,7 +308,7 @@ class InputExample(object):
             # set the number of active slot values for this slots in the service
             for slot_value_idx in range(len(self.service_schema._categorical_slot_values[slot])):
                 self.cat_slot_values_mask[slot_idx][slot_value_idx] = 1
-
+            self.categorical_slot_values[slot_idx] = STATUS_OFF
             if not values:
                 self.categorical_slot_status[slot_idx] = STATUS_OFF
             elif values[0] == STR_DONTCARE:
@@ -321,13 +325,16 @@ class InputExample(object):
         self.num_noncategorical_slots = len(noncategorical_slots)
         for slot_idx, slot in enumerate(noncategorical_slots):
             values = state_update.get(slot, [])
-
+            self.noncategorical_slot_value_start[slot_idx] = STATUS_OFF
+            self.noncategorical_slot_value_end[slot_idx] = STATUS_OFF
+            
             if not values:
                 self.noncategorical_slot_status[slot_idx] = STATUS_OFF
             elif values[0] == STR_DONTCARE:
                 self.noncategorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
                 self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
+                # self.noncat_slot_active_status_mask[slot_idx] = 1
                 # Add indices of the start and end tokens for the first encountered
                 # value. Spans in user utterance are prioritized over the system
                 # utterance. If a span is not found, the slot value is ignored.
@@ -343,7 +350,7 @@ class InputExample(object):
                     logging.debug(
                         f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
                     )
-
+          
                     continue
                 self.noncategorical_slot_value_start[slot_idx] = start
                 self.noncategorical_slot_value_end[slot_idx] = end

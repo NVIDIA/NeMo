@@ -130,9 +130,10 @@ parser.add_argument(
     help="Directory where .npy file for embedding of entities (slots, values, intents) in the dataset_split's schema are stored.",
 )
 parser.add_argument(
-    "--overwrite_schema_emb_files",
-    action="store_true",
+    "--no_overwrite_schema_emb_files",
+    action="store_false",
     help="Whether to generate a new file saving the dialogue examples.",
+    dest="overwrite_schema_emb_files"
 )
 parser.add_argument(
     "--joint_acc_across_turn",
@@ -151,7 +152,8 @@ parser.add_argument(
     help="Directory where preprocessed DSTC8 dialogues are stored.",
 )
 parser.add_argument(
-    "--overwrite_dial_files", action="store_true", help="Whether to generate a new file saving the dialogue examples."
+    "--no_overwrite_dial_files", action="store_false", help="Whether to generate a new file saving the dialogue examples.",
+    dest="overwrite_dial_files"
 )
 parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
@@ -160,7 +162,7 @@ parser.add_argument(
     type=str,
     default="dev_test",
     choices=["dev", "test", "dev_test"],
-    help="Dataset split for evaluation.",
+    help="Dataset splits for evaluation.",
 )
 parser.add_argument(
     "--save_epoch_freq",
@@ -219,11 +221,9 @@ parser.add_argument(
     "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
-    "--head_transform",
-    default="",
-    type=str,
-    choices=["", "Attention"],
-    help="transformation to use for computing head. Default uses linear projection.",
+    "--add_attention_head",
+    action="store_true",
+    help="Whether to use attention when computing projections. When False, uses linear projection.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
@@ -314,7 +314,7 @@ dialogues_processor = data_processor.Dstc8DataProcessor(
 # define model pipeline
 sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
-    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, head_transform="Logits" + args.head_transform
+    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
 )
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
 
@@ -410,11 +410,6 @@ train_callback = SimpleLossLoggerCallback(
 
 
 def get_eval_callback(eval_dataset):
-    # Write predictions to file in DSTC8 format.
-    prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, args.task_name))
-    os.makedirs(prediction_dir, exist_ok=True)
-    output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
-
     _, eval_tensors = create_pipeline(dataset_split=eval_dataset)
     eval_callback = EvaluatorCallback(
         eval_tensors=eval_tensors,
@@ -424,8 +419,7 @@ def get_eval_callback(eval_dataset):
             args.task_name,
             eval_dataset,
             args.data_dir,
-            prediction_dir,
-            output_metric_file,
+            nf.work_dir,
             args.state_tracker,
             args.debug_mode,
             schema_preprocessor,
@@ -439,8 +433,7 @@ def get_eval_callback(eval_dataset):
 
 
 if args.eval_dataset == 'dev_test':
-    eval_callbacks = [get_eval_callback('dev')]
-    eval_callbacks.append(get_eval_callback('test'))
+    eval_callbacks = [get_eval_callback('dev'), get_eval_callback('test')]
 else:
     eval_callbacks = [get_eval_callback(args.eval_dataset)]
 

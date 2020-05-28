@@ -137,8 +137,8 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                 continue
 
             if turn_ref["utterance"] != turn_hyp["utterance"]:
-                logging.debug("Ref utt: %s", turn_ref["utterance"])
-                logging.debug("Hyp utt: %s", turn_hyp["utterance"])
+                logging.error("Ref utt: %s", turn_ref["utterance"])
+                logging.error("Hyp utt: %s", turn_hyp["utterance"])
                 raise ValueError("Utterances don't match for dialogue with id {}".format(dial_id))
 
             hyp_frames_by_service = {frame["service"]: frame for frame in turn_hyp["frames"]}

@@ -47,8 +47,9 @@ class SGDDataLayer(DataLayerNM):
         utterance_segment (int): Denotes the identity of the sequence. Takes values 0 (system utterance) and 1 (user utterance)
         utterance_mask (int): Mask which takes the value 0 for padded tokens and 1 otherwise
         categorical_slot_status (int): The status of each categorical slot in the service
+        noncategorical_slot_value_start (int): Masks out non active slots, takes values 0 and 1
         categorical_slot_values (int): The index of the correct value for each categorical slot
-        cat_slot_values_mask (int): Masks out categorical slots values for slots not used in the service, takes values 0 and 1
+        # cat_slot_values_mask (int): Masks out categorical slots values for slots not used in the service, takes values 0 and 1
         noncategorical_slot_status (int): The status of each non-categorical slot in the service
         noncategorical_slot_value_start (int): The index of the starting subword corresponding to the slot span for a non-categorical slot value
         noncategorical_slot_value_end (int): The index of the ending (inclusive) subword corresponding to the slot span for a non-categorical slot value
