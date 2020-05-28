@@ -206,20 +206,23 @@ class TargetType(ElementType):
         Element type to represent a target value.
     """
 
+
 class ClassificationTargetType(ElementType):
     """
         Element type to represent classification a target value, i.e. identifier of a desired class.
     """
 
+
 class FeatureMapsType(ElementType):
     """Element type to feature maps"""
-    
+
 
 class ImageType(ElementType):
     """
         Element type to represent a value of a single image channel,
         e.g. a single element (R) of RGB image.
     """
+
 
 class NormalizedImageType(ImageType):
     """

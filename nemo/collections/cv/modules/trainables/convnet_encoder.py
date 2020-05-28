@@ -41,7 +41,7 @@ import numpy as np
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, NeuralType, ImageType, FeatureMapsType
+from nemo.core.neural_types import AxisKind, AxisType, FeatureMapsType, ImageType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 

@@ -21,7 +21,7 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core.neural_types import AxisKind, AxisType, NeuralType, NormalizedImageType, ClassificationTargetType
+from nemo.core.neural_types import AxisKind, AxisType, ClassificationTargetType, NeuralType, NormalizedImageType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MNISTDataLayer']
