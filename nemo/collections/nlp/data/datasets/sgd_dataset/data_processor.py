@@ -38,6 +38,7 @@ FILE_RANGES = {
     "sgd__multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
     "sgd_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
+    "debug_sample": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
