@@ -46,6 +46,12 @@ Transformer Language Model
 
    transformer_language_model
 
+GLUE Benchmark
+--------------------------
+.. toctree::
+   :maxdepth: 8
+
+   glue
 
 Dialogue State Tracking
 -----------------------
