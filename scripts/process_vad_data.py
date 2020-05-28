@@ -13,27 +13,16 @@
 # limitations under the License.
 
 import argparse
-
-# import argparse
-import array
 import glob
-import inspect
 import json
 import logging
 import math
 import os
-import pickle
 import random
-import re
-import sys
-
-# import wave
 import tarfile
 import urllib.request
 
 import librosa
-import numpy as np
-import wrapt
 from sklearn.model_selection import train_test_split
 
 sr = 16000
@@ -353,14 +342,13 @@ def main():
         logging.info("Rebalancing number of samples in classes.")
         logging.info(f'Val: {min_seg_num_val} Test: {min_seg_num_test} Train: {min_seg_num_train}!')
 
-        background_val = get_max_json(out_dir, background_val, min_seg_num_val, 'balanced')
-        background_test = get_max_json(out_dir, background_test, min_seg_num_test, 'balanced')
-        background_train = get_max_json(out_dir, background_train, min_seg_num_train, 'balanced')
+        get_max_json(out_dir, background_val, min_seg_num_val, 'balanced')
+        get_max_json(out_dir, background_test, min_seg_num_test, 'balanced')
+        get_max_json(out_dir, background_train, min_seg_num_train, 'balanced')
 
-        speech_val = get_max_json(out_dir, speech_val, min_seg_num_val, 'balanced')
-        speech_test = get_max_json(out_dir, speech_test, min_seg_num_test, 'balanced')
-        speech_train = get_max_json(out_dir, speech_train, min_seg_num_train, 'balanced')
-
+        get_max_json(out_dir, speech_val, min_seg_num_val, 'balanced')
+        get_max_json(out_dir, speech_test, min_seg_num_test, 'balanced')
+        get_max_json(out_dir, speech_train, min_seg_num_train, 'balanced')
     else:
         logging.info("Don't rebalance number of samples in classes.")
 
