@@ -19,10 +19,10 @@
 # Moreover, at that point nemo module doesn't contain "core", so during "python module registration"
 # nothing from nemo.core, including e.g. types (so we cannot use them for "python 3 type hints").
 import nemo
-from nemo.core.neural_types import NmTensorNameRegistry
 from nemo.utils.metaclasses import Singleton
 from nemo.utils.neural_graph.neural_graph_manager import NeuralGraphManager
 from nemo.utils.neural_graph.object_registry import ObjectRegistry
+from nemo.utils.nmtensor_registry import NmTensorNameRegistry
 
 
 class AppState(metaclass=Singleton):
