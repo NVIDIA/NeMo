@@ -24,7 +24,7 @@ class ObjectRegistry(WeakSet):
     """
 
     def __init__(self, base_type_name):
-        """ 
+        """
             Stores base type name.
         """
         super().__init__()
@@ -32,13 +32,13 @@ class ObjectRegistry(WeakSet):
 
     def register(self, new_obj, name: str) -> str:
         """
-            Registers a new object using the provided name. 
+            Registers a new object using the provided name.
             If name is none - generates new unique name.
-            
+
             Args:
                 new_obj: An object to be registered.
                 name: A "proposition" for the object name.
-            
+
             Returns:
                 A unique name (proposition or newly generated name).
         """
@@ -66,7 +66,7 @@ class ObjectRegistry(WeakSet):
         return unique_name
 
     def has(self, name: str) -> bool:
-        """ 
+        """
             Check if registry stores object with a given name.
 
             Args:
@@ -125,7 +125,7 @@ class ObjectRegistry(WeakSet):
         """
             Checks if two registers have the same content.
 
-            Args:    
+            Args:
                 other: The second registry object.
         """
         if not isinstance(other, WeakSet):

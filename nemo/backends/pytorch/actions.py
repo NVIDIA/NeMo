@@ -20,15 +20,16 @@ from nemo.backends.pytorch.module_wrapper import TrainableNeuralModuleWrapper
 from nemo.backends.pytorch.nm import DataLayerNM, TrainableNM
 from nemo.backends.pytorch.optimizers import AdamW, Novograd, master_params
 from nemo.core import DeploymentFormat, DeviceType, NeuralModule, NmTensor
-from nemo.core.callbacks import ActionCallback, EvaluatorCallback, SimpleLossLoggerCallback
-from nemo.core.neural_factory import Actions, OperationMode, Optimization
-from nemo.core.neural_types import *
+from nemo.core.actions import Actions, TrainingState, topological_sort_from_leaves
+from nemo.core.callbacks import ActionCallback, NeMoCallback, SimpleLossLoggerCallback
+from nemo.core.neural_factory import OperationMode, Optimization
+from nemo.core.neural_types import AxisKind, NeuralType
+from nemo.utils.app_state import AppState
+from nemo.utils.decorators import deprecated
 from nemo.utils.helpers import get_checkpoint_from_dir
 
 # these imports will happen on as-needed basis
 amp = None
-# convert_syncbn = None
-# create_syncbn_process_group = None
 LARC = None
 FusedLAMB = None
 FusedAdam = None
@@ -60,16 +61,12 @@ class PtActions(Actions):
                     global amp
                     amp = importlib.import_module('apex.amp')
                 if local_rank is not None:
-                    # global convert_syncbn
-                    # global create_syncbn_process_group
                     global LARC
                     global FusedLAMB
                     global FusedAdam
                     global FusedNovoGrad
                     parallel = importlib.import_module('apex.parallel')
                     apex_optimizer = importlib.import_module('apex.optimizers')
-                    # convert_syncbn = parallel.convert_syncbn_model
-                    # create_syncbn_process_group = parallel.create_syncbn_process_group
                     LARC = parallel.LARC
                     FusedLAMB = apex_optimizer.FusedLAMB
                     FusedAdam = apex_optimizer.FusedAdam
@@ -87,137 +84,66 @@ class PtActions(Actions):
             local_rank=local_rank, global_rank=global_rank, optimization_level=optimization_level,
         )
 
-        # will be [unique_instance_id -> (NMModule, PTModule)]
-        self.module_reference_table = {}
-        self.step = 0
-        self.epoch_num = 0
+        self._step = 0
+        self._epoch = 0
         self.optimizers = []
         self.tb_writer = tb_writer
-        self._modules = set()
         self.cache = None
         self.amp_initialized = False
+        self.ddp_initialized = False
+        self.ddp_module_dict = {}
 
     @property
-    def modules(self):
-        return self._modules
+    def step(self):
+        return self._step
 
-    def __get_top_sorted_modules_and_dataloader(self, hook):
+    @step.setter
+    def step(self, step):
+        self._step = step
+
+    @property
+    def epoch(self):
+        return self._epoch
+
+    @epoch.setter
+    def epoch(self, epoch):
+        self._epoch = epoch
+
+    @property
+    @deprecated(version="0.12", explanation="epoch_num has been deprecated in favour of epoch.")
+    def epoch_num(self):
+        return self._epoch
+
+    @epoch_num.setter
+    @deprecated(version="0.12", explanation="epoch_num has been deprecated in favour of epoch.")
+    def epoch_num(self):
+        return self._epoch
+
+    def __get_top_sorted_modules_and_dataloader(self, hook: List[NmTensor]):
+        """A function that accepts a list of NmTensors that need to be computed and constructs a call DAG that starts
+        from a datalayerNM and can be used to compute the NmTensors.
+
+        args:
+            leaf_nmtensors (List[NmTensors]): The tensors to be computed
+
+        returns:
+            top_sorted_modules: the callchain DAG
+            tdataset: the datalayer at the top of the callchain
         """
-        Constructs DAG leading to hook and creates its topological order.
-        It also populates self.module_reference_table.
-        Args:
-          hook: an NmTensor or a list of NmTensors representing leaf nodes
-          in DAG
-
-        Returns:
-          list of modules with their call arguments and outputs, and dataset
-        """
-
-        def create_node(producer, producer_args):
-            if producer_args is None:
-                return tuple((producer, ()))
-            else:
-                return tuple((producer, tuple([(k, v) for k, v in producer_args.items()]),))
-
-        def is_in_degree_zero(node, processed_nodes):
-            """A node has in degree of zero"""
-            if node[1] == ():
-                return True
-            for portname, nmtensor in node[1]:
-                nd = create_node(nmtensor.producer, nmtensor.producer_args)
-                if nd not in processed_nodes:
-                    return False
-            return True
-
-        hooks = hook if isinstance(hook, list) else [hook]
-
-        # ensures that no tensors are processed twice
-        processed_nmtensors = set()
-
-        indices_to_remove = []
-        # Check for duplicates in hook
-        for i, nmtensor in enumerate(hook):
-            if nmtensor in processed_nmtensors:
-                indices_to_remove.append(i)
-            else:
-                processed_nmtensors.add(nmtensor)
-
-        for i in reversed(indices_to_remove):
-            hook.pop(i)
-
-        _top_sorted_modules = []
-        all_nodes = {}
-
-        # extract all nodes to all_nodes set
-        hooks_lst = list(hooks)
-        while len(hooks_lst) > 0:
-            # take nmtensor from the end of the list
-            nmtensor = hooks_lst.pop()
-
-            node = create_node(nmtensor.producer, nmtensor.producer_args)
-            # Store nmtensor as an output of its producer
-            # first make sure all keys are present per output port
-            # and nm is inside all_nodes
-            if node not in all_nodes:
-                all_nodes[node] = {k: None for k in nmtensor.producer.output_ports}
-            # second, populate output port with current nmtensor
-            # where applicable
-            all_nodes[node][nmtensor.name] = nmtensor
-            processed_nmtensors.add(nmtensor)
-            if nmtensor.producer_args is not None and nmtensor.producer_args != {}:
-                for _, new_nmtensor in nmtensor.producer_args.items():
-                    if new_nmtensor not in processed_nmtensors:
-                        # put in the start of list
-                        hooks_lst.insert(0, new_nmtensor)
-
-        all_node_with_output = []
-        # Iterate over all_nodes to create new nodes that include its output
-        # now all nodes have (module, input tensors, output tensors)
-        for node in all_nodes:
-            all_node_with_output.append(tuple((node[0], node[1], all_nodes[node])))
-
-        processed_nodes = []
-        while len(all_node_with_output) > 0:
-            for node in all_node_with_output.copy():
-                # if node's in_degree is zero it can be added to
-                # _top_sorted_modules
-                # this will also reduce in_degree of its children
-                if is_in_degree_zero(node, processed_nodes):
-                    _top_sorted_modules.append(node)
-                    processed_nodes.append((node[0], node[1]))
-                    all_node_with_output.remove(node)
-
-        # Create top_sorted_modules aka callchain
-        top_sorted_modules = []
-        for i, m in enumerate(_top_sorted_modules):
-            top_sorted_modules.append((m[0], dict(m[1]), m[2]))
-            # Ensure that there is only one dataset in callchain
-            if i > 0 and isinstance(m[0], DataLayerNM):
-                raise ValueError("There were more than one DataLayer NeuralModule inside your DAG.")
+        top_sorted_modules = topological_sort_from_leaves(hook)
 
         if not isinstance(top_sorted_modules[0][0], DataLayerNM):
             raise ValueError("The first module in your DAG was not a DataLayer NeuralModule.")
 
         tdataset = top_sorted_modules[0][0].dataset
 
-        # populate self.module_reference_table
         for m in top_sorted_modules:
             if m[0].factory is None and self._local_rank is not None:
                 raise ValueError(
-                    "Neural module {0} was created without "
-                    "NeuralModuleFactory, but you are trying to"
-                    "run in distributed mode. Please instantiate"
-                    "NeuralModuleFactory first and pass its "
-                    "instance as `factory` parameter to all your"
-                    "Neural Module objects."
-                    "".format(str(m[0]))
+                    "Neural module {0} was created without NeuralModuleFactory, but you are trying to run in "
+                    "distributed mode. Please instantiate NeuralModuleFactory first and pass its instance as "
+                    "`factory` parameter to all your Neural Module objects.".format(str(m[0]))
                 )
-            key = m[0].unique_instance_id
-            if key not in self.module_reference_table:
-                if isinstance(m[0], TrainableNeuralModuleWrapper):
-                    self.module_reference_table[key] = (m[0], m[0]._pt_module)
-                else:
-                    self.module_reference_table[key] = (m[0], m[0])
 
         return top_sorted_modules, tdataset
 
@@ -372,10 +298,10 @@ class PtActions(Actions):
         if optim_level == Optimization.mxprO0:
             return optimizer
 
-        if len(self.modules) < 1:
+        if len(AppState().modules) < 1:
             raise ValueError("There were no modules to initialize")
         pt_modules = []
-        for module in self.modules:
+        for module in AppState().modules:
             if isinstance(module, nn.Module):
                 pt_modules.append(module)
             elif isinstance(module, TrainableNeuralModuleWrapper):
@@ -390,6 +316,9 @@ class PtActions(Actions):
         )
         self.amp_initialized = True
         return optimizer
+
+    def nm_graph_forward_pass(self, callchain, registered_tensors):
+        self.__nm_graph_forward_pass(callchain, registered_tensors)
 
     def __nm_graph_forward_pass(
         self, call_chain, registered_tensors, mode=OperationMode.training, use_cache=False,
@@ -408,16 +337,8 @@ class PtActions(Actions):
                 if in_cache:
                     continue
             call_args = call_chain[ind][1]
-            # module = call_chain[ind][0]
             m_id = call_chain[ind][0].unique_instance_id
-            pmodule = self.module_reference_table[m_id][1]
-
-            # if self._local_rank is not None:
-            #     if isinstance(pmodule, DDP):
-            #         if disable_allreduce:
-            #             pmodule.disable_allreduce()
-            #         else:
-            #             pmodule.enable_allreduce()
+            pmodule = self.ddp_module_dict[m_id] if self.ddp_initialized else call_chain[ind][0]
 
             if mode == OperationMode.training:
                 # if module.is_trainable():
@@ -432,14 +353,9 @@ class PtActions(Actions):
             # prepare call signature for `module`
             call_set = {}
             for tensor_name, nmtensor in call_args.items():
-                # _add_uuid_2_name(nmtensor.name, nmtensor.producer._uuid)
                 key = nmtensor.unique_name
                 call_set[tensor_name] = registered_tensors[key]
-            # actual PyTorch module call with signature
-            if isinstance(self.module_reference_table[m_id][0], TrainableNeuralModuleWrapper,):
-                new_tensors = pmodule(**call_set)
-            else:
-                new_tensors = pmodule(force_pt=True, **call_set)
+            new_tensors = pmodule(force_pt=True, **call_set)
 
             if not isinstance(new_tensors, List):
                 if not isinstance(new_tensors, tuple):
@@ -450,10 +366,10 @@ class PtActions(Actions):
                 if nm_tensor is None:
                     continue
                 t_name = nm_tensor.unique_name
-                if t_name not in registered_tensors:
+                if t_name not in registered_tensors or registered_tensors[t_name] is None:
                     registered_tensors[t_name] = t_tensor
                 else:
-                    raise ValueError("A NMTensor was produced twice in " f"the same DAG. {t_name}")
+                    raise ValueError(f"A NMTensor was produced twice in the same DAG. {t_name}")
 
     @staticmethod
     def pad_tensor(t: torch.Tensor, target_size: torch.Size):
@@ -519,11 +435,6 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # logging.info(
-                #     "Doing distributed evaluation. Rank {0} of {1}".format(
-                #         self.local_rank, world_size
-                #     )
-                # )
 
                 if dl_nm.dataset is not None:
                     sampler = None
@@ -697,11 +608,6 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # logging.info(
-                #     "Doing distributed evaluation. Rank {0} of {1}".format(
-                #         self.local_rank, world_size
-                #     )
-                # )
                 if dl_nm.dataset is not None:
                     sampler = None
                     if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
@@ -790,12 +696,6 @@ class PtActions(Actions):
                     use_cache=use_cache,
                 )
 
-                # if offload_to_cpu:
-                #     # Take all cuda tensors and save them to value_dict as
-                #     # cpu tensors to save GPU memory
-                #     for name, tensor in registered_e_tensors.items():
-                #         if isinstance(tensor, torch.Tensor):
-                #             registered_e_tensors[name] = tensor.cpu()
                 if cache:
                     self.append_to_cache(registered_e_tensors, offload_to_cpu)
 
@@ -881,7 +781,7 @@ class PtActions(Actions):
         """
         state = {
             "step": self.step,
-            "epoch_num": self.epoch_num,
+            "epoch": self.epoch,
             "optimizer_state": [opt.state_dict() for opt in self.optimizers],
         }
         torch.save(state, path)
@@ -897,11 +797,11 @@ class PtActions(Actions):
         """
         if os.path.isfile(path):
             # map_location could be cuda:<device_id> but cpu seems to be more
-            # general since we are also saving step and epoch_num
+            # general since we are also saving step and epoch
             # load_state_dict should move the variables to the relevant device
             checkpoint = torch.load(path, map_location="cpu")
             self.step = checkpoint["step"]
-            self.epoch_num = checkpoint["epoch_num"]
+            self.epoch = checkpoint["epoch"]
             if checkpoint["optimizer_state"]:
                 for opt, opt_chkpt in zip(self.optimizers, checkpoint["optimizer_state"]):
                     opt.load_state_dict(opt_chkpt)
@@ -928,31 +828,6 @@ class PtActions(Actions):
             if not (isinstance(tup[0], torch.optim.Optimizer) and PtActions._check_all_tensors(tup[1])):
                 return False
         return True
-
-    def _get_all_modules(self, training_loop, callbacks, logging_callchain=None):
-        """Gets all neural modules that will be used by train() and eval() via
-        EvaluatorCallbacks. Saves all modules to self.modules
-        """
-        # If there is a SimpleLossLoggerCallback, create an logger_callchain
-        # with all callchains from training_loop and
-        # SimpleLossLoggerCallback.tensors
-        if logging_callchain:
-            for module in logging_callchain:
-                self.modules.add(module[0])
-
-        # Else grab all callchains from training_loop
-        else:
-            for step in training_loop:
-                for module in step[2]:
-                    self.modules.add(module[0])
-
-        # Lastly, grab all eval modules
-        if callbacks is not None:
-            for callback in callbacks:
-                if isinstance(callback, EvaluatorCallback):
-                    (callchain, _,) = self.__get_top_sorted_modules_and_dataloader(hook=callback.eval_tensors)
-                    for module in callchain:
-                        self.modules.add(module[0])
 
     @staticmethod
     def __module_export(module, output, d_format: DeploymentFormat, input_example=None, output_example=None):
@@ -999,10 +874,10 @@ class PtActions(Actions):
 
         module.eval()
         try:
-            # # Remove NeMo-related things from the module
-            # # We need to change __call__ method. Note that this will change the
-            # # whole class, not just this object! Which is why we need to repair it
-            # # in the finally block
+            # Remove NeMo-related things from the module
+            # We need to change __call__ method. Note that this will change the
+            # whole class, not just this object! Which is why we need to repair it
+            # in the finally block
             __orig_call__ = type(module).__call__
             type(module).__call__ = torch.nn.Module.__call__
 
@@ -1097,6 +972,179 @@ class PtActions(Actions):
         gradient_predivide=False,
         amp_max_loss_scale=2.0 ** 24,
     ):
+        def _perform_on_step_start(callbacks, state):
+            # TODO: Most of these checks can be relaxed since we enforce callbacks
+            # to be a list of ActionCallback objects
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_iteration_start()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_step_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_step_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_iteration_end()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_step_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_action_start(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_action_start()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_train_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_action_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_action_end()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_train_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_epoch_start(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_epoch_start()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_epoch_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_epoch_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.on_epoch_end()
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_epoch_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_batch_start(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        continue
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_batch_start(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _perform_on_batch_end(callbacks, state):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        continue
+                    elif isinstance(callback, NeMoCallback):
+                        callback.on_batch_end(state)
+                    else:
+                        raise ValueError(
+                            "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
+                        )
+
+        def _init_callbacks(callbacks, action):
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback.action = action
+
+        def _update_callbacks(callbacks=None, registered_tensors=None, final_loss=None):
+            # if self.local_rank is None or self.local_rank == 0:
+            if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
+                for callback in callbacks:
+                    if isinstance(callback, ActionCallback):
+                        callback._registered_tensors = registered_tensors
+                    else:  # For now, we can use the old callback function. In the future we should improve this
+                        registered_tensors["loss"] = final_loss
+
+        def get_state(action: 'PtAction'):
+            """Helper function used to create a state for callbacks
+            """
+
+            class StateWrapper(dict):
+                def __init__(self, action):
+                    """A class that wraps a dictionary but adds the functions: restore_state_from and save_state_to
+                    which are helper functions for CheckpointCallback to use.
+                    The StateWrapper is a dictionary that contains the following mapping:
+                        "step" (int): the current training step
+                        "epoch" (int): the current epoch step
+                        "local_rank" (int): the local rank that the process is running on
+                        "global_rank" (int): the global rank that the process is running on
+                        "optimizers" (list): a list of optimizers defined during the training process
+                        "tensors" (TrainingState): A TrainingState object that can be used to access tensor values
+                    """
+                    self.action = action
+                    super().__init__(
+                        {
+                            "step": action.step,
+                            "tensors": action._training_state,
+                            "epoch": action.epoch,
+                            "local_rank": action.local_rank,
+                            "global_rank": action.global_rank,
+                            "optimizers": action.optimizers,
+                        }
+                    )
+
+                def restore_state_from(self, path):
+                    if os.path.isfile(path):
+                        # map_location could be cuda:<device_id> but cpu seems to be more
+                        # general since we are also saving step and epoch
+                        # load_state_dict should move the variables to the relevant device
+                        checkpoint = torch.load(path, map_location="cpu")
+                        action.step = checkpoint["step"]
+                        self["step"] = action.step
+                        epoch = checkpoint.get("epoch", None)
+                        if epoch is None:
+                            epoch = checkpoint.get("epoch_num", None)
+                        if epoch is None:
+                            raise ValueError("Epoch was not found in the trainer checkpoint")
+                        action.epoch = epoch
+                        self["epoch"] = action.epoch
+                        if checkpoint["optimizer_state"]:
+                            for opt, opt_chkpt in zip(self["optimizers"], checkpoint["optimizer_state"]):
+                                opt.load_state_dict(opt_chkpt)
+                    else:
+                        raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
+
+                def save_state_to(self, path):
+                    state = {
+                        "step": self["step"],
+                        "epoch": self["epoch"],
+                        "optimizer_state": [opt.state_dict() for opt in self["optimizers"]],
+                    }
+                    torch.save(state, path)
+
+            return StateWrapper(action)
+
+        self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
         if tensors_to_optimize is not None and training_graph is not None:
             raise ValueError("Cannot pass both `tensors_to_optimize` and `training_graph` to the train() function")
@@ -1129,9 +1177,9 @@ class PtActions(Actions):
 
         if tensors_to_optimize is None:
             # This is Evaluation Mode
-            self._init_callbacks(callbacks)
+            _init_callbacks(callbacks, self)
             # Do action start callbacks
-            self._perform_on_action_end(callbacks=callbacks)
+            _perform_on_action_end(callbacks, get_state(self))
             return
         # Check if tensors_to_optimize is just a list of NmTensors
         elif tensors_to_optimize is not None and (
@@ -1191,8 +1239,10 @@ class PtActions(Actions):
         # callbacks setup
         if callbacks is not None:
             for callback in callbacks:
-                if not isinstance(callback, ActionCallback):
-                    raise ValueError("A callback was received that was not a child of ActionCallback")
+                if not isinstance(callback, ActionCallback) and not isinstance(callback, NeMoCallback):
+                    raise ValueError(
+                        "A callback was received that was not a child of ActionCallback nor a child of NeMoCallback"
+                    )
                 elif isinstance(callback, SimpleLossLoggerCallback):
                     if logging_callchain:
                         raise ValueError("We only support one logger callback but more than one were found")
@@ -1202,8 +1252,6 @@ class PtActions(Actions):
                     for step in training_loop:
                         all_tensors = all_tensors + step[1]
                     (logging_callchain, _,) = self.__get_top_sorted_modules_and_dataloader(hook=all_tensors)
-
-        self._get_all_modules(training_loop, callbacks, logging_callchain)
 
         # Intialize Amp if needed
         if self._optim_level in AmpOptimizations:
@@ -1228,10 +1276,6 @@ class PtActions(Actions):
         dataNM = training_loop[0][2][0][0]
         placement_gpu = dataNM.placement == DeviceType.AllGpu
         if placement_gpu:
-            # if len(training_loop) > 1:
-            #     raise NotImplementedError(
-            #         "Distributed training does nor work with multiple "
-            #         "optimizers")
             logging.info("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = None
@@ -1257,67 +1301,42 @@ class PtActions(Actions):
                 else:
                     train_sampler = None
 
-            for train_iter in training_loop:
-                call_chain = train_iter[2]
-                for i in range(1, len(call_chain) - 1):
-                    key = call_chain[i][0].unique_instance_id
-                    pmodule = self.module_reference_table[key][1]
-                    num_trainable_weights = self.module_reference_table[key][1].num_weights
-                    if (
-                        not isinstance(pmodule, DDP)
-                        and isinstance(pmodule, torch.nn.Module)
-                        and num_trainable_weights > 0
-                    ):
-                        # gpf = 1
-                        # if gradient_predivide:
-                        #     gpf = dist.get_world_size()
-                        # pmodule = DDP(pmodule, gradient_predivide_factor=gpf)  # Old Apex Method
-
-                        # Per pytorch docs, convert sync bn prior to DDP
-                        if synced_batchnorm:
-                            world_size = dist.get_world_size()
-                            sync_batchnorm_group = None
-                            if synced_batchnorm_groupsize > 0:
-                                if world_size % synced_batchnorm_groupsize != 0:
-                                    raise ValueError(
-                                        f"Synchronized batch norm group size ({synced_batchnorm_groupsize}) must be 0"
-                                        f" or divide total number of GPUs ({world_size})."
-                                    )
-                                # Find ranks of other nodes in the same batchnorm group
-                                rank = torch.distributed.get_rank()
-                                group = rank // synced_batchnorm_groupsize
-                                group_rank_ids = range(
-                                    group * synced_batchnorm_groupsize, (group + 1) * synced_batchnorm_groupsize
+            self.ddp_initialized = True
+            module_list = [mod.name for mod in AppState().modules]
+            module_list = sorted(module_list)
+            for module_name in module_list:
+                module = AppState().modules[module_name]
+                key = module.unique_instance_id
+                num_trainable_weights = module.num_weights
+                self.ddp_module_dict[key] = module
+                if not isinstance(module, DDP) and isinstance(module, torch.nn.Module) and num_trainable_weights > 0:
+                    # Per pytorch docs, convert sync bn prior to DDP
+                    if synced_batchnorm:
+                        world_size = dist.get_world_size()
+                        sync_batchnorm_group = None
+                        if synced_batchnorm_groupsize > 0:
+                            if world_size % synced_batchnorm_groupsize != 0:
+                                raise ValueError(
+                                    f"Synchronized batch norm group size ({synced_batchnorm_groupsize}) must be 0"
+                                    f" or divide total number of GPUs ({world_size})."
                                 )
-                                sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
-
-                            pmodule = nn.SyncBatchNorm.convert_sync_batchnorm(
-                                pmodule, process_group=sync_batchnorm_group
+                            # Find ranks of other nodes in the same batchnorm group
+                            rank = torch.distributed.get_rank()
+                            group = rank // synced_batchnorm_groupsize
+                            group_rank_ids = range(
+                                group * synced_batchnorm_groupsize, (group + 1) * synced_batchnorm_groupsize
                             )
+                            sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
 
-                        # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
-                        # pass
-                        pmodule = DDP(
-                            pmodule, device_ids=[self.local_rank], broadcast_buffers=False, find_unused_parameters=True
-                        )
+                        module = nn.SyncBatchNorm.convert_sync_batchnorm(module, process_group=sync_batchnorm_group)
 
-                    # # Convert batchnorm modules to synced if applicable
-                    # if synced_batchnorm and isinstance(pmodule, torch.nn.Module):
-                    #     world_size = dist.get_world_size()
-                    #     if synced_batchnorm_groupsize > 0 and world_size % synced_batchnorm_groupsize != 0:
-                    #         raise ValueError(
-                    #             f"Synchronized batch norm group size"
-                    #             f" ({synced_batchnorm_groupsize}) must be 0"
-                    #             f" or divide total number of GPUs"
-                    #             f" ({world_size})."
-                    #         )
-                    #     process_group = create_syncbn_process_group(synced_batchnorm_groupsize)
-                    #     pmodule = convert_syncbn(pmodule, process_group=process_group)
-
-                    self.module_reference_table[key] = (
-                        self.module_reference_table[key][0],
-                        pmodule,
+                    # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
+                    # pass
+                    module = DDP(
+                        module, device_ids=[self.local_rank], broadcast_buffers=False, find_unused_parameters=True
                     )
+                    self.ddp_module_dict[key] = module
+
         # single GPU/CPU training
         else:
             if t_dataset is not None:
@@ -1338,20 +1357,20 @@ class PtActions(Actions):
                 train_dataloader = dataNM.data_iterator
                 train_sampler = None
 
-        self._init_callbacks(callbacks)
+        _init_callbacks(callbacks, self)
         # Do action start callbacks
-        self._perform_on_action_start(callbacks=callbacks)
+        _perform_on_action_start(callbacks, get_state(self))
 
         # MAIN TRAINING LOOP
         # iteration over epochs
-        while num_epochs is None or self.epoch_num < num_epochs:
+        while num_epochs is None or self.epoch < num_epochs:
             if train_sampler is not None:
-                train_sampler.set_epoch(self.epoch_num)
+                train_sampler.set_epoch(self.epoch)
             if max_steps is not None and self.step >= max_steps:
                 break
 
             # Register epochs start with callbacks
-            self._perform_on_epoch_start(callbacks=callbacks)
+            _perform_on_epoch_start(callbacks, get_state(self))
 
             # iteration over batches in epoch
             batch_counter = 0
@@ -1364,11 +1383,14 @@ class PtActions(Actions):
                     curr_optimizer = training_loop[self.step % len(training_loop)][0]
                     curr_optimizer.zero_grad()
                     # Register iteration start with callbacks
-                    self._perform_on_iteration_start(callbacks=callbacks)
+                    _perform_on_step_start(callbacks, get_state(self))
+
+                # Perform batch start callbacks
+                _perform_on_batch_start(callbacks, get_state(self))
 
                 # set learning rate policy
                 if lr_policy is not None:
-                    adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch_num)
+                    adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch)
                     for param_group in curr_optimizer.param_groups:
                         param_group["lr"] = adjusted_lr
                 if self.tb_writer is not None:
@@ -1394,18 +1416,18 @@ class PtActions(Actions):
                     else:
                         tensors.append(d)
 
-                registered_tensors = {
-                    t.unique_name: d for t, d in zip(curr_call_chain[0][2].values(), tensors) if t is not None
-                }
+                for t, d in zip(curr_call_chain[0][2].values(), tensors):
+                    if t is not None:
+                        self._training_state.set_tensor(t, d)
                 disable_allreduce = batch_counter < (batches_per_step - 1)
                 self.__nm_graph_forward_pass(
-                    call_chain=curr_call_chain, registered_tensors=registered_tensors,
+                    call_chain=curr_call_chain, registered_tensors=self._training_state.tensor_dict,
                 )
 
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
                 for tensor in curr_tensors_to_optimize:
-                    final_loss += registered_tensors[tensor.unique_name]
+                    final_loss += self._training_state.tensor_dict[tensor.unique_name]
 
                 # Check for NaN/inf loss (across workers if applicable)
                 loss_nan_inf_checker = final_loss.clone()
@@ -1449,6 +1471,9 @@ class PtActions(Actions):
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
+                # Perform batch end callbacks
+                _perform_on_batch_end(callbacks, get_state(self))
+
                 batch_counter += 1
 
                 if batch_counter == batches_per_step:
@@ -1458,17 +1483,17 @@ class PtActions(Actions):
                     curr_optimizer.step()
                     batch_counter = 0
                     # Register iteration end with callbacks
-                    self._update_callbacks(
-                        callbacks=callbacks, registered_tensors=registered_tensors,
+                    _update_callbacks(
+                        callbacks, registered_tensors=self._training_state.tensor_dict, final_loss=final_loss
                     )
-                    self._perform_on_iteration_end(callbacks=callbacks)
+                    _perform_on_step_end(callbacks, get_state(self))
                     self.step += 1
+                self._training_state.clear_dict()
             # End of epoch for loop
             # Register epochs end with callbacks
-            self._perform_on_epoch_end(callbacks=callbacks)
-            self.epoch_num += 1
-
-        self._perform_on_action_end(callbacks=callbacks)
+            _perform_on_epoch_end(callbacks, get_state(self))
+            self.epoch += 1
+        _perform_on_action_end(callbacks, get_state(self))
 
     def infer(
         self,
@@ -1541,7 +1566,7 @@ class PtActions(Actions):
         modules = []
         for ind in range(1, len(call_chain)):
             m_id = call_chain[ind][0].unique_instance_id
-            module = self.module_reference_table[m_id][1]
+            module = self.ddp_module_dict[m_id]
             if isinstance(module, DDP):
                 modules.append(module)
 
