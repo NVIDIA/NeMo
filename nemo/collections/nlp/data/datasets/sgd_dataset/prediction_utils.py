@@ -35,6 +35,7 @@ from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
 )
 
 REQ_SLOT_THRESHOLD = 0.5
+MIN_CARRYOVER_FREQ = 25
 
 __all__ = ['get_predicted_dialog_baseline', 'write_predictions_to_file']
 
@@ -54,7 +55,7 @@ def carry_over_slots(
         if service_dest != cur_usr_frame["service"]:
             continue
         for service_src, slot_src, freq in cands_list:
-            if freq < 25:
+            if freq < MIN_CARRYOVER_FREQ:
                 continue
             if (
                 service_src == prev_frame_service
