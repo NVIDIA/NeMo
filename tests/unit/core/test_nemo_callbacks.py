@@ -114,7 +114,7 @@ class TestNeMoCallbacks:
         )
 
         # efi.inspect("temp", tag="loss")
-        inspection_units = efi.get_inspection_units(logging_dir, "", "loss")
+        inspection_units = efi.get_inspection_units(str(logging_dir), "", "loss")
 
         # Make sure there is only 1 tensorboard file
         assert len(inspection_units) == 1
