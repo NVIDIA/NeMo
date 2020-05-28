@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import glob
 import os
+import time
 
 import librosa
 import sox
 from joblib import Parallel, delayed
-import argparse
-import time
+
 
 def resample_file(resampled_dir, filepath, ext):
     head, filename = os.path.split(filepath)
@@ -31,12 +32,12 @@ def resample_file(resampled_dir, filepath, ext):
         os.makedirs(new_dir)
 
     new_path = os.path.join(new_dir, filename + f'.{ext}')
-    
+
     # check if the resampled data exists.
     if os.path.exists(new_path):
         print(f"Resampled file {filepath} exists. Skip it.")
         return None
-    
+
     transform = sox.Transformer()
     transform.set_output_format(file_type='wav')
     transform.convert(samplerate=16000, n_channels=1)
@@ -44,7 +45,7 @@ def resample_file(resampled_dir, filepath, ext):
     try:
         transform.build(filepath, new_path)
         print(f"Finished converting file {filepath}.")
-        
+
         return None
 
     except sox.core.SoxError as e:
@@ -68,7 +69,7 @@ def main():
     parser.add_argument("--data_dir", required=True, default=None, type=str)
     parser.add_argument('--resampled_dir', required=True, default=None, type=str)
     args = parser.parse_args()
-     
+
     data_dir = args.data_dir
     resampled_dir = args.resampled_dir
 
@@ -76,27 +77,27 @@ def main():
     flac_files = sorted(glob.glob(os.path.join(data_dir, '*/*.flac')))
 
     with Parallel(n_jobs=-1, verbose=10) as parallel:
-        wav_files_failed = parallel(delayed(resample_file)(resampled_dir, filepath, ext='wav')
-                                    for filepath in wav_files)
+        wav_files_failed = parallel(
+            delayed(resample_file)(resampled_dir, filepath, ext='wav') for filepath in wav_files
+        )
 
-        flac_files_failed = parallel(delayed(resample_file)(resampled_dir, filepath, ext='flac')
-                                     for filepath in flac_files)
+        flac_files_failed = parallel(
+            delayed(resample_file)(resampled_dir, filepath, ext='flac') for filepath in flac_files
+        )
 
     with open('dataset_conversion_logs.txt', 'w') as f:
         for file in wav_files_failed:
             if file is not None:
                 f.write(f"{file}\n")
 
-
         for file in flac_files_failed:
             if file is not None:
                 f.write(f"{file}\n")
 
-                
     end = time.time()
     print(f'Resample data in {data_dir} and save to {resampled_dir} takes {end-start} seconds.')
-    
+
+
 if __name__ == '__main__':
-    
+
     main()
-   

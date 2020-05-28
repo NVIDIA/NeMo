@@ -35,9 +35,7 @@ class TestVADPytorch(TestCase):
         "background",
         "speech",
     ]
-    manifest_filepath = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../data/vad/train_manifest.json")
-    )
+    manifest_filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/vad/train_manifest.json"))
     featurizer_config = {
         'window': 'hann',
         'dither': 1e-05,
@@ -59,9 +57,7 @@ class TestVADPytorch(TestCase):
         logging.info(data_folder)
         logging.info("Looking up for test vad data")
         if not os.path.exists(os.path.join(data_folder, "vad")):
-            logging.info(
-                "Extracting vad data to: {0}".format(os.path.join(data_folder, "vad"))
-            )
+            logging.info("Extracting vad data to: {0}".format(os.path.join(data_folder, "vad")))
             tar = tarfile.open(os.path.join(data_folder, "vad.tar.xz"), "r:xz")
             tar.extractall(path=data_folder)
             tar.close()
@@ -95,9 +91,7 @@ class TestVADPytorch(TestCase):
         Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
         at the first step.
         """
-        with open(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_vad.yaml"))
-        ) as file:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_vad.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToSpeechLabelDataLayer(
             # featurizer_config=self.featurizer_config,
@@ -116,7 +110,7 @@ class TestVADPytorch(TestCase):
             'normalize': 'per_feature',
             'window_stride': 0.01,
         }
-#         preprocessing = nemo_asr.AudioToMFCCPreprocessor(**pre_process_params)
+        #         preprocessing = nemo_asr.AudioToMFCCPreprocessor(**pre_process_params)
         preprocessing = nemo_asr.AudioToMelSpectrogramPreprocessor(**pre_process_params)
         jasper_encoder = nemo_asr.JasperEncoder(**jasper_model_definition['JasperEncoder'])
         jasper_decoder = nemo_asr.JasperDecoderForClassification(
@@ -150,9 +144,7 @@ class TestVADPytorch(TestCase):
     def test_quartznet_vad_eval(self):
         """Integration test that tests EvaluatorCallback and NeuralModuleFactory.eval().
         """
-        with open(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_vad.yaml"))
-        ) as file:
+        with open(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/quartznet_vad.yaml"))) as file:
             jasper_model_definition = self.yaml.load(file)
         dl = nemo_asr.AudioToSpeechLabelDataLayer(
             manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=2,

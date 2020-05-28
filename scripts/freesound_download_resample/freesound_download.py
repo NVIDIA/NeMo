@@ -16,15 +16,16 @@ import os
 import pickle
 import time
 
-import librosa
-# if request_oauthlib not installed, execute in a terminal -
-# pip install --upgrade requests requests_oauthlib
-import requests
-from joblib import Parallel, delayed
 # if freesound is not installed, execute in a terminal -
 # pip install --no-cache-dir git+https://github.com/MTG/freesound-python.git
 import freesound
+import librosa
+
+# if request_oauthlib not installed, execute in a terminal -
+# pip install --upgrade requests requests_oauthlib
+import requests
 import requests_oauthlib
+from joblib import Parallel, delayed
 from oauthlib.oauth2 import TokenExpiredError
 
 """ 
@@ -39,10 +40,13 @@ Instructions
 # Import the API Key
 try:
     from freesound_private_apikey import client_id, api_key
+
     print("API Key found !")
 except ImportError:
-    print("Create a python file called `freesound_private_apikey` and add lined `api_key = <your Freesound api key>` "
-          "and `client_id = <your Freesound client id>`")
+    print(
+        "Create a python file called `freesound_private_apikey` and add lined `api_key = <your Freesound api key>` "
+        "and `client_id = <your Freesound client id>`"
+    )
 
 
 auth_url = 'https://freesound.org/apiv2/oauth2/authorize/'
@@ -116,14 +120,12 @@ def initialize_oauth():
     # If token already exists, then just load it
     if os.path.exists('_token.pkl'):
         token = unpickle_object('_token')
-        oauth = requests_oauthlib.OAuth2Session(client_id, redirect_uri=redirect_url,
-                                                scope=scope, token=token)
+        oauth = requests_oauthlib.OAuth2Session(client_id, redirect_uri=redirect_url, scope=scope, token=token)
 
     else:
         # Construct a new token after OAuth2 flow
         # Initialize a OAuth2 session
-        oauth = requests_oauthlib.OAuth2Session(client_id, redirect_uri=redirect_url,
-                                                scope=scope)
+        oauth = requests_oauthlib.OAuth2Session(client_id, redirect_uri=redirect_url, scope=scope)
 
         authorization_url, state = oauth.authorization_url(auth_url)
         print(f"Visit below website and paste access token below : \n\n{authorization_url}\n")
@@ -134,7 +136,8 @@ def initialize_oauth():
             token_url,
             authorization_response=authorization_response,
             code=authorization_response,
-            client_secret=api_key)
+            client_secret=api_key,
+        )
 
         # Save the token generated
         pickle_object(token, '_token')
@@ -146,13 +149,8 @@ def instantiate_session():
     # Reconstruct session in process, and force singular execution thread to reduce session
     # connections to server
     token = unpickle_object('_token')
-    session = requests_oauthlib.OAuth2Session(client_id, redirect_uri=redirect_url,
-                                              scope=scope,
-                                              token=token)
-    adapter = requests.adapters.HTTPAdapter(
-        pool_connections=1,
-        pool_maxsize=1
-    )
+    session = requests_oauthlib.OAuth2Session(client_id, redirect_uri=redirect_url, scope=scope, token=token)
+    adapter = requests.adapters.HTTPAdapter(pool_connections=1, pool_maxsize=1)
     session.mount('http://', adapter)
     return session
 
@@ -160,12 +158,8 @@ def instantiate_session():
 def refresh_token(session):
     print("Refreshing tokens...")
     # Token expired, perform token refresh
-    extras = {
-        'client_id': client_id,
-        'client_secret': api_key
-    }
-    token = session.refresh_token(token_url,
-                                  **extras)
+    extras = {'client_id': client_id, 'client_secret': api_key}
+    token = session.refresh_token(token_url, **extras)
     print("Token refresh performed...")
     # Save the refreshed token
     pickle_object(token, '_token')
@@ -250,12 +244,7 @@ def get_text_query_with_resource_limit_checks(client, query: str, filters: list,
 
     while pages is None:
         try:
-            pages = client.text_search(
-                query=query,
-                filter=" ".join(filters),
-                fields=fields,
-                page_size=str(page_size),
-            )
+            pages = client.text_search(query=query, filter=" ".join(filters), fields=fields, page_size=str(page_size),)
 
         except freesound.FreesoundException as e:
             # Most probably a rate limit or a request limit
@@ -383,14 +372,13 @@ def download_song(basepath, id, name, download_url):
 
             with open(fp, 'wb') as f:
                 f.write(data)
-                
+
             if os.path.getsize(fp) > 89:
                 print(f"File written : {fp}")
-                
+
             else:
                 os.remove(fp)
                 print(f"File corrupted and has been deleted: {fp}")
-            
 
         else:
             print(f"File [{fp}] corrupted or faced some issue when downloading, skipped.")
@@ -402,14 +390,16 @@ def download_song(basepath, id, name, download_url):
         print(f"File [{fp}] already exists in dataset, skipping re-download.")
 
 
-def get_songs_by_category(client: freesound.FreesoundClient,
-                          category: str,
-                          data_dir: str,
-                          max_num_samples=100,
-                          page_size=100,
-                          min_filesize_in_mb=0,
-                          max_filesize_in_mb=10,
-                          n_jobs=None):
+def get_songs_by_category(
+    client: freesound.FreesoundClient,
+    category: str,
+    data_dir: str,
+    max_num_samples=100,
+    page_size=100,
+    min_filesize_in_mb=0,
+    max_filesize_in_mb=10,
+    n_jobs=None,
+):
 
     # quote string to force exact match
     query = f'"{category}"'
@@ -435,11 +425,7 @@ def get_songs_by_category(client: freesound.FreesoundClient,
     fields = "id,name,download,license"
 
     client, pages = get_text_query_with_resource_limit_checks(
-        client,
-        query=query,
-        filters=filters,
-        fields=fields,
-        page_size=page_size
+        client, query=query, filters=filters, fields=fields, page_size=page_size
     )
 
     if pages is None:
@@ -454,11 +440,7 @@ def get_songs_by_category(client: freesound.FreesoundClient,
         print(f"Trying less restricted query : {category}")
 
         client, pages = get_text_query_with_resource_limit_checks(
-            client,
-            query=category,
-            filters=filters,
-            fields=fields,
-            page_size=page_size
+            client, query=category, filters=filters, fields=fields, page_size=page_size
         )
 
         if pages is None:
@@ -486,8 +468,10 @@ def get_songs_by_category(client: freesound.FreesoundClient,
         while True:
             for sound in pages:
                 if sample_count >= max_num_samples:
-                    print(f"Collected {sample_count} samples, which is >= max number of samples requested "
-                          f"{max_num_samples}. Stopping for this category : {category}")
+                    print(
+                        f"Collected {sample_count} samples, which is >= max number of samples requested "
+                        f"{max_num_samples}. Stopping for this category : {category}"
+                    )
                     break
 
                 sounds.append(sound)
@@ -509,34 +493,28 @@ def get_songs_by_category(client: freesound.FreesoundClient,
 
     # Parallel download all songs
     with Parallel(n_jobs=n_jobs, verbose=10) as parallel:
-        _ = parallel(delayed(download_song)(basepath, sound.id, sound.name, sound.download)
-                     for sound in sounds)
+        _ = parallel(delayed(download_song)(basepath, sound.id, sound.name, sound.download) for sound in sounds)
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Freesound download script")
 
-    parser.add_argument('--authorize', action='store_true', dest='auth',
-                        help='Flag to only perform OAuth2 authorization step')
+    parser.add_argument(
+        '--authorize', action='store_true', dest='auth', help='Flag to only perform OAuth2 authorization step'
+    )
 
-    parser.add_argument('-c', '--category', default='', type=str,
-                        help='Category required to download')
+    parser.add_argument('-c', '--category', default='', type=str, help='Category required to download')
 
-    parser.add_argument('-d', '--data_dir', default='', type=str,
-                        help='Destination folder to store data')
+    parser.add_argument('-d', '--data_dir', default='', type=str, help='Destination folder to store data')
 
-    parser.add_argument('--page_size', default=100, type=int,
-                        help='Number of sounds per page')
+    parser.add_argument('--page_size', default=100, type=int, help='Number of sounds per page')
 
-    parser.add_argument('--max_samples', default=100, type=int,
-                        help='Maximum number of sound samples')
+    parser.add_argument('--max_samples', default=100, type=int, help='Maximum number of sound samples')
 
-    parser.add_argument('--min_filesize', default=0, type=int,
-                        help='Maximum filesize allowed (in MB)')
+    parser.add_argument('--min_filesize', default=0, type=int, help='Maximum filesize allowed (in MB)')
 
-    parser.add_argument('--max_filesize', default=20, type=int,
-                        help='Maximum filesize allowed (in MB)')
+    parser.add_argument('--max_filesize', default=20, type=int, help='Maximum filesize allowed (in MB)')
 
     parser.set_defaults(auth=False)
 
@@ -551,8 +529,9 @@ if __name__ == '__main__':
         exit(0)
 
     if not os.path.exists('_token.pkl'):
-        raise FileNotFoundError("Please authorize the application first using "
-                                "`python freesound_download --authorize`")
+        raise FileNotFoundError(
+            "Please authorize the application first using " "`python freesound_download --authorize`"
+        )
     if args.data_dir == '':
         raise ValueError("Data dir must be passed as an argument using `--data_dir`")
 
@@ -574,10 +553,13 @@ if __name__ == '__main__':
         raise ValueError("Cannot pass empty string as it will select all of FreeSound data !")
 
     print(f"Downloading category : {category}")
-    get_songs_by_category(client, category,
-                          data_dir=data_dir,
-                          max_num_samples=max_num_samples,
-                          page_size=page_size,
-                          min_filesize_in_mb=min_filesize_in_mb,
-                          max_filesize_in_mb=max_filesize_in_mb,
-                          n_jobs=30) #None
+    get_songs_by_category(
+        client,
+        category,
+        data_dir=data_dir,
+        max_num_samples=max_num_samples,
+        page_size=page_size,
+        min_filesize_in_mb=min_filesize_in_mb,
+        max_filesize_in_mb=max_filesize_in_mb,
+        n_jobs=30,
+    )  # None
