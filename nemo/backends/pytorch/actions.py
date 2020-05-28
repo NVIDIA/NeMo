@@ -1236,7 +1236,9 @@ class PtActions(Actions):
         if callbacks is not None:
             for callback in callbacks:
                 if not isinstance(callback, ActionCallback) and not isinstance(callback, NeMoCallback):
-                    raise ValueError("A callback was received that was not a child of ActionCallback")
+                    raise ValueError(
+                        "A callback was received that was not a child of ActionCallback nor a child of NeMoCallback"
+                    )
                 elif isinstance(callback, SimpleLossLoggerCallback):
                     if logging_callchain:
                         raise ValueError("We only support one logger callback but more than one were found")
