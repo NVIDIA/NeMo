@@ -303,7 +303,7 @@ class InputExample(object):
             # Add categorical slot value features.
             slot_values = self.service_schema.get_categorical_slot_values(slot)
             self.num_categorical_slot_values[slot_idx] = len(slot_values)
-            # set slot mask to 1, i.e. the slot is exists in the service
+            # set slot mask to 1, i.e. the slot exists in the service
             self.cat_slot_status_mask[slot_idx] = 1
             # set the number of active slot values for this slots in the service
             for slot_value_idx in range(len(self.service_schema._categorical_slot_values[slot])):

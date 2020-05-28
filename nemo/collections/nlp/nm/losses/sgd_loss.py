@@ -135,7 +135,7 @@ class SGDDialogueStateLossNM(LossNM):
 
         # Categorical slot status
         # Shape of logit_cat_slot_status: (batch_size, max_num_cat_slots, 3)
-        # cat_slot_status_mask masks out unused categorical padded slots for the service
+        # cat_slot_status_mask masks unused categorical padded slots for the service
         cat_slot_status_mask = cat_slot_status_mask.view(-1) > 0.5
         if sum(cat_slot_status_mask) == 0:
             logging.warning(f'No categorical slots in the batch')
@@ -168,7 +168,7 @@ class SGDDialogueStateLossNM(LossNM):
 
         # Non-categorical slot status.
         # Shape: (batch_size, max_num_noncat_slots, 3).
-        # noncat_slot_status_mask masks output unused noncat slots for the service
+        # noncat_slot_status_mask masks unused noncat slots for the service
         noncat_slot_status_mask = noncat_slot_status_mask.view(-1) > 0.5
         if sum(noncat_slot_status_mask) == 0:
             logging.warning(f'No active non-categorical slots in the batch.')

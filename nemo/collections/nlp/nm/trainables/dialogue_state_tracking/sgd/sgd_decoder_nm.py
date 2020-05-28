@@ -21,7 +21,6 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 '''
 
 import math
-import sys
 
 import numpy as np
 import torch
