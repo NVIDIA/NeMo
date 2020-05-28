@@ -50,8 +50,6 @@ if __name__ == "__main__":
     # Loss.
     nll_loss = NLLLoss()
 
-    print(str(reshaper.input_ports["inputs"]))
-
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
         img, tgt = cifar10_dl()
@@ -62,6 +60,9 @@ if __name__ == "__main__":
         loss = nll_loss(predictions=pred, targets=tgt)
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss
+
+    # Display the graph summmary.
+    logging.info(training_graph.summary())
 
     # SimpleLossLoggerCallback will print loss values to console.
     callback = SimpleLossLoggerCallback(
