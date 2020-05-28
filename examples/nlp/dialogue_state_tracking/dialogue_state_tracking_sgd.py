@@ -133,7 +133,7 @@ parser.add_argument(
     "--no_overwrite_schema_emb_files",
     action="store_false",
     help="Whether to generate a new file saving the dialogue examples.",
-    dest="overwrite_schema_emb_files"
+    dest="overwrite_schema_emb_files",
 )
 parser.add_argument(
     "--joint_acc_across_turn",
@@ -152,8 +152,10 @@ parser.add_argument(
     help="Directory where preprocessed DSTC8 dialogues are stored.",
 )
 parser.add_argument(
-    "--no_overwrite_dial_files", action="store_false", help="Whether to generate a new file saving the dialogue examples.",
-    dest="overwrite_dial_files"
+    "--no_overwrite_dial_files",
+    action="store_false",
+    help="Whether to generate a new file saving the dialogue examples.",
+    dest="overwrite_dial_files",
 )
 parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
@@ -361,10 +363,12 @@ def create_pipeline(dataset_split='train'):
             req_slot_mask=data.req_slot_mask,
             logit_cat_slot_status=logit_cat_slot_status,
             categorical_slot_status=data.categorical_slot_status,
+            cat_slot_status_mask=data.cat_slot_status_mask,
             logit_cat_slot_value=logit_cat_slot_value,
             categorical_slot_values=data.categorical_slot_values,
             logit_noncat_slot_status=logit_noncat_slot_status,
             noncategorical_slot_status=data.noncategorical_slot_status,
+            noncat_slot_status_mask=data.noncat_slot_status_mask,
             logit_noncat_slot_start=logit_noncat_slot_start,
             logit_noncat_slot_end=logit_noncat_slot_end,
             noncategorical_slot_value_start=data.noncategorical_slot_value_start,

@@ -31,8 +31,6 @@ STATUS_OFF = 0
 STATUS_ACTIVE = 1
 STATUS_DONTCARE = 2
 
-IGNORE_INDEX = -100
-
 
 class InputExample(object):
     """An example for training/inference."""
@@ -93,13 +91,13 @@ class InputExample(object):
         # Number of categorical slots present in the service.
         self.num_categorical_slots = 0
         # The status of each categorical slot in the service.
-        self.categorical_slot_status = [IGNORE_INDEX] * schema_config["MAX_NUM_CAT_SLOT"]
-        # # Mask to mask out non active slots (that have status OFF or DONTCARE)
-        # self.cat_slot_active_status_mask = [0] * * schema_config["MAX_NUM_CAT_SLOT"]
+        self.categorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_CAT_SLOT"]
+        # Masks out categorical status for padded cat slots
+        self.cat_slot_status_mask = [0] * len(self.categorical_slot_status)
         # Number of values taken by each categorical slot.
         self.num_categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
         # The index of the correct value for each categorical slot.
-        self.categorical_slot_values = [IGNORE_INDEX] * schema_config["MAX_NUM_CAT_SLOT"]
+        self.categorical_slot_values = [0] * schema_config["MAX_NUM_CAT_SLOT"]
         # Masks out categorical slots values for slots not used in the service
         self.cat_slot_values_mask = [
             [0] * schema_config["MAX_NUM_VALUE_PER_CAT_SLOT"] for _ in range(schema_config["MAX_NUM_CAT_SLOT"])
@@ -108,15 +106,15 @@ class InputExample(object):
         # Number of non-categorical slots present in the service.
         self.num_noncategorical_slots = 0
         # The status of each non-categorical slot in the service.
-        self.noncategorical_slot_status = [IGNORE_INDEX] * schema_config["MAX_NUM_NONCAT_SLOT"]
-        # # Mask to mask out non active slots (that have status OFF or DONTCARE)
-        # self.noncat_slot_active_status_mask = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
+        self.noncategorical_slot_status = [STATUS_OFF] * schema_config["MAX_NUM_NONCAT_SLOT"]
+        # Masks out non-categorical status for padded cat slots
+        self.noncat_slot_status_mask = [0] * len(self.noncategorical_slot_status)
         # The index of the starting subword corresponding to the slot span for a
         # non-categorical slot value.
-        self.noncategorical_slot_value_start = [IGNORE_INDEX] * schema_config["MAX_NUM_NONCAT_SLOT"]
+        self.noncategorical_slot_value_start = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
         # The index of the ending (inclusive) subword corresponding to the slot span
         # for a non-categorical slot value.
-        self.noncategorical_slot_value_end = [IGNORE_INDEX] * schema_config["MAX_NUM_NONCAT_SLOT"]
+        self.noncategorical_slot_value_end = [0] * schema_config["MAX_NUM_NONCAT_SLOT"]
 
         # Total number of slots present in the service. All slots are included here
         # since every slot can be requested.
@@ -305,10 +303,12 @@ class InputExample(object):
             # Add categorical slot value features.
             slot_values = self.service_schema.get_categorical_slot_values(slot)
             self.num_categorical_slot_values[slot_idx] = len(slot_values)
+            # set slot mask to 1, i.e. the slot is exists in the service
+            self.cat_slot_status_mask[slot_idx] = 1
             # set the number of active slot values for this slots in the service
             for slot_value_idx in range(len(self.service_schema._categorical_slot_values[slot])):
                 self.cat_slot_values_mask[slot_idx][slot_value_idx] = 1
-            self.categorical_slot_values[slot_idx] = STATUS_OFF
+
             if not values:
                 self.categorical_slot_status[slot_idx] = STATUS_OFF
             elif values[0] == STR_DONTCARE:
@@ -325,16 +325,13 @@ class InputExample(object):
         self.num_noncategorical_slots = len(noncategorical_slots)
         for slot_idx, slot in enumerate(noncategorical_slots):
             values = state_update.get(slot, [])
-            self.noncategorical_slot_value_start[slot_idx] = STATUS_OFF
-            self.noncategorical_slot_value_end[slot_idx] = STATUS_OFF
-            
+            self.noncat_slot_status_mask[slot_idx] = 1
             if not values:
                 self.noncategorical_slot_status[slot_idx] = STATUS_OFF
             elif values[0] == STR_DONTCARE:
                 self.noncategorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
                 self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
-                # self.noncat_slot_active_status_mask[slot_idx] = 1
                 # Add indices of the start and end tokens for the first encountered
                 # value. Spans in user utterance are prioritized over the system
                 # utterance. If a span is not found, the slot value is ignored.
@@ -350,7 +347,7 @@ class InputExample(object):
                     logging.debug(
                         f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
                     )
-          
+
                     continue
                 self.noncategorical_slot_value_start[slot_idx] = start
                 self.noncategorical_slot_value_end[slot_idx] = end
