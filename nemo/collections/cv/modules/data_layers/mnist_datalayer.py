@@ -89,7 +89,7 @@ class MNISTDataLayer(DataLayerNM, MNIST):
                     AxisType(kind=AxisKind.Height, size=self._height),
                     AxisType(kind=AxisKind.Width, size=self._width),
                 ),
-                elements_type=NormalizedImageType(),
+                elements_type=NormalizedImageType(),  # float, <0-1>
             ),
             "targets": NeuralType(tuple('B'), elements_type=ClassificationTargetType()),
         }

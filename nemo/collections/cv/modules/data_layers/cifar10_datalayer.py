@@ -21,7 +21,7 @@ from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core.neural_types import AxisKind, AxisType, ClassificationTargetType, NeuralType, NormalizedImageType
+from nemo.core.neural_types import AxisKind, AxisType, ClassificationTargetType, ImageType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['CIFAR10DataLayer']
@@ -82,7 +82,7 @@ class CIFAR10DataLayer(DataLayerNM, CIFAR10):
                     AxisType(kind=AxisKind.Height, size=self._height),
                     AxisType(kind=AxisKind.Width, size=self._width),
                 ),
-                elements_type=NormalizedImageType(),
+                elements_type=ImageType(),  # uint8, <0-255>
             ),
             "targets": NeuralType(tuple('B'), elements_type=ClassificationTargetType()),
         }
