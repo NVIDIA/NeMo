@@ -1,4 +1,16 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import argparse
 import copy
@@ -26,7 +38,7 @@ logging = nemo.logging
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        parents=[nm_argparse.NemoArgParser()], description='Jasper VAD', conflict_handler='resolve',
+        parents=[nm_argparse.NemoArgParser()], description='MatchboxNet VAD', conflict_handler='resolve',
     )
     parser.set_defaults(
         checkpoint_dir=None,
@@ -51,7 +63,7 @@ def parse_args():
     )
 
     # Create new args
-    parser.add_argument("--exp_name", default="Jasper_VAD", type=str)
+    parser.add_argument("--exp_name", default="MatchboxNet_VAD", type=str)
     parser.add_argument('--min_lr', default=1e-3, type=float)
     parser.add_argument("--beta1", default=0.95, type=float)
     parser.add_argument("--beta2", default=0.5, type=float)
@@ -117,14 +129,15 @@ def create_all_dags(args, neural_factory):
     steps_per_epoch = math.ceil(N / (args.batch_size * args.iter_per_step * args.num_gpus))
     logging.info('Steps per epoch : {0}'.format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
+    
+#     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+#         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
+#     )
 
     data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
         sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
     )
 
-#     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-#         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
-#     )
 
     
     spectr_augment_config = jasper_params.get('SpectrogramAugmentation', None)

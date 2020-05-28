@@ -1,8 +1,9 @@
 # Copyright (c) 2019 NVIDIA Corporation
 from typing import List, Optional
 
-import torch
 import sklearn
+import torch
+
 
 def __levenshtein(a: List, b: List) -> int:
     """Calculates the Levenshtein distance between a and b.
@@ -99,7 +100,6 @@ def classification_accuracy(
     return results
 
 
-
 def classification_confusion_matrix(logits: torch.Tensor, targets: torch.Tensor,) -> torch.Tensor:
     """
     Computes the confusion matric provided with 
@@ -114,10 +114,10 @@ def classification_confusion_matrix(logits: torch.Tensor, targets: torch.Tensor,
 
         A tensor (n_classes, n_classes) of confusion matrix.
     """
-    
+
     with torch.no_grad():
         _, predictions = logits.topk(1, dim=1, largest=True, sorted=True)
         predictions = predictions.t().squeeze()
         targets = targets.t().squeeze()
-        
+
     return sklearn.metrics.confusion_matrix(targets, predictions, labels=range(logits.shape[1]))
