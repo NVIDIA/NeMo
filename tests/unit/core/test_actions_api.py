@@ -33,10 +33,10 @@ class TestTrainers(TestCase):
         optimizer = PtActions()
         optimizer.save_state_to(path)
         optimizer.step = 123
-        optimizer.epoch_num = 324
+        optimizer.epoch = 324
         optimizer.restore_state_from(path)
         self.assertEqual(optimizer.step, 0)
-        self.assertEqual(optimizer.epoch_num, 0)
+        self.assertEqual(optimizer.epoch, 0)
         self.assertEqual(len(optimizer.optimizers), 0)
         os.remove(path)
 
@@ -53,7 +53,7 @@ class TestTrainers(TestCase):
         self.assertEqual(len(optimizer.optimizers), 5)
         optimizer.save_state_to(path)
         optimizer.step = 123
-        optimizer.epoch_num = 324
+        optimizer.epoch = 324
         for i, opt in enumerate(optimizer.optimizers):
             for param_group in opt.param_groups:
                 self.assertEqual(param_group['lr'], float(i + 1))
@@ -63,6 +63,6 @@ class TestTrainers(TestCase):
             for param_group in opt.param_groups:
                 self.assertEqual(param_group['lr'], float(i + 1))
         self.assertEqual(optimizer.step, 0)
-        self.assertEqual(optimizer.epoch_num, 0)
+        self.assertEqual(optimizer.epoch, 0)
         self.assertEqual(len(optimizer.optimizers), 5)
         os.remove(path)
