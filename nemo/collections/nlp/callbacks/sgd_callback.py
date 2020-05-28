@@ -27,7 +27,7 @@ import torch
 
 import nemo.collections.nlp.data.datasets.sgd_dataset.prediction_utils as pred_utils
 from nemo import logging
-from nemo.collections.nlp.data.datasets.sgd_dataset.data_processor import Dstc8DataProcessor
+from nemo.collections.nlp.data.datasets.sgd_dataset.data_processor import SGDDataProcessor
 from nemo.collections.nlp.data.datasets.sgd_dataset.evaluate import (
     ALL_SERVICES,
     PER_FRAME_OUTPUT_FILENAME,
@@ -166,11 +166,11 @@ def eval_epochs_done_callback(
         os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
     )
     ##############
-    # we'll write predictions to file in DSTC8 format during evaluation callback
+    # we'll write predictions to file in Dstc8/SGD format during evaluation callback
     prediction_dir = os.path.join(prediction_dir, 'predictions', 'pred_res_{}_{}'.format(eval_dataset, task_name))
     os.makedirs(prediction_dir, exist_ok=True)
 
-    input_json_files = Dstc8DataProcessor.get_dialogue_files(data_dir, eval_dataset, task_name)
+    input_json_files = SGDDataProcessor.get_dialogue_files(data_dir, eval_dataset, task_name)
     pred_utils.write_predictions_to_file(
         global_vars['predictions'],
         input_json_files,

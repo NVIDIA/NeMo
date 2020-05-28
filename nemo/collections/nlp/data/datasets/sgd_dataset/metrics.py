@@ -51,7 +51,7 @@ from rapidfuzz import fuzz
 
 F1Scores = collections.namedtuple("F1Scores", ["f1", "precision", "recall"])
 
-# Evaluation and other relevant metrics for DSTC8 Schema-guided DST.
+# Evaluation and other relevant metrics for DSTC8/SGD Schema-guided DST.
 # (1) Active intent accuracy.
 ACTIVE_INTENT_ACCURACY = "active_intent_accuracy"
 # (2) Slot tagging F1.
@@ -104,7 +104,7 @@ def fuzzy_string_match(str_ref, str_hyp):
     """Returns fuzzy string similarity score in range [0.0, 1.0]."""
 
     # The higher the score, the higher the similarity between the two strings.
-    return np.round(fuzz.token_sort_ratio(str_ref, str_hyp)) / 100.0
+    return fuzz.token_sort_ratio(str_ref, str_hyp) / 100.0
 
 
 def noncat_slot_value_match(str_ref_list, str_hyp, no_fuzzy_match):

@@ -105,7 +105,7 @@ parser.add_argument("--num_gpus", default=1, type=int)
 # Input and output paths and other flags.
 parser.add_argument(
     "--task_name",
-    default="dstc8_single_domain",
+    default="sgd_single_domain",
     type=str,
     choices=data_processor.FILE_RANGES.keys(),
     help="The name of the task to train.",
@@ -114,7 +114,7 @@ parser.add_argument(
     "--data_dir",
     type=str,
     required=True,
-    help="Directory for the downloaded DSTC8 data, which contains the dialogue files"
+    help="Directory for the downloaded SGD data, which contains the dialogue files"
     " and schema files of all datasets (eg train, dev)",
 )
 parser.add_argument(
@@ -149,7 +149,7 @@ parser.add_argument(
     "--dialogues_example_dir",
     type=str,
     default="dialogues_example_dir",
-    help="Directory where preprocessed DSTC8 dialogues are stored.",
+    help="Directory where preprocessed SGD dialogues are stored.",
 )
 parser.add_argument(
     "--no_overwrite_dial_files",
@@ -304,9 +304,9 @@ schema_preprocessor = SchemaPreprocessor(
     is_trainable=args.train_schema_emb,
 )
 
-dialogues_processor = data_processor.Dstc8DataProcessor(
+dialogues_processor = data_processor.SGDDataProcessor(
     task_name=args.task_name,
-    dstc8_data_dir=args.data_dir,
+    data_dir=args.data_dir,
     dialogues_example_dir=args.dialogues_example_dir,
     tokenizer=tokenizer,
     schema_emb_processor=schema_preprocessor,

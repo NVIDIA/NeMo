@@ -65,7 +65,7 @@ def get_in_domain_services(schema_path_1, schema_path_2):
 
 
 def get_dataset_as_dict(file_path_patterns):
-    """Read the DSTC8 json dialog data as dictionary with dialog ID as keys."""
+    """Read the DSTC8/SGD json dialogue data as dictionary with dialog ID as keys."""
     dataset_dict = {}
     if isinstance(file_path_patterns, list):
         list_fp = file_path_patterns
@@ -87,7 +87,7 @@ def get_dataset_as_dict(file_path_patterns):
 
 
 def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
-    """Calculate the DSTC8 metrics.
+    """Calculate the DSTC8/SGD metrics.
 
   Args:
     dataset_ref: The ground truth dataset represented as a dict mapping dialogue

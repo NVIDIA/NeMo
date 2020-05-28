@@ -41,9 +41,9 @@ class SchemaPreprocessor:
     StateTrackingSGDData.
     
     Args:
-        data_dir (str) - Directory for the downloaded DSTC8 data, which contains
+        data_dir (str) - Directory for the downloaded DSTC8/SGD data, which contains
             the dialogue files and schema files of all datasets (eg train, dev)
-        dialogues_example_dir (str) - Directory where preprocessed DSTC8 dialogues are stored
+        dialogues_example_dir (str) - Directory where preprocessed DSTC8/SGD dialogues are stored
         schema_embedding_dir (str) - Directory where .npy file for embedding of
             entities (slots, values, intents) in the dataset_split's
             schema are stored.

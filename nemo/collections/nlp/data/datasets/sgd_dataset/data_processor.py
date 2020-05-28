@@ -30,14 +30,13 @@ import torch
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
 
-__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'Dstc8DataProcessor', 'get_dialogue_files']
+__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor', 'get_dialogue_files']
 
 
 FILE_RANGES = {
-    "dstc8_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
-    "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
-    "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
-    "DEBUG": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
+    "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
+    "sgd__multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
+    "sgd_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
 }
 
@@ -45,29 +44,23 @@ FILE_RANGES = {
 PER_FRAME_OUTPUT_FILENAME = "dialogues_and_metrics.json"
 
 
-class Dstc8DataProcessor(object):
-    """Data generator for dstc8 dialogues."""
+class SGDDataProcessor(object):
+    """Data generator for SGD dialogues."""
 
     def __init__(
-        self,
-        task_name,
-        dstc8_data_dir,
-        dialogues_example_dir,
-        tokenizer,
-        schema_emb_processor,
-        overwrite_dial_files=False,
+        self, task_name, data_dir, dialogues_example_dir, tokenizer, schema_emb_processor, overwrite_dial_files=False,
     ):
         """
-        Constructs Dstc8DataProcessor
+        Constructs SGD8DataProcessor
         Args:
-            task_name (str): task  name, for  example, "dstc8_single_domain"
-            dstc8_data_dir (str): path to data directory
+            task_name (str): task  name, for  example, "single_domain"
+            data_dir (str): path to data directory
             dialogues_example_dir (str): path to  store processed dialogue examples
             tokenizer (Tokenizer): such as NemoBertTokenizer
             schema_emb_processor (Obj): contains information about schemas
             overwrite_dial_files (bool): whether to overwite dialogue files
         """
-        self.dstc8_data_dir = dstc8_data_dir
+        self.data_dir = data_dir
         self.dialogues_examples_dir = dialogues_example_dir
 
         self._task_name = task_name
@@ -123,7 +116,7 @@ class Dstc8DataProcessor(object):
             self.dial_files[(self._task_name, dataset)]
         ):
             raise ValueError(
-                f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize Dstc8DataProcessor and add {dataset} dataset to datasets arg."
+                f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize SGDDataProcessor and add {dataset} dataset to datasets arg."
             )
 
         dial_file = self.dial_files[(self._task_name, dataset)]
@@ -144,10 +137,9 @@ class Dstc8DataProcessor(object):
         """
         logging.info(f'Creating examples from the dialogues started...')
         dialog_paths = [
-            os.path.join(self.dstc8_data_dir, dataset, "dialogues_{:03d}.json".format(i))
-            for i in self._file_ranges[dataset]
+            os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i)) for i in self._file_ranges[dataset]
         ]
-        dialogs = Dstc8DataProcessor.load_dialogues(dialog_paths)
+        dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
 
         examples = []
         for dialog_idx, dialog in enumerate(dialogs):
@@ -322,7 +314,7 @@ class Dstc8DataProcessor(object):
         # After _naive_tokenize, spaces and punctuation marks are all retained, i.e.
         # direct concatenation of all the tokens in the sequence will be the
         # original string.
-        tokens = Dstc8DataProcessor._naive_tokenize(utterance)
+        tokens = SGDDataProcessor._naive_tokenize(utterance)
         # Filter out empty tokens and obtain aligned character index for each token.
         alignments = {}
         char_index = 0
@@ -356,10 +348,9 @@ class Dstc8DataProcessor(object):
         """
         example_count = 0
         dialog_paths = [
-            os.path.join(self.dstc8_data_dir, dataset, "dialogues_{:03d}.json".format(i))
-            for i in self._file_ranges[dataset]
+            os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i)) for i in self._file_ranges[dataset]
         ]
-        dst_set = Dstc8DataProcessor.load_dialogues(dialog_paths)
+        dst_set = SGDDataProcessor.load_dialogues(dialog_paths)
         for dialog in dst_set:
             for turn in dialog["turns"]:
                 if turn["speaker"] == "USER":
@@ -403,7 +394,7 @@ class Dstc8DataProcessor(object):
         Args:
             data_dir (str): path to the data folde
             dataset_split (str): dev, test or train
-            task_name (str): DSTC-8 task name, see keys of the FILE_RANGES
+            task_name (str): SGD task name, see keys of the FILE_RANGES
         Returns:
             dialogs (list): the list of all dialogue json files paths
         """
