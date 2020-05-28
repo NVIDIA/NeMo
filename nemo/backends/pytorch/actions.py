@@ -30,8 +30,6 @@ from nemo.utils.helpers import get_checkpoint_from_dir
 
 # these imports will happen on as-needed basis
 amp = None
-# convert_syncbn = None
-# create_syncbn_process_group = None
 LARC = None
 FusedLAMB = None
 FusedAdam = None
@@ -63,16 +61,12 @@ class PtActions(Actions):
                     global amp
                     amp = importlib.import_module('apex.amp')
                 if local_rank is not None:
-                    # global convert_syncbn
-                    # global create_syncbn_process_group
                     global LARC
                     global FusedLAMB
                     global FusedAdam
                     global FusedNovoGrad
                     parallel = importlib.import_module('apex.parallel')
                     apex_optimizer = importlib.import_module('apex.optimizers')
-                    # convert_syncbn = parallel.convert_syncbn_model
-                    # create_syncbn_process_group = parallel.create_syncbn_process_group
                     LARC = parallel.LARC
                     FusedLAMB = apex_optimizer.FusedLAMB
                     FusedAdam = apex_optimizer.FusedAdam
@@ -150,12 +144,6 @@ class PtActions(Actions):
                     "distributed mode. Please instantiate NeuralModuleFactory first and pass its instance as "
                     "`factory` parameter to all your Neural Module objects.".format(str(m[0]))
                 )
-            # key = m[0].unique_instance_id
-            # if key not in self.module_reference_table:
-            #     if isinstance(m[0], TrainableNeuralModuleWrapper):
-            #         self.module_reference_table[key] = (m[0], m[0]._pt_module)
-            #     else:
-            #         self.module_reference_table[key] = (m[0], m[0])
 
         return top_sorted_modules, tdataset
 
@@ -349,17 +337,8 @@ class PtActions(Actions):
                 if in_cache:
                     continue
             call_args = call_chain[ind][1]
-            # module = call_chain[ind][0]
-            # pmodule = self.module_reference_table[m_id][1]
             m_id = call_chain[ind][0].unique_instance_id
             pmodule = self.ddp_module_dict[m_id] if self.ddp_initialized else call_chain[ind][0]
-
-            # if self._local_rank is not None:
-            #     if isinstance(pmodule, DDP):
-            #         if disable_allreduce:
-            #             pmodule.disable_allreduce()
-            #         else:
-            #             pmodule.enable_allreduce()
 
             if mode == OperationMode.training:
                 # if module.is_trainable():
@@ -374,14 +353,8 @@ class PtActions(Actions):
             # prepare call signature for `module`
             call_set = {}
             for tensor_name, nmtensor in call_args.items():
-                # _add_uuid_2_name(nmtensor.name, nmtensor.producer._uuid)
                 key = nmtensor.unique_name
                 call_set[tensor_name] = registered_tensors[key]
-            # actual PyTorch module call with signature
-            # if isinstance(self.module_reference_table[m_id][0], TrainableNeuralModuleWrapper,):
-            #     new_tensors = pmodule(**call_set)
-            # else:
-            #     new_tensors = pmodule(force_pt=True, **call_set)
             new_tensors = pmodule(force_pt=True, **call_set)
 
             if not isinstance(new_tensors, List):
@@ -462,11 +435,6 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # logging.info(
-                #     "Doing distributed evaluation. Rank {0} of {1}".format(
-                #         self.local_rank, world_size
-                #     )
-                # )
 
                 if dl_nm.dataset is not None:
                     sampler = None
@@ -638,11 +606,6 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-                # logging.info(
-                #     "Doing distributed evaluation. Rank {0} of {1}".format(
-                #         self.local_rank, world_size
-                #     )
-                # )
                 if dl_nm.dataset is not None:
                     sampler = None
                     if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
@@ -729,12 +692,6 @@ class PtActions(Actions):
                     use_cache=use_cache,
                 )
 
-                # if offload_to_cpu:
-                #     # Take all cuda tensors and save them to value_dict as
-                #     # cpu tensors to save GPU memory
-                #     for name, tensor in registered_e_tensors.items():
-                #         if isinstance(tensor, torch.Tensor):
-                #             registered_e_tensors[name] = tensor.cpu()
                 if cache:
                     self.append_to_cache(registered_e_tensors, offload_to_cpu)
 
@@ -913,10 +870,10 @@ class PtActions(Actions):
 
         module.eval()
         try:
-            # # Remove NeMo-related things from the module
-            # # We need to change __call__ method. Note that this will change the
-            # # whole class, not just this object! Which is why we need to repair it
-            # # in the finally block
+            # Remove NeMo-related things from the module
+            # We need to change __call__ method. Note that this will change the
+            # whole class, not just this object! Which is why we need to repair it
+            # in the finally block
             __orig_call__ = type(module).__call__
             type(module).__call__ = torch.nn.Module.__call__
 
@@ -1313,10 +1270,6 @@ class PtActions(Actions):
         dataNM = training_loop[0][2][0][0]
         placement_gpu = dataNM.placement == DeviceType.AllGpu
         if placement_gpu:
-            # if len(training_loop) > 1:
-            #     raise NotImplementedError(
-            #         "Distributed training does nor work with multiple "
-            #         "optimizers")
             logging.info("Doing distributed training")
             if t_dataset is not None:
                 train_sampler = None
@@ -1341,12 +1294,6 @@ class PtActions(Actions):
                 else:
                     train_sampler = None
 
-            # for train_iter in training_loop:
-            #     call_chain = train_iter[2]
-            #     for i in range(1, len(call_chain) - 1):
-            #         key = call_chain[i][0].unique_instance_id
-            #         pmodule = self.module_reference_table[key][1]
-            #         num_trainable_weights = self.module_reference_table[key][1].num_weights
             self.ddp_initialized = True
             module_list = [mod.name for mod in AppState().modules]
             module_list = sorted(module_list)
@@ -1356,11 +1303,6 @@ class PtActions(Actions):
                 num_trainable_weights = module.num_weights
                 self.ddp_module_dict[key] = module
                 if not isinstance(module, DDP) and isinstance(module, torch.nn.Module) and num_trainable_weights > 0:
-                    # gpf = 1
-                    # if gradient_predivide:
-                    #     gpf = dist.get_world_size()
-                    # pmodule = DDP(pmodule, gradient_predivide_factor=gpf)  # Old Apex Method
-
                     # Per pytorch docs, convert sync bn prior to DDP
                     if synced_batchnorm:
                         world_size = dist.get_world_size()

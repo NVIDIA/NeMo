@@ -366,7 +366,3 @@ class Logger(metaclass=Singleton):
             and not self._logged_once(msg, mode)
         ):
             self._logger._log(Logger.CRITICAL, msg, args, **kwargs)
-
-
-# # Necessary to catch the correct caller
-# _logging._srcfile = os.path.normcase(inspect.getfile(Logger.__class__))

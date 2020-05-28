@@ -469,7 +469,6 @@ class CheckpointCallback(NeMoCallback):
             try:
                 trainer_checkpoints = get_checkpoint_from_dir(["trainer"], path)
                 state.restore_state_from(trainer_checkpoints[0])
-                # for tr, checkpoint in zip([self.action], trainer_checkpoints):
             except (ValueError) as e:
                 logging.warning(e)
                 logging.warning(
@@ -891,7 +890,6 @@ class ValueSetterCallback(ActionCallback):
             setattr(self.module, self.arg_name, value)
             if self.tb_writer is not None:
                 class_name = self.module.__class__.__name__
-                # name = f'param/{class_name}.{self.arg_name}'
                 name = f"param/{class_name}.{self.arg_name}"
                 self.tb_writer.add_scalar(name, value, self.step)
         else:
