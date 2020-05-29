@@ -144,7 +144,7 @@ parser.add_argument("--num_epochs", default=3, type=int, help="Total number of t
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
 parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
 parser.add_argument(
-    "--amp_opt_level", default="O1", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
+    "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
 )
 parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
 parser.add_argument(

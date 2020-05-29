@@ -27,6 +27,12 @@ from nemo.utils.lr_policies import get_lr_policy
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Sentence classification with pretrained BERT')
 parser.add_argument("--work_dir", default='outputs', type=str)
+parser.add_argument(
+    "--checkpoint_dir",
+    default=None,
+    type=str,
+    help="The folder containing the checkpoints for the model to continue training",
+)
 parser.add_argument("--data_dir", required=True, type=str)
 parser.add_argument(
     '--pretrained_model_name',
@@ -93,6 +99,7 @@ nf = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
+    checkpoint_dir=args.checkpoint_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
