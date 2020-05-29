@@ -5,7 +5,6 @@ import torch as t
 import torch.nn as nn
 import torch.utils.data as t_utils
 
-from nemo import logging
 from nemo.backends.pytorch.nm import DataLayerNM, LossNM, TrainableNM
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
@@ -37,7 +36,7 @@ class TaylorNet(TrainableNM):  # Note inheritance from TrainableNM
     def __init__(self, dim, name=None):
         """
             Creates TaylorNet object.
-            
+
             Args:
                 dim: Number of dimensions (number of terms in Taylor series).
                 name: Name of the module instance

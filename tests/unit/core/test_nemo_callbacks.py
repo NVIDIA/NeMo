@@ -24,8 +24,10 @@ import pytest
 from tensorboard.backend.event_processing import event_file_inspector as efi
 from torch.utils.tensorboard import SummaryWriter
 
+from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.backends.pytorch.tutorials import MSELoss, RealFunctionDataLayer, TaylorNet
 from nemo.core.callbacks import *
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 
 
@@ -72,21 +74,52 @@ class TestNeMoCallbacks:
         y_pred = trainable_module(x=x)
         loss_tensor = loss(predictions=y_pred, target=y)
 
+        class DummyNM(NonTrainableNM):
+            def __init__(self):
+                super().__init__()
+
+            @property
+            def input_ports(self):
+                """Returns definitions of module input ports.
+
+                Returns:
+                  A (dict) of module's input ports names to NeuralTypes mapping
+                """
+                return {"x": NeuralType(('B', 'D'), ChannelType())}
+
+            @property
+            def output_ports(self):
+                """Returns definitions of module output ports.
+
+                Returns:
+                  A (dict) of module's output ports names to NeuralTypes mapping
+                """
+                return {"y_pred": NeuralType(('B', 'D'), ChannelType())}
+
+            def forward(self, x):
+                return x + 1
+
+        test = DummyNM()
+        extra_tensor = test(x=y_pred)
+
         y_pred.rename("y_pred")
 
         # Mock up both std and stderr streams.
         with logging.patch_stdout_handler(StringIO()) as std_out:
             self.nf.train(
                 tensors_to_optimize=[loss_tensor],
-                callbacks=[SimpleLogger(step_freq=1, tensors_to_log=['y_pred'])],
+                callbacks=[SimpleLogger(step_freq=1, tensors_to_log=['y_pred', extra_tensor])],
                 optimization_params={"max_steps": 4, "lr": 0.01},
                 optimizer="sgd",
             )
 
         output_lines = std_out.getvalue().splitlines()
-        assert len(output_lines) == 4
-        for line in output_lines:
-            assert "y_pred" in line
+        assert len(output_lines) == 8
+        for i, line in enumerate(output_lines):
+            if i % 2 == 0:
+                assert "y_pred" in line
+            else:
+                assert extra_tensor.unique_name in line
 
     @pytest.mark.unit
     def test_TensorboardLogger(self, clean_up, tmpdir):

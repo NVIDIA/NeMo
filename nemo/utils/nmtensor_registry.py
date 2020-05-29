@@ -14,6 +14,8 @@
 # limitations under the License.
 # =============================================================================
 
+from weakref import WeakValueDictionary
+
 
 class NmTensorNameRegistry:
     def __init__(self):
@@ -25,14 +27,14 @@ class NmTensorNameRegistry:
         # Create the nmtensor_naming_dict
         # which contains a mapping of str to NMTensor.unique_name
         self._nmtensor_naming_dict = {"loss": "loss"}  # Reserve keyname of 'loss'
-        # Create a set object to track all unique_names
-        self._nmtensor_uniname_dict = set(["loss"])
+        # Create a dict that maps unique_names to tensors for use with TrainingState.get_tensor()
+        self._nmtensor_uniname_dict = WeakValueDictionary()
 
     @property
     def unique_names(self):
         """Returns the set of all NmTensors.unique_names + 'loss'
         """
-        return list(self._nmtensor_uniname_dict)
+        return list(self._nmtensor_uniname_dict.keys()) + ["loss"]
 
     def register(self, tensor: 'NmTensor'):
         """Helper function to register a newly created NmTensor by adding it to self.__nmtensor_uniname_dict.
@@ -47,7 +49,7 @@ class NmTensorNameRegistry:
             pass
 
         # Finally, add object to the set.
-        self._nmtensor_uniname_dict.add(tensor.unique_name)
+        self._nmtensor_uniname_dict[tensor.unique_name] = tensor
 
     def rename_NmTensor(self, tensor: 'NmTensor', new_name: str):
         """Helper function that changes the naming dictionary to facilitate user name -> tensor.unique_name lookup.
@@ -83,7 +85,7 @@ class NmTensorNameRegistry:
         if key in self._nmtensor_naming_dict:
             key = self._nmtensor_naming_dict[key]
 
-        if key in self._nmtensor_uniname_dict:
+        if key in self._nmtensor_uniname_dict or key == "loss":
             return key
 
         raise KeyError("A NmTensor with name `{}` don't exists!".format(key))
