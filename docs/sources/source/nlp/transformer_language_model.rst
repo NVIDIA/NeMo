@@ -1,5 +1,7 @@
-Tutorial
-========
+.. _transformer_lm:
+
+Transformer Language Model Tutorial
+===================================
 
 In this tutorial, we will build and train a language model using the Transformer architecture :cite:`nlp-lm-vaswani2017attention`.
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.

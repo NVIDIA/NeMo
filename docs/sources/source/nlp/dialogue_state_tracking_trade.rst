@@ -1,3 +1,5 @@
+.. _dialogue_state_tracking_trade:
+
 Tutorial
 ========
 
