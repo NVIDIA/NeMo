@@ -8,8 +8,8 @@ In this tutorial, we are going to implement a Question Answering system using th
 All code used in this tutorial is based on ``examples/nlp/question_answering/question_answering_squad.py``.
 
 
-Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
-BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
+Currently, there are 4 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
+Megatron-LM BERT, BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument.
 The pretrained back-bone models can be specified `--pretrained_model_name`.
 See the list of available pre-trained models

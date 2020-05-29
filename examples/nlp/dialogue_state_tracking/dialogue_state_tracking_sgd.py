@@ -105,7 +105,7 @@ parser.add_argument("--num_gpus", default=1, type=int)
 # Input and output paths and other flags.
 parser.add_argument(
     "--task_name",
-    default="dstc8_single_domain",
+    default="sgd_single_domain",
     type=str,
     choices=data_processor.FILE_RANGES.keys(),
     help="The name of the task to train.",
@@ -114,7 +114,7 @@ parser.add_argument(
     "--data_dir",
     type=str,
     required=True,
-    help="Directory for the downloaded DSTC8 data, which contains the dialogue files"
+    help="Directory for the downloaded SGD data, which contains the dialogue files"
     " and schema files of all datasets (eg train, dev)",
 )
 parser.add_argument(
@@ -130,9 +130,10 @@ parser.add_argument(
     help="Directory where .npy file for embedding of entities (slots, values, intents) in the dataset_split's schema are stored.",
 )
 parser.add_argument(
-    "--overwrite_schema_emb_files",
-    action="store_true",
+    "--no_overwrite_schema_emb_files",
+    action="store_false",
     help="Whether to generate a new file saving the dialogue examples.",
+    dest="overwrite_schema_emb_files",
 )
 parser.add_argument(
     "--joint_acc_across_turn",
@@ -148,15 +149,22 @@ parser.add_argument(
     "--dialogues_example_dir",
     type=str,
     default="dialogues_example_dir",
-    help="Directory where preprocessed DSTC8 dialogues are stored.",
+    help="Directory where preprocessed SGD dialogues are stored.",
 )
 parser.add_argument(
-    "--overwrite_dial_files", action="store_true", help="Whether to generate a new file saving the dialogue examples."
+    "--no_overwrite_dial_files",
+    action="store_false",
+    help="Whether to generate a new file saving the dialogue examples.",
+    dest="overwrite_dial_files",
 )
 parser.add_argument("--no_shuffle", action="store_true", help="Whether to shuffle training data")
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
-    "--eval_dataset", type=str, default="dev", choices=["dev", "test"], help="Dataset split for evaluation."
+    "--eval_dataset",
+    type=str,
+    default="dev_test",
+    choices=["dev", "test", "dev_test"],
+    help="Dataset splits for evaluation.",
 )
 parser.add_argument(
     "--save_epoch_freq",
@@ -215,11 +223,9 @@ parser.add_argument(
     "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
-    "--head_transform",
-    default="",
-    type=str,
-    choices=["", "Attention"],
-    help="transformation to use for computing head. Default uses linear projection.",
+    "--add_attention_head",
+    action="store_true",
+    help="Whether to use attention when computing projections. When False, uses linear projection.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
@@ -233,7 +239,7 @@ args = parser.parse_args()
 logging.info(args)
 
 if args.debug_mode:
-    logging.setLevel(10)
+    logging.setLevel("DEBUG")
 
 if args.task_name == "multiwoz":
     schema_config = {
@@ -298,9 +304,9 @@ schema_preprocessor = SchemaPreprocessor(
     is_trainable=args.train_schema_emb,
 )
 
-dialogues_processor = data_processor.Dstc8DataProcessor(
+dialogues_processor = data_processor.SGDDataProcessor(
     task_name=args.task_name,
-    dstc8_data_dir=args.data_dir,
+    data_dir=args.data_dir,
     dialogues_example_dir=args.dialogues_example_dir,
     tokenizer=tokenizer,
     schema_emb_processor=schema_preprocessor,
@@ -310,7 +316,7 @@ dialogues_processor = data_processor.Dstc8DataProcessor(
 # define model pipeline
 sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
-    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, head_transform="Logits" + args.head_transform
+    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
 )
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
 
@@ -396,7 +402,6 @@ def create_pipeline(dataset_split='train'):
 
 steps_per_epoch, train_tensors = create_pipeline()
 logging.info(f'Steps per epoch: {steps_per_epoch}')
-_, eval_tensors = create_pipeline(dataset_split=args.eval_dataset)
 
 # Create trainer and execute training action
 train_callback = SimpleLossLoggerCallback(
@@ -407,37 +412,34 @@ train_callback = SimpleLossLoggerCallback(
     step_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
 )
 
-# we'll write predictions to file in DSTC8 format during evaluation callback
-input_json_files = [
-    os.path.join(args.data_dir, args.eval_dataset, 'dialogues_{:03d}.json'.format(fid))
-    for fid in data_processor.FILE_RANGES[args.task_name][args.eval_dataset]
-]
-schema_json_file = os.path.join(args.data_dir, args.eval_dataset, 'schema.json')
 
-# Write predictions to file in DSTC8 format.
-prediction_dir = os.path.join(nf.work_dir, 'predictions', 'pred_res_{}_{}'.format(args.eval_dataset, args.task_name))
-output_metric_file = os.path.join(nf.work_dir, 'metrics.txt')
-os.makedirs(prediction_dir, exist_ok=True)
+def get_eval_callback(eval_dataset):
+    _, eval_tensors = create_pipeline(dataset_split=eval_dataset)
+    eval_callback = EvaluatorCallback(
+        eval_tensors=eval_tensors,
+        user_iter_callback=lambda x, y: eval_iter_callback(x, y, schema_preprocessor, eval_dataset),
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x,
+            args.task_name,
+            eval_dataset,
+            args.data_dir,
+            nf.work_dir,
+            args.state_tracker,
+            args.debug_mode,
+            schema_preprocessor,
+            args.joint_acc_across_turn,
+            args.no_fuzzy_match,
+        ),
+        tb_writer=nf.tb_writer,
+        eval_step=args.eval_epoch_freq * steps_per_epoch,
+    )
+    return eval_callback
 
-eval_callback = EvaluatorCallback(
-    eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y, schema_preprocessor, args.eval_dataset),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x,
-        input_json_files,
-        args.eval_dataset,
-        args.data_dir,
-        prediction_dir,
-        output_metric_file,
-        args.state_tracker,
-        args.debug_mode,
-        schema_preprocessor,
-        args.joint_acc_across_turn,
-        args.no_fuzzy_match,
-    ),
-    tb_writer=nf.tb_writer,
-    eval_step=args.eval_epoch_freq * steps_per_epoch,
-)
+
+if args.eval_dataset == 'dev_test':
+    eval_callbacks = [get_eval_callback('dev'), get_eval_callback('test')]
+else:
+    eval_callbacks = [get_eval_callback(args.eval_dataset)]
 
 ckpt_callback = CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=1
@@ -449,7 +451,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=train_tensors,
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=[train_callback, ckpt_callback] + eval_callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={
