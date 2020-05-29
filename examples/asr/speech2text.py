@@ -63,7 +63,6 @@ def main():
     # Setup NeuralModuleFactory to control training
     # instantiate Neural Factory with supported backend
     nf = nemo.core.NeuralModuleFactory(
-        placement=nemo.core.DeviceType.CPU,
         local_rank=args.local_rank,  # This is necessary for distributed training
         optimization_level=args.amp_opt_level,  # This is necessary for mixed precision optimization
         cudnn_benchmark=True,
