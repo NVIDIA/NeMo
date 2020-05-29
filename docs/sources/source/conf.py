@@ -49,6 +49,16 @@ autodoc_mock_imports = [
     'sentencepiece',
     'youtokentome',
     'megatron-lm',
+    'numpy',
+    'dateutil',
+    'wget',
+    'scipy',
+    'pandas',
+    'matplotlib',
+    'sklearn',
+    'braceexpand',
+    'webdataset',
+    'tqdm',
 ]
 
 # -- General configuration ------------------------------------------------
