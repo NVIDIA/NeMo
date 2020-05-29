@@ -47,9 +47,9 @@ import pickle
 import random
 
 from torch.utils.data import Dataset
-from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import REF_USR_DA
 
 from nemo import logging
+from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import REF_USR_DA
 
 __all__ = ['MultiWOZDataset', 'MultiWOZDataDesc']
 

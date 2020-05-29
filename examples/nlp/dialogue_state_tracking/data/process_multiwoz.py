@@ -48,6 +48,9 @@ https://github.com/budzianowski/multiwoz
 This script can be used to process and import MultiWOZ 2.0 and 2.1 datasets. 
 You may find more information on how to use this example in NeMo's documentation:
 https://nvidia.github.io/NeMo/nlp/dialogue_state_tracking_trade.html
+
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
 """
 
 import argparse
@@ -449,7 +452,7 @@ def divideData(data, infold, outfold):
 
     with open(f'{outfold}/value_dict.json', 'w') as f:
         json.dump(new_ontology, f, indent=4)
-        
+
     # save all dialogues
     with open(f'{outfold}/dev_dials.json', 'w') as f:
         json.dump(val_dials, f, indent=4)
