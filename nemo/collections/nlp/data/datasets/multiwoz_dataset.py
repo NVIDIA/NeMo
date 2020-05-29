@@ -42,6 +42,7 @@ import pickle
 import random
 
 from torch.utils.data import Dataset
+from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import REF_USR_DA
 
 from nemo import logging
 
@@ -249,6 +250,14 @@ class MultiWOZDataDesc:
 
         ontology_file = open(f'{self.data_dir}/ontology.json', 'r')
         self.ontology = json.load(ontology_file)
+
+        self.value_dict = json.load(open(f'{self.data_dir}/value_dict.json', 'r'))
+        self.det_dic = {}
+        for domain, dic in REF_USR_DA.items():
+            for key, value in dic.items():
+                assert '-' not in key
+                self.det_dic[key.lower()] = key + '-' + domain
+                self.det_dic[value.lower()] = key + '-' + domain
 
         self.vocab_file = None
         self.slots = None
