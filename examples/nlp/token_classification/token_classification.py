@@ -77,6 +77,7 @@ parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0.01, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
+parser.add_argument("--grad_norm_clip", default=1.0, type=float)
 
 # task specific arguments
 parser.add_argument("--fc_dropout", default=0.5, type=float)
@@ -154,6 +155,9 @@ nf = nemo.core.NeuralModuleFactory(
     model_parallel_size=args.model_parallel_size,
     random_seed=args.random_seed,
 )
+
+logging.info(f'World size: {nf.world_size}')
+logging.info(f'Data Parallel Size: {nf.data_parallel_size}')
 
 output_file = f'{nf.work_dir}/output.txt'
 
@@ -247,6 +251,7 @@ def create_pipeline(
 
     if mode == 'train':
         loss = task_loss(logits=logits, labels=labels, loss_mask=loss_mask)
+        # TODO: this should be determined from data layer and world size (except for batches_per_step)
         steps_per_epoch = len(data_layer) // (batch_size * num_gpus * batches_per_step)
         tensors_to_evaluate = [loss, logits]
         return tensors_to_evaluate, loss, steps_per_epoch, label_ids, classifier
@@ -280,10 +285,10 @@ if "eval" in args.mode:
     )
     callbacks.append(eval_callback)
 
-ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
-)
-callbacks.append(ckpt_callback)
+# ckpt_callback = nemo.core.CheckpointCallback(
+#     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
+# )
+# callbacks.append(ckpt_callback)
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
@@ -295,5 +300,10 @@ nf.train(
     lr_policy=lr_policy_fn,
     batches_per_step=args.batches_per_step,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
+    optimization_params={
+        "num_epochs": args.num_epochs,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "grad_norm_clip": args.grad_norm_clip
+    },
 )
