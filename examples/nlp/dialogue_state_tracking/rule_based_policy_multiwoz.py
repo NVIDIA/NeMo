@@ -14,21 +14,30 @@
 # limitations under the License.
 # =============================================================================
 
+'''
+Tutorial on how to run this script, preprocess MultiWOZ dataset, 
+train Dialogue State Tracker TRADE model, 
+and download the TRADE pre-trained checkpoints, could be found here: 
+https://nvidia.github.io/NeMo/nlp/intro.html#dialogue-state-tracking
+
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
+'''
+
 import argparse
 import copy
 import os
 
 from nemo import core as nemo_core
-from nemo import logging
+from nemo.utils import logging
 from nemo.backends.pytorch.common import EncoderRNN
-from nemo.collections.nlp.data.datasets.multiwoz import *
+from nemo.collections.nlp.data.datasets.multiwoz import init_session, dst_update
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.nm.non_trainables import RuleBasedMultiwozBotNM, TemplateNLGMultiWOZNM
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
 
 parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE model on MultiWOZ dataset')
-parser.add_argument("--data_dir", default='data/multiwoz2.1', type=str)
-parser.add_argument("--checkpoint_dir", default=None, type=str)
+parser.add_argument("--data_dir", default='data/multiwoz2.1', type=str, help='path to NeMo processed MultiWOZ data')
 parser.add_argument("--emb_dim", default=400, type=int)
 parser.add_argument("--hid_dim", default=400, type=int)
 parser.add_argument("--n_layers", default=1, type=int)
@@ -43,7 +52,7 @@ if not os.path.exists(args.data_dir):
     raise ValueError(f"Data folder `{args.data_dir}` not found")
 
 nf = nemo_core.NeuralModuleFactory(
-    backend=nemo_core.Backend.PyTorch, local_rank=None, checkpoint_dir=args.checkpoint_dir,
+    backend=nemo_core.Backend.PyTorch, local_rank=None,
 )
 
 # List of the domains to be considered
