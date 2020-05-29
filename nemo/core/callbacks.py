@@ -290,7 +290,7 @@ class TensorboardLogger(NeMoCallback):
                     tb_log_func(tensor_key)
 
                 if self._log_lr:
-                    self.tb_writer.add_scalar('param/lr', state["optimizers"][0].param_groups[0]['lr'], step)
+                    self.tb_writer.add_scalar('param/lr', state["optimizers"][0].param_groups[0]['lr'], state["step"])
 
 
 class WandBLogger(NeMoCallback):
