@@ -32,18 +32,10 @@
 # ]
 
 import glob
-import json
 import os
-import pprint
-import sys
 import time
 from abc import ABC
 from typing import Callable, List, Union
-import attrdict
-import collections
-import numpy as np
-
-import nemo
 
 from nemo.core.deprecated_callbacks import (
     ActionCallback,

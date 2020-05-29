@@ -600,6 +600,7 @@ class TalkNet(nemo_nm.TrainableNM):
             speaker_o = speaker_o.unsqueeze(-1).repeat([1, 1, o.shape[-1]])  # BS => BST
             o = torch.cat([o, speaker_o], dim=1)  # stack([BOT, BST]) = B(O + S)T
 
+        o = o.to(dtype=self.out.weight.dtype)
         o = self.out(o).transpose(-1, -2)  # BTO
 
         if self._doubling:

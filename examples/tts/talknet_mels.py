@@ -296,7 +296,7 @@ class TalkNetGraph:
             text_rep=sample.text_rep,
             text_rep_mask=sample.text_rep_mask,
             speaker_emb=data.speaker_emb,
-            dur=data.dur,  # W/O len sampling.
+            durs=data.dur,  # W/O len sampling.
         )
         train_loss = self.loss(true=sample.mel_true, pred=output.pred, mask=sample.text_rep_mask, mel_len=mel_len)
         callbacks.extend(
@@ -339,7 +339,7 @@ class TalkNetGraph:
                 text_rep=data.text_rep,
                 text_rep_mask=data.text_rep_mask,
                 speaker_emb=data.speaker_emb,
-                dur=data.dur,
+                durs=data.dur,
             )
             loss = self.loss(true=mel_true, pred=output.pred, mask=data.text_rep_mask, mel_len=mel_len)
             callbacks.append(
