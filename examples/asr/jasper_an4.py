@@ -233,10 +233,8 @@ def main():
         previous_step_count = total_steps
 
         # Distributed Data Parallel and amp changes the underlying class so we need to reinstantiate modules
-        # Clear the module registery
+        # Clear the module registry
         nemo.utils.app_state.AppState().modules.clear()
-        # Delete old graph and make a new one
-        del g0
         nf.reset_trainer()
         loss, eval_tensors, callbacks, total_steps, _, _, new_g = create_dags(args.model_config, vocab, args, nf)
 
