@@ -74,7 +74,7 @@ class TRADEGenerator(TrainableNM):
             'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
             'input_lens': NeuralType(tuple('B'), LengthsType()),
             'src_ids': NeuralType(('B', 'T'), ChannelType()),
-            'targets': NeuralType(('B', 'D', 'T'), LabelsType()),
+            'targets': NeuralType(('B', 'D', 'T'), LabelsType(), optional=True),
         }
 
     @property
@@ -128,10 +128,13 @@ class TRADEGenerator(TrainableNM):
 
         # TODO: set max_res_len to 10 in evaluation mode or
         #  when targets are not provided
-        max_res_len = targets.shape[2]
         batch_size = encoder_hidden.shape[0]
 
-        targets = targets.transpose(0, 1)
+        if isinstance(targets, torch.Tensor):
+            max_res_len = targets.shape[2]
+            targets = targets.transpose(0, 1)
+        else:
+            max_res_len = 4  # 10
 
         all_point_outputs = torch.zeros(len(self.slots), batch_size, max_res_len, self.vocab_size, device=self._device)
         all_gate_outputs = torch.zeros(len(self.slots), batch_size, self.nb_gate, device=self._device)
@@ -178,7 +181,7 @@ class TRADEGenerator(TrainableNM):
                 final_p_vocab, (len(self.slots), batch_size, self.vocab_size)
             )
 
-            if use_teacher_forcing:
+            if use_teacher_forcing and isinstance(targets, torch.Tensor):
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
             else:
                 decoder_input = self.embedding(pred_word)

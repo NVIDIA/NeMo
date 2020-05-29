@@ -436,6 +436,20 @@ def divideData(data, infold, outfold):
                 train_dials.append(dialogue)
                 count_train += 1
 
+    value_dict = json.load(open(f'{outfold}/ontology.json'))
+    new_ontology = {}
+    # k = {'taxi-arrive by':list_of_values} -> {'taxi':{'arriveby': list_ofslot_values}}
+    for k, v in value_dict.items():
+        domain, slot = k.split('-')
+        slot = slot.replace(' ', '')
+        if domain in new_ontology:
+            new_ontology[domain][slot] = v
+        else:
+            new_ontology[domain] = {slot: v}
+
+    with open(f'{outfold}/value_dict.json', 'w') as f:
+        json.dump(new_ontology, f, indent=4)
+        
     # save all dialogues
     with open(f'{outfold}/dev_dials.json', 'w') as f:
         json.dump(val_dials, f, indent=4)
