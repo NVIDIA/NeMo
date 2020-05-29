@@ -287,8 +287,7 @@ class PtActions(Actions):
                 logging.warning("Ignoring `optimizer_class` parameter because `optimizer_instance` is provided")
             if optimization_params is not None and optimization_params != {}:
                 logging.warning(
-                    "Ignoring `optimization_params` parameter for "
-                    "optimizer because `optimizer_instance` is provided"
+                    "Ignoring `optimization_params` parameter for optimizer because `optimizer_instance` is provided"
                 )
             optimizer = optimizer_instance
         return optimizer
@@ -1397,11 +1396,6 @@ class PtActions(Actions):
                     adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch)
                     for param_group in curr_optimizer.param_groups:
                         param_group["lr"] = adjusted_lr
-
-                # TODO: Why are we logging this here?
-                if self.tb_writer is not None:
-                    value = curr_optimizer.param_groups[0]['lr']
-                    self.tb_writer.add_scalar('param/lr', value, self.step)
 
                 # TODO: Remove below loop when ActionCallback is removed
                 if callbacks is not None:

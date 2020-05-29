@@ -103,6 +103,7 @@ class TestNeMoCallbacks:
         extra_tensor = test(x=y_pred)
 
         y_pred.rename("y_pred")
+        assert y_pred.name == "y_pred"
 
         # Mock up both std and stderr streams.
         with logging.patch_stdout_handler(StringIO()) as std_out:
@@ -117,9 +118,9 @@ class TestNeMoCallbacks:
         assert len(output_lines) == 8
         for i, line in enumerate(output_lines):
             if i % 2 == 0:
-                assert "y_pred" in line
+                assert y_pred.name in line
             else:
-                assert extra_tensor.unique_name in line
+                assert extra_tensor.name in line
 
     @pytest.mark.unit
     def test_TensorboardLogger(self, clean_up, tmpdir):
