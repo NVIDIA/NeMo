@@ -77,9 +77,9 @@ class NeMoModel(NeuralModule):
         else:
             raise NotImplemented("Generic from_pretrained from cloud is not implemented")
 
-    def export(self, output_file_name: str, output_folder: str = None, optimize_for_deployment: bool = False) -> str:
+    def save_to(self, output_file_name: str, output_folder: str = None, optimize_for_deployment: bool = False) -> str:
         """
-        Export NeMoModel to .nemo file. This file will contain:
+        Saves NeMoModel to .nemo file. This file will contain:
             * weights of all NeuralModule instances inside the model
             * Yaml file with configuration
             * Yaml files with topologies and configuration of training and (if applicable) eval graphs
@@ -229,9 +229,6 @@ class NeMoModel(NeuralModule):
         self, module, weight_names, name2name_and_transform,
     ):
         raise NotImplemented()
-
-    def save_to(self, path: str):
-        raise NotImplemented("Please use export method for NeMoModels")
 
     def restore_from(self, path: str):
         raise NotImplemented("Please use from_pretrained method for NeMoModels")
