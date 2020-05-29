@@ -21,6 +21,7 @@ from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *
 from nemo.collections.nlp.nm.trainables.common.token_classification_nm import *
 from nemo.collections.nlp.nm.trainables.common.transformer import *
 from nemo.collections.nlp.nm.trainables.common.bert_batch_reshaper import *
+
 from nemo.utils import logging
 
 try:
@@ -28,3 +29,4 @@ try:
 
 except Exception as e:
     logging.error('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
+
