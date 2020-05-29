@@ -29,7 +29,7 @@ class SGDDataset(Dataset):
     Processes SGD dataset
     Args:
         dataset_split (str): train/dev/test
-        dialogues_processor (obj): Data generator for dstc8 dialogues
+        dialogues_processor (obj): Data generator for SGD dialogues
     """
 
     def __init__(self, dataset_split, dialogues_processor):

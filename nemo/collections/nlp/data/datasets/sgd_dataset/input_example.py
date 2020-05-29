@@ -139,7 +139,7 @@ class InputExample(object):
     def readable_summary(self):
         """Get a readable dict that summarizes the attributes of an InputExample."""
         seq_length = sum(self.utterance_mask)
-        utt_toks = self._tokenizer.convert_ids_to_tokens(self.utterance_ids[:seq_length])
+        utt_toks = self._tokenizer.ids_to_tokens(self.utterance_ids[:seq_length])
         utt_tok_mask_pairs = list(zip(utt_toks, self.utterance_segment[:seq_length]))
         active_intents = [
             self.service_schema.get_intent_from_id(idx)
@@ -303,7 +303,7 @@ class InputExample(object):
             # Add categorical slot value features.
             slot_values = self.service_schema.get_categorical_slot_values(slot)
             self.num_categorical_slot_values[slot_idx] = len(slot_values)
-            # set slot mask to 1, i.e. the slot is active in the service
+            # set slot mask to 1, i.e. the slot exists in the service
             self.cat_slot_status_mask[slot_idx] = 1
             # set the number of active slot values for this slots in the service
             for slot_value_idx in range(len(self.service_schema._categorical_slot_values[slot])):
