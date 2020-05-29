@@ -14,11 +14,6 @@
 # limitations under the License.
 # =============================================================================
 
-"""
-See the tutorial and download the data here:
-https://nvidia.github.io/NeMo/nlp/
-neural-machine-translation.html#translation-with-pretrained-model
-"""
 import torch
 import numpy as np
 
@@ -27,7 +22,8 @@ import math
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.collections.nlp.callbacks.information_retrieval_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.information_retrieval_callback import \
+    eval_epochs_done_callback, eval_iter_callback
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
 from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import get_lr_policy
@@ -60,11 +56,6 @@ device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
     (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
-# encoder.bert.embeddings.dropout.p = args.embedding_dropout
-# for layer in encoder.bert.encoder.layer:
-#     layer.attention.self.dropout.p = args.attn_score_dropout
-#     layer.attention.output.dropout.p = args.attn_layer_dropout
-#     layer.output.dropout.p = args.ffn_dropout
 encoder.restore_from(path=args.restore_path, local_rank=args.local_rank)
 
 data_layer_params = {"tokenizer": tokenizer,
@@ -87,6 +78,7 @@ evaluated_tensors = nf.infer(tensors=[hiddens, idx])
 
 
 if args.local_rank == 0:
-    vectors = np.vstack([tensor[:, 0].detach().numpy().astype(np.float16) for tensor in evaluated_tensors[0]])
+    vectors = np.vstack([tensor[:, 0].detach().numpy().astype(np.float16)
+                         for tensor in evaluated_tensors[0]])
     indices = np.hstack([tensor.detach().numpy() for tensor in evaluated_tensors[1]])
     np.savez(f"{args.work_dir}/{filename}.npz", vectors=vectors, indices=indices)

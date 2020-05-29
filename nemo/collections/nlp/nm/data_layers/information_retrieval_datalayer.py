@@ -18,8 +18,8 @@ import torch
 from torch.utils import data as pt_data
 
 import nemo
-from nemo.collections.nlp.data import BertInformationRetrievalDatasetTrain, BertInformationRetrievalDatasetEval, \
-    BertDensePassageRetrievalDatasetInfer
+from nemo.collections.nlp.data import BertInformationRetrievalDatasetTrain, \
+    BertInformationRetrievalDatasetEval, BertDensePassageRetrievalDatasetInfer
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
@@ -33,18 +33,22 @@ __all__ = ['BertInformationRetrievalDataLayerTrain',
 
 class BertInformationRetrievalDataLayerTrain(TextDataLayer):
     """
-    Data layer for information retrieval with pre-trained Bert.
+    Data layer for training information retrieval system based on pre-trained Bert.
 
     Args:
         tokenizer (TokenizerSpec): Bert tokenizer
-        documents (str): Path to the collection of documents tsv file
-        queries (str): Path to the queries tsv file
-        qrels (str): Path to the tsv file with query-document relevance information
-        batch_size: text segments batch size
-        max_seq_length (int):
-                maximum allowed length of the text segments. Default: 256
+        passages (str): path to the collection of passages tsv file
+        queries (str): path to the queries tsv file
+        query_to_passages (str): path to the tsv file with training dataset
+            with lines of the following form:
+            [query_id] [rel_doc_id] [irrel_doc_1_id] ... [irrel_doc_n_id]
+        batch_size (int): text segments batch size
+        max_query_length (int): maximum allowed length of the query, default: 31
+        max_passage_length (int): maximum allowed length of the passage, default: 190
+        num_negatives (int): number of negative passages per query, default: 5
+        shuffle (bool): whether to shuffle training data, default: True
         dataset_type (Dataset):
-                the underlying dataset. Default: BertInformationRetrievalDataset
+                the underlying dataset. Default: BertInformationRetrievalDatasetTrain
     """
 
     @property
@@ -53,10 +57,9 @@ class BertInformationRetrievalDataLayerTrain(TextDataLayer):
         """Returns definitions of module output ports.
 
         input_ids: tensor of shape [batch_size x num_docs x seq_len], each entry
-            has form [CLS] query_tokens [SEP] doc_tokens [SEP], first document in each
-            batch corresponds to relevant document, all other to irrelevant ones
+            has form [CLS] query_tokens [SEP] passage_tokens [SEP]
         input_mask: bool tensor with 0s in place of pad tokens in input_ids to be masked
-        input_type_ids: 0 for query tokens and 1 for document tokens
+        input_type_ids: bool tensor with 0s for first query tokens and 1s for passage tokens
         """
         return {
             "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
@@ -91,15 +94,18 @@ class BertInformationRetrievalDataLayerTrain(TextDataLayer):
 
 class BertInformationRetrievalDataLayerEval(TextDataLayer):
     """
-    Data layer for information retrieval with pre-trained Bert.
+    Data layer for evaluating information retrieval system based on pre-trained Bert.
 
     Args:
         tokenizer (TokenizerSpec): Bert tokenizer
-        documents (str): Path to the collection of documents tsv file
-        queries (str): Path to the queries tsv file
-        qrels (str): Path to the tsv file with query-document relevance information
-        max_seq_length (int):
-                maximum allowed length of the text segments. Default: 256
+        passages (str): path to the collection of passages tsv file
+        queries (str): path to the queries tsv file
+        query_to_passages (str): path to the tsv file with training dataset
+            with lines of the following form:
+            [query_id] [doc_1_id] ... [doc_n_id]
+        max_query_length (int): maximum allowed length of the query, default: 31
+        max_passage_length (int): maximum allowed length of the passage, default: 190
+        num_candidates (int): number of candidate passages per query in one batch, default: 10
         dataset_type (Dataset):
                 the underlying dataset. Default: BertInformationRetrievalDatasetEval
     """
@@ -110,11 +116,11 @@ class BertInformationRetrievalDataLayerEval(TextDataLayer):
         """Returns definitions of module output ports.
 
         input_ids: tensor of shape [batch_size x num_docs x seq_len], each entry
-            has form [CLS] query_tokens [SEP] doc_tokens [SEP]
+            has form [CLS] query_tokens [SEP] passage_tokens [SEP]
         input_mask: bool tensor with 0s in place of pad tokens in input_ids to be masked
-        input_type_ids: 0 for query tokens and 1 for document tokens
-        doc_rels: tensor of shape [batch_size x num_docs] with 0 for irrelevant query-doc
-            pairs and 1 for relevant pairs to compute MRR
+        input_type_ids: bool tensor with 0s everywhere
+        query_id: tensor of shape [batch_size, ] with ids of queries in a batch
+        passage_ids: tensor of shape [batch_size, num_passages] with ids of passages in a batch
         """
         return {
             "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
@@ -149,20 +155,22 @@ class BertInformationRetrievalDataLayerEval(TextDataLayer):
 
 class BertDensePassageRetrievalDataLayerTrain(TextDataLayer):
     """
-    Data layer for information retrieval with pre-trained Bert.
+    Data layer for training dense passage retrieval system based on pre-trained Berts.
 
     Args:
         tokenizer (TokenizerSpec): Bert tokenizer
-        passages (str): Path to the collection of passages tsv file
-        queries (str): Path to the queries tsv file
-        triples (str): Path to the tsv file with query-document relevance information
-        batch_size: text segments batch size
-        max_query_length (int):
-                maximum allowed length of the queries. Default: 32
-        max_passage_length (int):
-                maximum allowed length of the passages. Default: 192
+        passages (str): path to the collection of passages tsv file
+        queries (str): path to the queries tsv file
+        query_to_passages (str): path to the tsv file with training dataset
+            with lines of the following form:
+            [query_id] [rel_doc_id] [irrel_doc_1_id] ... [irrel_doc_n_id]
+        batch_size (int): text segments batch size
+        max_query_length (int): maximum allowed length of the query, default: 30
+        max_passage_length (int): maximum allowed length of the passage, default: 190
+        num_negatives (int): number of negative passages per query, default: 5
+        shuffle (bool): whether to shuffle training data, default: True
         dataset_type (Dataset):
-                the underlying dataset. Default: BertDensePassageRetrievalDataset
+                the underlying dataset. Default: BertInformationRetrievalDatasetTrain
     """
 
     @property
@@ -198,7 +206,7 @@ class BertDensePassageRetrievalDataLayerTrain(TextDataLayer):
         batch_size,
         max_query_length=30,
         max_passage_length=190,
-        num_negatives=1,
+        num_negatives=5,
         shuffle=True,
         dataset_type=BertInformationRetrievalDatasetTrain,
     ):
@@ -216,6 +224,22 @@ class BertDensePassageRetrievalDataLayerTrain(TextDataLayer):
 
 
 class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
+    """
+    Data layer for evaluating dense passage retrieval system based on pre-trained Berts.
+
+    Args:
+        tokenizer (TokenizerSpec): Bert tokenizer
+        passages (str): path to the collection of passages tsv file
+        queries (str): path to the queries tsv file
+        query_to_passages (str): path to the tsv file with training dataset
+            with lines of the following form:
+            [query_id] [doc_1_id] ... [doc_n_id]
+        max_query_length (int): maximum allowed length of the query, default: 31
+        max_passage_length (int): maximum allowed length of the passage, default: 190
+        num_candidates (int): number of candidate passages per query in one batch, default: 10
+        dataset_type (Dataset):
+                the underlying dataset. Default: BertInformationRetrievalDatasetEval
+    """
 
     @property
     @add_port_docs()
@@ -231,8 +255,8 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
             batch corresponds to relevant passage, all other to irrelevant ones
         p_input_mask: bool tensor with 0s in place of pad tokens in p_input_ids to be masked
         p_input_type_ids: tensor of 0s everywhere
-        doc_rels: tensor of shape [batch_size x num_psgs] with 0 for irrelevant query-passage
-            pairs and 1 for relevant pairs to compute MRR
+        query_id: tensor of shape [batch_size, ] with ids of queries in a batch
+        passage_ids: tensor of shape [batch_size, num_passages] with ids of passages in a batch
         """
         return {
             "q_input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
@@ -271,20 +295,17 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
 
 class BertDensePassageRetrievalDataLayerInfer(TextDataLayer):
     """
-    Data layer for information retrieval with pre-trained Bert.
+    Data layer for inference with dense passage retrieval system based on pre-trained Berts.
 
     Args:
         tokenizer (TokenizerSpec): Bert tokenizer
-        passages (str): Path to the collection of passages tsv file
-        queries (str): Path to the queries tsv file
-        triples (str): Path to the tsv file with query-document relevance information
-        batch_size: text segments batch size
-        max_query_length (int):
-                maximum allowed length of the queries. Default: 32
-        max_passage_length (int):
-                maximum allowed length of the passages. Default: 192
+        passages (str): path to the collection of passages tsv file
+        queries (str): path to the queries tsv file
+        batch_size (int): text segments batch size
+        max_query_length (int): maximum allowed length of the query, default: 31
+        max_passage_length (int): maximum allowed length of the passage, default: 190
         dataset_type (Dataset):
-                the underlying dataset. Default: BertDensePassageRetrievalDataset
+                the underlying dataset. Default: BertInformationRetrievalDatasetInfer
     """
 
     @property
@@ -293,9 +314,10 @@ class BertDensePassageRetrievalDataLayerInfer(TextDataLayer):
         """Returns definitions of module output ports.
 
         input_ids: tensor of shape [batch_size x 1 x seq_len], each entry
-            has form [CLS] query_tokens [SEP]
+            has form of either [CLS] query_tokens [SEP] or [CLS] passage_tokens [SEP]
         input_mask: bool tensor with 0s in place of pad tokens in q_input_ids to be masked
         input_type_ids: tensor of 0s everywhere
+        idx: tensor of shape [batch_size, ] with ids of either queries or passages
         """
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),

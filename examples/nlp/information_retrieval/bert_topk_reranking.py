@@ -25,7 +25,8 @@ import math
 import nemo
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
-from nemo.collections.nlp.callbacks.information_retrieval_callback import eval_epochs_done_callback, eval_iter_callback
+from nemo.collections.nlp.callbacks.information_retrieval_callback import \
+    eval_epochs_done_callback, eval_iter_callback
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
 from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import get_lr_policy
@@ -136,6 +137,7 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 
 callbacks = [train_callback]
 
+
 def create_eval_pipeline(eval_dataset):
 
     eval_documents = f"{args.data_dir}/collection.{eval_dataset}.dev.small.tsv"
@@ -155,7 +157,7 @@ def create_eval_pipeline(eval_dataset):
     hiddens_ = encoder(input_ids=input_ids_, token_type_ids=input_type_ids_, attention_mask=input_mask_)
     scores_ = classifier(hidden_states=hiddens_)
     eval_scores, _ = loss_fn_eval(scores=scores_)
-    
+
     return eval_scores, query_id, passage_ids
 
 
@@ -169,6 +171,8 @@ def parse_qrels(qrels):
         else:
             query2rel[query_id].append(psg_id)
     return query2rel
+
+
 query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.small.tsv")
 
 
@@ -182,7 +186,7 @@ callbacks.append(nemo.core.EvaluatorCallback(
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, query2rel=query2rel, topk=[1, 10],
-        baseline_name=args.eval_datasets[0]),#, save_scores="infer/bert_bm25.pkl"),
+        baseline_name=args.eval_datasets[0]),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer))
 
@@ -191,7 +195,7 @@ callbacks.append(nemo.core.EvaluatorCallback(
     user_iter_callback=eval_iter_callback,
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
         x, query2rel=query2rel, topk=[1, 10],
-        baseline_name=args.eval_datasets[1]),#, save_scores="infer/bert_dpr.pkl"),
+        baseline_name=args.eval_datasets[1]),
     eval_step=args.eval_freq,
     tb_writer=nf.tb_writer))
 

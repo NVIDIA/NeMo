@@ -22,6 +22,7 @@ from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertBatchReshaper']
 
+
 class BertBatchReshaper(TrainableNM):
 
     @property
@@ -47,4 +48,7 @@ class BertBatchReshaper(TrainableNM):
 
     def forward(self, input_ids, input_mask, input_type_ids):
         seq_length = input_ids.shape[-1]
-        return input_ids.view(-1, seq_length), input_mask.view(-1, seq_length), input_type_ids.view(-1, seq_length)
+        input_ids = input_ids.view(-1, seq_length)
+        input_mask = input_mask.view(-1, seq_length)
+        input_type_ids = input_type_ids.view(-1, seq_length)
+        return input_ids, input_mask, input_type_ids
