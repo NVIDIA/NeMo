@@ -78,12 +78,15 @@ class Actions(ABC):
     """Basic actions allowed on graphs of Neural Modules"""
 
     def __init__(
-        self, local_rank, global_rank, dp_rank, mp_rank, optimization_level=Optimization.mxprO0,
+        self, local_rank, global_rank, data_parallel_rank, model_parallel_rank, data_parallel_group,
+        data_parallel_size, optimization_level=Optimization.mxprO0,
     ):
         self._local_rank = local_rank
         self._global_rank = global_rank
-        self._dp_rank = dp_rank
-        self._mp_rank = mp_rank
+        self._data_parallel_rank = data_parallel_rank
+        self._model_parallel_rank = model_parallel_rank
+        self._data_parallel_group = data_parallel_group
+        self._data_parallel_size = data_parallel_size
         self._optim_level = optimization_level
         self.step = None
         self.epoch_num = None
@@ -107,20 +110,36 @@ class Actions(ABC):
         return self._global_rank
 
     @property
-    def mp_rank(self):
+    def model_parallel_rank(self):
         """Model parallel rank. None if not using model parallelism
         Returns:
             (int) model parallel rank or None if not using model parallelism
         """
-        return self._mp_rank
+        return self._model_parallel_rank
 
     @property
-    def dp_rank(self):
+    def data_parallel_rank(self):
         """Data parallel rank. None if not using data or model parallelism
         Returns:
             (int) data parallel rank or None if not using data or model parallelism
         """
-        return self._dp_rank
+        return self._data_parallel_rank
+
+    @property
+    def data_parallel_size(self):
+        """Data parallel size. None if not using model parallelism
+        Returns:
+            (int) data parallel size or None if not using data or model parallelism
+        """
+        return self._data_parallel_size
+
+    @property
+    def data_parallel_group(self):
+        """Data parallel group. None if not using model parallelism
+        Returns:
+            (int) data parallel group or None if not using data or model parallelism
+        """
+        return self._data_parallel_group
 
     @abstractmethod
     def train(
@@ -306,10 +325,12 @@ class NeuralModuleFactory(object):
     ):
         self._local_rank = local_rank
         self._global_rank = None
-        self._mp_rank = None
-        self._dp_rank = None
+        self._model_parallel_rank = None
+        self._data_parallel_rank = None
 
         self._model_parallel_size = model_parallel_size
+        self._data_parallel_size = None # depends on mp size and world size
+        self._data_parallel_group = None # needed for model parallel
 
         self._random_seed = random_seed
 
@@ -393,6 +414,25 @@ class NeuralModuleFactory(object):
                 self._world_size = torch.distributed.get_world_size()
                 self._global_rank = torch.distributed.get_rank()
 
+                self._data_parallel_size = self._world_size # not when using model parallel
+                self._data_parallel_rank = self._global_rank # not when using model parallel
+                self._data_parallel_size = self._world_size # not when using model parallel
+
+                if self.model_parallel_size is not None:
+                    logging.info(f'Model parallel being initialized by Megatron-LM')
+                    #self._dp_rank = None # not when using model parallel
+                    #self._data_parallel_size = None # not when using model parallel
+
+                    from megatron import mpu
+                    mpu.initialize.initialize_model_parallel(self._model_parallel_size)
+                    self._model_parallel_rank = mpu.get_model_parallel_rank()
+                    self._data_parallel_rank = mpu.get_data_parallel_rank()
+                    self._data_parallel_size = mpu.get_data_parallel_world_size()
+                    logging.info(f'Model parallel size: {self.model_parallel_size}')
+                    logging.info(f'Model parallel rank: {self.model_parallel_rank}')
+                    logging.info(f'Data parallel size: {self.data_parallel_size}')
+                    logging.info(f'Data parallel rank: {self.data_parallel_rank}')
+
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
                     """Wrapper function to broadcast string values across all
                     workers
@@ -411,14 +451,6 @@ class NeuralModuleFactory(object):
 
                 broadcast_func = torch_broadcast_wrapper
 
-                if self._model_parallel_size is not None:
-                    from megatron import mpu
-
-                    mpu.initialize.initialize_model_parallel(self._model_parallel_size)
-                    self._mp_rank = mpu.get_model_parallel_rank()
-                    self._dp_rank = mpu.get_data_parallel_rank()
-                else:
-                    self._dp_rank = self._global_rank
         else:
             raise NotImplementedError("Only Pytorch backend is currently supported.")
 
@@ -599,8 +631,12 @@ class NeuralModuleFactory(object):
         if True:  # self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
             instance = constructor(
-                local_rank=self._local_rank,
-                global_rank=self._global_rank,
+                local_rank=self.local_rank,
+                global_rank=self.global_rank,
+                data_parallel_rank=self.data_parallel_rank,
+                model_parallel_rank=self.model_parallel_rank,
+                data_parallel_group=self.data_parallel_group,
+                data_parallel_size=self.data_parallel_size,
                 tb_writer=tb_writer,
                 optimization_level=self._optim_level,
             )
@@ -643,10 +679,18 @@ class NeuralModuleFactory(object):
     @property
     def world_size(self):
         return self._world_size
+    
+    @property
+    def  data_parallel_size(self):
+        return self._data_parallel_size
 
     @property
     def model_parallel_size(self):
         return self._model_parallel_size
+    
+    @property
+    def data_parallel_group(self):
+        return self._data_parallel_group
 
     @property
     def tb_writer(self):
@@ -677,9 +721,13 @@ class NeuralModuleFactory(object):
         return self._local_rank
 
     @property
-    def mp_rank(self):
-        return self._mp_rank
+    def model_parallel_rank(self):
+        return self._model_parallel_rank
 
     @property
-    def dp_rank(self):
-        return self._dp_rank
+    def data_parallel_rank(self):
+        return self._data_parallel_rank
+
+    @property
+    def random_seed(self):
+        return self._random_seed
