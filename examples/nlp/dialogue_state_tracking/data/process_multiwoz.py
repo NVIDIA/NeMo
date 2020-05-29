@@ -453,6 +453,26 @@ def divideData(data, infold, outfold):
     with open(f'{outfold}/value_dict.json', 'w') as f:
         json.dump(new_ontology, f, indent=4)
 
+    # save all data base *db.json file in a db folder
+    db_fold = os.path.join(outfold, 'db')
+    os.makedirs(db_fold, exist_ok=True)
+
+    for f in os.listdir(infold):
+        if '_db.json' in f:
+            shutil.copyfile(f'{infold}/{f}', f'{db_fold}/{f}')
+        # taxi_db.json file is missing a comma in the MultiWOZ2.1 dataset
+        # check if it's so and fix
+        if f == 'taxi_db.json':
+            try:
+                with open(os.path.join(db_fold, f)) as f_:
+                    _ = json.load(f_)
+            except json.decoder.JSONDecodeError:
+                taxi_db_text = open(os.path.join(db_fold, f)).readlines()
+                taxi_db_text[2] = taxi_db_text[2].rstrip() + ',\n'
+                taxi_db_text = '{' + ''.join(taxi_db_text)[1:-2] + '}\n'
+                taxi_db_text = taxi_db_text.replace("'", '"')
+                open(os.path.join(db_fold, f), 'w').write(taxi_db_text)
+
     # save all dialogues
     with open(f'{outfold}/dev_dials.json', 'w') as f:
         json.dump(val_dials, f, indent=4)
@@ -473,13 +493,19 @@ if __name__ == "__main__":
         "--source_data_dir", required=True, type=str, help='The path to the folder containing the MultiWOZ data files.'
     )
     parser.add_argument("--target_data_dir", default='multiwoz2.1/', type=str)
+    parser.add_argument("--overwrite_files", action="store_true", help="Whether to overwrite preprocessed file")
     args = parser.parse_args()
 
     if not exists(args.source_data_dir):
         raise FileNotFoundError(f"{args.source_data_dir} does not exist.")
 
     # Check if the files exist
-    if if_exist(args.target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json']):
+    if (
+        if_exist(
+            args.target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db']
+        )
+        and not args.overwrite_files
+    ):
         print(f'Data is already processed and stored at {args.source_data_dir}, skipping pre-processing.')
         exit(0)
 
