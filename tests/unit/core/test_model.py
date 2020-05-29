@@ -56,7 +56,7 @@ class NeMoModelsTests(TestCase):
         )
         nemo_file = "deleteme.nemo"
         try:
-            model.export(nemo_file)
+            model.save_to(nemo_file)
             self.assertTrue(os.path.exists(nemo_file))
             new_qn = ASRConvCTCModel.from_pretrained(model_info=nemo_file)
             self.assertEqual(model.num_weights, new_qn.num_weights)

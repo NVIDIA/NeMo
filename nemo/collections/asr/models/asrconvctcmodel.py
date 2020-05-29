@@ -239,11 +239,59 @@ class QuartzNet(ASRConvCTCModel):
     """QuartzNet ASR Model. See: "QuartzNet: Deep Automatic Speech Recognition with 1D Time-Channel Separable Convolutions."
     https://arxiv.org/abs/1910.10261"""
 
-    pass
+    @staticmethod
+    def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
+        """List all available pre-trained models (e.g. weights) for convolutional
+        encoder-decoder CTC-based speech recognition models.
+
+        Returns:
+            A list of PretrainedModelInfo tuples.
+            The pretrained_model_name field of the tuple can be used to
+            retrieve pre-trained model's weights (pass it as
+            pretrained_model_name argument to the module's constructor)
+        """
+        logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5-En",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/QuartzNet15x5-En-Base.nemo",
+            description="The model is trained on ~3300 hours of publicly available data and achieves a WER of 3.91% on LibriSpeech dev-clean, and a WER of 10.58% on dev-other.",
+            parameters="",
+        )
+        result.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5-Zh",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/QuartzNet15x5-Zh-Base.nemo",
+            description="The model is trained on ai-shell2 mandarin chinese dataset.",
+            parameters="",
+        )
+        result.append(model)
+        return result
 
 
 class JasperNet(ASRConvCTCModel):
     """QuartzNet ASR Model. See: "Jasper: An End-to-End Convolutional Neural Acoustic Model."
     https://arxiv.org/abs/1904.03288"""
 
-    pass
+    @staticmethod
+    def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
+        """List all available pre-trained models (e.g. weights) for convolutional
+        encoder-decoder CTC-based speech recognition models.
+
+        Returns:
+            A list of PretrainedModelInfo tuples.
+            The pretrained_model_name field of the tuple can be used to
+            retrieve pre-trained model's weights (pass it as
+            pretrained_model_name argument to the module's constructor)
+        """
+        logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="JasperNet10x5-En",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo_0.11_models_test/JasperNet10x5-En-Base.nemo",
+            description="The model achieves a WER of 3.46% on LibriSpeech dev-clean, 10.40% on dev-other, 3.69% on test-clean, and 10.49% on test-other.",
+            parameters="",
+        )
+        result.append(model)
+        return result

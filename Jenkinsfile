@@ -305,7 +305,7 @@ pipeline {
       parallel {
         stage('QuartzNet inference') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python speech2text_infer.py --asr_model=QuartzNet15x5-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_target=0.1059'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python speech2text_infer.py --asr_model=QuartzNet15x5-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_target=0.1060'
           }
         }
         stage('JasperNet inference') {
