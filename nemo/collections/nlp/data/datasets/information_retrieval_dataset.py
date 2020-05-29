@@ -43,13 +43,13 @@ class BaseInformationRetrievalDataset(Dataset):
             lines = open(file, "r").readlines()
             with mp.Pool() as pool:
                 file_dict = pool.map(self.preprocess_line, lines)
-            file_dict = {q[0]:q[1] for q in file_dict}
+            file_dict = {q[0]: q[1] for q in file_dict}
             file_npz = np.zeros((len(file_dict), max_seq_lenth))
             for key in file_dict:
                 file_npz[key][0] = len(file_dict[key])
                 file_npz[key][1:len(file_dict[key])+1] = file_dict[key]
             np.savez(cached_collection, data=file_npz)
-        return file_npz#[:, :max_seq_length+1]
+        return file_npz
 
     def parse_pkl(self, file, max_seq_length):
         cached_collection = file + ".pkl"
@@ -60,7 +60,7 @@ class BaseInformationRetrievalDataset(Dataset):
             lines = open(file, "r").readlines()
             with mp.Pool() as pool:
                 file_dict = pool.map(self.preprocess_line, lines)
-            file_dict = {q[0]:q[1] for q in file_dict}
+            file_dict = {q[0]: q[1] for q in file_dict}
             pickle.dump(file_dict, open(cached_collection, "wb"))
         return {key: file_dict[key][:max_seq_length] for key in file_dict}
 

@@ -16,10 +16,9 @@
 
 import numpy as np
 import pickle
-
 from nemo import logging
 
-__all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
+__all__ = ["eval_iter_callback", "eval_epochs_done_callback"]
 
 GLOBAL_KEYS = ["scores", "query_id", "passage_ids"]
 
@@ -46,12 +45,11 @@ def eval_iter_callback(tensors, global_vars):
 
 def eval_epochs_done_callback(global_vars, query2rel, topk=[1, 10],
                               baseline_name="bm25", save_scores=None):
-    
+
     query2passages = {}
     for i in range(len(global_vars["scores"])):
         query_id = global_vars["query_id"][i]
-        
-        
+
         if query_id in query2passages:
             query2passages[query_id]["psg_ids"] = np.concatenate(
                 (query2passages[query_id]["psg_ids"], global_vars["passage_ids"][i]))
@@ -61,7 +59,7 @@ def eval_epochs_done_callback(global_vars, query2rel, topk=[1, 10],
             query2passages[query_id] = {
                 "psg_ids": global_vars["passage_ids"][i],
                 "scores": global_vars["scores"][i]}
-            
+
     if save_scores is not None:
         pickle.dump(query2passages, open(save_scores, "wb"))
 
@@ -92,9 +90,9 @@ def calculate_mrrs(query2passages, query2rel, topk=[10, 100]):
             relevance scores for all the documents for each query
         topk: list of ints {l_i} to compute MRR@{l_i}
     """
-    
+
     oracle_rrs, rrs = [], []
-    
+
     for query in query2passages:
         indices = np.argsort(query2passages[query]["scores"])[::-1]
         sorted_psgs = query2passages[query]["psg_ids"][indices]
@@ -108,28 +106,3 @@ def calculate_mrrs(query2passages, query2rel, topk=[10, 100]):
                 break
     rrs = {"oracle": oracle_rrs, "model": rrs}
     return rrs
-
-
-# def calculate_mrrs(doc_relevances, doc_scores, topk=[10, 100]):
-#     """
-#     Args:
-#         doc_relevances: binary matrix of shape [n_queries x n_docs]
-#             with 1 for relevant documents and 0 otherwise
-#         doc_scores: matrix of shape [n_samples x n_docs] with
-#             relevance scores for all the documents for each query
-#         topk: list of ints {l_i} to compute MRR@{l_i}
-#     """
-
-#     inv_ids = (1 / np.arange(1, doc_relevances.shape[1] + 1))[None, :]
-#     mrrs = {}
-    
-#     for k in topk:
-#         rels, invs, scores = doc_relevances[:, :k], inv_ids[:, :k], doc_scores[:, :k]
-#         oracle_mrr = np.mean(np.max(rels, axis=1))
-#         baseline_mrr = np.mean(np.max(rels * invs, axis=1))
-#         model_rels = np.array([
-#             [p[1] for p in sorted(zip(scores[i], rels[i]), key=lambda x: -x[0])]
-#             for i in range(len(scores))])
-#         model_mrr = np.mean(np.max(model_rels * invs, axis=1))
-#         mrrs[k] = {"oracle": oracle_mrr, "baseline": baseline_mrr, "model": model_mrr}
-#     return mrrs
