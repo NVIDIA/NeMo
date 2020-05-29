@@ -1,3 +1,58 @@
+Callbacks
+=========
+NeMo has a callback system that can be used to inject user code and logic inside its training loop. NeMo's callbacks
+defines the following events that users can inject into:
+
+.. codeblock::
+
+    -- on_action_start
+    ---- on_epoch_start
+    ------ on_step_start
+    -------- on_batch_start
+    -------- on_batch_end
+    ------ on_step_end
+    ---- on_epoch_end
+    -- on_action_end
+
+At a high level, the NeMo training loop looks like this:
+
+.. codeblock:: python
+
+    def train():
+        # Do initialization of optimizers, amp, ddp, etc
+        callbacks.on_action_start()  # Do all on_action_start functions
+        for epoch in range(num_epochs):  # Or until max_steps
+            callbacks.on_epoch_start()  # Do all on_epoch_start functions
+            batch_counter = 0
+            for data in dataloader:  # Fetch batches of data
+                if batch_counter == 0:
+                    callbacks.on_step_start()
+                callbacks.on_batch_start()
+
+                ...  # Forward and backward pass
+
+                callbacks.on_batch_end()
+                batch_counter += 1
+                if batch_counter == gradient_accumulation_steps:
+                    # By default, gradient_accumulation_steps = 1
+                    # Note this is passed to train() as batches_per_step and sometimes exposed as args.iter_per_step
+                    optimizer.step()
+                    callbacks.update_loss()  # Note, that the loss tensor is only exposed here
+                    callbacks.on_step_end()
+                clear_tensor_dict()
+            callbacks.on_epoch_end()
+        callbacks.on_action_end()
+
+.. note::
+    NeMo's callbacks were updated in version 0.11. For an update guide, please see the V0.11 Updates Section.
+
+Built-in Callbacks
+------------------
+
+Creating Your Own Callback
+--------------------------
+
+
 Old Callbacks
 =============
 NeMo uses callbacks to do a variety of helper functions during training.
