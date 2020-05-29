@@ -92,6 +92,7 @@ class PtActions(Actions):
         self.amp_initialized = False
         self.ddp_initialized = False
         self.ddp_module_dict = {}
+        self._train_called = False
 
     @property
     def step(self):
@@ -1146,6 +1147,15 @@ class PtActions(Actions):
                     torch.save(state, path)
 
             return StateWrapper(action)
+
+        if self._train_called:
+            logging.warning(
+                "You called train twice. Please note that we do not support calling training twice in one script if "
+                "amp or ddp is used. If you wish to call train twice, you need to run "
+                "`nemo.utils.app_state.AppState().modules.clear(); neural_factory.reset_trainer()` and then "
+                "reinstantiate all Neural Modules prior to calling train()"
+            )
+        self._train_called = True
 
         self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
