@@ -37,6 +37,15 @@ import time
 from abc import ABC
 from typing import Callable, List, Union
 
+from nemo.core.deprecated_callbacks import (
+    ActionCallback,
+    EvaluatorCallback,
+    ModuleSaverCallback,
+    SimpleLossLoggerCallback,
+    UnfreezeCallback,
+    ValueSetterCallback,
+    WandbCallback,
+)
 from nemo.utils import get_checkpoint_from_dir, logging
 from nemo.utils.app_state import AppState
 
