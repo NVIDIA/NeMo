@@ -118,18 +118,14 @@ def main():
 
     if args.wandb_exp_name is not None and args.wandb_project is not None:
         # WandbCallback saves stats to Weights&Biases
-        wand_callback = nemo.core.WandbCallback(
-            train_tensors=[loss],
-            wandb_name=args.wandb_exp_name,
-            wandb_project=args.wandb_project,
-            update_freq=args.stats_freq,
-            args=args,
+        wandb_callback = nemo.core.WandBLogger(
+            step_freq=args.stats_freq, wandb_name=args.wandb_exp_name, wandb_project=args.wandb_project, args=args
         )
-        callbacks.append(wand_callback)
+        callbacks.append(wandb_callback)
 
     # Evaluation
     if args.eval_datasets is not None and args.eval_freq is not None:
-        asr_model.eval()
+        asr_model.eval()  # switch model to evaluation mode
         logging.info(f"Will perform evaluation every {args.eval_freq} steps.")
         for ind, eval_dataset in enumerate(args.eval_datasets):
             eval_data_layer = nemo_asr.AudioToTextDataLayer(
@@ -155,7 +151,6 @@ def main():
     steps_in_epoch = len(train_data_layer) / (args.batch_size * args.iter_per_step * nf.world_size)
     lr_policy = CosineAnnealing(total_steps=args.num_epochs * steps_in_epoch, warmup_ratio=args.warmup_ratio)
 
-    asr_model.train()
     nf.train(
         tensors_to_optimize=[loss],
         callbacks=callbacks,
