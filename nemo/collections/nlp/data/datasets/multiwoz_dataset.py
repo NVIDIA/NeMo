@@ -36,6 +36,11 @@
 # THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # =============================================================================
 
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
+"""
+
 import json
 import os
 import pickle
@@ -251,13 +256,17 @@ class MultiWOZDataDesc:
         ontology_file = open(f'{self.data_dir}/ontology.json', 'r')
         self.ontology = json.load(ontology_file)
 
-        self.value_dict = json.load(open(f'{self.data_dir}/value_dict.json', 'r'))
-        self.det_dic = {}
+        # self.value_dict is ontology reformating in the following way, for example:
+        # {'taxi-arrive by': list_of_values} -> {'taxi':{'arriveby': list_of_slot_values}}
+        self.ontology_value_dict = json.load(open(f'{self.data_dir}/value_dict.json', 'r'))
+        # detected dictionary of slot_name + (slot_name_domain) value pairs
+        # from user dialogue acts
+        self.det_dict = {}
         for domain, dic in REF_USR_DA.items():
             for key, value in dic.items():
                 assert '-' not in key
-                self.det_dic[key.lower()] = key + '-' + domain
-                self.det_dic[value.lower()] = key + '-' + domain
+                self.det_dict[key.lower()] = key + '-' + domain
+                self.det_dict[value.lower()] = key + '-' + domain
 
         self.vocab_file = None
         self.slots = None

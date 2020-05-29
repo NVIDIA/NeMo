@@ -1,6 +1,22 @@
 """
-from convlab2
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
 """
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
 import copy
 import json
@@ -10,7 +26,7 @@ from difflib import SequenceMatcher
 
 import torch
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
 from nemo.collections.nlp.data.datasets.multiwoz.state import default_state
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
@@ -73,16 +89,16 @@ def dst_update(state, data_desc, user_uttr, encoder, decoder):
     """
     prev_state = state
     dst_output = get_trade_prediction(state, data_desc, encoder, decoder)
-    print('\nTRADE output:', dst_output)
+    logging.info(f'TRADE DST output: {dst_output}')
 
     new_belief_state = reformat_belief_state(
-        dst_output, copy.deepcopy(prev_state['belief_state']), data_desc.value_dict
+        dst_output, copy.deepcopy(prev_state['belief_state']), data_desc.ontology_value_dict
     )
     state['belief_state'] = new_belief_state
 
     ## update request state based on the latest user utterance
     new_request_state = copy.deepcopy(state['request_state'])
-    user_request_slot = detect_requestable_slots(user_uttr.lower(), data_desc.det_dic)
+    user_request_slot = detect_requestable_slots(user_uttr.lower(), data_desc.det_dict)
     for domain in user_request_slot:
         for key in user_request_slot[domain]:
             if domain not in new_request_state:
@@ -111,7 +127,6 @@ def get_human_readable_output(
             pred = point_outputs_pred[0][0][si]
 
             pred = [data_desc.vocab.idx2word[x] for x in pred]
-            logging.info(f'slot_name: {data_desc.slots[si]}, preds: {pred}')
 
             st = []
             for e in pred:
