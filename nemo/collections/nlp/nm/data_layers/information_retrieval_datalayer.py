@@ -14,14 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
-import torch
-from torch.utils import data as pt_data
 
-import nemo
 from nemo.collections.nlp.data import BertInformationRetrievalDatasetTrain, \
     BertInformationRetrievalDatasetEval, BertDensePassageRetrievalDatasetInfer
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.core import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertInformationRetrievalDataLayerTrain',

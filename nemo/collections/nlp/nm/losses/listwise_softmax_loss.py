@@ -17,8 +17,7 @@
 import torch
 
 from nemo.backends.pytorch import LossNM
-from nemo.collections.nlp.utils.data_utils import mask_padded_tokens
-from nemo.core import LabelsType, LogitsType, LossType, MaskType, NeuralType
+from nemo.core import LogitsType, LossType, NeuralType
 
 __all__ = ['ListwiseSoftmaxLoss']
 

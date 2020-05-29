@@ -14,10 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
-from torch import nn as nn
 
-from nemo.backends.pytorch import MultiLayerPerceptron, TrainableNM
-from nemo.core import ChannelType, LogitsType, NeuralType
+from nemo.backends.pytorch import TrainableNM
+from nemo.core import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BertBatchReshaper']

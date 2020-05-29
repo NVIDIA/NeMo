@@ -19,7 +19,6 @@ import torch
 import math
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo import logging
 from nemo.collections.nlp.callbacks.information_retrieval_callback import \
     eval_epochs_done_callback, eval_iter_callback
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
@@ -144,7 +143,7 @@ train_scores, train_loss = loss_fn_train(queries=q_hiddens, passages=p_hiddens)
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     step_freq=100,
-    print_func=lambda x: logging.info(str(x[0].item())),
+    print_func=lambda x: nemo.logging.info(str(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
 )
@@ -154,7 +153,6 @@ callbacks = [train_callback]
 
 def create_eval_pipeline(eval_dataset):
 
-    eval_passages = f"{args.data_dir}/collection.{eval_dataset}.dev.small.tsv"
     eval_queries = f"{args.data_dir}/queries.dev.small.tsv"
     eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.dev.small.tsv"
 

@@ -21,12 +21,7 @@ import time
 import math
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo import logging
-from nemo.collections.nlp.callbacks.information_retrieval_callback import \
-    eval_epochs_done_callback, eval_iter_callback
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
-from nemo.core import WeightShareTransform
-from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Bert for Information Retrieval')
 
