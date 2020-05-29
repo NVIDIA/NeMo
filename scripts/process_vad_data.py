@@ -16,7 +16,6 @@ import argparse
 import glob
 import json
 import logging
-import math
 import os
 import random
 import tarfile
@@ -70,8 +69,6 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
 
 
 def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1):
-
-    #     X = glob.glob(data_dir + '/*/*.wav')
     X = []
     for o in os.listdir(data_dir):
         if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
@@ -93,7 +90,6 @@ def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1):
 
 
 def process_google_speech_train(data_dir):
-    #     files = sorted(glob.glob(data_dir + '/*/*.wav'))
     X = []
     for o in os.listdir(data_dir):
         if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
@@ -151,11 +147,9 @@ def write_manifest(
                 duration = librosa.get_duration(x, sr=sr)
 
             except Exception:
-                print(f"\n>>>>>>>>> WARNING: Librosa failed to load file {filepath}. Skipping this file !\n")
                 continue
 
             if filter_long and duration > duration_limit:
-                #                 print(f"Skipping sound sample {filepath}, exceeds duration limit of {duration_limit}")
                 skip_num += 1
                 continue
 
@@ -186,14 +180,10 @@ def write_manifest(
                     'text': '_',  # for compatibility with ASRAudioText
                     'offset': offset,
                 }
-
                 json.dump(metadata, fout)
                 fout.write('\n')
                 fout.flush()
-
                 seg_num += 1
-    #             print(f"Wrote {len(durations)} segments for filename {filename} with label {label}")
-
     return skip_num, seg_num, output_path
 
 
@@ -220,24 +210,7 @@ def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_strid
     return skip_num, seg_num, output_path
 
 
-def combine_test_set(manifest_to_combine, fout_path):
-    num = 0
-    #     list_to_combine = manifest_to_combine.split(",")
-    list_to_combine = manifest_to_combine
-    with open(fout_path, 'a') as fout:
-        for filepath in list_to_combine:
-            print(filepath)
-            for line in open(filepath, 'r'):
-                data = json.loads(line)
-                json.dump(data, fout)
-                fout.write('\n')
-                fout.flush()
-                num += 1
-    return num
-
-
 def get_max_json(data_dir, data_json, max_limit, prefix):
-
     data = []
     seg = 0
     for line in open(data_json, 'r'):
@@ -352,9 +325,6 @@ def main():
     else:
         logging.info("Don't rebalance number of samples in classes.")
 
-
-#     logging.info("Combine test set.")
-#     combine_test_set([speech_test, background_test] , os.path.join(out_dir,'all_test.json'))
 
 if __name__ == '__main__':
     main()

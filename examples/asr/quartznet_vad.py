@@ -30,9 +30,8 @@ from nemo.collections.asr.helpers import (
     process_classification_evaluation_batch,
     process_classification_evaluation_epoch,
 )
+from nemo.utils import logging
 from nemo.utils.lr_policies import CosineAnnealing, PolynomialDecayAnnealing, PolynomialHoldDecayAnnealing
-
-logging = nemo.logging
 
 
 def parse_args():
@@ -128,10 +127,6 @@ def create_all_dags(args, neural_factory):
     steps_per_epoch = math.ceil(N / (args.batch_size * args.iter_per_step * args.num_gpus))
     logging.info('Steps per epoch : {0}'.format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
-
-    #     data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-    #         sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"],
-    #     )
 
     data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
         sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
