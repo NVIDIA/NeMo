@@ -29,12 +29,12 @@ import copy
 import os
 
 from nemo import core as nemo_core
-from nemo.utils import logging
 from nemo.backends.pytorch.common import EncoderRNN
-from nemo.collections.nlp.data.datasets.multiwoz import init_session, dst_update
+from nemo.collections.nlp.data.datasets.multiwoz import dst_update, init_session
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.nm.non_trainables import RuleBasedMultiwozBotNM, TemplateNLGMultiWOZNM
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
+from nemo.utils import logging
 
 parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE model on MultiWOZ dataset')
 parser.add_argument("--data_dir", default='data/multiwoz2.1', type=str, help='path to NeMo processed MultiWOZ data')
@@ -51,9 +51,7 @@ args = parser.parse_args()
 if not os.path.exists(args.data_dir):
     raise ValueError(f"Data folder `{args.data_dir}` not found")
 
-nf = nemo_core.NeuralModuleFactory(
-    backend=nemo_core.Backend.PyTorch, local_rank=None,
-)
+nf = nemo_core.NeuralModuleFactory(backend=nemo_core.Backend.PyTorch, local_rank=None,)
 
 # List of the domains to be considered
 domains = {"attraction": 0, "restaurant": 1, "train": 2, "hotel": 3, "taxi": 5}

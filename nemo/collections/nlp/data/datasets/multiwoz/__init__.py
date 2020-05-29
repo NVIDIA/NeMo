@@ -14,6 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
+"""
 from nemo.collections.nlp.data.datasets.multiwoz.dbquery import *
 from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import *
 from nemo.collections.nlp.data.datasets.multiwoz.state import *

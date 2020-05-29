@@ -1,7 +1,3 @@
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/thu-coai/ConvLab-2
-"""
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
@@ -18,6 +14,11 @@ https://github.com/thu-coai/ConvLab-2
 # limitations under the License.
 # =============================================================================
 
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
+"""
+
 import copy
 import json
 import os
@@ -26,10 +27,10 @@ from difflib import SequenceMatcher
 
 import torch
 
-from nemo.utils import logging
 from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
 from nemo.collections.nlp.data.datasets.multiwoz.state import default_state
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
+from nemo.utils import logging
 
 __all__ = [
     'reformat_belief_state',
