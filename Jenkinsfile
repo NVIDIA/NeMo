@@ -310,7 +310,7 @@ pipeline {
         }
         stage('JasperNet inference') {
           steps {
-            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python speech2text_infer.py --asr_model=JasperNet10x5-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_target=0.1041'
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python speech2text_infer.py --asr_model=JasperNet10x5-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_target=0.1041'
           }
         }
       }
