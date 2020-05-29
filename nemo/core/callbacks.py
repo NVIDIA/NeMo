@@ -342,8 +342,8 @@ class WandBLogger(NeMoCallback):
             if state["step"] % self._step_freq == 0 and self._step_freq > 0:
                 tensors_logged = {t: state["tensors"].get_tensor(t).cpu() for t in self._tensors_to_log}
                 # Always log learning rate
-                tensors_logged['LR'] = state["learning_rate"]
-                self._wandb_log(tensors_logged)
+                # tensors_logged['LR'] = state["learning_rate"]
+                self._wandb_log(tensors_logged, state["step"])
 
     def on_epoch_start(self, state):
         if state["global_rank"] is None or state["global_rank"] == 0:
@@ -353,11 +353,12 @@ class WandBLogger(NeMoCallback):
         if state["global_rank"] is None or state["global_rank"] == 0:
             if self._log_epoch:
                 epoch_time = time.time() - self._last_epoch_start
-                self._wandb_log({"epoch": state["epoch"], "epoch_time": epoch_time})
+                self._wandb_log({"epoch": state["epoch"], "epoch_time": epoch_time}, state["step"])
 
-    def _wandb_log(self, tensors_logged):
+    @staticmethod
+    def _wandb_log(tensors_logged, step):
         if _WANDB_AVAILABLE:
-            wandb.log(tensors_logged, step=state["step"])
+            wandb.log(tensors_logged, step=step)
 
 
 class CheckpointCallback(NeMoCallback):
