@@ -17,11 +17,13 @@
 import os
 
 import torch
+from megatron import mpu
 from megatron.initialize import initialize_megatron, set_global_variables
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from megatron.mpu import model_parallel_cuda_manual_seed
+
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import DeviceType
@@ -92,26 +94,7 @@ class MegatronBERT(TrainableNM):
             "vocab_file": vocab_file,
         }
 
-        if self.factory.model_parallel_size is not None:
-            set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
-            if self.factory._random_seed is None:
-                self.factory._random_seed = 1234
-                logging.warning(
-                    (
-                        f"Megatron Neural Module requires Neural Factory random seed to be a postive integer "
-                        f"when using model parallelism. _random_seed has been set to 1234"
-                    )
-                )
-            if isinstance(self.factory._random_seed, int) and self.factory._random_seed > 0:
-                model_parallel_cuda_manual_seed(self.factory._random_seed)
-            else:
-                value_error = (
-                    f'_random_seed {self.factory._random_seed} should be a positive integer'
-                    f'for model parallel megatron'
-                )
-                raise ValueError(value_error)
-        else:
-            initialize_megatron(None, megatron_args, ignore_unknown_args=True)
+        self.initialize_megatron(megatron_args)
 
         init_method = init_method_normal(init_method_std)
 
@@ -126,15 +109,32 @@ class MegatronBERT(TrainableNM):
         self.language_model.to(self._device)
         self._hidden_size = self.language_model.hidden_size
 
-    @property
-    def hidden_size(self):
-        """
-            Property returning hidden size.
 
-            Returns:
-                Hidden size.
-        """
-        return self._hidden_size
+    def initialize_megatron(self, megatron_args):
+        if self.factory.model_parallel_size is None:
+            # megatron-lm still needs to initialize model parallel for model parallel size 1
+            mpu.initialize.initialize_model_parallel(1)
+        
+        set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
+
+        if self.factory.random_seed is None:
+            self.factory._random_seed = 1234
+            logging.warning(
+                (
+                    f"Megatron Neural Module requires Neural Factory random seed to be a postive integer "
+                    f"when using model parallelism. _random_seed has been set to "
+                    f"{self.factory.random_seed}"
+                )
+            )
+
+        if isinstance(self.factory._random_seed, int) and self.factory._random_seed > 0:
+            model_parallel_cuda_manual_seed(self.factory._random_seed)
+        else:
+            value_error = (
+                f'_random_seed {self.factory._random_seed} should be a positive integer'
+                f'for model parallel megatron'
+            )
+            raise ValueError(value_error)
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         extended_attention_mask = bert_extended_attention_mask(
@@ -152,7 +152,7 @@ class MegatronBERT(TrainableNM):
             checkpoint_directory = path
             if not os.path.isdir(path):
                 raise ValueError(f'Model parallel Megatron checkpoint directory {checkpoint_directory} not found')
-            path = os.path.join(path, f'mp_rank_{self.factory.mp_rank:02d}', 'model_optim_rng.pt')
+            path = os.path.join(path, f'mp_rank_{self.factory.model_parallel_rank:02d}', 'model_optim_rng.pt')
             if not os.path.isfile(path):
                 value_error = (
                     f'Megatron checkpoint file {path} not found.\n'
@@ -177,3 +177,13 @@ class MegatronBERT(TrainableNM):
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
         else:
             self.load_state_dict(state_dict)
+
+    @property
+    def hidden_size(self):
+        """
+            Property returning hidden size.
+
+            Returns:
+                Hidden size.
+        """
+        return self._hidden_size
