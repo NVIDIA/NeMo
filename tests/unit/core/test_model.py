@@ -17,8 +17,6 @@
 # =============================================================================
 
 import os
-from unittest import TestCase
-
 import pytest
 from ruamel.yaml import YAML
 
@@ -26,7 +24,7 @@ from nemo.collections.asr.models import ASRConvCTCModel
 
 
 @pytest.mark.usefixtures("neural_factory")
-class NeMoModelsTests(TestCase):
+class TestNeMoModels:
     @pytest.mark.unit
     def test_quartznet_creation(self):
         yaml = YAML(typ="safe")
@@ -39,11 +37,11 @@ class NeMoModelsTests(TestCase):
             encoder_params=model_definition['JasperEncoder'],
             decoder_params=model_definition['JasperDecoderForCTC'],
         )
-        self.assertTrue(model.num_weights > 0)
-        self.assertEqual(len(model.modules), 3)
+        assert model.num_weights > 0
+        assert len(model.modules) == 3
 
     @pytest.mark.unit
-    def test_quartznet_nemo_file_export_and_import(self):
+    def test_quartznet_nemo_file_export_and_import(self, tmpdir):
         yaml = YAML(typ="safe")
         with open(
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../examples/asr/configs/jasper_an4.yaml"))
@@ -54,11 +52,8 @@ class NeMoModelsTests(TestCase):
             encoder_params=model_definition['JasperEncoder'],
             decoder_params=model_definition['JasperDecoderForCTC'],
         )
-        nemo_file = "deleteme.nemo"
-        try:
-            model.save_to(nemo_file)
-            self.assertTrue(os.path.exists(nemo_file))
-            new_qn = ASRConvCTCModel.from_pretrained(model_info=nemo_file)
-            self.assertEqual(model.num_weights, new_qn.num_weights)
-        finally:
-            os.remove(nemo_file)
+        nemo_file = str(tmpdir.mkdir("tmp_export_import").join("deleteme.nemo"))
+        model.save_to(nemo_file)
+        assert os.path.exists(nemo_file)
+        new_qn = ASRConvCTCModel.from_pretrained(model_info=nemo_file)
+        assert model.num_weights == new_qn.num_weights

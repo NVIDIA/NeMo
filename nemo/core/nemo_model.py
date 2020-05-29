@@ -64,6 +64,8 @@ class NeMoModel(NeuralModule):
 
         Returns:
             NeMoModel instance
+        Raises:
+            NotImplemened exception when there is no pre-trained models on the cloud
         """
         if isinstance(model_info, str) and model_info.endswith(".nemo"):
             nemo_file_folder, to_delete = cls.__unpack_nemo_file(path2file=model_info)
@@ -93,7 +95,7 @@ class NeMoModel(NeuralModule):
             None
         """
 
-        def make_nemo_file_from_folder(filename, source_dir):
+        def __make_nemo_file_from_folder(filename, source_dir):
             with tarfile.open(filename, "w:gz") as tar:
                 tar.add(source_dir, arcname=os.path.basename(source_dir))
 
@@ -154,7 +156,7 @@ class NeMoModel(NeuralModule):
                     module_checkpoint = module_name + ".pt"
                     module.save_to(path.join(tmp_folder, module_checkpoint))
 
-            make_nemo_file_from_folder(resulting_file, tmp_folder)
+            __make_nemo_file_from_folder(resulting_file, tmp_folder)
             logging.info(f"Exported model {self} to {resulting_file}")
         except:
             logging.error("Could not perform NeMoModel export")
