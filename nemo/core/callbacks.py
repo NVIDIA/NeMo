@@ -46,6 +46,7 @@ from nemo.core.deprecated_callbacks import (
     ValueSetterCallback,
     WandbCallback,
 )
+from nemo.core.neural_types import NmTensor
 from nemo.utils import get_checkpoint_from_dir, logging
 from nemo.utils.app_state import AppState
 
@@ -210,7 +211,7 @@ def on_train_end(func):
 
 
 class SimpleLogger(NeMoCallback):
-    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"]):
+    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, NmTensor]] = ["loss"]):
         """A simple callback that prints tensors to screen. It's default option is to print the training loss every
         100 steps. Additional tensors can be printed by adding them to the tensors_to_log argument.
 
@@ -227,6 +228,8 @@ class SimpleLogger(NeMoCallback):
         if state["step"] % self.step_freq == 0:
             for tensor_key in self.tensors_to_log:
                 tensor = state["tensors"].get_tensor(tensor_key)
+                if isinstance(tensor_key, NmTensor):
+                    tensor_key = tensor_key.unique_name
                 logging.info("%s: %s", tensor_key, tensor)
 
 
@@ -235,8 +238,8 @@ class TensorboardLogger(NeMoCallback):
         self,
         tb_writer: 'torch.utils.tensorboard.SummaryWriter',
         step_freq: int = 100,
-        tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"],
-        custom_tb_log_func: Callable[[Union[str, 'NmTensor']], None] = None,
+        tensors_to_log: List[Union[str, NmTensor]] = ["loss"],
+        custom_tb_log_func: Callable[[Union[str, NmTensor]], None] = None,
         log_epoch: bool = True,
     ):
         """A tensorboard callback that logs tensors using a tensorboard writer object. It's default option is to log
@@ -289,7 +292,7 @@ class WandBLogger(NeMoCallback):
     def __init__(
         self,
         step_freq: int = 100,
-        tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"],
+        tensors_to_log: List[Union[str, NmTensor]] = ["loss"],
         wandb_name: str = None,
         wandb_project: str = None,
         args=None,
