@@ -228,6 +228,8 @@ class SimpleLogger(NeMoCallback):
         if state["step"] % self.step_freq == 0:
             for tensor_key in self.tensors_to_log:
                 tensor = state["tensors"].get_tensor(tensor_key)
+                if isinstance(tensor_key, NmTensor):
+                    tensor_key = tensor_key.unique_name
                 logging.info("%s: %s", tensor_key, tensor)
 
 

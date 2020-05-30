@@ -16,9 +16,7 @@ import argparse
 import datetime
 import math
 import os
-from typing import Any
 
-import wandb
 from ruamel import yaml
 
 import nemo
@@ -27,8 +25,6 @@ from nemo.utils import argparse as nm_argparse
 from nemo.utils import lr_policies
 
 logging = nemo.logging
-
-MODEL_WEIGHTS_UPPER_BOUND = 3_000_000
 
 
 def parse_args():
@@ -42,18 +38,18 @@ def parse_args():
         model_config='configs/talknet-durs-lj.yaml',
         batch_size=64,
         eval_batch_size=64,
-        train_freq=300,
-        eval_freq=3000,  # 10x train freq
+        train_freq=10,
+        eval_freq=100,  # 10x train freq
         optimizer='adam',
         weight_decay=1e-6,
         grad_norm_clip=1.0,
-        warmup=3000,
-        num_epochs=100,  # Couple of epochs for testing.
+        warmup=300,
+        num_epochs=100,
         lr=1e-3,  # Goes good with Adam.
         min_lr=1e-5,  # Goes good with cosine policy.
         work_dir='work/' + str(datetime.datetime.now()).replace(' ', '_'),
         checkpoint_save_freq=10000,
-        wdb_project='fast-tts',
+        wdb_project='talknet',
         wdb_name='test_' + str(datetime.datetime.now()).replace(' ', '_'),
         wdb_tags=['durs', 'test', 'to-delete'],
     )
@@ -69,57 +65,6 @@ def parse_args():
     args = parser.parse_args()
 
     return args
-
-
-class DurMetric(nemo.core.Metric):
-    def __init__(self, preprocessing, k=1 + 5):
-        super().__init__()
-
-        self._preprocessing = preprocessing
-        self._k = k
-
-        self._hits = None
-        self._ss, self._total = None, None
-        self._hit10m, self._total10m = None, None
-        self._durs_hit, self._durs_total = None, None
-        self._blanks_hit, self._blanks_total = None, None
-
-    def clear(self) -> None:
-        self._hits = [0] * self._k
-        self._ss, self._total = 0, 0
-        self._hit10m, self._total10m = 0, 0
-        self._durs_hit, self._durs_total = 0, 0
-        self._blanks_hit, self._blanks_total = 0, 0
-
-    def batch(self, tensors) -> None:
-        tensors = self._preprocessing(tensors)
-
-        for dur_true1, dur_pred1, mask1 in zip(tensors.dur_true, tensors.dur_pred, tensors.mask):
-            prefix = mask1.sum().item()
-            dur_true1 = dur_true1[:prefix]
-            dur_pred1 = dur_pred1[:prefix]
-            assert dur_true1.shape == dur_true1.shape
-
-            self._ss += ((dur_true1 - dur_pred1) ** 2).sum().item()
-            for k in range(self._k):
-                self._hits[k] += ((dur_true1 - dur_pred1).abs() <= k).sum().item()
-            self._total += prefix
-            self._hit10m += ((dur_true1 == dur_pred1) & (dur_true1 >= 10)).sum().item()
-            self._total10m += (dur_true1 >= 10).sum().item()
-            self._durs_hit += (dur_true1 == dur_pred1)[1::2].sum().item()
-            self._durs_total += prefix // 2
-            self._blanks_hit += (dur_true1 == dur_pred1)[::2].sum().item()
-            self._blanks_total += (prefix // 2) + 1
-
-    def final(self) -> Any:
-        mse = self._ss / self._total
-        acc = self._hits[0] / self._total * 100
-        dx = {f'd{k}': self._hits[k] / self._total * 100 for k in range(1, self._k)}
-        acc10m = self._hit10m / self._total10m * 100
-        durs_acc = self._durs_hit / self._durs_total * 100
-        blanks_acc = self._blanks_hit / self._blanks_total * 100
-
-        return dict(mse=mse, acc=acc, acc10m=acc10m, durs_acc=durs_acc, blanks_acc=blanks_acc, **dx)
 
 
 class TalkNetGraph:
@@ -167,30 +112,21 @@ class TalkNetGraph:
             **config.TalkNet,
         )
         if args.local_rank is None or args.local_rank == 0:
-            # There is a bug in WanDB with logging gradients.
-            # wandb.watch(self.model, log='all')
-            wandb.config.total_weights = self.model.num_weights
             nemo.logging.info('Total weights: %s', self.model.num_weights)
-            assert self.model.num_weights < MODEL_WEIGHTS_UPPER_BOUND
 
     def build(self, args, engine):  # noqa
         train_loss, callbacks = None, []
-        metrics = ['loss', DurMetric(self.loss.preprocessing)]
 
         # Train
         data = self.train_dl()
         output = self.model(text=data.text, text_mask=data.text_mask)
         train_loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
-        callbacks.extend(
-            [
-                nemo.core.TrainLogger(
-                    tensors=dict(loss=train_loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
-                    metrics=metrics,
-                    freq=args.train_freq,
-                    batch_p=args.batch_size / (len(self.train_dl) / engine.world_size),
-                ),
-                nemo.core.WandbCallback(update_freq=args.train_freq),
-            ]
+        callbacks.append(
+            nemo.core.SimpleLossLoggerCallback(
+                tensors=[train_loss],
+                print_func=lambda x: logging.info('Train loss: %s', x[0].item()),
+                step_freq=args.train_freq,
+            )
         )
 
         # Eval
@@ -198,13 +134,21 @@ class TalkNetGraph:
             data = eval_dl()
             output = self.model(text=data.text, text_mask=data.text_mask)
             loss = self.loss(dur_true=data.dur, dur_pred=output.pred, text_mask=data.text_mask)
+
+            def user_iter_callback(vd, gvd):
+                for k, v in vd.items():
+                    if k.startswith('loss'):
+                        gvd.setdefault('loss', []).extend(v)
+
+            def user_epochs_done_callback(gvd):
+                logging.info('Eval loss: %s', (sum(gvd['loss']) / len(gvd['loss'])).item())
+
             callbacks.append(
-                nemo.core.EvalLogger(
-                    tensors=dict(loss=loss, dur_true=data.dur, dur_pred=output.pred, mask=data.text_mask),
-                    metrics=metrics,
-                    freq=args.eval_freq,
-                    prefix=name,
-                    single_gpu=isinstance(eval_dl._dataloader.sampler, nemo_tts.LenSampler),  # noqa
+                nemo.core.EvaluatorCallback(
+                    eval_tensors=[loss],
+                    user_iter_callback=user_iter_callback,
+                    user_epochs_done_callback=user_epochs_done_callback,
+                    eval_step=args.eval_freq,
                 )
             )
 
@@ -233,15 +177,6 @@ def main():
         config = argparse.Namespace(**yaml_loader.load(f))
     logging.info('Config: %s', config)
 
-    if args.local_rank is None or args.local_rank == 0:
-        wandb.init(
-            name=args.wdb_name,
-            config=dict(args=vars(args), engine=vars(engine._exp_manager), config=vars(config)),  # noqa
-            project=args.wdb_project,
-            tags=args.wdb_tags,
-        )
-        wandb.save(args.model_config)
-
     graph = TalkNetGraph(args, engine, config)
     loss, callbacks = graph.build(args, engine)
     total_steps = (
@@ -250,7 +185,6 @@ def main():
         else args.num_epochs * math.floor(len(graph.train_dl) / (args.batch_size * engine.world_size))
     )
     if args.local_rank is None or args.local_rank == 0:
-        wandb.config.total_steps = total_steps
         nemo.logging.info('Total steps: %s', total_steps)
 
     engine.train(
