@@ -46,6 +46,7 @@ from nemo.core.deprecated_callbacks import (
     ValueSetterCallback,
     WandbCallback,
 )
+from nemo.core.neural_types import NmTensor
 from nemo.utils import get_checkpoint_from_dir, logging
 from nemo.utils.app_state import AppState
 
@@ -210,7 +211,7 @@ def on_train_end(func):
 
 
 class SimpleLogger(NeMoCallback):
-    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"]):
+    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, NmTensor]] = ["loss"]):
         """A simple callback that prints tensors to screen. It's default option is to print the training loss every
         100 steps. Additional tensors can be printed by adding them to the tensors_to_log argument.
 
@@ -235,9 +236,10 @@ class TensorboardLogger(NeMoCallback):
         self,
         tb_writer: 'torch.utils.tensorboard.SummaryWriter',
         step_freq: int = 100,
-        tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"],
-        custom_tb_log_func: Callable[[Union[str, 'NmTensor']], None] = None,
+        tensors_to_log: List[Union[str, NmTensor]] = ["loss"],
+        custom_tb_log_func: Callable[[Union[str, NmTensor]], None] = None,
         log_epoch: bool = True,
+        log_lr: bool = True,
     ):
         """A tensorboard callback that logs tensors using a tensorboard writer object. It's default option is to log
         the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
@@ -256,6 +258,8 @@ class TensorboardLogger(NeMoCallback):
                 Defaults to None which logs each tensors_to_log as a scalar.
             log_epoch (bool): Whether to log epoch and epoch training time to tensorboard.
                 Defaults to True.
+            log_lr (bool): Whether to log the learning rate to tensorboard.
+                Defaults to True.
         """
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
@@ -263,6 +267,7 @@ class TensorboardLogger(NeMoCallback):
         self.custom_tb_log_func = custom_tb_log_func
         self._last_epoch_start = None
         self._log_epoch = log_epoch
+        self._log_lr = log_lr
 
     def on_epoch_start(self, state):
         if state["global_rank"] is None or state["global_rank"] == 0:
@@ -284,23 +289,27 @@ class TensorboardLogger(NeMoCallback):
                 for tensor_key in self.tensors_to_log:
                     tb_log_func(tensor_key)
 
+                if self._log_lr:
+                    self.tb_writer.add_scalar('param/lr', state["optimizers"][0].param_groups[0]['lr'], state["step"])
+
 
 class WandBLogger(NeMoCallback):
     def __init__(
         self,
         step_freq: int = 100,
-        tensors_to_log: List[Union[str, 'NmTensor']] = ["loss"],
+        tensors_to_log: List[Union[str, NmTensor]] = ["loss"],
         wandb_name: str = None,
         wandb_project: str = None,
         args=None,
         log_epoch: bool = True,
+        log_lr: bool = True,
     ):
         """A [Weights & Biases](https://docs.wandb.com/) callback that logs tensors to W&B. It's default option is to
         log the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
         argument. By default, it always logs the current epoch and the time taken per epoch.
 
         args:
-            step_freq (int): The frequency of tensorboard logging. Defaults to every 100 steps
+            step_freq (int): The frequency of Weights and Biases logging. Defaults to every 100 steps
             tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be logged
                 every step_freq steps.
                 Defaults to ["loss"] which only prints the loss.
@@ -310,7 +319,9 @@ class WandBLogger(NeMoCallback):
                 Defaults to None
             args: argparse flags which will be logged as hyperparameters.
                 Defaults to None.
-            log_epoch (bool): Whether to log epoch and epoch training time to tensorboard.
+            log_epoch (bool): Whether to log epoch and epoch training time to Weights and Biases.
+                Defaults to True.
+            log_lr (bool): Whether to log epoch and epoch training time to Weights and Biases.
                 Defaults to True.
         """
         if not _WANDB_AVAILABLE:
@@ -322,6 +333,7 @@ class WandBLogger(NeMoCallback):
         self._args = args
         self._last_epoch_start = None
         self._log_epoch = log_epoch
+        self._log_lr = log_lr
 
     def on_train_start(self, state):
         if state["global_rank"] is None or state["global_rank"] == 0:
@@ -342,8 +354,9 @@ class WandBLogger(NeMoCallback):
             if state["step"] % self._step_freq == 0 and self._step_freq > 0:
                 tensors_logged = {t: state["tensors"].get_tensor(t).cpu() for t in self._tensors_to_log}
                 # Always log learning rate
-                tensors_logged['LR'] = state["learning_rate"]
-                self._wandb_log(tensors_logged)
+                if self._log_lr:
+                    tensors_logged['LR'] = state["optimizers"][0].param_groups[0]['lr']
+                self._wandb_log(tensors_logged, state["step"])
 
     def on_epoch_start(self, state):
         if state["global_rank"] is None or state["global_rank"] == 0:
@@ -353,11 +366,12 @@ class WandBLogger(NeMoCallback):
         if state["global_rank"] is None or state["global_rank"] == 0:
             if self._log_epoch:
                 epoch_time = time.time() - self._last_epoch_start
-                self._wandb_log({"epoch": state["epoch"], "epoch_time": epoch_time})
+                self._wandb_log({"epoch": state["epoch"], "epoch_time": epoch_time}, state["step"])
 
-    def _wandb_log(self, tensors_logged):
+    @staticmethod
+    def _wandb_log(tensors_logged, step):
         if _WANDB_AVAILABLE:
-            wandb.log(tensors_logged, step=state["step"])
+            wandb.log(tensors_logged, step=step)
 
 
 class CheckpointCallback(NeMoCallback):
