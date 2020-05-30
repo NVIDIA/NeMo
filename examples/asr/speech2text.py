@@ -58,6 +58,8 @@ def main():
     parser.add_argument("--iter_per_step", default=1, type=int, help="number of grad accumulations per batch")
     parser.add_argument("--wandb_exp_name", default=None, type=str)
     parser.add_argument("--wandb_project", default=None, type=str)
+    parser.add_argument("--max_train_audio_len", default=16.7, type=float, help="max audio length")
+    parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
     args = parser.parse_args()
 
     # Setup NeuralModuleFactory to control training
@@ -87,8 +89,8 @@ def main():
         manifest_filepath=args.train_dataset,
         labels=asr_model.vocabulary,
         batch_size=args.batch_size,
-        trim_silence=True,
-        max_duration=16.7,
+        trim_silence=args.trim_silence,
+        max_duration=args.max_train_audio_len,
         shuffle=True,
     )
     ctc_loss = nemo_asr.CTCLossNM(num_classes=len(asr_model.vocabulary))
