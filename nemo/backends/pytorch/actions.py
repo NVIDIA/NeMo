@@ -86,12 +86,13 @@ class PtActions(Actions):
 
         self._step = 0
         self._epoch = 0
-        self.optimizers = []
+        self._optimizers = []
         self.tb_writer = tb_writer
         self.cache = None
         self.amp_initialized = False
         self.ddp_initialized = False
         self.ddp_module_dict = {}
+        self._train_called = False
 
     @property
     def step(self):
@@ -118,6 +119,10 @@ class PtActions(Actions):
     @deprecated(version="0.12", explanation="epoch_num has been deprecated in favour of epoch.")
     def epoch_num(self):
         return self._epoch
+
+    @property
+    def optimizers(self):
+        return self._optimizers
 
     def __get_top_sorted_modules_and_dataloader(self, hook: List[NmTensor]):
         """A function that accepts a list of NmTensors that need to be computed and constructs a call DAG that starts
@@ -207,7 +212,7 @@ class PtActions(Actions):
             params_to_optimize=params_to_optimize,
         )
 
-        self.optimizers.append(optimizer)
+        self._optimizers.append(optimizer)
         return optimizer
 
     @staticmethod
@@ -283,8 +288,7 @@ class PtActions(Actions):
                 logging.warning("Ignoring `optimizer_class` parameter because `optimizer_instance` is provided")
             if optimization_params is not None and optimization_params != {}:
                 logging.warning(
-                    "Ignoring `optimization_params` parameter for "
-                    "optimizer because `optimizer_instance` is provided"
+                    "Ignoring `optimization_params` parameter for optimizer because `optimizer_instance` is provided"
                 )
             optimizer = optimizer_instance
         return optimizer
@@ -782,7 +786,7 @@ class PtActions(Actions):
         state = {
             "step": self.step,
             "epoch": self.epoch,
-            "optimizer_state": [opt.state_dict() for opt in self.optimizers],
+            "optimizer_state": [opt.state_dict() for opt in self._optimizers],
         }
         torch.save(state, path)
 
@@ -803,7 +807,7 @@ class PtActions(Actions):
             self.step = checkpoint["step"]
             self.epoch = checkpoint["epoch"]
             if checkpoint["optimizer_state"]:
-                for opt, opt_chkpt in zip(self.optimizers, checkpoint["optimizer_state"]):
+                for opt, opt_chkpt in zip(self._optimizers, checkpoint["optimizer_state"]):
                     opt.load_state_dict(opt_chkpt)
         else:
             raise FileNotFoundError("Could not find checkpoint file: {0}".format(path))
@@ -1144,6 +1148,15 @@ class PtActions(Actions):
 
             return StateWrapper(action)
 
+        if self._train_called:
+            logging.warning(
+                "You called train twice. Please note that we do not support calling training twice in one script if "
+                "amp or ddp is used. If you wish to call train twice, you need to run "
+                "`nemo.utils.app_state.AppState().modules.clear(); neural_factory.reset_trainer()` and then "
+                "reinstantiate all Neural Modules prior to calling train()"
+            )
+        self._train_called = True
+
         self._training_state = TrainingState(self)
         # Analyse the arguments passed to train.
         if tensors_to_optimize is not None and training_graph is not None:
@@ -1212,8 +1225,8 @@ class PtActions(Actions):
 
             training_loop = [(optimizer, tensors_to_optimize, opt_call_chain)]
 
-            self.optimizers.append(optimizer)
-            assert len(self.optimizers) == 1, (
+            self._optimizers.append(optimizer)
+            assert len(self._optimizers) == 1, (
                 "There was more than one optimizer, was create_optimizer() called before train()? Are you calling "
                 "train() twice in one script, If so you need to call NeuralModuleFactory.reset_trainer() first."
             )
@@ -1258,9 +1271,9 @@ class PtActions(Actions):
             # Store mapping of self.optimizers to optimizer in callchain
             training_loop_opts = []
             for opt in training_loop:
-                training_loop_opts.append(self.optimizers.index(opt[0]))
-            self.optimizers = self.__initialize_amp(
-                optimizer=self.optimizers,
+                training_loop_opts.append(self._optimizers.index(opt[0]))
+            self._optimizers = self.__initialize_amp(
+                optimizer=self._optimizers,
                 optim_level=self._optim_level,
                 amp_max_loss_scale=amp_max_loss_scale,
                 amp_min_loss_scale=optimization_params.get('amp_min_loss_scale', 1.0),
@@ -1268,7 +1281,7 @@ class PtActions(Actions):
             # Use stored mapping to map amp_init opts to training loop
             for i, step in enumerate(training_loop):
                 training_loop[i] = (
-                    self.optimizers[training_loop_opts[i]],
+                    self._optimizers[training_loop_opts[i]],
                     step[1],
                     step[2],
                 )
@@ -1393,12 +1406,12 @@ class PtActions(Actions):
                     adjusted_lr = lr_policy(optimization_params["lr"], self.step, self.epoch)
                     for param_group in curr_optimizer.param_groups:
                         param_group["lr"] = adjusted_lr
-                if self.tb_writer is not None:
-                    value = curr_optimizer.param_groups[0]['lr']
-                    self.tb_writer.add_scalar('param/lr', value, self.step)
+
+                # TODO: Remove below loop when ActionCallback is removed
                 if callbacks is not None:
                     for callback in callbacks:
-                        callback.learning_rate = curr_optimizer.param_groups[0]['lr']
+                        if isinstance(callback, ActionCallback):
+                            callback.learning_rate = curr_optimizer.param_groups[0]['lr']
 
                 # registered_tensors will contain created tensors
                 # named by output port and uuid of module which created them
