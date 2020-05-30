@@ -1,5 +1,4 @@
 from .datasets import AudioOnlyDataset
-from .fasterspeech import dmld_loss, dmld_sample
 from .fastspeech import FastSpeechDataset
 from .helpers import (
     tacotron2_eval_log_to_tb_func,
@@ -12,6 +11,7 @@ from .helpers import (
 )
 from .layers import get_mask_from_lengths
 from .tacotron2 import Decoder, Encoder, Postnet
+from .talknet import dmld_loss, dmld_sample
 from .waveglow import WaveGlow
 
 __all__ = [

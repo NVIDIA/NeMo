@@ -148,10 +148,7 @@ class TalkNetGraph:
             data = eval_dl()
             mel_true, mel_len = self.preprocessor(input_signal=data.audio, length=data.audio_len)
             output = self.model(
-                text=data.text,
-                text_rep=data.text_rep,
-                text_rep_mask=data.text_rep_mask,
-                durs=data.dur,
+                text=data.text, text_rep=data.text_rep, text_rep_mask=data.text_rep_mask, durs=data.dur,
             )
             loss = self.loss(true=mel_true, pred=output.pred, mask=data.text_rep_mask, mel_len=mel_len)
 
