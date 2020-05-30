@@ -49,7 +49,6 @@ def carry_over_slots(
     sys_prev_slots,
     last_sys_slots,
 ):
-    # return
     if prev_frame_service == cur_usr_frame["service"]:
         return
     for (service_dest, slot_dest), cands_list in slots_relation_list.items():
@@ -209,9 +208,9 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
 
                     slot_status = predictions["cat_slot_status"][slot_idx]
                     ext_value = None
-                    if slot_status == data_utils.STATUS_DONTCARE:
-                        ext_value = data_utils.STR_DONTCARE
-                    elif slot_status == data_utils.STATUS_ACTIVE:
+                    if slot_status == STATUS_DONTCARE:
+                        ext_value = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
                         # value_idx = predictions["cat_slot_value"][slot_idx]
                         # slot_values[slot] = service_schema.get_categorical_slot_values(slot)[value_idx]
                         if (
@@ -235,7 +234,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                             if carryover_value is not None:
                                 ext_value = carryover_value
                                 print(f'slot:{slot} with value:{carryover_value} extratced with CARRYVALUE')
-                    elif slot_status == data_utils.STATUS_OFF:
+                    elif slot_status == STATUS_OFF:
                         ext_value = None
 
                     if ext_value is not None:
@@ -263,7 +262,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                     ############################################### debugging info
                     if predictions["cat_slot_status_GT"][slot_idx] != predictions["cat_slot_status"][slot_idx] or (
                         predictions["cat_slot_status_GT"][slot_idx] == predictions["cat_slot_status"][slot_idx]
-                        and predictions["cat_slot_status_GT"][slot_idx] != data_utils.STATUS_OFF
+                        and predictions["cat_slot_status_GT"][slot_idx] != STATUS_OFF
                         and ext_value not in true_state['slot_values'][slot]
                     ):
                         categorical_slots_dict[slot] = (
@@ -280,7 +279,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
 
                     if predictions["cat_slot_status_GT"][slot_idx] == predictions["cat_slot_status"][slot_idx]:
                         cat_slot_status_acc += 1
-                    if predictions["cat_slot_status_GT"][slot_idx] != data_utils.STATUS_OFF:
+                    if predictions["cat_slot_status_GT"][slot_idx] != STATUS_OFF:
                         cat_slot_value_num += 1
                         if (
                             ext_value in true_state['slot_values'][slot]
@@ -329,9 +328,9 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         )
 
                     slot_status = predictions["noncat_slot_status"][slot_idx]
-                    if slot_status == data_utils.STATUS_DONTCARE:
-                        slot_values[slot] = data_utils.STR_DONTCARE
-                    elif slot_status == data_utils.STATUS_ACTIVE:
+                    if slot_status == STATUS_DONTCARE:
+                        slot_values[slot] = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
                         if ext_value is not None:
                             slot_values[slot] = ext_value
                             # elif ch_start_idx < 0 and ch_end_idx < 0:
@@ -343,7 +342,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         slot_idx
                     ] or (
                         predictions["noncat_slot_status_GT"][slot_idx] == predictions["noncat_slot_status"][slot_idx]
-                        and predictions["noncat_slot_status_GT"][slot_idx] != data_utils.STATUS_OFF
+                        and predictions["noncat_slot_status_GT"][slot_idx] != STATUS_OFF
                         and ext_value not in true_state['slot_values'][slot]
                     ):
                         non_categorical_slots_dict[slot] = (
@@ -358,7 +357,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                             predictions["noncat_slot_p"][slot_idx],
                         )
 
-                    if predictions["noncat_slot_status_GT"][slot_idx] != data_utils.STATUS_OFF:
+                    if predictions["noncat_slot_status_GT"][slot_idx] != STATUS_OFF:
                         noncat_slot_value_num += 1
                         if ext_value is not None and ext_value in true_state['slot_values'][slot]:
                             noncat_slot_value_acc += 1
