@@ -111,3 +111,4 @@ JasperDecoderForCTC:
         full_spec: nemo.collections.asr.JasperDecoderForCTC
     init_params:
         feat_in: *enc_feat_out
+        num_classes: 28

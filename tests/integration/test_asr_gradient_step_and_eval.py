@@ -24,6 +24,7 @@ from unittest import TestCase
 import pytest
 from ruamel.yaml import YAML
 
+import nemo
 import nemo.collections.asr as nemo_asr
 from nemo.core import EvaluatorCallback, SimpleLossLoggerCallback
 from nemo.utils import logging
@@ -315,6 +316,48 @@ class TestASRIntegrationPytorch(TestCase):
 
         loss_list = []
         callback = SimpleLossLoggerCallback(
+            tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
+        )
+
+        self.nf.train(
+            [loss], callbacks=[callback], optimizer="sgd", optimization_params={"max_steps": 3, "lr": 0.001},
+        )
+        self.nf.reset_trainer()
+
+        # Assert that training loss went down
+        assert loss_list[-1] < loss_list[0]
+
+    @pytest.mark.integration
+    def test_quartznet_model_training(self):
+        """Integtaion test that instantiates a small Jasper model and tests training with the sample asr data.
+        test_stft_conv_training tests the torch_stft path while test_jasper_training tests the torch.stft path inside
+        of AudioToMelSpectrogramPreprocessor.
+        Training is run for 3 forward and backward steps and asserts that loss after 3 steps is smaller than the loss
+        at the first step.
+        Note: Training is done with batch gradient descent as opposed to stochastic gradient descent due to CTC loss
+        """
+        with open(
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../examples/asr/configs/jasper_an4.yaml"))
+        ) as file:
+            model_definition = self.yaml.load(file)
+        dl = nemo_asr.AudioToTextDataLayer(manifest_filepath=self.manifest_filepath, labels=self.labels, batch_size=30)
+        model = nemo_asr.models.ASRConvCTCModel(
+            preprocessor_params=model_definition['AudioToMelSpectrogramPreprocessor'],
+            encoder_params=model_definition['JasperEncoder'],
+            decoder_params=model_definition['JasperDecoderForCTC'],
+        )
+        model.train()
+        ctc_loss = nemo_asr.CTCLossNM(num_classes=len(self.labels))
+
+        # DAG
+        audio_signal, a_sig_length, transcript, transcript_len = dl()
+        log_probs, encoded_len = model(input_signal=audio_signal, length=a_sig_length)
+        loss = ctc_loss(
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len,
+        )
+
+        loss_list = []
+        callback = nemo.core.SimpleLossLoggerCallback(
             tensors=[loss], print_func=partial(self.print_and_log_loss, loss_log_list=loss_list), step_freq=1
         )
 

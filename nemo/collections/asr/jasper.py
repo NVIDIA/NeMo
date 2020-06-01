@@ -146,6 +146,9 @@ class JasperEncoder(TrainableNM):
                 m_count += 1
         logging.warning(f"Turned off {m_count} masked convolutions")
 
+        input_example = torch.randn(16, self.__feat_in, 256)
+        return input_example, None
+
     def __init__(
         self,
         jasper,
@@ -162,6 +165,8 @@ class JasperEncoder(TrainableNM):
 
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing
+
+        self.__feat_in = feat_in
 
         residual_panes = []
         encoder_layers = []
@@ -259,9 +264,15 @@ class JasperDecoderForCTC(TrainableNM):
         # return {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag),})}
         return {"output": NeuralType(('B', 'T', 'D'), LogprobsType())}
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform"):
-        super().__init__()
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
+        if vocabulary is not None:
+            if num_classes != len(vocabulary):
+                raise ValueError(
+                    f"If vocabulary is specified, it's length should be equal to the num_classes. But I got: num_classes={num_classes} and len(vocabluary)={len(vocabulary)}"
+                )
+            self.__vocabulary = vocabulary
 
+        super().__init__()
         self._feat_in = feat_in
         # Add 1 for blank char
         self._num_classes = num_classes + 1
@@ -272,6 +283,14 @@ class JasperDecoderForCTC(TrainableNM):
 
     def forward(self, encoder_output):
         return F.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+
+    def _prepare_for_deployment(self):
+        input_example = torch.randn(34, self._feat_in, 1)
+        return input_example, None
+
+    @property
+    def vocabulary(self):
+        return self.__vocabulary
 
 
 class JasperDecoderForClassification(TrainableNM):
