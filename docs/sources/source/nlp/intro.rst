@@ -59,7 +59,7 @@ Dialogue State Tracking
 .. toctree::
    :maxdepth: 8
 
-   dialogue_state_tracking_trade.rst
+   dialogue_state_tracking.rst
 
 
 Named Entity Recognition
