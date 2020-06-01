@@ -212,16 +212,16 @@ Translation with pretrained model
 1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from
 `here <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`__) into **<path_to_ckpt>**.
 
-2. Run ``machine_translation_tutorial.py`` in an interactive mode::
+2. Run ``machine_translation_tutorial.py`` in an interactive mode:
 
-.. code-block:: bash
+    .. code-block:: bash
 
-    python machine_translation_tutorial.py --src_tokenizer_model bpe8k_yttm.model \
-        --eval_datasets test --optimizer novograd --d_model 1024 \
-        --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
-        --restore_checkpoint_from <path_to_ckpt> --interactive
-
-.. image:: interactive_translation.png
+        python machine_translation_tutorial.py --src_tokenizer_model bpe8k_yttm.model \
+            --eval_datasets test --optimizer novograd --d_model 1024 \
+            --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
+            --restore_checkpoint_from <path_to_ckpt> --interactive
+    
+    .. image:: interactive_translation.png
 
 References
 ----------
