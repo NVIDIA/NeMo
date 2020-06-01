@@ -85,7 +85,7 @@ class Database(object):
                         else:
                             if val.strip() != record[key].strip():
                                 break
-                    except:
+                    except Exception:
                         continue
             else:
                 record['Ref'] = '{0:08d}'.format(i)

@@ -14,5 +14,7 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.nlg_multiwoz import *
-from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.rule_based_multiwoz_bot import *
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.nlg_multiwoz import TemplateNLGMultiWOZNM
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.rule_based_multiwoz_bot import (
+    RuleBasedMultiwozBotNM,
+)

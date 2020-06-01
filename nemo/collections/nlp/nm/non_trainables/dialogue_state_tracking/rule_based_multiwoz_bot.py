@@ -24,7 +24,6 @@ Human Language Technologies 2007: The Conference of the North American Chapter o
 Computational Linguistics;
 Companion Volume, Short Papers. Association for Computational Linguistics, 2007.
 '''
-import copy
 import json
 import random
 from copy import deepcopy
@@ -36,10 +35,6 @@ from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans imp
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedMultiwozBotNM']
-
-random_seed = 1
-random.seed(random_seed)
-logging.info(f'Random seed for the RuleBasedMultiwozBot {random_seed}')
 
 SELECTABLE_SLOTS = {
     'Attraction': ['area', 'entrance fee', 'name', 'type'],
@@ -197,11 +192,11 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 if random.random() < 0.5:
                     DA['general-reqmore'] = []
                 user_acts = []
-                for user_act in DA:
-                    if user_act != 'Booking-Book':
-                        user_acts.append(user_act)
-                for user_act in user_acts:
-                    del DA[user_act]
+                for user_act_ in DA:
+                    if user_act_ != 'Booking-Book':
+                        user_acts.append(user_act_)
+                for user_act_ in user_acts:
+                    del DA[user_act_]
 
         # print("Sys action: ", DA)
 
@@ -358,7 +353,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 p = random.random()
 
                 # Recommend a choice from kb_list
-                if True:  # p < 0.3:
+                if p < 0.3:
                     if (domain + "-Inform") not in DA:
                         DA[domain + "-Inform"] = []
                     if (domain + "-Recommend") not in DA:
@@ -436,7 +431,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                         DA[domain + "-Request"].append(req)
 
     def _update_train(self, user_act, user_action, state, DA):
-        trans = {'day': 'Day', 'destination': 'Destination', 'departure': 'Departure'}
         constraints = []
         for time in ['leaveAt', 'arriveBy']:
             if state['belief_state']['train']['semi'][time] != "":
@@ -478,7 +472,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 slot_name = REF_SYS_DA['Train'].get(slot[0], slot[0])
                 try:
                     DA['Train-Inform'].append([slot[0], kb_result[0][slot_name]])
-                except:
+                except Exception:
                     pass
             return
         if len(kb_result) == 0:

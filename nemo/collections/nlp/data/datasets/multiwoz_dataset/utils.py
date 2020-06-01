@@ -21,13 +21,11 @@ https://github.com/thu-coai/ConvLab-2/blob/master/convlab2/dst/trade/multiwoz/tr
 """
 
 import copy
-import json
-import os
 import re
 
 import torch
 
-from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import default_state
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
 from nemo.utils import logging
