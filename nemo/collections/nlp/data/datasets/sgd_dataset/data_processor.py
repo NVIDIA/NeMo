@@ -77,6 +77,12 @@ class SGDDataProcessor(object):
             "test": test_file_range,
         }
 
+        self._seen_services = {
+            "train": set(),
+            "dev": set(),
+            "test": set(),
+        }
+
         self._tokenizer = tokenizer
         self._max_seq_length = self.schema_config["MAX_SEQ_LENGTH"]
 
@@ -87,6 +93,11 @@ class SGDDataProcessor(object):
             dial_file = f"{task_name}_{dataset}_examples.processed"
             dial_file = os.path.join(dialogues_example_dir, dial_file)
             self.dial_files[(task_name, dataset)] = dial_file
+
+            dialog_paths = SGDDataProcessor.get_dialogue_files(data_dir, dataset, task_name)
+            dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
+            for dialog in dialogs:
+                self._seen_services[dataset].update(set(dialog['services']))
 
             if not os.path.exists(dial_file) or overwrite_dial_files:
                 logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
@@ -119,13 +130,15 @@ class SGDDataProcessor(object):
             raise ValueError(
                 f"{dataset} dialogue examples were not processed for {self._task_name} task. Re-initialize SGDDataProcessor and add {dataset} dataset to datasets arg."
             )
-
         dial_file = self.dial_files[(self._task_name, dataset)]
         logging.info(f"Loading dialogue examples from {dial_file}.")
         with open(dial_file, "rb") as f:
             dial_examples = np.load(f, allow_pickle=True)
             f.close()
         return dial_examples
+
+    def get_seen_services(self, dataset_split):
+        return self._seen_services[dataset_split]
 
     def _generate_dialog_examples(self, dataset, schemas):
         """

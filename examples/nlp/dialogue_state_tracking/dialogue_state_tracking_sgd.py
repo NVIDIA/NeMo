@@ -426,6 +426,7 @@ def get_eval_callback(eval_dataset):
             nf.work_dir,
             args.state_tracker,
             args.debug_mode,
+            dialogues_processor,
             schema_preprocessor,
             args.joint_acc_across_turn,
             args.no_fuzzy_match,
