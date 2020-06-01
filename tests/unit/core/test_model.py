@@ -17,6 +17,7 @@
 # =============================================================================
 
 import os
+
 import pytest
 from ruamel.yaml import YAML
 
