@@ -23,10 +23,10 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import collections
 import json
 import os
+import pickle
 import re
 
 import numpy as np
-import pickle
 import torch
 
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
