@@ -60,7 +60,11 @@ def get_service_set(schema_path):
 
 
 def get_in_domain_services(schema_path, service_set):
-    """Get the set of common services between two schemas."""
+    """Get the set of common services between a schema and set of services.
+    Args:
+        schema_path (str): path to schema file
+        service_set (set): set of services
+    """
     return get_service_set(schema_path) & service_set
 
 
