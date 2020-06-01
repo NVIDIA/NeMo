@@ -35,13 +35,11 @@ Use "--mode interactive" to chat with the system and "--hide_output" - to hide i
 """
 
 import argparse
-import copy
 import os
 
 from nemo import core as nemo_core
 from nemo.backends.pytorch.common import EncoderRNN
-from nemo.collections.nlp.data.datasets.multiwoz import dst_update, init_session
-from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc, dst_update, init_session
 from nemo.collections.nlp.nm.non_trainables import RuleBasedMultiwozBotNM, TemplateNLGMultiWOZNM
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
 from nemo.utils import logging
