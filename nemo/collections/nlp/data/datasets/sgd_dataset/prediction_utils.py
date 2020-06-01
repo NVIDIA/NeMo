@@ -259,9 +259,7 @@ def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debu
                         cat_slot_status_acc += 1
                     if predictions["cat_slot_status_GT"][slot_idx] != STATUS_OFF:
                         cat_slot_value_num += 1
-                        if (
-                            ext_value in true_state['slot_values'][slot]
-                        ):
+                        if ext_value in true_state['slot_values'][slot]:
                             cat_slot_value_acc += 1
                     # debugging info processing ended
 
