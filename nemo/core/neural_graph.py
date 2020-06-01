@@ -26,8 +26,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from .neural_modules import OperationMode
 from nemo.backends import get_state_dict, load, save, set_state_dict
-from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
@@ -410,7 +410,7 @@ class NeuralGraph(NeuralInterface):
     def tensor_list(self) -> List[NmTensor]:
         """
         Property returning output tensors by extracting them on the fly from the bound outputs.
-        
+
         Returns:
             List of tensors.
         """
@@ -434,7 +434,7 @@ class NeuralGraph(NeuralInterface):
     def __enter__(self) -> 'NeuralGraph':
         """ 
         Activates this graph.
-    
+
         Returns:
             The graph object.
         """
@@ -462,7 +462,7 @@ class NeuralGraph(NeuralInterface):
     def export_to_config(self, config_file: str):
         """
         Exports the neural graph to a file.
-    
+
         Args:
             config_file: Name (and path) of the config file (YML) to be written to.
         """
@@ -516,7 +516,7 @@ class NeuralGraph(NeuralInterface):
         Private method responsible for serializing the graph header.
 
         Returns:
-            Dictionary containing description of the whole graph.        
+            Dictionary containing description of the whole graph.
         """
         # Generate full_spec of the class.
         full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
@@ -699,7 +699,7 @@ class NeuralGraph(NeuralInterface):
     def __deserialize_header(cls, serialized_header: Dict[str, Any]):
         """
         Private class method deserializing the header and extracts the general information.
-        
+
         Args:
             serialized_header: Dictionary containing graph header.
         Returns:
@@ -795,7 +795,7 @@ class NeuralGraph(NeuralInterface):
 
     def __execute_and_create_tensors(self, steps, modules, connections, inputs):
         """
-        Method creates (internal) tensors of the graph by executing it following the order and using 
+        Method creates (internal) tensors of the graph by executing it following the order and using
         the provided connections and inputs.
 
         Args:
@@ -1013,7 +1013,7 @@ class NeuralGraph(NeuralInterface):
     def restore_from(self, filename: str, module_names: Optional[List[str]] = None):
         """
         Restores the state of trainable modules in the graph from a checkpoint file.
-        
+
         Args:
             filename (string): Name of the checkpoint to be restored from.
             module_names: List of modules to be frozen (Optional). If passed, all modules will be restored.

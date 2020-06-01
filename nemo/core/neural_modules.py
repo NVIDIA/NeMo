@@ -1,6 +1,3 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
 # Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['WeightShareTransform', 'NeuralModule', 'ModuleType']
+__all__ = ['WeightShareTransform', 'NeuralModule', 'PretrainedModelInfo', 'ModuleType', 'OperationMode']
 
 import uuid
 from abc import abstractmethod
@@ -27,7 +24,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ruamel.yaml import YAML
 
-from nemo.core import NeuralModuleFactory, OperationMode
+from nemo.core.neural_factory import NeuralModuleFactory, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
@@ -391,7 +388,7 @@ class NeuralModule(NeuralInterface):
         spec_list = loaded_config["header"]["full_spec"].split(".")
 
         # Check if config contains data of a compatible class.
-        if cls.__name__ != "NeuralModule" and spec_list[-1] != cls.__name__:
+        if not issubclass(cls.__deserialize_header(loaded_config["header"]), cls):
             txt = "The loaded file `{}` contains configuration of ".format(config_file)
             txt = txt + "`{}` thus cannot be used for instantiation of an object of type `{}`".format(
                 spec_list[-1], cls.__name__
@@ -406,7 +403,7 @@ class NeuralModule(NeuralInterface):
         cls, configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
     ) -> 'NeuralModule':
         """
-        Class method instantianting the neural module object based on the configuration (dictionary).
+        Class method instantiating the neural module object based on the configuration (dictionary).
 
         Args:
             configuration: Dictionary containing proper "header" and "init_params" sections.
@@ -522,8 +519,11 @@ class NeuralModule(NeuralInterface):
 
     def _prepare_for_deployment(self) -> None:
         """Patch the module if required to prepare for deployment
+
+        Returns:
+            (Optional) input and output example tensors
         """
-        return
+        return None, None
 
     @property
     def operation_mode(self):
