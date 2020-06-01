@@ -17,6 +17,7 @@
 
 import os
 
+import torch
 import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
@@ -98,7 +99,14 @@ def get_megatron_checkpoint(pretrained_model_name):
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name)
 
     if not os.path.exists(path):
-        wget.download(url, path)
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if not os.path.exists(path):
+            if master_device:
+                wget.download(url, path)
+            # wait until the master process downloads the file and writes it to the cache dir
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
     return path
 
 

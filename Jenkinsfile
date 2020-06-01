@@ -204,8 +204,8 @@ pipeline {
           steps {
             sh 'cd examples/nlp/dialogue_state_tracking && CUDA_VISIBLE_DEVICES=0 python dialogue_state_tracking_sgd.py \
             --data_dir /home/TestData/nlp/sgd/ --schema_embedding_dir /home/TestData/nlp/sgd/embeddings/ --eval_dataset dev \
-            --dialogues_example_dir /home/TestData/nlp/sgd/dialogue_example_dir/ --work_dir sgd_output --task DEBUG \
-            --num_epochs 1 --save_epoch_freq=0'
+            --dialogues_example_dir /home/TestData/nlp/sgd/dialogue_example_dir/ --work_dir sgd_output --task debug_sample \
+            --num_epochs 1 --save_epoch_freq=0 --no_overwrite_schema_emb_files --no_overwrite_dial_files'
             sh 'rm -rf examples/nlp/dialogue_state_tracking/sgd_output'
           }
         }
@@ -293,6 +293,29 @@ pipeline {
           sh 'rm -rf examples/nlp/neural_machine_translation/outputs'
       }
     }
+
+    stage('L2: Parallel Stage QuartzNet/JasperNet inference') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
+      failFast true
+      parallel {
+        stage('QuartzNet inference') {
+          steps {
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=0 python speech2text_infer.py --asr_model=QuartzNet15x5-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_target=0.1060'
+          }
+        }
+        stage('JasperNet inference') {
+          steps {
+            sh 'cd examples/asr && CUDA_VISIBLE_DEVICES=1 python speech2text_infer.py --asr_model=JasperNet10x5-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_target=0.1041'
+          }
+        }
+      }
+    }
+
 
     stage('L2: Parallel Stage Jasper / GAN') {
       when {

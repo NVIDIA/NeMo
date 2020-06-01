@@ -46,6 +46,12 @@ Transformer Language Model
 
    transformer_language_model
 
+GLUE Benchmark
+--------------------------
+.. toctree::
+   :maxdepth: 8
+
+   glue
 
 Dialogue State Tracking
 -----------------------
@@ -53,7 +59,7 @@ Dialogue State Tracking
 .. toctree::
    :maxdepth: 8
 
-   dialogue_state_tracking_trade.rst
+   dialogue_state_tracking.rst
 
 
 Named Entity Recognition
