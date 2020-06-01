@@ -83,7 +83,7 @@ def classification_accuracy(
     return results
 
 
-def classification_confusion_matrix(logits: torch.Tensor, targets: torch.Tensor,) -> torch.Tensor:
+def classification_confusion_matrix(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     """
     Computes the confusion matric provided with 
     un-normalized logits of a model and ground truth targets.

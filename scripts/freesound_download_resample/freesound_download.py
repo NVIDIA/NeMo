@@ -16,38 +16,37 @@ import os
 import pickle
 import time
 
-# if freesound is not installed, execute in a terminal -
-# pip install --no-cache-dir git+https://github.com/MTG/freesound-python.git
-import freesound
-import librosa
-
-# if request_oauthlib not installed, execute in a terminal -
-# pip install --upgrade requests requests_oauthlib
-import requests
-import requests_oauthlib
-from joblib import Parallel, delayed
-from oauthlib.oauth2 import TokenExpiredError
-
+try:
+    import librosa
+    import requests
+    import requests_oauthlib
+    from joblib import Parallel, delayed
+    from oauthlib.oauth2 import TokenExpiredError
+except (ModuleNotFoundError, ImportError) as e :
+    raise e
+    
+try:
+    import freesound
+except ModuleNotFoundError as e :
+    raise ModuleNotFoundError("freesound is not installed. Execute `pip install --no-cache-dir git+https://github.com/MTG/freesound-python.git` in terminal")
+    
+    
 """ 
 Instructions
-1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run pip install -r freesound_requirements.txt
-2. Create an API key for freesound.org at  https://freesound.org/help/developers/ and paste the cliend_id and api_key to freesound_private_apikey
-3. Authorize by run python freesound_download.py --authorize and visit website and paste response code
-4. Feel free to change any arguments in download_resample_freesound.sh such as max_samples and max_filesize
-5. Run bash download_resample_freesound.sh <max number of samples you want> <download data directory> <resampled data directory>
+1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
+2. Create an API key for freesound.org at  https://freesound.org/help/developers/ 
+3. Create a python file called `freesound_private_apikey.py` and add lined `api_key = <your Freesound api key>` and `client_id = <your Freesound client id>`
+4. Authorize by run `python freesound_download.py --authorize` and visit website, and paste response code
+5. Feel free to change any arguments in download_resample_freesound.sh such as max_samples and max_filesize
+6. Run `bash download_resample_freesound.sh <numbers of files you want> <download data directory> <resampled data directory>`
 """
 
 # Import the API Key
 try:
     from freesound_private_apikey import client_id, api_key
-
     print("API Key found !")
 except ImportError:
-    print(
-        "Create a python file called `freesound_private_apikey` and add lined `api_key = <your Freesound api key>` "
-        "and `client_id = <your Freesound client id>`"
-    )
-
+    raise ImportError("Create a python file called `freesound_private_apikey.py` and add lined `api_key = <your Freesound api key>` and `client_id = <your Freesound client id>`")
 
 auth_url = 'https://freesound.org/apiv2/oauth2/authorize/'
 redirect_url = 'https://freesound.org/home/app_permissions/permission_granted/'
@@ -373,6 +372,7 @@ def download_song(basepath, id, name, download_url):
             with open(fp, 'wb') as f:
                 f.write(data)
 
+            # If file size is less than 89, then this probably is a text format and not an acutal audio file.
             if os.path.getsize(fp) > 89:
                 print(f"File written : {fp}")
 
@@ -530,7 +530,7 @@ if __name__ == '__main__':
 
     if not os.path.exists('_token.pkl'):
         raise FileNotFoundError(
-            "Please authorize the application first using " "`python freesound_download --authorize`"
+            "Please authorize the application first using " "`python freesound_download.py --authorize`"
         )
     if args.data_dir == '':
         raise ValueError("Data dir must be passed as an argument using `--data_dir`")

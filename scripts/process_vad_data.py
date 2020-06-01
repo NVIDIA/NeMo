@@ -85,8 +85,8 @@ def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1):
     with open(os.path.join(data_dir, file_type + "_validation_list.txt"), "w") as outfile:
         outfile.write("\n".join(X_val))
 
-    print(f'Overall: {len(X)}, Train: {len(X_train)}, Validatoin: {len(X_val)}, Test: {len(X_test)}')
-    print(f"Finished split train, val and test for {file_type}. Write to files !")
+    logging.info(f'Overall: {len(X)}, Train: {len(X_train)}, Validatoin: {len(X_val)}, Test: {len(X_test)}')
+    logging.info(f"Finished split train, val and test for {file_type}. Write to files !")
 
 
 def process_google_speech_train(data_dir):
@@ -124,8 +124,8 @@ def write_manifest(
     manifest_name,
     duration_stride=1.0,
     duration_max=None,
-    filter_long=False,
     duration_limit=10.0,
+    filter_long=False,
 ):
     seg_num = 0
     skip_num = 0
@@ -133,7 +133,7 @@ def write_manifest(
         duration_max = 1e9
 
     if not os.path.exists(out_dir):
-        print(f'outdir {out_dir} does not exist. Creat directory.')
+        logging.info(f'Outdir {out_dir} does not exist. Creat directory.')
         os.mkdir(out_dir)
 
     output_path = os.path.join(out_dir, manifest_name + '.json')
@@ -187,7 +187,7 @@ def write_manifest(
     return skip_num, seg_num, output_path
 
 
-def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_stride=1.0, duration_max=1.0):
+def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_stride=1.0, duration_max=1.0, duration_limit=100.0, filter_long=True):
 
     filename = prefix + '_' + filename
     file_path = os.path.join(data_dir, filename)
@@ -204,8 +204,8 @@ def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_strid
         manifest_name,
         duration_stride,
         duration_max,
+        duration_limit,
         filter_long=True,
-        duration_limit=100.0,
     )
     return skip_num, seg_num, output_path
 
@@ -227,12 +227,13 @@ def get_max_json(data_dir, data_json, max_limit, prefix):
             fout.write('\n')
             fout.flush()
 
-    print(f'Get {seg}/{max_limit} to  {fout_path} from {data_json}')
+    logging.info(f'Get {seg}/{max_limit} to  {fout_path} from {data_json}')
     return fout_path
 
 
 def main():
     parser = argparse.ArgumentParser(description='Speech and backgound data download and preprocess')
+    parser.add_argument("--out_dir", required=True, default='./manifest/', type=str)
     parser.add_argument("--speech_data_root", required=True, default=None, type=str)
     parser.add_argument("--background_data_root", required=True, default=None, type=str)
     parser.add_argument('--test_size', required=False, default=0.1, type=float)
@@ -269,7 +270,7 @@ def main():
     logging.info(f"Split background data!")
     split_train_val_test(background_data_folder, "background", args.test_size, args.val_size)
 
-    out_dir = './manifest/'
+    out_dir = args.out_dir
     # Process Speech manifest
     logging.info(f"=== Write speech data to manifest!")
     skip_num_val, seg_num_val, speech_val = load_list_write_manifest(

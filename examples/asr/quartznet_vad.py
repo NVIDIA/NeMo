@@ -44,7 +44,6 @@ def parse_args():
         batch_size=128,
         eval_batch_size=128,
         lr=0.1,
-        local_rank=2,
         amp_opt_level="O1",
         create_tb_writer=True,
     )
