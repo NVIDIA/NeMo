@@ -17,27 +17,23 @@
 """
 This file contains code artifacts adapted from the original implementation:
 https://github.com/thu-coai/ConvLab-2
+https://github.com/thu-coai/ConvLab-2/blob/master/convlab2/dst/trade/multiwoz/trade.py
 """
 
 import copy
 import json
 import os
 import re
-from difflib import SequenceMatcher
 
 import torch
 
-from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
-from nemo.collections.nlp.data.datasets.multiwoz.state import default_state
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import default_state
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
 from nemo.utils import logging
 
 __all__ = [
     'reformat_belief_state',
-    'str_similar',
-    'minDistance',
-    'normalize_value',
-    'special_match',
     'detect_requestable_slots',
     'init_session',
     'get_trade_prediction',
@@ -59,6 +55,10 @@ def get_trade_prediction(state, data_desc, encoder, decoder):
     Returns prediction of the TRADE Dialogue state tracking model in the human readable format
     Args:
         state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
+            and associated vocabulary
+        encoder (nm): TRADE encoder
+        decoder (nm): TRADE decoder
     Returns:
         dialogue_state (list): list of domain-slot_name-slot_value, for example ['hotel-area-east', 'hotel-stars-4']
     """
@@ -85,12 +85,14 @@ def dst_update(state, data_desc, user_uttr, encoder, decoder):
         data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
             and associated vocabulary
         user_uttr (str): user utterance from the current turn
+        encoder (nm): TRADE encoder
+        decoder (nm): TRADE decoder
     Returns:
         state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
     """
     prev_state = state
     dst_output = get_trade_prediction(state, data_desc, encoder, decoder)
-    logging.info(f'TRADE DST output: {dst_output}')
+    logging.debug('TRADE DST output %s:', dst_output)
 
     new_belief_state = reformat_belief_state(
         dst_output, copy.deepcopy(prev_state['belief_state']), data_desc.ontology_value_dict
@@ -114,7 +116,17 @@ def get_human_readable_output(
     data_desc, gating_preds, point_outputs_pred, gating_labels=None, point_outputs_labels=None
 ):
     '''
-    To get trade output in the human readable format
+    Returns trade output in the human readable format
+    Args:
+        data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
+            and associated vocabulary
+        gatirng_preds (array): an array of gating predictions, TRADE model output
+        point_outputs_pred (list of arrays): TRADE model output, contains predicted pointers
+        gating_labels (array): an array of gating labels
+        point_outputs_labels
+    Returns:
+        output (list of strings): TRADE model output, each values represents domain-slot_name-slot_value, for example, ['hotel-pricerange-cheap', 'hotel-type-hotel']
+
     '''
     slots = data_desc.slots
     bi = 0
@@ -175,7 +187,14 @@ def get_human_readable_output(
 
 
 def reformat_belief_state(raw_state, bs, value_dict):
-    '''bs - belief_state
+    '''
+    Reformat TRADE model raw state into the default_state format
+    Args:
+        raw_state(list of strings): raw TRADE model output/state, each values represents domain-slot_name-slot_value, for example, ['hotel-pricerange-cheap', 'hotel-type-hotel']
+        bs (dict): belief state - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        value_dict (dict): a dictionary of all slot values for MultiWOZ dataset
+    Returns:
+        bs (dict): reformatted belief state
     '''
     for item in raw_state:
         item = item.lower()
@@ -207,11 +226,10 @@ def reformat_belief_state(raw_state, bs, value_dict):
     return bs
 
 
-def str_similar(a, b):
-    return SequenceMatcher(None, a, b).ratio()
-
-
 def minDistance(word1, word2):
+    import pdb
+
+    pdb.set_trace()
     """The minimum edit distance between word 1 and 2."""
     if not word1:
         return len(word2 or '') or 0
@@ -303,7 +321,14 @@ def _transform_value(value):
 
 
 def _match_or_contain(value, value_list):
-    """match value by exact match or containing"""
+    """
+    Matches value by exact match or containing
+    Args:
+        value (str): slot value
+        value_list (list of str): list of possible slot_values
+    Returns:
+        matched value
+    """
     if value in value_list:
         return value
     for v in value_list:
@@ -332,7 +357,7 @@ def special_match(domain, slot, value):
 
 
 def _match_time(value):
-    """Return the time (leaveby, arriveat) in value, None if no time in value."""
+    """Returns the time (leaveby, arriveat) in value, None if no time in value."""
     mat = re.search(r"(\d{1,2}:\d{1,2})", value)
     if mat is not None and len(mat.groups()) > 0:
         return mat.groups()[0]
@@ -340,7 +365,7 @@ def _match_time(value):
 
 
 def _match_trainid(value):
-    """Return the trainID in value, None if no trainID."""
+    """Returns the trainID in value, None if no trainID."""
     mat = re.search(r"TR(\d{4})", value)
     if mat is not None and len(mat.groups()) > 0:
         return mat.groups()[0]
@@ -372,8 +397,12 @@ def _match_duration(value):
 
 def detect_requestable_slots(observation, det_dic):
     """
-    Finds slot values in the observation (user utterance)
-    and adds the to rquested  slots list - needed  for Dialogue Policy
+    Finds slot values in the observation (user utterance) and adds the to the requested slots list
+    Args:
+        observation (str): user utterance
+        det_dic (dict):  a dictionary of slot_name + (slot_name_domain) value pairs from user dialogue acts
+    Returns:
+        result (dict): of the requested slots in a format: {domain: {slot_name}: 0}
     """
     result = {}
     observation = observation.lower()

@@ -18,7 +18,8 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/thu-coai/ConvLab-2
 """
-from nemo.collections.nlp.data.datasets.multiwoz.dbquery import *
-from nemo.collections.nlp.data.datasets.multiwoz.multiwoz_slot_trans import *
-from nemo.collections.nlp.data.datasets.multiwoz.state import *
-from nemo.collections.nlp.data.datasets.multiwoz.utils import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_dataset import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.utils import *

@@ -41,7 +41,7 @@ import torch
 from torch.utils import data as pt_data
 
 import nemo
-from nemo.collections.nlp.data.datasets import MultiWOZDataset
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, NeuralType
 from nemo.utils.decorators import add_port_docs
