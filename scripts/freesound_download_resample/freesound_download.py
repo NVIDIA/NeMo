@@ -22,15 +22,17 @@ try:
     import requests_oauthlib
     from joblib import Parallel, delayed
     from oauthlib.oauth2 import TokenExpiredError
-except (ModuleNotFoundError, ImportError) as e :
+except (ModuleNotFoundError, ImportError) as e:
     raise e
-    
+
 try:
     import freesound
-except ModuleNotFoundError as e :
-    raise ModuleNotFoundError("freesound is not installed. Execute `pip install --no-cache-dir git+https://github.com/MTG/freesound-python.git` in terminal")
-    
-    
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError(
+        "freesound is not installed. Execute `pip install --no-cache-dir git+https://github.com/MTG/freesound-python.git` in terminal"
+    )
+
+
 """ 
 Instructions
 1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
@@ -44,9 +46,12 @@ Instructions
 # Import the API Key
 try:
     from freesound_private_apikey import client_id, api_key
+
     print("API Key found !")
 except ImportError:
-    raise ImportError("Create a python file called `freesound_private_apikey.py` and add lined `api_key = <your Freesound api key>` and `client_id = <your Freesound client id>`")
+    raise ImportError(
+        "Create a python file called `freesound_private_apikey.py` and add lined `api_key = <your Freesound api key>` and `client_id = <your Freesound client id>`"
+    )
 
 auth_url = 'https://freesound.org/apiv2/oauth2/authorize/'
 redirect_url = 'https://freesound.org/home/app_permissions/permission_granted/'

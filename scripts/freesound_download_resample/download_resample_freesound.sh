@@ -19,7 +19,7 @@
 # Change this arguments if you want
 page_size=100   # Number of sounds per page
 max_samples=200 # Maximum number of sound samples
-min_filesize=0  # Maximum filesize allowed (in MB)
+min_filesize=0  # Minimum filesize allowed (in MB)
 max_filesize=100 # Maximum filesize allowed (in MB)
 
 if [[ $# -ne 3 ]]; then

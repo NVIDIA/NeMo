@@ -187,7 +187,9 @@ def write_manifest(
     return skip_num, seg_num, output_path
 
 
-def load_list_write_manifest(data_dir, out_dir, filename, prefix, duration_stride=1.0, duration_max=1.0, duration_limit=100.0, filter_long=True):
+def load_list_write_manifest(
+    data_dir, out_dir, filename, prefix, duration_stride=1.0, duration_max=1.0, duration_limit=100.0, filter_long=True
+):
 
     filename = prefix + '_' + filename
     file_path = os.path.join(data_dir, filename)
