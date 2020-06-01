@@ -129,8 +129,9 @@ class SGDDialogueStateLossNM(LossNM):
         # Shape: (batch_size, max_num_slots)
         # mask unused slots
         # Sigmoid cross entropy is used because more than one slots can be requested in a single utterance
+        req_slot_mask = req_slot_mask > 0.5
         requested_slot_loss = self._criterion_req_slots(
-            logit_req_slot_status.view(-1)[req_slot_mask], requested_slot_status.view(-1)[req_slot_mask]
+            logit_req_slot_status[req_slot_mask], requested_slot_status[req_slot_mask]
         )
 
         # Categorical slot status

@@ -1,5 +1,5 @@
 NVIDIA NeMo 开发者指南
-====================
+======================
 
 .. toctree::
    :hidden:
@@ -27,7 +27,7 @@ NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的�
 
 
 简介
----
+----
 
 我们可以通过以下这个视频有个概览：
 
@@ -39,7 +39,7 @@ NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的�
 
 
 核心概念和特性
------------
+--------------
 
 * `NeuralModule` 类 - 表示以及执行一个神经模块。
 * `NmTensor` - 表示的是神经模块端口之间流动的激活元。
@@ -50,7 +50,7 @@ NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的�
 
 
 安装依赖
--------
+--------
 
 1) Python 3.6 or 3.7
 2) PyTorch >= 1.4 带GPU支持
@@ -59,7 +59,7 @@ NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的�
 .. _installation:
 
 开始吧
-------
+-------
 
 你可以从这个 docker 容器开始 `NGC NeMo 容器 <https://ngc.nvidia.com/catalog/containers/nvidia:nemo>`_ 这里面已经包含了最新版的 NeMo 和上面所需要的环境。
 
@@ -93,7 +93,7 @@ NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的�
 如果你更想用 NeMo 最新的开发版本（从 github上 获取），请按照下面的步骤：
 
 1) 克隆这个仓库 ``git clone https://github.com/NVIDIA/NeMo.git``
-2) 切到 nemo 文件夹下，安装工具包和各个集合: 
+2) 切到 nemo 文件夹下，安装工具包和各个集合:
 
 .. code-block:: bash
 
@@ -113,7 +113,7 @@ NeMo 是一个用神经模块来构建 AI 应用的工具包，它与具体的�
     python -m unittest tests/*.py
 
 构建 Docker 容器
--------------------------
+-----------------
 
 NeMo Docker 镜像需要 Docker Buildx (包含在 Docker 19.03)。 想要构建一个自定义的 NeMo Docker 镜像, 运行
 
