@@ -164,7 +164,7 @@ def eval_epochs_done_callback(
 ):
     # added for debugging
     in_domain_services = get_in_domain_services(
-        os.path.join(data_dir, eval_dataset, "schema.json"), dialogues_processor._seen_services["train"]
+        os.path.join(data_dir, eval_dataset, "schema.json"), dialogues_processor.get_seen_services("train")
     )
     ##############
     # we'll write predictions to file in Dstc8/SGD format during evaluation callback

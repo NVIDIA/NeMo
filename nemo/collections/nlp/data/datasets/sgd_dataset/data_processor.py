@@ -94,10 +94,7 @@ class SGDDataProcessor(object):
             dial_file = os.path.join(dialogues_example_dir, dial_file)
             self.dial_files[(task_name, dataset)] = dial_file
 
-            dialog_paths = [
-                os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i))
-                for i in self._file_ranges[dataset]
-            ]
+            dialog_paths = SGDDataProcessor.get_dialogue_files(data_dir, dataset, task_name)
             dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
             for dialog in dialogs:
                 self._seen_services[dataset].update(set(dialog['services']))
@@ -139,6 +136,9 @@ class SGDDataProcessor(object):
             dial_examples = np.load(f, allow_pickle=True)
             f.close()
         return dial_examples
+
+    def get_seen_services(self, dataset_split):
+        return self._seen_services[dataset_split]
 
     def _generate_dialog_examples(self, dataset, schemas):
         """
