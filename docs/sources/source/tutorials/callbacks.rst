@@ -118,6 +118,7 @@ class method.
 
 NeMo provides callbacks with access to the ``state`` dictionary as defined in the StateWrapper class inside of
 nemo.backends.pytorch.actions.py. The dictionary contains the following key-value pairs:
+
     - "step" (int): the current step number
     - "epoch" (int): the current epoch
     - "local_rank" (int): the local_rank of the current process. Defaults to None for single-gpu or cpu runs
