@@ -11,6 +11,7 @@ NVIDIA NeMo Developer Guide
    asr/intro
    speaker_recognition/intro
    speech_command/intro
+   voice_activity_detection/intro
    nlp/intro
    tts/intro
    collections/modules

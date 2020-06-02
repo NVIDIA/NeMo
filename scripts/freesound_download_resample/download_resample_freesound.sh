@@ -88,7 +88,6 @@ categories=(
 WAV_FILECOUNT="$(find $DATADIR  -name '*.wav' -type f | wc -l)"
 FLAC_FILECOUNT="$(find $DATADIR  -name '*.flac' -type f | wc -l)"
 FILECOUNT="$((WAV_FILECOUNT + FLAC_FILECOUNT))"
-# echo FILECOUNT
 echo "File count: " $FILECOUNT
 
 

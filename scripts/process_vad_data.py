@@ -235,13 +235,13 @@ def get_max_json(data_dir, data_json, max_limit, prefix):
 
 def main():
     parser = argparse.ArgumentParser(description='Speech and backgound data download and preprocess')
-    parser.add_argument("--out_dir", required=True, default='./manifest/', type=str)
+    parser.add_argument("--out_dir", required=False, default='./manifest/', type=str, action='store_true')
     parser.add_argument("--speech_data_root", required=True, default=None, type=str)
     parser.add_argument("--background_data_root", required=True, default=None, type=str)
-    parser.add_argument('--test_size', required=False, default=0.1, type=float)
-    parser.add_argument('--val_size', required=False, default=0.1, type=float)
-    parser.add_argument('--log', required=False)
-    parser.add_argument('--rebalance', required=False)
+    parser.add_argument('--test_size', required=False, default=0.1, type=float, action='store_true')
+    parser.add_argument('--val_size', required=False, default=0.1, type=float, action='store_true')
+    parser.add_argument('--log', required=False, action='store_true')
+    parser.add_argument('--rebalance', required=False, action='store_true')
     parser.set_defaults(log=True, rebalance=False)
 
     args = parser.parse_args()
