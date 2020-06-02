@@ -178,8 +178,6 @@ def create_eval_pipeline(eval_dataset):
 
     return eval_scores, query_id, passage_ids
 
-    return eval_scores, query_id, passage_ids
-
 
 def parse_qrels(qrels):
     query2rel = {}
@@ -193,10 +191,9 @@ def parse_qrels(qrels):
     return query2rel
 
 
-query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.small.tsv")
-
-
 if args.do_eval:
+
+    query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.small.tsv")
 
     all_eval_tensors = {}
     for eval_dataset in args.eval_datasets:
