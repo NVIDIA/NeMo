@@ -397,6 +397,23 @@ Model components:
 - **SGDEncoder** - uses a BERT model to encode user utterance. By default, the SGD model uses the pre-trained BERT base cased model from `Hugging Face Transformers <https://huggingface.co/transformers/>`_ to get embedded representations for schema elements and also to encode user utterance. The SGDEncoder returns encoding of the whole user utterance using 'CLS' token and embedded representation of every token in the utterance.
 - **SGDDecoder** - returns logits for predicted elements by conditioning on the encoded utterance
 
+Nemo Tracker
+------------
+The performance of the original baseline for SGD dataset is inferior to the current state-of-the-art approches proposed for this dataset. Therefore, we improved the state tracker of the baseline significantly by the following updates.
+The new state tracker is called Nemo Tracker and can be set by passing "--state_tracker=nemotracker".
+
+    * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions.\
+    Therefore, whenever the status of a non-categorical slot is active but no value can be found in the user utterance, we search the list of slots and their values mentioned in the previous system actions to find a value for this slot.
+    The most recent value is used as the value for the slot. It is called in-domain carry-over as it happens inside a service.
+
+    * **Cross-service carry-over mechanism**: In multi-domain dialogues, switching between two services can happen in the dialogue. In such cases, there can be some values to get transfered to the new service automatically.
+    For instance when user is reserving flight tickets for two persons, it can be assumed that number of people for hotel reservation should also be two. To handle such cases, when we process the dialogues, we also record the list of these carry-over between two services from the training data.
+    A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another.
+    Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
+
+The main idea of carry-over between slots are inspired from :cite:`nlp-dst-limiao2019dstc8` and :cite:`nlp-dst-ruan2020fine`. These two updates improved the accuracy of the state tracker for SGD significantly. It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
+the candidate list is extracted from the training dialogues which does not contain unseen services. To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots.
+
 Training
 --------
 In order to train the Baseline SGD model on a single domain task and evaluate on its dev and test data, run:
@@ -435,70 +452,72 @@ Model improvements added to get better performance results and increase model fl
 
 Results on Single Domain
 ------------------------
+These are the results of the SGD model in NeMo trained and evaluated on single-domain dialogues (--task_name=sgd_single_domain).
+
 
 Seen Services
 
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                       |                        Dev set                           |
-+                                                                       +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                          | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+=======================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                            |      99.06      |     98.67     |   88.08   |    68.58   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                                 |      99.02      |     86.86     |   88.44   |    68.9    |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval                                      |      98.97      |     86.87     |   92.70   |    81.52   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head                     |      98.80      |     86.78     |   93.13   |    83.47   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation                  |      98.74      |     87.56     |   93.3    |    82.81   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation |     98.95       |     87.67     |    93.98  |    85.47   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+|                                                                    |                        Dev set                           |
++                                                                    +-----------------+---------------+-----------+------------+
+| SGD baseline implementations                                       | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
++====================================================================+=================+===============+===========+============+
+| Original SGD baseline codebase                                     |      99.06      |     98.67     |   88.08   |    68.58   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo's Implementation of the Baseline                              |      99.02      |     86.86     |   88.44   |    68.9    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker                                       |      98.97      |     86.87     |   92.70   |    81.52   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head                      |      98.80      |     86.78     |   93.13   |    83.47   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + data augmentation                   |      98.74      |     87.56     |   93.3    |    82.81   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head + data augmentation  |     98.95       |     87.67     |    93.98  |    85.47   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
 
 
 
 Unseen Services
 
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                       |                        Dev set                           |
-+                                                                       +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                          | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+=======================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                            |       94.8      |      93.6     |   66.03   |   28.05    |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                                 |       94.56     |      87.91    |   65.75   |   29.34    |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval                                      |      94.22      |     87.99     |   67.18   |   30.565   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head                     |      92.01      |    87.86      |   66.98   |   28.135   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation                  |      91.34      |     88.51     |   66.20   |   29.46    |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation |     92.83       |    88.34      |    70.8   |   30.728   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+|                                                                    |                        Dev set                           |
++                                                                    +-----------------+---------------+-----------+------------+
+| SGD baseline implementations                                       | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
++====================================================================+=================+===============+===========+============+
+| Original SGD baseline codebase                                     |       94.8      |      93.6     |   66.03   |   28.05    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo's Implementation of the Baseline                              |       94.56     |      87.91    |   65.75   |   29.34    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker                                       |      94.22      |     87.99     |   67.18   |   30.565   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head                      |      92.01      |    87.86      |   66.98   |   28.135   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + data augmentation                   |      91.34      |     88.51     |   66.20   |   29.46    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head + data augmentation  |     92.83       |    88.34      |    70.8   |   30.728   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
 
 
 
 All Services
 
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                       |                        Dev set                           |
-+                                                                       +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                          | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+=======================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                            |       96.6      |     96.5      |   77.6    |    48.6    |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                                 |       96.78     |     87.39     |   77.15   |    49.01   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval                                      |      96.59      |     87.44     |   80.01   |    55.91   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head                     |      95.39      |    87.32      |   80.13   |    55.66   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation                  |      95.05      |     88.04     |   79.82   |    55.99   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation |     95.87       |    88.00      |    82.45  |    57.95   |
-+-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+|                                                                   |                        Dev set                           |
++                                                                   +-----------------+---------------+-----------+------------+
+| SGD baseline implementations                                      | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
++===================================================================+=================+===============+===========+============+
+| Original SGD trained on single domain task                        |       96.6      |     96.5      |   77.6    |    48.6    |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo's Implementation of the Baseline                             |       96.78     |     87.39     |   77.15   |    49.01   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker                                      |      96.59      |     87.44     |   80.01   |    55.91   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head                     |      95.39      |    87.32      |   80.13   |    55.66   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + data augmentation                  |      95.05      |     88.04     |   79.82   |    55.99   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head + data augmentation |     95.87       |    88.00      |    82.45  |    57.95   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
 
 
 
