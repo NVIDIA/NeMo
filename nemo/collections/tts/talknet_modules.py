@@ -52,6 +52,8 @@ __all__ = [
 
 
 class Ops:
+    """Bunch of PyTorch useful function for tensors manipulation."""
+
     @staticmethod
     def merge(tensors, value=0, dtype=None):
         tensors = [tensor if isinstance(tensor, torch.Tensor) else torch.tensor(tensor) for tensor in tensors]
@@ -86,6 +88,17 @@ class TalkNetDataset:
     def __init__(
         self, audio_dataset, durs_file, durs_type='full-pad', speakers=None, speaker_table=None, speaker_embs=None,
     ):
+        """TalkNet dataset with indexing.
+
+        Args:
+            audio_dataset: Instance of AudioDataset with basic audio/text info.
+            durs_file: Durations list file.
+            durs_type: Type of durations to use.
+            speakers: Speakers list file.
+            speaker_table: Table of speakers ids.
+            speaker_embs: Matrix of speakers embeddings.
+        """
+
         self._audio_dataset = audio_dataset
         self._durs = np.load(durs_file, allow_pickle=True)
         self._durs_type = durs_type
@@ -130,8 +143,16 @@ class TalkNetDataset:
         return len(self._audio_dataset)
 
 
-class SuperSmartSampler(torch.utils.data.distributed.DistributedSampler):  # noqa
+class LengthsAwareSampler(torch.utils.data.distributed.DistributedSampler):  # noqa
     def __init__(self, *args, **kwargs):
+        """Assignees samples with similar lengths to reduce padding.
+
+        Args:
+            *args: Args to propagate to `DistributedSampler` constructor.
+            **kwargs: Kwargs to propagate to `DistributedSampler` constructor. Additional
+                keys should be 'lengths' and 'batch_size'.
+        """
+
         self.lengths = kwargs.pop('lengths')
         self.batch_size = kwargs.pop('batch_size')
 
@@ -183,7 +204,7 @@ class AllSampler(torch.utils.data.distributed.DistributedSampler):  # noqa
         return iter(list(range(len(self.dataset))))
 
 
-class BDAugs:
+class BlanksDurationAugmentation:
     """Different blanks/durs augs."""
 
     @staticmethod
@@ -357,7 +378,7 @@ class TalkNetDataLayer(DataLayerNM):
             elif sampler_type == 'default':
                 sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)  # noqa
             elif sampler_type == 'super-smart':
-                sampler = SuperSmartSampler(
+                sampler = LengthsAwareSampler(
                     dataset=self._dataset,
                     lengths=[e.duration for e in audio_dataset.collection],
                     batch_size=batch_size,
@@ -410,7 +431,7 @@ class TalkNetDataLayer(DataLayerNM):
                     name, p = self._bd_aug.split('|')
                 else:
                     name, p = 'shake_biased', '0.1'
-                aug = lambda b, d: getattr(BDAugs, name)(b, d, p)  # noqa
+                aug = lambda b, d: getattr(BlanksDurationAugmentation, name)(b, d, p)  # noqa
 
                 new_blank, new_dur = [], []
                 for b, d in zip(blank, dur):
@@ -456,6 +477,12 @@ class TalkNetDataLayer(DataLayerNM):
 
 class PolySpanEmb(nn.Module):
     def __init__(self, emb):
+        """Wraps chars embeddings with assigning polynomial span embs for blanks.
+
+        Args:
+            emb: Character embeddings.
+        """
+
         super().__init__()
 
         self._emb = emb
@@ -539,6 +566,22 @@ class TalkNet(nemo_nm.TrainableNM):
         poly_span: bool = False,
         doubling: bool = False,
     ):
+        """Creates TalkNet backbone instance.
+
+        Args:
+            n_vocab: Size of input vocabulary.
+            d_char: Dimension of char embedding.
+            pad_id: Id of padding symbol.
+            jasper_kwargs: Kwargs to instantiate QN encoder.
+            d_out: Dimension of output.
+            d_speaker_emb: Dimension of speaker embedding.
+            d_speaker_x: Dimension of pre speaker embedding.
+            d_speaker_o: Dimension of post speaker embedding.
+            pad16: True if pad tensors to 16.
+            poly_span: True if assign polynomial span embeddings for blanks.
+            doubling: True if using mel channels doubling trick.
+        """
+
         super().__init__()
 
         # Embedding for input text
@@ -683,6 +726,18 @@ class TalkNetDursLoss(LossNM):
         xe_steps_coef=1.5,
         pad16=False,
     ):
+        """Creates duration loss instance.
+
+        Args:
+            method: Method for duration loss calculation.
+            num_classes: Number of classes to predict for classification methods.
+            dmld_hidden: Dimension of hidden vector for DMLD method.
+            reduction: Final loss tensor reduction type.
+            max_dur: Maximum duration value to cover.
+            xe_steps_coef: Ratio of adjusted steps for 'xe-steps' method.
+            pad16: True if pad tensors to 16.
+        """
+
         super().__init__()
 
         self._method = method
@@ -836,6 +891,14 @@ class TalkNetMelsLoss(LossNM):
         return dict(loss=NeuralType(None))
 
     def __init__(self, reduction='all', pad16=False, doubling=False):
+        """Creates instance of TalkNet mels loss calculation.
+
+        Args:
+            reduction: Final loss tensor reduction type.
+            pad16: True if pad tensors to 16.
+            doubling: True if using mel channels doubling trick.
+        """
+
         super().__init__()
 
         self._reduction = reduction

@@ -121,7 +121,7 @@ class TrainableNM(NeuralModule, nn.Module):
             load_device = f"cuda:{local_rank}"
         else:
             load_device = self._device
-        self.load_state_dict(t.load(path, map_location=load_device), strict=False)
+        self.load_state_dict(t.load(path, map_location=load_device))
 
     @t.jit.ignore
     def freeze(self, weights=None):
