@@ -18,7 +18,7 @@
 
 from typing import List, Optional
 
-from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
+from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_LIST, BertConfig, BertModel
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
@@ -150,12 +150,12 @@ class BERT(TrainableNM):
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
         pretrained_models = []
-        for key, value in BERT_PRETRAINED_MODEL_ARCHIVE_MAP.items():
+        for key in BERT_PRETRAINED_MODEL_ARCHIVE_LIST:
             model_info = PretrainedModelInfo(
                 pretrained_model_name=key,
                 description="weights by HuggingFace",
                 parameters=BERT_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
-                location=value,
+                location="",
             )
             pretrained_models.append(model_info)
         return pretrained_models
