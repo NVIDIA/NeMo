@@ -32,7 +32,7 @@ import torch
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
 
-__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor', 'get_dialogue_files']
+__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor']
 
 FILE_RANGES = {
     "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
