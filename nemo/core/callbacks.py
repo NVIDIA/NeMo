@@ -21,8 +21,8 @@
 #     "TensorboardLogger",
 #     "WandBLogger",
 #     "CheckpointCallback",
-#     "on_train_start",
-#     "on_train_end",
+#     "on_action_start",
+#     "on_action_end",
 #     "on_epoch_start",
 #     "on_epoch_end",
 #     "on_batch_start",
@@ -92,7 +92,7 @@ class NeMoCallback(ABC):
 
 def on_action_start(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
-    on_train_start callback event.
+    on_action_start callback event.
     """
 
     class NeMoCallbackWrapper(NeMoCallback):
@@ -197,7 +197,7 @@ def on_epoch_end(func):
 
 def on_action_end(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
-    on_train_end callback event.
+    on_action_end callback event.
     """
 
     class NeMoCallbackWrapper(NeMoCallback):
@@ -521,7 +521,7 @@ class CheckpointCallback(NeMoCallback):
         if self._step_freq > 0 and step % self._step_freq == 0 and step > 0:
             self.__save_to(self._folder, state)
 
-    def on_train_end(self, state):
+    def on_action_end(self, state):
         if self._step_freq > 0 or self._epoch_freq > 0:
             self.__save_to(self._folder, state)
 
