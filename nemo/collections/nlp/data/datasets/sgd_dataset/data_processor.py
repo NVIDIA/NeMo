@@ -146,10 +146,15 @@ class SGDDataProcessor(object):
             )
         dial_file = self.dial_files[(self._task_name, dataset)]
         logging.info(f"Loading dialogue examples from {dial_file}.")
+
+        if not os.path.exists(self.slots_relation_file):
+            logging.error(f"The processed dialogue file ({dial_file}) does not exist.")
         with open(dial_file, "rb") as f:
             dial_examples = np.load(f, allow_pickle=True)
             f.close()
 
+        if not os.path.exists(self.slots_relation_file):
+            logging.error(f"Slots relation file {self.slots_relation_file} does not exist.")
         with open(self.slots_relation_file, "rb") as f:
             slots_relation_list = pickle.load(f)
         logging.info(
