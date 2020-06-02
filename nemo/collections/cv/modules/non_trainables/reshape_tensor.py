@@ -51,6 +51,9 @@ class ReshapeTensor(NonTrainableNM):
     """
     Class responsible for reshaping the input tensor.
 
+    Reshapes tensor from e.g. [64, 16, 2, 2] to [64, 64].
+
+    For more details please refer to: https://pytorch.org/docs/master/generated/torch.reshape.html
     """
 
     def __init__(self, input_sizes: List[int], output_sizes: List[int], name: Optional[str] = None):
