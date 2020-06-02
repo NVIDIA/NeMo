@@ -94,6 +94,8 @@ class NemoBertTokenizer(TokenizerSpec):
 
         if hasattr(self.tokenizer, "vocab"):
             self.vocab_size = len(self.tokenizer.vocab)
+        if hasattr(self.tokenizer, "vocab_size"):
+            self.vocab_size = self.tokenizer.vocab_size
 
         special_tokens = MODEL_SPECIAL_TOKENS[bert_derivative]
         for k, v in special_tokens.items():
