@@ -107,9 +107,9 @@ Creating Your Own Callback
 --------------------------
 For more advanced user-cases where users want to inject their own logic not offered by NeMo's built-in callbacks, NeMo
 allows users to defined their own callbacks via two methods. The first method is to create a child of the
-:class:nemo.core.callbacks.NeMoCallback and define any of the methods
+:class:`nemo.core.callbacks.NeMoCallback` and define any of the methods
 (``on_action_start, on_epoch_start, ..., on_action_end``) inside the child class. The second method is to use our
-function decorators for each of those events such as :meth:nemo.core.callbacks.on_step_start. Regardless of the method
+function decorators for each of those events such as :meth:`nemo.core.callbacks.on_step_start`. Regardless of the method
 chosen, both interact with the NeMo trainer through the ``state`` dictionary. We will first detail the ``state``
 dictionary and then provide examples for creating a callback through the decorator method and through the child
 class method.
@@ -123,8 +123,8 @@ nemo.backends.pytorch.actions.py. The dictionary contains the following key-valu
     - "optimizers" (list of pytorch.optimizers): a list of the current pytorch optimizers used in the train action.
       In most cases, it is a list of 1 optimizer. Note that the current learning rate can be extracted from the
       optimizer. See the tensorboard callback to see how this is done.
-    - "tensors": a :class:nemo.core.actions.TrainingState instance. This class has the
-      :meth:nemo.core.actions.TrainingState.get_tensor function that takes ``name``: either the user-renamed string,
+    - "tensors": a :class:`nemo.core.actions.TrainingState` instance. This class has the
+      :meth:`nemo.core.actions.TrainingState.get_tensor` function that takes ``name``: either the user-renamed string,
       a NmTensor's unique_name, or a NmTensor and returns the associated pytorch tensor.
 
 Users can use NeMo's callback function decorators to easily inject logic inside the training process that doesn't need
@@ -152,7 +152,7 @@ to keep state. For example, let's say we want to compute the confusion_matrix ev
 
     nf.train(callbacks=[print_confusion_matrix], ...)  # Pass the function to the callbacks arg of train()
 
-Users can also create a child class of :class:nemo.core.callbacks.NeMoCallback. This method is useful when users want
+Users can also create a child class of :class:`nemo.core.callbacks.NeMoCallback`. This method is useful when users want
 to store state inside a class variable that they can access from multiple callback hooks. For example, here is a
 callback that keeps the exponential moving average of the step time:
 
