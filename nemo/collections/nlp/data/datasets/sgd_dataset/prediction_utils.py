@@ -106,7 +106,7 @@ def get_carryover_value(
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
     """Update labels in a dialogue based on model predictions.
-    This approach retreives slot values from the history of system actions if slot is active but it can not find it in
+    This approach retrieves slot values from the history of system actions if slot is active but it can not find it in
     user utterance overwrite the labels in the turn with the predictions from the model. For test set, these labels are
     missing from the data and hence they are added.
   Args:
