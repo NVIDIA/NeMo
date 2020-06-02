@@ -126,6 +126,7 @@ class NeuralType(object):
     def __check_sanity(axes):
         # check that list come before any tensor dimension
         are_strings = True
+        
         for axis in axes:
             if not isinstance(axis, str):
                 are_strings = False

@@ -52,7 +52,7 @@ def get_trade_prediction(state, data_desc, encoder, decoder):
     """
     Returns prediction of the TRADE Dialogue state tracking model in the human readable format
     Args:
-        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz_dataset.default_state for the format
         data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
             and associated vocabulary
         encoder (nm): TRADE encoder
@@ -75,18 +75,31 @@ def get_trade_prediction(state, data_desc, encoder, decoder):
     return get_human_readable_output(data_desc, gate_outputs_max_list, point_outputs_max_list)[0]
 
 
+
+
+
+    # outputs, hidden = encoder.forward(src_ids, src_lens)
+    # point_outputs, gate_outputs = decoder.forward(
+    #     encoder_hidden=hidden, encoder_outputs=outputs, input_lens=src_lens, src_ids=src_ids
+    # )
+    # p_max = torch.argmax(point_outputs, dim=-1)
+    # point_outputs_max_list = [tensor2numpy(p_max)]
+    # g_max = torch.argmax(gate_outputs, axis=-1)
+    # gate_outputs_max_list = tensor2numpy(g_max)
+    # return get_human_readable_output(data_desc, gate_outputs_max_list, point_outputs_max_list)[0]
+
 def dst_update(state, data_desc, user_uttr, encoder, decoder):
     """
     Updates dialogue state
     Args:
-        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz_dataset.default_state for the format
         data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
             and associated vocabulary
         user_uttr (str): user utterance from the current turn
         encoder (nm): TRADE encoder
         decoder (nm): TRADE decoder
     Returns:
-        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz_dataset.default_state for the format
     """
     prev_state = state
     dst_output = get_trade_prediction(state, data_desc, encoder, decoder)
@@ -225,9 +238,6 @@ def reformat_belief_state(raw_state, bs, value_dict):
 
 
 def minDistance(word1, word2):
-    import pdb
-
-    pdb.set_trace()
     """The minimum edit distance between word 1 and 2."""
     if not word1:
         return len(word2 or '') or 0

@@ -648,18 +648,3 @@ def fake_state():
     '''
     return state
 
-
-def test_init_state():
-    user_action = ['general-hello']
-    current_slots = dict()
-    kb_results = [None, None]
-    kb_results[0] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'south'}
-    kb_results[1] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'north'}
-    state = {'user_action': user_action, 'current_slots': current_slots, 'kb_results_dict': []}
-    return state
-
-
-def test_run():
-    policy = RuleBasedMultiwozBot()
-    system_act = policy.predict(fake_state())
-    print(json.dumps(system_act, indent=4))

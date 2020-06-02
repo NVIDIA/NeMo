@@ -38,9 +38,10 @@ import argparse
 import os
 
 from nemo import core as nemo_core
+from nemo.core import NmTensor
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc, dst_update, init_session
-from nemo.collections.nlp.nm.non_trainables import RuleBasedMultiwozBotNM, TemplateNLGMultiWOZNM
+from nemo.collections.nlp.nm.non_trainables import RuleBasedMultiwozBotNM, TemplateNLGMultiWOZNM, UtteranceEncoderNM, TradeOutputNM
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
 from nemo.utils import logging
 
@@ -79,14 +80,14 @@ domains = {"attraction": 0, "restaurant": 1, "train": 2, "hotel": 3, "taxi": 5}
 # create DataDescriptor that contains information about domains, slots, and associated vocabulary
 data_desc = MultiWOZDataDesc(args.data_dir, domains)
 vocab_size = len(data_desc.vocab)
-encoder = EncoderRNN(vocab_size, args.emb_dim, args.hid_dim, 0, args.n_layers)
+encoder = EncoderRNN(input_dim=vocab_size, emb_dim=args.emb_dim, hid_dim=args.hid_dim, dropout=0, n_layers=args.n_layers)
 decoder = TRADEGenerator(
-    data_desc.vocab,
-    encoder.embedding,
-    args.hid_dim,
-    0,
-    data_desc.slots,
-    len(data_desc.gating_dict),
+    vocab=data_desc.vocab,
+    embeddings=encoder.embedding,
+    hid_size=args.hid_dim,
+    dropout=0,
+    slots=data_desc.slots,
+    nb_gate=len(data_desc.gating_dict),
     teacher_forcing=0,
 )
 
@@ -94,62 +95,92 @@ if args.encoder_ckpt and args.decoder_ckpt:
     encoder.restore_from(args.encoder_ckpt)
     decoder.restore_from(args.decoder_ckpt)
 
+
+
 rule_based_policy = RuleBasedMultiwozBotNM(args.data_dir)
 template_nlg = TemplateNLGMultiWOZNM()
 
-
-def get_system_responce(user_uttr, system_uttr, dialog_history, state):
-    """
-    Returns system reply by passing user utterance through TRADE Dialogue State Tracker, then the output of the TRADE model to the
-    Rule-base Dialogue Policy Magager and the output of the Policy Manager to the Rule-based Natural language generation module
-    Args:
-        user_uttr(str): User utterance
-        system_uttr(str): Previous system utterance
-        dialog_history(str): Diaglogue history contains all previous system and user utterances
-        state (dict): dialogue state
-    Returns:
-        system_utterance(str): system response
-        state (dict): updated dialogue state 
-    """
-    state["history"].append(["sys", system_uttr])
-    state["history"].append(["user", user_uttr])
-    state["user_action"] = user_uttr
-    logging.debug("Dialogue state: %s", state)
-
-    state = dst_update(state, data_desc, user_uttr, encoder, decoder)
-    logging.debug("State after TRADE = Input to DPM: %s", state)
-
-    dpm_output = rule_based_policy.predict(state)
-    logging.debug("DPM output: %s", dpm_output)
-    logging.debug("State after DPM: %s", state)
-
-    system_uttr = template_nlg.generate(dpm_output)
-    logging.info("NLG output = System reply: %s", system_uttr)
-    return system_uttr, state
-
-
-example_user_uttrs = ["I want to find a moderate hotel", "What is the address ?"]
-
+user_uttr = "I want to find a moderate hotel"
 encoder.eval()
 decoder.eval()
-logging.info("============ Starting a new dialogue ============")
 system_uttr, dialog_history, state = init_session()
+state["history"].append(["sys", system_uttr])
+state["history"].append(["user", user_uttr])
+state["user_action"] = user_uttr
+logging.debug("Dialogue state: %s", state)
 
-if args.mode == 'interactive':
-    # for user_uttr in user_uttrs:
-    while True:
-        logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
-        user_uttr = input()
 
-        if user_uttr == "STOP":
-            logging.info("===================== Exiting ===================")
-            break
-        elif user_uttr == "RESTART":
-            system_uttr, dialog_history, state = init_session()
-            logging.info("============ Starting a new dialogue ============")
-        get_system_responce(user_uttr, system_uttr, dialog_history, state)
+# remove history
+utterance_encoder = UtteranceEncoderNM(data_desc=data_desc, history=state['history'])
+# with NeuralGraph(operation_mode=OperationMode.both) as dialogue_pipeline:
+utterance_encoded = utterance_encoder()
 
-elif args.mode == 'example':
-    for user_uttr in example_user_uttrs:
-        logging.info("User utterance: %s", user_uttr)
-        get_system_responce(user_uttr, system_uttr, dialog_history, state)
+outputs, hidden = encoder(inputs=utterance_encoded.src_ids, input_lens=utterance_encoded.src_lens)
+point_outputs, gate_outputs = decoder(
+    encoder_hidden=hidden,
+    encoder_outputs=outputs,
+    input_lens=utterance_encoded.src_lens,
+    src_ids=utterance_encoded.src_ids
+)
+trade_output_decoder = TradeOutputNM(data_desc)
+trade_output = trade_output_decoder(gating_preds=gate_outputs, point_outputs_pred=point_outputs)
+
+
+
+
+
+# def get_system_responce(user_uttr, system_uttr, dialog_history, state):
+#     """
+#     Returns system reply by passing user utterance through TRADE Dialogue State Tracker, then the output of the TRADE model to the
+#     Rule-base Dialogue Policy Magager and the output of the Policy Manager to the Rule-based Natural language generation module
+#     Args:
+#         user_uttr(str): User utterance
+#         system_uttr(str): Previous system utterance
+#         dialog_history(str): Diaglogue history contains all previous system and user utterances
+#         state (dict): dialogue state
+#     Returns:
+#         system_utterance(str): system response
+#         state (dict): updated dialogue state 
+#     """
+#     state["history"].append(["sys", system_uttr])
+#     state["history"].append(["user", user_uttr])
+#     state["user_action"] = user_uttr
+#     logging.debug("Dialogue state: %s", state)
+
+#     state = dst_update(state, data_desc, user_uttr, encoder, decoder)
+#     logging.debug("State after TRADE = Input to DPM: %s", state)
+
+#     dpm_output = rule_based_policy.predict(state)
+#     logging.debug("DPM output: %s", dpm_output)
+#     logging.debug("State after DPM: %s", state)
+
+#     system_uttr = template_nlg.generate(dpm_output)
+#     logging.info("NLG output = System reply: %s", system_uttr)
+#     return system_uttr, state
+
+
+# example_user_uttrs = ["I want to find a moderate hotel", "What is the address ?"]
+
+# encoder.eval()
+# decoder.eval()
+# logging.info("============ Starting a new dialogue ============")
+# system_uttr, dialog_history, state = init_session()
+
+# if args.mode == 'interactive':
+#     # for user_uttr in user_uttrs:
+#     while True:
+#         logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
+#         user_uttr = input()
+
+#         if user_uttr == "STOP":
+#             logging.info("===================== Exiting ===================")
+#             break
+#         elif user_uttr == "RESTART":
+#             system_uttr, dialog_history, state = init_session()
+#             logging.info("============ Starting a new dialogue ============")
+#         get_system_responce(user_uttr, system_uttr, dialog_history, state)
+
+# elif args.mode == 'example':
+#     for user_uttr in example_user_uttrs:
+#         logging.info("User utterance: %s", user_uttr)
+#         get_system_responce(user_uttr, system_uttr, dialog_history, state)
