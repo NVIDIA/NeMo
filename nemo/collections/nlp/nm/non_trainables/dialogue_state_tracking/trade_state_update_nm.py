@@ -16,7 +16,8 @@
 
 '''
 This file contains code artifacts adapted from the original implementation:
-https://github.com/thu-coai/ConvLab-2/blob/master/convlab2/policy/rule/multiwoz/rule_based_multiwoz_bot.py
+https://github.com/thu-coai/ConvLab-2/blob/master/convlab2/dst/trade/multiwoz/trade.py
+https://github.com/thu-coai/ConvLab-2
 '''
 import copy
 import re
@@ -31,76 +32,6 @@ from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TradeStateUpdateNM']
-
-
-# class UtteranceEncoderNM(NonTrainableNM):
-#     """
-#     Encodes dialogue history (system and user utterances) into a Multiwoz dataset format
-#     Args:
-#         data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots,
-#             and associated vocabulary
-#     """
-
-#     @property
-#     @add_port_docs()
-#     def input_ports(self):
-#         """Returns definitions of module input ports.
-#         state (dict): dialogue state dictionary - see nemo.collections.nlp.data.datasets.multiwoz_dataset.state
-#             for the format
-#         user_uttr (str): user utterance
-#         sys_uttr (str): system utterace
-#         """
-#         return {
-#             "state": NeuralType(axes=tuple('ANY'), element_type=VoidType()),
-#             "user_uttr": NeuralType(axes=tuple('ANY'), element_type=VoidType()),
-#             "sys_uttr": NeuralType(axes=tuple('ANY'), element_type=VoidType())
-#         }
-
-
-#     @property
-#     @add_port_docs()
-#     def output_ports(self):
-#         """Returns definitions of module output ports.
-#         src_ids (int): token ids for dialogue history
-#         src_lens (int): length of the tokenized dialogue history
-#         """
-#         return {
-#             'src_ids': NeuralType(('B', 'T'), element_type=ChannelType()),
-#             'src_lens': NeuralType(tuple('B'), elemenet_type=LengthsType()),
-#         }
-
-#     def __init__(self, data_desc):
-#         """
-#         Init
-#         Args:
-#             data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots,
-#                     and associated vocabulary
-#         """
-#         super().__init__()
-#         self.data_desc = data_desc
-
-#     def forward(self, state, user_uttr, sys_uttr):
-#         """
-#         Returns dialogue utterances in the format accepted by the TRADE Dialogue state tracking model
-#         Args:
-#             state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz_dataset.state
-#                 for the format
-#             user_uttr (str): user utterance
-#             sys_uttr (str): system utterace
-#         Returns:
-#             src_ids (int): token ids for dialogue history
-#             src_lens (int): length of the tokenized dialogue history
-#         """
-#         state["history"].append(["sys", sys_uttr])
-#         state["history"].append(["user", user_uttr])
-#         state["user_action"] = user_uttr
-#         logging.debug("Dialogue state: %s", state)
-
-#         context = ' ; '.join([item[1].strip().lower() for item in state['history']]).strip() + ' ;'
-#         context_ids = self.data_desc.vocab.tokens2ids(context.split())
-#         src_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
-#         src_lens = torch.tensor(len(context_ids)).unsqueeze(0).to(self._device)
-#         return src_ids, src_lens
 
 
 class TradeStateUpdateNM(NonTrainableNM):
@@ -288,9 +219,7 @@ class TradeStateUpdateNM(NonTrainableNM):
         if slot not in value_set[domain]:
             logging.warning('slot {} no in domain {}'.format(slot, domain))
             return value
-            # raise Exception(
-            #     'slot <{}> not found in db_values[{}]'.format(
-            #         slot, domain))
+
         value_list = value_set[domain][slot]
         # exact match or containing match
         v = self._match_or_contain(value, value_list)

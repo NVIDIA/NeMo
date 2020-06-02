@@ -128,17 +128,18 @@ def init_session():
     return '', '', default_state()
 
 
-def get_system_responce(user_uttr, system_uttr, dialog_history, state):
+def get_system_response(user_uttr, system_uttr, dialog_history, state):
     """
-    Returns system reply by passing user utterance through TRADE Dialogue State Tracker, then the output of the TRADE model to the
-    Rule-base Dialogue Policy Magager and the output of the Policy Manager to the Rule-based Natural language generation module
+    Returns system reply by passing system and user utterances (dialogue history) through the TRADE Dialogue State Tracker,
+        then the output of the TRADE model goes to the Rule-base Dialogue Policy Magager
+        and the output of the Policy Manager goes to the Rule-based Natural language generation module
     Args:
-        user_uttr(str): User utterance
-        system_uttr(str): Previous system utterance
-        dialog_history(str): Diaglogue history contains all previous system and user utterances
+        user_uttr (str): User utterance
+        system_uttr (str): Previous system utterance
+        dialog_history (str): Diaglogue history contains all previous system and user utterances
         state (dict): dialogue state
     Returns:
-        system_utterance(str): system response
+        system_utterance (str): system response
         state (dict): updated dialogue state 
     """
     src_ids, src_lens = utterance_encoder.forward(state=state, user_uttr=user_uttr, sys_uttr=system_uttr)
@@ -177,7 +178,7 @@ if args.mode == 'interactive':
             system_uttr, dialog_history, state = init_session()
             logging.info("============ Starting a new dialogue ============")
         else:
-            get_system_responce(user_uttr, system_uttr, dialog_history, state)
+            get_system_response(user_uttr, system_uttr, dialog_history, state)
 
 elif args.mode == 'example':
     for example in examples:
@@ -185,4 +186,4 @@ elif args.mode == 'example':
         system_uttr, dialog_history, state = init_session()
         for user_uttr in example:
             logging.info("User utterance: %s", user_uttr)
-            system_uttr, state = get_system_responce(user_uttr, system_uttr, dialog_history, state)
+            system_uttr, state = get_system_response(user_uttr, system_uttr, dialog_history, state)

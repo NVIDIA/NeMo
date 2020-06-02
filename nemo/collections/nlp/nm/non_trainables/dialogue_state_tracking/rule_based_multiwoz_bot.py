@@ -203,8 +203,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 for user_act_ in user_acts:
                     del DA[user_act_]
 
-        # print("Sys action: ", DA)
-
         if DA == {}:
             DA = {'general-greet': [['none', 'none']]}
         tuples = []
@@ -284,12 +282,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         kb_result = self.db.query(domain.lower(), constraints)
         self.kb_result[domain] = deepcopy(kb_result)
 
-        # print("\tConstraint: " + "{}".format(constraints))
-        # print("\tCandidate Count: " + "{}".format(len(kb_result)))
-        # if len(kb_result) > 0:
-        #     print("Candidate: " + "{}".format(kb_result[0]))
-
-        # print(state['user_action'])
         # Respond to user's request
         if intent_type == 'Request':
             if self.recommend_flag > 1:
@@ -310,7 +302,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
 
         else:
             # There's no result matching user's constraint
-            # if len(state['kb_results_dict']) == 0:
             if len(kb_result) == 0:
                 if (domain + "-NoOffer") not in DA:
                     DA[domain + "-NoOffer"] = []
@@ -468,8 +459,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         kb_result = self.db.query('train', constraints)
         self.kb_result['Train'] = deepcopy(kb_result)
 
-        # print(constraints)
-        # print(len(kb_result))
         if user_act == 'Train-Request':
             del DA['Train-Request']
             if 'Train-Inform' not in DA:
