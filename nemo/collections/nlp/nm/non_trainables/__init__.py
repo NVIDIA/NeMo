@@ -18,4 +18,5 @@ from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.nlg_multiwoz
 from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.rule_based_multiwoz_bot import (
     RuleBasedMultiwozBotNM,
 )
-from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.dpm_pipeline import UtteranceEncoderNM, TradeOutputNM
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.trade_state_update_nm import TradeStateUpdateNM
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.utterance_encoder_nm import UtteranceEncoderNM

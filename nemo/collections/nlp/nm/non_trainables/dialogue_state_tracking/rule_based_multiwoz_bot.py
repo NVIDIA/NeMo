@@ -32,6 +32,7 @@ from nemo import logging
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import Database
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
+from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, LogitsType, NeuralType, VoidType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedMultiwozBotNM']
@@ -106,14 +107,18 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports.
         """
-        return {}
+        return {'state': NeuralType(axes=(AxisType(kind=AxisKind.Any, is_list=True),), elements_type=VoidType(),)}
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
         """
-        return {}
+        return {
+            'state': NeuralType(axes=(AxisType(kind=AxisKind.Any, is_list=True),), elements_type=VoidType(),),
+            'system_acts': NeuralType(axes=tuple('ANY'), element_type=VoidType()),
+        }
 
     recommend_flag = -1
     choice = ""
@@ -125,7 +130,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
     def init_session(self):
         self.last_state = {}
 
-    def predict(self, state):
+    def forward(self, state):
         """
         Args:
             State, please refer to util/state.py
@@ -159,7 +164,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                     user_action[k] = []
                 user_action[k].append([s, v])
         else:
-            user_action = check_diff(self.last_state, state)
+            user_action = self.check_diff(self.last_state, state)
 
         self.last_state = deepcopy(state)
 
@@ -211,7 +216,10 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 for slot, value in svs:
                     tuples.append([intent, domain, slot, value])
         state['system_action'] = tuples
-        return tuples
+
+        logging.debug("DPM output: %s", tuples)
+        logging.debug("State after DPM: %s", state)
+        return tuples, state
 
     def _update_greeting(self, user_act, state, DA):
         """ General request / inform. """
@@ -245,8 +253,8 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         if len(blank_info) == 0:
             if 'Taxi-Inform' not in DA:
                 DA['Taxi-Inform'] = []
-            car = generate_car()
-            phone_num = generate_phone_num(11)
+            car = self.generate_car()
+            phone_num = self.generate_phone_num(11)
             DA['Taxi-Inform'].append(['Car', car])
             DA['Taxi-Inform'].append(['Phone', phone_num])
             return
@@ -510,141 +518,106 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                             DA['Booking-Book'] = [["Ref", "N/A"]]
                         # TODO handle booking between multi turn
 
-
-def check_diff(last_state, state):
-    # print(state)
-    user_action = {}
-    if last_state == {}:
-        for domain in state['belief_state']:
-            for slot in state['belief_state'][domain]['book']:
-                if slot != 'booked' and state['belief_state'][domain]['book'][slot] != '':
-                    if (domain.capitalize() + "-Inform") not in user_action:
-                        user_action[domain.capitalize() + "-Inform"] = []
-                    if [
-                        REF_USR_DA[domain.capitalize()].get(slot, slot),
-                        state['belief_state'][domain]['book'][slot],
-                    ] not in user_action[domain.capitalize() + "-Inform"]:
-                        user_action[domain.capitalize() + "-Inform"].append(
-                            [
-                                REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                state['belief_state'][domain]['book'][slot],
-                            ]
-                        )
-            for slot in state['belief_state'][domain]['semi']:
-                if state['belief_state'][domain]['semi'][slot] != "":
-                    if (domain.capitalize() + "-Inform") not in user_action:
-                        user_action[domain.capitalize() + "-Inform"] = []
-                    if [
-                        REF_USR_DA[domain.capitalize()].get(slot, slot),
-                        state['belief_state'][domain]['semi'][slot],
-                    ] not in user_action[domain.capitalize() + "-Inform"]:
-                        user_action[domain.capitalize() + "-Inform"].append(
-                            [
-                                REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                state['belief_state'][domain]['semi'][slot],
-                            ]
-                        )
-        for domain in state['request_state']:
-            for slot in state['request_state'][domain]:
-                if (domain.capitalize() + "-Request") not in user_action:
-                    user_action[domain.capitalize() + "-Request"] = []
-                if [REF_USR_DA[domain].get(slot, slot), '?'] not in user_action[domain.capitalize() + "-Request"]:
-                    user_action[domain.capitalize() + "-Request"].append([REF_USR_DA[domain].get(slot, slot), '?'])
-
-    else:
-        for domain in state['belief_state']:
-            for slot in state['belief_state'][domain]['book']:
-                if (
-                    slot != 'booked'
-                    and state['belief_state'][domain]['book'][slot] != last_state['belief_state'][domain]['book'][slot]
-                ):
-                    if (domain.capitalize() + "-Inform") not in user_action:
-                        user_action[domain.capitalize() + "-Inform"] = []
-                    if [
-                        REF_USR_DA[domain.capitalize()].get(slot, slot),
-                        state['belief_state'][domain]['book'][slot],
-                    ] not in user_action[domain.capitalize() + "-Inform"]:
-                        user_action[domain.capitalize() + "-Inform"].append(
-                            [
-                                REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                state['belief_state'][domain]['book'][slot],
-                            ]
-                        )
-            for slot in state['belief_state'][domain]['semi']:
-                if (
-                    state['belief_state'][domain]['semi'][slot] != last_state['belief_state'][domain]['semi'][slot]
-                    and state['belief_state'][domain]['semi'][slot] != ''
-                ):
-                    if (domain.capitalize() + "-Inform") not in user_action:
-                        user_action[domain.capitalize() + "-Inform"] = []
-                    if [
-                        REF_USR_DA[domain.capitalize()].get(slot, slot),
-                        state['belief_state'][domain]['semi'][slot],
-                    ] not in user_action[domain.capitalize() + "-Inform"]:
-                        user_action[domain.capitalize() + "-Inform"].append(
-                            [
-                                REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                state['belief_state'][domain]['semi'][slot],
-                            ]
-                        )
-        for domain in state['request_state']:
-            for slot in state['request_state'][domain]:
-                if (domain not in last_state['request_state']) or (slot not in last_state['request_state'][domain]):
+    def check_diff(self, last_state, state):
+        user_action = {}
+        if last_state == {}:
+            for domain in state['belief_state']:
+                for slot in state['belief_state'][domain]['book']:
+                    if slot != 'booked' and state['belief_state'][domain]['book'][slot] != '':
+                        if (domain.capitalize() + "-Inform") not in user_action:
+                            user_action[domain.capitalize() + "-Inform"] = []
+                        if [
+                            REF_USR_DA[domain.capitalize()].get(slot, slot),
+                            state['belief_state'][domain]['book'][slot],
+                        ] not in user_action[domain.capitalize() + "-Inform"]:
+                            user_action[domain.capitalize() + "-Inform"].append(
+                                [
+                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
+                                    state['belief_state'][domain]['book'][slot],
+                                ]
+                            )
+                for slot in state['belief_state'][domain]['semi']:
+                    if state['belief_state'][domain]['semi'][slot] != "":
+                        if (domain.capitalize() + "-Inform") not in user_action:
+                            user_action[domain.capitalize() + "-Inform"] = []
+                        if [
+                            REF_USR_DA[domain.capitalize()].get(slot, slot),
+                            state['belief_state'][domain]['semi'][slot],
+                        ] not in user_action[domain.capitalize() + "-Inform"]:
+                            user_action[domain.capitalize() + "-Inform"].append(
+                                [
+                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
+                                    state['belief_state'][domain]['semi'][slot],
+                                ]
+                            )
+            for domain in state['request_state']:
+                for slot in state['request_state'][domain]:
                     if (domain.capitalize() + "-Request") not in user_action:
                         user_action[domain.capitalize() + "-Request"] = []
-                    if [REF_USR_DA[domain.capitalize()].get(slot, slot), '?'] not in user_action[
-                        domain.capitalize() + "-Request"
-                    ]:
-                        user_action[domain.capitalize() + "-Request"].append(
-                            [REF_USR_DA[domain.capitalize()].get(slot, slot), '?']
-                        )
-    return user_action
+                    if [REF_USR_DA[domain].get(slot, slot), '?'] not in user_action[domain.capitalize() + "-Request"]:
+                        user_action[domain.capitalize() + "-Request"].append([REF_USR_DA[domain].get(slot, slot), '?'])
 
+        else:
+            for domain in state['belief_state']:
+                for slot in state['belief_state'][domain]['book']:
+                    if (
+                        slot != 'booked'
+                        and state['belief_state'][domain]['book'][slot]
+                        != last_state['belief_state'][domain]['book'][slot]
+                    ):
+                        if (domain.capitalize() + "-Inform") not in user_action:
+                            user_action[domain.capitalize() + "-Inform"] = []
+                        if [
+                            REF_USR_DA[domain.capitalize()].get(slot, slot),
+                            state['belief_state'][domain]['book'][slot],
+                        ] not in user_action[domain.capitalize() + "-Inform"]:
+                            user_action[domain.capitalize() + "-Inform"].append(
+                                [
+                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
+                                    state['belief_state'][domain]['book'][slot],
+                                ]
+                            )
+                for slot in state['belief_state'][domain]['semi']:
+                    if (
+                        state['belief_state'][domain]['semi'][slot] != last_state['belief_state'][domain]['semi'][slot]
+                        and state['belief_state'][domain]['semi'][slot] != ''
+                    ):
+                        if (domain.capitalize() + "-Inform") not in user_action:
+                            user_action[domain.capitalize() + "-Inform"] = []
+                        if [
+                            REF_USR_DA[domain.capitalize()].get(slot, slot),
+                            state['belief_state'][domain]['semi'][slot],
+                        ] not in user_action[domain.capitalize() + "-Inform"]:
+                            user_action[domain.capitalize() + "-Inform"].append(
+                                [
+                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
+                                    state['belief_state'][domain]['semi'][slot],
+                                ]
+                            )
+            for domain in state['request_state']:
+                for slot in state['request_state'][domain]:
+                    if (domain not in last_state['request_state']) or (
+                        slot not in last_state['request_state'][domain]
+                    ):
+                        if (domain.capitalize() + "-Request") not in user_action:
+                            user_action[domain.capitalize() + "-Request"] = []
+                        if [REF_USR_DA[domain.capitalize()].get(slot, slot), '?'] not in user_action[
+                            domain.capitalize() + "-Request"
+                        ]:
+                            user_action[domain.capitalize() + "-Request"].append(
+                                [REF_USR_DA[domain.capitalize()].get(slot, slot), '?']
+                            )
+        return user_action
 
-def deduplicate(lst):
-    i = 0
-    while i < len(lst):
-        if lst[i] in lst[0:i]:
-            lst.pop(i)
-            i -= 1
-        i += 1
-    return lst
+    def generate_phone_num(self, length):
+        """ Generate phone number."""
+        string = ""
+        while len(string) < length:
+            string += '0123456789'[random.randint(0, 999999) % 10]
+        return string
 
-
-def generate_phone_num(length):
-    """ Generate phone number."""
-    string = ""
-    while len(string) < length:
-        string += '0123456789'[random.randint(0, 999999) % 10]
-    return string
-
-
-def generate_car():
-    """ Generate a car for taxi booking. """
-    car_types = ["toyota", "skoda", "bmw", "honda", "ford", "audi", "lexus", "volvo", "volkswagen", "tesla"]
-    p = random.randint(0, 999999) % len(car_types)
-    return car_types[p]
-
-
-def fake_state():
-    user_action = {'Hotel-Request': [['Name', '?']], 'Train-Inform': [['Day', 'don\'t care']]}
-    from convlab2.util.multiwoz.state import default_state
-
-    init_belief_state = default_state()['belief_state']
-    kb_results = [None, None]
-    kb_results[0] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'south'}
-    kb_results[1] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'north'}
-    state = {
-        'user_action': user_action,
-        'belief_state': init_belief_state,
-        'kb_results_dict': kb_results,
-        'hotel-request': [['phone']],
-    }
-    '''
-    state = {'user_action': dict(),
-             'belief_state: dict(),
-             'kb_results_dict': kb_results
-    }
-    '''
-    return state
-
+    def generate_car(self):
+        """ Generate a car for taxi booking. """
+        car_types = ["toyota", "skoda", "bmw", "honda", "ford", "audi", "lexus", "volvo", "volkswagen", "tesla"]
+        p = random.randint(0, 999999) % len(car_types)
+        return car_types[p]

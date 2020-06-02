@@ -38,15 +38,29 @@ import argparse
 import os
 
 from nemo import core as nemo_core
-from nemo.core import NmTensor
 from nemo.backends.pytorch.common import EncoderRNN
-from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc, dst_update, init_session
-from nemo.collections.nlp.nm.non_trainables import RuleBasedMultiwozBotNM, TemplateNLGMultiWOZNM, UtteranceEncoderNM, TradeOutputNM
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import default_state
+from nemo.collections.nlp.nm.non_trainables import (
+    RuleBasedMultiwozBotNM,
+    TemplateNLGMultiWOZNM,
+    TradeStateUpdateNM,
+    UtteranceEncoderNM,
+)
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
+from nemo.core import NmTensor
 from nemo.utils import logging
 
 parser = argparse.ArgumentParser(description="Complete dialogue pipeline examply with TRADE model on MultiWOZ dataset")
-parser.add_argument("--data_dir", default="data/multiwoz2.1", type=str, help="path to NeMo processed MultiWOZ data")
+parser.add_argument(
+    "--data_dir", default="data/multiwoz2.1", type=str, help="path to NeMo processed MultiWOZ data", required=True
+)
+parser.add_argument(
+    "--encoder_ckpt", default=None, type=str, help="Path to pretrained encoder checkpoint", required=True
+)
+parser.add_argument(
+    "--decoder_ckpt", default=None, type=str, help="Path to pretrained decoder checkpoint", required=True
+)
 parser.add_argument("--emb_dim", default=400, type=int, help="Should match pre-trained TRADE model")
 parser.add_argument("--hid_dim", default=400, type=int, help="Should match pre-trained TRADE model")
 parser.add_argument("--n_layers", default=1, type=int, help="Should match pre-trained TRADE model")
@@ -57,8 +71,6 @@ parser.add_argument(
     help="Examples - pipeline example with the predified user queries, set to to interactive to chat with the system",
 )
 parser.add_argument("--hide_output", action="store_true", help="Set to True to hide output of the dialogue modules")
-parser.add_argument("--encoder_ckpt", default=None, type=str, help="Path to pretrained encoder checkpoint")
-parser.add_argument("--decoder_ckpt", default=None, type=str, help="Path to pretrained decoder checkpoint")
 parser.add_argument("--work_dir", default='outputs', type=str, help='Path to where to store logs')
 
 args = parser.parse_args()
@@ -80,8 +92,12 @@ domains = {"attraction": 0, "restaurant": 1, "train": 2, "hotel": 3, "taxi": 5}
 # create DataDescriptor that contains information about domains, slots, and associated vocabulary
 data_desc = MultiWOZDataDesc(args.data_dir, domains)
 vocab_size = len(data_desc.vocab)
-trade_encoder = EncoderRNN(input_dim=vocab_size, emb_dim=args.emb_dim, hid_dim=args.hid_dim, dropout=0,
-n_layers=args.n_layers)
+
+utterance_encoder = UtteranceEncoderNM(data_desc=data_desc)
+
+trade_encoder = EncoderRNN(
+    input_dim=vocab_size, emb_dim=args.emb_dim, hid_dim=args.hid_dim, dropout=0, n_layers=args.n_layers
+)
 trade_decoder = TRADEGenerator(
     vocab=data_desc.vocab,
     embeddings=trade_encoder.embedding,
@@ -92,96 +108,81 @@ trade_decoder = TRADEGenerator(
     teacher_forcing=0,
 )
 
-if args.encoder_ckpt and args.decoder_ckpt:
+if os.path.exists(args.encoder_ckpt) and os.path.exists(args.decoder_ckpt):
     trade_encoder.restore_from(args.encoder_ckpt)
     trade_decoder.restore_from(args.decoder_ckpt)
+else:
+    logging.info("Please refer to the NeMo docs for steps on how to obtain TRADE checkpoints")
 
-
-
-rule_based_policy = RuleBasedMultiwozBotNM(args.data_dir)
+trade_output_decoder = TradeStateUpdateNM(data_desc=data_desc)
+rule_based_policy = RuleBasedMultiwozBotNM(data_dir=args.data_dir)
 template_nlg = TemplateNLGMultiWOZNM()
 
-user_uttr = "I want to find a moderate hotel"
+
+def init_session():
+    """
+    Restarts dialogue session
+    Returns:
+        empty system utterance, empty dialogue history and default empty dialogue state
+    """
+    return '', '', default_state()
+
+
+def get_system_responce(user_uttr, system_uttr, dialog_history, state):
+    """
+    Returns system reply by passing user utterance through TRADE Dialogue State Tracker, then the output of the TRADE model to the
+    Rule-base Dialogue Policy Magager and the output of the Policy Manager to the Rule-based Natural language generation module
+    Args:
+        user_uttr(str): User utterance
+        system_uttr(str): Previous system utterance
+        dialog_history(str): Diaglogue history contains all previous system and user utterances
+        state (dict): dialogue state
+    Returns:
+        system_utterance(str): system response
+        state (dict): updated dialogue state 
+    """
+    src_ids, src_lens = utterance_encoder.forward(state=state, user_uttr=user_uttr, sys_uttr=system_uttr)
+    outputs, hidden = trade_encoder.forward(inputs=src_ids, input_lens=src_lens)
+    point_outputs, gate_outputs = trade_decoder.forward(
+        encoder_hidden=hidden, encoder_outputs=outputs, input_lens=src_lens, src_ids=src_ids
+    )
+    state_after_trade = trade_output_decoder.forward(
+        state=state, gating_preds=gate_outputs, point_outputs_pred=point_outputs
+    )
+    dpm_output, state_after_dpm = rule_based_policy.forward(state=state_after_trade)
+    system_uttr = template_nlg.forward(system_acts=dpm_output)
+    return system_uttr, state_after_dpm
+
+
+examples = [
+    ["I want to find a moderate hotel", "What is the address ?"],
+    ['i need to book a hotel in the east that has 4 stars .', "Which type of hotel is it ?"],
+]
+
 trade_encoder.eval()
 trade_decoder.eval()
+logging.info("============ Starting a new dialogue ============")
 system_uttr, dialog_history, state = init_session()
-state["history"].append(["sys", system_uttr])
-state["history"].append(["user", user_uttr])
-state["user_action"] = user_uttr
-logging.debug("Dialogue state: %s", state)
 
+if args.mode == 'interactive':
+    # for user_uttr in user_uttrs:
+    while True:
+        logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
+        user_uttr = input()
 
-# remove history
-utterance_encoder = UtteranceEncoderNM(data_desc=data_desc)
-# with NeuralGraph(operation_mode=OperationMode.both) as dialogue_pipeline:
-src_ids, src_lens = utterance_encoder.forward(history=state['history'])
+        if user_uttr == "STOP":
+            logging.info("===================== Exiting ===================")
+            break
+        elif user_uttr == "RESTART":
+            system_uttr, dialog_history, state = init_session()
+            logging.info("============ Starting a new dialogue ============")
+        else:
+            get_system_responce(user_uttr, system_uttr, dialog_history, state)
 
-outputs, hidden = trade_encoder.forward(inputs=src_ids, input_lens=src_lens)
-point_outputs, gate_outputs = trade_decoder.forward(
-    encoder_hidden=hidden,
-    encoder_outputs=outputs,
-    input_lens=src_lens,
-    src_ids=src_ids
-)
-trade_output_decoder = TradeOutputNM(data_desc)
-trade_output = trade_output_decoder.forward(gating_preds=gate_outputs, point_outputs_pred=point_outputs)
-
-
-
-
-
-# def get_system_responce(user_uttr, system_uttr, dialog_history, state):
-#     """
-#     Returns system reply by passing user utterance through TRADE Dialogue State Tracker, then the output of the TRADE model to the
-#     Rule-base Dialogue Policy Magager and the output of the Policy Manager to the Rule-based Natural language generation module
-#     Args:
-#         user_uttr(str): User utterance
-#         system_uttr(str): Previous system utterance
-#         dialog_history(str): Diaglogue history contains all previous system and user utterances
-#         state (dict): dialogue state
-#     Returns:
-#         system_utterance(str): system response
-#         state (dict): updated dialogue state 
-#     """
-#     state["history"].append(["sys", system_uttr])
-#     state["history"].append(["user", user_uttr])
-#     state["user_action"] = user_uttr
-#     logging.debug("Dialogue state: %s", state)
-
-#     state = dst_update(state, data_desc, user_uttr, encoder, decoder)
-#     logging.debug("State after TRADE = Input to DPM: %s", state)
-
-#     dpm_output = rule_based_policy.predict(state)
-#     logging.debug("DPM output: %s", dpm_output)
-#     logging.debug("State after DPM: %s", state)
-
-#     system_uttr = template_nlg.generate(dpm_output)
-#     logging.info("NLG output = System reply: %s", system_uttr)
-#     return system_uttr, state
-
-
-# example_user_uttrs = ["I want to find a moderate hotel", "What is the address ?"]
-
-# encoder.eval()
-# decoder.eval()
-# logging.info("============ Starting a new dialogue ============")
-# system_uttr, dialog_history, state = init_session()
-
-# if args.mode == 'interactive':
-#     # for user_uttr in user_uttrs:
-#     while True:
-#         logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
-#         user_uttr = input()
-
-#         if user_uttr == "STOP":
-#             logging.info("===================== Exiting ===================")
-#             break
-#         elif user_uttr == "RESTART":
-#             system_uttr, dialog_history, state = init_session()
-#             logging.info("============ Starting a new dialogue ============")
-#         get_system_responce(user_uttr, system_uttr, dialog_history, state)
-
-# elif args.mode == 'example':
-#     for user_uttr in example_user_uttrs:
-#         logging.info("User utterance: %s", user_uttr)
-#         get_system_responce(user_uttr, system_uttr, dialog_history, state)
+elif args.mode == 'example':
+    for example in examples:
+        logging.info("============ Starting a new dialogue ============")
+        system_uttr, dialog_history, state = init_session()
+        for user_uttr in example:
+            logging.info("User utterance: %s", user_uttr)
+            system_uttr, state = get_system_responce(user_uttr, system_uttr, dialog_history, state)

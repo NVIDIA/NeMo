@@ -314,13 +314,13 @@ dialogues_processor = data_processor.SGDDataProcessor(
 )
 
 datalayer = nemo_nlp.nm.data_layers.SGDDataLayer(
-        dataset_split=dataset_split,
-        dialogues_processor=dialogues_processor,
-        batch_size=args.train_batch_size,
-        shuffle=not args.no_shuffle if dataset_split == 'train' else False,
-        num_workers=args.num_workers,
-        pin_memory=args.enable_pin_memory,
-    )
+    dataset_split=dataset_split,
+    dialogues_processor=dialogues_processor,
+    batch_size=args.train_batch_size,
+    shuffle=not args.no_shuffle if dataset_split == 'train' else False,
+    num_workers=args.num_workers,
+    pin_memory=args.enable_pin_memory,
+)
 
 data = datalayer()
 # import pdb; pdb.set_trace()

@@ -22,9 +22,10 @@ https://github.com/thu-coai/ConvLab-2/blob/master/convlab2/nlg/template/multiwoz
 import json
 import os
 import random
-from pprint import pprint
 
 from nemo.backends.pytorch.nm import NonTrainableNM
+from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, LogitsType, NeuralType, VoidType
+from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TemplateNLGMultiWOZNM']
@@ -65,41 +66,37 @@ slot2word = {
 
 class TemplateNLGMultiWOZNM(NonTrainableNM):
     """Generate a natural language utterance conditioned on the dialog act.
-        
         Args:
-            action (list of list):
-                The dialog action produced by dialog policy module, which is in dialog act format.
+            action (list of list): The dialog action produced by dialog policy module, which is in dialog act format.
         Returns:
-            utterance (str):
-                A natural langauge utterance.
+            utterance (str): A natural langauge utterance.
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
         """
-        return {}
+        return {"system_acts": NeuralType(axes=tuple('ANY'), element_type=VoidType())}
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        system_uttr (str): generated system's response
         """
-        return {}
+        return {"system_uttr": NeuralType(axes=tuple('ANY'), element_type=VoidType())}
 
-    def __init__(self, is_user=False, mode="auto_manual"):
+    def __init__(self, mode="auto_manual"):
         """
         Args:
-            is_user:
-                if dialog_act from user or system
             mode:
                 - `auto`: templates extracted from data without manual modification, may have no match;
                 - `manual`: templates with manual modification, sometimes verbose;
                 - `auto_manual`: use auto templates first. When fails, use manual templates.
                 both template are dict, *_template[dialog_act][slot] is a list of templates.
         """
-        self.is_user = is_user
         self.mode = mode
         template_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -110,62 +107,40 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         self.auto_system_template = read_json(os.path.join(template_dir, 'auto_system_template_nlg.json'))
         self.manual_system_template = read_json(os.path.join(template_dir, 'manual_system_template_nlg.json'))
 
-        # TODO remove user
-        if is_user:
-            self.manual_user_template = read_json(os.path.join(template_dir, 'manual_user_template_nlg.json'))
-            self.auto_user_template = read_json(os.path.join(template_dir, 'auto_user_template_nlg.json'))
-
-    def generate(self, dialog_acts):
+    def forward(self, system_acts):
         """NLG for Multiwoz dataset
-
         Args:
-            dialog_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
+            system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
         Returns:
-            generated sentence
+            system_uttr (str): generated system utterance 
         """
         action = {}
-        for intent, domain, slot, value in dialog_acts:
+        for intent, domain, slot, value in system_acts:
             k = '-'.join([domain, intent])
             action.setdefault(k, [])
             action[k].append([slot, value])
         dialog_acts = action
         mode = self.mode
         try:
-            is_user = self.is_user
             if mode == 'manual':
-                if is_user:
-                    template = self.manual_user_template
-                else:
-                    template = self.manual_system_template
-
-                return self._manual_generate(dialog_acts, template)
+                system_uttr = self._manual_generate(dialog_acts, self.manual_system_template)
 
             elif mode == 'auto':
-                if is_user:
-                    template = self.auto_user_template
-                else:
-                    template = self.auto_system_template
-
-                return self._auto_generate(dialog_acts, template)
+                system_uttr = self._auto_generate(dialog_acts, self.auto_system_template)
 
             elif mode == 'auto_manual':
-                if is_user:
-                    template1 = self.auto_user_template
-                    template2 = self.manual_user_template
-                else:
-                    template1 = self.auto_system_template
-                    template2 = self.manual_system_template
+                template1 = self.auto_system_template
+                template2 = self.manual_system_template
+                system_uttr = self._auto_generate(dialog_acts, template1)
 
-                res = self._auto_generate(dialog_acts, template1)
-                if res == 'None':
-                    res = self._manual_generate(dialog_acts, template2)
-                return res
-
+                if system_uttr == 'None':
+                    system_uttr = self._manual_generate(dialog_acts, template2)
             else:
                 raise Exception("Invalid mode! available mode: auto, manual, auto_manual")
+            logging.info("NLG output = System reply: %s", system_uttr)
+            return system_uttr
         except Exception as e:
-            print('Error in processing:')
-            pprint(dialog_acts)
+            logging.error('Error in processing: %s', dialog_acts)
             raise e
 
     def _postprocess(self, sen):
@@ -247,23 +222,3 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
             else:
                 return 'None'
         return sentences.strip()
-
-
-def example():
-    # dialog act
-    dialog_acts = [['Inform', 'Train', 'Day', 'wednesday'], ['Inform', 'Train', 'Leave', '10:15']]
-    print(dialog_acts)
-
-    # system model for manual, auto, auto_manual
-    nlg_sys_manual = TemplateNLG(is_user=False, mode='manual')
-    nlg_sys_auto = TemplateNLG(is_user=False, mode='auto')
-    nlg_sys_auto_manual = TemplateNLG(is_user=False, mode='auto_manual')
-
-    # generate
-    print('manual      : ', nlg_sys_manual.generate(dialog_acts))
-    print('auto        : ', nlg_sys_auto.generate(dialog_acts))
-    print('auto_manual : ', nlg_sys_auto_manual.generate(dialog_acts))
-
-
-if __name__ == '__main__':
-    example()

@@ -22,4 +22,3 @@ from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import *
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_dataset import *
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import *
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import *
-from nemo.collections.nlp.data.datasets.multiwoz_dataset.utils import *
