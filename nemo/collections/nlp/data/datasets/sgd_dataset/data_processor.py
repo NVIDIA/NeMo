@@ -89,9 +89,11 @@ class SGDDataProcessor(object):
         self._max_seq_length = self.schema_config["MAX_SEQ_LENGTH"]
 
         self.dial_files = {}
-        slots_relation_file = "slots_relation_list.np"
-        slots_relation_file = os.path.join(dialogues_example_dir, slots_relation_file)
-        self.slots_relation_file = slots_relation_file
+
+        # slots_relation_list.np would contain the candidate list of slots for each (service, slot) which would be
+        # looked into when a switch between two services happens in the dialogue and we can not find any value for a slot in the current user utterance.
+        # This file would get generated from the dialogues in the training set.
+        self.slots_relation_file = os.path.join(dialogues_example_dir, "slots_relation_list.np")
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         for dataset in ["train", "dev", "test"]:
@@ -147,8 +149,6 @@ class SGDDataProcessor(object):
         dial_file = self.dial_files[(self._task_name, dataset)]
         logging.info(f"Loading dialogue examples from {dial_file}.")
 
-        if not os.path.exists(self.slots_relation_file):
-            logging.error(f"The processed dialogue file ({dial_file}) does not exist.")
         with open(dial_file, "rb") as f:
             dial_examples = np.load(f, allow_pickle=True)
             f.close()
