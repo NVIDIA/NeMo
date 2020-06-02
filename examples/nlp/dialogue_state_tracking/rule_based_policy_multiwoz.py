@@ -80,10 +80,11 @@ domains = {"attraction": 0, "restaurant": 1, "train": 2, "hotel": 3, "taxi": 5}
 # create DataDescriptor that contains information about domains, slots, and associated vocabulary
 data_desc = MultiWOZDataDesc(args.data_dir, domains)
 vocab_size = len(data_desc.vocab)
-encoder = EncoderRNN(input_dim=vocab_size, emb_dim=args.emb_dim, hid_dim=args.hid_dim, dropout=0, n_layers=args.n_layers)
-decoder = TRADEGenerator(
+trade_encoder = EncoderRNN(input_dim=vocab_size, emb_dim=args.emb_dim, hid_dim=args.hid_dim, dropout=0,
+n_layers=args.n_layers)
+trade_decoder = TRADEGenerator(
     vocab=data_desc.vocab,
-    embeddings=encoder.embedding,
+    embeddings=trade_encoder.embedding,
     hid_size=args.hid_dim,
     dropout=0,
     slots=data_desc.slots,
@@ -92,8 +93,8 @@ decoder = TRADEGenerator(
 )
 
 if args.encoder_ckpt and args.decoder_ckpt:
-    encoder.restore_from(args.encoder_ckpt)
-    decoder.restore_from(args.decoder_ckpt)
+    trade_encoder.restore_from(args.encoder_ckpt)
+    trade_decoder.restore_from(args.decoder_ckpt)
 
 
 
@@ -101,8 +102,8 @@ rule_based_policy = RuleBasedMultiwozBotNM(args.data_dir)
 template_nlg = TemplateNLGMultiWOZNM()
 
 user_uttr = "I want to find a moderate hotel"
-encoder.eval()
-decoder.eval()
+trade_encoder.eval()
+trade_decoder.eval()
 system_uttr, dialog_history, state = init_session()
 state["history"].append(["sys", system_uttr])
 state["history"].append(["user", user_uttr])
@@ -111,19 +112,19 @@ logging.debug("Dialogue state: %s", state)
 
 
 # remove history
-utterance_encoder = UtteranceEncoderNM(data_desc=data_desc, history=state['history'])
+utterance_encoder = UtteranceEncoderNM(data_desc=data_desc)
 # with NeuralGraph(operation_mode=OperationMode.both) as dialogue_pipeline:
-utterance_encoded = utterance_encoder()
+src_ids, src_lens = utterance_encoder.forward(history=state['history'])
 
-outputs, hidden = encoder(inputs=utterance_encoded.src_ids, input_lens=utterance_encoded.src_lens)
-point_outputs, gate_outputs = decoder(
+outputs, hidden = trade_encoder.forward(inputs=src_ids, input_lens=src_lens)
+point_outputs, gate_outputs = trade_decoder.forward(
     encoder_hidden=hidden,
     encoder_outputs=outputs,
-    input_lens=utterance_encoded.src_lens,
-    src_ids=utterance_encoded.src_ids
+    input_lens=src_lens,
+    src_ids=src_ids
 )
 trade_output_decoder = TradeOutputNM(data_desc)
-trade_output = trade_output_decoder(gating_preds=gate_outputs, point_outputs_pred=point_outputs)
+trade_output = trade_output_decoder.forward(gating_preds=gate_outputs, point_outputs_pred=point_outputs)
 
 
 

@@ -49,7 +49,7 @@ class UtteranceEncoderNM(NonTrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            # "history": NeuralType((axes=('ANY'), VoidType())
+            "history": NeuralType(axes=tuple('ANY'), element_type=VoidType())
         }
         
 
@@ -59,16 +59,15 @@ class UtteranceEncoderNM(NonTrainableNM):
         """Returns definitions of module output ports.
         """
         return {
-            'src_ids': NeuralType(('B', 'T'), ChannelType()),
-            'src_lens': NeuralType(tuple('B'), LengthsType()),
+            'src_ids': NeuralType(('B', 'T'), element_type=ChannelType()),
+            'src_lens': NeuralType(tuple('B'), elemenet_type=LengthsType()),
         }
 
-    def __init__(self, data_desc, history):
+    def __init__(self, data_desc):
         super().__init__()
         self.data_desc = data_desc
-        self.history = history
 
-    def forward(self):
+    def forward(self, history):
         """
         Returns prediction of the TRADE Dialogue state tracking model in the human readable format
         Args:
@@ -81,7 +80,6 @@ class UtteranceEncoderNM(NonTrainableNM):
         Returns:
             dialogue_state (list): list of domain-slot_name-slot_value, for example ['hotel-area-east', 'hotel-stars-4']
         """
-        history =self.history
         context = ' ; '.join([item[1].strip().lower() for item in history]).strip() + ' ;'
         context_ids = self.data_desc.vocab.tokens2ids(context.split())
         src_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
@@ -156,7 +154,7 @@ class TradeOutputNM(NonTrainableNM):
         slots = self.data_desc.slots
         bi = 0
         predict_belief_bsz_ptr = []
-        inverse_unpoint_slot = dict([(v, k) for k, v in data_desc.gating_dict.items()])
+        inverse_unpoint_slot = dict([(v, k) for k, v in self.data_desc.gating_dict.items()])
 
         for si, sg in enumerate(gating_preds[bi]):
             if sg == self.data_desc.gating_dict["none"]:
