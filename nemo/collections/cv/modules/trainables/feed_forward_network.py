@@ -191,13 +191,11 @@ class FeedForwardNetwork(TrainableNM):
         # print("{}: input shape: {}, device: {}\n".format(self.name, inputs.shape, inputs.device))
 
         # Check that the input has the number of dimensions that we expect
-        assert len(inputs.shape) == self._dimensions, (
-            "Expected "
-            + str(self._dimensions)
-            + " dimensions for input, got "
-            + str(len(inputs.shape))
-            + " instead. Check number of dimensions in the config."
-        )
+        if len(inputs.shape) != self._dimensions:
+            raise ConfigurationError(
+                "Expected `{}` dimensions for input, but received `{}` instead. "
+                F"Check fix the dimensions in your script.".format(self._dimensions, len(inputs.shape))
+            )
 
         # Reshape such that we do a broadcast over the last dimension
         origin_shape = inputs.shape
