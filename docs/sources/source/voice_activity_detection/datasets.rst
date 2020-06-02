@@ -10,7 +10,7 @@ Freesound database
 
 We use freesound "background categories" as background/non-speech audio sample for voice activity detection.
 
-.. _GoogleSpeechCommands_dataset:
+.. _GoogleSpeechCommands_dataset_vad:
 
 Google Speech Commands Dataset
 -----------------------------------

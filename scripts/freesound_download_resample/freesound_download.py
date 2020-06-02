@@ -377,7 +377,7 @@ def download_song(basepath, id, name, download_url):
             with open(fp, 'wb') as f:
                 f.write(data)
 
-            # If file size is less than 89, then this probably is a text format and not an acutal audio file.
+            # If file size is less than 89, then this probably is a text format and not an actual audio file.
             if os.path.getsize(fp) > 89:
                 print(f"File written : {fp}")
 

@@ -94,7 +94,7 @@ Each line in json file describes a training sample:
 * offset: The start of the segment, in seconds.
 
 
-.. code-block:: json
+.. code-block:: bash
 
     {"audio_filepath": "<absolute path to dataset>/two/8aa35b0c_nohash_0.wav", "duration": 1.0, "label": "speech", offset": 0.0}
     {"audio_filepath": "<absolute path to dataset>/Emergency_vehicle/id_58368 simambulance.wav", "duration": 1.0, "label": "background", "offset": 4.0}
@@ -407,7 +407,7 @@ Enabling multi-GPU training with NeMo is easy:
     Because mixed precision requires Tensor Cores it only works on NVIDIA Volta and Turing based GPUs
 
 Large Training Example
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------
 
 Please refer to the `<nemo_git_repo_root>/examples/asr/quartznet_vad.py` for comprehensive example.
 It builds one train DAG, one validation DAG and a test DAG to evaluate on different datasets.
