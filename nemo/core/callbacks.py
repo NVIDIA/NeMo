@@ -220,6 +220,7 @@ class SimpleLogger(NeMoCallback):
             every step_freq steps.
             Defaults to ["loss"] which only prints the loss.
     """
+
     def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, NmTensor]] = ["loss"]):
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
@@ -252,6 +253,7 @@ class TensorboardLogger(NeMoCallback):
         log_lr (bool): Whether to log the learning rate to tensorboard.
             Defaults to True.
     """
+
     def __init__(
         self,
         tb_writer: 'torch.utils.tensorboard.SummaryWriter',
@@ -314,6 +316,7 @@ class WandBLogger(NeMoCallback):
         log_lr (bool): Whether to log epoch and epoch training time to Weights and Biases.
             Defaults to True.
     """
+
     def __init__(
         self,
         step_freq: int = 100,
@@ -391,6 +394,7 @@ class CheckpointCallback(NeMoCallback):
         force_load (bool): Whether to crash if loading is unsuccessful.
             Defaults to False
     """
+
     def __init__(
         self,
         folder: str,
