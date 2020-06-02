@@ -21,8 +21,8 @@ import torch
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, VoidType
 from nemo.utils import logging
-from nemo.utils.decorators import add_port_docs
 from nemo.utils.configuration_parsing import get_value_from_dictionary
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['NonLinearity']
 
