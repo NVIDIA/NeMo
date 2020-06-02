@@ -37,8 +37,12 @@ class NonLinearity(NonTrainableNM):
 
     def __init__(self, type: str = "logsoftmax", sizes: List[int] = [-1], name: Optional[str] = None):
         """
-        Initializes the object.
+        Constructor initializing the  non-linearity.
 
+        Args:
+            type: Type of non-linearity (currently only logsoftmax is supported)
+            sizes: Sizes of dimensions of the input/output tensors (DEFAULT: [-1] - variable size batch)
+            name: Name of the module (DEFAULT: None)
         """
         # Call constructor of parent classes.
         NonTrainableNM.__init__(self, name=name)

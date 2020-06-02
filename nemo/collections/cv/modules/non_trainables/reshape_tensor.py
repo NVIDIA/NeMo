@@ -53,10 +53,14 @@ class ReshapeTensor(NonTrainableNM):
 
     """
 
-    def __init__(self, input_sizes: str, output_sizes: List[int], name: Optional[str] = None):
+    def __init__(self, input_sizes: List[int], output_sizes: List[int], name: Optional[str] = None):
         """
         Initializes the object.
 
+        Args:
+            input_sizes: Sizes of dimensions of the input tensor.
+            output_sizes: Sizes of dimensions of the output.
+            name: Name of the module (DEFAULT: None)
         """
         # Call constructor of parent classes.
         NonTrainableNM.__init__(self, name=name)

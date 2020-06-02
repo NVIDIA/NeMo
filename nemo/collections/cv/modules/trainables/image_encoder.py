@@ -66,8 +66,14 @@ class ImageEncoder(TrainableNM):
         name: Optional[str] = None,
     ):
         """
-        Initializes the ``ImageEncoder`` model, creates the required backend.
+        Initializes the ``ImageEncoder`` model, creates the required "backbone".
 
+        Args:
+            model_type: Type of backbone (Options: VGG16 | DenseNet121 | ResNet152 | ResNet50)
+            output_size: Size of the output layer (Optional, Default: None)
+            return_feature_maps: Return mode: image embeddings vs feature maps (Default: False)
+            pretrained: Loads pretrained model (Default: False)
+            name: Name of the module (DEFAULT: None)
         """
         TrainableNM.__init__(self, name=name)
 

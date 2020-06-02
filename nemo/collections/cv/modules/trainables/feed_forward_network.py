@@ -54,9 +54,8 @@ class FeedForwardNetwork(TrainableNM):
     A simple trainable module consisting of several stacked fully connected layers
     with ReLU non-linearities and dropout between them.
     
-    # TODO: parametrize non-linearities.
+    # TODO: parametrize with other non-linearities.
     
-    Additionally, the module applies log softmax non-linearity on the output of the last layer (logits).
     """
 
     def __init__(
@@ -69,8 +68,15 @@ class FeedForwardNetwork(TrainableNM):
         name: Optional[str] = None,
     ):
         """
-        Initializes the classifier.
+        Initializes the feed-forwad network.
 
+        Args:
+            input_size: Size of input (1D)
+            output_sizes: Size of the output (1D)
+            hidden_sizes: Sizes of the consecutive hidden layers (DEFAULT: [] = no hidden)
+            dimensions: Number of dimensions of input/output tensors (DEFAULT: 2 = BATCH X INPUT_SIZE)
+            dropout_rate: Dropout rage (Default: 0)
+            name: Name of the module (DEFAULT: None)
         """
         # Call constructor of the parent class.
         TrainableNM.__init__(self, name=name)

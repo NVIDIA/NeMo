@@ -99,7 +99,15 @@ class ConvNetEncoder(TrainableNM):
             Similarly for the ``stride``, ``padding``, ``dilatation``, ``return_indices`` & ``ceil_mode`` of \
             ``nn.MaxPool2D``.
 
-
+        Args: 
+            input_depth: Depth of the input image
+            input_height: Height of the input image
+            input_width: Width of the input image
+            convX_out_channels: Number of output channels of layer X (X=1,2,3)
+            convX_kernel_size: Kernel size of layer X (X=1,2,3)
+            convX_stride: Stride of layer X (X=1,2,3)
+            convX_padding: Padding of layer X (X=1,2,3)
+            name: Name of the module (DEFAULT: None)
         """
         # Call base constructor.
         TrainableNM.__init__(self, name=name)
