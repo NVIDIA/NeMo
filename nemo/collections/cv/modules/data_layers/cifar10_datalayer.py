@@ -29,7 +29,7 @@ from nemo.utils.decorators import add_port_docs
 __all__ = ['CIFAR10DataLayer']
 
 
-class CIFAR10DataLayer(DataLayerNM, CIFAR10):
+class CIFAR10DataLayer(DataLayerNM, Dataset):
     """
     A "thin DataLayer" -  wrapper around the torchvision's CIFAR10 dataset.
 

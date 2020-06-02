@@ -37,6 +37,8 @@ https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/con
 """
 
 
+from typing import Optional
+
 import numpy as np
 import torch.nn as nn
 
@@ -57,25 +59,25 @@ class ConvNetEncoder(TrainableNM):
 
     def __init__(
         self,
-        input_depth,
-        input_height,
-        input_width,
-        conv1_out_channels=64,
-        conv1_kernel_size=3,
-        conv1_stride=1,
-        conv1_padding=0,
-        maxpool1_kernel_size=2,
-        conv2_out_channels=32,
-        conv2_kernel_size=3,
-        conv2_stride=1,
-        conv2_padding=0,
-        maxpool2_kernel_size=2,
-        conv3_out_channels=16,
-        conv3_kernel_size=3,
-        conv3_stride=1,
-        conv3_padding=0,
-        maxpool3_kernel_size=2,
-        name=None,
+        input_depth: int,
+        input_height: int,
+        input_width: int,
+        conv1_out_channels: int = 64,
+        conv1_kernel_size: int = 3,
+        conv1_stride: int = 1,
+        conv1_padding: int = 0,
+        maxpool1_kernel_size: int = 2,
+        conv2_out_channels: int = 32,
+        conv2_kernel_size: int = 3,
+        conv2_stride: int = 1,
+        conv2_padding: int = 0,
+        maxpool2_kernel_size: int = 2,
+        conv3_out_channels: int = 16,
+        conv3_kernel_size: int = 3,
+        conv3_stride: int = 1,
+        conv3_padding: int = 0,
+        maxpool3_kernel_size: int = 2,
+        name: Optional[str] = None,
     ):
         """
         Constructor of the a simple CNN.

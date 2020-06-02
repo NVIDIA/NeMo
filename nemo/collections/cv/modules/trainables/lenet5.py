@@ -15,6 +15,8 @@
 # limitations under the License.
 # =============================================================================
 
+from typing import Optional
+
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
@@ -29,7 +31,7 @@ class LeNet5(TrainableNM):
     Classical LeNet-5 model for MNIST image classification.
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name: Optional[str] = None):
         """
         Creates the LeNet-5 model.
 

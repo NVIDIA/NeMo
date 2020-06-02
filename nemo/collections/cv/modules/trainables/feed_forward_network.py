@@ -36,6 +36,8 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/general_usage/feed_forward_network.py
 """
 
+from typing import List, Optional
+
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
@@ -57,7 +59,15 @@ class FeedForwardNetwork(TrainableNM):
     Additionally, the module applies log softmax non-linearity on the output of the last layer (logits).
     """
 
-    def __init__(self, input_size, output_size, hidden_sizes=[], dimensions=2, dropout_rate=0, name=None):
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        hidden_sizes: List[int] = [],
+        dimensions: int = 2,
+        dropout_rate: float = 0,
+        name: Optional[str] = None,
+    ):
         """
         Initializes the classifier.
 

@@ -14,6 +14,8 @@
 # limitations under the License.
 # =============================================================================
 
+from typing import Optional
+
 import torch
 
 from nemo.backends.pytorch.nm import LossNM
@@ -26,7 +28,7 @@ __all__ = ['NLLLoss']
 class NLLLoss(LossNM):
     """ Class representing a simple NLL loss. """
 
-    def __init__(self, name=None):
+    def __init__(self, name: Optional[str] = None):
         """
         Constructor.
 

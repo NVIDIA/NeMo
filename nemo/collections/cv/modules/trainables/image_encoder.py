@@ -38,6 +38,8 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/image_encoder.py
 """
 
+from typing import Optional
+
 import torch
 import torchvision.models as models
 
@@ -55,7 +57,14 @@ class ImageEncoder(TrainableNM):
     Class
     """
 
-    def __init__(self, model_type, output_size=None, return_feature_maps=False, pretrained=False, name=None):
+    def __init__(
+        self,
+        model_type: str,
+        output_size: Optional[int] = None,
+        return_feature_maps: bool = False,
+        pretrained: bool = False,
+        name: Optional[str] = None,
+    ):
         """
         Initializes the ``ImageEncoder`` model, creates the required backend.
 

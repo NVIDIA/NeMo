@@ -16,6 +16,8 @@
 # =============================================================================
 
 
+from typing import List, Optional
+
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
@@ -33,7 +35,7 @@ class NonLinearity(NonTrainableNM):
 
     """
 
-    def __init__(self, type="logsoftmax", sizes=[-1], name=None):
+    def __init__(self, type: str = "logsoftmax", sizes: List[int] = [-1], name: Optional[str] = None):
         """
         Initializes the object.
 

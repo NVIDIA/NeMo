@@ -36,6 +36,8 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/transforms/reshape_tensor.py
 """
 
+from typing import List, Optional
+
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import AxisKind, AxisType, NeuralType, VoidType
 from nemo.utils import logging
@@ -51,7 +53,7 @@ class ReshapeTensor(NonTrainableNM):
 
     """
 
-    def __init__(self, input_sizes, output_sizes, name=None):
+    def __init__(self, input_sizes: str, output_sizes: List[int], name: Optional[str] = None):
         """
         Initializes the object.
 
