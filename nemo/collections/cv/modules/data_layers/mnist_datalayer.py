@@ -16,34 +16,51 @@
 # =============================================================================
 
 from os.path import expanduser
+from typing import Optional
 
+from torch.utils.data import Dataset
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core.neural_types import AxisKind, AxisType, ClassificationTargetType, NeuralType, NormalizedImageType
+from nemo.core.neural_types import (
+    AxisKind,
+    AxisType,
+    ClassificationTarget,
+    Index,
+    NeuralType,
+    NormalizedImageValue,
+    Label,
+)
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MNISTDataLayer']
 
 
-class MNISTDataLayer(DataLayerNM, MNIST):
+class MNISTDataLayer(DataLayerNM, Dataset):
     """
     A "thin DataLayer" -  wrapper around the torchvision's MNIST dataset.
     """
 
     def __init__(
-        self, name=None, height=28, width=28, data_folder="~/data/mnist", train=True, batch_size=64, shuffle=True
+        self,
+        height: int = 28,
+        width: int = 28,
+        data_folder: str = "~/data/mnist",
+        train: bool = True,
+        name: Optional[str] = None,
+        batch_size: int = 64,
+        shuffle: bool = True,
     ):
         """
         Initializes the MNIST datalayer.
 
         Args:
-            name: Name of the module (DEFAULT: None)
             height: image height (DEFAULT: 28)
             width: image width (DEFAULT: 28)
             data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
             train: use train or test splits (DEFAULT: True)
+            name: Name of the module (DEFAULT: None)
             batch_size: size of batch (DEFAULT: 64) [PARAMETER OF DATALOADER]
             shuffle: shuffle data (DEFAULT: True) [PARAMETER OF DATALOADER]
         """
@@ -60,8 +77,8 @@ class MNISTDataLayer(DataLayerNM, MNIST):
         # Get absolute path.
         abs_data_folder = expanduser(data_folder)
 
-        # Call the base class constructor of MNIST dataset.
-        MNIST.__init__(self, root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
+        # Create the MNIST dataset object.
+        self._dataset = MNIST(root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
 
         # Remember the params passed to DataLoader. :]
         self._batch_size = batch_size
@@ -71,8 +88,8 @@ class MNISTDataLayer(DataLayerNM, MNIST):
         labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')
         word_to_ix = {labels[i]: i for i in range(10)}
 
-        # Reverse mapping - for labels. (NOT USED NOW)
-        self.ix_to_word = {value: key for (key, value) in word_to_ix.items()}
+        # Reverse mapping.
+        self._ix_to_word = {value: key for (key, value) in word_to_ix.items()}
 
     @property
     @add_port_docs()
@@ -82,6 +99,7 @@ class MNISTDataLayer(DataLayerNM, MNIST):
         By default, it sets image width and height to 32.
         """
         return {
+            "indices": NeuralType(tuple('B'), elements_type=Index()),
             "images": NeuralType(
                 axes=(
                     AxisType(kind=AxisKind.Batch),
@@ -89,17 +107,40 @@ class MNISTDataLayer(DataLayerNM, MNIST):
                     AxisType(kind=AxisKind.Height, size=self._height),
                     AxisType(kind=AxisKind.Width, size=self._width),
                 ),
-                elements_type=NormalizedImageType(),  # float, <0-1>
+                elements_type=NormalizedImageValue(),  # float, <0-1>
             ),
-            "targets": NeuralType(tuple('B'), elements_type=ClassificationTargetType()),
+            "targets": NeuralType(tuple('B'), elements_type=ClassificationTarget()),  # Target are ints!
+            "labels": NeuralType(tuple('B'), elements_type=Label()),  # Labels is string!
         }
 
     def __len__(self):
         """
         Returns:
-            len(Data) - to overwrite the abstract method (which is already overwritten by the other dependency)
+            Length of the dataset.
         """
-        return len(self.data)
+        return len(self._dataset)
+
+    def __getitem__(self, index: int):
+        """
+        Returns a single sample.
+
+        Args:
+            index: index of the sample to return.
+        """
+        # Get image and target.
+        img, target = self._dataset.__getitem__(index)
+  
+        # Return sample.
+        return index, img, target, self._ix_to_word[target]
+
+    @property
+    def ix_to_word(self):
+        """
+        Returns:
+            Dictionary with mapping of target indices (int) to labels (class names as strings)
+            that can we used by other modules.
+        """
+        return self._ix_to_word
 
     @property
     def dataset(self):
@@ -107,4 +148,5 @@ class MNISTDataLayer(DataLayerNM, MNIST):
         Returns:
             Self - just to be "compatible" with the current NeMo train action.
         """
-        return self
+        return self  # ! Important - as we want to use this __getitem__ method!
+

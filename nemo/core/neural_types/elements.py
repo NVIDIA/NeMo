@@ -35,11 +35,13 @@ __all__ = [
     'EmbeddedTextType',
     'EncodedRepresentation',
     'MaskType',
-    'TargetType',
-    'ClassificationTargetType',
-    'FeatureMapsType',
-    'ImageType',
-    'NormalizedImageType',
+    'Target',
+    'ClassificationTarget',
+    'ImageFeatureValue',
+    'Index',
+    'ImageValue',
+    'NormalizedImageValue',
+    'Label',
 ]
 
 import abc
@@ -201,31 +203,37 @@ class MaskType(PredictionsType):
     """Element type to represent a boolean mask"""
 
 
-class TargetType(ElementType):
-    """
-        Element type to represent a target value.
-    """
+class Index(ElementType):
+    """Type representing an element being an index of the sample."""
 
 
-class ClassificationTargetType(ElementType):
+class Target(ElementType):
     """
-        Element type to represent classification a target value, i.e. identifier of a desired class.
+        Type representing an element being a target value.
     """
 
-
-class FeatureMapsType(ElementType):
-    """Element type to feature maps"""
-
-
-class ImageType(ElementType):
+class ClassificationTarget(Target):
     """
-        Element type to represent a value of a single image channel,
+        Type representing an element being target value in the classification task, i.e. identifier of a desired class.
+    """
+
+class Label(ElementType):
+    """
+        Type representing an element being a target value.
+    """
+
+class ImageValue(ElementType):
+    """
+        Type representing an element/value of a single image channel,
         e.g. a single element (R) of RGB image.
     """
 
 
-class NormalizedImageType(ImageType):
+class NormalizedImageValue(ImageValue):
     """
-        Element type to represent a value of a single image channel normalized to <0-1> range,
+        Type representing an element/value of a single image channel normalized to <0-1> range,
         e.g. a single element (R) of normalized RGB image.
     """
+
+class ImageFeatureValue(ImageValue):
+    """Type representing an element (single value) of a (image) feature maps."""

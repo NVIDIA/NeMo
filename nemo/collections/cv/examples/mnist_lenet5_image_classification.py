@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
-        x, y = dl()
+        _, x, y, _ = dl()
         p = lenet5(images=x)
         loss = nll_loss(predictions=p, targets=y)
         # Set output - that output will be used for training.
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     # Create a validation graph, starting from the second data layer.
     with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
-        x, y = dl_e()
+        _, x, y, _  = dl_e()
         p = lenet5(images=x)
         loss_e = nll_loss(predictions=p, targets=y)
 

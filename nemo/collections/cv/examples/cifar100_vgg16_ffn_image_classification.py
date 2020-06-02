@@ -17,7 +17,7 @@
 import argparse
 
 import nemo.utils.argparse as nm_argparse
-from nemo.collections.cv.modules.data_layers import CIFAR10DataLayer
+from nemo.collections.cv.modules.data_layers import CIFAR100DataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
 from nemo.collections.cv.modules.non_trainables import NonLinearity, ReshapeTensor
 from nemo.collections.cv.modules.trainables import FeedForwardNetwork, GenericImageEncoder
@@ -27,7 +27,6 @@ from nemo.core import (
     NeuralModuleFactory,
     OperationMode,
     SimpleLossLoggerCallback,
-    WandbCallback,
 )
 from nemo.utils import logging
 
@@ -40,24 +39,24 @@ if __name__ == "__main__":
     # Instantiate Neural Factory.
     nf = NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.CPU)
 
-    # Data layer - upscale the CIFAR10 images to ImageNet resolution.
-    cifar10_dl = CIFAR10DataLayer(height=224, width=224, train=True)
+    # Data layer - upscale the CIFAR100 images to ImageNet resolution.
+    cifar100_dl = CIFAR100DataLayer(height=224, width=224, train=True)
     # The "model".
     image_encoder = GenericImageEncoder(model_type="vgg16", return_feature_maps=True, pretrained=True, name="vgg16")
     reshaper = ReshapeTensor(input_sizes=[-1, 7, 7, 512], output_sizes=[-1, 25088])
-    ffn = FeedForwardNetwork(input_size=25088, output_size=10, hidden_sizes=[1000, 1000], dropout_rate=0.1)
-    nl = NonLinearity(type="logsoftmax", sizes=[-1, 10])
+    ffn = FeedForwardNetwork(input_size=25088, output_size=100, hidden_sizes=[1000, 1000], dropout_rate=0.1)
+    nl = NonLinearity(type="logsoftmax", sizes=[-1, 100])
     # Loss.
     nll_loss = NLLLoss()
 
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
-        img, tgt = cifar10_dl()
+        _, img, _, _, fine_target, _  = cifar100_dl()
         feat_map = image_encoder(inputs=img)
         res_img = reshaper(inputs=feat_map)
         logits = ffn(inputs=res_img)
         pred = nl(inputs=logits)
-        loss = nll_loss(predictions=pred, targets=tgt)
+        loss = nll_loss(predictions=pred, targets=fine_target)
         # Set output - that output will be used for training.
         training_graph.outputs["loss"] = loss
 
@@ -70,15 +69,10 @@ if __name__ == "__main__":
         tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
     )
 
-    # Log training metrics to W&B.
-    wand_callback = WandbCallback(
-        train_tensors=[loss], wandb_name="simple-mnist-fft", wandb_project="cv-collection-image-classification",
-    )
-
     # Invoke the "train" action.
     nf.train(
         training_graph=training_graph,
-        callbacks=[callback, wand_callback],
+        callbacks=[callback],
         optimization_params={"num_epochs": 10, "lr": 0.001},
         optimizer="adam",
     )

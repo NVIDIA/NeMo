@@ -18,7 +18,7 @@
 import torch
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, ImageType, LogprobsType, NeuralType
+from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['LeNet5']
@@ -70,7 +70,7 @@ class LeNet5(TrainableNM):
                     AxisType(kind=AxisKind.Height, size=32),
                     AxisType(kind=AxisKind.Width, size=32),
                 ),
-                elements_type=ImageType(),
+                elements_type=ImageValue(),
             )
         }
 

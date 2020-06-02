@@ -27,7 +27,6 @@ from nemo.core import (
     NeuralModuleFactory,
     OperationMode,
     SimpleLossLoggerCallback,
-    WandbCallback,
 )
 from nemo.utils import logging
 
@@ -52,7 +51,7 @@ if __name__ == "__main__":
 
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
-        img, tgt = dl()
+        _, img, tgt, _ = dl()
         feat_map = cnn(inputs=img)
         res_img = reshaper(inputs=feat_map)
         logits = ffn(inputs=res_img)
@@ -69,15 +68,10 @@ if __name__ == "__main__":
         tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
     )
 
-    # Log training metrics to W&B.
-    wand_callback = WandbCallback(
-        train_tensors=[loss], wandb_name="simple-mnist-fft", wandb_project="cv-collection-image-classification",
-    )
-
     # Invoke the "train" action.
     nf.train(
         training_graph=training_graph,
-        callbacks=[callback, wand_callback],
+        callbacks=[callback],
         optimization_params={"num_epochs": 10, "lr": 0.001},
         optimizer="adam",
     )

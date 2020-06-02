@@ -41,7 +41,7 @@ import numpy as np
 import torch.nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, FeatureMapsType, ImageType, NeuralType
+from nemo.core.neural_types import AxisKind, AxisType, ImageFeatureValue, ImageValue, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -297,7 +297,7 @@ class ConvNetEncoder(TrainableNM):
                     AxisType(kind=AxisKind.Height, size=self._input_height),
                     AxisType(kind=AxisKind.Width, size=self._input_width),
                 ),
-                elements_type=ImageType(),
+                elements_type=ImageValue(),
             )
         }
 
@@ -315,7 +315,7 @@ class ConvNetEncoder(TrainableNM):
                     AxisType(kind=AxisKind.Height, size=self._feature_map_height),
                     AxisType(kind=AxisKind.Width, size=self._feature_map_width),
                 ),
-                elements_type=FeatureMapsType(),
+                elements_type=ImageFeatureValue(),
             )
         }
 

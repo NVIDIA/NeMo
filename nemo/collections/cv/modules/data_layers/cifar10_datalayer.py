@@ -16,12 +16,14 @@
 # =============================================================================
 
 from os.path import expanduser
+from typing import Optional
 
+from torch.utils.data import Dataset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core.neural_types import AxisKind, AxisType, ClassificationTargetType, ImageType, NeuralType
+from nemo.core.neural_types import AxisKind, AxisType, ClassificationTarget, ImageValue, Index, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['CIFAR10DataLayer']
@@ -30,20 +32,29 @@ __all__ = ['CIFAR10DataLayer']
 class CIFAR10DataLayer(DataLayerNM, CIFAR10):
     """
     A "thin DataLayer" -  wrapper around the torchvision's CIFAR10 dataset.
+
+    Reference page: http://www.cs.toronto.edu/~kriz/cifar.html
     """
 
     def __init__(
-        self, name=None, height=32, width=32, data_folder="~/data/cifar10", train=True, batch_size=64, shuffle=True
+        self,
+        height: int = 32,
+        width: int = 32,
+        data_folder: str = "~/data/cifar10",
+        train: bool = True,
+        name: Optional[str] = None,
+        batch_size: int = 64,
+        shuffle: bool = True,
     ):
         """
         Initializes the CIFAR10 datalayer.
 
         Args:
-            name: Name of the module (DEFAULT: None)
             height: image height (DEFAULT: 32)
             width: image width (DEFAULT: 32)
             data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/cifar10")
             train: use train or test splits (DEFAULT: True)
+            name: Name of the module (DEFAULT: None)
             batch_size: size of batch (DEFAULT: 64) [PARAMETER OF DATALOADER]
             shuffle: shuffle data (DEFAULT: True) [PARAMETER OF DATALOADER]
         """
@@ -60,8 +71,8 @@ class CIFAR10DataLayer(DataLayerNM, CIFAR10):
         # Get absolute path.
         abs_data_folder = expanduser(data_folder)
 
-        # Call the base class constructor of MNIST dataset.
-        CIFAR10.__init__(self, root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
+        # Create the CIFAR10 dataset object.
+        self._dataset = CIFAR10(root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
 
         # Remember the params passed to DataLoader. :]
         self._batch_size = batch_size
@@ -75,6 +86,7 @@ class CIFAR10DataLayer(DataLayerNM, CIFAR10):
         By default, it sets image width and height to 32.
         """
         return {
+            "indices": NeuralType(tuple('B'), elements_type=Index()),
             "images": NeuralType(
                 axes=(
                     AxisType(kind=AxisKind.Batch),
@@ -82,17 +94,30 @@ class CIFAR10DataLayer(DataLayerNM, CIFAR10):
                     AxisType(kind=AxisKind.Height, size=self._height),
                     AxisType(kind=AxisKind.Width, size=self._width),
                 ),
-                elements_type=ImageType(),  # uint8, <0-255>
+                elements_type=ImageValue(),  # uint8, <0-255>
             ),
-            "targets": NeuralType(tuple('B'), elements_type=ClassificationTargetType()),
+            "targets": NeuralType(tuple('B'), elements_type=ClassificationTarget()),
         }
 
     def __len__(self):
         """
         Returns:
-            len(Data) - to overwrite the abstract method (which is already overwritten by the other dependency)
+            Length of the dataset.
         """
-        return len(self.data)
+        return len(self._dataset)
+
+    def __getitem__(self, index: int):
+        """
+        Returns a single sample.
+
+        Args:
+            index: index of the sample to return.
+        """
+        # Get image and target.
+        img, target = self._dataset.__getitem__(index)
+  
+        # Return sample.
+        return index, img, target
 
     @property
     def dataset(self):
@@ -100,4 +125,4 @@ class CIFAR10DataLayer(DataLayerNM, CIFAR10):
         Returns:
             Self - just to be "compatible" with the current NeMo train action.
         """
-        return self
+        return self  # ! Important - as we want to use this __getitem__ method!
