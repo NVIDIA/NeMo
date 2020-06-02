@@ -240,7 +240,7 @@ class SGDDataProcessor(object):
                     if len(slots_list) > 1:
                         for service1, slot1 in slots_list:
                             for service2, slot2 in slots_list:
-                                if service1 == service2 or (service1 == service2 and slot1 == slot2):
+                                if service1 == service2:
                                     continue
                                 if service1 > service2:
                                     service1, service2 = service2, service1
