@@ -14,7 +14,7 @@ We use freesound "background categories" as background/non-speech audio sample f
 Google Speech Commands Dataset
 -----------------------------------
 
-Google released two versions of Speech Commands dataset (see :cite:`speech-recognition-dataset-warden2018speech`, which contains short audio clips of a fixed number of command words such as “stop”, “go”, “up”, “down”, etc spoken by a large number of speakers. The first version containing 65k samples over 30 classes and the second containing 110k samples over 35 classes.
+Google released two versions of Speech Commands dataset (see :cite:`vad-dataset-warden2018speech`, which contains short audio clips of a fixed number of command words such as “stop”, “go”, “up”, “down”, etc spoken by a large number of speakers. The first version containing 65k samples over 30 classes and the second containing 110k samples over 35 classes.
 We refer to these datasets as v1 and v2, and currently we use v2 data as speech audio utterance for voice activity detection.
 
 .. _Freesound_download_resamplet:
@@ -25,7 +25,7 @@ Please have a look at Data Preparation section in Tutorial.
 References
 ----------
 
-.. bibliography:: speech_recognition_all.bib
+.. bibliography:: vad_all.bib
     :style: plain
-    :labelprefix: SPEECH-RECOGNITION-DATASET
-    :keyprefix: speech-recognition-dataset-
+    :labelprefix: VAD-DATASET
+    :keyprefix: vad-dataset-

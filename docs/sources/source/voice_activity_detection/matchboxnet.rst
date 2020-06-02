@@ -1,7 +1,7 @@
 MatchboxNet
 -----------
 
-MatchboxNet is a version of QuartzNet :cite:`speech-recognition-models-majumdar2020`. QuartzNet can achieve performance
+MatchboxNet is a version of QuartzNet :cite:`vad-models-majumdar2020`. QuartzNet can achieve performance
 similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
@@ -28,7 +28,7 @@ MatchboxNet3x1 (73k params)  Speech Commands V2 + Freesound  99.71% Test 99.75% 
 References
 ^^^^^^^^^^
 
-.. bibliography:: speech_recognition_all.bib
+.. bibliography:: vad_all.bib
     :style: plain
-    :labelprefix: SPEECH-RECOGNITION-MODELS
-    :keyprefix: speech-recognition-models-
+    :labelprefix: VAD-MODELS
+    :keyprefix: vad-models-

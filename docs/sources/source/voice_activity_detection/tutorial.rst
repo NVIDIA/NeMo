@@ -22,10 +22,10 @@ It is an essential first step for a variety of speech-based applications includi
         
 There is a necessity for extreme small models with high accuracy and superior robustness to environmental noise that can efficiently perform streaming inference on such edge devices.
 
-This VAD tutorial is based on the MatchboxNet :cite:`speech-recognition-tut-majumdar2020` model with a modified decoder head to suit classification tasks. Instead of predicting a token for each time step of the input, we predict a single label for the fixed duration of the audio signal given a window size. This is accomplished by a decoder head that performs Global Max / Average pooling across all timesteps prior to classification. After this, the model can be trained via standard categorical cross-entropy loss.
+This VAD tutorial is based on the MatchboxNet :cite:`vad-tut-majumdar2020` model with a modified decoder head to suit classification tasks. Instead of predicting a token for each time step of the input, we predict a single label for the fixed duration of the audio signal given a window size. This is accomplished by a decoder head that performs Global Max / Average pooling across all timesteps prior to classification. After this, the model can be trained via standard categorical cross-entropy loss.
 
 1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
-2. Data augmentation using SpecAugment :cite:`speech-recognition-tut-park2019` to increase number of data samples.
+2. Data augmentation using SpecAugment :cite:`vad-tut-park2019` to increase number of data samples.
 3. Develop a small Neural classification model which can be trained efficiently.
 
 .. note::
@@ -103,7 +103,7 @@ Each line in json file describes a training sample:
 Training
 ---------
 
-We will be training a MatchboxNet model :cite:`speech-recognition-tut-majumdar2020` which is based on QuartzNet model :cite:`speech-recognition-tut-kriman2019quartznet`.
+We will be training a MatchboxNet model :cite:`vad-tut-majumdar2020` which is based on QuartzNet model :cite:`vad-tut-kriman2019quartznet`.
 The benefit of QuartzNet over JASPER models is that they use Separable Convolutions, which greatly reduce the number of
 parameters required to get good model accuracy.
 
@@ -720,7 +720,7 @@ First download pre-trained model (jasper_encoder, jasper_decoder and configurati
 References
 ----------
 
-.. bibliography:: speech_recognition_all.bib
+.. bibliography:: vad_all.bib
     :style: plain
-    :labelprefix: SPEECH-RECOGNITION-ALL-TUT
-    :keyprefix: speech-recognition-tut-
+    :labelprefix: VAD-ALL-TUT
+    :keyprefix: vad-tut-
