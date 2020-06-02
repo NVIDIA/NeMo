@@ -28,7 +28,10 @@ from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='HI-MIA Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
+parser.add_argument("--log_level", default=20, type=int)
 args = parser.parse_args()
+logging = logging.getLogger()
+logging.setLevel(args.log_level)
 
 URL = {
     'dev': "http://www.openslr.org/resources/85/dev.tar.gz",
@@ -85,7 +88,7 @@ def write_file(name, lines, idx):
             dic = lines[i]
             json.dump(dic, fout)
             fout.write('\n')
-    print("wrote", name)
+    logging.info("wrote", name)
 
 
 def __process_data(data_folder: str, data_set: str):
