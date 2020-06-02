@@ -154,16 +154,15 @@ class SGDDataProcessor(object):
             f.close()
 
         if not os.path.exists(self.slots_relation_file):
-            logging.error(
-                f"Slots relation file {self.slots_relation_file} does not exist. It disables the carry-over mechanism of state tracker for switches between services."
+            raise ValueError(
+                f"Slots relation file {self.slots_relation_file} does not exist. It is needed for the carry-over mechanism of state tracker for switches between services."
             )
-            slots_relation_list = {}
-        else:
-            with open(self.slots_relation_file, "rb") as f:
-                slots_relation_list = pickle.load(f)
-            logging.info(
-                f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
-            )
+
+        with open(self.slots_relation_file, "rb") as f:
+            slots_relation_list = pickle.load(f)
+        logging.info(
+            f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
+        )
 
         self.schema_emb_processor.schemas.slots_relation_list = slots_relation_list
 
