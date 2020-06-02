@@ -20,7 +20,7 @@ import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers import CIFAR10DataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
 from nemo.collections.cv.modules.non_trainables import NonLinearity
-from nemo.collections.cv.modules.trainables import GenericImageEncoder
+from nemo.collections.cv.modules.trainables import ImageEncoder
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Data layer - upscale the CIFAR10 images to ImageNet resolution.
     cifar10_dl = CIFAR10DataLayer(height=224, width=224, train=True)
     # The "model".
-    image_classifier = GenericImageEncoder(model_type="resnet50", output_size=10, pretrained=True, name="resnet50")
+    image_classifier = ImageEncoder(model_type="resnet50", output_size=10, pretrained=True, name="resnet50")
     nl = NonLinearity(type="logsoftmax", sizes=[-1, 10])
     # Loss.
     nll_loss = NLLLoss()

@@ -35,7 +35,7 @@ __author__ = "Tomasz Kornuta"
 
 """
 This file contains code artifacts adapted from the original implementation:
-https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/generic_image_encoder.py
+https://github.com/IBM/pytorchpipe/blob/develop/ptp/components/models/vision/image_encoder.py
 """
 
 import torch
@@ -47,17 +47,17 @@ from nemo.utils import logging
 from nemo.utils.configuration_parsing import get_value_from_dictionary
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['GenericImageEncoder']
+__all__ = ['ImageEncoder']
 
 
-class GenericImageEncoder(TrainableNM):
+class ImageEncoder(TrainableNM):
     """
     Class
     """
 
     def __init__(self, model_type, output_size=None, return_feature_maps=False, pretrained=False, name=None):
         """
-        Initializes the ``GenericImageEncoder`` model, creates the required backend.
+        Initializes the ``ImageEncoder`` model, creates the required backend.
 
         """
         TrainableNM.__init__(self, name=name)

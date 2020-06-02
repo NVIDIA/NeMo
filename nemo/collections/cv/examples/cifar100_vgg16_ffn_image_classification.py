@@ -20,7 +20,7 @@ import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers import CIFAR100DataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
 from nemo.collections.cv.modules.non_trainables import NonLinearity, ReshapeTensor
-from nemo.collections.cv.modules.trainables import FeedForwardNetwork, GenericImageEncoder
+from nemo.collections.cv.modules.trainables import FeedForwardNetwork, ImageEncoder
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Data layer - upscale the CIFAR100 images to ImageNet resolution.
     cifar100_dl = CIFAR100DataLayer(height=224, width=224, train=True)
     # The "model".
-    image_encoder = GenericImageEncoder(model_type="vgg16", return_feature_maps=True, pretrained=True, name="vgg16")
+    image_encoder = ImageEncoder(model_type="vgg16", return_feature_maps=True, pretrained=True, name="vgg16")
     reshaper = ReshapeTensor(input_sizes=[-1, 7, 7, 512], output_sizes=[-1, 25088])
     ffn = FeedForwardNetwork(input_size=25088, output_size=100, hidden_sizes=[1000, 1000], dropout_rate=0.1)
     nl = NonLinearity(type="logsoftmax", sizes=[-1, 100])
