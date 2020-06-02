@@ -276,12 +276,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         kb_result = self.db.query(domain.lower(), constraints)
         self.kb_result[domain] = deepcopy(kb_result)
 
-        # print("\tConstraint: " + "{}".format(constraints))
-        # print("\tCandidate Count: " + "{}".format(len(kb_result)))
-        # if len(kb_result) > 0:
-        #     print("Candidate: " + "{}".format(kb_result[0]))
-
-        # print(state['user_action'])
         # Respond to user's request
         if intent_type == 'Request':
             if self.recommend_flag > 1:
@@ -460,8 +454,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         kb_result = self.db.query('train', constraints)
         self.kb_result['Train'] = deepcopy(kb_result)
 
-        # print(constraints)
-        # print(len(kb_result))
         if user_act == 'Train-Request':
             del DA['Train-Request']
             if 'Train-Inform' not in DA:
@@ -624,42 +616,3 @@ def generate_car():
     car_types = ["toyota", "skoda", "bmw", "honda", "ford", "audi", "lexus", "volvo", "volkswagen", "tesla"]
     p = random.randint(0, 999999) % len(car_types)
     return car_types[p]
-
-
-def fake_state():
-    user_action = {'Hotel-Request': [['Name', '?']], 'Train-Inform': [['Day', 'don\'t care']]}
-    from convlab2.util.multiwoz.state import default_state
-
-    init_belief_state = default_state()['belief_state']
-    kb_results = [None, None]
-    kb_results[0] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'south'}
-    kb_results[1] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'north'}
-    state = {
-        'user_action': user_action,
-        'belief_state': init_belief_state,
-        'kb_results_dict': kb_results,
-        'hotel-request': [['phone']],
-    }
-    '''
-    state = {'user_action': dict(),
-             'belief_state: dict(),
-             'kb_results_dict': kb_results
-    }
-    '''
-    return state
-
-
-def test_init_state():
-    user_action = ['general-hello']
-    current_slots = dict()
-    kb_results = [None, None]
-    kb_results[0] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'south'}
-    kb_results[1] = {'name': 'xxx_train', 'day': 'tuesday', 'dest': 'cam', 'phone': '123-3333', 'area': 'north'}
-    state = {'user_action': user_action, 'current_slots': current_slots, 'kb_results_dict': []}
-    return state
-
-
-def test_run():
-    policy = RuleBasedMultiwozBot()
-    system_act = policy.predict(fake_state())
-    print(json.dumps(system_act, indent=4))

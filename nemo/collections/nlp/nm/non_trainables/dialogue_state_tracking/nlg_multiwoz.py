@@ -247,23 +247,3 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
             else:
                 return 'None'
         return sentences.strip()
-
-
-def example():
-    # dialog act
-    dialog_acts = [['Inform', 'Train', 'Day', 'wednesday'], ['Inform', 'Train', 'Leave', '10:15']]
-    print(dialog_acts)
-
-    # system model for manual, auto, auto_manual
-    nlg_sys_manual = TemplateNLG(is_user=False, mode='manual')
-    nlg_sys_auto = TemplateNLG(is_user=False, mode='auto')
-    nlg_sys_auto_manual = TemplateNLG(is_user=False, mode='auto_manual')
-
-    # generate
-    print('manual      : ', nlg_sys_manual.generate(dialog_acts))
-    print('auto        : ', nlg_sys_auto.generate(dialog_acts))
-    print('auto_manual : ', nlg_sys_auto_manual.generate(dialog_acts))
-
-
-if __name__ == '__main__':
-    example()

@@ -79,14 +79,14 @@ def dst_update(state, data_desc, user_uttr, encoder, decoder):
     """
     Updates dialogue state
     Args:
-        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        state (dict): state dictionary - see nemo.collections.nlp.data.datasets_multiwoz.multiwoz.default_state for the format
         data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
             and associated vocabulary
         user_uttr (str): user utterance from the current turn
         encoder (nm): TRADE encoder
         decoder (nm): TRADE decoder
     Returns:
-        state (dict): state dictionary - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        state (dict): state dictionary - see nemo.collections.nlp.data.datasets_multiwoz.multiwoz.default_state for the format
     """
     prev_state = state
     dst_output = get_trade_prediction(state, data_desc, encoder, decoder)
@@ -189,7 +189,7 @@ def reformat_belief_state(raw_state, bs, value_dict):
     Reformat TRADE model raw state into the default_state format
     Args:
         raw_state(list of strings): raw TRADE model output/state, each values represents domain-slot_name-slot_value, for example, ['hotel-pricerange-cheap', 'hotel-type-hotel']
-        bs (dict): belief state - see nemo.collections.nlp.data.datasets.multiwoz.default_state for the format
+        bs (dict): belief state - see nemo.collections.nlp.data.datasets_multiwoz.multiwoz.default_state for the format
         value_dict (dict): a dictionary of all slot values for MultiWOZ dataset
     Returns:
         bs (dict): reformatted belief state
@@ -225,9 +225,6 @@ def reformat_belief_state(raw_state, bs, value_dict):
 
 
 def minDistance(word1, word2):
-    import pdb
-
-    pdb.set_trace()
     """The minimum edit distance between word 1 and 2."""
     if not word1:
         return len(word2 or '') or 0
@@ -275,9 +272,7 @@ def normalize_value(value_set, domain, slot, value):
     if slot not in value_set[domain]:
         logging.warning('slot {} no in domain {}'.format(slot, domain))
         return value
-        # raise Exception(
-        #     'slot <{}> not found in db_values[{}]'.format(
-        #         slot, domain))
+
     value_list = value_set[domain][slot]
     # exact match or containing match
     v = _match_or_contain(value, value_list)
