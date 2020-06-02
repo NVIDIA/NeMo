@@ -18,15 +18,10 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/thu-coai/ConvLab-2/
 '''
-import copy
-import re
-
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA
-from nemo.collections.nlp.utils.callback_utils import tensor2numpy
-from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, LogitsType, NeuralType, VoidType
+from nemo.core import ChannelType, LengthsType, NeuralType, VoidType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -51,9 +46,9 @@ class UtteranceEncoderNM(NonTrainableNM):
         sys_uttr (str): system utterace
         """
         return {
-            "state": NeuralType(axes=tuple('ANY'), element_type=VoidType()),
-            "user_uttr": NeuralType(axes=tuple('ANY'), element_type=VoidType()),
-            "sys_uttr": NeuralType(axes=tuple('ANY'), element_type=VoidType()),
+            "state": NeuralType(axes=tuple('ANY'), elements_type=VoidType()),
+            "user_uttr": NeuralType(axes=tuple('ANY'), elements_type=VoidType()),
+            "sys_uttr": NeuralType(axes=tuple('ANY'), elements_type=VoidType()),
         }
 
     @property
@@ -64,8 +59,8 @@ class UtteranceEncoderNM(NonTrainableNM):
         src_lens (int): length of the tokenized dialogue history
         """
         return {
-            'src_ids': NeuralType(('B', 'T'), element_type=ChannelType()),
-            'src_lens': NeuralType(tuple('B'), elemenet_type=LengthsType()),
+            'src_ids': NeuralType(('B', 'T'), elements_type=ChannelType()),
+            'src_lens': NeuralType(tuple('B'), elemenets_type=LengthsType()),
         }
 
     def __init__(self, data_desc):

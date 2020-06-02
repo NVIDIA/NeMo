@@ -24,7 +24,7 @@ Human Language Technologies 2007: The Conference of the North American Chapter o
 Computational Linguistics;
 Companion Volume, Short Papers. Association for Computational Linguistics, 2007.
 '''
-import json
+
 import random
 from copy import deepcopy
 
@@ -32,7 +32,7 @@ from nemo import logging
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import Database
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
-from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, LogitsType, NeuralType, VoidType
+from nemo.core import AxisKind, AxisType, NeuralType, VoidType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedMultiwozBotNM']
@@ -117,7 +117,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         """
         return {
             'state': NeuralType(axes=(AxisType(kind=AxisKind.Any, is_list=True),), elements_type=VoidType(),),
-            'system_acts': NeuralType(axes=tuple('ANY'), element_type=VoidType()),
+            'system_acts': NeuralType(axes=tuple('ANY'), elements_type=VoidType()),
         }
 
     recommend_flag = -1

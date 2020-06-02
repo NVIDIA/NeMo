@@ -48,7 +48,6 @@ from nemo.collections.nlp.nm.non_trainables import (
     UtteranceEncoderNM,
 )
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
-from nemo.core import NmTensor
 from nemo.utils import logging
 
 parser = argparse.ArgumentParser(description="Complete dialogue pipeline examply with TRADE model on MultiWOZ dataset")

@@ -24,7 +24,7 @@ import os
 import random
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, LogitsType, NeuralType, VoidType
+from nemo.core import NeuralType, VoidType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -78,7 +78,7 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         """Returns definitions of module input ports.
         system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
         """
-        return {"system_acts": NeuralType(axes=tuple('ANY'), element_type=VoidType())}
+        return {"system_acts": NeuralType(axes=tuple('ANY'), elements_type=VoidType())}
 
     @property
     @add_port_docs()
@@ -86,7 +86,7 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         """Returns definitions of module output ports.
         system_uttr (str): generated system's response
         """
-        return {"system_uttr": NeuralType(axes=tuple('ANY'), element_type=VoidType())}
+        return {"system_uttr": NeuralType(axes=tuple('ANY'), elements_type=VoidType())}
 
     def __init__(self, mode="auto_manual"):
         """
