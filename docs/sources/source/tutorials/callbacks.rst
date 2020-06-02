@@ -103,6 +103,8 @@ can simply add these tensors to the ``tensors_to_log`` parameters of the relevan
     For more advanced logging of non-scalars such as images and audio to tensorboard, please take a look at the
     documentation and code for :class:`nemo.core.callbacks.TensorboardLogger`
 
+.. _callback-creation:
+
 Creating Your Own Callback
 --------------------------
 For more advanced user-cases where users want to inject their own logic not offered by NeMo's built-in callbacks, NeMo

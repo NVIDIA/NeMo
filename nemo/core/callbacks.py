@@ -65,7 +65,7 @@ class NeMoCallback(ABC):
     TODO: Add a link to documentation.
     """
 
-    def on_train_start(self, state):
+    def on_action_start(self, state):
         pass
 
     def on_epoch_start(self, state):
@@ -86,11 +86,11 @@ class NeMoCallback(ABC):
     def on_epoch_end(self, state):
         pass
 
-    def on_train_end(self, state):
+    def on_action_end(self, state):
         pass
 
 
-def on_train_start(func):
+def on_action_start(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_train_start callback event.
     """
@@ -99,7 +99,7 @@ def on_train_start(func):
         def __init__(self, my_func):
             self._func = my_func
 
-        def on_train_start(self, state):
+        def on_action_start(self, state):
             self._func(state)
 
     return NeMoCallbackWrapper(func)
@@ -195,7 +195,7 @@ def on_epoch_end(func):
     return NeMoCallbackWrapper(func)
 
 
-def on_train_end(func):
+def on_action_end(func):
     """A function decorator that wraps a Callable inside the NeMoCallback object and runs the function with the
     on_train_end callback event.
     """
@@ -204,7 +204,7 @@ def on_train_end(func):
         def __init__(self, my_func):
             self._func = my_func
 
-        def on_train_end(self, state):
+        def on_action_end(self, state):
             self._func(state)
 
     return NeMoCallbackWrapper(func)
@@ -335,7 +335,7 @@ class WandBLogger(NeMoCallback):
         self._log_epoch = log_epoch
         self._log_lr = log_lr
 
-    def on_train_start(self, state):
+    def on_action_start(self, state):
         if state["global_rank"] is None or state["global_rank"] == 0:
             if _WANDB_AVAILABLE and wandb.run is None:
                 wandb.init(name=self._name, project=self._project)
@@ -494,7 +494,7 @@ class CheckpointCallback(NeMoCallback):
                 )
                 return
 
-    def on_train_start(self, state):
+    def on_action_start(self, state):
         num_parameters = 0
         unique_mod_names = set()
         for module in AppState().modules:

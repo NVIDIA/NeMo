@@ -176,3 +176,29 @@ It requires following arguments:
 
 Updating to Callbacks to NeMo V0.11
 ===================================
+
+As of v0.11, only training callbacks after been updated, thus :class:`nemo.core.callbacks.EvaluatorCallback` still
+remains the correct method of adding evaluation logic to the training loop.
+:class:`nemo.core.callbacks.CheckpointCallback` has been updated to the new callback system and is fully backwards
+compatible.
+
+:class:`nemo.core.callbacks.WandbCallback` is succeeded by :class:`nemo.core.callbacks.WandBLogger`. There are a few
+changes to the instantiation of the callback. ``update_freq`` has been changed to ``step_freq``. ``train_tensors`` has
+been changed to ``tensors_to_log``. The new callback :class:`nemo.core.callbacks.WandBLogger` contains 2 additional
+boolean parameters which default to True: ``log_epoch`` which controls the logging of epoch statistics, and ``log_lr``
+which controls the logging of the learning rate.
+
+:class:`nemo.core.callbacks.SimpleLossLoggerCallback` has been split into :class:`nemo.core.callbacks.SimpleLogger`
+and :class:`nemo.core.callbacks.TensorboardLogger` which controls screen output and tensorboard output respectively.
+In terms of argument changes, ``tensors`` has been changed to ``tensors_to_log``. ``print_func`` has been removed from
+:class:`nemo.core.callbacks.SimpleLogger`. The new `SimpleLogger` simply prints the entire tensor. If a more complex
+printing methods such as printing 1 element or 1 dimension, please look into :ref:`callback-creation`. For
+:class:`nemo.core.callbacks.TensorboardLogger`, ``get_tb_values``, and ``log_to_tb_func`` have been removed. By
+default `TensorboardLogger` assumes each tensors passed to it in ``tensors_to_log`` is a scalar and logs it to
+tensorboard as a scalar. For more advanced functionality, `TensorboardLogger` accepts ``custom_tb_log_func`` which
+accepts one tensor from ``tensors_to_log`` at a time. In peusdocode, its looks like:
+
+.. code-block::
+
+    for tensor in tensors_to_log:
+        custom_tb_log_func(tensor)

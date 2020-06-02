@@ -1008,7 +1008,7 @@ class PtActions(Actions):
                     if isinstance(callback, ActionCallback):
                         callback.on_action_start()
                     elif isinstance(callback, NeMoCallback):
-                        callback.on_train_start(state)
+                        callback.on_action_start(state)
                     else:
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
@@ -1020,7 +1020,7 @@ class PtActions(Actions):
                     if isinstance(callback, ActionCallback):
                         callback.on_action_end()
                     elif isinstance(callback, NeMoCallback):
-                        callback.on_train_end(state)
+                        callback.on_action_end(state)
                     else:
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
