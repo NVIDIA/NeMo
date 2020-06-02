@@ -106,6 +106,9 @@ def get_carryover_value(
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
     """Update labels in a dialogue based on model predictions.
+    This approach retreives slot values from the history of system actions if slot is active but it can not find it in
+    user utterance overwrite the labels in the turn with the predictions from the model. For test set, these labels are
+    missing from the data and hence they are added.
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
     all_predictions: A dict mapping prediction name to the predicted value. See
@@ -114,9 +117,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
   Returns:
     A json object containing the dialogue with labels predicted by the model.
   """
-    # This approach retreives slot values from the history of system actions if slot is active but it can not find it in user utterance
-    # Overwrite the labels in the turn with the predictions from the model. For
-    # test set, these labels are missing from the data and hence they are added.
+
     dialog_id = dialog["dialogue_id"]
     # The slot values tracked for each service.
     all_slot_values = defaultdict(OrderedDict)
