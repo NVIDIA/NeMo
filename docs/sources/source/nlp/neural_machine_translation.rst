@@ -3,7 +3,7 @@ Tutorial
 
 In this tutorial we are going to implement Neural Machine Translation (NMT) system based on
 `Transformer encoder-decoder architecture <https://arxiv.org/abs/1706.03762>`_ :cite:`nlp-nmt-vaswani2017attention`.
-All code used in this tutorial is based on ``examples/nlp/machine_translation/machine_translation_tutorial.py``.
+All code used in this tutorial is based on ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py``.
 
 Preliminaries
 -------------
@@ -19,7 +19,7 @@ To clean the dataset we remove all sentence pairs such that:
 We use newstest2013 for development and newstest2014 for testing. All datasets, as well as the tokenizer model can be downloaded from
 `here <https://drive.google.com/open?id=1AErD1hEg16Yt28a-IGflZnwGTg9O27DT>`__. In the following steps, we assume that all data is located at **<path_to_data>**.
 
-**Resources.** Training script ``examples/nlp/machine_translation/machine_translation_tutorial.py`` used in this tutorial allows to train Transformer-big architecture
+**Resources.** Training script ``examples/nlp/neural_machine_translation/machine_translation_tutorial.py`` used in this tutorial allows to train Transformer-big architecture
 to **29.2** BLEU / **28.5** SacreBLEU on newstest2014 in approximately 15 hours on NVIDIA's DGX-1 with 16GB Volta GPUs.
 This setup can also be replicated with fewer resources by using more steps of gradient accumulation :cite:`nlp-nmt-ott2018scaling`.
 
@@ -84,14 +84,29 @@ Next, we define all Neural Modules necessary for our model:
         decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(**decoder_params)
         log_softmax = nemo_nlp.nm.trainables.TokenClassifier(**token_classifier_params)
         beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(**beam_search_params)
-        loss = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(**loss_params)
+        loss = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tgt_tokenizer.pad_id, label_smoothing=args.label_smoothing)
 
 Following `Press and Wolf, 2016 <https://arxiv.org/abs/1608.05859>`_ :cite:`nlp-nmt-press2016using`, we also tie the parameters of embedding and softmax layers:
 
     .. code-block:: python
 
-        log_softmax.log_softmax.dense.weight = encoder.embedding_layer.token_embedding.weight
-        decoder.embedding_layer.token_embedding.weight = encoder.embedding_layer.token_embedding.weight
+        log_softmax.tie_weights_with(
+                encoder,
+                weight_names=["mlp.last_linear_layer.weight"],
+                name2name_and_transform={
+                    "mlp.last_linear_layer.weight": ("embedding_layer.token_embedding.weight", WeightShareTransform.SAME)
+                },
+            ) 
+        decoder.tie_weights_with(
+            encoder,
+            weight_names=["embedding_layer.token_embedding.weight"],
+            name2name_and_transform={
+                "embedding_layer.token_embedding.weight": (
+                    "embedding_layer.token_embedding.weight",
+                    WeightShareTransform.SAME,
+                )
+            },
+        )
         
     .. note::
         You should not tie the parameters if you use different tokenizers for source and target.
@@ -102,9 +117,8 @@ in **source and target** tokens.
 
     .. code-block:: python
 
-        def create_pipeline(**args):
-            dataset = nemo_nlp.data.TranslationDataset(**translation_dataset_params)
-            data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(dataset)
+        def create_pipeline(**args):-
+            data_layer = nemo_nlp.nm.data_layers.TranslationDataLayer(**translation_datalayer_params)
             src, src_mask, tgt, tgt_mask, labels, sent_ids = data_layer()
             src_hiddens = encoder(input_ids=src, input_mask_src=src_mask)
             tgt_hiddens = decoder(input_ids_tgt=tgt,
@@ -162,7 +176,7 @@ Finally, we define the optimization parameters and run the whole pipeline.
                                      warmup_steps=args.warmup_steps)
 
         nf.train(tensors_to_optimize=[train_loss],
-                 callbacks=callbacks,
+                 callbacks=[train_callback, eval_callback, ckpt_callback],
                  optimizer=args.optimizer,
                  lr_policy=lr_policy_fn,
                  optimization_params={"num_epochs": max_num_epochs,
@@ -175,7 +189,7 @@ Finally, we define the optimization parameters and run the whole pipeline.
 Model training
 --------------
 
-To train the Transformer-big model, run ``machine_translation_tutorial.py`` located at ``examples/nlp/machine_translation``:
+To train the Transformer-big model, run ``machine_translation_tutorial.py`` located at ``examples/nlp/neural_machine_translation``:
 
     .. code-block:: python
 
@@ -197,24 +211,22 @@ Translation with pretrained model
 
 1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from
 `here <https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k>`__) into **<path_to_ckpt>**.
-2. Run ``machine_translation_tutorial.py`` in an interactive mode::
 
-    python machine_translation_tutorial.py --src_tokenizer_model bpe8k_yttm.model \
-         --eval_datasets test --optimizer novograd --d_model 1024 \
-         --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
-         --restore_checkpoint_from <path_to_ckpt> --interactive
+2. Run ``machine_translation_tutorial.py`` in an interactive mode:
 
+    .. code-block:: bash
 
-   .. image:: interactive_translation.png
-       :align: center
+        python machine_translation_tutorial.py --src_tokenizer_model bpe8k_yttm.model \
+            --eval_datasets test --optimizer novograd --d_model 1024 \
+            --d_inner 4096 --num_layers 6 --num_attn_heads 16 \
+            --restore_checkpoint_from <path_to_ckpt> --interactive
+    
+    .. image:: interactive_translation.png
 
 References
 ----------
 
-References
-------------------
-
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: NLP-NMT
     :keyprefix: nlp-nmt-

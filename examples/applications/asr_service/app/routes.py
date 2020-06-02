@@ -17,10 +17,8 @@ from app import (
 from flask import request
 from werkzeug.utils import secure_filename
 
-import nemo
 import nemo.collections.asr as nemo_asr
-
-logging = nemo.logging
+from nemo.utils import logging
 
 try:
     from app import beam_search_with_lm
@@ -86,7 +84,7 @@ def transcribe_file():
         greedy = True
         if request.form.get('beam'):
             if not ENABLE_NGRAM:
-                return "Error: Beam Search with ngram LM is not enabled " "on this server"
+                return "Error: Beam Search with ngram LM is not enabled on this server"
             greedy = False
         file_path = os.path.join(WORK_DIR, secure_filename(f.filename))
         f.save(file_path)

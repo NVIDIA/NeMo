@@ -12,12 +12,14 @@ from .....core import DeviceType
 from .....core.neural_types import *
 from ...nm import DataLayerNM, LossNM, TrainableNM
 from ..chatbot import data
+from nemo.utils.decorators import add_port_docs
 
 
 class DialogDataLayer(DataLayerNM):
     """Class representing data layer for a chatbot."""
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -71,6 +73,7 @@ class EncoderRNN(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -80,6 +83,7 @@ class EncoderRNN(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -131,6 +135,7 @@ class EncoderRNN(TrainableNM):
 
 class LuongAttnDecoderRNN(TrainableNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -141,6 +146,7 @@ class LuongAttnDecoderRNN(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -269,6 +275,7 @@ class LuongAttnDecoderRNN(TrainableNM):
 
 class MaskedXEntropyLoss(LossNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -279,6 +286,7 @@ class MaskedXEntropyLoss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
@@ -306,12 +314,14 @@ class MaskedXEntropyLoss(LossNM):
 
 class GreedyLuongAttnDecoderRNN(TrainableNM):
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {"encoder_outputs": NeuralType(('T', 'B', 'D'), ChannelType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

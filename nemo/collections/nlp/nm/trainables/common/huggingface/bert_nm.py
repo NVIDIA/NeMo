@@ -1,5 +1,7 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,11 +18,12 @@
 
 from typing import List, Optional
 
-from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_MAP, BertConfig, BertModel
+from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MODEL_ARCHIVE_LIST, BertConfig, BertModel
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BERT']
 
@@ -47,23 +50,25 @@ class BERT(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
+        input_ids: input token ids
+        token_type_ids: segment type ids
+        attention_mask: attention mask
         """
         return {
-            # "input_ids":      NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "token_type_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "attention_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
             "attention_mask": NeuralType(('B', 'T'), ChannelType()),
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
+        hidden_states: output embedding 
         """
-        # return {"hidden_states": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag), 2: AxisType(ChannelTag)})}
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
@@ -77,7 +82,13 @@ class BERT(TrainableNM):
         intermediate_size=3072,
         hidden_act="gelu",
         max_position_embeddings=512,
+        hidden_dropout_prob=0.1,
+        attention_probs_dropout_prob=0.1,
+        type_vocab_size=2,
+        initializer_range=0.02,
+        layer_norm_eps=1e-12,
     ):
+
         super().__init__()
 
         # Check that only one of pretrained_model_name, config_filename, and
@@ -124,12 +135,6 @@ class BERT(TrainableNM):
 
         self.add_module("bert", model)
         self.config = model.config
-
-        # TK: storing config name in init_params instead.
-        # for key, value in self.config.to_dict().items():
-        #    self._local_parameters[key] = value
-
-        # Store the only value that will be used externally - hidden_size.
         self._hidden_size = model.config.hidden_size
 
     @property
@@ -145,12 +150,12 @@ class BERT(TrainableNM):
     @staticmethod
     def list_pretrained_models() -> Optional[List[PretrainedModelInfo]]:
         pretrained_models = []
-        for key, value in BERT_PRETRAINED_MODEL_ARCHIVE_MAP.items():
+        for key in BERT_PRETRAINED_MODEL_ARCHIVE_LIST:
             model_info = PretrainedModelInfo(
                 pretrained_model_name=key,
                 description="weights by HuggingFace",
                 parameters=BERT_PRETRAINED_CONFIG_ARCHIVE_MAP[key],
-                location=value,
+                location="",
             )
             pretrained_models.append(model_info)
         return pretrained_models

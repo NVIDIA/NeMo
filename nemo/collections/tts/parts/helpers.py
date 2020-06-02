@@ -4,7 +4,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import torch
 
-import nemo
+from nemo.utils import logging
 
 __all__ = [
     "waveglow_log_to_tb_func",
@@ -139,7 +139,7 @@ def tacotron2_process_eval_batch(tensors: dict, global_vars: dict):
 def tacotron2_process_final_eval(global_vars: dict, tag=None):
     eloss = torch.mean(torch.stack(global_vars['EvalLoss'])).item()
     global_vars['EvalLoss'] = eloss
-    nemo.logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
+    logging.info(f"==========>>>>>>Evaluation Loss {tag}: {eloss}")
     return global_vars
 
 

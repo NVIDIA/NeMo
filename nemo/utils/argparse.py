@@ -1,5 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
+import os
 
 
 class NemoArgParser(argparse.ArgumentParser):
@@ -17,7 +18,7 @@ class NemoArgParser(argparse.ArgumentParser):
         super().__init__(**kwargs)
         # NeMo arguments
         self.add_argument(
-            "--local_rank", default=None, type=int, help="node rank for distributed training",
+            "--local_rank", default=os.getenv('LOCAL_RANK', None), type=int, help="node rank for distributed training",
         )
         self.add_argument(
             "--amp_opt_level",
@@ -83,13 +84,13 @@ class NemoArgParser(argparse.ArgumentParser):
             "--num_epochs",
             type=int,
             default=None,
-            help="number of epochs to train. You should specify" "either num_epochs or max_steps",
+            help="number of epochs to train. You should specify either num_epochs or max_steps",
         )
         self.add_argument(
             "--max_steps",
             type=int,
             default=None,
-            help="max number of steps to train. You should " "specify either num_epochs or max_steps",
+            help="max number of steps to train. You should specify either num_epochs or max_steps",
         )
         self.add_argument("--lr", type=float, default=1e-3, help="base learning rate")
         self.add_argument(
@@ -101,7 +102,7 @@ class NemoArgParser(argparse.ArgumentParser):
             "--iter_per_step",
             default=1,
             type=int,
-            help="number of gradients accumulation iterations " "per weights update step",
+            help="number of gradients accumulation iterations per weights update step",
         )
 
         # Logging arguments

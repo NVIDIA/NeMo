@@ -23,6 +23,7 @@ import torch
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
 from nemo.collections.nlp.callbacks.machine_translation_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.core import WeightShareTransform
 from nemo.utils.lr_policies import get_lr_policy
@@ -161,7 +162,7 @@ beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     eos_token=tgt_tokenizer.eos_id,
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(
+loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(
     pad_id=tgt_tokenizer.pad_id, label_smoothing=args.label_smoothing
 )
 
@@ -202,7 +203,7 @@ def create_pipeline(dataset_src, dataset_tgt, tokens_in_batch, clean=False, trai
         input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     logits = log_softmax(hidden_states=tgt_hiddens)
-    loss = loss_fn(logits=logits, target_ids=labels)
+    loss = loss_fn(logits=logits, labels=labels)
     beam_results = None
     if not training:
         beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=src_mask)
@@ -223,7 +224,7 @@ eval_loss, eval_tensors = create_pipeline(eval_dataset_src, eval_dataset_tgt, ar
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     step_freq=100,
-    print_func=lambda x: str(x[0].item()),
+    print_func=lambda x: logging.info(str(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
     tb_writer=nf.tb_writer,
 )

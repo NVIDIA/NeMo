@@ -1,5 +1,5 @@
 Tutorial
-===========================
+========
 
 In this tutorial we will train an ASR postprocessing model to correct mistakes in
 output of end-to-end speech recognition model. This model method works similar to translation model in contrast to traditional ASR language model rescoring.
@@ -34,21 +34,21 @@ Importing parameters from pretrained BERT
 Both encoder and decoder are initialized with pretrained BERT parameters.
 Since BERT language model has the same architecture as transformer encoder, there is no need to do anything additional.
 To prepare decoder parameters from pretrained BERT we wrote a script ``get_decoder_params_from_bert.py`` that downloads BERT
-parameters from the ``pytorch-transformers`` repository :cite:`asr-imps-huggingface2019transformers` and maps them into a transformer decoder.
+parameters from the ``transformers`` repository :cite:`asr-imps-huggingface2019transformers` and maps them into a transformer decoder.
 Encoder-decoder attention is initialized with self-attention parameters.
-The script is located under ``scripts`` directory and accepts 2 arguments:
+The script is located under ``examples/nlp/asr_postprocessor/get_decoder_params_from_bert.py`` directory and accepts 2 arguments:
 
 * ``--model_name``: e.g. ``bert-base-cased``, ``bert-base-uncased``, etc.
 * ``--save_to``: a directory where the parameters will be saved
 
     .. code-block:: bash
 
-        $ python get_decoder_params_from_bert.py --model_name bert-base-uncased
+        $ python get_decoder_params_from_bert.py --model_name bert-base-uncased --save_to results_dir
 
 
 Neural modules overview
 --------------------------
-First, as with all models built in NeMo, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level, 3)
+First, as with all models built in NeMo, we instantiate Neural Module Factory which defines 1) backend (PyTorch), 2) mixed precision optimization level, 3)
 local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
 
     .. code-block:: python
@@ -128,14 +128,14 @@ We trained on 8 GPUS. To launch the training in multi-gpu mode run the following
 
     .. code-block:: bash
 
-        $ python -m torch.distributed.launch --nproc_per_node=8  asr_postprocessor.py --data_dir ../../tests/data/pred_real/ --restore_from ../../scripts/bert-base-uncased_decoder.pt
+        $ python -m torch.distributed.launch --nproc_per_node=8  asr_postprocessor.py --data_dir data_dir --restore_from bert-base-uncased_decoder.pt
 
 
 
 References
 ------------------
 
-.. bibliography:: nlp_all.bib
+.. bibliography:: nlp_all_refs.bib
     :style: plain
     :labelprefix: ASR-IMPROVEMENTS
     :keyprefix: asr-imps-    

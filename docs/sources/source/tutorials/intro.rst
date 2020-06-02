@@ -8,6 +8,8 @@ Getting started
    examples
    neuraltypes
    custommodules
+   module_configuration
    weightsharing
    callbacks
    complex_training
+   neural_graphs

@@ -21,14 +21,15 @@ __all__ = [
     'NeuralTypeError',
     'NeuralPortNameMismatchError',
     'NeuralPortNmTensorMismatchError',
-    'CanNotInferResultNeuralType',
 ]
 import uuid
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 from nemo.core.neural_types.elements import *
+from nemo.utils.app_state import AppState
+from nemo.utils.neural_graph.connection import Connection, StepModulePort
 
 
 class NeuralType(object):
@@ -46,10 +47,11 @@ class NeuralType(object):
     """
 
     def __str__(self):
-        return (
-            f"axes: {[(c.kind, c.size, c.is_list) for c in self.axes]}\n"
-            f"elements_type: {self.elements_type.__class__.__name__}"
-        )
+
+        if self.axes is not None:
+            return f"axes: {self.axes}; elements_type: {self.elements_type.__class__.__name__}"
+        else:
+            return f"axes: None; elements_type: {self.elements_type.__class__.__name__}"
 
     def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
         if not isinstance(elements_type, ElementType):
@@ -110,6 +112,15 @@ class NeuralType(object):
                 return NeuralTypeComparisonResult.INCOMPATIBLE
         else:
             return NeuralTypeComparisonResult.INCOMPATIBLE
+
+    def compare_and_raise_error(self, parent_type_name, port_name, second_object):
+        """ Method compares definition of one type with another and raises an error if not compatible. """
+        type_comatibility = self.compare(second_object)
+        if (
+            type_comatibility != NeuralTypeComparisonResult.SAME
+            and type_comatibility != NeuralTypeComparisonResult.GREATER
+        ):
+            raise NeuralPortNmTensorMismatchError(parent_type_name, port_name, self, second_object, type_comatibility)
 
     @staticmethod
     def __check_sanity(axes):
@@ -191,7 +202,7 @@ class NmTensor(NeuralType):
     It also has a type of NeuralType represented by inheriting from NeuralType
     object."""
 
-    def __init__(self, producer, producer_args, name, ntype=None):
+    def __init__(self, producer, producer_args, output_port_name, ntype=None):
         """NmTensor constructor.
 
         Args:
@@ -200,10 +211,20 @@ class NmTensor(NeuralType):
             of arguments which were sent to producer to create this
         """
         super(NmTensor, self).__init__(axes=ntype.axes, elements_type=ntype.elements_type, optional=ntype.optional)
-        self._producer = producer
+        # producer is None: a special case present in some of the unit tests.
+        if producer is None:
+            self._producer_name = "None"
+        else:
+            self._producer_name = producer.name
         self._producer_args = producer_args
-        self._name = name
+        self._output_port_name = output_port_name
+        self._name = output_port_name
         self._uuid = str(uuid.uuid4())
+        # Remember step at which this tensor was created.
+        self._step_number = AppState().active_graph.step_number
+        # List of tuples (step number, module name, input port name)
+        self._consumers = []
+        AppState().tensor_names.register(self)
 
     @property
     def producer(self):
@@ -211,7 +232,67 @@ class NmTensor(NeuralType):
         Returns:
           NeuralModule object which produced this NmTensor.
         """
-        return self._producer
+        return AppState().modules[self._producer_name]
+
+    @property
+    def producer_name(self) -> str:
+        """
+        Returns:
+            Name of the producer of the tensor.
+        """
+        return self._producer_name
+
+    @property
+    def producer_step_number(self) -> int:
+        """
+        Returns:
+            Step number indicating when the tensor was produced.
+            (It also indicates who produced the tensor.)
+        """
+        return self._step_number
+
+    @property
+    def producer_step_module_port(self) -> StepModulePort:
+        """
+        Returns:
+          A tuple containing step number, module name and corresponding output port name.
+        """
+        return StepModulePort(self._step_number, self._producer_name, self._output_port_name)
+
+    @property
+    def consumers(self) -> List[StepModulePort]:
+        """
+        Returns:
+          A list of tuples containing consumer step number, module name and corresponding input port names.
+        """
+        return self._consumers
+
+    def add_consumer(self, step_module_port: StepModulePort):
+        """
+        Adds the "consumer" to tensor.
+
+        Args:
+            step_port: Step number, module name and module's input port.
+        """
+        self._consumers.append(step_module_port)
+
+    @property
+    def ntype(self):
+        """
+        Returns:
+            Neural Type associated with this NmTensor.
+        """
+        return NeuralType(axes=self.axes, elements_type=self.elements_type, optional=self.optional)
+
+    def connections(self):
+        """
+            "Serializes" the tensor to a list of connections (step/producer/port, step/consumer/port).
+
+        """
+        connections = []
+        for con_mod_port in self._consumers:
+            connections.append(Connection(self.producer_step_module_port, con_mod_port, self.ntype))
+        return connections
 
     @property
     def producer_args(self):
@@ -240,9 +321,22 @@ class NmTensor(NeuralType):
         Returns:
           str: unique name
         """
-        if self._producer is None:
+        if self._producer_name is None:
             raise ValueError("This NmTensor does not have a unique name")
-        return f"{self._name}~~~{self.producer}~~~{self._uuid}"
+        return f"{self._output_port_name}~~~{self._producer_name}~~~{self._uuid}"
+
+    def rename(self, new_name: str):
+        """Renames the tensor from its old name to a new user-defined name for easy access within callbacks. Note,
+        a tensor's unique_name is never changed. This simply adds a reference from new_name -> tensor.unique_name
+
+        args:
+            new_name (str): the new tensor's name.
+        """
+        AppState().tensor_names.rename_NmTensor(self, new_name)
+        self._name = new_name
+
+    def __str__(self):
+        return self.name
 
 
 class NeuralTypeError(Exception):
@@ -255,20 +349,15 @@ class NeuralPortNameMismatchError(NeuralTypeError):
     """Exception raised when neural module is called with incorrect port
     names."""
 
-    def __init__(self, message):
-        self.message = message
+    def __init__(self, input_port_name):
+        self.message = "Wrong input port name: {0}".format(input_port_name)
 
 
 class NeuralPortNmTensorMismatchError(NeuralTypeError):
     """Exception raised when a port is fed with a NmTensor of incompatible
     type."""
 
-    def __init__(self, message):
-        self.message = message
-
-
-class CanNotInferResultNeuralType(NeuralTypeError):
-    """Exception raised when NeuralType of output can not be inferred."""
-
-    def __init__(self, message):
-        self.message = message
+    def __init__(self, class_name, port_name, first_type, second_type, type_comatibility):
+        self.message = "\nIn {}. \nPort: {} and a NmTensor it was fed are \n".format(class_name, port_name)
+        self.message += "of incompatible neural types:\n\n{} \n\n and \n\n{}".format(first_type, second_type)
+        self.message += "\n\nType comparison result: {}".format(type_comatibility)

@@ -17,25 +17,23 @@
 
 __all__ = [
     'Backend',
-    'ModelMode',
+    'OperationMode',
     'Optimization',
     'DeviceType',
-    'Actions',
     'NeuralModuleFactory',
     'DeploymentFormat',
 ]
 
 import random
-from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 
 import nemo
-from ..utils import ExpManager
-from .callbacks import ActionCallback, EvaluatorCallback
-from .neural_types import *
+from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
+from nemo.core.neural_types import NmTensor
+from nemo.utils import ExpManager, logging
 from nemo.utils.decorators import deprecated
 
 
@@ -46,6 +44,8 @@ class DeploymentFormat(Enum):
     PYTORCH = 1
     TORCHSCRIPT = 2
     ONNX = 3
+    TRTONNX = 4
+    JARVIS = 5
 
 
 class Backend(Enum):
@@ -55,11 +55,12 @@ class Backend(Enum):
     NotSupported = 2
 
 
-class ModelMode(Enum):
-    """Training Mode or Evaluation/Inference"""
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
 
-    train = 0
-    eval = 1
+    training = 0
+    evaluation = 1
+    both = 2
 
 
 class Optimization(Enum):
@@ -78,164 +79,6 @@ class DeviceType(Enum):
     GPU = 1
     CPU = 2
     AllGpu = 3
-
-
-class Actions(ABC):
-    """Basic actions allowed on graphs of Neural Modules"""
-
-    def __init__(self, local_rank, global_rank, optimization_level=Optimization.mxprO0):
-        self._local_rank = local_rank
-        self._global_rank = global_rank
-        self._optim_level = optimization_level
-        self.step = None
-        self.epoch_num = None
-
-    @property
-    def local_rank(self):
-        """Local rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._local_rank
-
-    @property
-    def global_rank(self):
-        """Global rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._global_rank
-
-    @abstractmethod
-    def train(
-        self,
-        tensors_to_optimize: List[NmTensor],
-        callbacks: Optional[List[ActionCallback]],
-        lr_policy=None,
-        batches_per_step=None,
-        stop_on_nan_loss=False,
-    ):
-        """This action executes training and (optionally) evaluation.
-
-        Args:
-            tensors_to_optimize: which tensors to optimize. Typically this is
-                single loss tesnor.
-            callbacks: list of callback objects
-            lr_policy: function which should take (initial_lr, step, epoch) and
-                return learning rate
-            batches_per_step: number of mini-batches to process before one
-                optimizer step. (default: None, same as 1). Use this
-                to simulate larger batch sizes on hardware which could not fit
-                larger batch in memory otherwise. Effectively, this will make
-                "algorithmic" batch size per GPU/worker = batches_per_step*
-                batch_size
-            stop_on_nan_loss: (default: False) If set to True, the training
-                will stop if loss=nan. If set to False, the training will
-                continue, but the gradients will be zeroed before next
-                mini-batch.
-
-        Returns:
-            None
-        """
-        pass
-
-    @abstractmethod
-    def infer(self, tensors: List[NmTensor]):
-        """This action executes inference. Nothing is optimized.
-        Args:
-          tensors: which tensors to evaluate.
-
-        Returns:
-          None
-        """
-        pass
-
-    @abstractmethod
-    def save_state_to(self, path: str):
-        """
-        Saves current state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def restore_state_from(self, path: str):
-        """
-        Restores state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
-        """
-        Creates an optimizer object to be use in the train() method.
-
-        Args:
-            optimizer: Specifies which optimizer to use.
-            things_to_optimize: A list of neural modules or tensors to be
-                optimized.
-            optimizer_params: Specifies the parameters of the optimizer
-
-        Returns:
-            Optimizer
-        """
-        pass
-
-    def _perform_on_iteration_start(self, callbacks):
-        # TODO: Most of these checks can be relaxed since we enforce callbacks
-        # to be a list of ActionCallback objects
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_start()
-
-    def _perform_on_iteration_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_end()
-
-    def _perform_on_action_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_start()
-
-    def _perform_on_action_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_end()
-
-    def _perform_on_epoch_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_start()
-
-    def _perform_on_epoch_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_end()
-
-    def _init_callbacks(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.action = self
-
-    def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
-    ):
-        # if self.local_rank is None or self.local_rank == 0:
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback._registered_tensors = registered_tensors
 
 
 def _str_to_opt_level(opt_str: str) -> Optimization:
@@ -328,13 +171,18 @@ class NeuralModuleFactory(object):
 
             torch.backends.cudnn.benchmark = cudnn_benchmark
             if random_seed is not None and cudnn_benchmark:
-                raise ValueError("cudnn_benchmark can not be set to True" "when random_seed is not None.")
+                raise ValueError("cudnn_benchmark can not be set to True when random_seed is not None.")
             if random_seed is not None:
                 torch.backends.cudnn.deterministic = True
                 torch.backends.cudnn.benchmark = False
                 torch.manual_seed(random_seed)
                 np.random.seed(random_seed)
                 random.seed(random_seed)
+
+            # logging.info("Random seeds")
+            # logging.info("torch: %d", torch.initial_seed())
+            # logging.info("numpy: %d", )
+            # logging.info("random: %d", )
 
             if self._local_rank is not None:
                 torch.distributed.init_process_group(backend="nccl", init_method="env://")
@@ -421,8 +269,6 @@ class NeuralModuleFactory(object):
 
     @classmethod
     def reset_default_factory(cls):
-        if cls._DEFAULT:
-            cls._DEFAULT._exp_manager.reset_loggers()
         cls._DEFAULT = None
 
     @staticmethod
@@ -432,86 +278,6 @@ class NeuralModuleFactory(object):
         for comp in components[1:]:
             mod = getattr(mod, comp)
         return mod
-
-    @deprecated(version=0.11)
-    def __get_pytorch_module(self, name, collection, params, pretrained):
-        # TK: "factory" is not passed as parameter anymore.
-        # params["factory"] = self
-
-        if collection == "toys" or collection == "tutorials" or collection == "other":
-            constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.tutorials." + name)
-        elif collection == "nemo_nlp":
-            constructor = NeuralModuleFactory.__name_import("nemo_nlp." + name)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-        elif collection == "nemo_asr":
-            constructor = NeuralModuleFactory.__name_import("nemo_asr." + name)
-        elif collection == "nemo_lpr":
-            constructor = NeuralModuleFactory.__name_import("nemo_lpr." + name)
-        elif collection == 'common':
-            constructor = NeuralModuleFactory.__name_import('nemo.backends.pytorch.common.' + name)
-        elif collection == "torchvision":
-            import torchvision.models as tv_models
-            import nemo.backends.pytorch.module_wrapper as mw
-            import torch.nn as nn
-
-            if name == "ImageFolderDataLayer":
-                constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.torchvision.data." + name)
-                instance = constructor(**params)
-                return instance
-            else:
-                _nm_name = name.lower()
-                if _nm_name == "resnet18":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet18(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(512, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-                elif _nm_name == "resnet50":
-                    input_ports = {
-                        "x": NeuralType(
-                            {
-                                0: AxisType(BatchTag),
-                                1: AxisType(ChannelTag),
-                                2: AxisType(HeightTag, 224),
-                                3: AxisType(WidthTag, 224),
-                            }
-                        )
-                    }
-                    output_ports = {"output": NeuralType({0: AxisType(BatchTag), 1: AxisType(ChannelTag)})}
-
-                    pt_model = tv_models.resnet50(pretrained=pretrained)
-                    num_classes = params.get("num_classes", None)
-                    if num_classes is not None:
-                        pt_model.fc = nn.Linear(2048, params["num_classes"])
-                    return mw.TrainableNeuralModuleWrapper(
-                        pt_nn_module=pt_model, input_ports_dict=input_ports, output_ports_dict=output_ports,
-                    )
-        else:
-            collection_path = "nemo.collections." + collection + "." + name
-            constructor = NeuralModuleFactory.__name_import(collection_path)
-            if name == "BERT" and pretrained is True:
-                params["pretrained"] = True
-
-        # TK: "placement" is not passed as parameter anymore.
-        # if "placement" not in params:
-        #    params["placement"] = self._placement
-        instance = constructor(**params)
-        return instance
 
     @deprecated(version=0.11)
     def get_module(self, name, collection, params, pretrained=False):
@@ -531,21 +297,6 @@ class NeuralModuleFactory(object):
           NeuralModule instance
         """
 
-        # TK: "optimization_level" is not passed as parameter anymore.
-        # if params is not None and "optimization_level" in params:
-        #    if params["optimization_level"] != self._optim_level:
-        #        nemo.logging.warning(
-        #            "Module's {0} requested optimization level {1} is"
-        #            "different from the one specified by factory - {2}."
-        #            "Using: {3} for this module".format(
-        #                name, params["optimization_level"], self._optim_level, params["optimization_level"],
-        #            )
-        #        )
-        # else:
-        #    if params is None:
-        #        params = {}
-        #    params["optimization_level"] = self._optim_level
-
         if self._backend == Backend.PyTorch:
             return self.__get_pytorch_module(name=name, collection=collection, params=params, pretrained=pretrained,)
         else:
@@ -558,10 +309,11 @@ class NeuralModuleFactory(object):
 
     def train(
         self,
-        tensors_to_optimize,
+        tensors_to_optimize=None,
+        training_graph=None,
         optimizer=None,
         optimization_params=None,
-        callbacks: Optional[List[ActionCallback]] = None,
+        callbacks: Optional[List[Union[ActionCallback, NeMoCallback]]] = None,
         lr_policy=None,
         batches_per_step=None,
         stop_on_nan_loss=False,
@@ -575,6 +327,7 @@ class NeuralModuleFactory(object):
             self.reset_trainer()
         return self._trainer.train(
             tensors_to_optimize=tensors_to_optimize,
+            training_graph=training_graph,
             optimizer=optimizer,
             optimization_params=optimization_params,
             callbacks=callbacks,
@@ -598,7 +351,7 @@ class NeuralModuleFactory(object):
         )
 
     def deployment_export(
-        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None,
+        self, module, output: str, d_format: DeploymentFormat, input_example=None, output_example=None
     ):
         """Exports Neural Module instance for deployment.
 
@@ -609,29 +362,21 @@ class NeuralModuleFactory(object):
             input_example: sometimes tracing will require input examples
             output_example: Should match inference on input_example
         """
-        # Custom hacks: These will be put into a proper place soon
-        # We are checking type like this to avoid taking dependency on nemo_asr
-        if type(module).__name__ == "JasperEncoder":
-            # nemo.logging.warning(f"Module is JasperEncoder. We are removing"
-            #                     f"input and output length ports since they "
-            #                     f"are not needed for deployment")
-            # del module._input_ports['length']
-            # del module._output_ports['encoded_lengths']
+        if d_format == DeploymentFormat.JARVIS:
+            logging.info("Exporting model to Jarvis.")
+            module.deploy_to_jarvis(output=output)
+            logging.info(f"Exported to {output}")
+            return
 
-            # disable masked convolutions
-            m_count = 0
-            for m in module.modules():
-                if type(m).__name__ == "MaskedConv1d":
-                    m.use_mask = False
-                    m_count += 1
-            nemo.logging.warning(f"Turned off {m_count} masked convolutions")
+        _inexample, _out_example = module._prepare_for_deployment()
+
+        if input_example is not None:
+            _inexample = input_example
+        if output_example is not None:
+            _out_example = output_example
 
         return self._trainer.deployment_export(
-            module=module,
-            output=output,
-            d_format=d_format,
-            input_example=input_example,
-            output_example=output_example,
+            module=module, output=output, d_format=d_format, input_example=_inexample, output_example=_out_example,
         )
 
     def infer(
@@ -688,7 +433,6 @@ class NeuralModuleFactory(object):
         """Helper function to clean inference cache."""
         self._trainer.clear_cache()
 
-    @deprecated(version="future")
     def _get_trainer(self, tb_writer=None):
         if self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
@@ -709,7 +453,7 @@ class NeuralModuleFactory(object):
     )
     def get_trainer(self, tb_writer=None):
         if self._trainer:
-            nemo.logging.warning(
+            logging.warning(
                 "The trainer instance was created during initialization of "
                 "Neural factory, using the already created instance."
             )
@@ -732,7 +476,7 @@ class NeuralModuleFactory(object):
                 message on its own and exit
         """
         if self._world_size == 1:
-            nemo.logging.info("sync_all_processes does nothing if there is " "one process")
+            logging.info("sync_all_processes does nothing if there is one process")
             return
         if self._backend == Backend.PyTorch:
             import torch
@@ -740,7 +484,7 @@ class NeuralModuleFactory(object):
             status_tensor = torch.cuda.IntTensor([status])
             torch.distributed.all_reduce(status_tensor, op=torch.distributed.ReduceOp.MIN)
             if status_tensor.item() == 0:
-                nemo.logging.error("At least one process had a failure")
+                logging.error("At least one process had a failure")
                 if status:
                     raise ValueError(
                         f"Process with global rank {self._global_rank} entered"

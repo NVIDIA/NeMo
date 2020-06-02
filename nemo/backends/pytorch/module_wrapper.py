@@ -47,12 +47,6 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
         else:
             return NeuralModule.__call__(self, **kwargs)
 
-    def get_weights(self):
-        result = dict()
-        for name, parameter in self.named_parameters():
-            result[name] = (parameter, parameter.requires_grad)
-        return result
-
     def save_to(self, path):
         t.save(self._pt_module.state_dict(), path)
 
@@ -82,6 +76,8 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
         return result
 
     def set_weights(self, name2weight, name2name_and_transform=None):
+        if name2name_and_transform:
+            raise NotImplementedError("Transforms are not currently supported for set_weights")
         self._pt_module.load_state_dict({key: name2weight[key][0] for key in name2weight.keys()})
 
     def tie_weights_with(self, module, weight_names):

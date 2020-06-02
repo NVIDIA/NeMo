@@ -34,6 +34,7 @@ __all__ = [
     'LengthsType',
     'EmbeddedTextType',
     'EncodedRepresentation',
+    'MaskType',
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -48,6 +49,9 @@ class ElementType(ABC):
 
     def __str__(self):
         self.__doc__
+
+    def __repr__(self):
+        return self.__class__.__name__
 
     @property
     def type_parameters(self) -> Dict:
@@ -185,3 +189,7 @@ class RegressionValuesType(PredictionsType):
 
 class CategoricalValuesType(PredictionsType):
     """Element type to represent labels for categorical classification task"""
+
+
+class MaskType(PredictionsType):
+    """Element type to represent boolean mask"""

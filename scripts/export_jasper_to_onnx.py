@@ -1,13 +1,13 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import argparse
+import os
 
 import torch
 from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def get_parser():
@@ -30,6 +30,13 @@ def get_parser():
     parser.add_argument(
         "--pre-v09-model", action="store_true", help="Use if checkpoints were generated from NeMo < v0.9",
     )
+    parser.add_argument(
+        "--decoder_type",
+        default='ctc',
+        type=str,
+        choices=['ctc', 'classification'],
+        help="Type of decoder used by the model.",
+    )
     return parser
 
 
@@ -42,6 +49,7 @@ def main(
     pre_v09_model=False,
     batch_size=1,
     time_steps=256,
+    decoder_type='ctc',
 ):
     yaml = YAML(typ="safe")
 
@@ -54,6 +62,8 @@ def main(
         num_encoder_input_features = jasper_model_definition['AudioPreprocessing']['features']
     elif 'AudioToMelSpectrogramPreprocessor' in jasper_model_definition:
         num_encoder_input_features = jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features']
+    elif 'AudioToMFCCPreprocessor' in jasper_model_definition:
+        num_encoder_input_features = jasper_model_definition['AudioToMFCCPreprocessor']['n_mfcc']
     else:
         num_encoder_input_features = 64
     num_decoder_input_features = jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
@@ -62,14 +72,30 @@ def main(
 
     nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
 
+    # Compatibility for `feat_in` defined in config file
+    if 'feat_in' in jasper_model_definition['JasperEncoder']:
+        jasper_model_definition['JasperEncoder'].pop('feat_in')
+
     logging.info("Initializing models...")
     jasper_encoder = nemo_asr.JasperEncoder(
         feat_in=num_encoder_input_features, **jasper_model_definition['JasperEncoder']
     )
 
-    jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']),
-    )
+    if decoder_type == 'ctc':
+        jasper_decoder = nemo_asr.JasperDecoderForCTC(
+            feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']),
+        )
+    elif decoder_type == 'classification':
+        if 'labels' in jasper_model_definition:
+            num_classes = len(jasper_model_definition['labels'])
+        else:
+            raise ValueError("List of class labels must be defined in model config file with key 'labels'")
+
+        jasper_decoder = nemo_asr.JasperDecoderForClassification(
+            feat_in=num_decoder_input_features, num_classes=num_classes
+        )
+    else:
+        raise ValueError("`decoder_type` must be one of ['ctc', 'classification']")
 
     # This is necessary if you are using checkpoints trained with NeMo
     # version before 0.9
@@ -87,6 +113,15 @@ def main(
     else:
         jasper_encoder.restore_from(nn_encoder)
     jasper_decoder.restore_from(nn_decoder)
+
+    # Create export directories if they don't already exist
+    base_export_dir, export_fn = os.path.split(nn_onnx_encoder)
+    if not os.path.exists(base_export_dir):
+        os.makedirs(base_export_dir)
+
+    base_export_dir, export_fn = os.path.split(nn_onnx_decoder)
+    if not os.path.exists(base_export_dir):
+        os.makedirs(base_export_dir)
 
     logging.info("Exporting encoder...")
     nf.deployment_export(
@@ -114,4 +149,5 @@ if __name__ == "__main__":
         args.onnx_encoder,
         args.onnx_decoder,
         pre_v09_model=args.pre_v09_model,
+        decoder_type=args.decoder_type,
     )

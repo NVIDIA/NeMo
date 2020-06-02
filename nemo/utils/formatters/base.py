@@ -126,3 +126,9 @@ class BaseFormatter(logging.Formatter):
 
 class BaseNeMoFormatter(BaseFormatter):
     DEFAULT_FORMAT = "%(color)s[NeMo %(levelname)1.1s %(asctime)s %(module)s:%(lineno)d]%(end_color)s %(message)s"
+
+
+class DebugNeMoFormatter(BaseFormatter):
+    DEFAULT_FORMAT = (
+        "%(color)s[NeMo %(levelname)1.1s %(asctime)s %(module)s:%(lineno)d rank:%(rank)d]%(end_color)s %(message)s"
+    )

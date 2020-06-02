@@ -5,10 +5,12 @@ import torch
 from torch import nn
 from torch.nn.functional import pad
 
-from .parts.layers import get_mask_from_lengths
-from .parts.tacotron2 import Decoder, Encoder, Postnet
+from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, NonTrainableNM, TrainableNM
+from nemo.collections.tts.parts.layers import get_mask_from_lengths
+from nemo.collections.tts.parts.tacotron2 import Decoder, Encoder, Postnet
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 __all__ = [
     "MakeGate",
@@ -33,6 +35,7 @@ class TextEmbedding(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -40,6 +43,7 @@ class TextEmbedding(TrainableNM):
         return {"char_phone": NeuralType(('B', 'T'), LabelsType())}
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -75,6 +79,7 @@ class Tacotron2Encoder(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -88,6 +93,7 @@ class Tacotron2Encoder(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -153,6 +159,7 @@ class Tacotron2Decoder(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -170,6 +177,7 @@ class Tacotron2Decoder(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -200,6 +208,7 @@ class Tacotron2Decoder(TrainableNM):
         attention_location_n_filters: int = 32,
         attention_location_kernel_size: int = 31,
         prenet_p_dropout: float = 0.5,
+        force: bool = False,
     ):
         super().__init__()
         self.decoder = Decoder(
@@ -219,10 +228,11 @@ class Tacotron2Decoder(TrainableNM):
             prenet_p_dropout=prenet_p_dropout,
             early_stopping=True,
         )
+        self.force = force
         self.to(self._device)
 
     def forward(self, char_phone_encoded, encoded_length, mel_target):
-        if self.training:
+        if self.training or self.force:
             mel_output, gate_output, alignments = self.decoder(
                 char_phone_encoded, mel_target, memory_lengths=encoded_length
             )
@@ -269,7 +279,44 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
             Defaults to 31.
     """
 
+    def __init__(
+        self,
+        n_mel_channels: int,
+        n_frames_per_step: int = 1,
+        encoder_embedding_dim: int = 512,
+        gate_threshold: float = 0.5,
+        prenet_dim: int = 256,
+        max_decoder_steps: int = 1000,
+        decoder_rnn_dim: int = 1024,
+        p_decoder_dropout: float = 0.1,
+        p_attention_dropout: float = 0.1,
+        attention_rnn_dim: int = 1024,
+        attention_dim: int = 128,
+        attention_location_n_filters: int = 32,
+        attention_location_kernel_size: int = 31,
+        prenet_p_dropout: float = 0.5,
+        force: bool = False,
+    ):
+        super().__init__(
+            n_mel_channels=n_mel_channels,
+            n_frames_per_step=n_frames_per_step,
+            encoder_embedding_dim=encoder_embedding_dim,
+            gate_threshold=gate_threshold,
+            prenet_dim=prenet_dim,
+            max_decoder_steps=max_decoder_steps,
+            decoder_rnn_dim=decoder_rnn_dim,
+            p_decoder_dropout=p_decoder_dropout,
+            p_attention_dropout=p_attention_dropout,
+            attention_rnn_dim=attention_rnn_dim,
+            attention_dim=attention_dim,
+            attention_location_n_filters=attention_location_n_filters,
+            attention_location_kernel_size=attention_location_kernel_size,
+            prenet_p_dropout=prenet_p_dropout,
+            force=force,
+        )
+
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -283,6 +330,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -304,7 +352,7 @@ class Tacotron2DecoderInfer(Tacotron2Decoder):
 
     def forward(self, char_phone_encoded, encoded_length):
         if self.training:
-            raise ValueError("You are using the Tacotron 2 Infer Neural Module" " in training mode.")
+            raise ValueError("You are using the Tacotron 2 Infer Neural Module in training mode.")
         with torch.no_grad():
             mel_output, gate_output, alignments, mel_len = self.decoder.infer(
                 char_phone_encoded, memory_lengths=encoded_length
@@ -329,6 +377,7 @@ class Tacotron2Postnet(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -340,6 +389,7 @@ class Tacotron2Postnet(TrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -388,6 +438,7 @@ class Tacotron2Loss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -415,6 +466,7 @@ class Tacotron2Loss(LossNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -467,7 +519,11 @@ class MakeGate(NonTrainableNM):
     """MakeGate is a helper Neural Module that makes the target stop value.
     """
 
+    def __init__(self):
+        super().__init__()
+
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -481,6 +537,7 @@ class MakeGate(NonTrainableNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """

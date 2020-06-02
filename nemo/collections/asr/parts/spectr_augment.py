@@ -14,7 +14,12 @@ class SpecAugment(nn.Module):
     freq_masks - how many frequency segments should be cut
     time_masks - how many time segments should be cut
     freq_width - maximum number of frequencies to be cut in one segment
-    time_width - maximum number of time steps to be cut in one segment
+    time_width - maximum number of time steps to be cut in one segment.
+        Can be a positive integer or a float value in the range [0, 1].
+        If positive integer value, defines maximum number of time steps
+        to be cut in one segment.
+        If a float value, defines maximum percentage of timesteps that
+        are cut adaptively.
     """
 
     def __init__(
@@ -30,9 +35,22 @@ class SpecAugment(nn.Module):
         self.freq_width = freq_width
         self.time_width = time_width
 
+        if isinstance(time_width, int):
+            self.adaptive_temporal_width = False
+        else:
+            if time_width > 1.0 or time_width < 0.0:
+                raise ValueError('If `time_width` is a float value, must be in range [0, 1]')
+
+            self.adaptive_temporal_width = True
+
     @torch.no_grad()
     def forward(self, x):
         sh = x.shape
+
+        if self.adaptive_temporal_width:
+            time_width = max(1, int(sh[2] * self.time_width))
+        else:
+            time_width = self.time_width
 
         mask = torch.zeros(x.shape).byte()
 
@@ -45,9 +63,9 @@ class SpecAugment(nn.Module):
                 mask[idx, x_left : x_left + w, :] = 1
 
             for i in range(self.time_masks):
-                y_left = int(self._rng.uniform(0, sh[2] - self.time_width))
+                y_left = int(self._rng.uniform(0, sh[2] - time_width))
 
-                w = int(self._rng.uniform(0, self.time_width))
+                w = int(self._rng.uniform(0, time_width))
 
                 mask[idx, :, y_left : y_left + w] = 1
 

@@ -21,6 +21,7 @@ import nemo
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TranslationDataLayer']
 
@@ -41,35 +42,27 @@ class TranslationDataLayer(TextDataLayer):
             pairs with big difference in sentences length, removing pairs with
             the same tokens in src and tgt, etc; useful for training data layer
             and should not be used in evaluation data layer
+        dataset_type (Dataset):
+                the underlying dataset. Default: TranslationDataset
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
         src_ids: indices of tokens which correspond to source sentences
-
         src_mask: bool tensor with 0s in place of source tokens to be masked
-
         tgt_ids: indices of tokens which correspond to target sentences
-
         tgt_mask: bool tensor with 0s in place of target tokens to be masked
-
         labels: indices of tokens which should be predicted from each of the
             corresponding target tokens in tgt_ids; for standard neural
             machine translation equals to tgt_ids shifted by 1 to the right
-
         sent_ids: indices of the sentences in a batch; important for
             evaluation with external metrics, such as SacreBLEU
 
         """
         return {
-            # "src_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "src_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "tgt_ids": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "tgt_mask": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "labels": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
-            # "sent_ids": NeuralType({0: AxisType(BatchTag)}),
             "src_ids": NeuralType(('B', 'T'), ChannelType()),
             "src_mask": NeuralType(('B', 'T'), ChannelType()),
             "tgt_ids": NeuralType(('B', 'T'), ChannelType()),

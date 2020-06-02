@@ -23,13 +23,13 @@
    继承类关系图。假设 API 的类是绿色的。红色类是用户将要执行的。
 
 可训练模块
------------------
+------------
 .. note::
     注意 :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类
     有两个基础类：:class:`NeuralModule<nemo.core.neural_modules.NeuralModule>` 类 和 ``torch.nn.Module``.
 
 从头定义模块
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 (1) 首先继承 :class:`TrainableNM<nemo.backends.pytorch.nm.TrainableNM>` 类。
 (2) 实现 ``input_ports`` 和 ``output_ports`` 属性，定义输入输出端口。
@@ -97,6 +97,7 @@
             return self.fc1(nx)
 
 
+
 转换 PyTorch 的 nn.Module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -124,9 +125,10 @@
 ----------
 (1) 继承自 :class:`DataLayerNM<nemo.backends.pytorch.nm.DataLayerNM>` 类。
 (2) 实现 ``__len__`` 方法，返回数据集大小
-(3) 实现 ``dataset`` 或者 ``data_iterator`` 属性，返回一个PyTorch数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)
+(3) 实现 ``dataset`` 或者 ``data_iterator`` 属性，返回一个 PyTorch 数据集对象或者你的数据集的迭代器。(没有使用的属性应该返回None)
 
-当实现构造函数的时候，你首先要调用基类构造函数，并且定义在output_ports定义 *仅输出端口* 。
+当实现构造函数的时候，你首先要调用基类构造函数，
+并且定义在 output_ports 定义 *仅输出端口* 。
 另外，模块应该接收像是 ``batch_size`` 和 ``shuffle`` 的参数。
 
 如果你使用了 ``torch.utils.data.Dataset`` 类 (*推荐方法*)，那么你可以实现 ``dataset`` 属性，一个数据加载器就会自动给你创建。
@@ -137,6 +139,7 @@
 
 这个例子把 PyTorch 的 *ImageFolder* 数据集封装成一个神经模块的数据层。
 
+
 .. code-block:: python
 
     import torch
@@ -146,9 +149,11 @@
     """这个类把 Pytorch 的 ImageFolder 数据集的 API 封装成了神经模块"""
 
     class ImageFolderDataLayer(DataLayerNM):
+
         @property
         def output_ports(self):
-            # 注意，我们会定义输出的高和宽
+            """返回模块输出端口的定义"""
+            # 注意，我们会定义输出的高和宽的尺寸张量
             # 因此需要一个size参数
             return {
                 "image": NeuralType(
@@ -196,12 +201,14 @@
 (3) 在构造函数里调用基类构造函数
 (4) 实现 :meth:`_loss_function<nemo.backends.pytorch.nm.LossNM._loss_function>` 方法。
 
+
 Example
 ~~~~~~~
 
 .. code-block:: python
 
     class CrossEntropyLoss(LossNM):
+    
         @property
         def input_ports(self):
             return {"predictions": NeuralType({

@@ -53,7 +53,7 @@ def parse_args():
         type=int,
         default=None,
         required=True,
-        help="number of epochs to train. You should specify" "either num_epochs or max_steps",
+        help="number of epochs to train. You should specify either num_epochs or max_steps",
     )
     parser.add_argument(
         "--model_config", type=str, required=True, help="model configuration file: model.yaml",

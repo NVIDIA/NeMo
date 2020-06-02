@@ -1,4 +1,19 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
 from abc import abstractmethod
 from typing import Dict, List, Optional, Set, Tuple
@@ -6,8 +21,8 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch as t
 import torch.nn as nn
 
-from ...core import DeviceType, NeuralModule, WeightShareTransform
-from ...utils.helpers import get_cuda_device, rgetattr, rsetattr
+from nemo.core import DeviceType, ModuleType, NeuralModule, WeightShareTransform
+from nemo.utils.helpers import get_cuda_device, rgetattr, rsetattr
 
 
 class TrainableNM(NeuralModule, nn.Module):
@@ -34,10 +49,16 @@ class TrainableNM(NeuralModule, nn.Module):
 
     """
 
-    def __init__(self, pretrained_model_name=None):
-
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, pretrained_model_name=None, name=None):
+        # Initialize nn.Module first - important for the inspect during the init_params collection.
         nn.Module.__init__(self)  # For PyTorch API
+        NeuralModule.__init__(self, name)  # For NeuralModule API
+
+        # Unfrozen by default.
+        self._frozen = False
+
+        # Set module type.
+        self._type = ModuleType.trainable
 
         self._device = get_cuda_device(self.placement)
 
@@ -64,7 +85,7 @@ class TrainableNM(NeuralModule, nn.Module):
             if name2name_and_transform is None:
                 self.load_state_dict({key: name2weight[key][0] for key in name2weight.keys()})
             else:
-                self.load_state_dict({key: name2weight[key][0] for key in name2weight.keys()})
+                raise NotImplementedError("Transforms are not currently supported for set_weights")
 
     @t.jit.ignore
     def tie_weights_with(self, module, weight_names, name2name_and_transform=None):
@@ -112,6 +133,8 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = False
+        # Freeze.
+        self._frozen = True
 
     @t.jit.ignore
     def unfreeze(self, weights=None):
@@ -123,6 +146,15 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = True
+        # Unfreeze.
+        self._frozen = False
+
+    @t.jit.ignore
+    def is_frozen(self) -> bool:
+        """ Returns:
+                True/False depending whether there are any frozen weights or not.
+        """
+        return self._frozen
 
     @property
     def num_weights(self):
@@ -130,9 +162,11 @@ class TrainableNM(NeuralModule, nn.Module):
 
 
 class NonTrainableNM(NeuralModule):
-    def __init__(self):
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
         self._device = get_cuda_device(self.placement)
+        # Set module type.
+        self._type = ModuleType.nontrainable
 
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
@@ -170,7 +204,7 @@ class NonTrainableNM(NeuralModule):
     def save_to(self, path: str):
         pass
 
-    def restore_from(self, path: str):
+    def restore_from(self, path: str, local_rank: int = 0):
         pass
 
     def freeze(self, weights: Set[str] = None):
@@ -190,12 +224,16 @@ class DataLayerNM(NeuralModule):
     data_iterator property to return iterator over the dataset.
     """
 
-    def __init__(self):
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
+
+        # Set module type.
+        self._type = ModuleType.datalayer
+
         self._device = get_cuda_device(self.placement)
 
         # if 'batch_size' not in kwargs:
-        #    nemo.logging.warning("No batch_size specified in the data layer. "
+        #    logging.warning("No batch_size specified in the data layer. "
         #                    "Setting batch_size to 1.")
         #    kwargs['batch_size'] = 1
 
@@ -206,6 +244,7 @@ class DataLayerNM(NeuralModule):
         self._batch_size = 1
         self._num_workers = os.cpu_count()  # Use all CPUs by default.
         self._shuffle = False  # Don't shuffle by default.
+        self._pin_memory = False
 
     @property
     def input_ports(self):
@@ -217,46 +256,46 @@ class DataLayerNM(NeuralModule):
         return {}
 
     def get_weights(self):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Data Layer does not have any weights to return. "
         #     "This get_weights call returns None."
         # )
         return None
 
     def set_weights(self, name2weight: Dict[(str, bool)], name2name_and_transform):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Data Layer does not have any weights to set. "
         #     "This set_weights call is ignored."
         # )
         return None
 
     def tie_weights_with(self, module, weight_names):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Data Layer does not have any weights to tie. "
         #     "This tie_weights_with call is ignored."
         # )
         return None
 
     def save_to(self, path):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Data Layer does not have any state to save. "
         #     "This save_to call is ignored."
         # )
         return None
 
     def restore_from(self, path):
-        raise NotImplementedError("Data Layer could not be restored from any saved " "state.")
+        raise NotImplementedError("Data Layer could not be restored from any saved state.")
         return None
 
     def freeze(self, weights: Set[str] = None):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Data Layer does not have any weights to freeze. "
         #     "This freeze call is ignored."
         # )
         return None
 
     def unfreeze(self, weights: Set[str] = None):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Data Layer does not have any weights to unfreeze. "
         #     "This unfreeze call is ignored."
         # )
@@ -319,56 +358,65 @@ class DataLayerNM(NeuralModule):
     #    """ Property setting the number of workers. """
     #    self._num_workers = nw
 
+    @property
+    def pin_memory(self):
+        """ Property returning the pin memory flag. """
+        return self._pin_memory
+
 
 class LossNM(NeuralModule):
     """A helper Base class for creating Pytorch-based loss function modules.
     You must implement _loss_function method.
     """
 
-    def __init__(self):
-        NeuralModule.__init__(self)  # For NeuralModule API
+    def __init__(self, name=None):
+        NeuralModule.__init__(self, name)  # For NeuralModule API
+
+        # Set module type.
+        self._type = ModuleType.loss
+
         self._device = get_cuda_device(self.placement)
 
     def get_weights(self):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Loss function module does not have any weights "
         #      "to return. This get_weights call returns None.")
         return None
 
     def set_weights(self, name2weight: Dict[(str, bool)], name2name_and_transform):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Loss function module does not have any weights to set. "
         #     "This set_weights call is ignored."
         # )
         return None
 
     def tie_weights_with(self, module, weight_names):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Loss function module does not have any weights to tie. "
         #     "This tie_weights_with call is ignored."
         # )
         return None
 
     def save_to(self, path):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Loss function module does not have any state to save. "
         #     "This save_to call is ignored."
         # )
         return None
 
     def restore_from(self, path):
-        raise NotImplementedError("Loss function module could not be restored from " "any saved " "state.")
+        raise NotImplementedError("Loss function module could not be restored from any saved state.")
         return None
 
     def freeze(self, weights: Set[str] = None):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Loss function module does not have any weights to freeze. "
         #     "This freeze call is ignored."
         # )
         return None
 
     def unfreeze(self, weights: Set[str] = None):
-        # nemo.logging.warning(
+        # logging.warning(
         #     "Loss function module does not have any weights to "
         #     "unfreeze. This unfreeze call is ignored."
         # )

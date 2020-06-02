@@ -19,13 +19,17 @@ CheckpointCallback，和 EvaluatorCallback。
 SimpleLossLoggerCallback
 ------------------------
 SimpleLossLoggerCallback 是用来记录训练过程中的一些指标数据比如 loss 以及打印到屏幕
-或者 tensorboard 上两个时间步的间隔。SimpleLossLoggerCallback 有一个必须的参数和两个我们建议
-重写的参数。它接受一个 list 的 NMTensors, 这些NMTensors会在训练过程中作为 print_func()，
-get_tb_values() 和 log_to_tb_func() 函数的输入。两个推荐重写的参数是 print_func() 和
+或者 tensorboard 上两个时间步的间隔。
+SimpleLossLoggerCallback 有一个必须的参数和两个我们建议重写的参数。
+它接受一个 list 的 NMTensors, 
+这些NMTensors会在训练过程中作为 print_func()，
+get_tb_values() 和 log_to_tb_func() 函数的输入。
+两个推荐重写的参数是 print_func() 和
 get_tb_values() 或者 log_to_tb_func() 任选其一。
 
 print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 logging.info()
-来取代 print() 函数。比如，可以这么打印 loss 值：
+来取代 print() 函数。
+比如，可以这么打印 loss 值：
 
 .. code-block:: python
 
@@ -35,10 +39,13 @@ print_func() 应该用来记录打印到屏幕上的值。我们推荐使用 log
 
 我们提供了两个方法来打印到 tensorboard: get_tb_values() 和
 log_to_tb_func()。对于记录标量的简单用例，我们推荐使用 get_tb_values()。
-对于高级用例，像是图片或者音频，我们推荐用 log_to_tb_func() 函数。
+对于高级用例，像是图片或者音频，
+我们推荐用 log_to_tb_func() 函数。
 
-get_tb_values() 用来返回需要打印到 tensorboard 的值。它应该返回一个 list，其中每个元素是一个二元组。
-二元组的第一个元素是一个字符串，表示 tensorbard 标签，第二个元素是要记录的标量值。
+get_tb_values() 用来返回需要打印到 tensorboard 的值。
+它应该返回一个 list，其中每个元素是一个二元组。
+二元组的第一个元素是一个字符串，表示 tensorbard 标签，
+第二个元素是要记录的标量值。
 注意我们当前只支持标量值。注意如果要用 get_tb_values()，tb_writer 也需要定义。
 
 .. code-block:: python
@@ -72,15 +79,17 @@ SimpleLossLoggerCallback可以像下面这样创建:
         get_tb_values=my_get_tb_values,
         # 我们想要回调这个函数的频次
         step_freq=500,
-        # 我们想要用的 tensorboard writer, 如果 create_tb_writer 在 neural_factory
+        # 我们想要用的 tensorboard writer, 
+        # 如果 create_tb_writer 在 neural_factory
         # 中设置为True, 那么它会自动在 neural_factory 创建的时候被创建
         tb_writer=neural_factory.tb_writer)
     )
 
 CheckpointCallback
 ------------------
-CheckpointCallback 用于在训练过程中对 checkpoint 模型进行的操作，这样他们后面
-就可以重新加载来做推理或者微调。CheckpointCallback 用起来很简单:
+CheckpointCallback 用于在训练过程中对 checkpoint 模型进行的操作，
+这样他们后面就可以重新加载来做推理或者微调。
+CheckpointCallback 用起来很简单:
 
 .. code-block:: python
 
@@ -123,16 +132,40 @@ user_epochs_done_callback 是个接收 global_var_dict 为参数的函数。它�
 记录要打印到屏幕的相关信息，比如像是验证集上的 loss。
 
 像是把简单的标量值打印到 tensorboard 上，user_epochs_done_callback 应该返回一个字典，
-字符串是keys,标量值是 values。这个 tag 到 value 的字典会被解析，每个元素都会被记录到
-tensorboard上 (需要 tensorboard writer 定义好)。
+字符串是keys,标量值是 values。
+这个 tag 到 value 的字典会被解析
+，每个元素都会被记录到tensorboard上 (需要 tensorboard writer 定义好)。
 
 如果想使用更复杂的 tensorboard 打印记录像是图像或者音频，
-EvaluatorCallback 必须要在初始化的时候传递给 tb_writer_func 函数。这个函数必须要接收一个
+EvaluatorCallback 必须要在初始化的时候传递给 tb_writer_func 函数。
+这个函数必须要接收一个
 `tensorboardX.SummaryWriter <https://tensorboardx.readthedocs.io/en/latest/tensorboard.html>`_
 参数，以及 user_epochs_done_callback 需要的参数和当前步。
 
 我们推荐用 user_epochs_done_callback 来简单返回 global_var_dict 
-从而给到 tb_writer_func 函数来处理。用户必须在 tb_writer_func 中记录所有需要的数据，
+在给到 tb_writer_func 函数来处理。用户必须在 tb_writer_func 中记录所有需要的数据，
 包括标量。
 
-例如，可以参考 <nemo_dir>/examples 下面的例子。
+你也可以在 Weights & Biases 实验追踪器中记录评估指标(evaluation metrics)。
+如果要这么做的话，请设置下面这些参数。另外，确保 wandb 已经安装，你可以运行 ``wandb login``。
+
+- wandb_name: W&B 实验名称
+- wandb_project: W&B 项目名称
+
+相关的例子，可以参考 <nemo_dir>/examples 中的脚本。
+
+WandbCallback
+-----------------
+WandbCallback 把损失值(loss)和评估指标记录到 `Weights & Biases <https://docs.wandb.com/>`_.
+确保 wandb 已经安装，你可以运行 ``wandb login``。
+
+这是一个轻量的回调函数，可以把 **训练** 时候的指标记录到 Weights & Biases。
+想要记录评估时候的指标, 参考上面的Evaluator Callback。
+
+它需要下面的参数:
+
+- train_tensors: 一个list的需要评估记录的张量(tensors)
+- wandb_name: W&B 实验名字
+- wandb_project: W&B 项目名字
+- args: argparse flags - 需要记录的高参(hyper parameters)。
+- update_freq: 记录更新的频率
