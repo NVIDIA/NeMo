@@ -164,6 +164,7 @@ class AudioDataset(Dataset):
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         load_audio: Boolean flag indicate whether do or not load audio
+        add_misc: True if add adiditional info dict.
     """
 
     def __init__(
@@ -182,9 +183,7 @@ class AudioDataset(Dataset):
         eos_id=None,
         load_audio=True,
         parser='en',
-        add_id=False,
-        add_text_raw=False,
-        add_speaker=False,
+        add_misc=False,
     ):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
@@ -201,9 +200,7 @@ class AudioDataset(Dataset):
         self.eos_id = eos_id
         self.bos_id = bos_id
         self.load_audio = load_audio
-        self._add_id = add_id
-        self._add_text_raw = add_text_raw
-        self._add_speaker = add_speaker
+        self._add_misc = add_misc
 
     def __getitem__(self, index):
         sample = self.collection[index]
@@ -230,14 +227,12 @@ class AudioDataset(Dataset):
 
         output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
-        if self._add_text_raw:
-            output = (sample.text_raw,) + output
-
-        if self._add_id:
-            output = (sample.id,) + output
-
-        if self._add_speaker:
-            output = output + (sample.speaker,)
+        if self._add_misc:
+            misc = dict()
+            misc['id'] = sample.id
+            misc['text_raw'] = sample.text_raw
+            misc['speaker'] = sample.speaker
+            output = (output, misc)
 
         return output
 

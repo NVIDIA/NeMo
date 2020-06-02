@@ -35,6 +35,15 @@ def parse_args():
         parents=[nm_argparse.NemoArgParser()],
         conflict_handler='resolve',  # For parents common flags.
     )
+    parser.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
+    parser.add_argument("--eval_datasets", type=str, nargs="*", default=[], help="Evaluation datasets paths.")
+    parser.add_argument('--train_freq', type=int, default=300, help="Train metrics logging frequency.")
+    parser.add_argument('--grad_norm_clip', type=float, help="grad norm clip")
+    parser.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
+    parser.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
+    parser.add_argument('--wdb_project', type=str, help="WanDB run project")
+    parser.add_argument('--wdb_name', type=str, help="WanDB run name")
+    parser.add_argument('--wdb_tags', type=str, nargs="*", default=[], help="WanDB run tags")
     parser.set_defaults(
         amp_opt_level='O0',  # O1/O2 works notably faster, O3 usually produces NaNs.
         model_config='configs/talknet-mels-lj.yaml',

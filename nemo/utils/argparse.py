@@ -53,15 +53,13 @@ class NemoArgParser(argparse.ArgumentParser):
         self.add_argument(
             "--train_dataset", type=str, default=None, help="training dataset path",
         )
-        self.add_argument('--eval_names', type=str, nargs="*", default=[], help="Eval datasets names.")
         self.add_argument(
-            "--eval_datasets", type=str, nargs="*", default=[], help="evaludation datasets paths",
+            "--eval_datasets", type=str, nargs="*", help="evaludation datasets paths",
         )
         self.add_argument("--batch_size", type=int, help="train batch size per GPU")
         self.add_argument(
             "--eval_batch_size", type=int, help="evaluation  batch size per GPU",
         )
-        self.add_argument('--train_freq', type=int, default=300, help="Train metrics logging frequency.")
         self.add_argument(
             "--eval_freq", default=1000, type=int, help="evaluation frequency, steps",
         )
@@ -70,12 +68,10 @@ class NemoArgParser(argparse.ArgumentParser):
         self.add_argument(
             "--optimizer",
             type=str,
-            choices=["sgd", "adam", "fused_adam", "adam_w", "novograd", "lamb"],
+            choices=["sgd", "adam", "fused_adam", "adam_w", "novograd", "lamb",],
             help="optimizer",
         )
         self.add_argument("--weight_decay", type=float, default=0.0, help="weight decay")
-        self.add_argument('--grad_norm_clip', type=float, help="grad norm clip")
-        self.add_argument('--warmup', type=int, default=3000, help="Number of steps for warmup.")
         # self.add_argument("--momentum", type=float,
         #                   help="SGD momentum")
         # self.add_argument("--beta1", type=float,
@@ -97,7 +93,6 @@ class NemoArgParser(argparse.ArgumentParser):
             help="max number of steps to train. You should specify either num_epochs or max_steps",
         )
         self.add_argument("--lr", type=float, default=1e-3, help="base learning rate")
-        self.add_argument('--min_lr', type=float, default=1e-5, help="Minimum learning rate to decay to.")
         self.add_argument(
             "--lr_policy", type=str, default='WarmupAnnealing', help="learning rate decay policy",
         )
@@ -136,7 +131,3 @@ class NemoArgParser(argparse.ArgumentParser):
         self.add_argument(
             "--checkpoint_save_freq", default=1000, type=int, help="checkpoint frequency, steps",
         )
-
-        self.add_argument('--wdb_project', type=str, help="WanDB run project")
-        self.add_argument('--wdb_name', type=str, help="WanDB run name")
-        self.add_argument('--wdb_tags', type=str, nargs="*", default=[], help="WanDB run tags")

@@ -115,7 +115,8 @@ class TalkNetDataset:
             self._speaker_embs = np.load(speaker_embs, allow_pickle=True)
 
     def __getitem__(self, index):
-        id_, text_raw, audio, audio_len, text, text_len, speaker = self._audio_dataset[index]
+        (audio, audio_len, text, text_len), misc = self._audio_dataset[index]
+        id_, text_raw, speaker = misc['id'], misc['text_raw'], misc['speaker']
         example = dict(audio=audio, audio_len=audio_len, text=text, text_len=text_len, text_raw=text_raw)
 
         if self._durs_type == 'pad':
@@ -342,6 +343,37 @@ class TalkNetDataLayer(DataLayerNM):
         sampler_type='default',
         bd_aug=False,
     ):
+        """Creates TalkNet data iterator.
+
+        Args:
+            data: Path to dataset manifest file.
+            durs: Path to pickled durations file.
+            labels: List strings of labels to use.
+            durs_type: String id of durations type to use.
+            speakers: Speakers list file.
+            speaker_table: Speakers ids mapping.
+            speaker_embs: Speakers embeddings file.
+            batch_size: Number of sample in batch.
+            sample_rate: Target sampling rate for data. Audio files will be resampled to sample_rate if it is not
+                already.
+            int_values: Bool indicating whether the audio file is saved as int data or float data.
+            bos_id: Beginning of string symbol id used for seq2seq models.
+            eos_id: End of string symbol id used for seq2seq models.
+            pad_id: Token used to pad when collating samples in batches.
+            blank_id: Int id of blank symbol.
+            min_duration: All training files which have a duration less than min_duration are dropped.
+            max_duration: All training files which have a duration more than max_duration are dropped.
+            normalize_transcripts: Whether to use automatic text cleaning.
+            trim_silence: Whether to use trim silence from beginning and end of audio signal using
+                librosa.effects.trim().
+            load_audio: Controls whether the dataloader loads the audio signal and transcript or just the transcript.
+            drop_last: See PyTorch DataLoader.
+            shuffle: See PyTorch DataLoader.
+            num_workers: See PyTorch DataLoader.
+            sampler_type: String id of sampler type to use.
+            bd_aug: True if use augmentation for blanks/durs.
+        """
+
         super().__init__()
 
         # Set up dataset.
@@ -357,9 +389,7 @@ class TalkNetDataLayer(DataLayerNM):
             'bos_id': bos_id,
             'eos_id': eos_id,
             'load_audio': load_audio,
-            'add_id': True,
-            'add_text_raw': True,
-            'add_speaker': True,
+            'add_misc': True,
         }
         audio_dataset = AudioDataset(**dataset_params)
         self._dataset = TalkNetDataset(audio_dataset, durs, durs_type, speakers, speaker_table, speaker_embs)
