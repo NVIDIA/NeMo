@@ -60,7 +60,7 @@ class UtteranceEncoderNM(NonTrainableNM):
         """
         return {
             'src_ids': NeuralType(('B', 'T'), elements_type=ChannelType()),
-            'src_lens': NeuralType(tuple('B'), elemenets_type=LengthsType()),
+            'src_lens': NeuralType(tuple('B'), elements_type=LengthsType()),
         }
 
     def __init__(self, data_desc):
