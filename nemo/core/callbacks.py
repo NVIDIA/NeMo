@@ -211,16 +211,16 @@ def on_train_end(func):
 
 
 class SimpleLogger(NeMoCallback):
-    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, NmTensor]] = ["loss"]):
-        """A simple callback that prints tensors to screen. It's default option is to print the training loss every
-        100 steps. Additional tensors can be printed by adding them to the tensors_to_log argument.
+    """A simple callback that prints tensors to screen. It's default option is to print the training loss every
+    100 steps. Additional tensors can be printed by adding them to the tensors_to_log argument.
 
-        args:
-            step_freq (int): The frequency of printing to screen. Defaults to every 100 steps
-            tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be printed
-                every step_freq steps.
-                Defaults to ["loss"] which only prints the loss.
-        """
+    args:
+        step_freq (int): The frequency of printing to screen. Defaults to every 100 steps
+        tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be printed
+            every step_freq steps.
+            Defaults to ["loss"] which only prints the loss.
+    """
+    def __init__(self, step_freq: int = 100, tensors_to_log: List[Union[str, NmTensor]] = ["loss"]):
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
 
@@ -232,6 +232,26 @@ class SimpleLogger(NeMoCallback):
 
 
 class TensorboardLogger(NeMoCallback):
+    """A tensorboard callback that logs tensors using a tensorboard writer object. It's default option is to log
+    the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
+    argument. In order to log complex tensorboard entities, the custom_tb_log_func must be passed it. By default,
+    it always logs the current epoch and the time taken per epoch.
+
+    args:
+        tb_writer (required): The tensorboard logger object.
+        step_freq (int): The frequency of tensorboard logging. Defaults to every 100 steps
+        tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be logged
+            every step_freq steps.
+            Defaults to ["loss"] which only prints the loss.
+        custom_tb_log_func (func): TensorboardLogger loops through tensors_to_log and passes these elements to
+            custom_tb_log_func. So a custom_tb_log_func will receive one argument on each call with the arugment
+            being an element from tensors_to_log.
+            Defaults to None which logs each tensors_to_log as a scalar.
+        log_epoch (bool): Whether to log epoch and epoch training time to tensorboard.
+            Defaults to True.
+        log_lr (bool): Whether to log the learning rate to tensorboard.
+            Defaults to True.
+    """
     def __init__(
         self,
         tb_writer: 'torch.utils.tensorboard.SummaryWriter',
@@ -241,26 +261,6 @@ class TensorboardLogger(NeMoCallback):
         log_epoch: bool = True,
         log_lr: bool = True,
     ):
-        """A tensorboard callback that logs tensors using a tensorboard writer object. It's default option is to log
-        the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
-        argument. In order to log complex tensorboard entities, the custom_tb_log_func must be passed it. By default,
-        it always logs the current epoch and the time taken per epoch.
-
-        args:
-            tb_writer (required): The tensorboard logger object.
-            step_freq (int): The frequency of tensorboard logging. Defaults to every 100 steps
-            tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be logged
-                every step_freq steps.
-                Defaults to ["loss"] which only prints the loss.
-            custom_tb_log_func (func): TensorboardLogger loops through tensors_to_log and passes these elements to
-                custom_tb_log_func. So a custom_tb_log_func will receive one argument on each call with the arugment
-                being an element from tensors_to_log.
-                Defaults to None which logs each tensors_to_log as a scalar.
-            log_epoch (bool): Whether to log epoch and epoch training time to tensorboard.
-                Defaults to True.
-            log_lr (bool): Whether to log the learning rate to tensorboard.
-                Defaults to True.
-        """
         self.step_freq = step_freq
         self.tensors_to_log = tensors_to_log
         self.tb_writer = tb_writer
@@ -294,6 +294,26 @@ class TensorboardLogger(NeMoCallback):
 
 
 class WandBLogger(NeMoCallback):
+    """A [Weights & Biases](https://docs.wandb.com/) callback that logs tensors to W&B. It's default option is to
+    log the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
+    argument. By default, it always logs the current epoch and the time taken per epoch.
+
+    args:
+        step_freq (int): The frequency of Weights and Biases logging. Defaults to every 100 steps
+        tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be logged
+            every step_freq steps.
+            Defaults to ["loss"] which only prints the loss.
+        wandb_name(str): wandb experiment name.
+            Defaults to None
+        wandb_project(str): wandb project name.
+            Defaults to None
+        args: argparse flags which will be logged as hyperparameters.
+            Defaults to None.
+        log_epoch (bool): Whether to log epoch and epoch training time to Weights and Biases.
+            Defaults to True.
+        log_lr (bool): Whether to log epoch and epoch training time to Weights and Biases.
+            Defaults to True.
+    """
     def __init__(
         self,
         step_freq: int = 100,
@@ -304,26 +324,6 @@ class WandBLogger(NeMoCallback):
         log_epoch: bool = True,
         log_lr: bool = True,
     ):
-        """A [Weights & Biases](https://docs.wandb.com/) callback that logs tensors to W&B. It's default option is to
-        log the loss every 100 steps. Additional scalar tensors can be logged by adding them to the tensors_to_log
-        argument. By default, it always logs the current epoch and the time taken per epoch.
-
-        args:
-            step_freq (int): The frequency of Weights and Biases logging. Defaults to every 100 steps
-            tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be logged
-                every step_freq steps.
-                Defaults to ["loss"] which only prints the loss.
-            wandb_name(str): wandb experiment name.
-                Defaults to None
-            wandb_project(str): wandb project name.
-                Defaults to None
-            args: argparse flags which will be logged as hyperparameters.
-                Defaults to None.
-            log_epoch (bool): Whether to log epoch and epoch training time to Weights and Biases.
-                Defaults to True.
-            log_lr (bool): Whether to log epoch and epoch training time to Weights and Biases.
-                Defaults to True.
-        """
         if not _WANDB_AVAILABLE:
             logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
         self._step_freq = step_freq
@@ -375,6 +375,22 @@ class WandBLogger(NeMoCallback):
 
 
 class CheckpointCallback(NeMoCallback):
+    """A callback that does checkpointing of module weights and trainer (incl. optimizer) status.
+
+    args:
+        folder (str, required): A path where checkpoints are to be stored and loaded from if load_from_folder is
+            None.
+        load_from_folder (str): A path where checkpoints can be loaded from.
+            Defaults to None.
+        step_freq (int): How often in terms of steps to save checkpoints. One of step_freq or epoch_freq is
+            required.
+        epoch_freq (int): How often in terms of epochs to save checkpoints. One of step_freq or epoch_freq is
+            required.
+        checkpoints_to_keep (int): Number of most recent checkpoints to keep. Older checkpoints will be deleted.
+            Defaults to 4.
+        force_load (bool): Whether to crash if loading is unsuccessful.
+            Defaults to False
+    """
     def __init__(
         self,
         folder: str,
@@ -384,22 +400,6 @@ class CheckpointCallback(NeMoCallback):
         checkpoints_to_keep: int = 4,
         force_load: bool = False,
     ):
-        """A callback that does checkpointing of module weights and trainer (incl. optimizer) status.
-
-        args:
-            folder (str, required): A path where checkpoints are to be stored and loaded from if load_from_folder is
-                None.
-            load_from_folder (str): A path where checkpoints can be loaded from.
-                Defaults to None.
-            step_freq (int): How often in terms of steps to save checkpoints. One of step_freq or epoch_freq is
-                required.
-            epoch_freq (int): How often in terms of epochs to save checkpoints. One of step_freq or epoch_freq is
-                required.
-            checkpoints_to_keep (int): Number of most recent checkpoints to keep. Older checkpoints will be deleted.
-                Defaults to 4.
-            force_load (bool): Whether to crash if loading is unsuccessful.
-                Defaults to False
-        """
         if step_freq == -1 and epoch_freq == -1:
             logging.warning("No checkpoints will be saved because step_freq and epoch_freq are both -1.")
 
