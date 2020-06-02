@@ -2,7 +2,7 @@
 
 
 Voice Activity Detection
-========================
+==========================
 
 .. toctree::
    :maxdepth: 8

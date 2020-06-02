@@ -39,11 +39,11 @@ This VAD tutorial is based on the MatchboxNet :cite:`vad-tut-majumdar2020` model
 .. _data_preparaion:
 
 Data Preparation
-----------------
+-----------------
 
 
 Freesound Dataset
-#################
+##################
 
 
 We will use the freesound dataset (background categories) as our non-speech/background data. We provide scripts and you can customize a lot by using it. Note that downloading this dataset may takes hours. Then we will resample it.
