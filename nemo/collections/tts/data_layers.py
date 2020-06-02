@@ -1,11 +1,12 @@
 # Copyright (c) 2019 NVIDIA Corporation
 import torch
 
-import nemo
 from .parts.datasets import AudioOnlyDataset
 from nemo.backends.pytorch.nm import DataLayerNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
+from nemo.utils import logging
+from nemo.utils.decorators import add_port_docs
 
 
 class AudioDataLayer(DataLayerNM):
@@ -46,13 +47,14 @@ class AudioDataLayer(DataLayerNM):
     """
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         return {
             # "audio_signal": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "a_sig_length": NeuralType({0: AxisType(BatchTag)}),
-            "audio_signal": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_signal": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate)),
             "a_sig_length": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -60,6 +62,7 @@ class AudioDataLayer(DataLayerNM):
         self,
         manifest_filepath,
         batch_size,
+        sample_rate,
         min_duration=0.1,
         max_duration=None,
         trim_silence=False,
@@ -69,6 +72,7 @@ class AudioDataLayer(DataLayerNM):
         n_segments=0,
     ):
         super().__init__()
+        self.sample_rate = sample_rate
 
         self._dataset = AudioOnlyDataset(
             manifest_filepath=manifest_filepath,
@@ -80,7 +84,7 @@ class AudioDataLayer(DataLayerNM):
 
         sampler = None
         if self._placement == DeviceType.AllGpu:
-            nemo.logging.info('Parallelizing DATALAYER')
+            logging.info('Parallelizing DATALAYER')
             sampler = torch.utils.data.distributed.DistributedSampler(self._dataset)
 
         self._dataloader = torch.utils.data.DataLoader(

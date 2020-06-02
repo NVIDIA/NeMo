@@ -33,7 +33,7 @@ def is_build_action():
     if len(sys.argv) <= 1:
         return False
 
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop"]
+    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style", "clean"]
 
     if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
         return True
@@ -57,17 +57,17 @@ from nemo.package_info import (
     __version__,
 )
 
-if os.path.exists('README.rst'):
+if os.path.exists('nemo/README.md'):
+    with open("nemo/README.md", "r") as fh:
+        long_description = fh.read()
+    long_description_content_type = "text/markdown"
+
+elif os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
         os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
-
-elif os.path.exists('README.md'):
-    with open("README.md", "r") as fh:
-        long_description = fh.read()
-    long_description_content_type = "text/markdown"
 
 else:
     long_description = 'See ' + __homepage__
@@ -118,7 +118,7 @@ class StyleCommand(distutils_cmd.Command):
         'isort '
         # These two lines makes isort compatible with black.
         '--multi-line=3 --trailing-comma --force-grid-wrap=0 '
-        f'--use-parentheses --line-width={__LINE_WIDTH} -rc'
+        f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
     )
     __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
     description = 'Checks overall project code style.'
@@ -186,6 +186,7 @@ setuptools.setup(
     version=__version__,
     description=__description__,
     long_description=long_description,
+    long_description_content_type=long_description_content_type,
     # The project's main homepage.
     url=__repository_url__,
     download_url=__download_url__,

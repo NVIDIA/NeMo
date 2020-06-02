@@ -24,9 +24,9 @@ parser.add_argument("--data_sets", default="dev_clean", type=str)
 args = parser.parse_args()
 
 URLS = {
-    'TRAIN_CLEAN_100': ("http://www.openslr.org/resources/12/train-clean-100" ".tar.gz"),
-    'TRAIN_CLEAN_360': ("http://www.openslr.org/resources/12/train-clean-360" ".tar.gz"),
-    'TRAIN_OTHER_500': ("http://www.openslr.org/resources/12/train-other-500" ".tar.gz"),
+    'TRAIN_CLEAN_100': ("http://www.openslr.org/resources/12/train-clean-100.tar.gz"),
+    'TRAIN_CLEAN_360': ("http://www.openslr.org/resources/12/train-clean-360.tar.gz"),
+    'TRAIN_OTHER_500': ("http://www.openslr.org/resources/12/train-other-500.tar.gz"),
     'DEV_CLEAN': "http://www.openslr.org/resources/12/dev-clean.tar.gz",
     'DEV_OTHER': "http://www.openslr.org/resources/12/dev-other.tar.gz",
     'TEST_CLEAN': "http://www.openslr.org/resources/12/test-clean.tar.gz",
@@ -117,7 +117,7 @@ def main():
     data_sets = args.data_sets
 
     if data_sets == "ALL":
-        data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360," "train_other_500,test_clean,test_other"
+        data_sets = "dev_clean,dev_other,train_clean_100,train_clean_360,train_other_500,test_clean,test_other"
 
     for data_set in data_sets.split(','):
         logging.info("\n\nWorking on: {0}".format(data_set))

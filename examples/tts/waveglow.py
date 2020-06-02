@@ -1,18 +1,26 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import argparse
-import copy
 import os
 from functools import partial
-
-from ruamel.yaml import YAML
 
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.tts import waveglow_eval_log_to_tb_func, waveglow_log_to_tb_func, waveglow_process_eval_batch
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():
@@ -32,15 +40,9 @@ def parse_args():
     )
 
     # Overwrite default args
-    parser.add_argument(
-        "--max_steps", type=int, default=None, required=False, help="max number of steps to train",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, default=None, required=False, help="number of epochs to train",
-    )
-    parser.add_argument(
-        "--model_config", type=str, required=True, help="model configuration file: model.yaml",
-    )
+    parser.add_argument("--max_steps", type=int, default=None, help="max number of steps to train")
+    parser.add_argument("--num_epochs", type=int, default=None, help="number of epochs to train")
+    parser.add_argument("--model_config", type=str, required=True, help="model configuration file: model.yaml")
 
     # Create new args
     parser.add_argument("--exp_name", default="Waveglow", type=str)
@@ -57,7 +59,7 @@ def parse_args():
     exp_directory = [
         f"{args.exp_name}-lr_{args.lr}-bs_{args.batch_size}",
         "",
-        (f"-wd_{args.weight_decay}-opt_{args.optimizer}" f"-ips_{args.iter_per_step}"),
+        (f"-wd_{args.weight_decay}-opt_{args.optimizer}-ips_{args.iter_per_step}"),
     ]
     if args.max_steps:
         exp_directory[1] = f"-s_{args.max_steps}"
@@ -68,12 +70,12 @@ def parse_args():
     return args, "".join(exp_directory)
 
 
-def create_NMs(waveglow_params):
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        **waveglow_params["AudioToMelSpectrogramPreprocessor"]
+def create_NMs(waveglow_config_file):
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
+        waveglow_config_file, "AudioToMelSpectrogramPreprocessor"
     )
-    waveglow = nemo_tts.WaveGlowNM(**waveglow_params["WaveGlowNM"])
-    waveglow_loss = nemo_tts.WaveGlowLoss()
+    waveglow = nemo_tts.WaveGlowNM.import_from_config(waveglow_config_file, "WaveGlowNM")
+    waveglow_loss = nemo_tts.WaveGlowLoss.import_from_config(waveglow_config_file, "WaveGlowLoss")
 
     logging.info('================================')
     logging.info(f"Total number of parameters: {waveglow.num_weights}")
@@ -82,17 +84,19 @@ def create_NMs(waveglow_params):
 
 
 def create_train_dag(
-    neural_factory, neural_modules, waveglow_params, train_dataset, batch_size, checkpoint_save_freq, cpu_per_dl=1,
+    neural_factory,
+    neural_modules,
+    waveglow_config_file,
+    train_dataset,
+    batch_size,
+    checkpoint_save_freq,
+    cpu_per_dl=1,
 ):
     data_preprocessor, waveglow, waveglow_loss = neural_modules
-
-    train_dl_params = copy.deepcopy(waveglow_params["AudioDataLayer"])
-    train_dl_params.update(waveglow_params["AudioDataLayer"]["train"])
-    del train_dl_params["train"]
-    del train_dl_params["eval"]
-
-    data_layer = nemo_tts.AudioDataLayer(
-        manifest_filepath=train_dataset, batch_size=batch_size, num_workers=cpu_per_dl, **train_dl_params,
+    data_layer = nemo_tts.AudioDataLayer.import_from_config(
+        waveglow_config_file,
+        "AudioDataLayer_train",
+        overwrite_params={"manifest_filepath": train_dataset, "batch_size": batch_size, "num_workers": cpu_per_dl},
     )
 
     N = len(data_layer)
@@ -121,20 +125,21 @@ def create_train_dag(
 
 
 def create_eval_dags(
-    neural_factory, neural_modules, waveglow_params, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
+    neural_factory, neural_modules, waveglow_config_file, eval_datasets, eval_batch_size, eval_freq, cpu_per_dl=1,
 ):
     data_preprocessor, waveglow, _ = neural_modules
-
-    eval_dl_params = copy.deepcopy(waveglow_params["AudioDataLayer"])
-    eval_dl_params.update(waveglow_params["AudioDataLayer"]["eval"])
-    del eval_dl_params["train"]
-    del eval_dl_params["eval"]
 
     callbacks = []
     # assemble eval DAGs
     for eval_dataset in eval_datasets:
-        data_layer_eval = nemo_tts.AudioDataLayer(
-            manifest_filepath=eval_dataset, batch_size=eval_batch_size, num_workers=cpu_per_dl, **eval_dl_params,
+        data_layer_eval = nemo_tts.AudioDataLayer.import_from_config(
+            waveglow_config_file,
+            "AudioDataLayer_eval",
+            overwrite_params={
+                "manifest_filepath": eval_dataset,
+                "batch_size": eval_batch_size,
+                "num_workers": cpu_per_dl,
+            },
         )
 
         audio, audio_len, = data_layer_eval()
@@ -160,7 +165,7 @@ def create_eval_dags(
 def create_all_dags(
     neural_factory,
     neural_modules,
-    waveglow_params,
+    waveglow_config_file,
     train_dataset,
     batch_size,
     checkpoint_save_freq,
@@ -174,7 +179,7 @@ def create_all_dags(
     training_loss, training_callbacks, steps_per_epoch = create_train_dag(
         neural_factory=neural_factory,
         neural_modules=neural_modules,
-        waveglow_params=waveglow_params,
+        waveglow_config_file=waveglow_config_file,
         train_dataset=train_dataset,
         batch_size=batch_size,
         checkpoint_save_freq=checkpoint_save_freq,
@@ -186,7 +191,7 @@ def create_all_dags(
         eval_callbacks = create_eval_dags(
             neural_factory=neural_factory,
             neural_modules=neural_modules,
-            waveglow_params=waveglow_params,
+            waveglow_config_file=waveglow_config_file,
             eval_datasets=eval_datasets,
             eval_batch_size=eval_batch_size,
             eval_freq=eval_freq,
@@ -222,17 +227,14 @@ def main():
     if args.local_rank is not None:
         logging.info('Doing ALL GPU')
 
-    yaml = YAML(typ="safe")
-    with open(args.model_config) as file:
-        waveglow_params = yaml.load(file)
     # instantiate neural modules
-    neural_modules = create_NMs(waveglow_params)
+    neural_modules = create_NMs(args.model_config)
 
     # build dags
     train_loss, callbacks, steps_per_epoch = create_all_dags(
         neural_factory=neural_factory,
         neural_modules=neural_modules,
-        waveglow_params=waveglow_params,
+        waveglow_config_file=args.model_config,
         train_dataset=args.train_dataset,
         batch_size=args.batch_size,
         checkpoint_save_freq=args.checkpoint_save_freq,

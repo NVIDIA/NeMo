@@ -1,6 +1,17 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import argparse
-import copy
 import os
 
 import librosa
@@ -13,8 +24,7 @@ from tacotron2 import create_NMs
 import nemo
 import nemo.collections.asr as nemo_asr
 import nemo.collections.tts as nemo_tts
-
-logging = nemo.logging
+from nemo.utils import logging
 
 
 def parse_args():
@@ -40,7 +50,7 @@ def parse_args():
     parser.add_argument(
         "--vocoder_model_config",
         type=str,
-        help=("vocoder model configuration file: model.yaml. Not required for " "griffin-lim."),
+        help=("vocoder model configuration file: model.yaml. Not required for griffin-lim."),
     )
     parser.add_argument(
         "--spec_model_load_dir", type=str, required=True, help="directory containing checkpoints for spec model",
@@ -48,7 +58,7 @@ def parse_args():
     parser.add_argument(
         "--vocoder_model_load_dir",
         type=str,
-        help=("directory containing checkpoints for vocoder model. Not " "required for griffin-lim"),
+        help=("directory containing checkpoints for vocoder model. Not required for griffin-lim"),
     )
     parser.add_argument("--eval_dataset", type=str, required=True)
     parser.add_argument("--save_dir", type=str, help="directory to save audio files to")
@@ -59,8 +69,8 @@ def parse_args():
         type=float,
         default=2048,
         help=(
-            "This is multiplied with the linear spectrogram. This is "
-            "to avoid audio sounding muted due to mel filter normalization"
+            "This is multiplied with the linear spectrogram. This is to avoid audio sounding muted due to mel "
+            "filter normalization"
         ),
     )
     parser.add_argument(
@@ -68,9 +78,8 @@ def parse_args():
         type=float,
         default=1.2,
         help=(
-            "The linear spectrogram is raised to this power prior to running"
-            "the Griffin Lim algorithm. A power of greater than 1 has been "
-            "shown to improve audio quality."
+            "The linear spectrogram is raised to this power prior to running the Griffin Lim algorithm. A power of "
+            "greater than 1 has been shown to improve audio quality."
         ),
     )
 
@@ -79,7 +88,7 @@ def parse_args():
         "--waveglow_denoiser_strength",
         type=float,
         default=0.0,
-        help=("denoiser strength for waveglow. Start with 0 and slowly " "increment"),
+        help="denoiser strength for waveglow. Start with 0 and slowly increment",
     )
     parser.add_argument("--waveglow_sigma", type=float, default=0.6)
 
@@ -89,8 +98,8 @@ def parse_args():
     args = parser.parse_args()
     if args.vocoder == "griffin-lim" and (args.vocoder_model_config or args.vocoder_model_load_dir):
         raise ValueError(
-            "Griffin-Lim was specified as the vocoder but the a value for "
-            "vocoder_model_config or vocoder_model_load_dir was passed."
+            "Griffin-Lim was specified as the vocoder but the a value for vocoder_model_config or "
+            "vocoder_model_load_dir was passed."
         )
     return args
 
@@ -128,19 +137,19 @@ def plot_and_save_spec(spectrogram, i, save_dir=None):
 
 
 def create_infer_dags(
-    neural_factory, neural_modules, tacotron2_params, infer_dataset, infer_batch_size, cpu_per_dl=1,
+    neural_factory, neural_modules, labels, infer_dataset, infer_batch_size, cpu_per_dl=1,
 ):
     (_, text_embedding, t2_enc, t2_dec, t2_postnet, _, _) = neural_modules
 
     data_layer = nemo_asr.TranscriptDataLayer(
         path=infer_dataset,
-        labels=tacotron2_params['labels'],
+        labels=labels,
         batch_size=infer_batch_size,
         num_workers=cpu_per_dl,
         # load_audio=False,
-        bos_id=len(tacotron2_params['labels']),
-        eos_id=len(tacotron2_params['labels']) + 1,
-        pad_id=len(tacotron2_params['labels']) + 2,
+        bos_id=len(labels),
+        eos_id=len(labels) + 1,
+        pad_id=len(labels) + 2,
         shuffle=False,
     )
     transcript, transcript_len = data_layer()
@@ -174,11 +183,12 @@ def main():
         yaml = YAML(typ="safe")
         with open(args.spec_model_config) as file:
             tacotron2_params = yaml.load(file)
-        spec_neural_modules = create_NMs(tacotron2_params, decoder_infer=True)
+            labels = tacotron2_params["labels"]
+        spec_neural_modules = create_NMs(args.spec_model_config, labels=labels, decoder_infer=True)
         infer_tensors = create_infer_dags(
             neural_factory=neural_factory,
             neural_modules=spec_neural_modules,
-            tacotron2_params=tacotron2_params,
+            labels=labels,
             infer_dataset=args.eval_dataset,
             infer_batch_size=args.batch_size,
         )
@@ -220,11 +230,12 @@ def main():
                 "Using waveglow as the vocoder requires the "
                 "--vocoder_model_config and --vocoder_model_load_dir args"
             )
-
         yaml = YAML(typ="safe")
         with open(args.vocoder_model_config) as file:
             waveglow_params = yaml.load(file)
-        waveglow = nemo_tts.WaveGlowInferNM(sigma=args.waveglow_sigma, **waveglow_params["WaveGlowNM"])
+        waveglow = nemo_tts.WaveGlowInferNM.import_from_config(
+            args.vocoder_model_config, "WaveGlowInferNM", overwrite_params={"sigma": args.waveglow_sigma}
+        )
         audio_pred = waveglow(mel_spectrogram=mel_pred)
         # waveglow.restore_from(args.vocoder_model_load_dir)
 

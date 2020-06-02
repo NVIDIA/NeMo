@@ -19,11 +19,11 @@ import time
 
 import numpy as np
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 from nemo import logging
 
-__all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix']
+__all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix', 'tensor2numpy']
 
 
 def list2str(l):
@@ -32,6 +32,10 @@ def list2str(l):
 
 def tensor2list(tensor):
     return tensor.detach().cpu().tolist()
+
+
+def tensor2numpy(tensor):
+    return tensor.detach().cpu().numpy()
 
 
 def plot_confusion_matrix(labels, preds, graph_fold, label_ids=None, normalize=False, prefix=''):
@@ -95,3 +99,33 @@ def _plot_confusion_matrix(labels, preds, graph_fold):
     plt.ylabel('True')
     os.makedirs(graph_fold, exist_ok=True)
     plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
+
+
+def get_classification_report(labels, preds, label_ids):
+    """
+    Returns classification report
+    """
+    # remove labels from label_ids that don't appear in predictions or ground truths
+    used_labels = set(labels) | set(preds)
+    labels_names = [
+        k + ' (label id: ' + str(v) + ')'
+        for k, v in sorted(label_ids.items(), key=lambda item: item[1])
+        if v in used_labels
+    ]
+
+    return classification_report(labels, preds, target_names=labels_names, digits=4)
+
+
+def get_f1_scores(labels, preds, average_modes=['binary', 'weighted', 'macro', 'micro']):
+    """
+    Returns a dictionary with f1_score based on different averaging mode
+    Args:
+      labels (list of ints): list of true labels
+      preds (list of ints): list of predicted labels
+      average_modes (list): list of possible averaging types. Binary for is supported only for binary target.
+    """
+    f1_scores = {}
+    for average in average_modes:
+        f1_scores['F1 ' + average] = round(f1_score(labels, preds, average=average) * 100, 2)
+
+    return f1_scores

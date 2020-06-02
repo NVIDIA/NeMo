@@ -6,3 +6,4 @@
 
    tacotron2
    waveglow
+   fastspeech

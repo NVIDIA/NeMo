@@ -17,64 +17,98 @@
 import argparse
 
 import numpy as np
-from transformers import BertTokenizer
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm
-from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import JointIntentSlotDataDesc
-from nemo.collections.nlp.utils.common_nlp_utils import read_intent_slot_outputs
+from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset import (
+    JointIntentSlotDataDesc,
+    read_intent_slot_outputs,
+)
+from nemo.collections.nlp.nm.data_layers import BertJointIntentSlotInferDataLayer
+from nemo.collections.nlp.nm.trainables import JointIntentSlotClassifier
 
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Joint-intent BERT')
-parser.add_argument("--max_seq_length", default=50, type=int)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
-parser.add_argument("--dataset_name", default='snips-all', type=str)
-parser.add_argument("--data_dir", default='data/nlu/snips', type=str)
-parser.add_argument("--query", default='please turn on the light', type=str)
-parser.add_argument("--work_dir", required=True, help="your checkpoint folder", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--do_lower_case", action='store_false')
+parser = argparse.ArgumentParser(description='Single query inference for intent detection/slot tagging with BERT')
+parser.add_argument("--query", required=True, type=str)
+parser.add_argument("--data_dir", default='data/atis', type=str)
+parser.add_argument("--checkpoint_dir", required=True, help="path to your checkpoint folder", type=str)
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
+)
+parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
+parser.add_argument(
+    "--tokenizer",
+    default="nemobert",
+    type=str,
+    choices=["nemobert", "sentencepiece"],
+    help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--tokenizer_model",
+    default=None,
+    type=str,
+    help="Path to pretrained tokenizer model, only used if --tokenizer is sentencepiece",
+)
+parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "Only applicable when tokenizer is build with vocab file",
+)
+parser.add_argument("--max_seq_length", default=64, type=int)
 
 args = parser.parse_args()
 
-nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch, optimization_level=args.amp_opt_level, log_dir=None
+nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch)
+
+pretrained_bert_model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name, config=args.bert_config, vocab=args.vocab_file
 )
 
-""" Load the pretrained BERT parameters
-See the list of pretrained models, call:
-nemo_nlp.BERT.list_pretrained_models()
-"""
-pretrained_bert_model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-tokenizer = BertTokenizer.from_pretrained(args.pretrained_bert_model)
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
+)
+
 hidden_size = pretrained_bert_model.hidden_size
 
-data_desc = JointIntentSlotDataDesc(args.data_dir, args.do_lower_case, args.dataset_name)
+data_desc = JointIntentSlotDataDesc(data_dir=args.data_dir)
 
 query = args.query
 if args.do_lower_case:
     query = query.lower()
 
-data_layer = nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer.BertJointIntentSlotInferDataLayer(
+data_layer = BertJointIntentSlotInferDataLayer(
     queries=[query], tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
 # Create sentence classification loss on top
-classifier = nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_nm.JointIntentSlotClassifier(
-    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=args.fc_dropout
+classifier = JointIntentSlotClassifier(
+    hidden_size=hidden_size, num_intents=data_desc.num_intents, num_slots=data_desc.num_slots, dropout=0.0
 )
 
-ids, type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
+input_data = data_layer()
 
-hidden_states = pretrained_bert_model(input_ids=ids, token_type_ids=type_ids, attention_mask=input_mask)
+hidden_states = pretrained_bert_model(
+    input_ids=input_data.input_ids, token_type_ids=input_data.input_type_ids, attention_mask=input_data.input_mask
+)
 
 intent_logits, slot_logits = classifier(hidden_states=hidden_states)
 
 ###########################################################################
 
 
-evaluated_tensors = nf.infer(tensors=[intent_logits, slot_logits, subtokens_mask], checkpoint_dir=args.work_dir)
+evaluated_tensors = nf.infer(
+    tensors=[intent_logits, slot_logits, input_data.subtokens_mask], checkpoint_dir=args.checkpoint_dir
+)
 
 
 def concatenate(lists):

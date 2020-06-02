@@ -15,19 +15,18 @@
 # =============================================================================
 
 import argparse
-import json
 import os
 
+import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.utils.common_nlp_utils
 from nemo import logging
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
     eval_epochs_done_callback,
     eval_iter_callback,
 )
-from nemo.collections.nlp.data import NemoBertTokenizer, SentencePieceTokenizer
+from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
-from nemo.collections.nlp.nm.losses.token_classification_loss import TokenClassificationLoss
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -53,15 +52,21 @@ parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
 parser.add_argument("--none_label", default='O', type=str)
-parser.add_argument("--shuffle_data", action='store_true')
-parser.add_argument("--pretrained_bert_model", default="bert-base-uncased", type=str)
+parser.add_argument("--no_shuffle_data", action='store_false', dest="shuffle_data")
+parser.add_argument(
+    "--pretrained_model_name",
+    default="bert-base-uncased",
+    type=str,
+    help="Name of the pre-trained model",
+    choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
+)
 parser.add_argument("--bert_checkpoint", default=None, type=str)
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument("--punct_classifier_checkpoint", default=None, type=str)
 parser.add_argument("--capit_classifier_checkpoint", default=None, type=str)
 parser.add_argument(
     "--tokenizer_model",
-    default="tokenizer.model",
+    default=None,
     type=str,
     help="Path to pretrained tokenizer model, \
                     only used if --tokenizer is sentencepiece",
@@ -73,6 +78,15 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, \
                     only relevant when using custom pretrained checkpoint.",
+)
+parser.add_argument(
+    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+)
+parser.add_argument(
+    "--do_lower_case",
+    action='store_true',
+    help="Whether to lower case the input text. True for uncased models, False for cased models. "
+    + "Only applicable when tokenizer is build with vocab file",
 )
 parser.add_argument(
     "--work_dir",
@@ -123,32 +137,20 @@ logging.info(args)
 
 output_file = f'{nf.work_dir}/output.txt'
 
-if args.bert_checkpoint is None:
-    """ Use this if you're using a standard BERT model.
-    To see the list of pretrained models, call:
-    nemo_nlp.huggingface.BERT.list_pretrained_models()
-    """
-    tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
-else:
-    """ Use this if you're using a BERT model that you pre-trained yourself.
-    """
-    if args.tokenizer == "sentencepiece":
-        special_tokens = nemo_nlp.utils.MODEL_SPECIAL_TOKENS['bert']
-        tokenizer = SentencePieceTokenizer(model_path=args.tokenizer_model, special_tokens=special_tokens)
-    elif args.tokenizer == "nemobert":
-        tokenizer = NemoBertTokenizer(args.pretrained_bert_model)
-    else:
-        raise ValueError(f"received unexpected tokenizer '{args.tokenizer}'")
-    if args.bert_config is not None:
-        with open(args.bert_config) as json_file:
-            config = json.load(json_file)
-        model = nemo_nlp.nm.trainables.huggingface.BERT(**config)
-    else:
-        model = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_bert_model)
+model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
+    pretrained_model_name=args.pretrained_model_name,
+    config=args.bert_config,
+    vocab=args.vocab_file,
+    checkpoint=args.bert_checkpoint,
+)
 
-    model.restore_from(args.bert_checkpoint)
-    logging.info(f"Model restored from {args.bert_checkpoint}")
+tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+    tokenizer_name=args.tokenizer,
+    pretrained_model_name=args.pretrained_model_name,
+    tokenizer_model=args.tokenizer_model,
+    vocab_file=args.vocab_file,
+    do_lower_case=args.do_lower_case,
+)
 
 hidden_size = model.hidden_size
 
@@ -214,7 +216,7 @@ def create_pipeline(
         if args.use_weighted_loss_punct:
             logging.info(f"Using weighted loss for punctuation task")
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
-            class_weights = nemo.collections.nlp.utils.common_nlp_utils.calc_class_weights(punct_label_freqs)
+            class_weights = calc_class_weights(punct_label_freqs)
 
         # Initialize punctuation loss
         punct_classifier = punct_classifier(
@@ -225,15 +227,15 @@ def create_pipeline(
             name='Punctuation',
         )
 
-        punct_loss = TokenClassificationLoss(num_classes=len(punct_label_ids), class_weights=class_weights)
+        punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
 
         # Initialize capitalization loss
         capit_classifier = capit_classifier(
             hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
         )
-        capit_loss = TokenClassificationLoss(num_classes=len(capit_label_ids))
+        capit_loss = CrossEntropyLossNM(logits_ndim=3)
 
-        task_loss = nemo_nlp.nm.losses.LossAggregatorNM(num_inputs=2)
+        task_loss = LossAggregatorNM(num_inputs=2)
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
@@ -278,8 +280,9 @@ logging.info(f"steps_per_epoch = {steps_per_epoch}")
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=losses + train_logits,
-    print_func=lambda x: print("Loss: {:.3f}".format(x[0].item())),
+    print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
+    step_freq=args.loss_step_freq,
     tb_writer=nf.tb_writer,
 )
 
@@ -306,5 +309,5 @@ nf.train(
     callbacks=[train_callback, eval_callback, ckpt_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
 )

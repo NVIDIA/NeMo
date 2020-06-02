@@ -5,8 +5,9 @@ import torch
 
 from nemo import logging
 from nemo.backends.pytorch.nm import LossNM, TrainableNM
-from nemo.collections.tts.parts.waveglow import WaveGlow
+from nemo.collections.tts.parts.waveglow import WaveGlow, remove_weightnorm
 from nemo.core.neural_types import *
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ["WaveGlowNM", "WaveGlowInferNM", "WaveGlowLoss"]
 
@@ -39,6 +40,7 @@ class WaveGlowNM(TrainableNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -48,10 +50,11 @@ class WaveGlowNM(TrainableNM):
             # ),
             # "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             "mel_spectrogram": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio": NeuralType(('B', 'T'), AudioSignal(self.sample_rate)),
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
@@ -60,13 +63,14 @@ class WaveGlowNM(TrainableNM):
             # "audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "log_s_list": NeuralType(),
             # "log_det_W_list": NeuralType(),
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio": NeuralType(('B', 'T'), AudioSignal(self.sample_rate)),
             "log_s_list": NeuralType(elements_type=ChannelType()),
             "log_det_W_list": NeuralType(elements_type=ChannelType()),
         }
 
     def __init__(
         self,
+        sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -76,6 +80,7 @@ class WaveGlowNM(TrainableNM):
         n_wn_channels: int = 512,
         wn_kernel_size: int = 3,
     ):
+        self.sample_rate = sample_rate
         super().__init__()
         wavenet_config = {
             "n_layers": n_wn_layers,
@@ -136,6 +141,7 @@ class WaveGlowInferNM(WaveGlowNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -147,17 +153,20 @@ class WaveGlowInferNM(WaveGlowNM):
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         # return {"audio": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)})}
-        return {"audio": NeuralType(('B', 'T'), AudioSignal())}
+        return {"audio": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate))}
 
     def __str__(self):
         return "WaveGlowNM"
 
     def __init__(
         self,
+        *,
+        sample_rate: int,
         n_mel_channels: int = 80,
         n_flows: int = 12,
         n_group: int = 8,
@@ -169,7 +178,9 @@ class WaveGlowInferNM(WaveGlowNM):
         sigma: float = 0.6,
     ):
         self._sigma = sigma
+        # self.sample_rate = sample_rate  # Done in parent class
         super().__init__(
+            sample_rate=sample_rate,
             n_mel_channels=n_mel_channels,
             n_flows=n_flows,
             n_group=n_group,
@@ -199,10 +210,10 @@ class WaveGlowInferNM(WaveGlowNM):
     def forward(self, mel_spectrogram):
         if not self._removed_weight_norm:
             logging.info("remove WN")
-            self.waveglow = self.waveglow.remove_weightnorm(self.waveglow)
+            self.waveglow = remove_weightnorm(self.waveglow)
             self._removed_weight_norm = True
         if self.training:
-            raise ValueError("You are using the WaveGlow Infer Neural Module " "in training mode.")
+            raise ValueError("You are using the WaveGlow Infer Neural Module in training mode.")
         with torch.no_grad():
             audio = self.waveglow.infer(mel_spectrogram, sigma=self._sigma)
         return audio
@@ -225,6 +236,7 @@ class WaveGlowLoss(LossNM):
     """
 
     @property
+    @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
@@ -233,20 +245,22 @@ class WaveGlowLoss(LossNM):
             # "z": NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # "log_s_list": NeuralType(),
             # "log_det_W_list": NeuralType(),
-            "z": NeuralType(('B', 'T'), AudioSignal()),
+            "z": NeuralType(('B', 'T'), AudioSignal(freq=self.sample_rate)),
             "log_s_list": NeuralType(elements_type=ChannelType()),
             "log_det_W_list": NeuralType(elements_type=ChannelType()),
         }
 
     @property
+    @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, sigma: float = 1.0):
+    def __init__(self, sample_rate: int, sigma: float = 1.0):
         super().__init__()
         self.sigma = sigma
+        self.sample_rate = sample_rate
 
     def _loss_function(self, **kwargs):
         return self._loss(*(kwargs.values()))

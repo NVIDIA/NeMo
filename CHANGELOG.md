@@ -70,14 +70,69 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- Added NeMoModels class. Implemented in ASR collection: ASRConvCTCModel, and QuartzNet and JasperNet as its children - @okuchaiev
+- Added multi-dataset data-layer and dataset.
+([PR #538](https://github.com/NVIDIA/NeMo/pull/538)) - @yzhang123
+- Online Data Augmentation for ASR Collection. ([PR #565](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
+- Speed augmentation on CPU, TimeStretch augmentation on CPU+GPU ([PR #594](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
+- Added TarredAudioToTextDataLayer, which allows for loading ASR datasets with tarred audio. Existing datasets can be converted with the `convert_to_tarred_audio_dataset.py` script. ([PR #602](https://github.com/NVIDIA/NeMo/pull/602))
+- Online audio augmentation notebook in ASR examples ([PR #605](https://github.com/NVIDIA/NeMo/pull/605)) - @titu1994
+- ContextNet Encoder + Decoder Initial Support ([PR #630](https://github.com/NVIDIA/NeMo/pull/630)) - @titu1994
+- Added finetuning with Megatron-LM ([PR #601](https://github.com/NVIDIA/NeMo/pull/601)) - @ekmb
+- Added documentation for 8 kHz model ([PR #632](https://github.com/NVIDIA/NeMo/pull/632)) - @jbalam-nv
+
+
+### Changed
+- quartznet and jasper ASR examples reworked into speech2text.py and speech2text_infer.py - @okuchaiev
+- Syncs across workers at each step to check for NaN or inf loss. Terminates all workers if stop\_on\_nan\_loss is set (as before), lets Apex deal with it if apex.amp optimization level is O1 or higher, and skips the step across workers otherwise. ([PR #637](https://github.com/NVIDIA/NeMo/pull/637)) - @redoctopus
+- Updated the callback system. Old callbacks will be deprecated in version 0.12. ([PR #615](https://github.com/NVIDIA/NeMo/pull/615)) - @blisc
+
+### Dependencies Update
+
+### Deprecated
+
+### Fixed
+
+### Removed
+
+### Security
+
+### Contributors
+
+## [0.10.2] - 2020-05-05
+
+### Added
+- The Neural Graph is a high-level abstract concept empowering the users to build graphs consisting of many, interconnected Neural Modules. A user in his/her application can build any number of graphs, potentially spanning over the same modules. The import/export options combined with the lightweight API make Neural Graphs a perfect tool for rapid prototyping and experimentation. ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @tkornuta
+
+## [0.10.0] - 2020-04-03
+
+### Added
+- Roberta and Albert support added to GLUE script, data caching also added.
+([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @ekmb
+- text classification notebook added
+([PR #382](https://github.com/NVIDIA/NeMo/pull/382)) - @ericharper
+- New Neural Type System documentation. Also added decorator to generate docs for input/output ports.
+([PR #370](https://github.com/NVIDIA/NeMo/pull/370)) - @okuchaiev
 - New Neural Type System and its tests.
 ([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Named tensors tuple module's output for graph construction.
 ([PR #268](https://github.com/NVIDIA/NeMo/pull/268)) - @stasbel
 - Introduced the `deprecated` decorator.
 ([PR #298](https://github.com/NVIDIA/NeMo/pull/298)) - @tkornuta-nvidia
+- Implemented new mechanisms for importing and exporting of module configuration (init_params) to configuration (yml)
+files, along with unit tests, examples and tutorials
+([PR #339](https://github.com/NVIDIA/NeMo/pull/339)) - @tkornuta-nvidia
+- Speech Commands support.
+([PR #375](https://github.com/NVIDIA/NeMo/pull/375)) - @titu1994
 
 ### Changed
+- Refactoring of `nemo_nlp` collections:
+([PR #368](https://github.com/NVIDIA/NeMo/pull/368)) - @VahidooX, @yzhang123, @ekmb
+    - renaming and restructuring of files, folder, and functions in `nemo_nlp`
+    - losses cleaned up. LossAggregatorNM moved to nemo/backends/pytorch/common/losses
+ ([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
+    - renaming and restructuring of files, folder, and functions in `nemo_nlp`
+    - Updated licenses
 - All collections changed to use New Neural Type System.
 ([PR #307](https://github.com/NVIDIA/NeMo/pull/307)) - @okuchaiev
 - Additional Collections Repositories merged into core `nemo_toolkit` package.
@@ -86,12 +141,8 @@ To release a new version, please update the changelog as followed:
 ([PR #284](https://github.com/NVIDIA/NeMo/pull/284)) - @stasbel
 - NeMo is not longer using pep8 code style rules. Code style rules are now enforced with `isort` and `black` incorporated into CI checks.
 ([PR #286](https://github.com/NVIDIA/NeMo/pull/286)) - @stasbel
-- Major cleanup of Neural Module constructors (init), aiming at increasing the framework robustness: cleanup of NeuralModule initialization logic, refactor of trainer/actions (getting rid of local_params), fixes of several examples and unit tests, extraction and storing of intial parameters (init_params).  
+- Major cleanup of Neural Module constructors (init), aiming at increasing the framework robustness: cleanup of NeuralModule initialization logic, refactor of trainer/actions (getting rid of local_params), fixes of several examples and unit tests, extraction and storing of intial parameters (init_params).
 ([PR #309](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
-- Refactoring of `nemo_nlp` collections: 
-([PR #316](https://github.com/NVIDIA/NeMo/pull/316)) - @VahidooX, @yzhang123, @ekmb
-    - renaming of files and restructuring of folder in `nemo_nlp`
-    - Updated licenses
 - Updated nemo's use of the logging library. from nemo import logging is now the reccomended way of using the nemo logger. neural_factory.logger and all other instances of logger are now deprecated and planned for removal in the next version. Please see PR 267 for complete change information.
 ([PR #267](https://github.com/NVIDIA/NeMo/pull/267), [PR #283](https://github.com/NVIDIA/NeMo/pull/283), [PR #305](https://github.com/NVIDIA/NeMo/pull/305), [PR #311](https://github.com/NVIDIA/NeMo/pull/311)) - @blisc
 - Changed Distributed Data Parallel from Apex to Torch
@@ -99,6 +150,10 @@ To release a new version, please update the changelog as followed:
 
 - Added TRADE (dialogue state tracking model) on MultiWOZ dataset
 ([PR #322](https://github.com/NVIDIA/NeMo/pull/322)) - @chiphuyen, @VahidooX
+- Question answering:
+([PR #390](https://github.com/NVIDIA/NeMo/pull/390)) - @yzhang123
+    - Changed question answering task to use Roberta and Albert as alternative backends to Bert
+    - Added inference mode that does not require ground truth labels
 
 ### Dependencies Update
 - Added dependency on `wrapt` (the new version of the `deprecated` warning) - @tkornuta-nvidia, @DEKHTIARJonathan
@@ -106,8 +161,10 @@ To release a new version, please update the changelog as followed:
 ### Deprecated
 
 ### Fixed
-- Critical fix of the training action on CPU 
+- Critical fix of the training action on CPU
 ([PR #308](https://github.com/NVIDIA/NeMo/pull/309)) - @tkornuta-nvidia
+- Fixed issue in Tacotron 2 prenet
+([PR #444](https://github.com/NVIDIA/NeMo/pull/444)) - @blisc
 
 ### Removed
 - gradient_predivide_factor arg of train() now has no effect
@@ -166,7 +223,8 @@ This release also includes nemo_asr'' and nemo_nlp'' collections for Speech Reco
 
 Please refer to the documentation here: https://nvidia.github.io/NeMo/
 
-[Unreleased]: https://github.com/NVIDIA/NeMo/compare/v0.9.0...master
+[Unreleased]: https://github.com/NVIDIA/NeMo/compare/v0.10.0...master
+[0.10.0]: https://github.com/NVIDIA/NeMo/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/NVIDIA/NeMo/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/NVIDIA/NeMo/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/NVIDIA/NeMo/compare/r0.8...v0.8.1

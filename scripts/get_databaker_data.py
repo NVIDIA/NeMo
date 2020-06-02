@@ -78,7 +78,7 @@ def __extract_rar(rar_path, dest_dir):
             logging.info("Extraction failed.")
             exit(1)
     else:
-        logging.info("Skipping extracting. Data already there {0}.".format(data_dir))
+        logging.info("Skipping extracting. Data already there {0}.".format(dest_dir))
 
 
 def __convert_waves(wavedir, converted_wavedir, wavename, sr):

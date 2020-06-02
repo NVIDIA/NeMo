@@ -12,23 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-from .audio_preprocessing import *
-from .beam_search_decoder import BeamSearchDecoderWithLM
-from .data_layer import AudioToTextDataLayer, KaldiFeatureDataLayer, TranscriptDataLayer
-from .greedy_ctc_decoder import GreedyCTCDecoder
-from .jasper import JasperDecoderForCTC, JasperEncoder
-from .las.misc import JasperRNNConnector
-from .losses import CTCLossNM
+from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
+from nemo.collections.asr import models
+from nemo.collections.asr.audio_preprocessing import *
+from nemo.collections.asr.beam_search_decoder import BeamSearchDecoderWithLM
+from nemo.collections.asr.contextnet import ContextNetDecoderForCTC, ContextNetEncoder
+from nemo.collections.asr.data_layer import (
+    AudioToSpeechLabelDataLayer,
+    AudioToTextDataLayer,
+    KaldiFeatureDataLayer,
+    TarredAudioToTextDataLayer,
+    TranscriptDataLayer,
+)
+from nemo.collections.asr.greedy_ctc_decoder import GreedyCTCDecoder
+from nemo.collections.asr.jasper import (
+    JasperDecoderForClassification,
+    JasperDecoderForCTC,
+    JasperDecoderForSpkrClass,
+    JasperEncoder,
+)
+from nemo.collections.asr.las.misc import JasperRNNConnector
+from nemo.collections.asr.losses import CTCLossNM
 from nemo.core import Backend
 
 __all__ = [
     'Backend',
     'AudioToTextDataLayer',
+    'TarredAudioToTextDataLayer',
+    'AudioToSpeechLabelDataLayer',
     'AudioPreprocessing',
     'AudioPreprocessor',
     'AudioToMFCCPreprocessor',
     'AudioToMelSpectrogramPreprocessor',
     'AudioToSpectrogramPreprocessor',
+    'CropOrPadSpectrogramAugmentation',
     'MultiplyBatch',
     'SpectrogramAugmentation',
     'KaldiFeatureDataLayer',
@@ -37,8 +54,13 @@ __all__ = [
     'BeamSearchDecoderWithLM',
     'JasperEncoder',
     'JasperDecoderForCTC',
+    'JasperDecoderForClassification',
+    'JasperDecoderForSpkrClass',
     'JasperRNNConnector',
+    'ContextNetEncoder',
+    'ContextNetDecoderForCTC',
     'CTCLossNM',
+    'CrossEntropyLossNM',
 ]
 
 backend = Backend.PyTorch

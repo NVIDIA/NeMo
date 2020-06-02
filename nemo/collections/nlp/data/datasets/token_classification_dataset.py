@@ -1,6 +1,7 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
-# Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# =============================================================================
 
 """
 Utility functions for Token Classification NLP tasks
@@ -23,13 +25,12 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 import itertools
 import os
 import pickle
-import random
 
 import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets import datasets_utils
+from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import get_label_stats, get_stats
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
@@ -77,7 +78,7 @@ def get_features(
         words = query.strip().split()
 
         # add bos token
-        subtokens = ['[CLS]']
+        subtokens = [tokenizer.cls_token]
         loss_mask = [1 - ignore_start_end]
         subtokens_mask = [0]
         if with_label:
@@ -98,7 +99,7 @@ def get_features(
             if with_label:
                 labels.extend([query_labels[j]] * len(word_tokens))
         # add eos token
-        subtokens.append('[SEP]')
+        subtokens.append(tokenizer.sep_token)
         loss_mask.append(1 - ignore_start_end)
         subtokens_mask.append(0)
         sent_lengths.append(len(subtokens))
@@ -113,12 +114,12 @@ def get_features(
 
     max_seq_length = min(max_seq_length, max(sent_lengths))
     logging.info(f'Max length: {max_seq_length}')
-    datasets_utils.get_stats(sent_lengths)
+    get_stats(sent_lengths)
     too_long_count = 0
 
     for i, subtokens in enumerate(all_subtokens):
         if len(subtokens) > max_seq_length:
-            subtokens = ['[CLS]'] + subtokens[-max_seq_length + 1 :]
+            subtokens = [tokenizer.cls_token] + subtokens[-max_seq_length + 1 :]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
             all_loss_mask[i] = [int(not ignore_start_end)] + all_loss_mask[i][-max_seq_length + 1 :]
             all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
@@ -127,7 +128,7 @@ def get_features(
                 all_labels[i] = [pad_id] + all_labels[i][-max_seq_length + 1 :]
             too_long_count += 1
 
-        all_input_ids.append([tokenizer.tokens_to_ids(t) for t in subtokens])
+        all_input_ids.append(tokenizer.tokens_to_ids(subtokens))
 
         if len(subtokens) < max_seq_length:
             extra = max_seq_length - len(subtokens)
@@ -144,14 +145,14 @@ def get_features(
     logging.warning(f'{too_long_count} are longer than {max_seq_length}')
 
     for i in range(min(len(all_input_ids), 5)):
-        logging.debug("*** Example ***")
-        logging.debug("i: %s", i)
-        logging.debug("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
-        logging.debug("loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
-        logging.debug("input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
-        logging.debug("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
+        logging.info("*** Example ***")
+        logging.info("i: %s", i)
+        logging.info("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
+        logging.info("loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
+        logging.info("input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
+        logging.info("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
         if with_label:
-            logging.debug("labels: %s", " ".join(list(map(str, all_labels[i]))))
+            logging.info("labels: %s", " ".join(list(map(str, all_labels[i]))))
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
 
 
@@ -175,7 +176,6 @@ class BertTokenClassificationDataset(Dataset):
         tokenizer (Tokenizer): such as NemoBertTokenizer
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): whether to shuffle your data.
         pad_label (str): pad value use for labels.
             by default, it's the neutral label.
         label_ids (dict): label_ids (dict): dict to map labels to label ids.
@@ -196,7 +196,6 @@ class BertTokenClassificationDataset(Dataset):
         max_seq_length,
         tokenizer,
         num_samples=-1,
-        shuffle=False,
         pad_label='O',
         label_ids=None,
         ignore_extra_tokens=False,
@@ -212,7 +211,11 @@ class BertTokenClassificationDataset(Dataset):
             if not filename.endswith('.txt'):
                 raise ValueError("{text_file} should have extension .txt")
 
-            features_pkl = os.path.join(data_dir, filename[:-4] + "_features.pkl")
+            tokenizer_type = type(tokenizer.tokenizer).__name__
+            vocab_size = getattr(tokenizer, "vocab_size", 0)
+            features_pkl = os.path.join(
+                data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+            )
             label_ids_pkl = os.path.join(data_dir, "label_ids.pkl")
 
         if use_cache and os.path.exists(features_pkl) and os.path.exists(label_ids_pkl):
@@ -241,12 +244,9 @@ class BertTokenClassificationDataset(Dataset):
             if len(labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
 
-            if shuffle or num_samples > 0:
+            if num_samples > 0:
                 dataset = list(zip(text_lines, labels_lines))
-                random.shuffle(dataset)
-
-                if num_samples > 0:
-                    dataset = dataset[:num_samples]
+                dataset = dataset[:num_samples]
 
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]
@@ -308,7 +308,7 @@ class BertTokenClassificationDataset(Dataset):
         infold = text_file[: text_file.rfind('/')]
         merged_labels = itertools.chain.from_iterable(self.all_labels)
         logging.info('Three most popular labels')
-        _, self.label_frequencies = datasets_utils.get_label_stats(merged_labels, infold + '/label_stats.tsv')
+        _, self.label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_stats.tsv')
 
         # save label_ids
         out = open(infold + '/label_ids.csv', 'w')

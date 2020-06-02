@@ -49,7 +49,7 @@ class AudioSegment(object):
 
     def __str__(self):
         """Return human-readable representation of segment."""
-        return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, " "rms=%.2fdB" % (
+        return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, rms=%.2fdB" % (
             type(self),
             self.num_samples,
             self.sample_rate,
@@ -75,18 +75,18 @@ class AudioSegment(object):
 
     @classmethod
     def from_file(
-        cls, filename, target_sr=None, int_values=False, offset=0, duration=0, trim=False,
+        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False,
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
-        :param filename: path of file to load
+        :param audio_file: path of file to load
         :param target_sr: the desired sample rate
         :param int_values: if true, load samples as 32-bit integers
         :param offset: offset in seconds when loading audio
         :param duration: duration in seconds when loading audio
         :return: numpy array of samples
         """
-        with sf.SoundFile(filename, 'r') as f:
+        with sf.SoundFile(audio_file, 'r') as f:
             dtype = 'int32' if int_values else 'float32'
             sample_rate = f.samplerate
             if offset > 0:
@@ -100,11 +100,13 @@ class AudioSegment(object):
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim)
 
     @classmethod
-    def segment_from_file(cls, filename, target_sr=None, n_segments=0, trim=False):
-        """Grabs n_segments number of samples from filename randomly from the
+    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False):
+        """Grabs n_segments number of samples from audio_file randomly from the
         file as opposed to at a specified offset.
+
+        Note that audio_file can be either the file path, or a file-like object.
         """
-        with sf.SoundFile(filename, 'r') as f:
+        with sf.SoundFile(audio_file, 'r') as f:
             sample_rate = f.samplerate
             if n_segments > 0 and len(f) > n_segments:
                 max_audio_start = len(f) - n_segments
@@ -168,15 +170,15 @@ class AudioSegment(object):
         if end_time < 0.0:
             end_time = self.duration + end_time
         if start_time < 0.0:
-            raise ValueError("The slice start position (%f s) is out of " "bounds." % start_time)
+            raise ValueError("The slice start position (%f s) is out of bounds." % start_time)
         if end_time < 0.0:
             raise ValueError("The slice end position (%f s) is out of bounds." % end_time)
         if start_time > end_time:
             raise ValueError(
-                "The slice start position (%f s) is later than " "the end position (%f s)." % (start_time, end_time)
+                "The slice start position (%f s) is later than the end position (%f s)." % (start_time, end_time)
             )
         if end_time > self.duration:
-            raise ValueError("The slice end position (%f s) is out of bounds " "(> %f s)" % (end_time, self.duration))
+            raise ValueError("The slice end position (%f s) is out of bounds (> %f s)" % (end_time, self.duration))
         start_sample = int(round(start_time * self._sample_rate))
         end_sample = int(round(end_time * self._sample_rate))
         self._samples = self._samples[start_sample:end_sample]

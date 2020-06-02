@@ -60,14 +60,12 @@ parser.add_argument("--ffn_dropout", default=0.25, type=float)
 parser.add_argument("--attn_score_dropout", default=0.25, type=float)
 parser.add_argument("--attn_layer_dropout", default=0.25, type=float)
 parser.add_argument("--eval_step_frequency", default=2000, type=int)
-parser.add_argument("--data_dir", default="/dataset/", type=str)
+parser.add_argument("--data_dir", default="../../../tests/data/pred_real", type=str)
 parser.add_argument("--src_lang", default="pred", type=str)
 parser.add_argument("--tgt_lang", default="real", type=str)
 parser.add_argument("--beam_size", default=4, type=int)
 parser.add_argument("--len_pen", default=0.0, type=float)
-parser.add_argument(
-    "--restore_from", dest="restore_from", type=str, default="../../../scripts/bert-base-uncased_decoder.pt"
-)
+parser.add_argument("--restore_from", dest="restore_from", type=str, default="bert-base-uncased_decoder.pt")
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
@@ -113,7 +111,7 @@ t_log_softmax = nemo_nlp.nm.trainables.TokenClassifier(
     args.d_model, num_classes=vocab_size, num_layers=1, log_softmax=True
 )
 
-loss_fn = nemo_nlp.nm.losses.PaddedSmoothedCrossEntropyLossNM(pad_id=tokenizer.pad_id, label_smoothing=0.1)
+loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=0.1)
 
 beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
     decoder=decoder,
@@ -174,7 +172,7 @@ def create_pipeline(dataset, tokens_in_batch, clean=False, training=True):
         input_ids_tgt=tgt, hidden_states_src=src_hiddens, input_mask_src=src_mask, input_mask_tgt=tgt_mask
     )
     log_softmax = t_log_softmax(hidden_states=tgt_hiddens)
-    loss = loss_fn(logits=log_softmax, target_ids=labels)
+    loss = loss_fn(logits=log_softmax, labels=labels)
     beam_results = None
     if not training:
         beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=src_mask)

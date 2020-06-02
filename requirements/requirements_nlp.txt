@@ -3,6 +3,12 @@ h5py
 matplotlib
 sentencepiece
 torchtext
-transformers
+transformers>=2.11.0
 unidecode
 youtokentome
+numpy
+tqdm
+rapidfuzz
+gdown
+megatron-lm
+inflect
