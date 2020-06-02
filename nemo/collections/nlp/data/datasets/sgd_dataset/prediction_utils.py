@@ -105,7 +105,7 @@ def get_carryover_value(
     return ext_value
 
 
-def get_predicted_dialog_ret_sys_act(dialog, all_predictions, schemas, eval_debug, in_domain_services):
+def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
     """Update labels in a dialogue based on model predictions.
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
@@ -551,8 +551,8 @@ def write_predictions_to_file(
             for d in dialogs:
                 if state_tracker == 'baseline':
                     pred_dialog = get_predicted_dialog_baseline(d, all_predictions, schemas)
-                elif state_tracker == 'ret_sys_act':
-                    pred_dialog = get_predicted_dialog_ret_sys_act(
+                elif state_tracker == 'nemotracker':
+                    pred_dialog = get_predicted_dialog_nemotracker(
                         d, all_predictions, schemas, eval_debug, in_domain_services
                     )
                 else:
