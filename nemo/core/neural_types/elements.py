@@ -212,15 +212,18 @@ class Target(ElementType):
         Type representing an element being a target value.
     """
 
+
 class ClassificationTarget(Target):
     """
         Type representing an element being target value in the classification task, i.e. identifier of a desired class.
     """
 
+
 class Label(ElementType):
     """
         Type representing an element being a target value.
     """
+
 
 class ImageValue(ElementType):
     """
@@ -234,6 +237,7 @@ class NormalizedImageValue(ImageValue):
         Type representing an element/value of a single image channel normalized to <0-1> range,
         e.g. a single element (R) of normalized RGB image.
     """
+
 
 class ImageFeatureValue(ImageValue):
     """Type representing an element (single value) of a (image) feature maps."""

@@ -21,13 +21,7 @@ from nemo.collections.cv.modules.data_layers import CIFAR100DataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
 from nemo.collections.cv.modules.non_trainables import NonLinearity, ReshapeTensor
 from nemo.collections.cv.modules.trainables import FeedForwardNetwork, GenericImageEncoder
-from nemo.core import (
-    DeviceType,
-    NeuralGraph,
-    NeuralModuleFactory,
-    OperationMode,
-    SimpleLossLoggerCallback,
-)
+from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
 
 if __name__ == "__main__":
@@ -51,7 +45,7 @@ if __name__ == "__main__":
 
     # Create a training graph.
     with NeuralGraph(operation_mode=OperationMode.training) as training_graph:
-        _, img, _, _, fine_target, _  = cifar100_dl()
+        _, img, _, _, fine_target, _ = cifar100_dl()
         feat_map = image_encoder(inputs=img)
         res_img = reshaper(inputs=feat_map)
         logits = ffn(inputs=res_img)

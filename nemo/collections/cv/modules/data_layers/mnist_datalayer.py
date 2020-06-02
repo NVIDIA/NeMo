@@ -28,9 +28,9 @@ from nemo.core.neural_types import (
     AxisType,
     ClassificationTarget,
     Index,
+    Label,
     NeuralType,
     NormalizedImageValue,
-    Label,
 )
 from nemo.utils.decorators import add_port_docs
 
@@ -129,7 +129,7 @@ class MNISTDataLayer(DataLayerNM, Dataset):
         """
         # Get image and target.
         img, target = self._dataset.__getitem__(index)
-  
+
         # Return sample.
         return index, img, target, self._ix_to_word[target]
 
@@ -149,4 +149,3 @@ class MNISTDataLayer(DataLayerNM, Dataset):
             Self - just to be "compatible" with the current NeMo train action.
         """
         return self  # ! Important - as we want to use this __getitem__ method!
-

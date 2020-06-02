@@ -21,13 +21,7 @@ from nemo.collections.cv.modules.data_layers import CIFAR10DataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
 from nemo.collections.cv.modules.non_trainables import NonLinearity
 from nemo.collections.cv.modules.trainables import GenericImageEncoder
-from nemo.core import (
-    DeviceType,
-    NeuralGraph,
-    NeuralModuleFactory,
-    OperationMode,
-    SimpleLossLoggerCallback,
-)
+from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode, SimpleLossLoggerCallback
 from nemo.utils import logging
 
 if __name__ == "__main__":

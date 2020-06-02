@@ -115,7 +115,7 @@ class CIFAR10DataLayer(DataLayerNM, CIFAR10):
         """
         # Get image and target.
         img, target = self._dataset.__getitem__(index)
-  
+
         # Return sample.
         return index, img, target
 

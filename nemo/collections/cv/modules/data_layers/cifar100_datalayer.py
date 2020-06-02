@@ -44,15 +44,7 @@ from torchvision.datasets import CIFAR100
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from nemo.backends.pytorch.nm import DataLayerNM
-from nemo.core.neural_types import (
-    AxisKind,
-    AxisType,
-    ClassificationTarget,
-    ImageValue,
-    Index,
-    Label,
-    NeuralType,
-)
+from nemo.core.neural_types import AxisKind, AxisType, ClassificationTarget, ImageValue, Index, Label, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['CIFAR100DataLayer']
@@ -204,7 +196,7 @@ class CIFAR100DataLayer(DataLayerNM, Dataset):
         img, fine_target = self._dataset.__getitem__(index)
         # Get coarse target.
         coarse_target = self._fine_to_coarse_id_mapping[fine_target]
-        
+
         # Labels.
         fine_label = self._fine_ix_to_word[fine_target]
         coarse_label = self._coarse_ix_to_word[self._fine_to_coarse_id_mapping[fine_target]]
