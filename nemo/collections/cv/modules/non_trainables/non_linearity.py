@@ -22,6 +22,7 @@ from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import AxisKind, AxisType, LogprobsType, NeuralType, VoidType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
+from nemo.utils.configuration_parsing import get_value_from_dictionary
 
 __all__ = ['NonLinearity']
 
@@ -44,9 +45,10 @@ class NonLinearity(NonTrainableNM):
         self._type = type
         self._sizes = sizes
 
+        # Get type - only one option accepted (for now).
+        self._non_linearity_type = get_value_from_dictionary(type, ["logsoftmax"])
+
         # Apply the non-linearity along the last dimension.
-        # TODO: if self._type != "logsoftmax"
-        assert type == "logsoftmax"
         dim = len(sizes) - 1
         self._non_linearity = torch.nn.LogSoftmax(dim=dim)
 
