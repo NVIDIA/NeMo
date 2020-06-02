@@ -21,10 +21,9 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/pred_utils.py
 """
 
-import collections
 import json
 import os
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
@@ -120,9 +119,9 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
     # test set, these labels are missing from the data and hence they are added.
     dialog_id = dialog["dialogue_id"]
     # The slot values tracked for each service.
-    all_slot_values = collections.defaultdict(OrderedDict)
-    sys_slots_agg = collections.defaultdict(OrderedDict)
-    sys_slots_last = collections.defaultdict(OrderedDict)
+    all_slot_values = defaultdict(OrderedDict)
+    sys_slots_agg = defaultdict(OrderedDict)
+    sys_slots_last = defaultdict(OrderedDict)
 
     sys_rets = OrderedDict()
     true_state_prev = OrderedDict()
@@ -130,7 +129,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
     frame_service_prev = ""
     for turn_idx, turn in enumerate(dialog["turns"]):
         if turn["speaker"] == "SYSTEM":
-            sys_slots_last = collections.defaultdict(OrderedDict)
+            sys_slots_last = defaultdict(OrderedDict)
             for frame in turn["frames"]:
                 if frame["service"] not in sys_slots_agg:
                     sys_slots_agg[frame["service"]] = OrderedDict()
@@ -454,7 +453,7 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
     # test set, these labels are missing from the data and hence they are added.
     dialog_id = dialog["dialogue_id"]
     # The slot values tracked for each service.
-    all_slot_values = collections.defaultdict(dict)
+    all_slot_values = defaultdict(dict)
     for turn_idx, turn in enumerate(dialog["turns"]):
         if turn["speaker"] == "USER":
             user_utterance = turn["utterance"]
