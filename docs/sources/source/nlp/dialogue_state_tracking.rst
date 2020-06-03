@@ -460,14 +460,15 @@ For our experiments we used 9 augmentation sweeps (and concatenated it with the 
         --replace_word_prob 1.0 \
         --concat_orig_dialogue
 
+
+Results on Single Domain
+------------------------
 The following table shows results of the SGD baseline and that of some NeMo model features. The focus was to improve seen services.
 We use * to denote the issue fixed in NeMo that occurred in the original TensorFlow implementation of SGD for single domain.
 In the original version of the single domain task, the evaluation falsely classified two services ``Travel_1`` and ``Weather_1`` as Seen Services   
 although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on Seen Services increased.  
 
 
-Results on Single Domain
-------------------------
 
 Seen Services
 
