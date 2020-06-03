@@ -90,7 +90,7 @@ def extract_file(filepath: str, data_dir: str):
 
 
 def __remove_tarred_files(filepath: str, data_dir: str):
-    if os.path.exists(data_dir):
+    if os.path.exists(data_dir) and os.path.isfile(filepath):
         logging.info('Deleting %s' % filepath)
         os.remove(filepath)
 
