@@ -401,7 +401,7 @@ Enabling multi-GPU training with NeMo is easy:
 
 .. code-block:: bash
 
-    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/quartznet_speech_commands.py ...
+    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/quartznet_vad.py ...
 
 .. note::
     Because mixed precision requires Tensor Cores it only works on NVIDIA Volta and Turing based GPUs
@@ -416,12 +416,12 @@ Assuming, you are working with Volta-based DGX, you can run training like this:
 
 .. code-block:: bash
 
-    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/quartznet_vad.py --model_config "<nemo_git_repo_root>/examples/asr/configs/quartznet_svad_3x1.yaml" \ 
-    -- train_dataset='<absolute path to manifest>/balanced_background_training_manifest.json,<absolute path to manifest>/balanced_speech_training_manifest.json' 
+    python -m torch.distributed.launch --nproc_per_node=<num_gpus> <nemo_git_repo_root>/examples/asr/quartznet_vad.py --model_config "<nemo_git_repo_root>/examples/asr/configs/quartznet_vad_3x1.yaml" \ 
+    --train_dataset='<absolute path to manifest>/balanced_background_training_manifest.json,<absolute path to manifest>/balanced_speech_training_manifest.json' 
     --eval_datasets='.<absolute path to manifest>/background_validation_manifest.json,<absolute path to manifest>/speech_validation_manifest.json' 
     --num_epochs=200 --batch_size=128 --eval_batch_size=128 --eval_freq=200 --lr=0.05 --min_lr=0.001 \
     --optimizer="novograd" --weight_decay=0.001 --amp_opt_level="O1" --warmup_ratio=0.05 --hold_ratio=0.45 \
-    --checkpoint_dir="./checkpoints/quartznet_vad_checkpoints_3x1/""\
+    --checkpoint_dir="./checkpoints/quartznet_vad_checkpoints_3x1/"\
     --exp_name="./results/quartznet_vad_checkpoints_3x1/"
 
 The command above should trigger multi-GPU training with mixed precision.
@@ -594,9 +594,14 @@ First download pre-trained model (jasper_encoder, jasper_decoder and configurati
 
     for batch_idx, (logits, labels) in enumerate(zip(evaluated_tensors[1], evaluated_tensors[2])):
 
-        tn, fp, fn, tp = classification_confusion_matrix(
-            logits=logits,
-            targets=labels).ravel()
+
+        # check if it's a 2 classes confusion matrix.
+        confusion_matrix = classification_confusion_matrix(
+                logits=logits,
+                targets=labels)
+        
+        if confusion_matrix.shape[0] == 2:
+            tn, fp, fn, tp = confusion_matrix.ravel()
 
         total_true_negative += tn
         total_false_negative += fn

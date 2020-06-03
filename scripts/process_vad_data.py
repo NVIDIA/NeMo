@@ -22,6 +22,7 @@ import tarfile
 import urllib.request
 
 import librosa
+import numpy as np
 from sklearn.model_selection import train_test_split
 
 sr = 16000
@@ -70,9 +71,17 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
 
 def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1):
     X = []
-    for o in os.listdir(data_dir):
-        if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
-            X.extend(glob.glob(os.path.join(data_dir, o) + '/*.wav'))
+    if file_type == "speech":
+        for o in os.listdir(data_dir):
+            if os.path.isdir(os.path.join(data_dir, o)) and o.split("/")[-1] != "_background_noise_":
+                X.extend(glob.glob(os.path.join(data_dir, o) + '/*.wav'))
+    else:
+        for o in os.listdir(data_dir):
+            if os.path.isdir(os.path.join(data_dir, o)):
+                X.extend(glob.glob(os.path.join(data_dir, o) + '/*.wav'))
+            else:  # for using "_background_noise_" from google speech commands as background data
+                if o.endswith(".wav"):
+                    X.append(os.path.join(data_dir, o))
 
     X_train, X_test = train_test_split(X, test_size=test_size, random_state=1)
     val_size_tmp = val_size / (1 - test_size)
@@ -86,7 +95,7 @@ def split_train_val_test(data_dir, file_type, test_size=0.1, val_size=0.1):
         outfile.write("\n".join(X_val))
 
     logging.info(f'Overall: {len(X)}, Train: {len(X_train)}, Validatoin: {len(X_val)}, Test: {len(X_test)}')
-    logging.info(f"Finished split train, val and test for {file_type}. Write to files !")
+    logging.info(f"Finished split train, val and test for {file_type}. Write to files!")
 
 
 def process_google_speech_train(data_dir):
@@ -212,15 +221,18 @@ def load_list_write_manifest(
     return skip_num, seg_num, output_path
 
 
-def get_max_json(data_dir, data_json, max_limit, prefix):
+def rebalance_json(data_dir, data_json, num, prefix):
     data = []
     seg = 0
     for line in open(data_json, 'r'):
         data.append(json.loads(line))
     filename = data_json.split('/')[-1]
-
     fout_path = os.path.join(data_dir, prefix + "_" + filename)
-    selected_sample = random.sample(data, max_limit)
+
+    if len(data) >= num:
+        selected_sample = np.random.choice(data, num, replace=False)
+    else:
+        selected_sample = np.random.choice(data, num, replace=True)
 
     with open(fout_path, 'a') as fout:
         for i in selected_sample:
@@ -229,22 +241,69 @@ def get_max_json(data_dir, data_json, max_limit, prefix):
             fout.write('\n')
             fout.flush()
 
-    logging.info(f'Get {seg}/{max_limit} to  {fout_path} from {data_json}')
+    logging.info(f'Get {seg}/{num} to  {fout_path} from {data_json}')
     return fout_path
+
+
+def generate_variety_noise(data_dir, filename, prefix):
+
+    curr_dir = data_dir.split("_background_noise_")[0]
+    silence_path = os.path.join(curr_dir, "_background_noise_more")
+
+    if not os.path.exists(silence_path):
+        os.mkdir(silence_path)
+
+    silence_stride = 1000
+    sampling_rate = 16000
+
+    silence_files = []
+    rng = np.random.RandomState(0)
+
+    filename = prefix + '_' + filename
+    file_path = os.path.join(data_dir, filename)
+
+    with open(file_path, 'r') as allfile:
+        files = allfile.read().splitlines()
+
+    for file in files:
+        y, sr = librosa.load(file, sr=sampling_rate)
+        for i in range(0, len(y) - sampling_rate, silence_stride):
+            file_name = "{}_{}.wav".format(file.split("/")[-1], i)
+            y_slice = y[i : i + sampling_rate]
+            magnitude = rng.uniform(0.0, 1.0)
+            y_slice *= magnitude
+            out_file_path = os.path.join(silence_path, file_name)
+            librosa.output.write_wav(out_file_path, y_slice, sr)
+            silence_files.append(out_file_path)
+
+    new_list_file = os.path.join(silence_path, filename)
+    with open(new_list_file, "w") as outfile:
+        outfile.write("\n".join(silence_files))
+
+    logging.info(f"Generate more background for {file_path}. => {new_list_file} !")
+    return len(silence_files)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Speech and backgound data download and preprocess')
-    parser.add_argument("--out_dir", required=False, default='./manifest/', type=str, action='store_true')
+    parser.add_argument("--out_dir", required=False, default='./manifest/', type=str)
     parser.add_argument("--speech_data_root", required=True, default=None, type=str)
     parser.add_argument("--background_data_root", required=True, default=None, type=str)
-    parser.add_argument('--test_size', required=False, default=0.1, type=float, action='store_true')
-    parser.add_argument('--val_size', required=False, default=0.1, type=float, action='store_true')
+    parser.add_argument('--test_size', required=False, default=0.1, type=float)
+    parser.add_argument('--val_size', required=False, default=0.1, type=float)
     parser.add_argument('--log', required=False, action='store_true')
-    parser.add_argument('--rebalance', required=False, action='store_true')
-    parser.set_defaults(log=True, rebalance=False)
-
+    parser.add_argument('--rebalance_method', required=False, default=None, type=str)
+    parser.add_argument('--generate', required=False, action='store_true')
+    parser.set_defaults(log=False, generate=False)
     args = parser.parse_args()
+
+    if not args.rebalance_method:
+        rebalance = False
+    else:
+        if args.rebalance_method != 'over' and args.rebalance_method != 'under' and args.rebalance_method != 'fixed':
+            raise NameError("Please select a valid sampling method: over/under/fixed.")
+        else:
+            rebalance = True
 
     if args.log:
         logging.basicConfig(level=logging.DEBUG)
@@ -273,58 +332,102 @@ def main():
     split_train_val_test(background_data_folder, "background", args.test_size, args.val_size)
 
     out_dir = args.out_dir
+
     # Process Speech manifest
     logging.info(f"=== Write speech data to manifest!")
-    skip_num_val, seg_num_val, speech_val = load_list_write_manifest(
+    skip_num_val, speech_seg_num_val, speech_val = load_list_write_manifest(
         speech_data_folder, out_dir, 'validation_list.txt', 'speech', 1, 1
     )
-    skip_num_test, seg_num_test, speech_test = load_list_write_manifest(
+    skip_num_test, speech_seg_num_test, speech_test = load_list_write_manifest(
         speech_data_folder, out_dir, 'testing_list.txt', 'speech', 1, 1
     )
-    skip_num_train, seg_num_train, speech_train = load_list_write_manifest(
+    skip_num_train, speech_seg_num_train, speech_train = load_list_write_manifest(
         speech_data_folder, out_dir, 'training_list.txt', 'speech', 1, 1
     )
 
-    logging.info(f'Val: Skip {skip_num_val} samples. Get {seg_num_val} segments! => {speech_val} ')
-    logging.info(f'Test: Skip {skip_num_test} samples. Get {seg_num_test} segments! => {speech_test}')
-    logging.info(f'Train: Skip {skip_num_train} samples. Get {seg_num_train} segments!=> {speech_train}')
-    min_seg_num_val = seg_num_val
-    min_seg_num_test = seg_num_test
-    min_seg_num_train = seg_num_train
+    logging.info(f'Val: Skip {skip_num_val} samples. Get {speech_seg_num_val} segments! => {speech_val} ')
+    logging.info(f'Test: Skip {skip_num_test} samples. Get {speech_seg_num_test} segments! => {speech_test}')
+    logging.info(f'Train: Skip {skip_num_train} samples. Get {speech_seg_num_train} segments!=> {speech_train}')
 
     # Process background manifest
+    # if we select to generate more background noise data
+    if args.generate:
+        logging.info("Start generate more background noise data")
+        generate_variety_noise(background_data_folder, 'validation_list.txt', 'background')
+        generate_variety_noise(background_data_folder, 'training_list.txt', 'background')
+        generate_variety_noise(background_data_folder, 'testing_list.txt', 'background')
+        background_data_folder = os.path.join(
+            background_data_folder.split("_background_noise_")[0], "_background_noise_more"
+        )
+
     logging.info(f"=== Write background data to manifest!")
-    skip_num_val, seg_num_val, background_val = load_list_write_manifest(
+    skip_num_val, background_seg_num_val, background_val = load_list_write_manifest(
         background_data_folder, out_dir, 'validation_list.txt', 'background', 1, 1
     )
-    skip_num_test, seg_num_test, background_test = load_list_write_manifest(
+    skip_num_test, background_seg_num_test, background_test = load_list_write_manifest(
         background_data_folder, out_dir, 'testing_list.txt', 'background', 1, 1
     )
-    skip_num_train, seg_num_train, background_train = load_list_write_manifest(
+    skip_num_train, background_seg_num_train, background_train = load_list_write_manifest(
         background_data_folder, out_dir, 'training_list.txt', 'background', 1, 1
     )
 
-    logging.info(f'Val: Skip {skip_num_val} samples. Get {seg_num_val} segments! => {background_val}')
-    logging.info(f'Test: Skip {skip_num_test} samples. Get {seg_num_test} segments! => {background_test}')
-    logging.info(f'Train: Skip {skip_num_train} samples. Get {seg_num_train} segments! =>{background_train}')
-    min_seg_num_val = min(min_seg_num_val, seg_num_val)
-    min_seg_num_test = min(min_seg_num_test, seg_num_test)
-    min_seg_num_train = min(min_seg_num_train, seg_num_train)
+    logging.info(f'Val: Skip {skip_num_val} samples. Get {background_seg_num_val} segments! => {background_val}')
+    logging.info(f'Test: Skip {skip_num_test} samples. Get {background_seg_num_test} segments! => {background_test}')
+    logging.info(
+        f'Train: Skip {skip_num_train} samples. Get {background_seg_num_train} segments! =>{background_train}'
+    )
+    min_val, max_val = min(speech_seg_num_val, background_seg_num_val), max(speech_seg_num_val, background_seg_num_val)
+    min_test, max_test = (
+        min(speech_seg_num_test, background_seg_num_test),
+        max(speech_seg_num_test, background_seg_num_test),
+    )
+    min_train, max_train = (
+        min(speech_seg_num_train, background_seg_num_train),
+        max(speech_seg_num_train, background_seg_num_train),
+    )
 
-    logging.info('Done!')
+    logging.info('Done generating manifest!')
 
-    if args.rebalance:
-        # Get balanced amount of data in both classes.
-        logging.info("Rebalancing number of samples in classes.")
-        logging.info(f'Val: {min_seg_num_val} Test: {min_seg_num_test} Train: {min_seg_num_train}!')
+    if rebalance:
+        # Random Oversampling: Randomly duplicate examples in the minority class.
+        # Random Undersampling: Randomly delete examples in the majority class.
+        if args.rebalance_method == 'under':
+            logging.info(f"Rebalancing number of samples in classes using {args.rebalance_method } sampling.")
+            logging.info(f'Val: {min_val} Test: {min_test} Train: {min_train}!')
 
-        get_max_json(out_dir, background_val, min_seg_num_val, 'balanced')
-        get_max_json(out_dir, background_test, min_seg_num_test, 'balanced')
-        get_max_json(out_dir, background_train, min_seg_num_train, 'balanced')
+            rebalance_json(out_dir, background_val, min_val, 'balanced')
+            rebalance_json(out_dir, background_test, min_test, 'balanced')
+            rebalance_json(out_dir, background_train, min_train, 'balanced')
 
-        get_max_json(out_dir, speech_val, min_seg_num_val, 'balanced')
-        get_max_json(out_dir, speech_test, min_seg_num_test, 'balanced')
-        get_max_json(out_dir, speech_train, min_seg_num_train, 'balanced')
+            rebalance_json(out_dir, speech_val, min_val, 'balanced')
+            rebalance_json(out_dir, speech_test, min_test, 'balanced')
+            rebalance_json(out_dir, speech_train, min_train, 'balanced')
+
+        if args.rebalance_method == 'over':
+            logging.info(f"Rebalancing number of samples in classes using {args.rebalance_method} sampling.")
+            logging.info(f'Val: {max_val} Test: {max_test} Train: {max_train}!')
+
+            rebalance_json(out_dir, background_val, max_val, 'balanced')
+            rebalance_json(out_dir, background_test, max_test, 'balanced')
+            rebalance_json(out_dir, background_train, max_train, 'balanced')
+
+            rebalance_json(out_dir, speech_val, max_val, 'balanced')
+            rebalance_json(out_dir, speech_test, max_test, 'balanced')
+            rebalance_json(out_dir, speech_train, max_train, 'balanced')
+
+        if args.rebalance_method == 'fixed':
+
+            fixed_test, fixed_val, fixed_train = 1000, 1000, 5000
+            logging.info(f"Rebalancing number of samples in classes using {args.rebalance_method} sampling.")
+            logging.info(f'Val: {fixed_val} Test: {fixed_test} Train: {fixed_train}!')
+
+            rebalance_json(out_dir, background_val, fixed_val, 'balanced')
+            rebalance_json(out_dir, background_test, fixed_test, 'balanced')
+            rebalance_json(out_dir, background_train, fixed_train, 'balanced')
+
+            rebalance_json(out_dir, speech_val, fixed_val, 'balanced')
+            rebalance_json(out_dir, speech_test, fixed_test, 'balanced')
+            rebalance_json(out_dir, speech_train, fixed_train, 'balanced')
     else:
         logging.info("Don't rebalance number of samples in classes.")
 

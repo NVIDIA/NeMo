@@ -22,6 +22,18 @@ from joblib import Parallel, delayed
 
 
 def resample_file(resampled_dir, filepath, ext):
+    """
+    Resample an audio file to 16kHZ and transform to monochannel
+    Remove incompatible files.
+
+    Args:
+        resampled_dir: Directory of transformed files.
+        filepath: Filepath of Audio
+        ext: File type e.g. "wav", "flac"
+
+    Returns:
+
+    """
     head, filename = os.path.split(filepath)
     _, clsname = os.path.split(head)
 
