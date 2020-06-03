@@ -36,6 +36,13 @@ If you have a different checkpoint or model configuration, use ``--pretrained_mo
     Megatron-LM has its own set of training arguments (including tokenizer) that are ignored during finetuning in NeMo. Please use downstream task training scripts for all NeMo supported arguments.
 
 
+BioMegatron
+--------------
+
+To use BioMegatron for biomedical downstream tasks please visit:
+
+`https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks>`__
+
 
 References
 ----------
