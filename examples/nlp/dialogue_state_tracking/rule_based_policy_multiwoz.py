@@ -35,7 +35,7 @@ Use "--mode interactive" to chat with the system and "--hide_output" - to hide i
 """
 
 import argparse
-import os
+from os.path import expanduser, exists
 
 from nemo import core as nemo_core
 from nemo.backends.pytorch.common import EncoderRNN
@@ -76,9 +76,12 @@ parser.add_argument("--work_dir", default='outputs', type=str, help='Path to whe
 
 args = parser.parse_args()
 
+# Get the absolute path.
+abs_data_dir = expanduser(args.data_dir)
+
 # Check if data dir exists
-if not os.path.exists(args.data_dir):
-    raise ValueError(f"Data folder `{args.data_dir}` not found")
+if not exists(abs_data_dir):
+    raise ValueError(f"Data folder `{abs_data_dir}` not found")
 
 if args.show_all_output:
     logging.setLevel('DEBUG')
@@ -91,7 +94,7 @@ nf = nemo_core.NeuralModuleFactory(
 domains = {"attraction": 0, "restaurant": 1, "train": 2, "hotel": 3, "taxi": 5}
 
 # create DataDescriptor that contains information about domains, slots, and associated vocabulary
-data_desc = MultiWOZDataDesc(args.data_dir, domains)
+data_desc = MultiWOZDataDesc(abs_data_dir, domains)
 vocab_size = len(data_desc.vocab)
 
 utterance_encoder = UtteranceEncoderNM(data_desc=data_desc)
@@ -110,14 +113,14 @@ trade_decoder = TRADEGenerator(
     max_res_len=4,
 )
 
-if os.path.exists(args.encoder_ckpt) and os.path.exists(args.decoder_ckpt):
+if exists(expanduser(args.encoder_ckpt)) and exists(expanduser(args.decoder_ckpt)):
     trade_encoder.restore_from(args.encoder_ckpt)
     trade_decoder.restore_from(args.decoder_ckpt)
 else:
     logging.info("Please refer to the NeMo docs for steps on how to obtain TRADE checkpoints")
 
 trade_output_decoder = TradeStateUpdateNM(data_desc=data_desc)
-rule_based_policy = RuleBasedMultiwozBotNM(data_dir=args.data_dir)
+rule_based_policy = RuleBasedMultiwozBotNM(data_dir=abs_data_dir)
 template_nlg = TemplateNLGMultiWOZNM()
 
 

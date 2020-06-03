@@ -57,8 +57,8 @@ import argparse
 import json
 import os
 import re
-import shutil
-from os.path import exists
+from os.path import exists, expanduser
+from shutil import copyfile
 
 from nemo.collections.nlp.data.datasets.datasets_utils import if_exist
 
@@ -381,7 +381,7 @@ def divideData(data, infold, outfold):
     the data for three different sets"""
 
     os.makedirs(outfold, exist_ok=True)
-    shutil.copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
+    copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
 
     testListFile = []
     fin = open(f'{infold}/testListFile.json', 'r')
@@ -459,7 +459,7 @@ def divideData(data, infold, outfold):
 
     for f in os.listdir(infold):
         if '_db.json' in f:
-            shutil.copyfile(f'{infold}/{f}', f'{db_fold}/{f}')
+            copyfile(f'{infold}/{f}', f'{db_fold}/{f}')
         # taxi_db.json file is missing a comma in the MultiWOZ2.1 dataset
         # check if it's so and fix
         if f == 'taxi_db.json':
@@ -496,17 +496,21 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite_files", action="store_true", help="Whether to overwrite preprocessed file")
     args = parser.parse_args()
 
-    if not exists(args.source_data_dir):
-        raise FileNotFoundError(f"{args.source_data_dir} does not exist.")
+    # Get the absolute path.
+    abs_source_data_dir = expanduser(args.source_data_dir)
+    abs_target_data_dir = expanduser(args.target_data_dir)
+
+    if not exists(abs_source_data_dir):
+        raise FileNotFoundError(f"{abs_source_data_dir} does not exist.")
 
     # Check if the files exist
     if (
         if_exist(
-            args.target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db']
+            abs_target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db']
         )
         and not args.overwrite_files
     ):
-        print(f'Data is already processed and stored at {args.source_data_dir}, skipping pre-processing.')
+        print(f'Data is already processed and stored at {abs_source_data_dir}, skipping pre-processing.')
         exit(0)
 
     fin = open('multiwoz_mapping.pair', 'r')
@@ -517,6 +521,6 @@ if __name__ == "__main__":
 
     print('Creating dialogues...')
     # Process MultiWOZ dataset
-    delex_data = createData(args.source_data_dir)
+    delex_data = createData(abs_source_data_dir)
     # Divide data
-    divideData(delex_data, args.source_data_dir, args.target_data_dir)
+    divideData(delex_data, abs_source_data_dir, abs_target_data_dir)
