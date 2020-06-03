@@ -16,7 +16,7 @@
 
 import argparse
 import json
-import logging
+import logging as _logging
 import os
 import tarfile
 import urllib.request
@@ -30,7 +30,8 @@ parser = argparse.ArgumentParser(description='HI-MIA Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
 parser.add_argument("--log_level", default=20, type=int)
 args = parser.parse_args()
-logging = logging.getLogger()
+logging = _logging.getLogger(__name__)
+logging.addHandler(_logging.StreamHandler())
 logging.setLevel(args.log_level)
 
 URL = {
@@ -88,7 +89,7 @@ def write_file(name, lines, idx):
             dic = lines[i]
             json.dump(dic, fout)
             fout.write('\n')
-    logging.info("wrote", name)
+    logging.info("wrote %s", name)
 
 
 def __process_data(data_folder: str, data_set: str):
@@ -96,7 +97,6 @@ def __process_data(data_folder: str, data_set: str):
     To generate manifest
     Args:
         data_folder: source with wav files
-        dst_folder: where manifest files will be stored
     Returns:
 
     """
