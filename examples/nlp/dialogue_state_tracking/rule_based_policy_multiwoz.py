@@ -35,7 +35,7 @@ Use "--mode interactive" to chat with the system and "--hide_output" - to hide i
 """
 
 import argparse
-from os.path import expanduser, exists
+from os.path import exists, expanduser
 
 from nemo import core as nemo_core
 from nemo.backends.pytorch.common import EncoderRNN

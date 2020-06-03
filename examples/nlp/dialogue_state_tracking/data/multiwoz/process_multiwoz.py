@@ -505,9 +505,7 @@ if __name__ == "__main__":
 
     # Check if the files exist
     if (
-        if_exist(
-            abs_target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db']
-        )
+        if_exist(abs_target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db'])
         and not args.overwrite_files
     ):
         print(f'Data is already processed and stored at {abs_source_data_dir}, skipping pre-processing.')
