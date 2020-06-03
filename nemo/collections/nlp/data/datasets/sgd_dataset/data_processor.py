@@ -210,7 +210,7 @@ class SGDDataProcessor(object):
             dialog (dict): dialogue example
             schemas(Schema): for all services and all datasets processed by the schema_processor
             dataset(str): can be "train", "dev", or "test".
-            slot_carryover_candlist(dict): a dictionary to keep and count the number of carry-over between two slots from two services
+            slot_carryover_candlist(dict): a dictionary to keep and count the number of carry-over cases between two slots from two different services
         Returns:
             examples: a list of `InputExample`s.
         """
