@@ -1484,21 +1484,20 @@ class PtActions(Actions):
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
+                # Register batch end with callbacks
+                _update_callbacks(
+                    callbacks, registered_tensors=self._training_state.tensor_dict, final_loss=final_loss
+                )
                 # Perform batch end callbacks
                 _perform_on_batch_end(callbacks, get_state(self))
 
                 batch_counter += 1
-
                 if batch_counter == batches_per_step:
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
                         torch.nn.utils.clip_grad_norm_(master_params(curr_optimizer), grad_norm_clip)
                     curr_optimizer.step()
                     batch_counter = 0
-                    # Register iteration end with callbacks
-                    _update_callbacks(
-                        callbacks, registered_tensors=self._training_state.tensor_dict, final_loss=final_loss
-                    )
                     _perform_on_step_end(callbacks, get_state(self))
                     self.step += 1
                 self._training_state.clear_dict()
