@@ -411,7 +411,7 @@ For instance when user is reserving flight tickets for two persons, it can be as
 A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another.
 Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
 
-The main idea of carry-over between slots are inspired from :cite:`nlp-dst-limiao2019dstc8` and :cite:`nlp-dst-ruan2020fine`. These two updates improved the accuracy of the state tracker for SGD significantly. It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
+The main idea of carry-over between slots are inspired from :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. These two updates improved the accuracy of the state tracker for SGD significantly. It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
 the candidate list is extracted from the training dialogues which does not contain unseen services. To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots.
 
 Training
