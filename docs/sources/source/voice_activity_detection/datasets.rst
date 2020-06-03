@@ -6,7 +6,7 @@ Datasets
 Freesound database
 -----------------------------------
 
-`Freesound <http://www.freesound.org/>`_ is a website that aims to create a huge open collaborative database of audio snippets, samples, recordings, bleeps. Audio samples are released under Creative Commons licenses that allow their reuse. Researchers and developers can access Freesound content using the Freesound API to retrieve meaningful sound information such as metadata, analysis files and the sounds themselves. (see :cite:`vad-dataset-font2797`)
+`Freesound <http://www.freesound.org/>`_ is a website that aims to create a huge open collaborative database of audio snippets, samples, recordings, bleeps. Audio samples are released under Creative Commons licenses that allow their reuse. Researchers and developers can access Freesound content using the Freesound API to retrieve meaningful sound information such as metadata, analysis files and the sounds themselves. (see :cite:`vad-dataset-font2013freesound`)
 
 We use freesound "background categories" as background/non-speech audio samples for voice activity detection.
 

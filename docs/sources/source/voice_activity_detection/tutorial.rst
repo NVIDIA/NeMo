@@ -76,7 +76,7 @@ We will use the open source Google Speech Commands Dataset (we will use V2 of th
 * `'under'`: Undersampling rebalance method
 
 .. note::
-    In tutorial `VAD_using_NeMo.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb>`_ We avoid using freesound dataset, and use `_background_noise_` category in Google Speech Commands Dataset as non-speech/background data for demonstration. The `_background_noise_` category only has 6 audio files. So we would like to generate more based on the audio files to enlarge our background training data. If you want to use your own background noise data, just change the `background_data_root` and ignore `-\\-generate`
+    In tutorial `VAD_using_NeMo.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb>`_ , we avoid using freesound dataset, and use `_background_noise_` category in Google Speech Commands Dataset as non-speech/background data for demonstration. The `_background_noise_` category only has 6 audio files. So we would like to generate more based on the audio files to enlarge our background training data. If you want to use your own background noise data, just change the `background_data_root` and ignore `-\\-generate`
 
 
 .. code-block:: bash
