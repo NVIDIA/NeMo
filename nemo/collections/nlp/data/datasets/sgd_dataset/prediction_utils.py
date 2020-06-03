@@ -107,8 +107,7 @@ def get_carryover_value(
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
     """Update labels in a dialogue based on model predictions.
     This approach retrieves slot values from the history of system actions if slot is active but it can not find it in
-    user utterance overwrite the labels in the turn with the predictions from the model. For test set, these labels are
-    missing from the data and hence they are added.
+    user utterance overwrite the labels in the turn with the predictions from the model.
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
     all_predictions: A dict mapping prediction name to the predicted value. See
@@ -332,6 +331,10 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     sys_slots_last,
                 )
 
+                # in debug mode, the following outputs would get generated which can be used for performing error analysis.
+                # It prints out the information about the frames in the evaluation set which contain errors and those error in the predictaed state are not originated from previous frames or turns.
+                # Therefore, these frames would be the origin of errors in the evaluation dialogues.
+                # It just prints out the frames for seen services as our model is designed mostly for seen services and it does not work great on unseen ones.
                 if eval_debug and frame["service"] in in_domain_services:
                     equal_state = True
                     for s, v in true_state['slot_values'].items():
