@@ -154,9 +154,6 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                 noncat_slot_value_acc = 0
                 noncat_slot_value_num = 0
 
-                # changed here
-                # if frame["service"] not in in_domain_services:
-                #     continue
                 predictions = all_predictions[(dialog_id, turn_id, frame["service"])]
                 slot_values = all_slot_values[frame["service"]]
                 service_schema = schemas.get_service_schema(frame["service"])
