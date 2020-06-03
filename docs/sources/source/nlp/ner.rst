@@ -211,6 +211,14 @@ To run inference:
 
 Note, label_ids.csv file will be generated during training and stored in the data_dir folder.
 
+BioNER
+--------------
+
+To use BioBERT/BioMegatron for biomedical named entity recognition please visit:
+
+`https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_ner.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_ner.ipynb>`__
+
+
 Using Other BERT Models
 -----------------------
 
