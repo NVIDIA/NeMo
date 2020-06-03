@@ -95,22 +95,22 @@ def get_carryover_value(
     MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
     """
 
-    ext_value = None
+    extracted_value = None
     if slot in sys_slots_agg[cur_usr_frame["service"]]:
-        ext_value = sys_slots_agg[cur_usr_frame["service"]][slot]
-        sys_rets[slot] = ext_value
+        extracted_value = sys_slots_agg[cur_usr_frame["service"]][slot]
+        sys_rets[slot] = extracted_value
     elif (cur_usr_frame["service"], slot) in slots_relation_list:
         cands_list = slots_relation_list[(cur_usr_frame["service"], slot)]
         for dmn, slt, freq in cands_list:
             if freq < MIN_SLOT_RELATION:
                 continue
             if dmn in all_slot_values and slt in all_slot_values[dmn]:
-                ext_value = all_slot_values[dmn][slt]
+                extracted_value = all_slot_values[dmn][slt]
             if dmn in sys_slots_agg and slt in sys_slots_agg[dmn]:
-                ext_value = sys_slots_agg[dmn][slt]
+                extracted_value = sys_slots_agg[dmn][slt]
             if dmn in sys_slots_last and slt in sys_slots_last[dmn]:
-                ext_value = sys_slots_last[dmn][slt]
-    return ext_value
+                extracted_value = sys_slots_last[dmn][slt]
+    return extracted_value
 
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
@@ -145,6 +145,8 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
     true_state_prev = OrderedDict()
     true_state = OrderedDict()
     frame_service_prev = ""
+    slots_relation_list = schemas._slots_relation_list
+
     for turn_idx, turn in enumerate(dialog["turns"]):
         if turn["speaker"] == "SYSTEM":
             sys_slots_last = defaultdict(OrderedDict)
@@ -221,16 +223,16 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     cat_slot_status_num += 1
 
                     slot_status = predictions["cat_slot_status"][slot_idx]
-                    ext_value = None
+                    extracted_value = None
                     if slot_status == STATUS_DONTCARE:
-                        ext_value = STR_DONTCARE
+                        extracted_value = STR_DONTCARE
                     elif slot_status == STATUS_ACTIVE:
                         if (
                             service_schema.get_categorical_slot_values(slot)[predictions["cat_slot_value"][slot_idx]]
                             != "#CARRYVALUE#"
                         ):
                             value_idx = predictions["cat_slot_value"][slot_idx]
-                            ext_value = service_schema.get_categorical_slot_values(slot)[value_idx]
+                            extracted_value = service_schema.get_categorical_slot_values(slot)[value_idx]
                         else:
                             carryover_value = get_carryover_value(
                                 slot,
@@ -239,23 +241,23 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                                 all_slot_values,
                                 sys_slots_last,
                                 sys_slots_agg,
-                                schemas.slots_relation_list,
+                                slots_relation_list,
                                 sys_rets,
                             )
                             if carryover_value is not None:
-                                ext_value = carryover_value
+                                extracted_value = carryover_value
                                 print(f'slot:{slot} with value:{carryover_value} extratced with CARRYVALUE')
                     elif slot_status == STATUS_OFF:
-                        ext_value = None
+                        extracted_value = None
 
-                    if ext_value is not None:
-                        slot_values[slot] = ext_value
+                    if extracted_value is not None:
+                        slot_values[slot] = extracted_value
 
                     # debugging info processing
                     if predictions["cat_slot_status_GT"][slot_idx] != predictions["cat_slot_status"][slot_idx] or (
                         predictions["cat_slot_status_GT"][slot_idx] == predictions["cat_slot_status"][slot_idx]
                         and predictions["cat_slot_status_GT"][slot_idx] != STATUS_OFF
-                        and ext_value not in true_state['slot_values'][slot]
+                        and extracted_value not in true_state['slot_values'][slot]
                     ):
                         categorical_slots_dict[slot] = (
                             predictions["cat_slot_status_GT"][slot_idx],
@@ -265,7 +267,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                             service_schema.get_categorical_slot_values(slot)[
                                 predictions["cat_slot_value_GT"][slot_idx]
                             ],
-                            ext_value,
+                            extracted_value,
                             predictions["cat_slot_value_p"][slot_idx],
                         )
 
@@ -273,7 +275,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                         cat_slot_status_acc += 1
                     if predictions["cat_slot_status_GT"][slot_idx] != STATUS_OFF:
                         cat_slot_value_num += 1
-                        if ext_value in true_state['slot_values'][slot]:
+                        if extracted_value in true_state['slot_values'][slot]:
                             cat_slot_value_acc += 1
                     # debugging info processing ended
 
@@ -284,19 +286,19 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     tok_end_idx = predictions["noncat_slot_end"][slot_idx]
                     ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                     ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
-                    ext_value = None
+                    extracted_value = None
                     if ch_start_idx > 0 and ch_end_idx > 0:
                         # Add span from the user utterance.
-                        ext_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
+                        extracted_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
                     else:
-                        ext_value = get_carryover_value(
+                        extracted_value = get_carryover_value(
                             slot,
                             frame,
                             frame_service_prev,
                             all_slot_values,
                             sys_slots_last,
                             sys_slots_agg,
-                            schemas.slots_relation_list,
+                            slots_relation_list,
                             sys_rets,
                         )
 
@@ -304,8 +306,8 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     if slot_status == STATUS_DONTCARE:
                         slot_values[slot] = STR_DONTCARE
                     elif slot_status == STATUS_ACTIVE:
-                        if ext_value is not None:
-                            slot_values[slot] = ext_value
+                        if extracted_value is not None:
+                            slot_values[slot] = extracted_value
 
                     # debugging info processing
                     if predictions["noncat_slot_status_GT"][slot_idx] != predictions["noncat_slot_status"][
@@ -313,7 +315,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     ] or (
                         predictions["noncat_slot_status_GT"][slot_idx] == predictions["noncat_slot_status"][slot_idx]
                         and predictions["noncat_slot_status_GT"][slot_idx] != STATUS_OFF
-                        and ext_value not in true_state['slot_values'][slot]
+                        and extracted_value not in true_state['slot_values'][slot]
                     ):
                         non_categorical_slots_dict[slot] = (
                             predictions["noncat_slot_status_GT"][slot_idx],
@@ -323,13 +325,13 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                             user_utterance[ch_start_idx - 1 : ch_end_idx]
                             if (ch_start_idx > 0 and ch_end_idx > 0)
                             else system_utterance[-ch_start_idx - 1 : -ch_end_idx],
-                            ext_value,
+                            extracted_value,
                             predictions["noncat_slot_p"][slot_idx],
                         )
 
                     if predictions["noncat_slot_status_GT"][slot_idx] != STATUS_OFF:
                         noncat_slot_value_num += 1
-                        if ext_value is not None and ext_value in true_state['slot_values'][slot]:
+                        if extracted_value is not None and extracted_value in true_state['slot_values'][slot]:
                             noncat_slot_value_acc += 1
 
                     if predictions["noncat_slot_status_GT"][slot_idx] == predictions["noncat_slot_status"][slot_idx]:
@@ -339,7 +341,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                 carry_over_slots(
                     frame,
                     all_slot_values,
-                    schemas.slots_relation_list,
+                    slots_relation_list,
                     frame_service_prev,
                     slot_values,
                     sys_slots_agg,

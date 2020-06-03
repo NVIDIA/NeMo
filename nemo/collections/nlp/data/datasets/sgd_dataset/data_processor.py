@@ -159,7 +159,7 @@ class SGDDataProcessor(object):
             )
 
         with open(self.slots_relation_file, "rb") as f:
-            self.schema_emb_processor.schemas.slots_relation_list = pickle.load(f)
+            self.schema_emb_processor.update_slots_relation_list(pickle.load(f))
         logging.info(
             f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
         )
