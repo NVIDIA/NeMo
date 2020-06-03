@@ -139,11 +139,11 @@ Next, we need to preprocess and reformat the dataset, what will result in divisi
 
 In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz.py`_ script:
 
-.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/process_multiwoz.py
+.. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/multiwoz/process_multiwoz.py
 
 .. code-block:: bash
 
-    cd examples/nlp/dialogue_state_tracking/data/
+    cd examples/nlp/dialogue_state_tracking/data/multiwoz
     python process_multiwoz.py \
         --source_data_dir <path to MultoWOZ dataset> \
         --target_data_dir <path to store the processed data>
@@ -427,11 +427,18 @@ Note, during the evaluation, the model first generates predictions and writes th
 Model Improvements
 ------------------
 
-Model improvements added to get better performance results and increase model flexibility:
+Model features added to get better performance results or increase model flexibility:
 
 - data augmentation
 - system retrieval mechanism
 - ability to make schema embeddings trainable during the model training
+- adding an attention layer between the encoder and the model heads
+
+Data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_.
+We used 10x as augmentation factor.
+
+The following table shows results of the SGD baseline and that of some NeMo model features. The focus was to improve seen services.
+We use `*` to denote the error fixed in NeMo that occurred in the original TensorFlow implementation of SGD for single domain.
 
 Results on Single Domain
 ------------------------
@@ -445,18 +452,16 @@ Seen Services
 +=======================================================================+=================+===============+===========+============+
 | Original SGD trained on single domain task                            |      99.06      |     98.67     |   88.08   |    68.58   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                                 |      99.02      |     86.86     |   88.44   |    68.9    |
+| NeMo's Implementation of the Baseline*                                |      98.91      |     99.60     |   90.71   |    70.94   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval                                      |      98.97      |     86.87     |   92.70   |    81.52   |
+| NeMo baseline + system retrieval*                                     |      98.94      |     99.52     |   95.72   |    85.34   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head                     |      98.80      |     86.78     |   93.13   |    83.47   |
+| NeMo baseline + system retrieval + attention head*                    |      98.99      |     99.66     |   96.26   |    86.81   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation                  |      98.74      |     87.56     |   93.3    |    82.81   |
+| NeMo baseline + system retrieval + data augmentation*                 |      98.89      |     99.70     |   96.23   |    86.53   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation |     98.95       |     87.67     |    93.98  |    85.47   |
+| NeMo baseline + system retrieval + attention head + data augmentation*|     98.95       |     99.70     |   94.96   |    88.06   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-
-
 
 Unseen Services
 
@@ -467,18 +472,16 @@ Unseen Services
 +=======================================================================+=================+===============+===========+============+
 | Original SGD trained on single domain task                            |       94.8      |      93.6     |   66.03   |   28.05    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                                 |       94.56     |      87.91    |   65.75   |   29.34    |
+| NeMo's Implementation of the Baseline*                                |       94.75     |      93.46    |   65.33   |   32.18    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval                                      |      94.22      |     87.99     |   67.18   |   30.565   |
+| NeMo baseline + system retrieval*                                     |      94.74      |    93.49      |   67.55   |   34.68    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head                     |      92.01      |    87.86      |   66.98   |   28.135   |
+| NeMo baseline + system retrieval + attention head*                    |      92.39      |    94.04      |   68.47   |   33.41    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation                  |      91.34      |     88.51     |   66.20   |   29.46    |
+| NeMo baseline + system retrieval + data augmentation*                 |      94.94      |     93.97     |   65.73   |   30.89    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation |     92.83       |    88.34      |    70.8   |   30.728   |
+| NeMo baseline + system retrieval + attention head + data augmentation*|     92.68       |    94.55      |    69.59  |   32.76    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-
-
 
 All Services
 
@@ -489,15 +492,15 @@ All Services
 +=======================================================================+=================+===============+===========+============+
 | Original SGD trained on single domain task                            |       96.6      |     96.5      |   77.6    |    48.6    |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                                 |       96.78     |     87.39     |   77.15   |    49.01   |
+| NeMo's Implementation of the Baseline*                                |       96.56     |     96.13     |   76.49   |    49.05   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval                                      |      96.59      |     87.44     |   80.01   |    55.91   |
+| NeMo baseline + system retrieval*                                     |      96.57      |     96.12     |   79.93   |    56.73   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head                     |      95.39      |    87.32      |   80.13   |    55.66   |
+| NeMo baseline + system retrieval + attention head*                    |      95.26      |    96.49      |   80.68   |    56.65   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation                  |      95.05      |     88.04     |   79.82   |    55.99   |
+| NeMo baseline + system retrieval + data augmentation*                 |      96.66      |     96.46     |   79.14   |    55.11   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation |     95.87       |    88.00      |    82.45  |    57.95   |
+| NeMo baseline + system retrieval + attention head + data augmentation*|     95.41       |    96.79      |   81.47   |    56.83   |
 +-----------------------------------------------------------------------+-----------------+---------------+-----------+------------+
 
 
