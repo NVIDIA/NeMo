@@ -35,7 +35,15 @@ __all__ = [
     'EmbeddedTextType',
     'EncodedRepresentation',
     'MaskType',
+    'Target',
+    'ClassificationTarget',
+    'ImageFeatureValue',
+    'Index',
+    'ImageValue',
+    'NormalizedImageValue',
+    'StringLabel',
 ]
+
 import abc
 from abc import ABC, abstractmethod
 from typing import Dict, Optional, Tuple
@@ -192,4 +200,44 @@ class CategoricalValuesType(PredictionsType):
 
 
 class MaskType(PredictionsType):
-    """Element type to represent boolean mask"""
+    """Element type to represent a boolean mask"""
+
+
+class Index(ElementType):
+    """Type representing an element being an index of the sample."""
+
+
+class Target(ElementType):
+    """
+        Type representing an element being a target value.
+    """
+
+
+class ClassificationTarget(Target):
+    """
+        Type representing an element being target value in the classification task, i.e. identifier of a desired class.
+    """
+
+
+class StringLabel(ElementType):
+    """
+        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
+    """
+
+
+class ImageValue(ElementType):
+    """
+        Type representing an element/value of a single image channel,
+        e.g. a single element (R) of RGB image.
+    """
+
+
+class NormalizedImageValue(ImageValue):
+    """
+        Type representing an element/value of a single image channel normalized to <0-1> range,
+        e.g. a single element (R) of normalized RGB image.
+    """
+
+
+class ImageFeatureValue(ImageValue):
+    """Type representing an element (single value) of a (image) feature maps."""

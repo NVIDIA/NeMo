@@ -8,5 +8,6 @@ NeMo Collections API
 
    core
    nemo_asr
+   nemo_cv
    nemo_tts
    nemo_nlp
