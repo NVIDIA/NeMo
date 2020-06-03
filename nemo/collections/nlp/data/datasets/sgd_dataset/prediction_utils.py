@@ -49,7 +49,7 @@ def carry_over_slots(
     last_sys_slots,
 ):
     """This function searches the candidate list for cross-service cases to find and update the values for all the slots in the current predicted state
-    It is called when state is predictaed for a frame.
+    It is called when state is predicted for a frame.
     MIN_SLOT_RELATION specifies the minimum number of relations between two slots in the training dialogues to get considered for carry-over
     """
     if prev_frame_service == cur_usr_frame["service"]:
