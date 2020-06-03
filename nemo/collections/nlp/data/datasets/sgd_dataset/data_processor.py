@@ -20,8 +20,10 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
 """
 
+import collections
 import json
 import os
+import pickle
 import re
 
 import numpy as np
@@ -30,8 +32,7 @@ import torch
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
 
-__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor', 'get_dialogue_files']
-
+__all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor']
 
 FILE_RANGES = {
     "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
@@ -66,6 +67,7 @@ class SGDDataProcessor(object):
 
         self._task_name = task_name
         self.schema_config = schema_emb_processor.schema_config
+        self.schema_emb_processor = schema_emb_processor
 
         train_file_range = FILE_RANGES[task_name]["train"]
         dev_file_range = FILE_RANGES[task_name]["dev"]
@@ -88,6 +90,12 @@ class SGDDataProcessor(object):
 
         self.dial_files = {}
 
+        # slots_relation_list.np would contain the candidate list of slots for each (service, slot) which would be
+        # looked into when a switch between two services happens in the dialogue and we can not find any value for a slot in the current user utterance.
+        # This file would get generated from the dialogues in the training set.
+        self.slots_relation_file = os.path.join(dialogues_example_dir, f"{task_name}_train_slots_relation_list.np")
+
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         for dataset in ["train", "dev", "test"]:
             # Process dialogue files
             dial_file = f"{task_name}_{dataset}_examples.processed"
@@ -101,14 +109,22 @@ class SGDDataProcessor(object):
 
             if not os.path.exists(dial_file) or overwrite_dial_files:
                 logging.debug(f"Start generating the dialogue examples for {dataset} dataset.")
-                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
                     if not os.path.exists(dialogues_example_dir):
                         os.makedirs(dialogues_example_dir)
-                    dial_examples = self._generate_dialog_examples(dataset, schema_emb_processor.schemas)
+                    dial_examples, slots_relation_list = self._generate_dialog_examples(
+                        dataset, schema_emb_processor.schemas
+                    )
                     with open(dial_file, "wb") as f:
                         np.save(f, dial_examples)
-                        f.close()
+
+                    if dataset == "train":
+                        with open(self.slots_relation_file, "wb") as f:
+                            pickle.dump(slots_relation_list, f)
+                        logging.debug(
+                            f"The slot carry-over list for train set is stored at {self.slots_relation_file}"
+                        )
+
                     logging.debug(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
                 logging.debug(f"Finish generating the dialogue examples for {dataset} dataset.")
 
@@ -132,9 +148,22 @@ class SGDDataProcessor(object):
             )
         dial_file = self.dial_files[(self._task_name, dataset)]
         logging.info(f"Loading dialogue examples from {dial_file}.")
+
         with open(dial_file, "rb") as f:
             dial_examples = np.load(f, allow_pickle=True)
             f.close()
+
+        if not os.path.exists(self.slots_relation_file):
+            raise ValueError(
+                f"Slots relation file {self.slots_relation_file} does not exist. It is needed for the carry-over mechanism of state tracker for switches between services."
+            )
+
+        with open(self.slots_relation_file, "rb") as f:
+            self.schema_emb_processor.update_slots_relation_list(pickle.load(f))
+        logging.info(
+            f"Loaded the slot relation list for value carry-over between services from {self.slots_relation_file}."
+        )
+
         return dial_examples
 
     def get_seen_services(self, dataset_split):
@@ -149,28 +178,39 @@ class SGDDataProcessor(object):
         Returns:
           examples: a list of `InputExample`s.
         """
-        logging.info(f'Creating examples from the dialogues started...')
+        logging.info(f'Creating examples and slot relation list from the dialogues started...')
         dialog_paths = [
             os.path.join(self.data_dir, dataset, "dialogues_{:03d}.json".format(i)) for i in self._file_ranges[dataset]
         ]
         dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
 
         examples = []
+        slot_carryover_candlist = collections.defaultdict(int)
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
-                logging.info(f'Processed {dialog_idx} dialogs.')
-            examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset))
+                logging.info(f'Processed {dialog_idx} dialogues.')
+            examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset, slot_carryover_candlist))
 
-        logging.info(f'Finished creating the examples from {len(dialogs)} dialogues.')
-        return examples
+        slots_relation_list = collections.defaultdict(list)
+        for slots_relation, relation_size in slot_carryover_candlist.items():
+            if relation_size > 0:
+                slots_relation_list[(slots_relation[0], slots_relation[1])].append(
+                    (slots_relation[2], slots_relation[3], relation_size)
+                )
+                slots_relation_list[(slots_relation[2], slots_relation[3])].append(
+                    (slots_relation[0], slots_relation[1], relation_size)
+                )
 
-    def _create_examples_from_dialog(self, dialog, schemas, dataset):
+        return examples, slots_relation_list
+
+    def _create_examples_from_dialog(self, dialog, schemas, dataset, slot_carryover_candlist):
         """
         Create examples for every turn in the dialog.
         Args:
             dialog (dict): dialogue example
             schemas(Schema): for all services and all datasets processed by the schema_processor
             dataset(str): can be "train", "dev", or "test".
+            slot_carryover_candlist(dict): a dictionary to keep and count the number of carry-over cases between two slots from two different services
         Returns:
             examples: a list of `InputExample`s.
         """
@@ -191,10 +231,23 @@ class SGDDataProcessor(object):
                     system_frames = {}
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
-                turn_examples, prev_states = self._create_examples_from_turn(
+                turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
                     turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
                 )
                 examples.extend(turn_examples)
+
+                for value, slots_list in slot_carryover_values.items():
+                    if value in ["True", "False"]:
+                        continue
+                    if len(slots_list) > 1:
+                        for service1, slot1 in slots_list:
+                            for service2, slot2 in slots_list:
+                                if service1 == service2:
+                                    continue
+                                if service1 > service2:
+                                    service1, service2 = service2, service1
+                                    slot1, slot2 = slot2, slot1
+                                slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
         return examples
 
     def _get_state_update(self, current_state, prev_state):
@@ -243,7 +296,9 @@ class SGDDataProcessor(object):
         base_example.add_utterance_features(
             system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, system_utterance, user_utterance
         )
+
         examples = []
+        slot_carryover_values = collections.defaultdict(list)
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()
@@ -263,6 +318,7 @@ class SGDDataProcessor(object):
             state = user_frame["state"]["slot_values"]
             state_update = self._get_state_update(state, prev_states.get(service, {}))
             states[service] = state
+
             # Populate features in the example.
             example.add_categorical_slots(state_update)
             # The input tokens to bert are in the format [CLS] [S1] [S2] ... [SEP]
@@ -283,7 +339,21 @@ class SGDDataProcessor(object):
             example.add_requested_slots(user_frame)
             example.add_intents(user_frame)
             examples.append(example)
-        return examples, states
+
+            if service not in prev_states and int(turn_id_) > 0:
+                for slot_name, values in state_update.items():
+                    for value in values:
+                        slot_carryover_values[value].append((service, slot_name))
+                for prev_service, prev_slot_value_list in prev_states.items():
+                    if prev_service == service:
+                        continue
+                    if prev_service in state:
+                        prev_slot_value_list = state[prev_service]
+                    for prev_slot_name, prev_values in prev_slot_value_list.items():
+                        for prev_value in prev_values:
+                            slot_carryover_values[prev_value].append((prev_service, prev_slot_name))
+
+        return examples, states, slot_carryover_values
 
     def _find_subword_indices(self, slot_values, utterance, char_slot_spans, alignments, subwords, bias):
         """Find indices for subwords corresponding to slot values."""

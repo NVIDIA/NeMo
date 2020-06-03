@@ -209,8 +209,8 @@ parser.add_argument(
     "--state_tracker",
     type=str,
     default='baseline',
-    choices=['baseline', 'ret_sys_act'],
-    help="Specifies the state tracker mode",
+    choices=['baseline', 'nemotracker'],
+    help="Specifies the state tracker model",
 )
 parser.add_argument(
     "--schema_emb_init",

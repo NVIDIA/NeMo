@@ -128,6 +128,7 @@ def eval_iter_callback(tensors, global_vars, schema_processor, eval_dataset):
     # added for debugging
     predictions['cat_slot_status_GT'] = output['categorical_slot_status']
     predictions['noncat_slot_status_GT'] = output['noncategorical_slot_status']
+    predictions['cat_slot_value_GT'] = output['categorical_slot_values']
 
     global_vars['predictions'].extend(combine_predictions_in_example(predictions, batch_size))
 
