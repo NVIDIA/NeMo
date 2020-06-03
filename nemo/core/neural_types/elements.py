@@ -41,7 +41,7 @@ __all__ = [
     'Index',
     'ImageValue',
     'NormalizedImageValue',
-    'Label',
+    'StringLabel',
 ]
 
 import abc
@@ -219,9 +219,9 @@ class ClassificationTarget(Target):
     """
 
 
-class Label(ElementType):
+class StringLabel(ElementType):
     """
-        Type representing an element being a target value.
+        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
     """
 
 

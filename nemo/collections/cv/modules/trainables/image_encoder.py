@@ -54,7 +54,9 @@ __all__ = ['ImageEncoder']
 
 class ImageEncoder(TrainableNM):
     """
-    Class
+    Neural Module implementing a general-usage image encoderds.
+    It encapsulates several models from TorchVision (VGG16, ResNet152 and DensNet121, naming a few).
+    Offers two operation modes and can return: image embeddings vs feature maps.
     """
 
     def __init__(

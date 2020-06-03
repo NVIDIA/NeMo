@@ -28,9 +28,9 @@ from nemo.core.neural_types import (
     AxisType,
     ClassificationTarget,
     Index,
-    Label,
     NeuralType,
     NormalizedImageValue,
+    StringLabel,
 )
 from nemo.utils.decorators import add_port_docs
 
@@ -110,7 +110,7 @@ class MNISTDataLayer(DataLayerNM, Dataset):
                 elements_type=NormalizedImageValue(),  # float, <0-1>
             ),
             "targets": NeuralType(tuple('B'), elements_type=ClassificationTarget()),  # Target are ints!
-            "labels": NeuralType(tuple('B'), elements_type=Label()),  # Labels is string!
+            "labels": NeuralType(tuple('B'), elements_type=StringLabel()),  # Labels is string!
         }
 
     def __len__(self):
