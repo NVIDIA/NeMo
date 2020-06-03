@@ -405,7 +405,22 @@ def get_songs_by_category(
     max_filesize_in_mb=10,
     n_jobs=None,
 ):
+    """
+    Download songs of a category with restrictions
 
+    Args:
+        client: FreesoundAPI client
+        category: category to be downloaded
+        data_dir: directory of downloaded songs
+        max_num_samples: maximum number of samples of this category
+        page_size: samples per page returned
+        min_filesize_in_mb: minimum filesize of the song in MB
+        max_filesize_in_mb: maximum filesize of the song in MB
+        n_jobs: number of jobs for parallel processing
+        
+    Returns:
+
+    """
     # quote string to force exact match
     query = f'"{category}"'
     print(f"Query : {query}")

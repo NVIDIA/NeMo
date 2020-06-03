@@ -5,14 +5,13 @@ Make sure you have installed ``nemo`` and the ``nemo_asr`` collection.
 See the :ref:`installation` section.
 
 .. note::
-  You need to have ``nemo`` and the ``nemo_asr`` collection for this tutorial.
   It is also necessary to install `torchaudio` in order to use MFCC preprocessing.
 
 
 Introduction
 ------------
 
-Voice Activity Detection(VAD) also known as speech activity detection or speech detection, is the task of predicting which parts of input audio contains speech versus background noise.
+Voice Activity Detection (VAD) also known as speech activity detection or speech detection, is the task of predicting which parts of input audio contains speech versus background noise.
 
 It is an essential first step for a variety of speech-based applications including Automatic Speech Recognition. It serves to determine which samples to be send to the model and when to close the microphone.
 
@@ -20,16 +19,16 @@ It is an essential first step for a variety of speech-based applications includi
         :align: center
         :alt: vad example
         
-There is a necessity for extreme small models with high accuracy and superior robustness to environmental noise that can efficiently perform streaming inference on such edge devices.
+There is a necessity for very small models with high accuracy and superior robustness to environmental noise that can efficiently perform streaming inference on such edge devices.
 
-This VAD tutorial is based on the MatchboxNet :cite:`vad-tut-majumdar2020` model with a modified decoder head to suit classification tasks. Instead of predicting a token for each time step of the input, we predict a single label for the fixed duration of the audio signal given a window size. This is accomplished by a decoder head that performs Global Max / Average pooling across all timesteps prior to classification. After this, the model can be trained via standard categorical cross-entropy loss.
+This VAD tutorial is based on the MatchboxNet :cite:`vad-tut-majumdar2020` model with a modified decoder head to perform binary classification for VAD task.
 
 1. Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)
 2. Data augmentation using SpecAugment :cite:`vad-tut-park2019` to increase number of data samples.
 3. Develop a small Neural classification model which can be trained efficiently.
 
 .. note::
-    A Jupyter Notebook containing all the steps to download the dataset, train a model and evaluate its results is available at : `VAD_using_NeMo.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb>`_
+    A Jupyter Notebook containing most of the steps to emulate VAD training and evaluation is available at: `VAD_using_NeMo.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb>`_
 
 
 .. note::
@@ -46,7 +45,8 @@ Freesound Dataset
 ##################
 
 
-We will use the freesound dataset (background categories) as our non-speech/background data. We provide scripts and you can customize a lot by using it. Note that downloading this dataset may takes hours. Then we will resample it.
+We will use the freesound dataset (background categories) as our non-speech/background data. We provide scripts and you can customize in order to construct the required dataset. Note that downloading this dataset may takes hours. Then we will resample the audio files to 16kHZ and transform the to mono-channel.
+
 
 1. We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run `pip install -r freesound_requirements.txt`
 2. Create an API key for freesound.org at https://freesound.org/help/developers/
@@ -66,12 +66,23 @@ Google Speech Commands Dataset
 We will use the open source Google Speech Commands Dataset (we will use V2 of the dataset for the tutorial, but require very minor changes to support V1 dataset) as our speech data. Google Speech Commands Dataset V2 will take roughly 6GB disk space. These scripts below will download the Google Speech Commands v2 dataset and convert speech and background data to a format suitable for use with nemo_asr.
 
 .. note::
-    You may additionally pass a --rebalance flag at the end of the `process_vad_data.py` script to rebalance the class samples (without duplicate) in the manifest.
+    You may additionally pass `-\\-test_size` or `-\\-val_size` flag for spliting train val and test data.
+    
+.. note::
+    You may additionally pass a `-\\-rebalance_method='fixed|over|under'` at the end of the script to rebalance the class samples in the manifest. 
+    
+* `'fixed'`: Fixed number of sample for each class. Train 5000, val 1000, and test 1000. (Change number in script if you want)
+* `'over'`: Oversampling rebalance method
+* `'under'`: Undersampling rebalance method
+
+.. note::
+    In tutorial `VAD_using_NeMo.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb>`_ We avoid using freesound dataset, and use `_background_noise_` category in Google Speech Commands Dataset as non-speech/background data for demonstration. The `_background_noise_` category only has 6 audio files. So we would like to generate more based on the audio files to enlarge our background training data. If you want to use your own background noise data, just change the `background_data_root` and ignore `-\\-generate`
+
 
 .. code-block:: bash
 
     mkdir './google_dataset_v2'
-    python process_vad_data.py --out_dir='./manifest/' --speech_data_root='./google_dataset_v2'--background_data_root=<resampled freesound data directory> --log=False --rebalance=True
+    python process_vad_data.py --out_dir='./manifest/' --speech_data_root='./google_dataset_v2'--background_data_root=<resampled freesound data directory> --log --rebalance_method='fixed' 
 
 .. note::
     You should have at least 4GB of disk space available if you've used V1; and at least 6GB if you used V2. Also, it will take some time to download and process, so go grab a coffee.
@@ -96,7 +107,7 @@ Each line in json file describes a training sample:
 
 .. code-block:: bash
 
-    {"audio_filepath": "<absolute path to dataset>/two/8aa35b0c_nohash_0.wav", "duration": 1.0, "label": "speech", offset": 0.0}
+    {"audio_filepath": "<absolute path to dataset>/two/8aa35b0c_nohash_0.wav", "duration": 1.0, "label": "speech", "offset": 0.0}
     {"audio_filepath": "<absolute path to dataset>/Emergency_vehicle/id_58368 simambulance.wav", "duration": 1.0, "label": "background", "offset": 4.0}
 
 
@@ -322,7 +333,7 @@ The script below does both training and evaluation on single GPU:
         eval_tensors=[test_loss, test_decoded, test_labels],
         user_iter_callback=partial(process_classification_evaluation_batch, top_k=1),
         user_epochs_done_callback=partial(process_classification_evaluation_epoch, eval_metric=1, tag=tagname),
-        eval_step=200,  # How often we evaluate the model on the test set #200
+        eval_step=200,  # How often we evaluate the model on the test set 
         tb_writer=neural_factory.tb_writer,
     )
 

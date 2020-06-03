@@ -17,7 +17,6 @@ import glob
 import json
 import logging
 import os
-import random
 import tarfile
 import urllib.request
 
@@ -126,7 +125,6 @@ def process_google_speech_train(data_dir):
 
 
 def write_manifest(
-    data_dir,
     out_dir,
     files,
     prefix,
@@ -136,6 +134,19 @@ def write_manifest(
     duration_limit=10.0,
     filter_long=False,
 ):
+    """
+    Given a list of files, segment each file and write them to manifest with restrictions.
+    Args:
+        out_dir: directory of generated manifest
+        files: list of files to be processed
+        prefix: label of samples
+        manifest_name: name of generated manifest
+        duration_stride: stride for segmenting audio samples
+        duration_max: duration for each segment
+        duration_limit: duration threshold for filtering out long audio samples
+        filter_long: boolean to determine whether to filter out long audio samples
+    Returns:
+    """
     seg_num = 0
     skip_num = 0
     if duration_max is None:
@@ -208,15 +219,7 @@ def load_list_write_manifest(
 
     manifest_name = filename.split('_list.txt')[0] + '_manifest'
     skip_num, seg_num, output_path = write_manifest(
-        data_dir,
-        out_dir,
-        files,
-        prefix,
-        manifest_name,
-        duration_stride,
-        duration_max,
-        duration_limit,
-        filter_long=True,
+        out_dir, files, prefix, manifest_name, duration_stride, duration_max, duration_limit, filter_long=True,
     )
     return skip_num, seg_num, output_path
 
@@ -253,7 +256,7 @@ def generate_variety_noise(data_dir, filename, prefix):
     if not os.path.exists(silence_path):
         os.mkdir(silence_path)
 
-    silence_stride = 1000
+    silence_stride = 1000  # stride = 1/16 seconds
     sampling_rate = 16000
 
     silence_files = []
@@ -374,7 +377,7 @@ def main():
     logging.info(f'Val: Skip {skip_num_val} samples. Get {background_seg_num_val} segments! => {background_val}')
     logging.info(f'Test: Skip {skip_num_test} samples. Get {background_seg_num_test} segments! => {background_test}')
     logging.info(
-        f'Train: Skip {skip_num_train} samples. Get {background_seg_num_train} segments! =>{background_train}'
+        f'Train: Skip {skip_num_train} samples. Get {background_seg_num_train} segments! => {background_train}'
     )
     min_val, max_val = min(speech_seg_num_val, background_seg_num_val), max(speech_seg_num_val, background_seg_num_val)
     min_test, max_test = (
@@ -392,7 +395,7 @@ def main():
         # Random Oversampling: Randomly duplicate examples in the minority class.
         # Random Undersampling: Randomly delete examples in the majority class.
         if args.rebalance_method == 'under':
-            logging.info(f"Rebalancing number of samples in classes using {args.rebalance_method } sampling.")
+            logging.info(f"Rebalancing number of samples in classes using {args.rebalance_method} sampling.")
             logging.info(f'Val: {min_val} Test: {min_test} Train: {min_train}!')
 
             rebalance_json(out_dir, background_val, min_val, 'balanced')

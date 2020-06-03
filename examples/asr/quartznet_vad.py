@@ -105,7 +105,6 @@ def create_all_dags(args, neural_factory):
     train_dl_params.update(jasper_params["AudioToSpeechLabelDataLayer"]["train"])
     del train_dl_params["train"]
     del train_dl_params["eval"]
-    # del train_dl_params["normalize_transcripts"]
 
     # Look for augmentations
     audio_augmentor = jasper_params.get('AudioAugmentor', None)
