@@ -53,13 +53,19 @@ def __maybe_download_file(destination: str, source: str):
 
     """
     source = URL[source]
-    if not os.path.exists(destination):
+    if not os.path.exists(destination) and not os.path.exists(os.path.splitext(destination)[0]):
         logging.info("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
         logging.info("Downloaded {0}.".format(destination))
-    else:
+    elif os.path.exists(destination):
         logging.info("Destination {0} exists. Skipping.".format(destination))
+    elif os.path.exists(os.path.splitext(destination)[0]):
+        logging.warning(
+            "Assuming extracted folder %s contains the extracted files from %s. Will not download.",
+            os.path.basename(destination),
+            destination,
+        )
     return destination
 
 
@@ -81,6 +87,12 @@ def extract_file(filepath: str, data_dir: str):
         tar.close()
     except Exception:
         logging.info('Not extracting. Maybe already there?')
+
+
+def __remove_tarred_files(filepath: str, data_dir: str):
+    if os.path.exists(data_dir):
+        logging.info('Deleting %s' % filepath)
+        os.remove(filepath)
 
 
 def write_file(name, lines, idx):
@@ -108,7 +120,12 @@ def __process_data(data_folder: str, data_set: str):
     id = -2  # speaker id
 
     if os.path.exists(out):
-        os.remove(out)
+        logging.warning(
+            "%s already exists and is assumed to be processed. If not, please delete %s and rerun this script",
+            out,
+            out,
+        )
+        return
 
     speakers = []
     lines = []
@@ -158,6 +175,7 @@ def main():
         logging.info("Extracting {0}".format(data_set))
         data_folder = os.path.join(data_root, data_set)
         __extract_all_files(file_path, data_root, data_folder)
+        __remove_tarred_files(file_path, data_folder)
         logging.info("Processing {0}".format(data_set))
         __process_data(data_folder, data_set)
         logging.info('Done!')
