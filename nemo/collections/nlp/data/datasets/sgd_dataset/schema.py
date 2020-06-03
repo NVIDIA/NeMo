@@ -102,6 +102,15 @@ class ServiceSchema(object):
     def non_categorical_slots(self):
         return self._non_categorical_slots
 
+    @property
+    def slots_relation_list(self, slot, value):
+        return self._slots_relation_list
+
+    @slots_relation_list.setter
+    def slots_relation_list(self, value):
+        self._slots_relation_list = value
+
+
     def get_categorical_slot_values(self, slot):
         return self._categorical_slot_values[slot]
 
