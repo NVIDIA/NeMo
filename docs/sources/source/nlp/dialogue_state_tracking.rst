@@ -402,14 +402,14 @@ Nemo Tracker
 The performance of the original baseline for SGD dataset is inferior to the current state-of-the-art approches proposed for this dataset. Therefore, we improved the state tracker of the baseline significantly by the following updates.
 The new state tracker is called Nemo Tracker and can be set by passing "--state_tracker=nemotracker".
 
-    * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions.\
-    Therefore, whenever the status of a non-categorical slot is active but no value can be found in the user utterance, we search the list of slots and their values mentioned in the previous system actions to find a value for this slot.
-    The most recent value is used as the value for the slot. It is called in-domain carry-over as it happens inside a service.
+    * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions.
+Therefore, whenever the status of a non-categorical slot is active but no value can be found in the user utterance, we search the list of slots and their values mentioned in the previous system actions to find a value for this slot.
+The most recent value is used as the value for the slot. It is called in-domain carry-over as it happens inside a service.
 
     * **Cross-service carry-over mechanism**: In multi-domain dialogues, switching between two services can happen in the dialogue. In such cases, there can be some values to get transfered to the new service automatically.
-    For instance when user is reserving flight tickets for two persons, it can be assumed that number of people for hotel reservation should also be two. To handle such cases, when we process the dialogues, we also record the list of these carry-over between two services from the training data.
-    A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another.
-    Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
+For instance when user is reserving flight tickets for two persons, it can be assumed that number of people for hotel reservation should also be two. To handle such cases, when we process the dialogues, we also record the list of these carry-over between two services from the training data.
+A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another.
+Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
 
 The main idea of carry-over between slots are inspired from :cite:`nlp-dst-limiao2019dstc8` and :cite:`nlp-dst-ruan2020fine`. These two updates improved the accuracy of the state tracker for SGD significantly. It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
 the candidate list is extracted from the training dialogues which does not contain unseen services. To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots.
