@@ -106,9 +106,9 @@ benefits from copy mechanism to facilitate knowledge transfer between domains. I
 
 The model is composed of three main components:
 
- * **Utterance Encoder**,
- * **Slot Gate**, and
- * **State Generator**.
+ * **Utterance Encoder**
+ * **Slot Gate**
+ * **State Generator**
 
 The **utterance encoder** is a bi-directional Gated Recurrent Unit (GRU), returning both \
 context words and and an aggregated context vector encoding the whole dialogue history.
@@ -397,6 +397,64 @@ Model components:
 - **SGDEncoder** - uses a BERT model to encode user utterance. By default, the SGD model uses the pre-trained BERT base cased model from `Hugging Face Transformers <https://huggingface.co/transformers/>`_ to get embedded representations for schema elements and also to encode user utterance. The SGDEncoder returns encoding of the whole user utterance using 'CLS' token and embedded representation of every token in the utterance.
 - **SGDDecoder** - returns logits for predicted elements by conditioning on the encoded utterance
 
+Metrics
+-------
+Metrics used for automatic evaluation of the model :cite:`nlp-sgd-rastogi2020schema`:
+
+- **Active Intent Accuracy** - the fraction of user turns for which the active intent has been correctly predicted.
+- **Requested Slot F1** - the macro-averaged F1 score for requested slots over all eligible turns. Turns with no requested slots in ground truth and predictions are skipped.
+- **Average Goal Accuracy** For each turn, we predict a single value for each slot present in the dialogue state. This is the average accuracy of predicting the value of a slot correctly.
+- **Joint Goal Accuracy** - the average accuracy of predicting all slot assignments for a given service in a turn correctly.
+
+The evaluation results are shown for Seen Services (all services seen during model training), Unseen Services (services not seen during training), and All Services (the combination of Seen and Unseen Services).
+Note, during the evaluation, the model first generates predictions and writes them to a file in the same format as the original dialogue files, and then uses these files to compare the predicted dialogue state to the ground truth.
+
+Model Improvements
+------------------
+We did following improvements are done to the baseline to get better performance and also increase the model's flexibility:
+
+- Data augmentation
+- Slot carry-over mechanism (NeMo Tracker)
+- Ability to make schema embeddings trainable during the model training
+- Adding an attention layer between the encoder and the model heads
+
+Data Augmentation
+-----------------
+The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
+altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
+Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
+``get_new_noncat_value()`` is used to replace a non-categorical value by a different value from the same service slot.
+``num2str()`` is used to replace a regular word that is a number with its string representation, e.g. '11' becomes 'eleven'.
+The script allows the user to easily extend the set of functions by custom ones, e.g. deleting words could be realized by a function that
+replaces a regular word by the empty string ''.
+The input arguments include configuration settings that determine how many augmentation sweeps are done on the dataset and the probability of modifying a word.
+For our experiments we used 9 augmentation sweeps (and concatenated it with the original dataset) at 100% modification rate, resulting in a dataset 10x as large:
+
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking/data/sgd
+    python dialogue_augmentation.py \
+        --input_dir <sgd/train> \
+        --repeat 9 \
+        --replace_turn_prob 1.0 \
+        --replace_word_prob 1.0 \
+        --concat_orig_dialogue
+
+
+Nemo Tracker
+------------
+The performance of the original baseline for SGD dataset is inferior to the current state-of-the-art approches proposed for this dataset. Therefore, we improved the state tracker of the baseline significantly by the following updates.
+The new state tracker is called Nemo Tracker and can be set by passing "--state_tracker=nemotracker".
+
+    * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions. Therefore, whenever the status of a non-categorical slot is active but no value can be found in the user utterance, we search the list of slots and their values mentioned in the previous system actions to find a value for this slot. The most recent value is used as the value for the slot. It is called in-domain carry-over as it happens inside a service.
+
+
+    * **Cross-service carry-over mechanism**: In multi-domain dialogues, switching between two services can happen in the dialogue. In such cases, there can be some values to get transfered to the new service automatically. For instance when user is reserving flight tickets for two persons, it can be assumed that number of people for hotel reservation should also be two. To handle such cases, when we process the dialogues, we also record the list of these carry-over between two services from the training data. A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another. Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
+
+The main idea of carry-over between slots are inspired from :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. These two updates improved the accuracy of the state tracker for SGD significantly. It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
+the candidate list is extracted from the training dialogues which does not contain unseen services. To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots.
+
+
 Training
 --------
 In order to train the Baseline SGD model on a single domain task and evaluate on its dev and test data, run:
@@ -412,123 +470,78 @@ In order to train the Baseline SGD model on a single domain task and evaluate on
         --eval_dataset dev_test
 
 
-Metrics
--------
-Metrics used for automatic evaluation of the model :cite:`nlp-sgd-rastogi2020schema`:
-
-- **Active Intent Accuracy** - the fraction of user turns for which the active intent has been correctly predicted.
-- **Requested Slot F1** - the macro-averaged F1 score for requested slots over all eligible turns. Turns with no requested slots in ground truth and predictions are skipped.
-- **Average Goal Accuracy** For each turn, we predict a single value for each slot present in the dialogue state. This is the average accuracy of predicting the value of a slot correctly.
-- **Joint Goal Accuracy** - the average accuracy of predicting all slot assignments for a given service in a turn correctly.
-
-The evaluation results are shown for Seen Services (all services seen during model training), Unseen Services (services not seen during training), and All Services (the combination of Seen and Unseen Services).
-Note, during the evaluation, the model first generates predictions and writes them to a file in the same format as the original dialogue files, and then uses these files to compare the predicted dialogue state to the ground truth.
-
-Model Improvements
-------------------
-
-Model features added to get better performance results or increase model flexibility:
-
-- data augmentation
-- system retrieval mechanism
-- ability to make schema embeddings trainable during the model training
-- adding an attention layer between the encoder and the model heads
-
-Data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_.
-We used 10x as augmentation factor.
-
-Data augmentation
------------------
-The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. 
-It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also 
-altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.    
-Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
-``get_new_noncat_value()`` is used to replace a non-categorical value by a different value from the same service slot.  
-``num2str()`` is used to replace a regular word that is a number with its string representation, e.g. '11' becomes 'eleven'.
-The script allows the user to easily extend the set of functions by custom ones, e.g. deleting words could be realized by a function that 
-replaces a regular word by the empty string ''.  
-The input arguments include configuration settings that determine how many augmentation sweeps are done on the dataset and the probability of modifying a word.
-For our experiments we used 9 augmentation sweeps (and concatenated it with the original dataset) at 100% modification rate, resulting in a dataset 10x as large:
-
-.. code-block:: bash
-
-    cd examples/nlp/dialogue_state_tracking/data/sgd
-    python dialogue_augmentation.py \
-        --input_dir <sgd/train> \
-        --repeat 9 \
-        --replace_turn_prob 1.0 \
-        --replace_word_prob 1.0 \
-        --concat_orig_dialogue
-
-
 Results on Single Domain
 ------------------------
 The following table shows results of the SGD baseline and that of some NeMo model features. The focus was to improve seen services.
 We use * to denote the issue fixed in NeMo that occurred in the original TensorFlow implementation of SGD for single domain.
-In the original version of the single domain task, the evaluation falsely classified two services ``Travel_1`` and ``Weather_1`` as Seen Services   
-although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on Seen Services increased.  
+In the original version of the single domain task, the evaluation falsely classified two services ``Travel_1`` and ``Weather_1`` as Seen Services
+although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on Seen Services increased.
 
 
 
 Seen Services
 
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                        |                        Dev set                           |
-+                                                                        +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                           | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+========================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                             |      99.06      |     98.67     |   88.08   |    68.58   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline*                                 |      98.91      |     99.60     |   90.71   |    70.94   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval*                                      |      98.94      |     99.52     |   95.72   |    85.34   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head*                     |      98.99      |     99.66     |   96.26   |    86.81   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation*                  |      98.89      |     99.70     |   96.23   |    86.53   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation* |     98.95       |     99.70     |   94.96   |    88.06   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+|                                                                    |                        Dev set                           |
++                                                                    +-----------------+---------------+-----------+------------+
+| SGD baseline implementations                                       | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
++====================================================================+=================+===============+===========+============+
+| Original SGD baseline codebase                                     |      99.06      |     98.67     |   88.08   |    68.58   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo's Implementation of the Baseline                              |      98.91      |     99.60     |   90.71   |    70.94   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker                                       |      98.94      |     99.52     |   95.72   |    85.34   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head                      |      98.99      |     99.66     |   96.26   |    86.81   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + data augmentation                   |      98.89      |     99.70     |   96.23   |    86.53   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head + data augmentation  |     98.95       |     99.70     |   94.96   |    88.06   |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+
+
 
 Unseen Services
 
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                        |                        Dev set                           |
-+                                                                        +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                           | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+========================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                             |       94.8      |      93.6     |   66.03   |   28.05    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline*                                 |       94.75     |      93.46    |   65.33   |   32.18    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval*                                      |      94.74      |    93.49      |   67.55   |   34.68    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head*                     |      92.39      |    94.04      |   68.47   |   33.41    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation*                  |      94.94      |     93.97     |   65.73   |   30.89    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation* |     92.68       |    94.55      |    69.59  |   32.76    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+|                                                                    |                        Dev set                           |
++                                                                    +-----------------+---------------+-----------+------------+
+| SGD baseline implementations                                       | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
++====================================================================+=================+===============+===========+============+
+| Original SGD baseline codebase                                     |       94.8      |      93.6     |   66.03   |   28.05    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo's Implementation of the Baseline                              |       94.75     |      93.46    |   65.33   |   32.18    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker                                       |      94.74      |    93.49      |   67.55   |   34.68    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head                      |      92.39      |    94.04      |   68.47   |   33.41    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + data augmentation                   |      94.94      |    93.97      |   65.73   |   30.89    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head + data augmentation  |      92.68      |    94.55      |   69.59   |   32.76    |
++--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+
+
 
 All Services
 
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                        |                        Dev set                           |
-+                                                                        +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                           | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+========================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                             |       96.6      |     96.5      |   77.6    |    48.6    |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline*                                 |       96.56     |     96.13     |   76.49   |    49.05   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval*                                      |      96.57      |     96.12     |   79.93   |    56.73   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head*                     |      95.26      |    96.49      |   80.68   |    56.65   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + data augmentation*                  |      96.66      |     96.46     |   79.14   |    55.11   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + system retrieval + attention head + data augmentation* |     95.41       |    96.79      |   81.47   |    56.83   |
-+------------------------------------------------------------------------+-----------------+---------------+-----------+------------+
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+|                                                                   |                        Dev set                           |
++                                                                   +-----------------+---------------+-----------+------------+
+| SGD baseline implementations                                      | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
++===================================================================+=================+===============+===========+============+
+| Original SGD trained on single domain task                        |       96.6      |     96.5      |   77.6    |    48.6    |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo's Implementation of the Baseline                             |       96.56     |     96.13     |   76.49   |    49.05   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker                                      |      96.57      |     96.12     |   79.93   |    56.73   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head                     |      95.26      |    96.49      |   80.68   |    56.65   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + data augmentation                  |      96.66      |    96.46      |   79.14   |    55.11   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
+| NeMo baseline + NeMo Tracker + attention head + data augmentation |      95.41      |    96.79      |   81.47   |    56.83   |
++-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
 
 
 

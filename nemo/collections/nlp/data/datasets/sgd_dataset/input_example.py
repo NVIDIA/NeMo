@@ -347,8 +347,8 @@ class InputExample(object):
                     logging.debug(
                         f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
                     )
-
-                    continue
+                    start = 0
+                    end = 0
                 self.noncategorical_slot_value_start[slot_idx] = start
                 self.noncategorical_slot_value_end[slot_idx] = end
 

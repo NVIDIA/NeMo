@@ -159,3 +159,9 @@ class SchemaPreprocessor:
 
     def get_ids_to_service_names_dict(self):
         return self.schemas._services_id_to_vocab
+
+    def update_slots_relation_list(self, slots_relation_list):
+        self.schemas._slots_relation_list = slots_relation_list
+
+    def get_slots_relation_list(self):
+        return self.schemas._slots_relation_list
