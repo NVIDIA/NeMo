@@ -311,7 +311,7 @@ def find_word_in_turn(dialogue, turn_id, value, start_idx, end_idx):
     return res
 
 
-def get_new_value(dialogue, turn_id, value, start_idx, end_idx):
+def get_new_noncat_value(dialogue, turn_id, value, start_idx, end_idx):
     """
     replace span with another value from ontology if this belongs non-cat slot
     return new value
@@ -482,7 +482,7 @@ if __name__ == "__main__":
             dialogues=dialogues,
             replace_turn_prob=args.replace_turn_prob,
             replace_word_prob=args.replace_word_prob,
-            new_val_func=get_new_value,
+            new_val_func=get_new_noncat_value,
         )
 
     if args.concat_orig_dialogue and not args.num2string:
