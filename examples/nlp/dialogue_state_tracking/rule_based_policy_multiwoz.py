@@ -176,9 +176,10 @@ trade_decoder.eval()
 
 if args.mode == 'interactive':
     # for user_uttr in user_uttrs:
+    logging.info("============ Starting a new dialogue ============")
+    system_uttr, system_action, belief_state, dial_history = init_session()
     while True:
         logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
-        system_uttr, system_action, belief_state, dial_history = init_session()
         user_uttr = input()
 
         if user_uttr == "STOP":

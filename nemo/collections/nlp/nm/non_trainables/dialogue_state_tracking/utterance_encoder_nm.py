@@ -21,7 +21,7 @@ https://github.com/thu-coai/ConvLab-2/
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, NeuralType, StringType, VoidType
+from nemo.core import AxisKind, AxisType, ChannelType, LengthsType, NeuralType, StringType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
