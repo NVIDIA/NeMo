@@ -438,7 +438,34 @@ Data augmentation is done offline with `examples/nlp/dialogue_state_tracking/dat
 We used 10x as augmentation factor.
 
 The following table shows results of the SGD baseline and that of some NeMo model features. The focus was to improve seen services.
-We use `*` to denote the error fixed in NeMo that occurred in the original TensorFlow implementation of SGD for single domain.
+We use `*` to denote the issue fixed in NeMo that occurred in the original TensorFlow implementation of SGD for single domain.
+In the original version of the single domain task, the evaluation falsely classified two services `Travel_1` and `Weather_1 ` as Seen Services   
+although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on Seen Services increased.  
+
+
+Data augmentation
+--------
+The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. 
+It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also 
+altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.    
+Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
+`get_new_noncat_value()` is used to replace a non-categorical value by a different value from the same service slot.  
+`num2str` is used to replace a regular word that is a number with its string representation, e.g. '11' becomes 'eleven'.
+The script allows the user to easily extend the set of functions by custom ones, e.g. deleting words could be realized by a function that 
+replaces a regular word by the empty string ''.  
+The input arguments include configuration settings that determine how many augmentation sweeps are done on the dataset and the probability of modifying a word.
+For our experiments we used 9 augmentation sweeps (and concatenated it with the original dataset) at 100% modification rate, resulting in a dataset 10x as large:
+
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking/data/sgd
+    python dialogue_augmentation.py \
+        --input_dir <sgd/train> \
+        --repeat 9 \
+        --replace_turn_prob 1.0 \
+        --replace_word_prob 1.0 \
+        --concat_orig_dialogue
+
 
 Results on Single Domain
 ------------------------
