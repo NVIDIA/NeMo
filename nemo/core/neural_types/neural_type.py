@@ -120,7 +120,9 @@ class NeuralType(object):
             type_comatibility != NeuralTypeComparisonResult.SAME
             and type_comatibility != NeuralTypeComparisonResult.GREATER
         ):
-            raise NeuralPortNmTensorMismatchError(parent_type_name, port_name, self, second_object, type_comatibility)
+            raise NeuralPortNmTensorMismatchError(
+                parent_type_name, port_name, str(self), str(second_object), type_comatibility
+            )
 
     @staticmethod
     def __check_sanity(axes):
