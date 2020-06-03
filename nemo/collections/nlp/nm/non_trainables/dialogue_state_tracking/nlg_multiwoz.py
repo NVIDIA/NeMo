@@ -24,7 +24,7 @@ import os
 import random
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core import NeuralType, VoidType
+from nemo.core import AxisKind, AxisType, NeuralType, StringType, VoidType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -66,17 +66,13 @@ slot2word = {
 
 class TemplateNLGMultiWOZNM(NonTrainableNM):
     """Generate a natural language utterance conditioned on the dialog act.
-        Args:
-            action (list of list): The dialog action produced by dialog policy module, which is in dialog act format.
-        Returns:
-            utterance (str): A natural langauge utterance.
     """
 
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
-        system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
+        system_acts (list): list of system actions action produced by dialog policy module
         """
         return {"system_acts": NeuralType(axes=tuple('ANY'), elements_type=VoidType())}
 
@@ -86,12 +82,13 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         """Returns definitions of module output ports.
         system_uttr (str): generated system's response
         """
-        return {"system_uttr": NeuralType(axes=tuple('ANY'), elements_type=VoidType())}
+        return {"system_uttr": NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType())}
 
     def __init__(self, mode="auto_manual"):
         """
+        Initializes the object
         Args:
-            mode:
+            mode (str):
                 - `auto`: templates extracted from data without manual modification, may have no match;
                 - `manual`: templates with manual modification, sometimes verbose;
                 - `auto_manual`: use auto templates first. When fails, use manual templates.
@@ -108,9 +105,10 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         self.manual_system_template = read_json(os.path.join(template_dir, 'manual_system_template_nlg.json'))
 
     def forward(self, system_acts):
-        """NLG for Multiwoz dataset
+        """
+        Generates system response 
         Args:
-            system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
+            system_acts (list): system actions in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
         Returns:
             system_uttr (str): generated system utterance 
         """
@@ -137,11 +135,37 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
                     system_uttr = self._manual_generate(dialog_acts, template2)
             else:
                 raise Exception("Invalid mode! available mode: auto, manual, auto_manual")
+            # truncate a system utterance with multiple questions
+            system_uttr = self.truncate_sys_response(system_uttr)
             logging.info("NLG output = System reply: %s", system_uttr)
             return system_uttr
         except Exception as e:
             logging.error('Error in processing: %s', dialog_acts)
             raise e
+
+    def truncate_sys_response(self, sys_uttr):
+        """
+        Truncates system response when too many questions are asked by the system
+        Args:
+            sys_uttr (str): generated system response
+        Returns:
+            (str): updated system response
+        """
+        start_idx = 0
+        utterances_with_period = []
+        utterances_with_question_mark = []
+        for idx, ch in enumerate(sys_uttr):
+            if ch == '?':
+                utterances_with_question_mark.append((sys_uttr[start_idx : idx + 1]).strip())
+                start_idx = idx + 1
+            elif ch == '.':
+                utterances_with_period.append((sys_uttr[start_idx : idx + 1]).strip())
+                start_idx = idx + 1
+
+        if len(utterances_with_question_mark) > 0:
+            utterances_with_question_mark = utterances_with_question_mark[:1]
+
+        return ' '.join(utterances_with_period) + ' '.join(utterances_with_question_mark)
 
     def _postprocess(self, sen):
         sen_strip = sen.strip()

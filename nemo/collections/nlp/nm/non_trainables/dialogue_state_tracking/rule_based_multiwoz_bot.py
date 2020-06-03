@@ -32,7 +32,7 @@ from nemo import logging
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import Database
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
-from nemo.core import AxisKind, AxisType, NeuralType, VoidType
+from nemo.core import AxisKind, AxisType, NeuralType, StringType, VoidType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedMultiwozBotNM']
@@ -91,15 +91,6 @@ token = {'Attraction': ['Name', 'Addr', ''], 'Hotel': ['Name',]}
 class RuleBasedMultiwozBotNM(NonTrainableNM):
     """
      Rule-based bot. Implemented for Multiwoz dataset.
-     Predict the next agent action given dialog state.
-        Args:
-            state (dict or list of list):
-                when the policy takes dialogue state as input, the type is dict.
-                else when the policy takes dialogue act as input, the type is list of list.
-        Returns:
-            action (list of list or str):
-                when the policy outputs dialogue act, the type is list of list.
-                else when the policy outputs utterance directly, the type is str.
     """
 
     @property
@@ -107,88 +98,78 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
     def input_ports(self):
         """Returns definitions of module input ports.
         """
-        return {'state': NeuralType(axes=(AxisType(kind=AxisKind.Any, is_list=True),), elements_type=VoidType(),)}
+        return {
+            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
+            'request_state': NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
+        }
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-        system_acts in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
+        system_acts (list): system actions in the format: [['Inform', 'Train', 'Day', 'wednesday'], []] [act, domain, slot, slot_value]
+        belief_state (dict): dialogue state with slot-slot_values pairs for all domains
         """
         return {
-            'state': NeuralType(axes=(AxisType(kind=AxisKind.Any, is_list=True),), elements_type=VoidType(),),
             'system_acts': NeuralType(axes=tuple('ANY'), elements_type=VoidType()),
+            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
         }
 
-    recommend_flag = -1
-    choice = ""
-
     def __init__(self, data_dir):
+        """
+        Initializes the object
+        Args:
+            data_dir (str): path to data directory
+        """
         self.last_state = {}
         self.db = Database(data_dir)
+        self.last_request_state = {}
+        self.last_belief_state = {}
+        self.recommend_flag = -1
+        self.choice = ""
 
-    def init_session(self):
-        self.last_state = {}
-
-    def forward(self, state):
+    def forward(self, belief_state, request_state):
         """
+        Generated System Act and add it to the belief state
         Args:
-            State, please refer to util/state.py
-        Output:
-            DA(Dialog Act), in the form of {act_type1: [[slot_name_1, value_1], [slot_name_2, value_2], ...], ...}
+            belief_state (dict): dialogue state with slot-slot_values pairs for all domains
+            request_state (dict): requested slots dict
+        Returns:
+            system_acts (list): DA(Dialog Act), in the form of {act_type1: [[slot_name_1, value_1], [slot_name_2, value_2], ...], ...}
+            belief_state (dict): updated belief state
         """
-        '''
-        {'user_action': 'I want to find a moderate hotel in the east and a cheap restaurant', 'system_action': [], 
-        'belief_state': {'police': {'book': {'booked': []}, 'semi': {}}, 
-        'hotel': {'book': {'booked': [], 'people': '', 'day': '', 'stay': ''}, 'semi': {'name': '', 'area': 'east', 'parking': '', 'pricerange': 'cheap', 'stars': '', 'internet': '', 'type': ''}}, 
-        'attraction': {'book': {'booked': []}, 'semi': {'type': '', 'name': '', 'area': ''}}, 
-        'restaurant': {'book': {'booked': [], 'people': '', 'day': '', 'time': ''}, 'semi': {'food': '', 'pricerange': '', 'name': '', 'area': ''}}, 
-        'hospital': {'book': {'booked': []}, 'semi': {'department': ''}}, 'taxi': {'book': {'booked': []}, 'semi': {'leaveAt': '', 'destination': '', 'departure': '', 'arriveBy': ''}}, 
-        'train': {'book': {'booked': [], 'people': ''}, 'semi': {'leaveAt': '', 'destination': '', 'day': '', 'arriveBy': '', 'departure': ''}}},
-        'request_state': {}, 'terminated': False, 'history': [['sys', 'null'], ['user', 'I want to find a moderate hotel in the east and a cheap restaurant']]}
-        '''
 
         if self.recommend_flag != -1:
             self.recommend_flag += 1
 
         self.kb_result = {}
-
         DA = {}
+        user_action = self.check_diff(belief_state, request_state)
 
-        if 'user_action' in state and (len(state['user_action']) > 0) and type(state['user_action']) is not str:
-            user_action = {}
-            for da in state['user_action']:
-                i, d, s, v = da
-                k = '-'.join((d, i))
-                if k not in user_action:
-                    user_action[k] = []
-                user_action[k].append([s, v])
-        else:
-            user_action = self.check_diff(self.last_state, state)
-
-        self.last_state = deepcopy(state)
+        self.last_request_state = deepcopy(request_state)
+        self.last_belief_state = deepcopy(belief_state)
 
         for user_act in user_action:
-            domain, intent_type = user_act.split('-')
+            domain, _ = user_act.split('-')
 
             # Respond to general greetings
             if domain == 'general':
-                self._update_greeting(user_act, state, DA)
+                self._update_greeting(user_act, DA)
 
             # Book taxi for user
             elif domain == 'Taxi':
-                self._book_taxi(user_act, state, DA)
+                self._book_taxi(belief_state, DA)
 
             elif domain == 'Booking':
-                self._update_booking(user_act, state, DA)
+                pass
 
             # User's talking about other domain
             elif domain != "Train":
-                self._update_DA(user_act, user_action, state, DA)
+                self._update_DA(user_act, user_action, belief_state, DA)
 
             # Info about train
             else:
-                self._update_train(user_act, user_action, state, DA)
+                self._update_train(user_act, user_action, belief_state, DA)
 
             # Judge if user want to book
             self._judge_booking(user_act, user_action, DA)
@@ -205,21 +186,21 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
 
         if DA == {}:
             DA = {'general-greet': [['none', 'none']]}
-        tuples = []
+        system_acts = []
         for domain_intent, svs in DA.items():
             domain, intent = domain_intent.split('-')
             if not svs and domain == 'general':
-                tuples.append([intent, domain, 'none', 'none'])
+                system_acts.append([intent, domain, 'none', 'none'])
             else:
                 for slot, value in svs:
-                    tuples.append([intent, domain, slot, value])
-        state['system_action'] = tuples
+                    system_acts.append([intent, domain, slot, value])
 
-        logging.debug("DPM output: %s", tuples)
-        logging.debug("State after DPM: %s", state)
-        return tuples, state
+        logging.debug("DPM output: %s", system_acts)
+        logging.debug("Belief State after DPM: %s", belief_state)
+        logging.debug("Request State after DPM: %s", request_state)
+        return system_acts, belief_state
 
-    def _update_greeting(self, user_act, state, DA):
+    def _update_greeting(self, user_act, DA):
         """ General request / inform. """
         _, intent_type = user_act.split('-')
 
@@ -233,18 +214,15 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         elif intent_type == 'thank':
             DA['general-welcome'] = []
 
-    def _book_taxi(self, user_act, state, DA):
+    def _book_taxi(self, belief_state, DA):
         """ Book a taxi for user. """
 
         blank_info = []
         for info in ['departure', 'destination']:
-            if state['belief_state']['taxi']['semi'] == "":
+            if belief_state['taxi']['semi'] == "":
                 info = REF_USR_DA['Taxi'].get(info, info)
                 blank_info.append(info)
-        if (
-            state['belief_state']['taxi']['semi']['leaveAt'] == ""
-            and state['belief_state']['taxi']['semi']['arriveBy'] == ""
-        ):
+        if belief_state['taxi']['semi']['leaveAt'] == "" and belief_state['taxi']['semi']['arriveBy'] == "":
             blank_info += ['Leave', 'Arrive']
 
         # Finish booking, tell user car type and phone number
@@ -265,19 +243,16 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
             slot = REF_USR_DA.get(blank_info[i], blank_info[i])
             DA['Taxi-Request'].append([slot, '?'])
 
-    def _update_booking(self, user_act, state, DA):
-        pass
-
-    def _update_DA(self, user_act, user_action, state, DA):
+    def _update_DA(self, user_act, user_action, belief_state, DA):
         """ Answer user's utterance about any domain other than taxi or train. """
 
         domain, intent_type = user_act.split('-')
-        if domain.lower() not in state['belief_state'].keys():
+        if domain.lower() not in belief_state.keys():
             return
         constraints = []
-        for slot in state['belief_state'][domain.lower()]['semi']:
-            if state['belief_state'][domain.lower()]['semi'][slot] != "":
-                constraints.append([slot, state['belief_state'][domain.lower()]['semi'][slot]])
+        for slot in belief_state[domain.lower()]['semi']:
+            if belief_state[domain.lower()]['semi'][slot] != "":
+                constraints.append([slot, belief_state[domain.lower()]['semi'][slot]])
 
         kb_result = self.db.query(domain.lower(), constraints)
         self.kb_result[domain] = deepcopy(kb_result)
@@ -298,7 +273,6 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                         DA[domain + "-Inform"].append([slot[0], kb_result[0][kb_slot_name]])
                     else:
                         DA[domain + "-Inform"].append([slot[0], "unknown"])
-                        # DA[domain + "-Inform"].append([slot_name, state['kb_results_dict'][0][slot[0].lower()]])
 
         else:
             # There's no result matching user's constraint
@@ -306,14 +280,12 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 if (domain + "-NoOffer") not in DA:
                     DA[domain + "-NoOffer"] = []
 
-                for slot in state['belief_state'][domain.lower()]['semi']:
-                    if state['belief_state'][domain.lower()]['semi'][slot] != "" and state['belief_state'][
-                        domain.lower()
-                    ]['semi'][slot] not in ["do nt care", "do n't care", "dontcare"]:
+                for slot in belief_state[domain.lower()]['semi']:
+                    if belief_state[domain.lower()]['semi'][slot] != "" and belief_state[domain.lower()]['semi'][
+                        slot
+                    ] not in ["do nt care", "do n't care", "dontcare"]:
                         slot_name = REF_USR_DA[domain].get(slot, slot)
-                        DA[domain + "-NoOffer"].append(
-                            [slot_name, state['belief_state'][domain.lower()]['semi'][slot]]
-                        )
+                        DA[domain + "-NoOffer"].append([slot_name, belief_state[domain.lower()]['semi'][slot]])
 
                 p = random.random()
 
@@ -336,7 +308,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 if (domain + "-Inform") not in DA:
                     DA[domain + "-Inform"] = []
                 props = []
-                for prop in state['belief_state'][domain.lower()]['semi']:
+                for prop in belief_state[domain.lower()]['semi']:
                     props.append(prop)
                 property_num = len(props)
                 if property_num > 0:
@@ -408,8 +380,8 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                 # Ask user for more constraint
                 else:
                     reqs = []
-                    for prop in state['belief_state'][domain.lower()]['semi']:
-                        if state['belief_state'][domain.lower()]['semi'][prop] == "":
+                    for prop in belief_state[domain.lower()]['semi']:
+                        if belief_state[domain.lower()]['semi'][prop] == "":
                             prop_value = REF_USR_DA[domain].get(prop, prop)
                             reqs.append([prop_value, "?"])
                     i = 0
@@ -429,11 +401,11 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                         req[0] = REF_USR_DA[domain].get(req[0], req[0])
                         DA[domain + "-Request"].append(req)
 
-    def _update_train(self, user_act, user_action, state, DA):
+    def _update_train(self, user_act, user_action, belief_state, DA):
         constraints = []
         for time in ['leaveAt', 'arriveBy']:
-            if state['belief_state']['train']['semi'][time] != "":
-                constraints.append([time, state['belief_state']['train']['semi'][time]])
+            if belief_state['train']['semi'][time] != "":
+                constraints.append([time, belief_state['train']['semi'][time]])
 
         if len(constraints) == 0:
             p = random.random()
@@ -450,11 +422,11 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         if 'Train-Request' not in DA:
             DA['Train-Request'] = []
         for prop in ['day', 'destination', 'departure']:
-            if state['belief_state']['train']['semi'][prop] == "":
+            if belief_state['train']['semi'][prop] == "":
                 slot = REF_USR_DA['Train'].get(prop, prop)
                 DA["Train-Request"].append([slot, '?'])
             else:
-                constraints.append([prop, state['belief_state']['train']['semi'][prop]])
+                constraints.append([prop, belief_state['train']['semi'][prop]])
 
         kb_result = self.db.query('train', constraints)
         self.kb_result['Train'] = deepcopy(kb_result)
@@ -505,89 +477,73 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                             DA['Booking-Book'] = [["Ref", self.kb_result[domain][0]['Ref']]]
                         else:
                             DA['Booking-Book'] = [["Ref", "N/A"]]
-                        # TODO handle booking between multi turn
 
-    def check_diff(self, last_state, state):
+    def check_diff(self, belief_state, request_state):
         user_action = {}
-        if last_state == {}:
-            for domain in state['belief_state']:
-                for slot in state['belief_state'][domain]['book']:
-                    if slot != 'booked' and state['belief_state'][domain]['book'][slot] != '':
+        if self.last_belief_state == {} and self.last_request_state == {}:
+            for domain in belief_state:
+                for slot in belief_state[domain]['book']:
+                    if slot != 'booked' and belief_state[domain]['book'][slot] != '':
                         if (domain.capitalize() + "-Inform") not in user_action:
                             user_action[domain.capitalize() + "-Inform"] = []
                         if [
                             REF_USR_DA[domain.capitalize()].get(slot, slot),
-                            state['belief_state'][domain]['book'][slot],
+                            belief_state[domain]['book'][slot],
                         ] not in user_action[domain.capitalize() + "-Inform"]:
                             user_action[domain.capitalize() + "-Inform"].append(
-                                [
-                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                    state['belief_state'][domain]['book'][slot],
-                                ]
+                                [REF_USR_DA[domain.capitalize()].get(slot, slot), belief_state[domain]['book'][slot],]
                             )
-                for slot in state['belief_state'][domain]['semi']:
-                    if state['belief_state'][domain]['semi'][slot] != "":
+                for slot in belief_state[domain]['semi']:
+                    if belief_state[domain]['semi'][slot] != "":
                         if (domain.capitalize() + "-Inform") not in user_action:
                             user_action[domain.capitalize() + "-Inform"] = []
                         if [
                             REF_USR_DA[domain.capitalize()].get(slot, slot),
-                            state['belief_state'][domain]['semi'][slot],
+                            belief_state[domain]['semi'][slot],
                         ] not in user_action[domain.capitalize() + "-Inform"]:
                             user_action[domain.capitalize() + "-Inform"].append(
-                                [
-                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                    state['belief_state'][domain]['semi'][slot],
-                                ]
+                                [REF_USR_DA[domain.capitalize()].get(slot, slot), belief_state[domain]['semi'][slot],]
                             )
-            for domain in state['request_state']:
-                for slot in state['request_state'][domain]:
+            for domain in request_state:
+                for slot in request_state[domain]:
                     if (domain.capitalize() + "-Request") not in user_action:
                         user_action[domain.capitalize() + "-Request"] = []
                     if [REF_USR_DA[domain].get(slot, slot), '?'] not in user_action[domain.capitalize() + "-Request"]:
                         user_action[domain.capitalize() + "-Request"].append([REF_USR_DA[domain].get(slot, slot), '?'])
 
         else:
-            for domain in state['belief_state']:
-                for slot in state['belief_state'][domain]['book']:
+            for domain in belief_state:
+                for slot in belief_state[domain]['book']:
                     if (
                         slot != 'booked'
-                        and state['belief_state'][domain]['book'][slot]
-                        != last_state['belief_state'][domain]['book'][slot]
+                        and belief_state[domain]['book'][slot] != self.last_belief_state[domain]['book'][slot]
                     ):
                         if (domain.capitalize() + "-Inform") not in user_action:
                             user_action[domain.capitalize() + "-Inform"] = []
                         if [
                             REF_USR_DA[domain.capitalize()].get(slot, slot),
-                            state['belief_state'][domain]['book'][slot],
+                            belief_state[domain]['book'][slot],
                         ] not in user_action[domain.capitalize() + "-Inform"]:
                             user_action[domain.capitalize() + "-Inform"].append(
-                                [
-                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                    state['belief_state'][domain]['book'][slot],
-                                ]
+                                [REF_USR_DA[domain.capitalize()].get(slot, slot), belief_state[domain]['book'][slot],]
                             )
-                for slot in state['belief_state'][domain]['semi']:
+                for slot in belief_state[domain]['semi']:
                     if (
-                        state['belief_state'][domain]['semi'][slot] != last_state['belief_state'][domain]['semi'][slot]
-                        and state['belief_state'][domain]['semi'][slot] != ''
+                        belief_state[domain]['semi'][slot] != self.last_belief_state[domain]['semi'][slot]
+                        and belief_state[domain]['semi'][slot] != ''
                     ):
                         if (domain.capitalize() + "-Inform") not in user_action:
                             user_action[domain.capitalize() + "-Inform"] = []
                         if [
                             REF_USR_DA[domain.capitalize()].get(slot, slot),
-                            state['belief_state'][domain]['semi'][slot],
+                            belief_state[domain]['semi'][slot],
                         ] not in user_action[domain.capitalize() + "-Inform"]:
                             user_action[domain.capitalize() + "-Inform"].append(
-                                [
-                                    REF_USR_DA[domain.capitalize()].get(slot, slot),
-                                    state['belief_state'][domain]['semi'][slot],
-                                ]
+                                [REF_USR_DA[domain.capitalize()].get(slot, slot), belief_state[domain]['semi'][slot],]
                             )
-            for domain in state['request_state']:
-                for slot in state['request_state'][domain]:
-                    if (domain not in last_state['request_state']) or (
-                        slot not in last_state['request_state'][domain]
-                    ):
+            for domain in request_state:
+                for slot in request_state[domain]:
+                    if (domain not in self.last_request_state) or (slot not in self.last_request_state[domain]):
                         if (domain.capitalize() + "-Request") not in user_action:
                             user_action[domain.capitalize() + "-Request"] = []
                         if [REF_USR_DA[domain.capitalize()].get(slot, slot), '?'] not in user_action[

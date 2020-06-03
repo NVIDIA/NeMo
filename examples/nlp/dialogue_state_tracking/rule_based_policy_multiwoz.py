@@ -69,7 +69,9 @@ parser.add_argument(
     choices=["example", "interactive"],
     help="Examples - pipeline example with the predified user queries, set to to interactive to chat with the system",
 )
-parser.add_argument("--hide_output", action="store_true", help="Set to True to hide output of the dialogue modules")
+parser.add_argument(
+    "--show_all_output", action="store_true", help="Set to True to show output of all dialogue modules"
+)
 parser.add_argument("--work_dir", default='outputs', type=str, help='Path to where to store logs')
 
 args = parser.parse_args()
@@ -78,7 +80,7 @@ args = parser.parse_args()
 if not os.path.exists(args.data_dir):
     raise ValueError(f"Data folder `{args.data_dir}` not found")
 
-if not args.hide_output:
+if args.show_all_output:
     logging.setLevel('DEBUG')
 
 nf = nemo_core.NeuralModuleFactory(
@@ -105,6 +107,7 @@ trade_decoder = TRADEGenerator(
     slots=data_desc.slots,
     nb_gate=len(data_desc.gating_dict),
     teacher_forcing=0,
+    max_res_len=4,
 )
 
 if os.path.exists(args.encoder_ckpt) and os.path.exists(args.decoder_ckpt):
@@ -124,65 +127,74 @@ def init_session():
     Returns:
         empty system utterance, empty dialogue history and default empty dialogue state
     """
-    return '', '', default_state()
+    system_action, belief_state, dial_history = default_state()
+    return '', system_action, belief_state, dial_history
 
 
-def get_system_response(user_uttr, system_uttr, dialog_history, state):
+def update_state(system_uttr, user_uttr, dial_history, belief_state):
     """
-    Returns system reply by passing system and user utterances (dialogue history) through the TRADE Dialogue State Tracker,
+    Returns system reply and updates dialogue belief 
+        by passing system and user utterances (dialogue history) through the TRADE Dialogue State Tracker,
         then the output of the TRADE model goes to the Rule-base Dialogue Policy Magager
         and the output of the Policy Manager goes to the Rule-based Natural language generation module
     Args:
         user_uttr (str): User utterance
         system_uttr (str): Previous system utterance
-        dialog_history (str): Diaglogue history contains all previous system and user utterances
-        state (dict): dialogue state
+        dialog_history (str): Dialogue history contains all previous system and user utterances
+        belief_state (dict): dialogue state
     Returns:
-        system_utterance (str): system response
-        state (dict): updated dialogue state 
+        system_uttr (str): system response
+        belief_state (dict): updated dialogue state
+        dialog_history (str): Dialogue history contains all previous system and user utterances
     """
-    src_ids, src_lens = utterance_encoder.forward(state=state, user_uttr=user_uttr, sys_uttr=system_uttr)
+    src_ids, src_lens, dial_history = utterance_encoder.forward(
+        dial_history=dial_history, user_uttr=user_uttr, sys_uttr=system_uttr
+    )
     outputs, hidden = trade_encoder.forward(inputs=src_ids, input_lens=src_lens)
     point_outputs, gate_outputs = trade_decoder.forward(
         encoder_hidden=hidden, encoder_outputs=outputs, input_lens=src_lens, src_ids=src_ids
     )
-    state_after_trade = trade_output_decoder.forward(
-        state=state, gating_preds=gate_outputs, point_outputs_pred=point_outputs
+    belief_state, request_state = trade_output_decoder.forward(
+        gating_preds=gate_outputs, point_outputs_pred=point_outputs, belief_state=belief_state, user_uttr=user_uttr
     )
-    dpm_output, state_after_dpm = rule_based_policy.forward(state=state_after_trade)
-    system_uttr = template_nlg.forward(system_acts=dpm_output)
-    return system_uttr, state_after_dpm
+    system_acts, belief_state = rule_based_policy.forward(belief_state=belief_state, request_state=request_state)
+    system_uttr = template_nlg.forward(system_acts=system_acts)
+    return system_uttr, belief_state, dial_history
 
 
 examples = [
-    ["I want to find a moderate hotel", "What is the address ?"],
-    ['i need to book a hotel in the east that has 4 stars .', "Which type of hotel is it ?"],
+    ["I want to find a moderate hotel with internet and parking in the east"],
+    [
+        "Is there a train from Ely to Cambridge on Tuesday ?",
+        "I need to arrive by 11 am .",
+        "What is the trip duration ?",
+    ],
 ]
 
 trade_encoder.eval()
 trade_decoder.eval()
-logging.info("============ Starting a new dialogue ============")
-system_uttr, dialog_history, state = init_session()
 
 if args.mode == 'interactive':
     # for user_uttr in user_uttrs:
     while True:
         logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
+        system_uttr, system_action, belief_state, dial_history = init_session()
         user_uttr = input()
 
         if user_uttr == "STOP":
             logging.info("===================== Exiting ===================")
             break
         elif user_uttr == "RESTART":
-            system_uttr, dialog_history, state = init_session()
+            system_uttr, system_action, belief_state, dial_history = init_session()
             logging.info("============ Starting a new dialogue ============")
         else:
-            get_system_response(user_uttr, system_uttr, dialog_history, state)
+            system_uttr, belief_state, dial_history = update_state(system_uttr, user_uttr, dial_history, belief_state)
 
 elif args.mode == 'example':
     for example in examples:
         logging.info("============ Starting a new dialogue ============")
-        system_uttr, dialog_history, state = init_session()
+        system_uttr, system_action, belief_state, dial_history = init_session()
+        system_uttr, dialog_history = "", ""
         for user_uttr in example:
             logging.info("User utterance: %s", user_uttr)
-            system_uttr, state = get_system_response(user_uttr, system_uttr, dialog_history, state)
+            system_uttr, belief_state, dial_history = update_state(system_uttr, user_uttr, dial_history, belief_state)

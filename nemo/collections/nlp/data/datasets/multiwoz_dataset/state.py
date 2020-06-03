@@ -42,4 +42,4 @@ def default_state():
             "semi": {"leaveAt": "", "destination": "", "day": "", "arriveBy": "", "departure": ""},
         },
     }
-    return state
+    return state['system_action'], state['belief_state'], state['history']

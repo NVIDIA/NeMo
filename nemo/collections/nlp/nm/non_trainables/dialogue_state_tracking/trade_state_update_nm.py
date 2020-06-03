@@ -27,7 +27,7 @@ import torch
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
-from nemo.core import AxisKind, AxisType, LogitsType, NeuralType, VoidType
+from nemo.core import AxisKind, AxisType, LogitsType, NeuralType, StringType, VoidType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -49,19 +49,23 @@ class TradeStateUpdateNM(NonTrainableNM):
         return {
             'point_outputs_pred': NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
             'gating_preds': NeuralType(('B', 'D', 'D'), LogitsType()),
+            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
+            'user_uttr': NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
         }
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-
         """
-        return {'state': NeuralType(axes=(AxisType(kind=AxisKind.Any, is_list=True),), elements_type=VoidType(),)}
+        return {
+            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
+            'request_state': NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
+        }
 
     def __init__(self, data_desc):
         """
-        Init
+        Initializes the object
         Args:
             data_desc (obj): data descriptor for MultiWOZ dataset, contains information about domains, slots, 
                 and associated vocabulary
@@ -69,37 +73,32 @@ class TradeStateUpdateNM(NonTrainableNM):
         super().__init__()
         self.data_desc = data_desc
 
-    def forward(self, state, gating_preds, point_outputs_pred):
+    def forward(self, gating_preds, point_outputs_pred, belief_state, user_uttr):
         """
         Processes the TRADE model output and updates the dialogue state with the model's predictions
         Args:
-            state (dict):
+            user_uttr (str): user utterance
+            request_state (dict): contains requestsed slots-slot_value pairs for each domain
+            belief_state (dict): dialgoue belief state, containt slot-slot value pair for all domains
             gating_preds (float): TRADE model gating predictions
             point_outputs_pred (float): TRADE model pointers predictions
+        Returns:
+            updated request_state (dict)
+            updated belief_state (dict)
         """
-        prev_state = state
         gate_outputs_max, point_outputs_max = self.get_trade_prediction(gating_preds, point_outputs_pred)
         trade_output = self.get_human_readable_output(gate_outputs_max, point_outputs_max)[0]
         logging.debug('TRADE output: %s', trade_output)
 
         new_belief_state = self.reformat_belief_state(
-            trade_output, copy.deepcopy(prev_state['belief_state']), self.data_desc.ontology_value_dict
+            trade_output, copy.deepcopy(belief_state), self.data_desc.ontology_value_dict
         )
-        state['belief_state'] = new_belief_state
-
         # update request state based on the latest user utterance
-        new_request_state = copy.deepcopy(state['request_state'])
         # extract current user output
-        user_uttr = state['user_action']
-        user_request_slot = self.detect_requestable_slots(user_uttr.lower(), self.data_desc.det_dict)
-        for domain in user_request_slot:
-            for key in user_request_slot[domain]:
-                if domain not in new_request_state:
-                    new_request_state[domain] = {}
-                if key not in new_request_state[domain]:
-                    new_request_state[domain][key] = user_request_slot[domain][key]
-        state['request_state'] = new_request_state
-        return state
+        new_request_state = self.detect_requestable_slots(user_uttr.lower(), self.data_desc.det_dict)
+        logging.debug('Belief State after TRADE: %s', belief_state)
+        logging.debug('Request State after TRADE: %s', new_request_state)
+        return new_belief_state, new_request_state
 
     def get_trade_prediction(self, gating_preds, point_outputs_pred):
         """

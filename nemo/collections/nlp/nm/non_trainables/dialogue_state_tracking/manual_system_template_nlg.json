@@ -1164,7 +1164,7 @@
             "Did you want reservations ?"
         ],
         "Depart": [
-            "Woudl you like me to book a train from #TRAIN-OFFERBOOK-DEPART# for you ?"
+            "Would you like me to book a train from #TRAIN-OFFERBOOK-DEPART# for you ?"
         ],
         "Id": [
             "Train #TRAIN-OFFERBOOK-ID# would work for you .",
@@ -1213,7 +1213,7 @@
             "There are #TRAIN-OFFERBOOK-CHOICE# trains available . Should I book a train for you ?"
         ],
         "Dest": [
-            "Woudl you like me to book a train to #TRAIN-OFFERBOOK-DEST# for you ?"
+            "Would you like me to book a train to #TRAIN-OFFERBOOK-DEST# for you ?"
         ],
         "Time": [
             "The travel time is #TRAIN-OFFERBOOK-TIME# , would you like me to book it for you ?"

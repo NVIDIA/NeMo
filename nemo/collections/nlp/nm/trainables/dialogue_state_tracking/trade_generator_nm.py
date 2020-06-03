@@ -90,7 +90,7 @@ class TRADEGenerator(TrainableNM):
             'gate_outputs': NeuralType(('B', 'D', 'D'), LogitsType()),
         }
 
-    def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5):
+    def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5, max_res_len=10):
         super().__init__()
         self.vocab_size = len(vocab)
         self.vocab = vocab
@@ -105,6 +105,8 @@ class TRADEGenerator(TrainableNM):
         self.sigmoid = nn.Sigmoid()
         self.slots = slots
         self.teacher_forcing = teacher_forcing
+        # max_res_len is used in evaluation mode or when targets are not provided
+        self.max_res_len = max_res_len
 
         self._slots_split_to_index()
         self.slot_emb = nn.Embedding(len(self.slot_w2i), hid_size)
@@ -126,15 +128,13 @@ class TRADEGenerator(TrainableNM):
         else:
             use_teacher_forcing = True
 
-        # TODO: set max_res_len to 10 in evaluation mode or
-        #  when targets are not provided
         batch_size = encoder_hidden.shape[0]
 
         if isinstance(targets, torch.Tensor):
             max_res_len = targets.shape[2]
             targets = targets.transpose(0, 1)
         else:
-            max_res_len = 4  # 10
+            max_res_len = self.max_res_len
 
         all_point_outputs = torch.zeros(len(self.slots), batch_size, max_res_len, self.vocab_size, device=self._device)
         all_gate_outputs = torch.zeros(len(self.slots), batch_size, self.nb_gate, device=self._device)

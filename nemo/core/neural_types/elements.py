@@ -35,6 +35,7 @@ __all__ = [
     'EmbeddedTextType',
     'EncodedRepresentation',
     'MaskType',
+    'StringType',
 ]
 import abc
 from abc import ABC, abstractmethod
@@ -193,3 +194,7 @@ class CategoricalValuesType(PredictionsType):
 
 class MaskType(PredictionsType):
     """Element type to represent boolean mask"""
+
+
+class StringType(ElementType):
+    """Element type representing strings"""
