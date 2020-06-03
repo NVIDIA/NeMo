@@ -48,6 +48,10 @@ def carry_over_slots(
     sys_prev_slots,
     last_sys_slots,
 ):
+    """This function searches the candidate list for cross-service cases to find and update the values for all the slots in the current predicted state
+    It is called when state is predictaed for a frame.
+    MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
+    """
     if prev_frame_service == cur_usr_frame["service"]:
         return
     for (service_dest, slot_dest), cands_list in slots_relation_list.items():
@@ -86,6 +90,11 @@ def get_carryover_value(
     slots_relation_list,
     sys_rets,
 ):
+    """This function searches the previous system actions and also the candidate list for cross-service cases to find a value for a slot
+    It is called when a value for a slot can not be found the last user utterance
+    MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
+    """
+
     ext_value = None
     if slot in sys_slots_agg[cur_usr_frame["service"]]:
         ext_value = sys_slots_agg[cur_usr_frame["service"]][slot]
@@ -105,9 +114,18 @@ def get_carryover_value(
 
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
-    """Update labels in a dialogue based on model predictions.
-    This approach retrieves slot values from the history of system actions if slot is active but it can not find it in
-    user utterance overwrite the labels in the turn with the predictions from the model.
+    """This is NeMo Tracker which would be enabled by passing "--state_tracker=nemotracker".
+    It improves the performance significantly by employing carry-over mechanism for in-service and cross-service.
+
+    * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions.\
+    Therefore, whenever the status of a non-categorical slot is active but no value can be found in the user utterance, we search the list of slots and their values mentioned in the previous system actions to find a value for this slot.
+    The most recent value is used as the value for the slot. It is called in-domain carry-over as it happens inside a service.
+
+    * **Cross-service carry-over mechanism**: In multi-domain dialogues, switching between two services can happen in the dialogue. In such cases, there can be some values to get transfered to the new service automatically.
+    For instance when user is reserving flight tickets for two persons, it can be assumed that number of people for hotel reservation should also be two. To handle such cases, when we process the dialogues, we also record the list of these carry-over between two services from the training data.
+    A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another.
+    Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
+
   Args:
     dialog: A json object containing dialogue whose labels are to be updated.
     all_predictions: A dict mapping prediction name to the predicted value. See
