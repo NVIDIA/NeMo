@@ -5,17 +5,32 @@ Natural Language Processing
 
 Supported Tasks and Models:
 
-* Intent Detection and Slot Filling
-* Text Classification
-* State Tracking for Task-oriented Dialogue Systems
-* Language Modelling
 * Neural Machine Translation
-* Question Answering
-* Name Entity Recognition (NER)
-* Punctuation and Capitalization
+   * :ref:`nmt`
+* Language Modelling:
+   * :ref:`bert_pretraining`
+   * :ref:`transformer_lm`
+   * :ref:`megatron_finetuning`
 * GLUE Benchmark
+   * :ref:`glue`
+* Intent Detection and Slot Filling
+   * :ref:`joint_intent_slot_filling`
+* Text Classification
+   * :ref:`text_classification`
+   * :ref:`sentiment_analysis`
+* Name Entity Recognition (NER)
+   * :ref:`ner`
+* Punctuation and Capitalization
+   * :ref:`punctuation`
+* Question Answering
+   * :ref:`squad_model_links`
+* State Tracking for Goal-oriented Dialogue Systems:
+   * :ref:`trade_tutorial`
+   * :ref:`sgd_tutorial`
 * ASR Postprocessing with BERT
+   * :ref:`asr_improvement`
 
+   
 All examples from NLP collection can be found `here <https://github.com/NVIDIA/NeMo/tree/master/examples/nlp>`__.
 
 Neural Machine Translation (NMT)
@@ -32,19 +47,19 @@ Pretraining BERT
 
    bert_pretraining
 
-Megatron-LM for Downstream tasks
---------------------------------
-.. toctree::
-   :maxdepth: 8
-
-   megatron_finetuning
-
 Transformer Language Model
 --------------------------
 .. toctree::
    :maxdepth: 8
 
    transformer_language_model
+
+Megatron-LM for Downstream tasks
+--------------------------------
+.. toctree::
+   :maxdepth: 8
+
+   megatron_finetuning
 
 GLUE Benchmark
 --------------------------
@@ -53,14 +68,19 @@ GLUE Benchmark
 
    glue
 
-Dialogue State Tracking
+Intent and Slot filling
 -----------------------
-
 .. toctree::
    :maxdepth: 8
 
-   dialogue_state_tracking.rst
+   joint_intent_slot_filling
 
+Text Classification
+-------------------
+.. toctree::
+   :maxdepth: 8
+
+   text_classification
 
 Named Entity Recognition
 ------------------------
@@ -78,16 +98,6 @@ Punctuation and Word Capitalization
 
    punctuation
 
-
-Intent and Slot filling
------------------------
-.. toctree::
-   :maxdepth: 8
-
-   joint_intent_slot_filling
-
-
-
 Question Answering 
 ------------------
 .. toctree::
@@ -95,8 +105,16 @@ Question Answering
 
    question_answering
 
-Improving Speech Recognition with BERTx2 Post-processing Model
---------------------------------------------------------------
+Dialogue State Tracking
+-----------------------
+
+.. toctree::
+   :maxdepth: 8
+
+   dialogue_state_tracking
+
+ASR Postprocessing with BERT
+----------------------------
 .. toctree::
    :maxdepth: 8
 

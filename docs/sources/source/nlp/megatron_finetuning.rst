@@ -1,3 +1,5 @@
+.. _megatron_finetuning:
+
 Megatron-LM for Downstream Tasks
 ================================
 

@@ -1,3 +1,5 @@
+.. _punctuation:
+
 Tutorial
 ========
 

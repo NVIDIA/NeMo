@@ -1,3 +1,5 @@
+.. _joint_intent_slot_filling:
+
 Tutorial
 ========
 

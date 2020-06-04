@@ -1,3 +1,4 @@
+.. _glue:
 
 Tutorial
 ========
@@ -86,7 +87,7 @@ To use multi-gpu training on MNLI task, run:
 
         export NUM_GPUS=4
         python -m torch.distributed.launch --nproc_per_node=$NUM_GPUS glue_benchmark_with_bert.py \
-            --data_dir=/path_to_data/MNLI \
+            --data_dir=/path_to_data_dir/MNLI \
             --task_name mnli \
             --work_dir /path_to_output_folder \
             --num_gpus=$NUM_GPUS \
