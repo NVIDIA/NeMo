@@ -51,12 +51,14 @@ from nemo.utils import logging
 
 # Examples: two "separate" dialogs (one single-turn, one multiple-turn).
 examples = [
-    ["I want to find a moderate hotel with internet and parking in the east"],
+    # ["I want to find a moderate hotel with internet and parking in the east"],
     [
         "Is there a train from Ely to Cambridge on Tuesday ?",
         "I need to arrive by 11 am .",
         "What is the trip duration ?",
+        "Yes, please book it",
     ],
+    # ["I want to find a moderate hotel", "What is the address ?"],
 ]
 
 
