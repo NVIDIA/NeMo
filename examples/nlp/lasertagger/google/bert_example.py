@@ -25,8 +25,8 @@ import collections
 from nemo.collections.nlp.data.tokenizers import bert_tokenizer
 import tagging
 import tagging_converter
-import tensorflow as tf
 from typing import Mapping, MutableSequence, Optional, Sequence, Text
+import utils
 
 
 class BertExample(object):
@@ -40,7 +40,8 @@ class BertExample(object):
 
   def __init__(self, input_ids,
                input_mask,
-               segment_ids, labels,
+               segment_ids, tgt_ids,
+               labels,
                labels_mask,
                token_start_indices,
                task, default_label):
@@ -55,6 +56,7 @@ class BertExample(object):
         ('input_ids', input_ids),
         ('input_mask', input_mask),
         ('segment_ids', segment_ids),
+        ('tgt_ids', tgt_ids),
         ('labels', labels),
         ('labels_mask', labels_mask),
     ])
@@ -72,22 +74,14 @@ class BertExample(object):
     """
     pad_len = max_seq_length - len(self.features['input_ids'])
     for key in self.features:
-      pad_id = pad_token_id if key == 'input_ids' else 0
-      self.features[key].extend([pad_id] * pad_len)
-      if len(self.features[key]) != max_seq_length:
-        raise ValueError('{} has length {} (should be {}).'.format(
-            key, len(self.features[key]), max_seq_length))
-
-  def to_tf_example(self):
-    """Returns this object as a tf.Example."""
-
-    def int_feature(values):
-      return tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
-
-    tf_features = collections.OrderedDict([
-        (key, int_feature(val)) for key, val in self.features.items()
-    ])
-    return tf.train.Example(features=tf.train.Features(feature=tf_features))
+      if key == 'tgt_ids':
+        self.features[key].extend([0] * (max_seq_length - len(self.features[key])))
+      else:
+        pad_id = pad_token_id if (key == 'input_ids') else 0
+        self.features[key].extend([pad_id] * pad_len)
+        if len(self.features[key]) != max_seq_length:
+          raise ValueError('{} has length {} (should be {}).'.format(
+              key, len(self.features[key]), max_seq_length))
 
   def get_token_labels(self):
     """Returns labels/tags for the original tokens, not for wordpieces."""
@@ -120,8 +114,7 @@ class BertExampleBuilder(object):
       converter: Converter from text targets to tags.
     """
     self._label_map = label_map
-    self._tokenizer = bert_tokenizer.NemoBertTokenizer(vocab_file,
-                                                 do_lower_case=do_lower_case)
+    self._tokenizer = bert_tokenizer.NemoBertTokenizer(vocab_file=vocab_file, do_lower_case=do_lower_case)
     self._max_seq_length = max_seq_length
     self._converter = converter
     self._pad_id = self._get_pad_id()
@@ -162,7 +155,6 @@ class BertExampleBuilder(object):
       # If target is not provided, we set all target labels to KEEP.
       tags = [tagging.Tag('KEEP') for _ in task.source_tokens]
     labels = [self._label_map[str(tag)] for tag in tags]
-
     tokens, labels, token_start_indices = self._split_to_wordpieces(
         task.source_tokens, labels)
 
@@ -173,14 +165,19 @@ class BertExampleBuilder(object):
     labels_mask = [0] + [1] * len(labels) + [0]
     labels = [0] + labels + [0]
 
-    input_ids = self._tokenizer.token_to_id(input_tokens)
+    # print([str(t) for t in tags])
+    input_ids = self._tokenizer.tokens_to_ids(input_tokens)
     input_mask = [1] * len(input_ids)
     segment_ids = [0] * len(input_ids)
+
+    tgt_ids = self._truncate_list(self._tokenizer.text_to_ids(target))
+    tgt_ids = [self._tokenizer.bos_id] + tgt_ids + [self._tokenizer.eos_id]
 
     example = BertExample(
         input_ids=input_ids,
         input_mask=input_mask,
         segment_ids=segment_ids,
+        tgt_ids = tgt_ids,
         labels=labels,
         labels_mask=labels_mask,
         token_start_indices=token_start_indices,
@@ -220,6 +217,6 @@ class BertExampleBuilder(object):
   def _get_pad_id(self):
     """Returns the ID of the [PAD] token (or 0 if it's not in the vocab)."""
     try:
-      return self._tokenizer.tokens_to_id(['[PAD]'])[0]
+      return self._tokenizer.tokens_to_ids(['[PAD]'])[0]
     except KeyError:
       return 0

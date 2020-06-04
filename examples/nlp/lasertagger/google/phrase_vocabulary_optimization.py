@@ -252,8 +252,7 @@ def main(argv):
   flags.mark_flag_as_required('input_format')
   flags.mark_flag_as_required('output_file')
 
-  data_iterator = utils.yield_sources_and_targets(FLAGS.input_file,
-                                                  FLAGS.input_format)
+  data_iterator = utils.yield_sources_and_targets(FLAGS.input_file)
   phrase_counter, all_added_phrases = _added_token_counts(
       data_iterator, FLAGS.enable_swap_tag, FLAGS.max_input_examples)
   matrix = _construct_added_phrases_matrix(all_added_phrases, phrase_counter)

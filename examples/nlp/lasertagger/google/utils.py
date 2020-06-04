@@ -39,8 +39,7 @@ def get_token_list(text):
 
 
 def yield_sources_and_targets(
-    input_file,
-    input_format):
+    input_file):
   """Reads and yields source lists and targets from the input file.
 
   Args:
