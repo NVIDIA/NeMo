@@ -16,10 +16,9 @@
 
 from torch import nn
 
-from nemo.core.neural_types import *
 from nemo.backends.pytorch.nm import TrainableNM
+from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
-
 
 __all__ = ['EncoderRNN']
 

@@ -45,7 +45,7 @@ from nemo.collections.nlp.nm.non_trainables import (
     TradeStateUpdateNM,
     UserUtteranceEncoder,
 )
-from nemo.collections.nlp.nm.trainables import TRADEGenerator, EncoderRNN
+from nemo.collections.nlp.nm.trainables import EncoderRNN, TRADEGenerator
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode
 from nemo.utils import logging
 
