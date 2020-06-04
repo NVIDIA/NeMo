@@ -81,7 +81,7 @@ class UserUtteranceEncoder(NonTrainableNM):
         super().__init__()
         self.data_desc = data_desc
 
-    def forward(self, dialog_history, user_uttr, sys_uttr):
+    def forward(self, user_uttr, sys_uttr, dialog_history):
         """
         Returns dialogue utterances in the format accepted by the TRADE Dialogue state tracking model
         Args:
@@ -93,15 +93,15 @@ class UserUtteranceEncoder(NonTrainableNM):
             dialog_lens (int): length of the whole tokenized dialogue history
             dialog_history (list): updated dialogue history, list of system and diaglogue utterances
         """
-        context = ' ; '.join([item[1].strip().lower() for item in dialog_history]).strip() + ' ;'
-        context_ids = self.data_desc.vocab.tokens2ids(context.split())
-        dialog_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
-        dialog_lens = torch.tensor(len(context_ids)).unsqueeze(0).to(self._device)
-
         # TODO: why we update sys utterance, whereas we have only user utterance at that point?
         dialog_history.append(["sys", sys_uttr])
         dialog_history.append(["user", user_uttr])
         logging.debug("Dialogue history: %s", dialog_history)
+
+        context = ' ; '.join([item[1].strip().lower() for item in dialog_history]).strip() + ' ;'
+        context_ids = self.data_desc.vocab.tokens2ids(context.split())
+        dialog_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
+        dialog_lens = torch.tensor(len(context_ids)).unsqueeze(0).to(self._device)
 
         # logging.debug("!! dialog_ids: %s", dialog_ids)
         # logging.debug("!! dialog_lens: %s", dialog_lens)
