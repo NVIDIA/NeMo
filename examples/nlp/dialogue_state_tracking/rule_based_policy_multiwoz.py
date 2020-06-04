@@ -101,7 +101,9 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     )
 
     # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
-    system_acts, belief_state = rule_based_policy.forward(belief_state=belief_state, request_state=request_state)
+    system_acts, belief_state = dialog_pipeline.modules[dialog_pipeline.steps[4]].forward(
+        belief_state=belief_state, request_state=request_state
+    )
 
     # 3. Forward pass throught Natural Language Generator module (Template-Based).
     system_uttr = template_nlg.forward(system_acts=system_acts)
@@ -216,6 +218,9 @@ if __name__ == "__main__":
             belief_state=dialog_pipeline,
             user_uttr=dialog_pipeline.inputs["user_uttr"],
         )
+
+        # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
+        system_acts, belief_state = rule_based_policy(belief_state=belief_state, request_state=request_state)
 
     # Show the graph summary.
     logging.info(dialog_pipeline.summary())
