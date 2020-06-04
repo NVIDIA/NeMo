@@ -1,6 +1,6 @@
 .. _bert_pretraining:
 
-Bert Pre-training Tutorial
+BERT Pre-training Tutorial
 ==========================
 
 In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture :cite:`nlp-bert-devlin2018bert`.

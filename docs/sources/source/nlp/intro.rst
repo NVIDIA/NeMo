@@ -24,7 +24,7 @@ Supported Tasks and Models:
    * :ref:`punctuation`
 * Question Answering
    * :ref:`squad_model_links`
-* State Tracking for Task-oriented Dialogue Systems:
+* State Tracking for Goal-oriented Dialogue Systems:
    * :ref:`trade_tutorial`
    * :ref:`sgd_tutorial`
 * ASR Postprocessing with BERT
@@ -47,19 +47,19 @@ Pretraining BERT
 
    bert_pretraining
 
-Megatron-LM for Downstream tasks
---------------------------------
-.. toctree::
-   :maxdepth: 8
-
-   megatron_finetuning
-
 Transformer Language Model
 --------------------------
 .. toctree::
    :maxdepth: 8
 
    transformer_language_model
+
+Megatron-LM for Downstream tasks
+--------------------------------
+.. toctree::
+   :maxdepth: 8
+
+   megatron_finetuning
 
 GLUE Benchmark
 --------------------------
@@ -113,8 +113,8 @@ Dialogue State Tracking
 
    dialogue_state_tracking
 
-Improving Speech Recognition with BERTx2 Post-processing Model
---------------------------------------------------------------
+ASR Postprocessing with BERT
+----------------------------
 .. toctree::
    :maxdepth: 8
 
