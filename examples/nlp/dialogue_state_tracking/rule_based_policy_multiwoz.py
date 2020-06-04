@@ -52,7 +52,7 @@ from nemo.utils import logging
 
 # Examples: two "separate" dialogs (one single-turn, one multiple-turn).
 examples = [
-    #["I want to find a moderate hotel with internet and parking in the east"],
+    # ["I want to find a moderate hotel with internet and parking in the east"],
     [
         "Is there a train from Ely to Cambridge on Tuesday ?",
         "I need to arrive by 11 am .",
@@ -202,8 +202,8 @@ if __name__ == "__main__":
         )
 
         # Set evaluation mode - for trainable modules.
-        #trade_encoder.eval()
-        #trade_decoder.eval()
+        # trade_encoder.eval()
+        # trade_decoder.eval()
 
     # "Execute" the graph - depending on the mode.
     if args.mode == 'interactive':
@@ -222,7 +222,7 @@ if __name__ == "__main__":
                 logging.info("============ Starting a new dialogue ============")
             else:
                 # Pass the "user uterance" as inputs to the dialog pipeline.
-                system_uttr, belief_state, dial_history = forward_(
+                system_uttr, belief_state, dial_history = forward(
                     dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state
                 )
 

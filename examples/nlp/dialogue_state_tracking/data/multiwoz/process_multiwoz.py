@@ -483,7 +483,9 @@ def divideData(data, infold, outfold):
     with open(f'{outfold}/train_dials.json', 'w') as f:
         json.dump(train_dials, f, indent=4)
 
-    print(f"Saving done. Generated dialogs: {count_train} train, {count_val} val, {count_test} test.")
+    print(
+        f"Processing done and saved in `{outfold}`. Generated dialogs: {count_train} train, {count_val} val, {count_test} test."
+    )
 
 
 if __name__ == "__main__":
@@ -508,7 +510,7 @@ if __name__ == "__main__":
         if_exist(abs_target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db'])
         and not args.overwrite_files
     ):
-        print(f'Data is already processed and stored at {abs_source_data_dir}, skipping pre-processing.')
+        print(f'Data is already processed and stored at {abs_target_data_dir}, skipping pre-processing.')
         exit(0)
 
     fin = open('multiwoz_mapping.pair', 'r')

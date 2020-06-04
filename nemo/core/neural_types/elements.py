@@ -43,6 +43,7 @@ __all__ = [
     'NormalizedImageValue',
     'StringLabel',
     'StringType',
+    'AgentUtterance',
 ]
 
 import abc
@@ -250,7 +251,9 @@ class StringType(ElementType):
 
 class AgentUtterance(ElementType):
     "Element type representing utterance returned by an agent (user or system) participating in a dialog."
+
     def __str__(self):
         return "Utterance returned by an agent (user or system) participating in a dialog."
+
     def fields(self):
         return ("Agent", "Utterance")

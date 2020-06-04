@@ -21,7 +21,7 @@ https://github.com/thu-coai/ConvLab-2/
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import AxisKind, AxisType, ChannelType, LengthsType, NeuralType, StringType
+from nemo.core.neural_types import AgentUtterance, AxisKind, AxisType, ChannelType, LengthsType, NeuralType, StringType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -46,26 +46,17 @@ class UtteranceEncoderNM(NonTrainableNM):
         """
         return {
             'dial_history': NeuralType(
-                axes=(
-                    AxisType(kind=AxisKind.Batch),
-                    AxisType(kind=AxisKind.Channel, size=3),
-                    AxisType(kind=AxisKind.Height, size=224),
-                    AxisType(kind=AxisKind.Width, size=224),
-                ),
+                axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
+                elements_type=AgentUtterance(),
+            ),
+            'user_uttr': NeuralType(
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True)],
                 elements_type=StringType(),
-                ),
-            'user_uttr': NeuralType(axes=[
-                    AxisType(kind=AxisKind.Batch, is_list=True),
-                    AxisType(kind=AxisKind.Time, is_list=True)
-                ], 
-                elements_type=StringType()),
+            ),
             'sys_uttr': NeuralType(
-                axes=[
-                    AxisType(kind=AxisKind.Batch, is_list=True),
-                    AxisType(kind=AxisKind.Time)
-                ],
-                elements_type=StringType()
-                ),
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time)],
+                elements_type=StringType(),
+            ),
         }
 
     @property
@@ -79,11 +70,10 @@ class UtteranceEncoderNM(NonTrainableNM):
         return {
             'src_ids': NeuralType(('B', 'T'), elements_type=ChannelType()),
             'src_lens': NeuralType(tuple('B'), elements_type=LengthsType()),
-            'dial_history': NeuralType(axes=(
-                AxisType(kind=AxisKind.Batch, is_list=True),
-                AxisType(kind=AxisKind.Time, is_list=True),
-                ),
-                elements_type=StringType()),
+            'dial_history': NeuralType(
+                axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
+                elements_type=StringType(),
+            ),
         }
 
     def __init__(self, data_desc):

@@ -59,7 +59,9 @@ class TradeStateUpdateNM(NonTrainableNM):
         """Returns definitions of module output ports.
         """
         return {
-            'belief_state': NeuralType(axes=tuple(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
+            'belief_state': NeuralType(
+                axes=tuple(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()
+            ),
             'request_state': NeuralType(axes=tuple(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
         }
 
