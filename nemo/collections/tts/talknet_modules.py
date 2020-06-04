@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import math
-import sys
-import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -47,7 +45,6 @@ __all__ = [
     'LenSampler',
     'TalkNetDursLoss',
     'TalkNetMelsLoss',
-    'WaveGlowInference',
 ]
 
 
@@ -318,30 +315,30 @@ class TalkNetDataLayer(DataLayerNM):
 
     def __init__(
         self,
-        data,
-        durs,
-        labels,
-        durs_type='full-pad',
-        speakers=None,
-        speaker_table=None,
-        speaker_embs=None,
-        batch_size=32,
-        sample_rate=16000,
-        int_values=False,
-        bos_id=None,
-        eos_id=None,
-        pad_id=None,
-        blank_id=None,
-        min_duration=0.1,
-        max_duration=None,
-        normalize_transcripts=True,
-        trim_silence=False,
-        load_audio=True,
-        drop_last=False,
-        shuffle=True,
-        num_workers=0,
-        sampler_type='default',
-        bd_aug=False,
+        data: str,
+        durs: str,
+        labels: List[str],
+        durs_type: str = 'full-pad',
+        speakers: str = None,
+        speaker_table: str = None,
+        speaker_embs: str = None,
+        batch_size: int = 32,
+        sample_rate: int = 16000,
+        int_values: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: Optional[int] = None,
+        blank_id: Optional[int] = None,
+        min_duration: Optional[float] = 0.1,
+        max_duration: Optional[float] = None,
+        normalize_transcripts: bool = True,
+        trim_silence: bool = False,
+        load_audio: bool = True,
+        drop_last: bool = False,
+        shuffle: bool = True,
+        num_workers: int = 0,
+        sampler_type: str = 'default',
+        bd_aug: bool = False,
     ):
         """Creates TalkNet data iterator.
 
@@ -964,46 +961,3 @@ class TalkNetMelsLoss(LossNM):
             raise ValueError("Wrong reduction.")
 
         return loss
-
-
-class WaveGlowInference:
-    def __init__(self, code, checkpoint, fp16=False):
-        # One nasty little hack
-        sys.path.append(code)
-
-        # nemo.logging.info("Loading WaveGlow from %s", checkpoint)
-        from convert_model import update_model  # noqa
-
-        model = update_model(torch.load(checkpoint)['model'])
-        model = model.remove_weightnorm(model).cuda()
-        model.eval()
-        self._fp16 = fp16
-        if fp16:
-            from apex import amp
-
-            model, _ = amp.initialize(model, [], opt_level='O3')
-        self._model = model
-
-        from denoiser import Denoiser  # noqa
-
-        denoiser = Denoiser(self._model).cuda()
-        denoiser.eval()
-        self._denoiser = denoiser
-
-    def __call__(self, mels, sigma=1.0, denoiser=0.1, norm=True):
-        if self._fp16:
-            mels = mels.half()
-
-        with torch.no_grad():
-            start_time = time.time()
-            audios = self._model.infer(mels, sigma=sigma)
-            if denoiser > 0.0:
-                audios = self._denoiser(audios, denoiser)
-            lat = time.time() - start_time
-
-        if norm:
-            audios /= audios.max()
-
-        audios = audios.cpu().numpy()
-
-        return audios, lat
