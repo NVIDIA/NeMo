@@ -19,11 +19,21 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/thu-coai/ConvLab-2/blob/master/convlab2/util/multiwoz/state.py
 """
 
-__all__ = ['default_state']
+__all__ = ['init_state']
 
 
-def default_state():
-    state = dict(user_action=[], system_action=[], belief_state={}, request_state={}, terminated=False, history=[])
+def init_state():
+    """
+    Inits thate of the dialogue.
+    Returns:
+        4-tuple containing: Empty user utterance, empty system utterance, empty dialogue history
+        and empty dialogue state.
+    """
+    # Create empty state - a dictionary with requires keys.
+    # Keeping the original format to be "compatible" with ConvLab2.
+    state = dict(user_action="", system_action=[], belief_state={}, request_state={}, terminated=False, history=[])
+
+    # Create the MultiWOZ "belief state" structure.
     state['belief_state'] = {
         "police": {"book": {"booked": []}, "semi": {}},
         "hotel": {
@@ -42,4 +52,4 @@ def default_state():
             "semi": {"leaveAt": "", "destination": "", "day": "", "arriveBy": "", "departure": ""},
         },
     }
-    return state['system_action'], state['belief_state'], state['history']
+    return state['user_action'], state['system_action'], state['belief_state'], state['history']
