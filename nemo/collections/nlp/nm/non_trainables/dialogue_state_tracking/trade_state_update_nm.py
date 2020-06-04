@@ -54,7 +54,7 @@ class TradeStateUpdateNM(NonTrainableNM):
                     AxisType(kind=AxisKind.Batch, is_list=True),
                     AxisType(kind=AxisKind.MultiWOZDomain, is_list=True),  # 7 domains
                 ],
-                elements_type=Length(),
+                elements_type=MultiWOZDomainState(),
             ),
             'user_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
         }
@@ -70,7 +70,7 @@ class TradeStateUpdateNM(NonTrainableNM):
                     AxisType(kind=AxisKind.Batch, is_list=True),
                     AxisType(kind=AxisKind.MultiWOZDomain, is_list=True),  # 7 domains
                 ],
-                elements_type=Length(),
+                elements_type=MultiWOZDomainState(),
             ),
             'request_state': NeuralType(
                 axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],

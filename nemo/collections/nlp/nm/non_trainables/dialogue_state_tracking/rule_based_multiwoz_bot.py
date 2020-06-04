@@ -123,7 +123,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                         kind=AxisKind.MultiWOZDomain, is_list=True
                     ),  # always 7 domains - but cannot set size with is_list!
                 ],
-                elements_type=Length(),
+                elements_type=MultiWOZDomainState(),
             ),
             'request_state': NeuralType(
                 axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],
@@ -146,7 +146,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
                         kind=AxisKind.MultiWOZDomain, is_list=True
                     ),  # always 7 domains - but cannot set size with is_list!
                 ],
-                elements_type=Length(),
+                elements_type=MultiWOZDomainState(),
             ),
             'system_acts': NeuralType(
                 axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],

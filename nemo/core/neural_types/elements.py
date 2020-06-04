@@ -48,7 +48,7 @@ __all__ = [
     'TokenIndex',
     'Length',
     'SlotValue',
-    'MultiWOZSlotValue',
+    'MultiWOZDomainState',
 ]
 
 import abc
@@ -265,7 +265,7 @@ class AgentUtterance(ElementType):
         return "Utterance returned by an agent (user or system) participating in a dialog."
 
     def fields(self):
-        return ("Agent", "Utterance")
+        return ("agent", "utterance")
 
 
 class IntType(ElementType):
@@ -283,12 +283,15 @@ class Length(IntType):
 class SlotValue(ElementType):
     """Element type representing slot-value pair."""
 
-    def __str__(self):
-        return "Slot-value pair"
+    # def __str__(self):
+    #    return "Slot-value pair"
 
-    def fields(self):
-        return ("Slot", "Value")
+    # def fields(self):
+    #    return ("slot", "value")
 
 
-class MultiWOZSlotValue(SlotValue):
+class MultiWOZDomainState(SlotValue):
     """Element type representing MultiWOZ slot-value pair."""
+
+    # def fields(self):
+    #    return ("book", "semi")
