@@ -1022,7 +1022,7 @@ class PtActions(Actions):
                     if isinstance(callback, ActionCallback):
                         callback.on_action_start()
                     elif isinstance(callback, NeMoCallback):
-                        callback.on_train_start(state)
+                        callback.on_action_start(state)
                     else:
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
@@ -1034,7 +1034,7 @@ class PtActions(Actions):
                     if isinstance(callback, ActionCallback):
                         callback.on_action_end()
                     elif isinstance(callback, NeMoCallback):
-                        callback.on_train_end(state)
+                        callback.on_action_end(state)
                     else:
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
@@ -1498,21 +1498,20 @@ class PtActions(Actions):
                         else:
                             final_loss.backward(bps_scale.to(final_loss.get_device()))
 
+                # Register batch end with callbacks
+                _update_callbacks(
+                    callbacks, registered_tensors=self._training_state.tensor_dict, final_loss=final_loss
+                )
                 # Perform batch end callbacks
                 _perform_on_batch_end(callbacks, get_state(self))
 
                 batch_counter += 1
-
                 if batch_counter == batches_per_step:
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
                         torch.nn.utils.clip_grad_norm_(master_params(curr_optimizer), grad_norm_clip)
                     curr_optimizer.step()
                     batch_counter = 0
-                    # Register iteration end with callbacks
-                    _update_callbacks(
-                        callbacks, registered_tensors=self._training_state.tensor_dict, final_loss=final_loss
-                    )
                     _perform_on_step_end(callbacks, get_state(self))
                     self.step += 1
                 self._training_state.clear_dict()
