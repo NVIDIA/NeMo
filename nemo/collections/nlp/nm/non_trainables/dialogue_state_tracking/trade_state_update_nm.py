@@ -27,7 +27,7 @@ import torch
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
-from nemo.core import AxisKind, AxisType, LogitsType, NeuralType, StringType
+from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -49,8 +49,14 @@ class TradeStateUpdateNM(NonTrainableNM):
         return {
             'point_outputs_pred': NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
             'gating_preds': NeuralType(('B', 'D', 'D'), LogitsType()),
-            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
-            'user_uttr': NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
+            'belief_state': NeuralType(
+                axes=[
+                    AxisType(kind=AxisKind.Batch, is_list=True),
+                    AxisType(kind=AxisKind.MultiWOZDomain, is_list=True),  # 7 domains
+                ],
+                elements_type=MultiWOZSlotValue(),
+            ),
+            'user_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
         }
 
     @property
@@ -60,9 +66,13 @@ class TradeStateUpdateNM(NonTrainableNM):
         """
         return {
             'belief_state': NeuralType(
-                axes=tuple(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True)],
+                elements_type=StringType(),
             ),
-            'request_state': NeuralType(axes=tuple(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
+            'request_state': NeuralType(
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True)],
+                elements_type=StringType(),
+            ),
         }
 
     def __init__(self, data_desc):
@@ -77,7 +87,7 @@ class TradeStateUpdateNM(NonTrainableNM):
 
     def forward(self, gating_preds, point_outputs_pred, belief_state, user_uttr):
         """
-        Processes the TRADE model output and updates the dialogue state with the model's predictions
+        Processes the TRADE model output and updates the dialogue (belief) state with the model's predictions
         Args:
             user_uttr (str): user utterance
             request_state (dict): contains requestsed slots-slot_value pairs for each domain

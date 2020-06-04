@@ -35,10 +35,10 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['UtteranceEncoderNM']
+__all__ = ['UserUtteranceEncoder']
 
 
-class UtteranceEncoderNM(NonTrainableNM):
+class UserUtteranceEncoder(NonTrainableNM):
     """
     Encodes dialogue history (system and user utterances) into a Multiwoz dataset format
     Args:
@@ -50,14 +50,14 @@ class UtteranceEncoderNM(NonTrainableNM):
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
-        history (list): dialogue history, list of system and diaglogue utterances
         user_uttr (str): user utterance
         sys_uttr (str): system utterace
+        dialog_history (list): dialogue history, list of system and diaglogue utterances
         """
         return {
             'user_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
             'sys_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
-            'dial_history': NeuralType(
+            'dialog_history': NeuralType(
                 axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
                 elements_type=AgentUtterance(),
             ),
@@ -91,29 +91,29 @@ class UtteranceEncoderNM(NonTrainableNM):
         super().__init__()
         self.data_desc = data_desc
 
-    def forward(self, dial_history, user_uttr, sys_uttr):
+    def forward(self, dialog_history, user_uttr, sys_uttr):
         """
         Returns dialogue utterances in the format accepted by the TRADE Dialogue state tracking model
         Args:
-            dial_history (list): dialogue history, list of system and diaglogue utterances
+            dialog_history (list): dialogue history, list of system and diaglogue utterances
             user_uttr (str): user utterance
             sys_uttr (str): system utterace
         Returns:
-            src_ids (int): token ids for dialogue history
-            src_lens (int): length of the tokenized dialogue history
-            dial_history (list): updated dialogue history, list of system and diaglogue utterances
+            dialog_ids (int): token ids for the whole dialogue history
+            dialog_lens (int): length of the whole tokenized dialogue history
+            dialog_history (list): updated dialogue history, list of system and diaglogue utterances
         """
-        context = ' ; '.join([item[1].strip().lower() for item in dial_history]).strip() + ' ;'
+        context = ' ; '.join([item[1].strip().lower() for item in dialog_history]).strip() + ' ;'
         context_ids = self.data_desc.vocab.tokens2ids(context.split())
         dialog_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
         dialog_lens = torch.tensor(len(context_ids)).unsqueeze(0).to(self._device)
 
         # TODO: why we update sys utterance, whereas we have only user utterance at that point?
-        dial_history.append(["sys", sys_uttr])
-        dial_history.append(["user", user_uttr])
-        logging.debug("Dialogue history: %s", dial_history)
+        dialog_history.append(["sys", sys_uttr])
+        dialog_history.append(["user", user_uttr])
+        logging.debug("Dialogue history: %s", dialog_history)
 
         # logging.debug("!! dialog_ids: %s", dialog_ids)
         # logging.debug("!! dialog_lens: %s", dialog_lens)
 
-        return dialog_ids, dialog_lens, dial_history
+        return dialog_ids, dialog_lens, dialog_history

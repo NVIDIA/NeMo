@@ -45,7 +45,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
+from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TRADEGenerator']
@@ -72,8 +72,8 @@ class TRADEGenerator(TrainableNM):
         return {
             'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
             'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
-            'input_lens': NeuralType(tuple('B'), LengthsType()),
-            'src_ids': NeuralType(('B', 'T'), ChannelType()),
+            'dialog_ids': NeuralType(('B', 'T'), elements_type=TokenIndex()),
+            'dialog_lens': NeuralType(tuple('B'), elements_type=Length()),
             'targets': NeuralType(('B', 'D', 'T'), LabelsType(), optional=True),
         }
 
@@ -122,7 +122,7 @@ class TRADEGenerator(TrainableNM):
         self.domain_idx = torch.tensor([self.slot_w2i[domain] for domain in domains], device=self._device)
         self.subslot_idx = torch.tensor([self.slot_w2i[slot] for slot in slots], device=self._device)
 
-    def forward(self, encoder_hidden, encoder_outputs, input_lens, src_ids, targets=None):
+    def forward(self, encoder_hidden, encoder_outputs, dialog_ids, dialog_lens, targets=None):
         if (not self.training) or (random.random() > self.teacher_forcing):
             use_teacher_forcing = False
         else:
@@ -149,7 +149,7 @@ class TRADEGenerator(TrainableNM):
 
         hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
 
-        enc_len = input_lens.repeat(len(self.slots))
+        enc_len = dialog_lens.repeat(len(self.slots))
 
         maxlen = encoder_outputs.size(1)
         padding_mask_bool = ~(torch.arange(maxlen, device=self._device)[None, :] <= enc_len[:, None])
@@ -170,7 +170,7 @@ class TRADEGenerator(TrainableNM):
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
             p_context_ptr = torch.zeros(p_vocab.size(), device=self._device)
 
-            p_context_ptr.scatter_add_(1, src_ids.repeat(len(self.slots), 1), prob)
+            p_context_ptr.scatter_add_(1, dialog_ids.repeat(len(self.slots), 1), prob)
 
             final_p_vocab = (1 - vocab_pointer_switches).expand_as(
                 p_context_ptr

@@ -20,6 +20,8 @@ from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import
 from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *
 from nemo.collections.nlp.nm.trainables.common.token_classification_nm import *
 from nemo.collections.nlp.nm.trainables.common.transformer import *
+from nemo.collections.nlp.nm.trainables.common.encoder_rnn import *
+
 from nemo.utils import logging
 
 try:

@@ -47,6 +47,8 @@ __all__ = [
     'AgentUtterance',
     'TokenIndex',
     'Length',
+    'SlotValue',
+    'MultiWOZSlotValue',
 ]
 
 import abc
@@ -276,3 +278,21 @@ class TokenIndex(IntType):
 
 class Length(IntType):
     """Type representing an element storing a "length" (e.g. length of a list)."""
+
+
+class Length(IntType):
+    """Type representing an element storing a "length" (e.g. length of a list)."""
+
+
+class SlotValue(ElementType):
+    """Element type representing slot-value pair."""
+
+    def __str__(self):
+        return "Slot-value pair"
+
+    def fields(self):
+        return ("Slot", "Value")
+
+
+class MultiWOZSlotValue(SlotValue):
+    """Element type representing MultiWOZ slot-value pair."""

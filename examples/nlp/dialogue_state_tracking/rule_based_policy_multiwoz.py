@@ -37,16 +37,15 @@ Use "--mode interactive" to chat with the system and "--hide_output" - to hide i
 import argparse
 from os.path import exists, expanduser
 
-from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import init_state
 from nemo.collections.nlp.nm.non_trainables import (
     RuleBasedMultiwozBotNM,
     TemplateNLGMultiWOZNM,
     TradeStateUpdateNM,
-    UtteranceEncoderNM,
+    UserUtteranceEncoder,
 )
-from nemo.collections.nlp.nm.trainables import TRADEGenerator
+from nemo.collections.nlp.nm.trainables import TRADEGenerator, EncoderRNN
 from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode
 from nemo.utils import logging
 
@@ -70,10 +69,9 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     then the output of the TRADE model goes to the Rule-base Dialogue Policy Magager
     and the output of the Dialog Policy Manager goes to the Template-based Natural Language Generation module.
 
-    ..note: NeuralGraph is lacking now a generic forward() pass. Once implemented, this function will become obsolete.
+    ..note: NeuralGraph is now lacking a generic forward() pass. Once implemented, this function will become obsolete.
     
     Args:
-
         user_uttr (str): User utterance
         system_uttr (str): Previous system utterance
         dialog_history (str): Dialogue history contains all previous system and user utterances
@@ -83,19 +81,22 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
         belief_state (dict): updated dialogue state
         dialog_history (str): Dialogue history contains all previous system and user utterances
     """
+    # Manually execute modules in the graph, following the order defined in steps.
     # 1. Forward pass throught Word-Level Dialog State Tracking modules (TRADE).
     # 1.1. User utterance encoder.
-    src_ids, src_lens, dial_history = utterance_encoder.forward(
-        dial_history=dial_history, user_uttr=user_uttr, sys_uttr=system_uttr
+    dialog_ids, dialog_lens, dial_history = dialog_pipeline.modules[dialog_pipeline.steps[0]].forward(
+        user_uttr=user_uttr, sys_uttr=system_uttr, dialog_history=dial_history,
     )
     # 1.2. TRADE encoder.
-    outputs, hidden = trade_encoder.forward(inputs=src_ids, input_lens=src_lens)
-    # 1.3. TRADE generator
-    point_outputs, gate_outputs = trade_decoder.forward(
-        encoder_hidden=hidden, encoder_outputs=outputs, input_lens=src_lens, src_ids=src_ids
+    outputs, hidden = dialog_pipeline.modules[dialog_pipeline.steps[1]].forward(
+        inputs=dialog_ids, input_lens=dialog_lens
+    )
+    # 1.3. TRADE generator.
+    point_outputs, gate_outputs = dialog_pipeline.modules[dialog_pipeline.steps[2]].forward(
+        encoder_hidden=hidden, encoder_outputs=outputs, dialog_ids=dialog_ids, dialog_lens=dialog_lens,
     )
     # 1.4. The module "decoding" the TRADE output into belief and request states.
-    belief_state, request_state = trade_output_decoder.forward(
+    belief_state, request_state = dialog_pipeline.modules[dialog_pipeline.steps[3]].forward(
         gating_preds=gate_outputs, point_outputs_pred=point_outputs, belief_state=belief_state, user_uttr=user_uttr
     )
 
@@ -162,7 +163,7 @@ if __name__ == "__main__":
     vocab_size = len(data_desc.vocab)
 
     # Encoder changing the "user utterance" into format accepted by TRADE encoderRNN.
-    utterance_encoder = UtteranceEncoderNM(data_desc=data_desc)
+    user_utterance_encoder = UserUtteranceEncoder(data_desc=data_desc)
 
     # TRADE modules.
     trade_encoder = EncoderRNN(
@@ -196,14 +197,28 @@ if __name__ == "__main__":
     # Construct the "evaluation" (inference) neural graph by connecting the modules using nmTensors.
     # Note: Using the same names for passed nmTensor as in the actual forward pass.
     with NeuralGraph(operation_mode=OperationMode.evaluation) as dialog_pipeline:
-        # 1.1. User utterance encoder - bind the input ports of the graph.
-        src_ids, src_lens, dial_history = utterance_encoder(
-            user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline, dial_history=dialog_pipeline,
+        # 1.1. User utterance encoder.
+        # Bind all the input ports of this module.
+        dialog_ids, dialog_lens, dial_history = user_utterance_encoder(
+            user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline, dialog_history=dialog_pipeline,
+        )
+        # Fire step 1: 1.2. TRADE encoder.
+        outputs, hidden = trade_encoder(inputs=dialog_ids, input_lens=dialog_lens)
+        # 1.3. TRADE generator.
+        point_outputs, gate_outputs = trade_decoder(
+            encoder_hidden=hidden, encoder_outputs=outputs, dialog_ids=dialog_ids, dialog_lens=dialog_lens,
+        )
+        # 1.4. The module "decoding" the TRADE output into belief and request states.
+        # Bind the "belief_state" input port.
+        belief_state, request_state = trade_output_decoder(
+            gating_preds=gate_outputs,
+            point_outputs_pred=point_outputs,
+            belief_state=dialog_pipeline,
+            user_uttr=dialog_pipeline.inputs["user_uttr"],
         )
 
-        # Set evaluation mode - for trainable modules.
-        # trade_encoder.eval()
-        # trade_decoder.eval()
+    # Show the graph summary.
+    logging.info(dialog_pipeline.summary())
 
     # "Execute" the graph - depending on the mode.
     if args.mode == 'interactive':
