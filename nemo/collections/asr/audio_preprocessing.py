@@ -93,6 +93,7 @@ class AudioPreprocessor(NonTrainableNM):
             processed_signal = self.get_features(input_signal, length)
 
         processed_length = self.get_seq_len(length.float())
+
         return processed_signal, processed_length
 
     @abstractmethod

@@ -20,10 +20,14 @@ from nemo.collections.tts.parts.helpers import *
 from nemo.collections.tts.parts.helpers import __all__ as helpers__all__
 from nemo.collections.tts.tacotron2_modules import *
 from nemo.collections.tts.tacotron2_modules import __all__ as tacotron2__all__
+from nemo.collections.tts.talknet_modules import *
+from nemo.collections.tts.talknet_modules import __all__ as fasterspeech__all__
 from nemo.collections.tts.waveglow_modules import *
 from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
 from nemo.core import Backend
 
 backend = Backend.PyTorch
 
-__all__ = ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__ + fastspeech__all__
+__all__ = (
+    ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__ + fastspeech__all__ + fasterspeech__all__
+)
