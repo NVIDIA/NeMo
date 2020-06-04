@@ -25,7 +25,8 @@ Supported Tasks and Models:
 * Question Answering
    * :ref:`squad_model_links`
 * State Tracking for Task-oriented Dialogue Systems:
-   * :ref:`dialogue_state_tracking_trade`
+   * :ref:`trade_tutorial`
+   * :ref:`sgd_tutorial`
 * ASR Postprocessing with BERT
    * :ref:`asr_improvement`
 
@@ -110,7 +111,7 @@ Dialogue State Tracking
 .. toctree::
    :maxdepth: 8
 
-   dialogue_state_tracking.rst
+   dialogue_state_tracking
 
 Improving Speech Recognition with BERTx2 Post-processing Model
 --------------------------------------------------------------
