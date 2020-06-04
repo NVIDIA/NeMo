@@ -226,6 +226,7 @@ class JasperEncoder(TrainableNM):
         s_input, length = self.encoder(([audio_signal], length))
         if length is None:
             return s_input[-1]
+
         return s_input[-1], length
 
 

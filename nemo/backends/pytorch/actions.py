@@ -526,6 +526,18 @@ class PtActions(Actions):
                         tensors_list = []
                         # where we will all_gather tensor sizes
                         tensor_on_worker = registered_e_tensors[key]
+
+                        if not isinstance(tensor_on_worker, torch.Tensor):  # For string and other.
+                            if self.global_rank == 0:
+                                values_dict[key] = [tensor_on_worker] + ([None] * (world_size - 1))
+                            continue
+
+                        # https://github.com/pytorch/pytorch/issues/24137
+                        is_bool = False
+                        if tensor_on_worker.dtype == torch.bool:
+                            is_bool = True
+                            tensor_on_worker = tensor_on_worker.to(dtype=torch.long)
+
                         if tensor_on_worker.shape != torch.Size([]):
                             tensor_on_worker_size_as_tensor = torch.tensor(tensor_on_worker.shape).cuda()
                             sizes = []
@@ -553,6 +565,8 @@ class PtActions(Actions):
                         tensors_list = [self.depad_tensor(t, size) for t, size in zip(tensors_list, sizes)]
                         if self.global_rank == 0:
                             values_dict["IS_FROM_DIST_EVAL"] = True
+                            if is_bool:
+                                tensors_list = [t.to(dtype=torch.bool) for t in tensors_list]
                             values_dict[key] = tensors_list
                     else:  # NON-DISTRIBUTED TRAINING
                         values_dict["IS_FROM_DIST_EVAL"] = False
