@@ -33,7 +33,7 @@ def is_build_action():
     if len(sys.argv) <= 1:
         return False
 
-    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style"]
+    BUILD_TOKENS = ["egg_info", "dist", "bdist", "sdist", "install", "build", "develop", "style", "clean"]
 
     if any([sys.argv[1].startswith(x) for x in BUILD_TOKENS]):
         return True
@@ -94,6 +94,7 @@ extras_require = {
     'test': req_file("requirements_test.txt"),
     # Collections Packages
     'asr': req_file("requirements_asr.txt"),
+    'cv': req_file("requirements_cv.txt"),
     'nlp': req_file("requirements_nlp.txt"),
     'simple_gan': req_file("requirements_simple_gan.txt"),
     'tts': req_file("requirements_tts.txt"),

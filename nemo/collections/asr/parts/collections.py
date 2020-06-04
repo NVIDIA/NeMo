@@ -78,15 +78,17 @@ class AudioText(_Collection):
     """List of audio-transcript text correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
-        typename='AudioTextEntity', field_names='audio_file duration text_tokens offset',
+        typename='AudioTextEntity', field_names='id audio_file duration text_tokens offset text_raw speaker',
     )
 
     def __init__(
         self,
+        ids: List[int],
         audio_files: List[str],
         durations: List[float],
         texts: List[str],
         offsets: List[str],
+        speakers: List[Optional[int]],
         parser: parsers.CharParser,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -97,10 +99,12 @@ class AudioText(_Collection):
         """Instantiates audio-text manifest with filters and preprocessing.
 
         Args:
+            ids: List of examples positions.
             audio_files: List of audio files.
             durations: List of float durations.
             texts: List of raw text transcripts.
             offsets: List of duration offsets or None.
+            speakers: List of optional speakers ids.
             parser: Instance of `CharParser` to convert string to tokens.
             min_duration: Minimum duration to keep entry with (default: None).
             max_duration: Maximum duration to keep entry with (default: None).
@@ -114,7 +118,9 @@ class AudioText(_Collection):
         if index_by_file_id:
             self.mapping = {}
 
-        for audio_file, duration, text, offset in zip(audio_files, durations, texts, offsets):
+        for id_, audio_file, duration, offset, text, speaker in zip(
+            ids, audio_files, durations, offsets, texts, speakers,
+        ):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -134,7 +140,7 @@ class AudioText(_Collection):
 
             total_duration += duration
 
-            data.append(output_type(audio_file, duration, text_tokens, offset))
+            data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker))
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
                 self.mapping[file_id] = len(data) - 1
@@ -168,14 +174,16 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        audio_files, durations, texts, offsets = [], [], [], []
+        ids, audio_files, durations, texts, offsets, speakers = [], [], [], [], [], []
         for item in manifest.item_iter(manifests_files):
+            ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
             texts.append(item['text'])
             offsets.append(item['offset'])
+            speakers.append(item['speaker'])
 
-        super().__init__(audio_files, durations, texts, offsets, *args, **kwargs)
+        super().__init__(ids, audio_files, durations, texts, offsets, speakers, *args, **kwargs)
 
 
 class SpeechLabel(_Collection):

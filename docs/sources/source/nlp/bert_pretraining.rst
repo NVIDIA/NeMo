@@ -1,7 +1,7 @@
+.. _bert_pretraining:
 
-
-Tutorial
-========
+BERT Pre-training Tutorial
+==========================
 
 In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture :cite:`nlp-bert-devlin2018bert`.
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.

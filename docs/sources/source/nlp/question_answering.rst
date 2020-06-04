@@ -8,8 +8,8 @@ In this tutorial, we are going to implement a Question Answering system using th
 All code used in this tutorial is based on ``examples/nlp/question_answering/question_answering_squad.py``.
 
 
-Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
-BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
+Currently, there are 4 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
+Megatron-LM BERT, BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from `transformers <https://huggingface.co/transformers>`__ . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the `--bert_checkpoint` argument.
 The pretrained back-bone models can be specified `--pretrained_model_name`.
 See the list of available pre-trained models
@@ -298,6 +298,13 @@ To run inference:
             --mode "test"
             --output_prediction_file <path to output file where predictions are written into>
             ...
+
+BioQA
+--------------
+
+To use BioBERT/BioMegatron for biomedical question answering dataset BioASQ please visit:
+
+`https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_qa.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_qa.ipynb>`__
 
 
 References

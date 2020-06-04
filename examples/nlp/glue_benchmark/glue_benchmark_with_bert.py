@@ -120,7 +120,7 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
-parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument("--vocab_file", default=None, type=str, help="Path to the vocab file.")
 parser.add_argument(
     "--do_lower_case",
     action='store_true',
@@ -136,10 +136,10 @@ parser.add_argument(
                     truncated, sequences shorter will be padded.",
 )
 parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str, help="Learning rate policy")
 parser.add_argument("--lr", default=5e-5, type=float, help="The initial learning rate.")
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
+parser.add_argument("--lr_warmup_proportion", default=0.1, type=float, help="Learning rate warm up proportion")
+parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay if we apply some.")
 parser.add_argument("--num_epochs", default=3, type=int, help="Total number of training epochs to perform.")
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
 parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
@@ -152,6 +152,12 @@ parser.add_argument(
     default="output_glue",
     type=str,
     help="The output directory where the model predictions and checkpoints will be written.",
+)
+parser.add_argument(
+    "--checkpoint_dir",
+    default=None,
+    type=str,
+    help="The folder containing the checkpoints for the model to continue training",
 )
 parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
 parser.add_argument(
@@ -166,7 +172,7 @@ parser.add_argument(
     type=int,
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
-parser.add_argument("--loss_step_freq", default=25, type=int, help="Frequency of printing loss")
+parser.add_argument("--loss_step_freq", default=-1, type=int, help="Frequency of printing loss")
 parser.add_argument(
     "--no_data_cache", action="store_true", help="When specified do not load and store cache preprocessed data.",
 )
@@ -208,6 +214,7 @@ nf = nemo_core.NeuralModuleFactory(
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
+    checkpoint_dir=args.checkpoint_dir,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
 )
@@ -321,7 +328,7 @@ callback_train = nemo_core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=args.loss_step_freq,
+    step_freq=args.loss_step_freq if args.loss_step_freq > 0 else steps_per_epoch,
     tb_writer=nf.tb_writer,
 )
 

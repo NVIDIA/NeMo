@@ -45,11 +45,14 @@ class NeuralGraphManager(ObjectRegistry):
             Returns:
                 A summary of the graphs on the list.
         """
-        # TODO: a nicer summary. ;)
-        desc = "List of graphs:"
+        # Line "decorator".
+        summary = "\n" + 113 * '=' + "\n"
+        summary += "Registry of {}s:\n".format(self._base_type_name)
         for graph in self:
-            desc = desc + "`{}`: {}\n".format(graph.name, graph)
-        return desc
+            summary += " * {} ({}) [{}]\n".format(graph.name, len(graph), graph.operation_mode)
+        # Line "decorator".
+        summary += 113 * '='
+        return summary
 
     @property
     def active_graph(self) -> "NeuralGraph":

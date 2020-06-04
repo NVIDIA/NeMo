@@ -1,4 +1,5 @@
 braceexpand
+editdistance
 frozendict
 inflect
 kaldi-io

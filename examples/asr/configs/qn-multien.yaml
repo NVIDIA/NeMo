@@ -1,11 +1,9 @@
-# Used in the ASR documentation for tutorial purposes
-model: "QuartzNet12x1"
+model: "QuartzNet"
 sample_rate: 16000
 
 AudioToTextDataLayer:
     max_duration: 16.7
     trim_silence: true
-    normalize_transcripts: true
 
     train:
         shuffle: true
@@ -45,7 +43,7 @@ JasperEncoder:
         separable: true
 
       - filters: 256
-        repeat: 1
+        repeat: 5
         kernel: [33]
         stride: [1]
         dilation: [1]
@@ -54,7 +52,7 @@ JasperEncoder:
         separable: true
 
       - filters: 256
-        repeat: 1
+        repeat: 5
         kernel: [33]
         stride: [1]
         dilation: [1]
@@ -63,7 +61,7 @@ JasperEncoder:
         separable: true
 
       - filters: 256
-        repeat: 1
+        repeat: 5
         kernel: [33]
         stride: [1]
         dilation: [1]
@@ -72,7 +70,7 @@ JasperEncoder:
         separable: true
 
       - filters: 256
-        repeat: 1
+        repeat: 5
         kernel: [39]
         stride: [1]
         dilation: [1]
@@ -81,7 +79,7 @@ JasperEncoder:
         separable: true
 
       - filters: 256
-        repeat: 1
+        repeat: 5
         kernel: [39]
         stride: [1]
         dilation: [1]
@@ -90,7 +88,7 @@ JasperEncoder:
         separable: true
 
       - filters: 256
-        repeat: 1
+        repeat: 5
         kernel: [39]
         stride: [1]
         dilation: [1]
@@ -99,7 +97,7 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [51]
         stride: [1]
         dilation: [1]
@@ -108,7 +106,7 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [51]
         stride: [1]
         dilation: [1]
@@ -117,7 +115,7 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [51]
         stride: [1]
         dilation: [1]
@@ -126,7 +124,7 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [63]
         stride: [1]
         dilation: [1]
@@ -135,7 +133,7 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [63]
         stride: [1]
         dilation: [1]
@@ -144,7 +142,7 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [63]
         stride: [1]
         dilation: [1]
@@ -153,12 +151,39 @@ JasperEncoder:
         separable: true
 
       - filters: 512
-        repeat: 1
+        repeat: 5
         kernel: [75]
         stride: [1]
         dilation: [1]
         dropout: 0.0
         residual: true
+        separable: true
+
+      - filters: 512
+        repeat: 5
+        kernel: [75]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: true
+        separable: true
+
+      - filters: 512
+        repeat: 5
+        kernel: [75]
+        stride: [1]
+        dilation: [1]
+        dropout: 0.0
+        residual: true
+        separable: true
+
+      - filters: 512
+        repeat: 1
+        kernel: [87]
+        stride: [1]
+        dilation: [2]
+        dropout: 0.0
+        residual: false
         separable: true
 
       - filters: 1024

@@ -1,137 +1,125 @@
-model: "Jasper"
-sample_rate: 16000
-
-AudioToTextDataLayer:
-    max_duration: 16.7
-    trim_silence: true
-    normalize_transcripts: true
-
-    train:
-        shuffle: true
-
-    eval:
-        shuffle: false
-        max_duration: null
-
-AudioToMelSpectrogramPreprocessor:
-    window_size: 0.02
-    window_stride: 0.01
-    window: "hann"
-    normalize: "per_feature"
-    n_fft: 512
-    features: 64
-    dither: 0.00001
-    pad_to: 16
-    stft_conv: true
-
-JasperEncoder:
-    activation: "relu"
-    conv_mask: true
-
-    jasper:
-        -   filters: 256
-            repeat: 1
-            kernel: [11]
-            stride: [2]
-            dilation: [1]
-            dropout: 0.2
-            residual: false
-
-        -   filters: 256
-            repeat: 5
-            kernel: [11]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.2
-            residual: true
-
-        -   filters: 256
-            repeat: 5
-            kernel: [11]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.2
-            residual: true
-
-        -   filters: 384
-            repeat: 5
-            kernel: [13]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.2
-            residual: true
-
-        -   filters: 384
-            repeat: 5
-            kernel: [13]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.2
-            residual: true
-
-        -   filters: 512
-            repeat: 5
-            kernel: [17]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.2
-            residual: true
-
-        -   filters: 512
-            repeat: 5
-            kernel: [17]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.2
-            residual: true
-
-        -   filters: 640
-            repeat: 5
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.3
-            residual: true
-
-        -   filters: 640
-            repeat: 5
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.3
-            residual: true
-
-        -   filters: 768
-            repeat: 5
-            kernel: [25]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.3
-            residual: true
-
-        -   filters: 768
-            repeat: 5
-            kernel: [25]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.3
-            residual: true
-
-        -   filters: 896
-            repeat: 1
-            kernel: [29]
-            stride: [1]
-            dilation: [2]
-            dropout: 0.4
-            residual: false
-
-        -   filters: 1024
-            repeat: 1
-            kernel: [1]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.4
-            residual: false
-
-labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+header: {collection_type: asr, collection_version: null, full_spec: nemo.collections.asr.models.asrconvctcmodel.JasperNet,
+  nemo_core_version: 0.11.0b0}
+init_params:
+  decoder_params:
+    header: {full_spec: nemo.collections.asr.JasperDecoderForCTC}
+    init_params:
+      feat_in: 1024
+      num_classes: 28
+      vocabulary: [' ', a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t,
+        u, v, w, x, y, z, '''']
+  encoder_params:
+    header: {full_spec: nemo.collections.asr.JasperEncoder}
+    init_params:
+      activation: relu
+      conv_mask: true
+      feat_in: 64
+      jasper:
+      - dilation: [1]
+        dropout: 0.2
+        filters: 256
+        kernel: [11]
+        repeat: 1
+        residual: false
+        stride: [2]
+      - dilation: [1]
+        dropout: 0.2
+        filters: 256
+        kernel: [11]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.2
+        filters: 256
+        kernel: [11]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.2
+        filters: 384
+        kernel: [13]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.2
+        filters: 384
+        kernel: [13]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.2
+        filters: 512
+        kernel: [17]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.2
+        filters: 512
+        kernel: [17]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.3
+        filters: 640
+        kernel: [21]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.3
+        filters: 640
+        kernel: [21]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.3
+        filters: 768
+        kernel: [25]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.3
+        filters: 768
+        kernel: [25]
+        repeat: 5
+        residual: true
+        residual_dense: true
+        stride: [1]
+      - dilation: [2]
+        dropout: 0.4
+        filters: 896
+        kernel: [29]
+        repeat: 1
+        residual: false
+        stride: [1]
+      - dilation: [1]
+        dropout: 0.4
+        filters: 1024
+        kernel: [1]
+        repeat: 1
+        residual: false
+        stride: [1]
+  preprocessor_params:
+    header: {full_spec: nemo.collections.asr.AudioToMelSpectrogramPreprocessor}
+    init_params: {dither: 1e-05, features: 64, n_fft: 512, normalize: per_feature,
+      pad_to: 16, stft_conv: true, window: hann, window_size: 0.02, window_stride: 0.01}
+  spec_augment_params:
+    header: {full_spec: nemo.collections.asr.SpectrogramAugmentation}
+    init_params: {rect_freq: 50, rect_masks: 5, rect_time: 120}

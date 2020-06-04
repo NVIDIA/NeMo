@@ -26,8 +26,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from .neural_modules import OperationMode
 from nemo.backends import get_state_dict, load, save, set_state_dict
-from nemo.core import OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
@@ -410,7 +410,7 @@ class NeuralGraph(NeuralInterface):
     def tensor_list(self) -> List[NmTensor]:
         """
         Property returning output tensors by extracting them on the fly from the bound outputs.
-        
+
         Returns:
             List of tensors.
         """
@@ -434,7 +434,7 @@ class NeuralGraph(NeuralInterface):
     def __enter__(self) -> 'NeuralGraph':
         """ 
         Activates this graph.
-    
+
         Returns:
             The graph object.
         """
@@ -462,7 +462,7 @@ class NeuralGraph(NeuralInterface):
     def export_to_config(self, config_file: str):
         """
         Exports the neural graph to a file.
-    
+
         Args:
             config_file: Name (and path) of the config file (YML) to be written to.
         """
@@ -477,7 +477,7 @@ class NeuralGraph(NeuralInterface):
             YAML.dump(to_export, outfile)
 
         logging.info(
-            "Configuration of graph `{}` ({}) exported to {}".format(self.name, type(self).__name__, abs_path_file)
+            "Configuration of graph `{}` ({}) exported to '{}'".format(self.name, type(self).__name__, abs_path_file)
         )
 
     def serialize(self) -> Dict[str, Any]:
@@ -516,7 +516,7 @@ class NeuralGraph(NeuralInterface):
         Private method responsible for serializing the graph header.
 
         Returns:
-            Dictionary containing description of the whole graph.        
+            Dictionary containing description of the whole graph.
         """
         # Generate full_spec of the class.
         full_spec = str(self.__module__) + "." + str(self.__class__.__qualname__)
@@ -699,7 +699,7 @@ class NeuralGraph(NeuralInterface):
     def __deserialize_header(cls, serialized_header: Dict[str, Any]):
         """
         Private class method deserializing the header and extracts the general information.
-        
+
         Args:
             serialized_header: Dictionary containing graph header.
         Returns:
@@ -795,7 +795,7 @@ class NeuralGraph(NeuralInterface):
 
     def __execute_and_create_tensors(self, steps, modules, connections, inputs):
         """
-        Method creates (internal) tensors of the graph by executing it following the order and using 
+        Method creates (internal) tensors of the graph by executing it following the order and using
         the provided connections and inputs.
 
         Args:
@@ -874,14 +874,21 @@ class NeuralGraph(NeuralInterface):
             A nice, full graph summary.
         """
         # Line "decorator".
-        desc = "\n" + 120 * '=' + "\n"
+        desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
-        desc += "The `{}` Neural Graph:\n".format(self.name)
+        desc += "The `{}` Neural Graph [{}]".format(self.name, self.operation_mode)
+        if self.is_complete():
+            desc += " [COMPLETE]:\n"
+        else:
+            desc += " [INCOMPLETE]:\n"
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
         for key, module in self._modules.items():
-            desc += "    * `{}` ({})\n".format(key, type(module).__name__)
+            if module.type == ModuleType.trainable and module.is_frozen():
+                desc += "    * `{}` ({}) [FROZEN]\n".format(key, type(module).__name__)
+            else:
+                desc += "    * `{}` ({})\n".format(key, type(module).__name__)
 
         # 3. steps.
         desc += " * Steps ({}):\n".format(len(self._steps))
@@ -912,7 +919,7 @@ class NeuralGraph(NeuralInterface):
         for output in outputs["mappings"]:
             desc += "    * {}\n".format(output)
         # Line "decorator".
-        desc += 120 * '='
+        desc += 113 * '='
 
         # Return the result.
         return desc
@@ -1006,7 +1013,7 @@ class NeuralGraph(NeuralInterface):
     def restore_from(self, filename: str, module_names: Optional[List[str]] = None):
         """
         Restores the state of trainable modules in the graph from a checkpoint file.
-        
+
         Args:
             filename (string): Name of the checkpoint to be restored from.
             module_names: List of modules to be frozen (Optional). If passed, all modules will be restored.
@@ -1030,9 +1037,10 @@ class NeuralGraph(NeuralInterface):
             try:
                 # Get module.
                 module = self._modules[name]
-                # Restore module weights
-                set_state_dict(module, chkpt["modules"][name])
-                log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
+                if module.type == ModuleType.trainable:
+                    # Restore module weights
+                    set_state_dict(module, chkpt["modules"][name])
+                    log_str += "  * Module '{}' ({}) params loaded\n".format(module.name, type(module).__name__)
             except KeyError:
                 log_str += "  ! Module '{}' params not found in checkpoint\n".format(name)
                 warning = True
@@ -1042,3 +1050,32 @@ class NeuralGraph(NeuralInterface):
             logging.warning(log_str)
         else:
             logging.info(log_str)
+
+    def is_complete(self) -> bool:
+        """
+        Method checks if graph is "complete". In here the "complete" means that the graph has:
+            * exactly one DataLayer
+            * zero bound input ports
+
+        In short it means that the graph can be complete.
+        
+        Returns:
+            True or false.
+        """
+        has_datalayer = False
+        # Iterate through the modules one by one.
+        for module in self._modules.values():
+            # Get module.
+            if module.type == ModuleType.datalayer:
+                if has_datalayer:
+                    # More than one DL is not acceptable.
+                    return False
+                else:
+                    has_datalayer = True
+
+        # Now check the ports.
+        if len(self._inputs) != 0:
+            return False
+
+        # Else:
+        return True

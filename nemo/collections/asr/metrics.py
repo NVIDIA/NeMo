@@ -1,30 +1,14 @@
 # Copyright (c) 2019 NVIDIA Corporation
 from typing import List, Optional
 
+import editdistance
+import sklearn
 import torch
 
 
-def __levenshtein(a: List, b: List) -> int:
-    """Calculates the Levenshtein distance between a and b.
-    The code was copied from: http://hetland.org/coding/python/levenshtein.py
-    """
-    n, m = len(a), len(b)
-    if n > m:
-        # Make sure n <= m, to use O(min(n,m)) space
-        a, b = b, a
-        n, m = m, n
-
-    current = list(range(n + 1))
-    for i in range(1, m + 1):
-        previous, current = current, [i] + [0] * n
-        for j in range(1, n + 1):
-            add, delete = previous[j] + 1, current[j - 1] + 1
-            change = previous[j - 1]
-            if a[j - 1] != b[i - 1]:
-                change = change + 1
-            current[j] = min(add, delete, change)
-
-    return current[n]
+def __levenshtein(a: List[str], b: List[str]) -> int:
+    """Calculates the Levenshtein distance between a and b."""
+    return editdistance.eval(a, b)
 
 
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
@@ -97,3 +81,26 @@ def classification_accuracy(
             results.append(correct_k)
 
     return results
+
+
+def classification_confusion_matrix(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """
+    Computes the confusion matrix provided with 
+    un-normalized logits of a model and ground truth targets.
+
+    Args:
+        logits: Un-normalized logits of a model. Softmax will be
+            applied to these logits prior to computation of accuracy.
+        targets: Vector of integers which represent indices of class
+            labels.
+    Returns:
+
+        A tensor (n_classes, n_classes) of confusion matrix.
+    """
+
+    with torch.no_grad():
+        _, predictions = logits.topk(1, dim=1, largest=True, sorted=True)
+        predictions = predictions.t().squeeze()
+        targets = targets.t().squeeze()
+
+    return sklearn.metrics.confusion_matrix(targets, predictions, labels=range(logits.shape[1]))

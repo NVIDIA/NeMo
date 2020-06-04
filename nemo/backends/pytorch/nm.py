@@ -1,4 +1,19 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import os
 from abc import abstractmethod
 from typing import Dict, List, Optional, Set, Tuple
@@ -38,6 +53,9 @@ class TrainableNM(NeuralModule, nn.Module):
         # Initialize nn.Module first - important for the inspect during the init_params collection.
         nn.Module.__init__(self)  # For PyTorch API
         NeuralModule.__init__(self, name)  # For NeuralModule API
+
+        # Unfrozen by default.
+        self._frozen = False
 
         # Set module type.
         self._type = ModuleType.trainable
@@ -115,6 +133,8 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = False
+        # Freeze.
+        self._frozen = True
 
     @t.jit.ignore
     def unfreeze(self, weights=None):
@@ -126,6 +146,15 @@ class TrainableNM(NeuralModule, nn.Module):
             for name, param in self.named_parameters():
                 if weights is None or name in weights:
                     param.requires_grad = True
+        # Unfreeze.
+        self._frozen = False
+
+    @t.jit.ignore
+    def is_frozen(self) -> bool:
+        """ Returns:
+                True/False depending whether there are any frozen weights or not.
+        """
+        return self._frozen
 
     @property
     def num_weights(self):
@@ -142,8 +171,7 @@ class NonTrainableNM(NeuralModule):
     def __call__(self, force_pt=False, *input, **kwargs):
         pt_call = len(input) > 0 or force_pt
         if pt_call:
-            with t.no_grad():
-                return self.forward(*input, **kwargs)
+            return self.forward(*input, **kwargs)
         else:
             return NeuralModule.__call__(self, **kwargs)
 
@@ -175,7 +203,7 @@ class NonTrainableNM(NeuralModule):
     def save_to(self, path: str):
         pass
 
-    def restore_from(self, path: str):
+    def restore_from(self, path: str, local_rank: int = 0):
         pass
 
     def freeze(self, weights: Set[str] = None):
@@ -215,6 +243,7 @@ class DataLayerNM(NeuralModule):
         self._batch_size = 1
         self._num_workers = os.cpu_count()  # Use all CPUs by default.
         self._shuffle = False  # Don't shuffle by default.
+        self._pin_memory = False
 
     @property
     def input_ports(self):
@@ -290,13 +319,13 @@ class DataLayerNM(NeuralModule):
         pass
 
     @property
-    @abstractmethod
     def data_iterator(self):
         """"Iterator over the dataset. It is a good idea to return
         torch.utils.data.DataLoader here. Should implement either this or
         `dataset`.
         If this is implemented, `dataset` property should return None.
         """
+        return None
 
     @property
     def batch_size(self):
@@ -327,6 +356,11 @@ class DataLayerNM(NeuralModule):
     # def num_workers(self, nw):
     #    """ Property setting the number of workers. """
     #    self._num_workers = nw
+
+    @property
+    def pin_memory(self):
+        """ Property returning the pin memory flag. """
+        return self._pin_memory
 
 
 class LossNM(NeuralModule):

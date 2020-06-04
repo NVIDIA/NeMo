@@ -9,6 +9,7 @@ tests/data/asr
 .DS_Store
 bert.pt.json
 work
+runs
 fastspeech_output
 
 # Byte-compiled / optimized / DLL files
@@ -157,3 +158,7 @@ wandb
 dump.py
 
 docs/sources/source/test_build/
+
+# Checkpoints, config files and temporary files created in tutorials.
+examples/neural_graphs/*.chkpt
+examples/neural_graphs/*.yml

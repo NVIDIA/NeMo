@@ -16,7 +16,7 @@
 
 import argparse
 import json
-import logging
+import logging as _logging
 import os
 import tarfile
 import urllib.request
@@ -28,7 +28,11 @@ from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='HI-MIA Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
+parser.add_argument("--log_level", default=20, type=int)
 args = parser.parse_args()
+logging = _logging.getLogger(__name__)
+logging.addHandler(_logging.StreamHandler())
+logging.setLevel(args.log_level)
 
 URL = {
     'dev': "http://www.openslr.org/resources/85/dev.tar.gz",
@@ -49,13 +53,19 @@ def __maybe_download_file(destination: str, source: str):
 
     """
     source = URL[source]
-    if not os.path.exists(destination):
+    if not os.path.exists(destination) and not os.path.exists(os.path.splitext(destination)[0]):
         logging.info("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
         logging.info("Downloaded {0}.".format(destination))
-    else:
+    elif os.path.exists(destination):
         logging.info("Destination {0} exists. Skipping.".format(destination))
+    elif os.path.exists(os.path.splitext(destination)[0]):
+        logging.warning(
+            "Assuming extracted folder %s contains the extracted files from %s. Will not download.",
+            os.path.basename(destination),
+            destination,
+        )
     return destination
 
 
@@ -79,13 +89,19 @@ def extract_file(filepath: str, data_dir: str):
         logging.info('Not extracting. Maybe already there?')
 
 
+def __remove_tarred_files(filepath: str, data_dir: str):
+    if os.path.exists(data_dir) and os.path.isfile(filepath):
+        logging.info('Deleting %s' % filepath)
+        os.remove(filepath)
+
+
 def write_file(name, lines, idx):
     with open(name, 'w') as fout:
         for i in idx:
             dic = lines[i]
             json.dump(dic, fout)
             fout.write('\n')
-    print("wrote", name)
+    logging.info("wrote %s", name)
 
 
 def __process_data(data_folder: str, data_set: str):
@@ -93,7 +109,6 @@ def __process_data(data_folder: str, data_set: str):
     To generate manifest
     Args:
         data_folder: source with wav files
-        dst_folder: where manifest files will be stored
     Returns:
 
     """
@@ -105,7 +120,12 @@ def __process_data(data_folder: str, data_set: str):
     id = -2  # speaker id
 
     if os.path.exists(out):
-        os.remove(out)
+        logging.warning(
+            "%s already exists and is assumed to be processed. If not, please delete %s and rerun this script",
+            out,
+            out,
+        )
+        return
 
     speakers = []
     lines = []
@@ -155,6 +175,7 @@ def main():
         logging.info("Extracting {0}".format(data_set))
         data_folder = os.path.join(data_root, data_set)
         __extract_all_files(file_path, data_root, data_folder)
+        __remove_tarred_files(file_path, data_folder)
         logging.info("Processing {0}".format(data_set))
         __process_data(data_folder, data_set)
         logging.info('Done!')
