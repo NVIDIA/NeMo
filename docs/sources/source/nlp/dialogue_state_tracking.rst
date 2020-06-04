@@ -1,3 +1,5 @@
+.. _trade_tutorial:
+
 TRADE Tutorial
 ==============
 
@@ -265,6 +267,7 @@ References
     :keyprefix: nlp-dst-
 
 
+.. _sgd_tutorial:
 
 SGD Tutorial
 ============

@@ -50,7 +50,7 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
-parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument("--vocab_file", default=None, type=str, help="Path to the vocab file.")
 parser.add_argument(
     "--do_lower_case",
     action='store_true',

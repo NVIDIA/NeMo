@@ -27,6 +27,12 @@ from nemo.utils.lr_policies import get_lr_policy
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Sentence classification with pretrained BERT')
 parser.add_argument("--work_dir", default='outputs', type=str)
+parser.add_argument(
+    "--checkpoint_dir",
+    default=None,
+    type=str,
+    help="The folder containing the checkpoints for the model to continue training",
+)
 parser.add_argument("--data_dir", required=True, type=str)
 parser.add_argument(
     '--pretrained_model_name',
@@ -35,7 +41,7 @@ parser.add_argument(
     help='Name of the pre-trained model',
     choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
 )
-parser.add_argument("--bert_checkpoint", default=None, type=str)
+parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to pre-trained BERT checkpoint")
 parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")
 parser.add_argument(
     "--tokenizer",
@@ -44,7 +50,7 @@ parser.add_argument(
     choices=["nemobert", "sentencepiece"],
     help="tokenizer to use, only relevant when using custom pretrained checkpoint.",
 )
-parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+parser.add_argument("--vocab_file", default=None, type=str, help="Path to the vocab file.")
 parser.add_argument(
     "--tokenizer_model",
     default=None,
@@ -57,34 +63,42 @@ parser.add_argument(
     help="Whether to lower case the input text. True for uncased models, False for cased models. "
     + "For tokenizer only applicable when tokenizer is build with vocab file.",
 )
-parser.add_argument("--batch_size", default=32, type=int)
-parser.add_argument("--max_seq_length", default=36, type=int)
-parser.add_argument("--num_gpus", default=1, type=int)
-parser.add_argument("--num_output_layers", default=1, type=int)
-parser.add_argument("--num_epochs", default=10, type=int)
-parser.add_argument("--num_train_samples", default=-1, type=int)
-parser.add_argument("--num_eval_samples", default=-1, type=int)
-parser.add_argument("--optimizer_kind", default="adam", type=str)
-parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
-parser.add_argument("--lr", default=2e-5, type=float)
-parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
-parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument("--weight_decay", default=0.01, type=float)
-parser.add_argument("--fc_dropout", default=0.1, type=float)
+parser.add_argument("--batch_size", default=32, type=int, help="Training and evaluation batch size")
+parser.add_argument(
+    "--max_seq_length",
+    default=36,
+    type=int,
+    help="The maximum total input sequence length after tokenization.Sequences longer than this will be \
+                    truncated, sequences shorter will be padded.",
+)
+parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
+parser.add_argument("--num_output_layers", default=1, type=int, help="Number of layers in the Classifier")
+parser.add_argument("--num_epochs", default=10, type=int, help="Total number of training epochs to perform.")
+parser.add_argument("--num_train_samples", default=-1, type=int, help="Number of samples to use for training")
+parser.add_argument("--num_eval_samples", default=-1, type=int, help="Number of samples to use for evaluation")
+parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
+parser.add_argument("--lr_warmup_proportion", default=0.1, type=float, help="Learning rate warm up proportion")
+parser.add_argument("--lr", default=2e-5, type=float, help="Initial learning rate")
+parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str, help="Learning rate policy")
+parser.add_argument(
+    "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
+)
+parser.add_argument("--weight_decay", default=0.01, type=float, help="Weight decay.")
+parser.add_argument("--fc_dropout", default=0.1, type=float, help="Dropout rate")
 parser.add_argument(
     "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
 )
-parser.add_argument("--train_file_prefix", default='train', type=str)
-parser.add_argument("--eval_file_prefix", default='dev', type=str)
+parser.add_argument("--train_file_prefix", default='train', type=str, help="train file prefix")
+parser.add_argument("--eval_file_prefix", default='dev', type=str, help="eval file prefix")
 parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 parser.add_argument(
     "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
 )
-parser.add_argument("--save_epoch_freq", default=1, type=int)
-parser.add_argument("--save_step_freq", default=-1, type=int)
+parser.add_argument("--save_epoch_freq", default=1, type=int, help="Epoch frequency of saving checkpoints")
+parser.add_argument("--save_step_freq", default=-1, type=int, help="Step frequency of saving checkpoints")
 parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
 parser.add_argument('--eval_step_freq', default=100, type=int, help='Frequency of evaluation')
-parser.add_argument("--local_rank", default=None, type=int)
+parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
 
 args = parser.parse_args()
 
@@ -93,6 +107,7 @@ nf = nemo.core.NeuralModuleFactory(
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
+    checkpoint_dir=args.checkpoint_dir,
     create_tb_writer=True,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
@@ -125,7 +140,6 @@ classifier = nemo_nlp.nm.trainables.SequenceClassifier(
     num_layers=args.num_output_layers,
     log_softmax=False,
 )
-
 
 if args.class_balancing == 'weighted_loss':
     # You may need to increase the number of epochs for convergence.

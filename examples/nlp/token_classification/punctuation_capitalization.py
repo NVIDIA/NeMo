@@ -80,7 +80,7 @@ parser.add_argument(
                     only relevant when using custom pretrained checkpoint.",
 )
 parser.add_argument(
-    "--vocab_file", default=None, help="Path to the vocab file. Required for pretrained Megatron models"
+    "--vocab_file", default=None, type=str, help="Path to the vocab file. Required for pretrained Megatron models"
 )
 parser.add_argument(
     "--do_lower_case",
