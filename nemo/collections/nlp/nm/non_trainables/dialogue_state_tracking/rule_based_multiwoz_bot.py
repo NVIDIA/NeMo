@@ -32,7 +32,7 @@ from nemo import logging
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import Database
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
-from nemo.core import AxisKind, AxisType, NeuralType, StringType, VoidType
+from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedMultiwozBotNM']
@@ -93,14 +93,42 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
      Rule-based bot. Implemented for Multiwoz dataset.
     """
 
+    def __init__(self, data_dir: str, name: str = None):
+        """
+        Initializes the object
+        Args:
+            data_dir (str): path to data directory
+            name: name of the modules (DEFAULT: none)
+        """
+        # Call base class constructor.
+        NonTrainableNM.__init__(self, name=name)
+        # Set init values of attributes.
+        self.last_state = {}
+        self.db = Database(data_dir)
+        self.last_request_state = {}
+        self.last_belief_state = {}
+        self.recommend_flag = -1
+        self.choice = ""
+
     @property
     @add_port_docs()
     def input_ports(self):
         """Returns definitions of module input ports.
         """
         return {
-            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
-            'request_state': NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType()),
+            'belief_state': NeuralType(
+                axes=[
+                    AxisType(kind=AxisKind.Batch, is_list=True),
+                    AxisType(
+                        kind=AxisKind.MultiWOZDomain, is_list=True
+                    ),  # always 7 domains - but cannot set size with is_list!
+                ],
+                elements_type=Length(),
+            ),
+            'request_state': NeuralType(
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],
+                elements_type=StringType(),
+            ),
         }
 
     @property
@@ -111,22 +139,20 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         belief_state (dict): dialogue state with slot-slot_values pairs for all domains
         """
         return {
-            'system_acts': NeuralType(axes=tuple('ANY'), elements_type=VoidType()),
-            'belief_state': NeuralType(axes=(AxisType(kind=AxisKind.Time, is_list=True)), elements_type=StringType()),
+            'belief_state': NeuralType(
+                axes=[
+                    AxisType(kind=AxisKind.Batch, is_list=True),
+                    AxisType(
+                        kind=AxisKind.MultiWOZDomain, is_list=True
+                    ),  # always 7 domains - but cannot set size with is_list!
+                ],
+                elements_type=Length(),
+            ),
+            'system_acts': NeuralType(
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],
+                elements_type=StringType(),
+            ),
         }
-
-    def __init__(self, data_dir):
-        """
-        Initializes the object
-        Args:
-            data_dir (str): path to data directory
-        """
-        self.last_state = {}
-        self.db = Database(data_dir)
-        self.last_request_state = {}
-        self.last_belief_state = {}
-        self.recommend_flag = -1
-        self.choice = ""
 
     def forward(self, belief_state, request_state):
         """
@@ -135,8 +161,8 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
             belief_state (dict): dialogue state with slot-slot_values pairs for all domains
             request_state (dict): requested slots dict
         Returns:
-            system_acts (list): DA(Dialog Act), in the form of {act_type1: [[slot_name_1, value_1], [slot_name_2, value_2], ...], ...}
             belief_state (dict): updated belief state
+            system_acts (list): DA(Dialog Act), in the form of {act_type1: [[slot_name_1, value_1], [slot_name_2, value_2], ...], ...}
         """
 
         if self.recommend_flag != -1:
@@ -198,7 +224,7 @@ class RuleBasedMultiwozBotNM(NonTrainableNM):
         logging.debug("DPM output: %s", system_acts)
         logging.debug("Belief State after DPM: %s", belief_state)
         logging.debug("Request State after DPM: %s", request_state)
-        return system_acts, belief_state
+        return belief_state, system_acts
 
     def _update_greeting(self, user_act, DA):
         """ General request / inform. """

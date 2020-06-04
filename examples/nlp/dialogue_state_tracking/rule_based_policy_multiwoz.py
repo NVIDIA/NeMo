@@ -101,7 +101,7 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     )
 
     # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
-    system_acts, belief_state = dialog_pipeline.modules[dialog_pipeline.steps[4]].forward(
+    belief_state, system_acts = dialog_pipeline.modules[dialog_pipeline.steps[4]].forward(
         belief_state=belief_state, request_state=request_state
     )
 

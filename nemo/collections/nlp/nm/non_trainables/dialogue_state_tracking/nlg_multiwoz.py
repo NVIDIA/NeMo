@@ -68,6 +68,29 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
     """Generate a natural language utterance conditioned on the dialog act.
     """
 
+    def __init__(self, mode="auto_manual", name=None):
+        """
+        Initializes the object
+        Args:
+            mode (str):
+                - `auto`: templates extracted from data without manual modification, may have no match;
+                - `manual`: templates with manual modification, sometimes verbose;
+                - `auto_manual`: use auto templates first. When fails, use manual templates.
+                both template are dict, *_template[dialog_act][slot] is a list of templates.
+        """
+        # Call base class constructor.
+        NonTrainableNM.__init__(self, name=name)
+
+        self.mode = mode
+        template_dir = os.path.dirname(os.path.abspath(__file__))
+
+        def read_json(filename):
+            with open(filename, 'r') as f:
+                return json.load(f)
+
+        self.auto_system_template = read_json(os.path.join(template_dir, 'auto_system_template_nlg.json'))
+        self.manual_system_template = read_json(os.path.join(template_dir, 'manual_system_template_nlg.json'))
+
     @property
     @add_port_docs()
     def input_ports(self):
@@ -83,26 +106,6 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         system_uttr (str): generated system's response
         """
         return {"system_uttr": NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType())}
-
-    def __init__(self, mode="auto_manual"):
-        """
-        Initializes the object
-        Args:
-            mode (str):
-                - `auto`: templates extracted from data without manual modification, may have no match;
-                - `manual`: templates with manual modification, sometimes verbose;
-                - `auto_manual`: use auto templates first. When fails, use manual templates.
-                both template are dict, *_template[dialog_act][slot] is a list of templates.
-        """
-        self.mode = mode
-        template_dir = os.path.dirname(os.path.abspath(__file__))
-
-        def read_json(filename):
-            with open(filename, 'r') as f:
-                return json.load(f)
-
-        self.auto_system_template = read_json(os.path.join(template_dir, 'auto_system_template_nlg.json'))
-        self.manual_system_template = read_json(os.path.join(template_dir, 'manual_system_template_nlg.json'))
 
     def forward(self, system_acts):
         """

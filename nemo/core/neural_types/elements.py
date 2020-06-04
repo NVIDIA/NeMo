@@ -280,10 +280,6 @@ class Length(IntType):
     """Type representing an element storing a "length" (e.g. length of a list)."""
 
 
-class Length(IntType):
-    """Type representing an element storing a "length" (e.g. length of a list)."""
-
-
 class SlotValue(ElementType):
     """Element type representing slot-value pair."""
 
