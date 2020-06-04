@@ -225,7 +225,7 @@ class ASRConvCTCModel(NeMoModel):
                 url=url, filename=filename, subfolder=cache_subfolder, referesh_cache=refresh_cache
             )
             logging.info("Instantiating model from pre-trained checkpoint")
-            instance = ASRConvCTCModel.from_pretrained(model_info=str(nemo_model_file_in_cache))
+            instance = ASRConvCTCModel.from_pretrained(model_info=str(nemo_model_file_in_cache), local_rank=local_rank)
             logging.info("Model instantiated with pre-trained weights")
         if new_vocab is None:
             return instance
