@@ -40,8 +40,8 @@ from os.path import exists, expanduser
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import init_state
 from nemo.collections.nlp.nm.non_trainables import (
-    RuleBasedMultiwozBotNM,
-    TemplateNLGMultiWOZNM,
+    RuleBasedDPMMultiWOZ,
+    TemplateNLGMultiWOZ,
     TradeStateUpdateNM,
     UserUtteranceEncoder,
 )
@@ -106,7 +106,7 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     )
 
     # 3. Forward pass throught Natural Language Generator module (Template-Based).
-    system_uttr = template_nlg.forward(system_acts=system_acts)
+    system_uttr = dialog_pipeline.modules[dialog_pipeline.steps[5]].forward(system_acts=system_acts)
 
     # Return the updated states and dialog history.
     return system_uttr, belief_state, dial_history
@@ -192,9 +192,9 @@ if __name__ == "__main__":
     trade_output_decoder = TradeStateUpdateNM(data_desc=data_desc)
 
     # DPM module.
-    rule_based_policy = RuleBasedMultiwozBotNM(data_dir=abs_data_dir)
+    rule_based_policy = RuleBasedDPMMultiWOZ(data_dir=abs_data_dir)
     # NLG module.
-    template_nlg = TemplateNLGMultiWOZNM()
+    template_nlg = TemplateNLGMultiWOZ()
 
     # Construct the "evaluation" (inference) neural graph by connecting the modules using nmTensors.
     # Note: Using the same names for passed nmTensor as in the actual forward pass.
@@ -220,7 +220,10 @@ if __name__ == "__main__":
         )
 
         # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
-        system_acts, belief_state = rule_based_policy(belief_state=belief_state, request_state=request_state)
+        belief_state, system_acts = rule_based_policy(belief_state=belief_state, request_state=request_state)
+
+        # 3. Forward pass throught Natural Language Generator module (Template-Based).
+        system_uttr = template_nlg(system_acts=system_acts)
 
     # Show the graph summary.
     logging.info(dialog_pipeline.summary())
@@ -250,7 +253,7 @@ if __name__ == "__main__":
         for example in examples:
             logging.info("============ Starting a new dialogue ============")
             system_uttr, system_action, belief_state, dial_history = init_state()
-            system_uttr, dialog_history = "", ""
+            # system_uttr, dialog_history = "", ""
             # Execute the dialog by passing the consecutive "user uterances" as inputs to the dialog pipeline.
             for user_uttr in example:
                 logging.info("User utterance: %s", user_uttr)

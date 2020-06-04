@@ -35,7 +35,7 @@ from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans imp
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['RuleBasedMultiwozBotNM']
+__all__ = ['RuleBasedDPMMultiWOZ']
 
 SELECTABLE_SLOTS = {
     'Attraction': ['area', 'entrance fee', 'name', 'type'],
@@ -88,7 +88,7 @@ booking_info = {'Train': ['People'], 'Restaurant': ['Time', 'Day', 'People'], 'H
 token = {'Attraction': ['Name', 'Addr', ''], 'Hotel': ['Name',]}
 
 
-class RuleBasedMultiwozBotNM(NonTrainableNM):
+class RuleBasedDPMMultiWOZ(NonTrainableNM):
     """
      Rule-based bot. Implemented for Multiwoz dataset.
     """

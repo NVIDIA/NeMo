@@ -24,11 +24,11 @@ import os
 import random
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core import AxisKind, AxisType, NeuralType, StringType, VoidType
+from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['TemplateNLGMultiWOZNM']
+__all__ = ['TemplateNLGMultiWOZ']
 
 
 # supported slot
@@ -64,7 +64,7 @@ slot2word = {
 }
 
 
-class TemplateNLGMultiWOZNM(NonTrainableNM):
+class TemplateNLGMultiWOZ(NonTrainableNM):
     """Generate a natural language utterance conditioned on the dialog act.
     """
 
@@ -97,7 +97,12 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         """Returns definitions of module input ports.
         system_acts (list): list of system actions action produced by dialog policy module
         """
-        return {"system_acts": NeuralType(axes=tuple('ANY'), elements_type=VoidType())}
+        return {
+            'system_acts': NeuralType(
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],
+                elements_type=StringType(),
+            ),
+        }
 
     @property
     @add_port_docs()
@@ -105,7 +110,9 @@ class TemplateNLGMultiWOZNM(NonTrainableNM):
         """Returns definitions of module output ports.
         system_uttr (str): generated system's response
         """
-        return {"system_uttr": NeuralType(axes=(AxisType(kind=AxisKind.Time)), elements_type=StringType())}
+        return {
+            'sys_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
+        }
 
     def forward(self, system_acts):
         """
