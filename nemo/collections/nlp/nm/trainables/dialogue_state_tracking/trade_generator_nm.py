@@ -70,8 +70,8 @@ class TRADEGenerator(TrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
-            'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
+            'encoder_hidden': NeuralType(('B', 'T', 'D'), ChannelType()),
+            'encoder_outputs': NeuralType(('B', 'T', 'D'), ChannelType()),
             'dialog_ids': NeuralType(('B', 'T'), elements_type=TokenIndex()),
             'dialog_lens': NeuralType(tuple('B'), elements_type=Length()),
             'targets': NeuralType(('B', 'D', 'T'), LabelsType(), optional=True),

@@ -30,13 +30,12 @@ from os.path import exists
 
 import nemo.core as nemo_core
 from nemo import logging
-from nemo.backends.pytorch.common import EncoderRNN
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM, LossAggregatorNM
 from nemo.collections.nlp.callbacks.state_tracking_trade_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.nm.data_layers import MultiWOZDataLayer
 from nemo.collections.nlp.nm.losses import MaskedLogLoss
-from nemo.collections.nlp.nm.trainables import TRADEGenerator
+from nemo.collections.nlp.nm.trainables import EncoderRNN, TRADEGenerator
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = argparse.ArgumentParser(description='Dialogue state tracking with TRADE model on MultiWOZ dataset')
@@ -155,8 +154,8 @@ def create_pipeline(num_samples, batch_size, num_gpus, input_dropout, data_prefi
     point_outputs, gate_outputs = decoder(
         encoder_hidden=hidden,
         encoder_outputs=outputs,
-        input_lens=input_data.src_lens,
-        src_ids=input_data.src_ids,
+        dialog_lens=input_data.src_lens,
+        dialog_ids=input_data.src_ids,
         targets=input_data.tgt_ids,
     )
 
