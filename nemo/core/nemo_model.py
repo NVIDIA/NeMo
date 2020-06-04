@@ -46,10 +46,22 @@ class NeMoModel(NeuralModule):
 
     def __call__(self, **kwargs):
         if self._operation_mode == OperationMode.training or self.operation_mode == OperationMode.both:
-            return self.train_graph(**kwargs)
+            # return self.train_graph(**kwargs)
+            return self.train_call(**kwargs)
 
         else:
-            return self.eval_graph(**kwargs)
+            # return self.eval_graph(**kwargs)
+            return self.eval_call(**kwargs)
+
+    @abstractmethod
+    def train_call(self, **kwargs):
+        """Override this method with training logic"""
+        pass
+
+    @abstractmethod
+    def eval_call(self, **kwargs):
+        """Override this method with evaluation logic"""
+        pass
 
     @classmethod
     @abstractmethod
@@ -147,8 +159,7 @@ class NeMoModel(NeuralModule):
                             output=path.join(tmp_folder, module_checkpoint),
                             d_format=DeploymentFormat.TRTONNX,
                         )
-                    except Exception as ex:
-                        print(ex)
+                    except:
                         logging.warning(f"Did not convert {module_name} to .onnx")
                         module_checkpoint = module_name + ".pt"
                         module.save_to(path.join(tmp_folder, module_checkpoint))
@@ -158,7 +169,8 @@ class NeMoModel(NeuralModule):
 
             __make_nemo_file_from_folder(resulting_file, tmp_folder)
             logging.info(f"Exported model {self} to {resulting_file}")
-        except:
+        except Exception as ex:
+            logging.error(ex)
             logging.error("Could not perform NeMoModel export")
         finally:
             shutil.rmtree(rnd_path)
@@ -170,14 +182,12 @@ class NeMoModel(NeuralModule):
         pass
 
     @property
-    @abstractmethod
     def train_graph(self) -> NeuralGraph:
-        pass
+        return None
 
     @property
-    @abstractmethod
     def eval_graph(self) -> NeuralGraph:
-        pass
+        return None
 
     def train(self):
         """
