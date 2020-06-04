@@ -198,7 +198,7 @@ if __name__ == "__main__":
     with NeuralGraph(operation_mode=OperationMode.evaluation) as dialog_pipeline:
         # 1.1. User utterance encoder - bind the input ports of the graph.
         src_ids, src_lens, dial_history = utterance_encoder(
-            dial_history=dialog_pipeline, user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline
+            user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline, dial_history=dialog_pipeline,
         )
 
         # Set evaluation mode - for trainable modules.

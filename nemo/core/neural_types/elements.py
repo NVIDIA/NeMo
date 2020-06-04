@@ -43,7 +43,10 @@ __all__ = [
     'NormalizedImageValue',
     'StringLabel',
     'StringType',
+    'Utterance',
     'AgentUtterance',
+    'TokenIndex',
+    'Length',
 ]
 
 import abc
@@ -221,12 +224,6 @@ class ClassificationTarget(Target):
     """
 
 
-class StringLabel(ElementType):
-    """
-        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
-    """
-
-
 class ImageValue(ElementType):
     """
         Type representing an element/value of a single image channel,
@@ -246,14 +243,36 @@ class ImageFeatureValue(ImageValue):
 
 
 class StringType(ElementType):
-    """Element type representing strings"""
+    """Element type representing a single string"""
+
+
+class StringLabel(StringType):
+    """
+        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
+    """
+
+
+class Utterance(StringType):
+    """Element type representing an utterance (e.g. "Is there a train from Ely to Cambridge on Tuesday ?")."""
 
 
 class AgentUtterance(ElementType):
-    "Element type representing utterance returned by an agent (user or system) participating in a dialog."
+    """Element type representing utterance returned by an agent (user or system) participating in a dialog."""
 
     def __str__(self):
         return "Utterance returned by an agent (user or system) participating in a dialog."
 
     def fields(self):
         return ("Agent", "Utterance")
+
+
+class IntType(ElementType):
+    """Element type representing a single integer"""
+
+
+class TokenIndex(IntType):
+    """Type representing an element being index of a token in some kind of a vocabulary."""
+
+
+class Length(IntType):
+    """Type representing an element storing a "length" (e.g. length of a list)."""

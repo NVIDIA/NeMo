@@ -21,7 +21,17 @@ https://github.com/thu-coai/ConvLab-2/
 import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
-from nemo.core.neural_types import AgentUtterance, AxisKind, AxisType, ChannelType, LengthsType, NeuralType, StringType
+from nemo.core.neural_types import (
+    AgentUtterance,
+    AxisKind,
+    AxisType,
+    ChannelType,
+    Length,
+    NeuralType,
+    StringType,
+    Utterance,
+    TokenIndex,
+)
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -45,17 +55,11 @@ class UtteranceEncoderNM(NonTrainableNM):
         sys_uttr (str): system utterace
         """
         return {
+            'user_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
+            'sys_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
             'dial_history': NeuralType(
                 axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
                 elements_type=AgentUtterance(),
-            ),
-            'user_uttr': NeuralType(
-                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True)],
-                elements_type=StringType(),
-            ),
-            'sys_uttr': NeuralType(
-                axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time)],
-                elements_type=StringType(),
             ),
         }
 
@@ -63,16 +67,17 @@ class UtteranceEncoderNM(NonTrainableNM):
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
-        src_ids (int): token ids for dialogue history
-        src_lens (int): length of the tokenized dialogue history
-        dial_history (list): dialogue history, list of system and diaglogue utterances 
+        dialog_ids (int): token ids for dialogue history
+        dialog_lens (int): length of the tokenized dialogue history
+        dialog_history (list): dialogue history, being a list of user and system utterances.
         """
         return {
-            'src_ids': NeuralType(('B', 'T'), elements_type=ChannelType()),
-            'src_lens': NeuralType(tuple('B'), elements_type=LengthsType()),
-            'dial_history': NeuralType(
+            # TODO: second dimension is not TIME - as it is the concatenation of list of words (ids) of  all utterances!
+            'dialog_ids': NeuralType(('B', 'T'), elements_type=TokenIndex()),
+            'dialog_lens': NeuralType(tuple('B'), elements_type=Length()),
+            'dialog_history': NeuralType(
                 axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
-                elements_type=StringType(),
+                elements_type=AgentUtterance(),
             ),
         }
 
@@ -98,12 +103,17 @@ class UtteranceEncoderNM(NonTrainableNM):
             src_lens (int): length of the tokenized dialogue history
             dial_history (list): updated dialogue history, list of system and diaglogue utterances
         """
+        context = ' ; '.join([item[1].strip().lower() for item in dial_history]).strip() + ' ;'
+        context_ids = self.data_desc.vocab.tokens2ids(context.split())
+        dialog_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
+        dialog_lens = torch.tensor(len(context_ids)).unsqueeze(0).to(self._device)
+
+        # TODO: why we update sys utterance, whereas we have only user utterance at that point?
         dial_history.append(["sys", sys_uttr])
         dial_history.append(["user", user_uttr])
         logging.debug("Dialogue history: %s", dial_history)
 
-        context = ' ; '.join([item[1].strip().lower() for item in dial_history]).strip() + ' ;'
-        context_ids = self.data_desc.vocab.tokens2ids(context.split())
-        src_ids = torch.tensor(context_ids).unsqueeze(0).to(self._device)
-        src_lens = torch.tensor(len(context_ids)).unsqueeze(0).to(self._device)
-        return src_ids, src_lens, dial_history
+        # logging.debug("!! dialog_ids: %s", dialog_ids)
+        # logging.debug("!! dialog_lens: %s", dialog_lens)
+
+        return dialog_ids, dialog_lens, dial_history
