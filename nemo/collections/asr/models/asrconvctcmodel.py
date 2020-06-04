@@ -37,7 +37,6 @@ class ASRConvCTCModel(NeMoModel):
     ):
         super().__init__()
         # Instantiate necessary modules
-        self.__vocabulary = None
         preprocessor, spec_augmentation, encoder, decoder = self.__instantiate_modules(
             preprocessor_params, encoder_params, decoder_params, spec_augment_params
         )
@@ -133,7 +132,7 @@ class ASRConvCTCModel(NeMoModel):
 
     @property
     def vocabulary(self):
-        return self.__vocabulary
+        return self._decoder.vocabulary
 
     @property
     def num_weights(self):
