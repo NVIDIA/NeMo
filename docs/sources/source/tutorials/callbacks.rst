@@ -34,6 +34,7 @@ At a high level, the NeMo training loop looks like this:
                 callbacks.on_batch_end()
                 batch_counter += 1
                 if batch_counter == gradient_accumulation_steps:
+                    batch_counter = 0  # Reset batch counter
                     # By default, gradient_accumulation_steps = 1
                     # Note this is passed to train() as batches_per_step and sometimes exposed as args.iter_per_step
                     optimizer.step()
