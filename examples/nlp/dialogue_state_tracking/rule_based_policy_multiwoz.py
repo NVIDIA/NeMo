@@ -51,7 +51,7 @@ from nemo.utils import logging
 
 # Examples: two "separate" dialogs (one single-turn, one multiple-turn).
 examples = [
-    # ["I want to find a moderate hotel with internet and parking in the east"],
+    ["I want to find a moderate hotel with internet and parking in the east"],
     [
         "Is there a train from Ely to Cambridge on Tuesday ?",
         "I need to arrive by 11 am .",
@@ -95,6 +95,7 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     point_outputs, gate_outputs = dialog_pipeline.modules[dialog_pipeline.steps[2]].forward(
         encoder_hidden=hidden, encoder_outputs=outputs, dialog_ids=dialog_ids, dialog_lens=dialog_lens,
     )
+
     # 1.4. The module "decoding" the TRADE output into belief and request states.
     belief_state, request_state = dialog_pipeline.modules[dialog_pipeline.steps[3]].forward(
         gating_preds=gate_outputs, point_outputs_pred=point_outputs, belief_state=belief_state, user_uttr=user_uttr
@@ -211,7 +212,6 @@ if __name__ == "__main__":
             encoder_hidden=hidden, encoder_outputs=outputs, dialog_ids=dialog_ids, dialog_lens=dialog_lens,
         )
 
-        logging.debug('!! Belief State after TRADE: %s', belief_state)
         # 1.4. The module "decoding" the TRADE output into belief and request states.
         # Bind the "belief_state" input port.
         belief_state, request_state = trade_output_decoder(
@@ -220,8 +220,6 @@ if __name__ == "__main__":
             belief_state=dialog_pipeline,
             user_uttr=dialog_pipeline.inputs["user_uttr"],
         )
-        logging.debug('!! Belief State after TRADE: %s', belief_state)
-        exit(1)
 
         # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
         belief_state, system_acts = rule_based_policy(belief_state=belief_state, request_state=request_state)

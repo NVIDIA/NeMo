@@ -94,6 +94,7 @@ class TradeStateUpdateNM(NonTrainableNM):
         Args:
             user_uttr (str): user utterance
             request_state (dict): contains requestsed slots-slot_value pairs for each domain
+            belief_state (dict): dialgoue belief state, containt slot-slot value pair for all domains
             gating_preds (float): TRADE model gating predictions
             point_outputs_pred (float): TRADE model pointers predictions
         Returns:
@@ -110,6 +111,7 @@ class TradeStateUpdateNM(NonTrainableNM):
         # update request state based on the latest user utterance
         # extract current user output
         new_request_state = self.detect_requestable_slots(user_uttr.lower(), self.data_desc.det_dict)
+        logging.debug('Belief State after TRADE: %s', belief_state)
         logging.debug('Request State after TRADE: %s', new_request_state)
         return new_belief_state, new_request_state
 
