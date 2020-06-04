@@ -19,6 +19,7 @@ from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_s
     BertJointIntentSlotDataset,
     BertJointIntentSlotInferDataset,
 )
+from nemo.collections.nlp.data.datasets.lasertagger_dataset import LaserTaggerDataset
 from nemo.collections.nlp.data.datasets.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataset,
@@ -31,6 +32,8 @@ from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset impor
     BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.data.datasets.qa_squad_dataset.qa_squad_dataset import SquadDataset
+from nemo.collections.nlp.data.datasets.sgd_dataset.schema_embedding_dataset import SchemaEmbeddingDataset
+from nemo.collections.nlp.data.datasets.sgd_dataset.sgd_dataset import SGDDataset
 from nemo.collections.nlp.data.datasets.text_classification import (
     BertTextClassificationDataset,
     TextClassificationDataDesc,
