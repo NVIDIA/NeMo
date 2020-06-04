@@ -70,6 +70,7 @@ To release a new version, please update the changelog as followed:
 ## [Unreleased]
 
 ### Added
+- Added NeMoModels class. Implemented in ASR collection: ASRConvCTCModel, and QuartzNet and JasperNet as its children - @okuchaiev
 - Added multi-dataset data-layer and dataset.
 ([PR #538](https://github.com/NVIDIA/NeMo/pull/538)) - @yzhang123
 - Online Data Augmentation for ASR Collection. ([PR #565](https://github.com/NVIDIA/NeMo/pull/565)) - @titu1994
@@ -79,9 +80,12 @@ To release a new version, please update the changelog as followed:
 - ContextNet Encoder + Decoder Initial Support ([PR #630](https://github.com/NVIDIA/NeMo/pull/630)) - @titu1994
 - Added finetuning with Megatron-LM ([PR #601](https://github.com/NVIDIA/NeMo/pull/601)) - @ekmb
 - Added documentation for 8 kHz model ([PR #632](https://github.com/NVIDIA/NeMo/pull/632)) - @jbalam-nv
+- The Neural Graph is a high-level abstract concept empowering the users to build graphs consisting of many, interconnected Neural Modules. A user in his/her application can build any number of graphs, potentially spanning over the same modules. The import/export options combined with the lightweight API make Neural Graphs a perfect tool for rapid prototyping and experimentation. ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @tkornuta-nvidia
+- Created the NeMo CV collection, added  MNIST and CIFAR10 thin datalayers, implemented/ported several general usage trainable and non-trainable modules, added several new ElementTypes ([PR #654](https://github.com/NVIDIA/NeMo/pull/654)) - @tkornuta-nvidia
 
 
 ### Changed
+- quartznet and jasper ASR examples reworked into speech2text.py and speech2text_infer.py - @okuchaiev
 - Syncs across workers at each step to check for NaN or inf loss. Terminates all workers if stop\_on\_nan\_loss is set (as before), lets Apex deal with it if apex.amp optimization level is O1 or higher, and skips the step across workers otherwise. ([PR #637](https://github.com/NVIDIA/NeMo/pull/637)) - @redoctopus
 - Updated the callback system. Old callbacks will be deprecated in version 0.12. ([PR #615](https://github.com/NVIDIA/NeMo/pull/615)) - @blisc
 
@@ -94,13 +98,6 @@ To release a new version, please update the changelog as followed:
 ### Removed
 
 ### Security
-
-### Contributors
-
-## [0.10.2] - 2020-05-05
-
-### Added
-- The Neural Graph is a high-level abstract concept empowering the users to build graphs consisting of many, interconnected Neural Modules. A user in his/her application can build any number of graphs, potentially spanning over the same modules. The import/export options combined with the lightweight API make Neural Graphs a perfect tool for rapid prototyping and experimentation. ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @tkornuta
 
 ## [0.10.0] - 2020-04-03
 

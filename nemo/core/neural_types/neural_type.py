@@ -120,7 +120,9 @@ class NeuralType(object):
             type_comatibility != NeuralTypeComparisonResult.SAME
             and type_comatibility != NeuralTypeComparisonResult.GREATER
         ):
-            raise NeuralPortNmTensorMismatchError(parent_type_name, port_name, self, second_object, type_comatibility)
+            raise NeuralPortNmTensorMismatchError(
+                parent_type_name, port_name, str(self), str(second_object), type_comatibility
+            )
 
     @staticmethod
     def __check_sanity(axes):
@@ -218,6 +220,7 @@ class NmTensor(NeuralType):
             self._producer_name = producer.name
         self._producer_args = producer_args
         self._output_port_name = output_port_name
+        self._name = output_port_name
         self._uuid = str(uuid.uuid4())
         # Remember step at which this tensor was created.
         self._step_number = AppState().active_graph.step_number
@@ -309,7 +312,7 @@ class NmTensor(NeuralType):
           A NmTensor's name which should be equal to
           the NeuralModule's output port's name which created it
         """
-        return self._output_port_name
+        return self._name
 
     @property
     def unique_name(self):
@@ -332,6 +335,10 @@ class NmTensor(NeuralType):
             new_name (str): the new tensor's name.
         """
         AppState().tensor_names.rename_NmTensor(self, new_name)
+        self._name = new_name
+
+    def __str__(self):
+        return self.name
 
 
 class NeuralTypeError(Exception):

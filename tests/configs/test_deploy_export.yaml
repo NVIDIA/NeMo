@@ -18,6 +18,7 @@ JasperDecoderForCTC:
     init_params:
         feat_in: 1024
         num_classes: 33
+        vocabulary: ["A", "B", "C", "D", "E", " ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 JasperEncoder:
     header:

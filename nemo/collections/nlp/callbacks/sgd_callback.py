@@ -128,6 +128,7 @@ def eval_iter_callback(tensors, global_vars, schema_processor, eval_dataset):
     # added for debugging
     predictions['cat_slot_status_GT'] = output['categorical_slot_status']
     predictions['noncat_slot_status_GT'] = output['noncategorical_slot_status']
+    predictions['cat_slot_value_GT'] = output['categorical_slot_values']
 
     global_vars['predictions'].extend(combine_predictions_in_example(predictions, batch_size))
 
@@ -157,13 +158,14 @@ def eval_epochs_done_callback(
     prediction_dir,
     state_tracker,
     eval_debug,
+    dialogues_processor,
     schema_emb_preprocessor,
     joint_acc_across_turn,
     no_fuzzy_match,
 ):
     # added for debugging
     in_domain_services = get_in_domain_services(
-        os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
+        os.path.join(data_dir, eval_dataset, "schema.json"), dialogues_processor.get_seen_services("train")
     )
     ##############
     # we'll write predictions to file in Dstc8/SGD format during evaluation callback
@@ -181,16 +183,12 @@ def eval_epochs_done_callback(
         in_domain_services=in_domain_services,
     )
     metrics = evaluate(
-        prediction_dir, data_dir, eval_dataset, schema_emb_preprocessor.schemas, joint_acc_across_turn, no_fuzzy_match,
+        prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match,
     )
     return metrics
 
 
-def evaluate(prediction_dir, data_dir, eval_dataset, schemas, joint_acc_across_turn, no_fuzzy_match):
-
-    in_domain_services = get_in_domain_services(
-        os.path.join(data_dir, eval_dataset, "schema.json"), os.path.join(data_dir, "train", "schema.json")
-    )
+def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
 
     with open(os.path.join(data_dir, eval_dataset, "schema.json")) as f:
         eval_services = {}

@@ -209,8 +209,8 @@ parser.add_argument(
     "--state_tracker",
     type=str,
     default='baseline',
-    choices=['baseline', 'ret_sys_act'],
-    help="Specifies the state tracker mode",
+    choices=['baseline', 'nemotracker'],
+    help="Specifies the state tracker model",
 )
 parser.add_argument(
     "--schema_emb_init",
@@ -426,6 +426,7 @@ def get_eval_callback(eval_dataset):
             nf.work_dir,
             args.state_tracker,
             args.debug_mode,
+            dialogues_processor,
             schema_preprocessor,
             args.joint_acc_across_turn,
             args.no_fuzzy_match,

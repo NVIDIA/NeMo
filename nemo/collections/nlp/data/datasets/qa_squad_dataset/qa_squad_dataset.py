@@ -92,10 +92,14 @@ class SquadDataset(Dataset):
             raise ValueError(f"mode should be either 'train', 'eval', or 'test' but got {mode}")
         self.examples = self.processor.get_examples()
 
+        tokenizer_type = type(tokenizer.tokenizer).__name__
+        vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = (
             data_file
             + '_cache'
-            + '_{0}_{1}_{2}_{3}'.format(mode, str(max_seq_length), str(doc_stride), str(max_query_length))
+            + '_{}_{}_{}_{}_{}_{}'.format(
+                mode, tokenizer_type, str(vocab_size), str(max_seq_length), str(doc_stride), str(max_query_length)
+            )
         )
 
         if use_cache and os.path.exists(cached_features_file):

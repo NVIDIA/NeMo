@@ -97,9 +97,6 @@ Punctuation and Word Capitalization
 
    punctuation
 
-
-
-
 Question Answering 
 ------------------
 .. toctree::
@@ -113,7 +110,7 @@ Dialogue State Tracking
 .. toctree::
    :maxdepth: 8
 
-   dialogue_state_tracking_trade.rst
+   dialogue_state_tracking.rst
 
 Improving Speech Recognition with BERTx2 Post-processing Model
 --------------------------------------------------------------
