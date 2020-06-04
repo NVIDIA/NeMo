@@ -106,13 +106,19 @@ Pre-trained models
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | Modality   | Model                                                                                        | Trained on            |
 +============+==============================================================================================+=======================+
+| ASR        | `Jasper10x5DR_En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_jasper10x5dr>`_  | LibriSpeech, WSJ,     |
+|            |                                                                                              | Mozilla Common Voice  |
+|            |                                                                                              | (en_1488h_2019-12-10),|
+|            |                                                                                              | Fisher, Switchboard,  |
+|            |                                                                                              | and Singapore English |
+|            |                                                                                              | National Speech Corpus|
+|            |                                                                                              | (Part 1)              |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
 | ASR        | `QuartzNet15x5En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_quartznet15x5>`_ | LibriSpeech, WSJ,     |
 |            |                                                                                              | Mozilla Common Voice  |
-|            |                                                                                              | (en_1488_2019-12-10), |
-|            |                                                                                              | Fisher, Switchboard   |
-|            |                                                                                              | and Singapore English |
-|            |                                                                                              | National Speech       |
-|            |                                                                                              | Corpus                |
+|            |                                                                                              | (en_1087h_2019-06-12),|
+|            |                                                                                              | Fisher, and           |
+|            |                                                                                              | Switchboard           |
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AISHELL-2 Mandarin    |
 |            |                                                                                              |                       |
