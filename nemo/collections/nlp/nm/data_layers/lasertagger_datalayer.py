@@ -15,11 +15,9 @@
 # =============================================================================
 
 import torch
-from lasertagger_dataset import *
 from torch.utils import data as pt_data
 
-import nemo
-from nemo.collections.nlp.data import TranslationDataset
+from nemo.collections.nlp.data.datasets.lasertagger_dataset import LaserTaggerDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, LabelsType, NeuralType
 from nemo.utils.decorators import add_port_docs
