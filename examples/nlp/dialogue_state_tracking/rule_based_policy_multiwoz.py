@@ -37,7 +37,6 @@ Use "--mode interactive" to chat with the system and "--hide_output" - to hide i
 import argparse
 from os.path import exists, expanduser
 
-from nemo.core import NeuralModuleFactory, NeuralGraph, DeviceType, OperationMode
 from nemo.backends.pytorch.common import EncoderRNN
 from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import init_state
@@ -48,17 +47,19 @@ from nemo.collections.nlp.nm.non_trainables import (
     UtteranceEncoderNM,
 )
 from nemo.collections.nlp.nm.trainables import TRADEGenerator
+from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode
 from nemo.utils import logging
 
 # Examples: two "separate" dialogs (one single-turn, one multiple-turn).
 examples = [
-    ["I want to find a moderate hotel with internet and parking in the east"],
+    #["I want to find a moderate hotel with internet and parking in the east"],
     [
         "Is there a train from Ely to Cambridge on Tuesday ?",
         "I need to arrive by 11 am .",
         "What is the trip duration ?",
     ],
 ]
+
 
 def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state):
     """
@@ -100,17 +101,19 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
 
     # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
     system_acts, belief_state = rule_based_policy.forward(belief_state=belief_state, request_state=request_state)
-    
+
     # 3. Forward pass throught Natural Language Generator module (Template-Based).
     system_uttr = template_nlg.forward(system_acts=system_acts)
-    
+
     # Return the updated states and dialog history.
     return system_uttr, belief_state, dial_history
 
 
 if __name__ == "__main__":
     # Parse the command-line arguments.
-    parser = argparse.ArgumentParser(description="Complete dialogue pipeline examply with TRADE model on MultiWOZ dataset")
+    parser = argparse.ArgumentParser(
+        description="Complete dialogue pipeline examply with TRADE model on MultiWOZ dataset"
+    )
     parser.add_argument(
         "--data_dir", default="data/multiwoz2.1", type=str, help="path to NeMo processed MultiWOZ data", required=True
     )
@@ -190,17 +193,17 @@ if __name__ == "__main__":
     # NLG module.
     template_nlg = TemplateNLGMultiWOZNM()
 
-    # Build the neural graph by connecting the modules using nmTensors.
-    # Note: using the same names as in the actual forward pass
+    # Construct the "evaluation" (inference) neural graph by connecting the modules using nmTensors.
+    # Note: Using the same names for passed nmTensor as in the actual forward pass.
     with NeuralGraph(operation_mode=OperationMode.evaluation) as dialog_pipeline:
         # 1.1. User utterance encoder - bind the input ports of the graph.
-        #src_ids, src_lens, dial_history = utterance_encoder(
-        #    dial_history=dialog_pipeline, user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline
-        #)
+        src_ids, src_lens, dial_history = utterance_encoder(
+            dial_history=dialog_pipeline, user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline
+        )
 
         # Set evaluation mode - for trainable modules.
-        trade_encoder.eval()
-        trade_decoder.eval()
+        #trade_encoder.eval()
+        #trade_decoder.eval()
 
     # "Execute" the graph - depending on the mode.
     if args.mode == 'interactive':
@@ -219,7 +222,9 @@ if __name__ == "__main__":
                 logging.info("============ Starting a new dialogue ============")
             else:
                 # Pass the "user uterance" as inputs to the dialog pipeline.
-                system_uttr, belief_state, dial_history = forward_(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
+                system_uttr, belief_state, dial_history = forward_(
+                    dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state
+                )
 
     elif args.mode == 'example':
         for example in examples:
@@ -229,4 +234,6 @@ if __name__ == "__main__":
             # Execute the dialog by passing the consecutive "user uterances" as inputs to the dialog pipeline.
             for user_uttr in example:
                 logging.info("User utterance: %s", user_uttr)
-                system_uttr, belief_state, dial_history = forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
+                system_uttr, belief_state, dial_history = forward(
+                    dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state
+                )
