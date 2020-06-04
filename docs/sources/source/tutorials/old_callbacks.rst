@@ -72,8 +72,6 @@ SimpleLossLoggerCallback can be constructed as follows:
 
 .. code-block:: python
 
-    from functools import partial
-
     loggercallback = nemo.core.SimpleLossLoggerCallback(
         # Define tensors that we want to pass to print_func, and get_tb_values
         tensors=[train_loss],
@@ -96,8 +94,6 @@ they can be reloaded later for inference or finetuning. CheckpointCallback
 is simple to use:
 
 .. code-block:: python
-
-    from functools import partial
 
     loggercallback = nemo.core.CheckpointCallback(
         # The folder to save checkpoints

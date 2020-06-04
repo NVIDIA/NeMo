@@ -19,30 +19,38 @@ At a high level, the NeMo training loop looks like this:
 .. code-block:: python
 
     def train():
-        # Do initialization of optimizers, amp, ddp, etc
-        callbacks.on_action_start()  # Do all on_action_start functions
+        ...  # Do initialization of optimizers, amp, ddp, etc
+        # Initialize the state passed to callbacks and the tensor state object to be empty
+        state = {}
+        state["tensors"] = TrainingState({})
+
+        callbacks.on_action_start(state)  # For all callbacks, trigger the on_action_start event
         for epoch in range(num_epochs):  # Or until max_steps
-            callbacks.on_epoch_start()  # Do all on_epoch_start functions
+            callbacks.on_epoch_start(state)  # Trigger the on_epoch_start event
             batch_counter = 0
             for data in dataloader:  # Fetch batches of data
                 if batch_counter == 0:
-                    callbacks.on_step_start()
-                callbacks.on_batch_start()
+                    callbacks.on_step_start(state)  # Trigger the on_step_start event
+                callbacks.on_batch_start(state)  # Trigger the on_batch_start event
 
-                ...  # Forward and backward pass
+                ...  # Forward pass
+                final_loss.backwards()
+                # Set the `loss` key inside the tensor state object to be the loss that we call backwards() on
+                state["tensors"]["loss"] = final_loss
 
-                callbacks.on_batch_end()
+                callbacks.on_batch_end(state)  # Trigger the on_batch_end event
                 batch_counter += 1
                 if batch_counter == gradient_accumulation_steps:
                     batch_counter = 0  # Reset batch counter
-                    # By default, gradient_accumulation_steps = 1
-                    # Note this is passed to train() as batches_per_step and sometimes exposed as args.iter_per_step
+                    # By default, gradient_accumulation_steps = 1. Note this is passed to train() as batches_per_step
+                    # and sometimes exposed as args.iter_per_step
                     optimizer.step()
-                    callbacks.update_loss()  # Note, that the loss tensor is only exposed here
-                    callbacks.on_step_end()
-                clear_tensor_dict()
-            callbacks.on_epoch_end()
-        callbacks.on_action_end()
+                    callbacks.on_step_end(state)  # Trigger the on_step_end event
+
+                # Clear the tensor state object
+                clear state["tensors"]
+            callbacks.on_epoch_end(state)  # Trigger the on_epoch_end event
+        callbacks.on_action_end(state)  # Trigger the on_action_end event
 
 .. note::
     NeMo's callbacks were updated in version 0.11. For documentation on the old callbacks, please see
