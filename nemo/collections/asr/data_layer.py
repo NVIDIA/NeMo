@@ -641,7 +641,8 @@ class KaldiFeatureDataLayer(DataLayerNM):
             # 'transcripts': NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),
             # 'transcript_length': NeuralType({0: AxisType(BatchTag)}),
             'processed_signal': NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            'transcripts': NeuralType(('B', 'T'), ChannelType()),
+            'processed_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
         }
 
