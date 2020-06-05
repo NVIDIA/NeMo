@@ -32,8 +32,8 @@ from nemo import logging
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import Database
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
-from nemo.core.neural_types import *
 from nemo.collections.nlp.neural_types import *
+from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedDPMMultiWOZ']
