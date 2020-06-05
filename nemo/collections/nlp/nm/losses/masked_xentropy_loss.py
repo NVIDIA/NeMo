@@ -39,7 +39,7 @@
 import torch
 
 from nemo.backends.pytorch.nm import LossNM
-from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LossType, NeuralType
+from nemo.core.neural_types import LabelsType, Length, LogitsType, LossType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MaskedLogLoss']
@@ -72,7 +72,7 @@ class MaskedLogLoss(LossNM):
         return {
             "logits": NeuralType(('B', 'T', 'D', 'D'), LogitsType()),
             "labels": NeuralType(('B', 'D', 'T'), LabelsType()),
-            "length_mask": NeuralType(('B', 'D'), LengthsType()),
+            "length_mask": NeuralType(('B', 'D'), Length()),
         }
 
     @property

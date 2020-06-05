@@ -1,0 +1,1399 @@
+{
+    "Attraction-Inform": {
+        "Addr": [
+            "it is located in #ATTRACTION-INFORM-ADDR#",
+            "adress is #ATTRACTION-INFORM-ADDR#",
+            "It is on #ATTRACTION-INFORM-ADDR# .",
+            "their address in our system is listed as #ATTRACTION-INFORM-ADDR# .",
+            "The address is #ATTRACTION-INFORM-ADDR# .",
+            "it 's located at #ATTRACTION-INFORM-ADDR# .",
+            "#ATTRACTION-INFORM-ADDR# is the address",
+            "They are located at #ATTRACTION-INFORM-ADDR# ."
+        ],
+        "none": [
+            "what information would you like about it today ?",
+            "i have their info , what would you like to know ?"
+        ],
+        "Choice": [
+            "I ' ve found #ATTRACTION-INFORM-CHOICE# places for you to go . Do you have any specific ideas in mind ?",
+            "sorry about that , there are actually #ATTRACTION-INFORM-CHOICE# .",
+            "sure , there are #ATTRACTION-INFORM-CHOICE# for you to choose from .",
+            "There are #ATTRACTION-INFORM-CHOICE# . Would you like me to recommend one for you ?",
+            "We have #ATTRACTION-INFORM-CHOICE# of those ! Anything specific you need or just a recommendation ?",
+            "sure , there are #ATTRACTION-INFORM-CHOICE# options for you",
+            "sure , there are #ATTRACTION-INFORM-CHOICE# in that area .",
+            "we have #ATTRACTION-INFORM-CHOICE# options , can i reccomend for you ?",
+            "there are #ATTRACTION-INFORM-CHOICE# , anything in particular you are looking for ?",
+            "We have #ATTRACTION-INFORM-CHOICE# such location ."
+        ],
+        "Post": [
+            "The postcode is #ATTRACTION-INFORM-POST# .",
+            "The post code is #ATTRACTION-INFORM-POST# .",
+            "Its postcode is #ATTRACTION-INFORM-POST# .",
+            "Their postcode is #ATTRACTION-INFORM-POST# ."
+        ],
+        "Fee": [
+            "Its entrance fee is #ATTRACTION-INFORM-FEE# .",
+            "The park is #ATTRACTION-INFORM-FEE# .",
+            "The entry fee is #ATTRACTION-INFORM-FEE# .",
+            "their entrance fee is #ATTRACTION-INFORM-FEE# by our system currently ."
+        ],
+        "Name": [
+            "I think a fun place to visit is #ATTRACTION-INFORM-NAME# .",
+            "#ATTRACTION-INFORM-NAME# looks good .",
+            "#ATTRACTION-INFORM-NAME# is available , would that work for you ?",
+            "we have #ATTRACTION-INFORM-NAME# .",
+            "#ATTRACTION-INFORM-NAME# is popular among visitors .",
+            "How about #ATTRACTION-INFORM-NAME# ?",
+            "What about #ATTRACTION-INFORM-NAME# ?",
+            "you might want to try the #ATTRACTION-INFORM-NAME# ."
+        ],
+        "Area": [
+            "That one is located in the #ATTRACTION-INFORM-AREA# .",
+            "it is located in the #ATTRACTION-INFORM-AREA# .",
+            "They are located within the #ATTRACTION-INFORM-AREA# .",
+            "it 's located in the #ATTRACTION-INFORM-AREA# .",
+            "That is in the #ATTRACTION-INFORM-AREA# .",
+            "It will be located in the #ATTRACTION-INFORM-AREA# .",
+            "it is in the #ATTRACTION-INFORM-AREA# of the city",
+            "It is in the #ATTRACTION-INFORM-AREA# ."
+        ],
+        "Phone": [
+            "The phone number is #ATTRACTION-INFORM-PHONE# .",
+            "Here is the phone number , #ATTRACTION-INFORM-PHONE# ."
+        ],
+        "Type": [
+            "It is listed as a #ATTRACTION-INFORM-TYPE# attraction .",
+            "it is a #ATTRACTION-INFORM-TYPE# .",
+            "Absolutely . There are some wonderful #ATTRACTION-INFORM-TYPE# in that area .",
+            "it 's considered a #ATTRACTION-INFORM-TYPE# .",
+            "Would you be interested in visiting a #ATTRACTION-INFORM-TYPE# ?",
+            "It 's a #ATTRACTION-INFORM-TYPE# attraction .",
+            "It is listed as #ATTRACTION-INFORM-TYPE# ."
+        ],
+        "Open": [
+            "#ATTRACTION-INFORM-OPEN# in our database .",
+            "#ATTRACTION-INFORM-OPEN# ."
+        ],
+        "Price": [
+            "it is in the #ATTRACTION-INFORM-PRICE# price range",
+            "The fee is #ATTRACTION-INFORM-PRICE# ."
+        ]
+    },
+    "Attraction-NoOffer": {
+        "none": [
+            "There are no attractions matching that description .",
+            "I ' m sorry but I have not found any matches .",
+            "I ' m sorry there are no matches .",
+            "There are none available at this time .",
+            "I ' m sorry . I ' m not finding any attractions that meet your criteria .",
+            "we do nt have any in that area .",
+            "I do n't have anything meeting that criteria ."
+        ],
+        "Type": [
+            "There are no #ATTRACTION-NOOFFER-TYPE# close to the area you are requesting",
+            "No , I ' m sorry , I am not finding anything with #ATTRACTION-NOOFFER-TYPE# .      Perhaps another type of attraction would interest you ?",
+            "I ' m sorry , but it does n't look like we have a #ATTRACTION-NOOFFER-TYPE# that matches your criteria .",
+            "Unfortunately there are no #ATTRACTION-NOOFFER-TYPE# venues in that location .",
+            "I ' m sorry , I do n't see any #ATTRACTION-NOOFFER-TYPE# attractions in that area of town . Is there anything else you 'd be interested in seeing ?",
+            "There are no #ATTRACTION-NOOFFER-TYPE# in this area .",
+            "I ' m sorry . There are no #ATTRACTION-NOOFFER-TYPE# listed in that area .",
+            "Unfortunately I can not find anything strictly categorized as #ATTRACTION-NOOFFER-TYPE# in that area can you provide more specifications ?",
+            "There are no #ATTRACTION-NOOFFER-TYPE# in that area ."
+        ],
+        "Name": [
+            "There is no listing for #ATTRACTION-NOOFFER-NAME#",
+            "i am sorry but i actually am not finding any information for #ATTRACTION-NOOFFER-NAME# ."
+        ],
+        "Area": [
+            "no such attractions in #ATTRACTION-NOOFFER-AREA#",
+            "I ' m sorry , I could n't find anything like that in the #ATTRACTION-NOOFFER-AREA# .",
+            "sorry , i could n't find anything in the #ATTRACTION-NOOFFER-AREA# .",
+            "I ' m sorry there 's no entertainment in the #ATTRACTION-NOOFFER-AREA# .",
+            "I am sorry , I am unable to locate an attraction in #ATTRACTION-NOOFFER-AREA# ?"
+        ],
+        "Fee": [
+            "sorry , i could n't find anything with #ATTRACTION-NOOFFER-Fee# .",
+            "There are no attractions with #ATTRACTION-NOOFFER-Fee# ."
+        ],
+        "Addr": [
+            "I ' m sorry , but I do n't see any attractions at #ATTRACTION-NOOFFER-ADDR# ."
+        ]
+    },
+    "Attraction-Recommend": {
+        "Name": [
+            "we have #ATTRACTION-RECOMMEND-NAME#",
+            "#ATTRACTION-RECOMMEND-NAME# looks good , would you like to head there ?",
+            "Would you like #ATTRACTION-RECOMMEND-NAME# ?",
+            "you would love #ATTRACTION-RECOMMEND-NAME#",
+            "I recommend #ATTRACTION-RECOMMEND-NAME# , it 's got a lot of great features to watch !",
+            "I would suggest #ATTRACTION-RECOMMEND-NAME# .",
+            "I 'd recommend #ATTRACTION-RECOMMEND-NAME# . Would you like some information on it ?",
+            "You would love #ATTRACTION-RECOMMEND-NAME#",
+            "#ATTRACTION-RECOMMEND-NAME# meets your requirements .",
+            "how about #ATTRACTION-RECOMMEND-NAME# ? they 're pretty fun ."
+        ],
+        "Type": [
+            "I would suggest visiting one of the famous #ATTRACTION-RECOMMEND-TYPE# .",
+            "How about a #ATTRACTION-RECOMMEND-TYPE# ?",
+            "Would a #ATTRACTION-RECOMMEND-TYPE# work for you ?",
+            "How about visiting one of our many architecturally important #ATTRACTION-RECOMMEND-TYPE# ? May I offer you a list ?",
+            "It 's an #ATTRACTION-RECOMMEND-TYPE# .     Great for the whole family , especially the younger ones !",
+            "All Saints Church has some lovely #ATTRACTION-RECOMMEND-TYPE# . Does that suit your needs ?"
+        ],
+        "none": [
+            "It 's a really fun attraction with lots of interesting things to do in it ."
+        ],
+        "Fee": [
+            "Its entrance fee is #ATTRACTION-RECOMMEND-FEE# .",
+            "The park is #ATTRACTION-RECOMMEND-FEE# .",
+            "The entry fee is #ATTRACTION-RECOMMEND-FEE# .",
+            "their entrance fee is #ATTRACTION-RECOMMEND-FEE# by our system currently ."
+        ],
+        "Addr": [
+            "it is located in #ATTRACTION-RECOMMEND-ADDR#",
+            "adress is #ATTRACTION-RECOMMEND-ADDR#",
+            "It is on #ATTRACTION-RECOMMEND-ADDR# .",
+            "their address in our system is listed as #ATTRACTION-RECOMMEND-ADDR# .",
+            "The address is #ATTRACTION-RECOMMEND-ADDR# .",
+            "it 's located at #ATTRACTION-RECOMMEND-ADDR# .",
+            "#ATTRACTION-RECOMMEND-ADDR# is the address",
+            "They are located at #ATTRACTION-RECOMMEND-ADDR# ."
+        ],
+        "Post": [
+            "The postcode is #ATTRACTION-RECOMMEND-POST# .",
+            "The post code is #ATTRACTION-RECOMMEND-POST# .",
+            "Its postcode is #ATTRACTION-RECOMMEND-POST# .",
+            "Their postcode is #ATTRACTION-RECOMMEND-POST# ."
+        ],
+        "Phone": [
+            "The phone number is #ATTRACTION-RECOMMEND-PHONE# .",
+            "Here is the phone number , #ATTRACTION-RECOMMEND-PHONE# ."
+        ],
+        "Area": [
+            "That one is located in the #ATTRACTION-RECOMMEND-AREA# .",
+            "it is located in the #ATTRACTION-RECOMMEND-AREA# .",
+            "They are located within the #ATTRACTION-RECOMMEND-AREA# .",
+            "it 's located in the #ATTRACTION-RECOMMEND-AREA# .",
+            "That is in the #ATTRACTION-RECOMMEND-AREA# .",
+            "It will be located in the #ATTRACTION-RECOMMEND-AREA# .",
+            "it is in the #ATTRACTION-RECOMMEND-AREA# of the city",
+            "It is in the #ATTRACTION-RECOMMEND-AREA# ."
+        ],
+        "Price": [
+            "it is in the #ATTRACTION-RECOMMEND-PRICE# price range",
+            "The fee is #ATTRACTION-RECOMMEND-PRICE# ."
+        ],
+        "Choice": [
+            "I ' ve found #ATTRACTION-RECOMMEND-CHOICE# places for you to go . Do you have any specific ideas in mind ?",
+            "sorry about that , there are actually #ATTRACTION-RECOMMEND-CHOICE# .",
+            "sure , there are #ATTRACTION-RECOMMEND-CHOICE# for you to choose from .",
+            "There are #ATTRACTION-RECOMMEND-CHOICE# . Would you like me to recommend one for you ?",
+            "We have #ATTRACTION-RECOMMEND-CHOICE# of those ! Anything specific you need or just a recommendation ?",
+            "sure , there are #ATTRACTION-RECOMMEND-CHOICE# options for you",
+            "sure , there are #ATTRACTION-RECOMMEND-CHOICE# in that area .",
+            "we have #ATTRACTION-RECOMMEND-CHOICE# options , can i reccomend for you ?",
+            "there are #ATTRACTION-RECOMMEND-CHOICE# , anything in particular you are looking for ?",
+            "We have #ATTRACTION-RECOMMEND-CHOICE# such location ."
+        ],
+        "Open": [
+            "#ATTRACTION-RECOMMEND-OPEN# in our database .",
+            "#ATTRACTION-RECOMMEND-OPEN# ."
+        ]
+    },
+    "Attraction-Request": {
+        "Type": [
+            "What type of attraction are you looking for ?",
+            "Please specify the type of attraction you 're interested in .",
+            "What type of attraction are you interested in ?",
+            "What kind of attraction are you interested in ?",
+            "What kind of attraction were you looking for ?",
+            "you have any particular attraction in mind ?",
+            "what type of attractions are you interested in ?",
+            "What sort of attraction would you like it to be ?"
+        ],
+        "Area": [
+            "Any particular area ?",
+            "is there a certain area of town you would prefer ?",
+            "I have various attractions all over town . Is there a specific area you are wanting to find something to do ?",
+            "Do you have a part of town you prefer ?",
+            "What part of town would you like it",
+            "Do you have a preference for the area of town you wish to visit ?",
+            "Where in town would you like to go ?",
+            "Which part of town would you prefer ?",
+            "Is there a specific area you are looking for ?"
+        ],
+        "Name": [
+            "What is the name of the attraction ?",
+            "What attraction are you thinking about ?",
+            "I ' m sorry for the confusion , what attraction are you interested in ?",
+            "What attraction were you thinking of ?",
+            "Do you know the name of it ?",
+            "Yes can you give me the name of it ?"
+        ],
+        "Price": [
+            "any specific price range to help narrow down available options ?",
+            "What price range would you like ?",
+            "what is your price range for that ?",
+            "What price range are you looking for ?",
+            "What price point is good for you ?",
+            "Does a entrance fee make any difference ?",
+            "Would you like a free entrance fee or paid ?",
+            "Do you need free admission or pay to get in ?",
+            "What price point would you like ?"
+        ]
+    },
+    "Booking-Book": {
+        "Ref": [
+            "Booking was successful . Reference number is : #BOOKING-BOOK-REF# .",
+            "your reference number is #BOOKING-BOOK-REF# .",
+            "Here is the booking information : Booking was successful . Reference number is : #BOOKING-BOOK-REF#",
+            "Reference number is : #BOOKING-BOOK-REF# .",
+            "All set . Your reference number is #BOOKING-BOOK-REF# ."
+        ],
+        "Name": [
+            "the #BOOKING-BOOK-NAME# seems appropriate . i have booked it for you .",
+            "i have booked you #BOOKING-BOOK-NAME#",
+            "I booked you at #BOOKING-BOOK-NAME#",
+            "Your reservation is at #BOOKING-BOOK-NAME# ."
+        ],
+        "none": [
+            "Thanks , booking has been completed .",
+            "Booking was successful .",
+            "Your booking was successful .",
+            "You 're all booked ."
+        ],
+        "Day": [
+            "I was able to book you for #BOOKING-BOOK-DAY# .",
+            "I have also reserved for #BOOKING-BOOK-DAY#",
+            "I was able to get you that reservation on #BOOKING-BOOK-DAY# ."
+        ],
+        "Time": [
+            "Would #BOOKING-BOOK-TIME# be a convenient time for you ?"
+        ],
+        "Stay": [
+            "Yes , I ' ve booked you for #BOOKING-BOOK-STAY# night .",
+            "I was able to book your reservation for #BOOKING-BOOK-STAY# days ."
+        ],
+        "People": [
+            "I was able to book it for you for #BOOKING-BOOK-PEOPLE# people .",
+            "I have booked for #BOOKING-BOOK-PEOPLE# people .",
+            "I was able to book a reservation for #BOOKING-BOOK-PEOPLE# people ."
+        ]
+    },
+    "Booking-Inform": {
+        "none": [
+            "Shall I try to start and book you into one ?",
+            "I will book it for you and get a reference number ?",
+            "Would you like for me to try and make a reservation ?",
+            "I will go ahead and book that now .",
+            "Can I make a reservation for you ?",
+            "Would you like me to book it ?"
+        ],
+        "Ref": [
+            "Booking was successful . Reference number is : #BOOKING-INFORM-REF#.",
+            "I was able to book it , reference number is #BOOKING-INFORM-REF# ."
+        ],
+        "Name": [
+            "Did you need to book the #BOOKING-INFORM-NAME# ?",
+            "It is #BOOKING-INFORM-NAME# . Do you want a reservation ?",
+            "#BOOKING-INFORM-NAME# . Would you like to book a reservation ?",
+            "Would you like to book the #BOOKING-INFORM-NAME# ?",
+            "Want me to book #BOOKING-INFORM-NAME# ?",
+            "Would you like me to book the #BOOKING-INFORM-NAME# for you ?",
+            "I ' ve located #BOOKING-INFORM-NAME# , would you like me to assist you with booking ?"
+        ],
+        "People": [
+            "Will you be booking for #BOOKING-INFORM-PEOPLE# people ?",
+            "Would you like to book for #BOOKING-INFORM-PEOPLE# people ?",
+            "that was #BOOKING-INFORM-PEOPLE# , correct ?",
+            "i want to confirm this , do i book for #BOOKING-INFORM-PEOPLE# person ?",
+            "So for #BOOKING-INFORM-PEOPLE# people in total ?",
+            "Ok I will book it for you for #BOOKING-INFORM-PEOPLE# people",
+            "I will book that for #BOOKING-INFORM-PEOPLE# people .",
+            "I will get a confirmation number for #BOOKING-INFORM-PEOPLE#",
+            "Do you want reservations for #BOOKING-INFORM-PEOPLE# people ?"
+        ],
+        "Day": [
+            "Okay , so you would like the reservation for #BOOKING-INFORM-DAY# ?",
+            "Will you be coming in on #BOOKING-INFORM-DAY# ?",
+            "Would you like this reservation be for #BOOKING-INFORM-DAY# ?",
+            "Do you want the reservations to begin on #BOOKING-INFORM-DAY# ?"
+        ],
+        "Time": [
+            "#BOOKING-INFORM-TIME# is available , would you like me to book that for you ?",
+            "I try to make the reservation for #BOOKING-INFORM-TIME# ."
+        ],
+        "Stay": [
+            "#BOOKING-INFORM-STAY# . Would you like me to book that ?",
+            "For #BOOKING-INFORM-STAY# day ?"
+        ]
+    },
+    "Booking-NoBook": {
+        "none": [
+            "I am unable to book this for you . Do you have any other preferences ?",
+            "Booking was unsuccessful do you have any other preference ?",
+            "I ' m sorry , I was unable to reserve rooms . Would you like to try anything else ?",
+            "I ' m sorry those are not available .",
+            "Unfortunately the booking was not successful ."
+        ],
+        "Day": [
+            "I apologize , but it looks like #BOOKING-NOBOOK-DAY# is not working either .",
+            "I ' m sorry #BOOKING-NOBOOK-DAY# is n't working either .",
+            "I ' m sorry but i ' m unable to make the reservation on #BOOKING-NOBOOK-DAY# .",
+            "sorry , but #BOOKING-NOBOOK-DAY# is all booked",
+            "we are currently full on #BOOKING-NOBOOK-DAY# would you like to book at another hotel ?",
+            "I ' m sorry , but there 's nothing available starting on #BOOKING-NOBOOK-DAY# .",
+            "I am unable to book for #BOOKING-NOBOOK-DAY# .",
+            "#BOOKING-NOBOOK-DAY# is not available ."
+        ],
+        "Stay": [
+            "Sorry , the hotel ca n't accommodate you for #BOOKING-NOBOOK-STAY# . want to change dates ?",
+            "Neither is available for #BOOKING-NOBOOK-STAY# nights .",
+            "They do n't have a room available for #BOOKING-NOBOOK-STAY# nights either . Anything else you 'd like me to try ?",
+            "Unfortunately it can not be booked for #BOOKING-NOBOOK-STAY# days . Did you want to get information about a different hotel instead ?"
+        ],
+        "Ref": [
+            "Great the booking was successful , your reference number is #BOOKING-NOBOOK-REF#.",
+            "Booking was successful . Reference number is : #BOOKING-NOBOOK-REF# .",
+            "Okay that booking was successful and your reference number is #BOOKING-NOBOOK-REF#."
+        ],
+        "Name": [
+            "Let 's decide on #BOOKING-NOBOOK-NAME# . Unfortunately , that appears to already be booked . Do you want to try one of the others ?"
+        ],
+        "Time": [
+            "I am sorry they do not have a table at #BOOKING-NOBOOK-TIME# , perhaps another restaurant ?"
+        ],
+        "People": [
+            "Sorry , but there is not space for #BOOKING-NOBOOK-PEOPLE# people .",
+            "Unfortunately , the time that you provided for #BOOKING-NOBOOK-PEOPLE# people is not available . Do you have other times that you prefer ?",
+            "I am sorry , I am unable to make a reservation for #BOOKING-NOBOOK-PEOPLE# at that time . Would you like me to try and find another restaurant ?",
+            "I ' m unable to book for #BOOKING-NOBOOK-PEOPLE# people . Would you like to try for one day ?",
+            "I ' m sorry but there is no availability for #BOOKING-NOBOOK-PEOPLE# people for that day and time . Would you like to try another day or time slot ?"
+        ]
+    },
+    "Booking-Request": {
+        "Day": [
+            "What day will you be staying ?",
+            "What day would you like your booking for ?",
+            "What day will you be arriving ?",
+            "What day would you like that reservation ?",
+            "what day would you like the booking to be made for ?",
+            "What day would you like to book ?",
+            "Ok , what day would you like to make the reservation on ?"
+        ],
+        "Stay": [
+            "How many nights will you be staying ?",
+            "And how many nights ?",
+            "Ok and for how many days ?",
+            "And for how many days ?",
+            "how many days would you like to stay ?",
+            "How many nights would you like to book it for ?",
+            "And what nights would you like me to reserve for you ?",
+            "How many nights are you wanting to stay ?",
+            "How many days will you be staying ?"
+        ],
+        "People": [
+            "For how many people ?",
+            "How many people will be ?",
+            "How many people will be with you ?",
+            "How many people is the reservation for ?"
+        ],
+        "Time": [
+            "Do you have a time preference ?",
+            "what time are you looking for a reservation at ?",
+            "For what time ?",
+            "What time would you like me to make your reservation ?",
+            "What time would you like the reservation for ?",
+            "what time should I make the reservation for ?",
+            "What time would you prefer ?",
+            "What time would you like the reservation for ?"
+        ]
+    },
+    "Hotel-Inform": {
+        "Internet": [
+            "it has wifi .",
+            "the place provides free wifi .",
+            "the wifi is included .",
+            "There is wifi available at the hotel .",
+            "internet is available .",
+            "it has free wifi ."
+        ],
+        "Stars": [
+            "It is rated #HOTEL-INFORM-STARS# stars ,",
+            "It is rated #HOTEL-INFORM-STARS# stars , is that okay ?",
+            "It has #HOTEL-INFORM-STARS# stars .",
+            "It has a rating of #HOTEL-INFORM-STARS# stars .",
+            "They have a #HOTEL-INFORM-STARS# Star rating",
+            "The hotel is #HOTEL-INFORM-STARS# stars .",
+            "It is a #HOTEL-INFORM-STARS#-star rating .",
+            "it does have #HOTEL-INFORM-STARS# stars ."
+        ],
+        "Name": [
+            "#HOTEL-INFORM-NAME# is available would you like to try that ?",
+            "Does the #HOTEL-INFORM-NAME# work ?",
+            "You can try #HOTEL-INFORM-NAME#",
+            "#HOTEL-INFORM-NAME# is a great place",
+            "Sorry about that ! how about #HOTEL-INFORM-NAME# ?",
+            "How about #HOTEL-INFORM-NAME# ?",
+            "Okay , how about #HOTEL-INFORM-NAME# ?",
+            "what about #HOTEL-INFORM-NAME# ?",
+            "How about #HOTEL-INFORM-NAME# ?"
+        ],
+        "Area": [
+            "It is in the #HOTEL-INFORM-AREA# area .",
+            "They are located in the #HOTEL-INFORM-AREA# .",
+            "it is in the #HOTEL-INFORM-AREA# .",
+            "It 's located in the #HOTEL-INFORM-AREA# .",
+            "It is in the #HOTEL-INFORM-AREA# part of town .",
+            "It 's in #HOTEL-INFORM-AREA# .",
+            "It is indeed in the #HOTEL-INFORM-AREA# ."
+        ],
+        "Parking": [
+            "It does include free parking .",
+            "they have free parking .",
+            "it offers free parking .",
+            "the parking is free ."
+        ],
+        "Phone": [
+            "Their phone number is #HOTEL-INFORM-PHONE# .",
+            "The phone number is #HOTEL-INFORM-PHONE# ."
+        ],
+        "Choice": [
+            "i have #HOTEL-INFORM-CHOICE# options for you",
+            "There are #HOTEL-INFORM-CHOICE# of those .",
+            "We have #HOTEL-INFORM-CHOICE# such places .",
+            "I have #HOTEL-INFORM-CHOICE# different options for you !"
+        ],
+        "Addr": [
+            "The address is #HOTEL-INFORM-ADDR# .",
+            "They are located at #HOTEL-INFORM-ADDR#",
+            "The address is #HOTEL-INFORM-ADDR# .",
+            "It is located at #HOTEL-INFORM-ADDR#"
+        ],
+        "Post": [
+            "The postal code for that hotel is #HOTEL-INFORM-POST# .",
+            "The postcode is #HOTEL-INFORM-POST# .",
+            "their postcode is #HOTEL-INFORM-POST#"
+        ],
+        "none": [
+            "Yes , it fits all those needs .",
+            "Yes it does"
+        ],
+        "Type": [
+            "It is a #HOTEL-INFORM-TYPE# ."
+        ],
+        "Price": [
+            "Its listed as #HOTEL-INFORM-PRICE# .",
+            "It is in the #HOTEL-INFORM-PRICE# price range .",
+            "It is a #HOTEL-INFORM-PRICE# place .",
+            "It is #HOTEL-INFORM-PRICE# .",
+            "This is an #HOTEL-INFORM-PRICE# hotel .",
+            "It is #HOTEL-INFORM-PRICE# priced . I do n't have an exact price .",
+            "The price range is #HOTEL-INFORM-PRICE# ."
+        ],
+        "Ref": [
+            "the reference number is #HOTEL-INFORM-REF# .",
+            "Your reference number is #HOTEL-INFORM-REF#.",
+            "You 're all set ! Your reference number is #HOTEL-INFORM-REF# .",
+            "Your reference number is #HOTEL-INFORM-REF#",
+            "The reference number is #HOTEL-INFORM-REF#",
+            "Reference number is : #HOTEL-INFORM-REF# .",
+            "The Reference number is : #HOTEL-INFORM-REF# ."
+        ]
+    },
+    "Hotel-NoOffer": {
+        "Type": [
+            "Sorry there is no #HOTEL-NOOFFER-TYPE# fitting the description you asked for",
+            "I was not able to find any #HOTEL-NOOFFER-TYPE# that met those requirements .",
+            "There are no #HOTEL-NOOFFER-TYPE# that meet that criteria , would you like information about the hotel options ?",
+            "I ' m sorry , I ' m afraid I do n't see any #HOTEL-NOOFFER-TYPE# matching that description . Do you want to try a different price range or star rating ?",
+            "i ca n't find any #HOTEL-NOOFFER-TYPE# that fit your criteria , i ' m sorry .",
+            "It is n't , and unfortunately I do n't have a #HOTEL-NOOFFER-TYPE# that matches that criteria .",
+            "I ' m sorry , there are no #HOTEL-NOOFFER-TYPE# that match your preferences .",
+            "no #HOTEL-NOOFFER-TYPE# meet your criteria ."
+        ],
+        "none": [
+            "Sorry , my search did n't bring back any results .",
+            "I ' m sorry , I can not help you with hotels . Are you sure that 's what you 're looking for ?",
+            "I was unable to find any matching places for that .",
+            "I ' m sorry there are no matches .",
+            "There were no matches found .",
+            "There are no hotels meeting these requirements .",
+            "Nothing fits all of that criteria .",
+            "Sorry , I ' m not finding anything ."
+        ],
+        "Stars": [
+            "I am sorry , but that hotel does not have a #HOTEL-NOOFFER-STARS# star rating , would you like another option ?",
+            "Unfortunately , I could n't find anything with #HOTEL-NOOFFER-STARS# stars .",
+            "I am sorry I have no listings for any with #HOTEL-NOOFFER-STARS# stars .",
+            "I am sorry , there are not #HOTEL-NOOFFER-STARS# stars available .",
+            "I have not found anything with a star of #HOTEL-NOOFFER-STARS# ."
+        ],
+        "Parking": [
+            "I ' m not showing anything in that area of town with no parking ."
+        ],
+        "Area": [
+            "Sorry there are none in the #HOTEL-NOOFFER-AREA# .",
+            "There are none in the #HOTEL-NOOFFER-AREA# . Perhaps another criteria change ?",
+            "I ' m sorry , no , none in the #HOTEL-NOOFFER-AREA# .",
+            "There are n't any that match your criteria in the #HOTEL-NOOFFER-AREA# . Any other suggestions ?",
+            "I have nothing in the #HOTEL-NOOFFER-AREA# . Can I try something else ?"
+        ],
+        "Name": [
+            "I am not finding anything for #HOTEL-NOOFFER-NAME# that suit your needs",
+            "Yes , I am sure . There is no #HOTEL-NOOFFER-NAME# in our system .",
+            "#HOTEL-NOOFFER-NAME# is not available ."
+        ],
+        "Price": [
+            "I ' m sorry , I do n't have anything in the #HOTEL-NOOFFER-PRICE# price range , would you like to search for something else ?",
+            "There is none that is #HOTEL-NOOFFER-PRICE# . Would you like to change your criteria ?",
+            "I ' m sorry , there are no #HOTEL-NOOFFER-PRICE# hotels . Would you like to try searching for something else ?",
+            "I am sorry we do n't have any #HOTEL-NOOFFER-PRICE# ones in the area"
+        ],
+        "Internet": [
+            "There does n't appear to be a hotel with wifi .",
+            "I ' m sorry there are no results for hotels with free internet .",
+            "There are not any with wifi ."
+        ]
+    },
+    "Hotel-Recommend": {
+        "Name": [
+            "How about #HOTEL-RECOMMEND-NAME# ? It has all the attributes you requested and a great name !",
+            "How about #HOTEL-RECOMMEND-NAME# ? Fits your request perfectly .",
+            "Would #HOTEL-RECOMMEND-NAME# work for you ?",
+            "Everyone seems to enjoy the #HOTEL-RECOMMEND-NAME# .",
+            "How about #HOTEL-RECOMMEND-NAME# ?",
+            "#HOTEL-RECOMMEND-NAME# looks like it would be a good choice .",
+            "Will #HOTEL-RECOMMEND-NAME# be alright ?",
+            "Yes , I would suggest #HOTEL-RECOMMEND-NAME#"
+        ],
+        "Type": [
+            "Of course , would a #HOTEL-RECOMMEND-TYPE# be OK ?"
+        ],
+        "Price": [
+            "Its listed as #HOTEL-RECOMMEND-PRICE# .",
+            "It is in the #HOTEL-RECOMMEND-PRICE# price range .",
+            "It is a #HOTEL-RECOMMEND-PRICE# place .",
+            "It is #HOTEL-RECOMMEND-PRICE# .",
+            "This is an #HOTEL-RECOMMEND-PRICE# hotel .",
+            "The price range is #HOTEL-RECOMMEND-PRICE# ."
+        ],
+        "Area": [
+            "It is in the #HOTEL-RECOMMEND-AREA# area .",
+            "They are located in the #HOTEL-RECOMMEND-AREA# .",
+            "it is in the #HOTEL-RECOMMEND-AREA# .",
+            "It 's located in the #HOTEL-RECOMMEND-AREA# .",
+            "It is in the #HOTEL-RECOMMEND-AREA# part of town .",
+            "It 's in #HOTEL-RECOMMEND-AREA# .",
+            "It is indeed in the #HOTEL-RECOMMEND-AREA# ."
+        ],
+        "Addr": [
+            "The address is #HOTEL-RECOMMEND-ADDR# .",
+            "They are located at #HOTEL-RECOMMEND-ADDR#",
+            "The address is #HOTEL-RECOMMEND-ADDR# .",
+            "It is located at #HOTEL-RECOMMEND-ADDR#"
+        ],
+        "Post": [
+            "The postal code for that hotel is #HOTEL-RECOMMEND-POST# .",
+            "The postcode is #HOTEL-RECOMMEND-POST# .",
+            "their postcode is #HOTEL-RECOMMEND-POST#"
+        ],
+        "Internet": [
+            "it has wifi .",
+            "the place provides free wifi .",
+            "the wifi is included .",
+            "There is wifi available at the hotel .",
+            "internet is available .",
+            "it has free wifi ."
+        ],
+        "Parking": [
+            "It does include free parking .",
+            "they have free parking .",
+            "it offers free parking .",
+            "the parking is free ."
+        ],
+        "Stars": [
+            "It is rated #HOTEL-RECOMMEND-STARS# stars ,",
+            "It is rated #HOTEL-RECOMMEND-STARS# stars , is that okay ?",
+            "It has #HOTEL-RECOMMEND-STARS# stars .",
+            "It has a rating of #HOTEL-RECOMMEND-STARS# stars .",
+            "No it has #HOTEL-RECOMMEND-STARS# star rating .",
+            "They have a #HOTEL-RECOMMEND-STARS# Star rating",
+            "The hotel is #HOTEL-RECOMMEND-STARS# stars .",
+            "It is a #HOTEL-RECOMMEND-STARS#-star rating .",
+            "it does have #HOTEL-RECOMMEND-STARS# stars ."
+        ],
+        "none": [
+            "I would suggest that place .",
+            "May I recommend something to you ?",
+            "would you like me to make a recommendation ?",
+            "would you like a recommendation ?"
+        ],
+        "Phone": [
+            "Their phone number is #HOTEL-RECOMMEND-PHONE# .",
+            "The phone number is #HOTEL-RECOMMEND-PHONE# ."
+        ],
+        "Choice": [
+            "i have #HOTEL-RECOMMEND-CHOICE# options for you",
+            "There are #HOTEL-RECOMMEND-CHOICE# of those .",
+            "We have #HOTEL-RECOMMEND-CHOICE# such places .",
+            "I have #HOTEL-RECOMMEND-CHOICE# different options for you !"
+        ]
+    },
+    "Hotel-Request": {
+        "Area": [
+            "Okay , do you have a specific area you want to stay in ?",
+            "What area are you looking to stay in ?",
+            "Remind me of the area you need that in .",
+            "Do you have an idea on the location ?",
+            "What area would you like the hotel in ?",
+            "Is there a specific area of town you 're interested in ?",
+            "What area of town would you like to be in ?",
+            "What area would you like to stay in ?",
+            "Let me get some additional information . What area of town would you like to stay in ?"
+        ],
+        "Price": [
+            "What is your price range ?",
+            "What price range were you thinking ?",
+            "What price range do you prefer ?",
+            "Okay , do you have any price range you 're looking for ?",
+            "Is there a price you are looking for ?",
+            "Do you have a price range preference ?",
+            "Is there a price range you prefer ?",
+            "Yes do you have a price range preference ?",
+            "Yes , what price range are you looking for ?",
+            "What is the price range for you ?"
+        ],
+        "Type": [
+            "Would you like a guesthouse or a hotel ?",
+            "Would you like to stay in a guesthouse , or in a hotel ?",
+            "would you like a guesthouse or hotel ?",
+            "Okay , were you looking for a hotel or a guesthouse ?",
+            "Do you have a preference for a hotel versus a guesthouse ?",
+            "Would you like to try a hotel ?",
+            "Were you looking for a hotel with a guesthouse ?",
+            "What type of hotel are you looking for ?"
+        ],
+        "Internet": [
+            "Would you prefer one with free internet ?",
+            "do you need free internet ?",
+            "Would you prefer one with internet ?"
+        ],
+        "Name": [
+            "do you have the name of the hotel ?",
+            "Which hotel is it ?",
+            "do you know what you 're looking for ?",
+            "Do you have the hotel name ?",
+            "What is the name of the hotel you are looking for ?",
+            "could you please give me the name of the Hotel you are looking for ?",
+            "Can you give me the name of the place ?",
+            "What is the name of the hotel you 'd like to book ?",
+            "Would you like to tell me the name of that hotel ?"
+        ],
+        "Stars": [
+            "How many stars would you like ?",
+            "Is there a number of stars you prefer ?",
+            "Is there a certain star rating you would like it to have ?",
+            "Do you have a preference of star rating ?",
+            "Do you have a preference of number of stars ?",
+            "How many stars should the hotel be rated for ?",
+            "What star rating do you prefer ?",
+            "How many stars are you looking for ?"
+        ],
+        "Parking": [
+            "Will you need parking ?",
+            "Do you need it to have free parking ?",
+            "Do you have a parking preference ?",
+            "Does the hotel needs to have free parking ?",
+            "Will you need free parking ?",
+            "Do you need free parking ?",
+            "Will you need parking while you 're there ?",
+            "Will you be needing free parking ?"
+        ]
+    },
+    "Restaurant-Inform": {
+        "Addr": [
+            "they are located at #RESTAURANT-INFORM-ADDR#",
+            "It is at #RESTAURANT-INFORM-ADDR#",
+            "The address is #RESTAURANT-INFORM-ADDR# .",
+            "Their address is #RESTAURANT-INFORM-ADDR# ."
+        ],
+        "Price": [
+            "They are in the #RESTAURANT-INFORM-PRICE# price range .",
+            "It is a #RESTAURANT-INFORM-PRICE# restaurant .",
+            "This is a #RESTAURANT-INFORM-PRICE# one .",
+            "They are in the #RESTAURANT-INFORM-PRICE# price range .",
+            "They are #RESTAURANT-INFORM-PRICE#",
+            "It 's in the #RESTAURANT-INFORM-PRICE# price range .",
+            "This restaurant is in the #RESTAURANT-INFORM-PRICE# price range ."
+        ],
+        "Food": [
+            "They serve #RESTAURANT-INFORM-FOOD# food .",
+            "They serve #RESTAURANT-INFORM-FOOD# .",
+            "It is #RESTAURANT-INFORM-FOOD# food .",
+            "That is a #RESTAURANT-INFORM-FOOD# restaurant ."
+        ],
+        "Name": [
+            "How about #RESTAURANT-INFORM-NAME# ?",
+            "#RESTAURANT-INFORM-NAME# looks like a good place .",
+            "How does the #RESTAURANT-INFORM-NAME# sound ?",
+            "Okay , how about #RESTAURANT-INFORM-NAME# ?",
+            "Would you like to try #RESTAURANT-INFORM-NAME# ?",
+            "There is a restaurant called #RESTAURANT-INFORM-NAME# that meets your criteria .",
+            "How about #RESTAURANT-INFORM-NAME# ?",
+            "there 's a place called #RESTAURANT-INFORM-NAME#",
+            "Would you like to try #RESTAURANT-INFORM-NAME# ?"
+        ],
+        "Choice": [
+            "I have #RESTAURANT-INFORM-CHOICE# different restaurants I can give you some information for . They are all pretty good .",
+            "Yes there are #RESTAURANT-INFORM-CHOICE# different places that match your description .",
+            "There are #RESTAURANT-INFORM-CHOICE# restaurants in that area that fit that criteria .",
+            "i have #RESTAURANT-INFORM-CHOICE# options for you",
+            "We have #RESTAURANT-INFORM-CHOICE# such places .",
+            "I have #RESTAURANT-INFORM-CHOICE# options for you !",
+            "there are #RESTAURANT-INFORM-CHOICE# available restaurants ."
+        ],
+        "Post": [
+            "The postcode is #RESTAURANT-INFORM-POST# .",
+            "Their postcode is #RESTAURANT-INFORM-POST#",
+            "The post code is #RESTAURANT-INFORM-POST# ."
+        ],
+        "Phone": [
+            "The number there is #RESTAURANT-INFORM-PHONE# .",
+            "their phone number is #RESTAURANT-INFORM-PHONE#",
+            "The phone number is #RESTAURANT-INFORM-PHONE# .",
+            "#RESTAURANT-INFORM-PHONE# is the phone number",
+            "Their phone number is #RESTAURANT-INFORM-PHONE#",
+            "Their number is #RESTAURANT-INFORM-PHONE# .",
+            "It is #RESTAURANT-INFORM-PHONE# .",
+            "Their phone number is #RESTAURANT-INFORM-PHONE# .",
+            "The phone number is #RESTAURANT-INFORM-PHONE# ."
+        ],
+        "Area": [
+            "it is in the #RESTAURANT-INFORM-AREA# area .",
+            "It is located in the #RESTAURANT-INFORM-AREA# ."
+        ],
+        "Ref": [
+            "Yes I was able to get you into that restaurant and your reference number is #RESTAURANT-INFORM-REF#.",
+            "The reference number is #RESTAURANT-INFORM-REF# .",
+            "Great I have a reference number for you . It is #RESTAURANT-INFORM-REF# .",
+            "Yes , the reference number is #RESTAURANT-INFORM-REF#.",
+            "The reference number is #RESTAURANT-INFORM-REF#",
+            "Reference number is : #RESTAURANT-INFORM-REF#.",
+            "Your reference number is #RESTAURANT-INFORM-REF# . You will likely need it .",
+            "Your reference code is #RESTAURANT-INFORM-REF# .",
+            "Your reference number is #RESTAURANT-INFORM-REF# ."
+        ],
+        "none": [
+            "Is there anything else I can help you with ?",
+            "I have found that restaurant for you",
+            "It 's a perfect fit .",
+            "That 's a great place ."
+        ]
+    },
+    "Restaurant-NoOffer": {
+        "Food": [
+            "There are no #RESTAURANT-NOOFFER-FOOD# food places , shall I run another search ?",
+            "I do not have anything in that price range for #RESTAURANT-NOOFFER-FOOD# . Another criteria perhaps ?",
+            "I am sorry there are not #RESTAURANT-NOOFFER-FOOD# restaurants . Can I check for a Chinese restaurant ?",
+            "I am unable to find any #RESTAURANT-NOOFFER-FOOD# restaurants in town .",
+            "I have nothing with #RESTAURANT-NOOFFER-FOOD# . Do you have another preference ?",
+            "There are no #RESTAURANT-NOOFFER-FOOD# restaurants .",
+            "I did not find any #RESTAURANT-NOOFFER-FOOD# restaurants . Give me a moment and I will search for unusual ones .",
+            "There no #RESTAURANT-NOOFFER-FOOD# restaurants that I can find right now . Would something else work ?",
+            "I ' m sorry I have no restaurants serving #RESTAURANT-NOOFFER-FOOD# food .",
+            "There are no #RESTAURANT-NOOFFER-FOOD# restaurants unfortunately ."
+        ],
+        "none": [
+            "I do n't have anything meeting that criteria . Can I look for something else ?",
+            "we do nt have a place that matches those qualities . can you try something else ?",
+            "I am afraid there is none .",
+            "We do n't have any of those , sad to say . Want to broaden the search ?",
+            "There are no matching records found for that request .",
+            "No , I ' m sorry . The search did n't pull up any matches .",
+            "There is no listing for this restaurant"
+        ],
+        "Area": [
+            "Sorry , there are no restaurants like that in the #RESTAURANT-NOOFFER-AREA# .",
+            "I did not find any restaurants in #RESTAURANT-NOOFFER-AREA# .",
+            "I am sorry there is none even in the #RESTAURANT-NOOFFER-AREA#",
+            "I am sorry there are no restaurants in #RESTAURANT-NOOFFER-AREA# that match that description .",
+            "There are none in #RESTAURANT-NOOFFER-AREA# of town .",
+            "I am sorry but there are no restaurants that fit that criteria in the #RESTAURANT-NOOFFER-AREA# .",
+            "i have n't found any in the #RESTAURANT-NOOFFER-AREA#",
+            "there no such restraunts in #RESTAURANT-NOOFFER-AREA#"
+        ],
+        "Price": [
+            "I do n't have anything in the #RESTAURANT-NOOFFER-PRICE# range that fits that criteria .",
+            "There are none in #RESTAURANT-NOOFFER-PRICE# , perhaps something else ?",
+            "There are no #RESTAURANT-NOOFFER-PRICE# ones .",
+            "No #RESTAURANT-NOOFFER-PRICE# restaurant"
+        ],
+        "Name": [
+            "i ' m sorry . i can not find details for #RESTAURANT-NOOFFER-NAME# ."
+        ]
+    },
+    "Restaurant-Recommend": {
+        "Name": [
+            "How about #RESTAURANT-RECOMMEND-NAME# ?",
+            "#RESTAURANT-RECOMMEND-NAME# has some great reviews .",
+            "I would suggest #RESTAURANT-RECOMMEND-NAME# .",
+            "The #RESTAURANT-RECOMMEND-NAME# is a nice place would you like to try that one ?",
+            "Excellent . #RESTAURANT-RECOMMEND-NAME# is just your thing .",
+            "I would suggest #RESTAURANT-RECOMMEND-NAME# .",
+            "#RESTAURANT-RECOMMEND-NAME# sounds like it might be what you are looking for .",
+            "#RESTAURANT-RECOMMEND-NAME# matches your description .",
+            "Yes , I have a place called #RESTAURANT-RECOMMEND-NAME# , does that sound like something you would enjoy ?",
+            "I recommend #RESTAURANT-RECOMMEND-NAME#"
+        ],
+        "Food": [
+            "Would you like #RESTAURANT-RECOMMEND-FOOD# food ?",
+            "Would you like to try an #RESTAURANT-RECOMMEND-FOOD# restaurant ?",
+            "How about #RESTAURANT-RECOMMEND-FOOD# ?",
+            "Okay , may I suggest #RESTAURANT-RECOMMEND-FOOD# food ?"
+        ],
+        "Price": [
+            "They are in the #RESTAURANT-RECOMMEND-PRICE# price range .",
+            "It is a #RESTAURANT-RECOMMEND-PRICE# restaurant .",
+            "This is a #RESTAURANT-RECOMMEND-PRICE# one .",
+            "They are in the #RESTAURANT-RECOMMEND-PRICE# price range .",
+            "They are #RESTAURANT-RECOMMEND-PRICE#",
+            "It 's in the #RESTAURANT-RECOMMEND-PRICE# price range .",
+            "This restaurant is in the #RESTAURANT-RECOMMEND-PRICE# price range ."
+        ],
+        "Area": [
+            "it is in the #RESTAURANT-RECOMMEND-AREA# area .",
+            "It is located in the #RESTAURANT-RECOMMEND-AREA# ."
+        ],
+        "Addr": [
+            "they are located at #RESTAURANT-RECOMMEND-ADDR#",
+            "It is at #RESTAURANT-RECOMMEND-ADDR#",
+            "The address is #RESTAURANT-RECOMMEND-ADDR# .",
+            "Their address is #RESTAURANT-RECOMMEND-ADDR# ."
+        ],
+        "Post": [
+            "The postcode is #RESTAURANT-RECOMMEND-POST# .",
+            "Their postcode is #RESTAURANT-RECOMMEND-POST#",
+            "The post code is #RESTAURANT-RECOMMEND-POST# ."
+        ],
+        "Phone": [
+            "The number there is #RESTAURANT-RECOMMEND-PHONE# .",
+            "their phone number is #RESTAURANT-RECOMMEND-PHONE#",
+            "The phone number is #RESTAURANT-RECOMMEND-PHONE# .",
+            "#RESTAURANT-RECOMMEND-PHONE# is the phone number",
+            "Their phone number is #RESTAURANT-RECOMMEND-PHONE#",
+            "Their number is #RESTAURANT-RECOMMEND-PHONE# .",
+            "It is #RESTAURANT-RECOMMEND-PHONE# .",
+            "Their phone number is #RESTAURANT-RECOMMEND-PHONE# .",
+            "The phone number is #RESTAURANT-RECOMMEND-PHONE# ."
+        ],
+        "none": [
+            "Is there anything else I can help you with ?",
+            "I have found that restaurant for you",
+            "It 's a perfect fit .",
+            "That 's a great place ."
+        ]
+    },
+    "Restaurant-Request": {
+        "Area": [
+            "what location ?",
+            "What area of town would you prefer ?",
+            "Do you have a specific area in mind ?",
+            "We need some more information . Where are looking to eat ?",
+            "Do you have an area of town you prefer ?",
+            "Which side of town would you prefer ?",
+            "What area should the restaurant be in ?",
+            "Do you have an area preference ?",
+            "Do you have a location preference ?"
+        ],
+        "Food": [
+            "Do you have any specific type of food you would like ?",
+            "What type of food are you looking for ?",
+            "Do you have a preference in food type ?",
+            "What cuisine are you interested in ?",
+            "What type of food would you like ?",
+            "What type of food do you want to eat ?",
+            "Is there a certain kind of food you would like ?",
+            "what type of food would you like ?",
+            "what type of food would you like to eat ?",
+            "did you have a specific kind of cuisine in mind ?"
+        ],
+        "Price": [
+            "is there a price range that you prefer ?",
+            "Do you have a price range ?",
+            "what price range would you like to stay within ?",
+            "Do you have a preference for the price range ?",
+            "Do you have a certain price range you would like ?",
+            "Did you have a price range in mind ?",
+            "what is the price range you are looking for ?",
+            "what price range are you looking for ?",
+            "Do you have a price range in mind ?",
+            "Is there a price range you would prefer to stay within ?"
+        ],
+        "Name": [
+            "Do you know the name ?",
+            "what is the name of the restaurant ?",
+            "What 's the name of the restaurant you 're looking for ?",
+            "what is the name of the restaurant ?",
+            "What is the name of the restaurant you have in mind ?",
+            "Are you looking for something in particular ?",
+            "what is the name of the restaurant you are needing information on ?",
+            "Do you know the name of the location ?",
+            "Is there a certain restaurant you 're looking for ?"
+        ]
+    },
+    "Taxi-Inform": {
+        "Arrive": [
+            "it will arrive by #TAXI-INFORM-ARRIVE#",
+            "the taxi is due to arrive at #TAXI-INFORM-ARRIVE# .",
+            "I can book one for the closest time to #TAXI-INFORM-ARRIVE# .",
+            "you will arrive by #TAXI-INFORM-ARRIVE# ."
+        ],
+        "none": [
+            "Your taxi will be available and has been booked .",
+            "I have booked you a Taxi that fits your needs .",
+            "The Taxi has been booked as requested .",
+            "you have been assigned a specific car .",
+            "I have booked your taxi",
+            "Okay I completed a booking for you"
+        ],
+        "Car": [
+            "The model of the car was #TAXI-INFORM-CAR# .",
+            "A #TAXI-INFORM-CAR# is booked for you .",
+            "The taxi is a #TAXI-INFORM-CAR#",
+            "a #TAXI-INFORM-CAR# is booked .",
+            "I was able to book a #TAXI-INFORM-CAR# for you !",
+            "it will be a #TAXI-INFORM-CAR# .",
+            "Your booking is complete , a #TAXI-INFORM-CAR# will be picking you up .",
+            "The car arriving will be a #TAXI-INFORM-CAR# .",
+            "You got the #TAXI-INFORM-CAR# enjoy the ride .",
+            "I have successfully booked you a #TAXI-INFORM-CAR# ."
+        ],
+        "Phone": [
+            "The contact number is #TAXI-INFORM-PHONE# .",
+            "Contact number for the taxi is #TAXI-INFORM-PHONE# .",
+            "their contact number is #TAXI-INFORM-PHONE#",
+            "the contact is #TAXI-INFORM-PHONE# .",
+            "You can give them a call at #TAXI-INFORM-PHONE#",
+            "The contact number is #TAXI-INFORM-PHONE# .",
+            "you can reach them on #TAXI-INFORM-PHONE#"
+        ],
+        "Leave": [
+            "It will leave at #TAXI-INFORM-LEAVE# ."
+        ],
+        "Dest": [
+            "it 's taking you to the #TAXI-INFORM-DEST# in time for your reservation .",
+            "I have booked a taxi to take you to #TAXI-INFORM-DEST# for your reservation ."
+        ],
+        "Depart": [
+            "It will pick you up at #TAXI-INFORM-DEPART# .",
+            "Okay , I ' ve booked you a taxi leaving #TAXI-INFORM-DEPART# .",
+            "I have booked you a taxi from #TAXI-INFORM-DEPART# .",
+            "I have booked a taxi to pick you up at #TAXI-INFORM-DEPART# ."
+        ]
+    },
+    "Taxi-Request": {
+        "Depart": [
+            "Where will you be departing from ?",
+            "Where will you leave from ?",
+            "I need to know where you 'd like picked up at .",
+            "Where are you departing from ?",
+            "Where are you departing from , please ?",
+            "where are you leaving from ?",
+            "Where will you be leaving from ?"
+        ],
+        "Dest": [
+            "what will your destination be ?",
+            "Where will the taxi be taking you ?",
+            "I need to know where you are traveling to",
+            "what is your destination please",
+            "What is the destination ?",
+            "Where are you going ?",
+            "And where will you be going ?",
+            "Where will you be going to ?"
+        ],
+        "Leave": [
+            "What time would you like the taxi to pick you up ?",
+            "What time would you like to leave ?",
+            "What time would you like to be picked up ?",
+            "what time do you want to leave by ?",
+            "What time would you like to be picked up ?",
+            "What time do you need to book a taxi for ?",
+            "When would you like to leave ?",
+            "what time will you be leaving .",
+            "Can you tell me what time you would like the taxi to pick you up ?",
+            "I need to know what time you need to leave ."
+        ],
+        "Arrive": [
+            "at what time would you like to arrive by ?",
+            "when would you like to arrive ?",
+            "What time would you like to arrive ?",
+            "Do you have a arrival time in mind ?",
+            "When is your arrival time ?",
+            "when would you like to arrive ?",
+            "when would you like to arrive by ?",
+            "What time would you like to arrive there by ?",
+            "What time would you like to arrive at your destination ?"
+        ]
+    },
+    "Train-Inform": {
+        "Ticket": [
+            "The fare is #TRAIN-INFORM-TICKET# per ticket .",
+            "The price of those tickets are #TRAIN-INFORM-TICKET# .",
+            "It is #TRAIN-INFORM-TICKET#",
+            "The price is #TRAIN-INFORM-TICKET# per ticket .",
+            "The price is #TRAIN-INFORM-TICKET# .",
+            "The trip will cost #TRAIN-INFORM-TICKET# .",
+            "The fare is #TRAIN-INFORM-TICKET#",
+            "It would cost #TRAIN-INFORM-TICKET# .",
+            "The cost of the one way journey is #TRAIN-INFORM-TICKET# .",
+            "The price is #TRAIN-INFORM-TICKET# per ticket ."
+        ],
+        "Leave": [
+            "it leaves at #TRAIN-INFORM-LEAVE#",
+            "I have a train leaving at #TRAIN-INFORM-LEAVE# would that be okay ?",
+            "There is a train that leaves at #TRAIN-INFORM-LEAVE# .",
+            "How about #TRAIN-INFORM-LEAVE# will that work for you ?",
+            "There is a train meeting your criteria and is leaving at #TRAIN-INFORM-LEAVE# .",
+            "I would say you should leave by #TRAIN-INFORM-LEAVE#"
+        ],
+        "Id": [
+            "The train ID is #TRAIN-INFORM-ID# .",
+            "Their ID is #TRAIN-INFORM-ID# .",
+            "#TRAIN-INFORM-ID# would be your perfect fit ."
+        ],
+        "Ref": [
+            "The reference number is #TRAIN-INFORM-REF# .",
+            "The reference number of your trip is #TRAIN-INFORM-REF# .",
+            "Here is the reference number #TRAIN-INFORM-REF#",
+            "your reference number is #TRAIN-INFORM-REF#"
+        ],
+        "Time": [
+            "The travel time is #TRAIN-INFORM-TIME# .",
+            "That would be #TRAIN-INFORM-TIME# .",
+            "#TRAIN-INFORM-TIME# would be the total duration .",
+            "The trip will last #TRAIN-INFORM-TIME#",
+            "the travel will take #TRAIN-INFORM-TIME#",
+            "The trip is #TRAIN-INFORM-TIME# .",
+            "The travel time for the trip is #TRAIN-INFORM-TIME# one way ."
+        ],
+        "Arrive": [
+            "It arrives at #TRAIN-INFORM-ARRIVE# .",
+            "it should arrive by #TRAIN-INFORM-ARRIVE#",
+            "The arrival time is #TRAIN-INFORM-ARRIVE# ."
+        ],
+        "Depart": [
+            "that train is departing from #TRAIN-INFORM-DEPART# .",
+            "it departs from #TRAIN-INFORM-DEPART# .",
+            "the train will be departing from #TRAIN-INFORM-DEPART# ."
+        ],
+        "Choice": [
+            "I have #TRAIN-INFORM-CHOICE# trains that meet your criteria .",
+            "There are #TRAIN-INFORM-CHOICE# .",
+            "There are #TRAIN-INFORM-CHOICE# options",
+            "There are #TRAIN-INFORM-CHOICE# trains available .",
+            "There are #TRAIN-INFORM-CHOICE# total trips available to you"
+        ],
+        "none": [
+            "Yes it is .",
+            "Yes it does ."
+        ],
+        "Day": [
+            "The train is for #TRAIN-INFORM-DAY# you are all set",
+            "that train leaves on #TRAIN-INFORM-DAY# ."
+        ],
+        "Dest": [
+            "the booking is for arriving in #TRAIN-INFORM-DEST# .",
+            "the train stop is #TRAIN-INFORM-DEST# ."
+        ],
+        "People": [
+            "I booked #TRAIN-INFORM-PEOPLE# tickets ."
+        ]
+    },
+    "Train-NoOffer": {
+        "Depart": [
+            "There is no train leaving #TRAIN-NOOFFER-DEPART# .",
+            "There are no trains leaving from #TRAIN-NOOFFER-DEPART# ."
+        ],
+        "none": [
+            "I ' m sorry , unfortunately there are no trains available at that time .",
+            "I do not have any trains that match your request .",
+            "There is no train leaving at that time .",
+            "I ' m sorry , there are no trains that meet your criteria ."
+        ],
+        "Leave": [
+            "There is not one that leaves at #TRAIN-NOOFFER-LEAVE# .",
+            "There is no train leaving at #TRAIN-NOOFFER-LEAVE# .",
+            "There are no trains that leave after #TRAIN-NOOFFER-LEAVE# .",
+            "There are no trains leaving at #TRAIN-NOOFFER-LEAVE# .",
+            "Unfortunately , there are no trains that leave after #TRAIN-NOOFFER-LEAVE# ."
+        ],
+        "Day": [
+            "No I ' m sorry there are not on a #TRAIN-NOOFFER-DAY# .",
+            "There are no trains on #TRAIN-NOOFFER-DAY# .",
+            "Unfortunately , there is not a train on #TRAIN-NOOFFER-DAY# matching your criteria .",
+            "There are no trains on #TRAIN-NOOFFER-DAY# ."
+        ],
+        "Dest": [
+            "I ' m sorry there are no trains to #TRAIN-NOOFFER-Dest# .",
+            "There are no trains going to #TRAIN-NOOFFER-Dest# . Do you have another destination in mind ?",
+            "There do n't seem to be any trains going to #TRAIN-NOOFFER-Dest# ."
+        ],
+        "Arrive": [
+            "I am sorry there are not trains to arrive at #TRAIN-NOOFFER-ARRIVE# .",
+            "There are no trains arriving by #TRAIN-NOOFFER-ARRIVE# .",
+            "I ' m sorry , we do n't have any trains arriving by #TRAIN-NOOFFER-ARRIVE# .",
+            "no trains arrives by #TRAIN-NOOFFER-ARRIVE#",
+            "I do not have a train arriving at #TRAIN-NOOFFER-ARRIVE# ."
+        ],
+        "Id": [
+            "Sorry it looks like #TRAIN-NOOFFER-ID# is no longer available .",
+            "I ' m sorry , train #TRAIN-NOOFFER-ARRIVE# is not available ."
+        ]
+    },
+    "Train-OfferBook": {
+        "none": [
+            "Ok I will book that for you and get you a confirmation number",
+            "Ok great . Would you like for me to go ahead and book the train for you ?",
+            "Would you like me to reserve your train tickets ?",
+            "I will book that for you now .",
+            "Great , I have a train that meets your criteria . Would you like me to book it for you ?",
+            "Would you like me to book this train for you ?",
+            "Well , I can book it for YOU if you would like . Would you like me to ?",
+            "Did you want reservations ?"
+        ],
+        "Depart": [
+            "Would you like me to book a train from #TRAIN-OFFERBOOK-DEPART# for you ?"
+        ],
+        "Id": [
+            "Train #TRAIN-OFFERBOOK-ID# would work for you .",
+            "Okay the trainID is #TRAIN-OFFERBOOK-ID# ",
+            "The #TRAIN-OFFERBOOK-ID# meets your criteria .",
+            "Shall I go ahead and book you for train #TRAIN-OFFERBOOK-ID# ?",
+            "Okay , would you like me to book #TRAIN-OFFERBOOK-ID# ?",
+            "#TRAIN-OFFERBOOK-ID# looks like it would work for you",
+            "I would suggest booking #TRAIN-OFFERBOOK-ID#",
+            "Train #TRAIN-OFFERBOOK-ID# meets your criteria"
+        ],
+        "Arrive": [
+            "Will you train arriving at #TRAIN-OFFERBOOK-ARRIVE# work ok for you ?",
+            "I have a train arriving at #TRAIN-OFFERBOOK-ARRIVE# . Would that do ?",
+            "It arrives by #TRAIN-OFFERBOOK-ARRIVE# would that be okay to book for you ?",
+            "I can get you tickets for an arrival time at #TRAIN-OFFERBOOK-ARRIVE# , that is the soonest , is that okay ?",
+            "Will an arrival time of #TRAIN-OFFERBOOK-ARRIVE# work for you ?",
+            "Would you like me to book the #TRAIN-OFFERBOOK-ARRIVE# train ?"
+        ],
+        "People": [
+            "I will book it for you for #TRAIN-OFFERBOOK-PEOPLE# people",
+            "I will go ahead and book #TRAIN-OFFERBOOK-PEOPLE# tickets .",
+            "i just want to confirm if i am booking #TRAIN-OFFERBOOK-PEOPLE# ticket",
+            "I will book #TRAIN-OFFERBOOK-PEOPLE# tickets for you .",
+            "I will book it for #TRAIN-OFFERBOOK-PEOPLE# people ."
+        ],
+        "Ticket": [
+            "The price is #TRAIN-OFFERBOOK-TICKET# per ticket ",
+            "The cost per seat is #TRAIN-OFFERBOOK-TICKET# .",
+            "The price of the ticket is #TRAIN-OFFERBOOK-TICKET# "
+        ],
+        "Leave": [
+            "Would you like me to book you on the #TRAIN-OFFERBOOK-LEAVE# train ?",
+            "There is a train that leaves at #TRAIN-OFFERBOOK-LEAVE# would you like me to book that train for you ?",
+            "Okay ! How about the train that leaves at #TRAIN-OFFERBOOK-LEAVE# ?",
+            "I would recommend the train that leaves at #TRAIN-OFFERBOOK-LEAVE# . Would you like me to book that ?",
+            "There is a train arriving at #TRAIN-OFFERBOOK-LEAVE# would you like me to book tickets for that one ?",
+            "The earliest train is at #TRAIN-OFFERBOOK-LEAVE# , do you want me to book it ?",
+            "There is a train leaving at #TRAIN-OFFERBOOK-LEAVE# would you like me to book this ?",
+            "Great , I have a train leaving there at #TRAIN-OFFERBOOK-LEAVE# . Would you like to book that ?",
+            "I can book a #TRAIN-OFFERBOOK-LEAVE# for you .",
+            "We can book you for the train leaving at #TRAIN-OFFERBOOK-LEAVE# ."
+        ],
+        "Choice": [
+            "I have #TRAIN-OFFERBOOK-CHOICE# trains available that meet all of your requirements , would you like me to book a ticket for you ?",
+            "There are #TRAIN-OFFERBOOK-CHOICE# trains available . Should I book a train for you ?"
+        ],
+        "Dest": [
+            "Would you like me to book a train to #TRAIN-OFFERBOOK-DEST# for you ?"
+        ],
+        "Time": [
+            "The travel time is #TRAIN-OFFERBOOK-TIME# , would you like me to book it for you ?"
+        ],
+        "Ref": [
+            "Your reference number is #TRAIN-OFFERBOOK-REF# ."
+        ],
+        "Day": [
+            "Would you like to take the train on #TRAIN-OFFERBOOK-DAY# ?",
+            "I can book you on #TRAIN-OFFERBOOK-DAY#",
+            "I can book your tickets for #TRAIN-OFFERBOOK-DAY# ."
+        ]
+    },
+    "Train-OfferBooked": {
+        "Ref": [
+            "I ' ve booked your train tickets , and your reference number is #TRAIN-OFFERBOOKED-REF#.",
+            "Your booking was successful . Your reference number is #TRAIN-OFFERBOOKED-REF# .",
+            "I have made those reservations and your reference number is #TRAIN-OFFERBOOKED-REF# ."
+        ],
+        "none": [
+            "Wonderful , your train has been booked !",
+            "your reservation is booked",
+            "ok , i got that fixed for you .",
+            "Booking was successful",
+            "Great your booking is all set !",
+            "You have been booked !"
+        ],
+        "Ticket": [
+            "The cost of your ticket will be #TRAIN-OFFERBOOKED-TICKET#",
+            "the total fee is #TRAIN-OFFERBOOKED-TICKET# payable at the station",
+            "It is #TRAIN-OFFERBOOKED-TICKET# .",
+            "Booking was successful , the total fee is #TRAIN-OFFERBOOKED-TICKET# payable at the station ."
+        ],
+        "Id": [
+            "the train ID is #TRAIN-OFFERBOOKED-ID# .",
+            "Ok . You should be set . The booking was successful . The train number is #TRAIN-OFFERBOOKED-ID# ."
+        ],
+        "People": [
+            "I have successfully make a booking for #TRAIN-OFFERBOOKED-PEOPLE# on that train .",
+            "I have booked you #TRAIN-OFFERBOOKED-PEOPLE# tickets ."
+        ],
+        "Leave": [
+            "i have booked you one leaving at #TRAIN-OFFERBOOKED-LEAVE# ."
+        ],
+        "Time": [
+            "The travel time is #TRAIN-OFFERBOOKED-TIME# .",
+            "That would be #TRAIN-OFFERBOOKED-TIME# .",
+            "#TRAIN-OFFERBOOKED-TIME# would be the total duration .",
+            "The trip will last #TRAIN-OFFERBOOKED-TIME#",
+            "the travel will take #TRAIN-OFFERBOOKED-TIME#",
+            "The trip is #TRAIN-OFFERBOOKED-TIME# .",
+            "The travel time for the trip is #TRAIN-OFFERBOOKED-TIME# one way ."
+        ],
+        "Day": [
+            "The train is for #TRAIN-OFFERBOOKED-DAY# you are all set",
+            "that train leaves on #TRAIN-OFFERBOOKED-DAY# ."
+        ],
+        "Depart": [
+            "that train is departing from #TRAIN-OFFERBOOKED-DEPART# .",
+            "it departs from #TRAIN-OFFERBOOKED-DEPART# .",
+            "the train will be departing from #TRAIN-OFFERBOOKED-DEPART# ."
+        ],
+        "Dest": [
+            "the booking is for arriving in #TRAIN-OFFERBOOKED-DEST# .",
+            "the train stop is #TRAIN-OFFERBOOKED-DEST# ."
+        ],
+        "Arrive": [
+            "It arrives at #TRAIN-OFFERBOOKED-ARRIVE# .",
+            "it should arrive by #TRAIN-OFFERBOOKED-ARRIVE#",
+            "The arrival time is #TRAIN-OFFERBOOKED-ARRIVE# ."
+        ],
+        "Choice": [
+            "I have #TRAIN-OFFERBOOKED-CHOICE# trains that meet your criteria .",
+            "There are #TRAIN-OFFERBOOKED-CHOICE# .",
+            "There are #TRAIN-OFFERBOOKED-CHOICE# options",
+            "There are #TRAIN-OFFERBOOKED-CHOICE# trains available .",
+            "There are #TRAIN-OFFERBOOKED-CHOICE# total trips available to you"
+        ]
+    },
+    "Train-Request": {
+        "Day": [
+            "Can you confirm your desired travel day ?",
+            "Can you tell me what day you would like to travel , please ?",
+            "Can you tell me what day you would like to travel ?",
+            "can you tell me which day you 'd like to travel on ?",
+            "What day would you like ?",
+            "What day will you travel on ?",
+            "On what day will you be traveling ?",
+            "What day will you be traveling ?",
+            "what day did you have in mind ?",
+            "what day would you like to travel ?"
+        ],
+        "Dest": [
+            "Where would you like to go to ?",
+            "Where is your destination ?",
+            "where would you like your train to take you ?",
+            "Where are you heading to ?",
+            "Where are you headed ?",
+            "Where will you be arriving at ?",
+            "What is your destination ?",
+            "What station would you like to arrive at ?"
+        ],
+        "People": [
+            "How many tickets would you like ?",
+            "how many tickets would you like me to book ?",
+            "Yes , for how many tickets ?",
+            "For how many people ?",
+            "how many tickets do you need ?",
+            "No problem . How many seats would you like to book ?"
+        ],
+        "Depart": [
+            "where will you be departing from ?",
+            "Where are you departing from ?",
+            "Where will you be leaving from ?",
+            "where did you want to depart from ?",
+            "Where are you departing from ?",
+            "Where will you be traveling from ?"
+        ],
+        "Leave": [
+            "what time would you like to depart ?",
+            "when would you like to travel ?",
+            "Is there a certain time you are wanting to leave ?",
+            "When would you like to leave by ?",
+            "departure time in mind ?",
+            "When would you like the train to depart ?",
+            "what time do you want to depart ?",
+            "when would you like to leave by ?",
+            "what time would you like to leave ?"
+        ],
+        "Arrive": [
+            "Is there a time you would prefer to arrive ?",
+            "What time would you like to arrive by ?",
+            "What time do you need to arrive ?",
+            "What time do you want to arrive by ?",
+            "Do you have an arrival time in mind ?",
+            "Is there a time you would like to arrive by ?",
+            "Is there a time you would like to get there by ?",
+            "Is there a time you need to arrive by ?"
+        ]
+    },
+    "general-bye": {
+        "none": [
+            "Thank you for using our services .",
+            "Goodbye . If you think of anything else you need do n't hesitate to contact us .",
+            "You are very welcome . Goodbye .",
+            "Thank you and enjoy your visit . Have a great day .",
+            "I ' m happy to help , and I hope you enjoy your stay !",
+            "Thank you and goodbye .",
+            "Thank you for using our system !"
+        ]
+    },
+    "general-greet": {
+        "none": [
+            "You are more than welcome !",
+            "Have a good day .",
+            "I ' m happy to have been able to help you today .",
+            "Glad to have been of help . Thank you for using the Cambridge TownInfo centre . Enjoy the rest of your day !",
+            "Thank you for contacting the help desk . Have a great day .",
+            "Thank you for contacting us and have a nice day .",
+            "Ok , thank you . Have a good day .",
+            "Thank you for using our services ."
+        ]
+    },
+    "general-reqmore": {
+        "none": [
+            "You are welcome . Is there anything else I can help you with today ?",
+            "is there anything else I can help you with ?",
+            "Is there anything else I can help you with today ?",
+            "Did you need any further assistance today ?"
+        ]
+    },
+    "general-welcome": {
+        "none": [
+            "you are welcome",
+            "Welcome , it was a pleasure serving you .",
+            "You 're welcome ! I hope you have a wonderful trip !",
+            "Okay ! Glad I could help . Enjoy your stay .",
+            "You are welcome . Have a good day !",
+            "you are welcome",
+            "You 're welcome . Have a good day !"
+        ]
+    }
+}

@@ -82,6 +82,8 @@ To release a new version, please update the changelog as followed:
 - Added documentation for 8 kHz model ([PR #632](https://github.com/NVIDIA/NeMo/pull/632)) - @jbalam-nv
 - The Neural Graph is a high-level abstract concept empowering the users to build graphs consisting of many, interconnected Neural Modules. A user in his/her application can build any number of graphs, potentially spanning over the same modules. The import/export options combined with the lightweight API make Neural Graphs a perfect tool for rapid prototyping and experimentation. ([PR #413](https://github.com/NVIDIA/NeMo/pull/413)) - @tkornuta-nvidia
 - Created the NeMo CV collection, added  MNIST and CIFAR10 thin datalayers, implemented/ported several general usage trainable and non-trainable modules, added several new ElementTypes ([PR #654](https://github.com/NVIDIA/NeMo/pull/654)) - @tkornuta-nvidia
+- Added SGD dataset and SGD model baseline ([PR #612](https://github.com/NVIDIA/NeMo/pull/612)) - @ekmb
+- Policy Manager and Natural Language Generation Modules for MultiWOZ added ([PR #691](https://github.com/NVIDIA/NeMo/pull/691)) - @ekmb
 
 
 ### Changed
