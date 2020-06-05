@@ -200,9 +200,9 @@ class NeuralType(object):
 
 
 class NmTensor(NeuralType):
-    """Class representing data which flows between NeuralModules' ports.
-    It also has a type of NeuralType represented by inheriting from NeuralType
-    object."""
+    """Class representing data which flows between NeuralModules' ports. It also has a type of NeuralType represented
+    by inheriting from NeuralType object.
+    """
 
     def __init__(self, producer, producer_args, output_port_name, ntype=None):
         """NmTensor constructor.
@@ -221,6 +221,7 @@ class NmTensor(NeuralType):
         self._producer_args = producer_args
         self._output_port_name = output_port_name
         self._name = output_port_name
+        self._output_port_name = output_port_name
         self._uuid = str(uuid.uuid4())
         # Remember step at which this tensor was created.
         self._step_number = AppState().active_graph.step_number
@@ -232,7 +233,7 @@ class NmTensor(NeuralType):
     def producer(self):
         """
         Returns:
-          NeuralModule object which produced this NmTensor.
+            NeuralModule object which produced this NmTensor.
         """
         return AppState().modules[self._producer_name]
 
@@ -248,8 +249,7 @@ class NmTensor(NeuralType):
     def producer_step_number(self) -> int:
         """
         Returns:
-            Step number indicating when the tensor was produced.
-            (It also indicates who produced the tensor.)
+            Step number indicating when the tensor was produced. (It also indicates who produced the tensor.)
         """
         return self._step_number
 
@@ -257,7 +257,7 @@ class NmTensor(NeuralType):
     def producer_step_module_port(self) -> StepModulePort:
         """
         Returns:
-          A tuple containing step number, module name and corresponding output port name.
+            A tuple containing step number, module name and corresponding output port name.
         """
         return StepModulePort(self._step_number, self._producer_name, self._output_port_name)
 
@@ -265,7 +265,7 @@ class NmTensor(NeuralType):
     def consumers(self) -> List[StepModulePort]:
         """
         Returns:
-          A list of tuples containing consumer step number, module name and corresponding input port names.
+            A list of tuples containing consumer step number, module name and corresponding input port names.
         """
         return self._consumers
 
@@ -289,7 +289,6 @@ class NmTensor(NeuralType):
     def connections(self):
         """
             "Serializes" the tensor to a list of connections (step/producer/port, step/consumer/port).
-
         """
         connections = []
         for con_mod_port in self._consumers:
@@ -300,8 +299,7 @@ class NmTensor(NeuralType):
     def producer_args(self):
         """
         Returns:
-          a dictionary of port_name->NmTensor value
-          of arguments which were sent to producer to create this object
+            A dictionary of port_name->NmTensor value of arguments which were sent to producer to create this object
         """
         return self._producer_args
 
@@ -309,19 +307,26 @@ class NmTensor(NeuralType):
     def name(self):
         """
         Returns:
-          A NmTensor's name which should be equal to
-          the NeuralModule's output port's name which created it
+            A NmTensor's name. By default, it is equal to self.output_port_name, but can be renamed using self.rename.
+            Used in self.__str__() to obtain a string representation of a nmtensor.
         """
         return self._name
 
     @property
+    def output_port_name(self):
+        """
+        Returns:
+            The name of the output port it is associated with. This is used in DAG creation.
+        """
+        return self._output_port_name
+
+    @property
     def unique_name(self):
         """Unique NMTensor name.
-        It is composed of non-unique name (self.name) and uuid of NeuralModule
-        which created this tensor.
+        It is composed of non-unique name (self.name) and uuid of NeuralModule which created this tensor.
 
         Returns:
-          str: unique name
+            str: unique name
         """
         if self._producer_name is None:
             raise ValueError("This NmTensor does not have a unique name")

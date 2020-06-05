@@ -88,7 +88,7 @@ def topological_sort_from_leaves(leaf_nmtensors: List[NmTensor], cached_training
             all_nodes[node] = {k: None for k in nmtensor.producer.output_ports}
         # second, populate output port with current nmtensor
         # where applicable
-        all_nodes[node][nmtensor.name] = nmtensor
+        all_nodes[node][nmtensor.output_port_name] = nmtensor
         processed_nmtensors.add(nmtensor)
 
         new_tensors = set()
