@@ -121,7 +121,7 @@ class NeuralType(object):
             and type_comatibility != NeuralTypeComparisonResult.GREATER
         ):
             raise NeuralPortNmTensorMismatchError(
-                parent_type_name, port_name, str(self), str(second_object), type_comatibility
+                parent_type_name, port_name, str(self), str(second_object.ntype), type_comatibility
             )
 
     @staticmethod

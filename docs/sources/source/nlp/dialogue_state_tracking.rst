@@ -258,6 +258,33 @@ You may find the checkpoints for the trained models on MultiWOZ 2.0 and MultiWOZ
     predict special values for like **don't care** or **none** for the slots. The `process_multiwoz.py`_ script extracts the additional labels from the dataset and `dialogue_state_tracking_trade.py`_ script reports the **Gating Accuracy** as well.
 
 
+Complete dialogue Pipeline with TRADE for MultiWOZ
+--------------------------------------------------
+
+The pre-trained TRADE model, as was mentioned above, is a Dialogue State Tracker (DST) responsible for extracting correct slot-slot_value pairs from the dialogue history. Once the system has this information, \
+the next module called Dialogue Policy Manager (DPM) comes into play.
+This module determines what actions the system should take, given the dialogue state passed from the DST module. For example, the DPM can request additional information from the user or \
+inform the user about possible ways/options to fill out the user's original intent. 
+With the output of the DPM, the final dialogue module called Natural Language Generation (NLG) generates the system's response to the user's utterance.
+
+NeMo provides Rule-based DPM and Rule-based NLG modules (source: `ConvLab-2: An Open-Source Toolkit for Building, Evaluating, and Diagnosing Dialogue Systems <https://github.com/thu-coai/ConvLab-2>`_) \
+to complete the dialogue pipeline based on the TRADE model and MultiWOZ dataset.
+
+To evaluate TRADE's model output and its role in the complete dialogue pipeline, use ``examples/nlp/dialogue_state_tracking\rule_based_policy_multiwoz.py``.
+Before running this script, make sure to download the pre-trained TRADE model checkpoint following the steps above.
+
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking
+    python rule_based_policy_multiwoz.py \
+        --data_dir <path to the data> \
+        --encoder_ckpt <path to checkpoint folder>\EncoderRNN.pt \
+        --decoder_ckpt <path to checkpoint folder>\TRADEGenerator.pt \
+        --mode example \
+
+Use ``--mode interactive`` to chat with the system and ``--hide_output`` - to hide the intermediate output of the dialogue modules
+
+
 References
 ----------
 

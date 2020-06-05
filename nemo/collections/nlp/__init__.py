@@ -14,7 +14,5 @@
 # limitations under the License.
 # =============================================================================
 
-import nemo
 from nemo.collections.nlp import callbacks, data, nm, utils
-
-backend = nemo.core.Backend.PyTorch
+from nemo.collections.nlp.neural_types import *

@@ -164,6 +164,13 @@ pipeline {
             sh 'rm -rf examples/nlp/glue_benchmark/glue_output'
           }
         }
+        stage ('TRADE-Rule-based-DPM/NLG') {
+          steps {
+            sh 'cd examples/nlp/dialogue_state_tracking && python rule_based_policy_multiwoz.py --data_dir /home/TestData/nlp/multiwoz2.1/pm_nlg \
+            --encoder_ckpt /home/TestData/nlp/multiwoz2.1/pm_nlg/ckpts/EncoderRNN-EPOCH-10.pt \
+            --decoder_ckpt /home/TestData/nlp/multiwoz2.1/pm_nlg/ckpts/TRADEGenerator-EPOCH-10.pt'
+          }
+        }
       }
     }
 

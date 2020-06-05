@@ -14,17 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.common.common_utils import *
-from nemo.collections.nlp.nm.trainables.common.encoder_rnn import *
-from nemo.collections.nlp.nm.trainables.common.huggingface import *
-from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *
-from nemo.collections.nlp.nm.trainables.common.token_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.transformer import *
-from nemo.utils import logging
-
-try:
-    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *
-
-except Exception as e:
-    logging.error('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.rule_based_dpm_multiwoz import RuleBasedDPMMultiWOZ
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.system_utterance_history_update import (
+    SystemUtteranceHistoryUpdate,
+)
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.template_nlg_multiwoz import TemplateNLGMultiWOZ
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.trade_state_update_nm import TradeStateUpdateNM
+from nemo.collections.nlp.nm.non_trainables.dialogue_state_tracking.user_utterance_encoder import UserUtteranceEncoder

@@ -14,17 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.common.common_utils import *
-from nemo.collections.nlp.nm.trainables.common.encoder_rnn import *
-from nemo.collections.nlp.nm.trainables.common.huggingface import *
-from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *
-from nemo.collections.nlp.nm.trainables.common.token_classification_nm import *
-from nemo.collections.nlp.nm.trainables.common.transformer import *
-from nemo.utils import logging
-
-try:
-    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import *
-
-except Exception as e:
-    logging.error('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
+"""
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_dataset import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import *
+from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import *
