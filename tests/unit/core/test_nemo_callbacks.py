@@ -102,8 +102,8 @@ class TestNeMoCallbacks:
         test = DummyNM()
         extra_tensor = test(x=y_pred)
 
-        y_pred.rename("y_pred")
-        assert y_pred.name == "y_pred"
+        y_pred.rename("test_name")
+        assert y_pred.name == "test_name"
 
         # Mock up both std and stderr streams.
         with logging.patch_stdout_handler(StringIO()) as std_out:
