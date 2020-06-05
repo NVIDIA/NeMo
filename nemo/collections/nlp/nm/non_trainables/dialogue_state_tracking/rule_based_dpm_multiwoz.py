@@ -33,6 +33,7 @@ from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.dbquery import Database
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA, REF_USR_DA
 from nemo.core.neural_types import *
+from nemo.collections.nlp.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['RuleBasedDPMMultiWOZ']
@@ -120,10 +121,10 @@ class RuleBasedDPMMultiWOZ(NonTrainableNM):
                 axes=[
                     AxisType(kind=AxisKind.Batch, is_list=True),
                     AxisType(
-                        kind=AxisKind.MultiWOZDomain, is_list=True
+                        kind=DialogAxisKind.Domain, is_list=True
                     ),  # always 7 domains - but cannot set size with is_list!
                 ],
-                elements_type=MultiWOZDomainState(),
+                elements_type=MultiWOZBeliefState(),
             ),
             'request_state': NeuralType(
                 axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],
@@ -143,10 +144,10 @@ class RuleBasedDPMMultiWOZ(NonTrainableNM):
                 axes=[
                     AxisType(kind=AxisKind.Batch, is_list=True),
                     AxisType(
-                        kind=AxisKind.MultiWOZDomain, is_list=True
+                        kind=DialogAxisKind.Domain, is_list=True
                     ),  # always 7 domains - but cannot set size with is_list!
                 ],
-                elements_type=MultiWOZDomainState(),
+                elements_type=MultiWOZBeliefState(),
             ),
             'system_acts': NeuralType(
                 axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],

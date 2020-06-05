@@ -28,6 +28,7 @@ from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_slot_trans import REF_SYS_DA
 from nemo.collections.nlp.utils.callback_utils import tensor2numpy
 from nemo.core.neural_types import *
+from nemo.collections.nlp.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 
@@ -52,9 +53,9 @@ class TradeStateUpdateNM(NonTrainableNM):
             'belief_state': NeuralType(
                 axes=[
                     AxisType(kind=AxisKind.Batch, is_list=True),
-                    AxisType(kind=AxisKind.MultiWOZDomain, is_list=True),  # 7 domains
+                    AxisType(kind=DialogAxisKind.Domain, is_list=True),  # 7 domains
                 ],
-                elements_type=MultiWOZDomainState(),
+                elements_type=MultiWOZBeliefState(),
             ),
             'user_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
         }
@@ -68,9 +69,9 @@ class TradeStateUpdateNM(NonTrainableNM):
             'belief_state': NeuralType(
                 axes=[
                     AxisType(kind=AxisKind.Batch, is_list=True),
-                    AxisType(kind=AxisKind.MultiWOZDomain, is_list=True),  # 7 domains
+                    AxisType(kind=DialogAxisKind.Domain, is_list=True),  # 7 domains
                 ],
-                elements_type=MultiWOZDomainState(),
+                elements_type=MultiWOZBeliefState(),
             ),
             'request_state': NeuralType(
                 axes=[AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Sequence, is_list=True)],

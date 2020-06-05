@@ -25,6 +25,7 @@ import random
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import *
+from nemo.collections.nlp.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
 

@@ -45,8 +45,6 @@ class AxisKind(AxisKindAbstract):
     Height = 4
     Any = 5
     Sequence = 6
-    DialogDomain = 7
-    MultiWOZDomain = 8  # A specialized DialogDomain axis?
 
     def __repr__(self):
         return self.__str__()
