@@ -18,7 +18,6 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/thu-coai/ConvLab-2/
 '''
-import torch
 
 from nemo.backends.pytorch.nm import NonTrainableNM
 from nemo.core.neural_types import *
