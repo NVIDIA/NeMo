@@ -111,7 +111,9 @@ class TemplateNLGMultiWOZ(NonTrainableNM):
         system_uttr (str): generated system's response
         """
         return {
-            'sys_uttr': NeuralType(axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=Utterance()),
+            'sys_uttr': NeuralType(
+                axes=[AxisType(kind=AxisKind.Batch, is_list=True)], elements_type=SystemUtterance()
+            ),
         }
 
     def forward(self, system_acts):

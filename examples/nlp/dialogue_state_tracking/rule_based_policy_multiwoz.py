@@ -41,6 +41,7 @@ from nemo.collections.nlp.data.datasets.multiwoz_dataset import MultiWOZDataDesc
 from nemo.collections.nlp.data.datasets.multiwoz_dataset.state import init_state
 from nemo.collections.nlp.nm.non_trainables import (
     RuleBasedDPMMultiWOZ,
+    SystemUtteranceHistoryUpdate,
     TemplateNLGMultiWOZ,
     TradeStateUpdateNM,
     UserUtteranceEncoder,
@@ -62,7 +63,7 @@ examples = [
 ]
 
 
-def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state):
+def forward(dialog_pipeline, user_uttr, dial_history, belief_state):
     """
     Forward pass of the "Complete Dialog Pipeline".
 
@@ -75,7 +76,6 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     
     Args:
         user_uttr (str): User utterance
-        system_uttr (str): Previous system utterance
         dialog_history (str): Dialogue history contains all previous system and user utterances
         belief_state (dict): dialogue state
     Returns:
@@ -87,7 +87,7 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
     # 1. Forward pass throught Word-Level Dialog State Tracking modules (TRADE).
     # 1.1. User utterance encoder.
     dialog_ids, dialog_lens, dial_history = dialog_pipeline.modules[dialog_pipeline.steps[0]].forward(
-        user_uttr=user_uttr, sys_uttr=system_uttr, dialog_history=dial_history,
+        user_uttr=user_uttr, dialog_history=dial_history,
     )
     # 1.2. TRADE encoder.
     outputs, hidden = dialog_pipeline.modules[dialog_pipeline.steps[1]].forward(
@@ -110,6 +110,11 @@ def forward(dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state)
 
     # 3. Forward pass throught Natural Language Generator module (Template-Based).
     system_uttr = dialog_pipeline.modules[dialog_pipeline.steps[5]].forward(system_acts=system_acts)
+
+    # 4. Update dialog  history with system utterance
+    dial_history = dialog_pipeline.modules[dialog_pipeline.steps[6]].forward(
+        sys_uttr=system_uttr, dialog_history=dial_history
+    )
 
     # Return the updated states and dialog history.
     return system_uttr, belief_state, dial_history
@@ -199,13 +204,16 @@ if __name__ == "__main__":
     # NLG module.
     template_nlg = TemplateNLGMultiWOZ()
 
+    # Updates dialog history with system utterance.
+    sys_utter_history_update = SystemUtteranceHistoryUpdate()
+
     # Construct the "evaluation" (inference) neural graph by connecting the modules using nmTensors.
     # Note: Using the same names for passed nmTensor as in the actual forward pass.
     with NeuralGraph(operation_mode=OperationMode.evaluation) as dialog_pipeline:
         # 1.1. User utterance encoder.
         # Bind all the input ports of this module.
         dialog_ids, dialog_lens, dial_history = user_utterance_encoder(
-            user_uttr=dialog_pipeline, sys_uttr=dialog_pipeline, dialog_history=dialog_pipeline,
+            user_uttr=dialog_pipeline, dialog_history=dialog_pipeline,
         )
         # Fire step 1: 1.2. TRADE encoder.
         outputs, hidden = trade_encoder(inputs=dialog_ids, input_lens=dialog_lens)
@@ -229,6 +237,9 @@ if __name__ == "__main__":
         # 3. Forward pass throught Natural Language Generator module (Template-Based).
         system_uttr = template_nlg(system_acts=system_acts)
 
+        # 4. Update dialog  history with system utterance
+        dial_history = sys_utter_history_update(sys_uttr=system_uttr, dialog_history=dial_history)
+
     # Show the graph summary.
     logging.info(dialog_pipeline.summary())
 
@@ -250,7 +261,7 @@ if __name__ == "__main__":
             else:
                 # Pass the "user uterance" as inputs to the dialog pipeline.
                 system_uttr, belief_state, dial_history = forward(
-                    dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state
+                    dialog_pipeline, user_uttr, dial_history, belief_state
                 )
 
     elif args.mode == 'example':
@@ -262,5 +273,5 @@ if __name__ == "__main__":
             for user_uttr in example:
                 logging.info("User utterance: %s", user_uttr)
                 system_uttr, belief_state, dial_history = forward(
-                    dialog_pipeline, system_uttr, user_uttr, dial_history, belief_state
+                    dialog_pipeline, user_uttr, dial_history, belief_state
                 )

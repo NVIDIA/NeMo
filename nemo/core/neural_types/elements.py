@@ -44,6 +44,8 @@ __all__ = [
     'StringLabel',
     'StringType',
     'Utterance',
+    'UserUtterance',
+    'SystemUtterance',
     'AgentUtterance',
     'TokenIndex',
     'Length',
@@ -258,14 +260,22 @@ class Utterance(StringType):
     """Element type representing an utterance (e.g. "Is there a train from Ely to Cambridge on Tuesday ?")."""
 
 
+class UserUtterance(Utterance):
+    """Element type representing a utterance expresesd by the user."""
+
+
+class SystemUtterance(Utterance):
+    """Element type representing an utterance produced by the system."""
+
+
 class AgentUtterance(ElementType):
     """Element type representing utterance returned by an agent (user or system) participating in a dialog."""
 
-    def __str__(self):
-        return "Utterance returned by an agent (user or system) participating in a dialog."
+    # def __str__(self):
+    #    return "Utterance returned by an agent (user or system) participating in a dialog."
 
-    def fields(self):
-        return ("agent", "utterance")
+    # def fields(self):
+    #    return ("agent", "utterance")
 
 
 class IntType(ElementType):
