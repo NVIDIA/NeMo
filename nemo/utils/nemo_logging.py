@@ -102,7 +102,10 @@ class Logger(metaclass=Singleton):
                     self.add_stream_handlers()
 
             finally:
-                self.set_verbosity(verbosity_level=Logger.INFO)
+                level = Logger.INFO
+                if get_envbool(NEMO_ENV_VARNAME_TESTING, False):
+                    level = Logger.DEBUG
+                self.set_verbosity(verbosity_level=level)
 
         self._logger.propagate = False
 
