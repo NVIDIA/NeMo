@@ -109,7 +109,7 @@ class TestNeMoCallbacks:
         with logging.patch_stdout_handler(StringIO()) as std_out:
             self.nf.train(
                 tensors_to_optimize=[loss_tensor],
-                callbacks=[SimpleLogger(step_freq=1, tensors_to_log=['y_pred', extra_tensor])],
+                callbacks=[SimpleLogger(step_freq=1, tensors_to_log=['test_name', extra_tensor])],
                 optimization_params={"max_steps": 4, "lr": 0.01},
                 optimizer="sgd",
             )
