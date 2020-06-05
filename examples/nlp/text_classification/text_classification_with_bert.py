@@ -72,7 +72,7 @@ parser.add_argument(
                     truncated, sequences shorter will be padded.",
 )
 parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
-parser.add_argument("--num_output_layers", default=1, type=int, help="Number of layers in the Classifier")
+parser.add_argument("--num_output_layers", default=2, type=int, help="Number of layers in the Classifier")
 parser.add_argument("--num_epochs", default=10, type=int, help="Total number of training epochs to perform.")
 parser.add_argument("--num_train_samples", default=-1, type=int, help="Number of samples to use for training")
 parser.add_argument("--num_eval_samples", default=-1, type=int, help="Number of samples to use for evaluation")
