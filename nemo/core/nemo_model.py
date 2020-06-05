@@ -46,11 +46,9 @@ class NeMoModel(NeuralModule):
 
     def __call__(self, **kwargs):
         if self._operation_mode == OperationMode.training or self.operation_mode == OperationMode.both:
-            # return self.train_graph(**kwargs)
             return self.train_call(**kwargs)
 
         else:
-            # return self.eval_graph(**kwargs)
             return self.eval_call(**kwargs)
 
     @abstractmethod
@@ -159,7 +157,8 @@ class NeMoModel(NeuralModule):
                             output=path.join(tmp_folder, module_checkpoint),
                             d_format=DeploymentFormat.TRTONNX,
                         )
-                    except:
+                    except Exception as ex:
+                        logging.warning(ex)
                         logging.warning(f"Did not convert {module_name} to .onnx")
                         module_checkpoint = module_name + ".pt"
                         module.save_to(path.join(tmp_folder, module_checkpoint))
