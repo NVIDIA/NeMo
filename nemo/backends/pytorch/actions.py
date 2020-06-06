@@ -1468,6 +1468,7 @@ class PtActions(Actions):
                     else:
                         # Skip this step across workers if loss is NaN/inf and using fp32
                         logging.warning('Loss is NaN or inf. Skipping update.')
+                        self._training_state.clear_dict()  # Clear state dict here
                         continue
 
                 if self._optim_level in AmpOptimizations and self._optim_level != Optimization.mxprO0:
