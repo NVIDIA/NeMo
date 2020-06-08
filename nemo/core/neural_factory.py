@@ -428,6 +428,8 @@ class NeuralModuleFactory(object):
                     self._model_parallel_rank = mpu.get_model_parallel_rank()
                     self._data_parallel_rank = mpu.get_data_parallel_rank()
                     self._data_parallel_size = mpu.get_data_parallel_world_size()
+                    # TODO: update app_state properties here
+                    logging.info(f'World size: {self.world_size}')
                     logging.info(f'Model parallel size: {self.model_parallel_size}')
                     logging.info(f'Model parallel rank: {self.model_parallel_rank}')
                     logging.info(f'Data parallel size: {self.data_parallel_size}')
@@ -630,6 +632,7 @@ class NeuralModuleFactory(object):
     def _get_trainer(self, tb_writer=None):
         if True:  # self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
+            # TODO: instead of passing in here, get from app_state
             instance = constructor(
                 local_rank=self.local_rank,
                 global_rank=self.global_rank,
