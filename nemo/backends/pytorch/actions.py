@@ -453,16 +453,13 @@ class PtActions(Actions):
                 assert dist.is_initialized()
                 is_distributed = True
                 world_size = torch.distributed.get_world_size()
-<<<<<<< HEAD
 
-=======
                 # logging.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
                 # )
                 logging.info(f'Data parallel size: {self.data_parallel_size}')
->>>>>>> updated _train and _eval to use data_parallel_group for DDP and data_parallel_rank/size for DistributedSampler
                 if dl_nm.dataset is not None:
                     sampler = None
                     if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
@@ -1393,9 +1390,7 @@ class PtActions(Actions):
                             )
                             sync_batchnorm_group = torch.distributed.new_group(group_rank_ids)
 
-<<<<<<< HEAD
                         module = nn.SyncBatchNorm.convert_sync_batchnorm(module, process_group=sync_batchnorm_group)
-=======
                         # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
                         # pass
                         # pmodule = DDP(
@@ -1407,7 +1402,6 @@ class PtActions(Actions):
                             pmodule, device_ids=[i], output_device=i, 
                             process_group=self.data_parallel_group
                         )
->>>>>>> updated _train and _eval to use data_parallel_group for DDP and data_parallel_rank/size for DistributedSampler
 
                     # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
                     # pass
