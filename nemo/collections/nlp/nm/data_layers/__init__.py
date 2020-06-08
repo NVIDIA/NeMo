@@ -16,6 +16,7 @@
 
 from nemo.collections.nlp.nm.data_layers.bert_inference_datalayer import *
 from nemo.collections.nlp.nm.data_layers.glue_benchmark_datalayer import *
+from nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer import *
 from nemo.collections.nlp.nm.data_layers.joint_intent_slot_datalayer import *
 from nemo.collections.nlp.nm.data_layers.lm_bert_datalayer import *
 from nemo.collections.nlp.nm.data_layers.lm_transformer_datalayer import *
@@ -27,4 +28,3 @@ from nemo.collections.nlp.nm.data_layers.state_tracking_trade_datalayer import *
 from nemo.collections.nlp.nm.data_layers.text_classification_datalayer import *
 from nemo.collections.nlp.nm.data_layers.text_datalayer import *
 from nemo.collections.nlp.nm.data_layers.token_classification_datalayer import *
-from nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer import *

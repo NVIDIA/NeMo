@@ -23,7 +23,6 @@ __all__ = ['BertBatchReshaper']
 
 
 class BertBatchReshaper(TrainableNM):
-
     @property
     @add_port_docs()
     def input_ports(self):

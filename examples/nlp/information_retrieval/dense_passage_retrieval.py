@@ -14,14 +14,14 @@
 # limitations under the License.
 # =============================================================================
 
+import math
+
 import torch
 
-import math
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.information_retrieval_callback import \
-    eval_epochs_done_callback, eval_iter_callback
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
+from nemo.collections.nlp.callbacks.information_retrieval_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Bert for Information Retrieval')
@@ -69,9 +69,7 @@ nf = nemo.core.NeuralModuleFactory(
     files_to_copy=[__file__],
 )
 
-tokenizer = nemo_nlp.data.NemoBertTokenizer(
-    pretrained_model=args.pretrained_model
-)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model)
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
@@ -79,12 +77,12 @@ batch_reshape = nemo_nlp.nm.trainables.BertBatchReshaper()
 model_name = args.pretrained_model.split("-")[0]
 
 # BERT encoder for query
-q_encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(
-    pretrained_model_name=args.pretrained_model)
+q_encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(pretrained_model_name=args.pretrained_model)
 device = getattr(q_encoder, model_name).embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 getattr(q_encoder, model_name).embeddings.word_embeddings.weight.data = torch.cat(
-    (getattr(q_encoder, model_name).embeddings.word_embeddings.weight.data, zeros))
+    (getattr(q_encoder, model_name).embeddings.word_embeddings.weight.data, zeros)
+)
 q_encoder.__str__ = lambda: "QueryBERT"
 getattr(q_encoder, model_name).embeddings.dropout.p = args.embedding_dropout
 for layer in getattr(q_encoder, model_name).encoder.layer:
@@ -93,12 +91,12 @@ for layer in getattr(q_encoder, model_name).encoder.layer:
     layer.output.dropout.p = args.ffn_dropout
 
 # BERT encoder for passage
-p_encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(
-    pretrained_model_name=args.pretrained_model)
+p_encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(pretrained_model_name=args.pretrained_model)
 device = getattr(p_encoder, model_name).embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 getattr(p_encoder, model_name).embeddings.word_embeddings.weight.data = torch.cat(
-    (getattr(p_encoder, model_name).embeddings.word_embeddings.weight.data, zeros))
+    (getattr(p_encoder, model_name).embeddings.word_embeddings.weight.data, zeros)
+)
 p_encoder.__str__ = lambda: "PassageBERT"
 getattr(p_encoder, model_name).embeddings.dropout.p = args.embedding_dropout
 for layer in getattr(p_encoder, model_name).encoder.layer:
@@ -113,9 +111,9 @@ for layer in getattr(p_encoder, model_name).encoder.layer:
     layer.output.dropout.p = args.ffn_dropout
 
 loss_fn_train = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
-    num_negatives=args.num_negatives, label_smoothing=args.label_smoothing)
-loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
-    num_negatives=args.num_eval_candidates-1)
+    num_negatives=args.num_negatives, label_smoothing=args.label_smoothing
+)
+loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=args.num_eval_candidates - 1)
 
 train_passages = f"{args.data_dir}/{args.collection_file}"
 
@@ -128,14 +126,16 @@ train_data_layer = ir_dl.BertDensePassageRetrievalDataLayerTrain(
     queries=train_queries,
     query_to_passages=train_triples,
     batch_size=args.batch_size,
-    num_negatives=args.num_negatives
+    num_negatives=args.num_negatives,
 )
 q_input_ids, q_input_mask, q_input_type_ids, p_input_ids, p_input_mask, p_input_type_ids = train_data_layer()
 q_input_ids, q_input_mask, q_input_type_ids = batch_reshape(
-    input_ids=q_input_ids, input_mask=q_input_mask, input_type_ids=q_input_type_ids)
+    input_ids=q_input_ids, input_mask=q_input_mask, input_type_ids=q_input_type_ids
+)
 q_hiddens = q_encoder(input_ids=q_input_ids, token_type_ids=q_input_type_ids, attention_mask=q_input_mask)
 p_input_ids, p_input_mask, p_input_type_ids = batch_reshape(
-    input_ids=p_input_ids, input_mask=p_input_mask, input_type_ids=p_input_type_ids)
+    input_ids=p_input_ids, input_mask=p_input_mask, input_type_ids=p_input_type_ids
+)
 p_hiddens = p_encoder(input_ids=p_input_ids, token_type_ids=p_input_type_ids, attention_mask=p_input_mask)
 train_scores, train_loss = loss_fn_train(queries=q_hiddens, passages=p_hiddens)
 
@@ -161,19 +161,27 @@ def create_eval_pipeline(eval_dataset):
         passages=train_passages,
         queries=eval_queries,
         query_to_passages=eval_topk_list,
-        num_candidates=args.num_eval_candidates)
+        num_candidates=args.num_eval_candidates,
+    )
 
-    q_input_ids_, q_input_mask_, q_input_type_ids_, \
-        p_input_ids_, p_input_mask_, p_input_type_ids_, \
-        query_id, passage_ids = eval_data_layer()
+    (
+        q_input_ids_,
+        q_input_mask_,
+        q_input_type_ids_,
+        p_input_ids_,
+        p_input_mask_,
+        p_input_type_ids_,
+        query_id,
+        passage_ids,
+    ) = eval_data_layer()
     q_input_ids_, q_input_mask_, q_input_type_ids_ = batch_reshape(
-        input_ids=q_input_ids_, input_mask=q_input_mask_, input_type_ids=q_input_type_ids_)
-    q_hiddens_ = q_encoder(input_ids=q_input_ids_,
-                           token_type_ids=q_input_type_ids_, attention_mask=q_input_mask_)
+        input_ids=q_input_ids_, input_mask=q_input_mask_, input_type_ids=q_input_type_ids_
+    )
+    q_hiddens_ = q_encoder(input_ids=q_input_ids_, token_type_ids=q_input_type_ids_, attention_mask=q_input_mask_)
     p_input_ids_, p_input_mask_, p_input_type_ids_ = batch_reshape(
-        input_ids=p_input_ids_, input_mask=p_input_mask_, input_type_ids=p_input_type_ids_)
-    p_hiddens_ = p_encoder(input_ids=p_input_ids_,
-                           token_type_ids=p_input_type_ids_, attention_mask=p_input_mask_)
+        input_ids=p_input_ids_, input_mask=p_input_mask_, input_type_ids=p_input_type_ids_
+    )
+    p_hiddens_ = p_encoder(input_ids=p_input_ids_, token_type_ids=p_input_type_ids_, attention_mask=p_input_mask_)
     eval_scores, _ = loss_fn_eval(queries=q_hiddens_, passages=p_hiddens_)
 
     return eval_scores, query_id, passage_ids
@@ -200,30 +208,39 @@ if args.do_eval:
         scores, q_id, p_ids = create_eval_pipeline(eval_dataset)
         all_eval_tensors[eval_dataset] = [scores, q_id, p_ids]
 
-    callbacks.append(nemo.core.EvaluatorCallback(
-        eval_tensors=all_eval_tensors[args.eval_datasets[0]],
-        user_iter_callback=eval_iter_callback,
-        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-            x, query2rel=query2rel, topk=[1, 10],
-            baseline_name=args.eval_datasets[0]),
-        eval_step=args.eval_freq,
-        tb_writer=nf.tb_writer))
+    callbacks.append(
+        nemo.core.EvaluatorCallback(
+            eval_tensors=all_eval_tensors[args.eval_datasets[0]],
+            user_iter_callback=eval_iter_callback,
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[0]
+            ),
+            eval_step=args.eval_freq,
+            tb_writer=nf.tb_writer,
+        )
+    )
 
-    callbacks.append(nemo.core.EvaluatorCallback(
-        eval_tensors=all_eval_tensors[args.eval_datasets[1]],
-        user_iter_callback=eval_iter_callback,
-        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-            x, query2rel=query2rel, topk=[1, 10],
-            baseline_name=args.eval_datasets[1]),
-        eval_step=args.eval_freq,
-        tb_writer=nf.tb_writer))
+    callbacks.append(
+        nemo.core.EvaluatorCallback(
+            eval_tensors=all_eval_tensors[args.eval_datasets[1]],
+            user_iter_callback=eval_iter_callback,
+            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+                x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]
+            ),
+            eval_step=args.eval_freq,
+            tb_writer=nf.tb_writer,
+        )
+    )
 
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=ckpt_dir, epoch_freq=args.save_epoch_freq,
+    folder=ckpt_dir,
+    epoch_freq=args.save_epoch_freq,
     load_from_folder=args.restore_checkpoint_from,
-    step_freq=args.save_step_freq, checkpoints_to_keep=5)
+    step_freq=args.save_step_freq,
+    checkpoints_to_keep=5,
+)
 callbacks.append(ckpt_callback)
 
 # define learning rate decay policy

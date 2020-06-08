@@ -19,14 +19,14 @@ See the tutorial and download the data here:
 https://nvidia.github.io/NeMo/nlp/
 neural-machine-translation.html#translation-with-pretrained-model
 """
+import math
+
 import torch
 
-import math
 import nemo
 import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.callbacks.information_retrieval_callback import \
-    eval_epochs_done_callback, eval_iter_callback
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
+from nemo.collections.nlp.callbacks.information_retrieval_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.utils.lr_policies import get_lr_policy
 
 parser = nemo.utils.NemoArgParser(description='Bert for Information Retrieval')
@@ -74,16 +74,12 @@ nf = nemo.core.NeuralModuleFactory(
     files_to_copy=[__file__],
 )
 
-tokenizer = nemo_nlp.data.NemoBertTokenizer(
-    pretrained_model=args.pretrained_model
-)
+tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model)
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
 batch_reshape = nemo_nlp.nm.trainables.BertBatchReshaper()
-encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(
-    pretrained_model_name=args.pretrained_model
-)
+encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(pretrained_model_name=args.pretrained_model)
 
 model_name = args.pretrained_model.split("-")[0]
 
@@ -93,13 +89,10 @@ getattr(encoder, model_name).embeddings.word_embeddings.weight.data = torch.cat(
     (getattr(encoder, model_name).embeddings.word_embeddings.weight.data, zeros)
 )
 classifier = nemo_nlp.nm.trainables.SequenceClassifier(
-    hidden_size=args.d_model, num_classes=1, num_layers=1,
-    dropout=args.ffn_dropout, log_softmax=False
+    hidden_size=args.d_model, num_classes=1, num_layers=1, dropout=args.ffn_dropout, log_softmax=False
 )
-loss_fn_train = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(
-    list_size=args.num_negatives+1)
-loss_fn_eval = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(
-    list_size=args.num_eval_candidates)
+loss_fn_train = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(list_size=args.num_negatives + 1)
+loss_fn_eval = nemo_nlp.nm.losses.ListwiseSoftmaxLoss(list_size=args.num_eval_candidates)
 
 
 train_documents = f"{args.data_dir}/{args.collection_file}"
@@ -112,11 +105,12 @@ train_data_layer = ir_dl.BertInformationRetrievalDataLayerTrain(
     queries=train_queries,
     query_to_passages=train_triples,
     batch_size=args.batch_size,
-    num_negatives=args.num_negatives
+    num_negatives=args.num_negatives,
 )
 input_ids, input_mask, input_type_ids = train_data_layer()
 input_ids, input_mask, input_type_ids = batch_reshape(
-    input_ids=input_ids, input_mask=input_mask, input_type_ids=input_type_ids)
+    input_ids=input_ids, input_mask=input_mask, input_type_ids=input_type_ids
+)
 hiddens = encoder(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 scores = classifier(hidden_states=hiddens)
 train_scores, train_loss = loss_fn_train(scores=scores)
@@ -143,11 +137,13 @@ def create_eval_pipeline(eval_dataset):
         passages=train_documents,
         queries=eval_queries,
         query_to_passages=eval_topk_list,
-        num_candidates=args.num_eval_candidates)
+        num_candidates=args.num_eval_candidates,
+    )
 
     input_ids_, input_mask_, input_type_ids_, query_id, passage_ids = eval_data_layer()
     input_ids_, input_mask_, input_type_ids_ = batch_reshape(
-        input_ids=input_ids_, input_mask=input_mask_, input_type_ids=input_type_ids_)
+        input_ids=input_ids_, input_mask=input_mask_, input_type_ids=input_type_ids_
+    )
     hiddens_ = encoder(input_ids=input_ids_, token_type_ids=input_type_ids_, attention_mask=input_mask_)
     scores_ = classifier(hidden_states=hiddens_)
     eval_scores, _ = loss_fn_eval(scores=scores_)
@@ -175,30 +171,39 @@ for eval_dataset in args.eval_datasets:
     scores, q_id, p_ids = create_eval_pipeline(eval_dataset)
     all_eval_tensors[eval_dataset] = [scores, q_id, p_ids]
 
-callbacks.append(nemo.core.EvaluatorCallback(
-    eval_tensors=all_eval_tensors[args.eval_datasets[0]],
-    user_iter_callback=eval_iter_callback,
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, query2rel=query2rel, topk=[1, 10],
-        baseline_name=args.eval_datasets[0]),
-    eval_step=args.eval_freq,
-    tb_writer=nf.tb_writer))
+callbacks.append(
+    nemo.core.EvaluatorCallback(
+        eval_tensors=all_eval_tensors[args.eval_datasets[0]],
+        user_iter_callback=eval_iter_callback,
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[0]
+        ),
+        eval_step=args.eval_freq,
+        tb_writer=nf.tb_writer,
+    )
+)
 
-callbacks.append(nemo.core.EvaluatorCallback(
-    eval_tensors=all_eval_tensors[args.eval_datasets[1]],
-    user_iter_callback=eval_iter_callback,
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, query2rel=query2rel, topk=[1, 10],
-        baseline_name=args.eval_datasets[1]),
-    eval_step=args.eval_freq,
-    tb_writer=nf.tb_writer))
+callbacks.append(
+    nemo.core.EvaluatorCallback(
+        eval_tensors=all_eval_tensors[args.eval_datasets[1]],
+        user_iter_callback=eval_iter_callback,
+        user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+            x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]
+        ),
+        eval_step=args.eval_freq,
+        tb_writer=nf.tb_writer,
+    )
+)
 
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=ckpt_dir, epoch_freq=args.save_epoch_freq,
+    folder=ckpt_dir,
+    epoch_freq=args.save_epoch_freq,
     load_from_folder=args.restore_checkpoint_from,
-    step_freq=args.save_step_freq, checkpoints_to_keep=5)
+    step_freq=args.save_step_freq,
+    checkpoints_to_keep=5,
+)
 callbacks.append(ckpt_callback)
 
 # define learning rate decay policy

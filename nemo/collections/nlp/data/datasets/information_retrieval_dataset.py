@@ -16,16 +16,19 @@
 
 """Pytorch Dataset for training Information Retrieval."""
 
+import multiprocessing as mp
 import os
 import pickle
 import random
+
 import numpy as np
-import multiprocessing as mp
 from torch.utils.data import Dataset
 
-__all__ = ["BertInformationRetrievalDatasetTrain",
-           "BertInformationRetrievalDatasetEval",
-           "BertDensePassageRetrievalDatasetInfer"]
+__all__ = [
+    "BertInformationRetrievalDatasetTrain",
+    "BertInformationRetrievalDatasetEval",
+    "BertDensePassageRetrievalDatasetInfer",
+]
 
 
 class BaseInformationRetrievalDataset(Dataset):
@@ -47,7 +50,7 @@ class BaseInformationRetrievalDataset(Dataset):
             file_npz = np.zeros((len(file_dict), max_seq_lenth))
             for key in file_dict:
                 file_npz[key][0] = len(file_dict[key])
-                file_npz[key][1:len(file_dict[key])+1] = file_dict[key]
+                file_npz[key][1 : len(file_dict[key]) + 1] = file_dict[key]
             np.savez(cached_collection, data=file_npz)
         return file_npz
 
@@ -67,7 +70,7 @@ class BaseInformationRetrievalDataset(Dataset):
     def preprocess_line(self, line):
         id_, text = line.split("\t")
         token_ids = self.tokenizer.text_to_ids(text.strip())
-        return int(id_), token_ids[:self.max_passage_length]
+        return int(id_), token_ids[: self.max_passage_length]
 
     def construct_input(self, token_ids1, max_seq_length, token_ids2=None):
         input_ids = [self.tokenizer.pad_id] * max_seq_length
@@ -79,7 +82,7 @@ class BaseInformationRetrievalDataset(Dataset):
 
         input_ids[:num_nonpad_tokens] = bert_input
         input_ids = np.array(input_ids, dtype=np.long)
-        input_mask = (input_ids != self.tokenizer.pad_id)
+        input_mask = input_ids != self.tokenizer.pad_id
         input_type_ids = np.ones_like(input_ids)
         input_type_ids[:sentence1_length] = 0
 
@@ -89,8 +92,7 @@ class BaseInformationRetrievalDataset(Dataset):
         max_seq_length = self.max_query_length + self.max_passage_length + 3
         input_ids, input_mask, input_type_ids = [], [], []
         for psg_id in psg_ids:
-            inputs = self.construct_input(
-                self.queries[query_id], max_seq_length, self.psgid2tokens(psg_id))
+            inputs = self.construct_input(self.queries[query_id], max_seq_length, self.psgid2tokens(psg_id))
             input_ids.append(inputs[0])
             input_mask.append(inputs[1])
             input_type_ids.append(inputs[2])
@@ -100,30 +102,42 @@ class BaseInformationRetrievalDataset(Dataset):
         return input_ids, input_mask, input_type_ids
 
     def preprocess_dpr(self, query_id, psg_ids):
-        q_input_ids, q_input_mask, q_type_ids = self.construct_input(
-            self.queries[query_id], self.max_query_length+2)
+        q_input_ids, q_input_mask, q_type_ids = self.construct_input(self.queries[query_id], self.max_query_length + 2)
         input_ids, input_mask, input_type_ids = [], [], []
         for psg_id in psg_ids:
-            inputs = self.construct_input(
-                self.psgid2tokens(psg_id), self.max_passage_length+2)
+            inputs = self.construct_input(self.psgid2tokens(psg_id), self.max_passage_length + 2)
             input_ids.append(inputs[0])
             input_mask.append(inputs[1])
             input_type_ids.append(inputs[2])
         input_ids = np.stack(input_ids)
         input_mask = np.stack(input_mask)
         input_type_ids = np.stack(input_type_ids)
-        return q_input_ids[None, ...], q_input_mask[None, ...], q_type_ids[None, ...], \
-            input_ids, input_mask, input_type_ids
+        return (
+            q_input_ids[None, ...],
+            q_input_mask[None, ...],
+            q_type_ids[None, ...],
+            input_ids,
+            input_mask,
+            input_type_ids,
+        )
 
     def psgid2tokens(self, psg_id):
         seq_len = self.passages[psg_id][0]
-        return self.passages[psg_id][1:seq_len+1].tolist()
+        return self.passages[psg_id][1 : seq_len + 1].tolist()
 
 
 class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
-    def __init__(self, tokenizer, passages, queries, query_to_passages,
-                 max_query_length=31, max_passage_length=190,
-                 num_negatives=10, preprocess_fn="preprocess_bert"):
+    def __init__(
+        self,
+        tokenizer,
+        passages,
+        queries,
+        query_to_passages,
+        max_query_length=31,
+        max_passage_length=190,
+        num_negatives=10,
+        preprocess_fn="preprocess_bert",
+    ):
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_negatives = num_negatives
 
@@ -140,7 +154,6 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
 
     def __len__(self):
         return len(self.idx2psgs)
-
 
     def parse_query_to_passages(self, file):
         idx2psgs = {}
@@ -160,9 +173,17 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
 
 
 class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
-    def __init__(self, tokenizer, passages, queries, query_to_passages,
-                 max_query_length=31, max_passage_length=190,
-                 num_candidates=10, preprocess_fn="preprocess_bert"):
+    def __init__(
+        self,
+        tokenizer,
+        passages,
+        queries,
+        query_to_passages,
+        max_query_length=31,
+        max_passage_length=190,
+        num_candidates=10,
+        preprocess_fn="preprocess_bert",
+    ):
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_candidates = num_candidates
 
@@ -195,8 +216,7 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
 
 
 class BertDensePassageRetrievalDatasetInfer(BaseInformationRetrievalDataset):
-    def __init__(self, tokenizer, passages=None, queries=None,
-                 max_query_length=31, max_passage_length=190):
+    def __init__(self, tokenizer, passages=None, queries=None, max_query_length=31, max_passage_length=190):
         super().__init__(tokenizer, max_query_length, max_passage_length)
 
         if passages is not None:

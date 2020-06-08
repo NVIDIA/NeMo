@@ -15,6 +15,11 @@
 # =============================================================================
 
 from nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset import GLUEDataset
+from nemo.collections.nlp.data.datasets.information_retrieval_dataset import (
+    BertDensePassageRetrievalDatasetInfer,
+    BertInformationRetrievalDatasetEval,
+    BertInformationRetrievalDatasetTrain,
+)
 from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_slot_dataset import (
     BertJointIntentSlotDataset,
     BertJointIntentSlotInferDataset,
@@ -40,9 +45,4 @@ from nemo.collections.nlp.data.datasets.text_classification import (
 from nemo.collections.nlp.data.datasets.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
-)
-from nemo.collections.nlp.data.datasets.information_retrieval_dataset import (
-    BertInformationRetrievalDatasetTrain,
-    BertInformationRetrievalDatasetEval,
-    BertDensePassageRetrievalDatasetInfer,
 )

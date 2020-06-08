@@ -15,17 +15,22 @@
 # =============================================================================
 
 
-from nemo.collections.nlp.data import BertInformationRetrievalDatasetTrain, \
-    BertInformationRetrievalDatasetEval, BertDensePassageRetrievalDatasetInfer
+from nemo.collections.nlp.data import (
+    BertDensePassageRetrievalDatasetInfer,
+    BertInformationRetrievalDatasetEval,
+    BertInformationRetrievalDatasetTrain,
+)
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
-__all__ = ['BertInformationRetrievalDataLayerTrain',
-           'BertInformationRetrievalDataLayerEval',
-           'BertDensePassageRetrievalDataLayerTrain',
-           'BertDensePassageRetrievalDataLayerEval',
-           'BertDensePassageRetrievalDataLayerInfer']
+__all__ = [
+    'BertInformationRetrievalDataLayerTrain',
+    'BertInformationRetrievalDataLayerEval',
+    'BertDensePassageRetrievalDataLayerTrain',
+    'BertDensePassageRetrievalDataLayerEval',
+    'BertDensePassageRetrievalDataLayerInfer',
+]
 
 
 class BertInformationRetrievalDataLayerTrain(TextDataLayer):
@@ -123,7 +128,7 @@ class BertInformationRetrievalDataLayerEval(TextDataLayer):
             "input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
-            "query_id": NeuralType(('B', ), ChannelType()),
+            "query_id": NeuralType(('B',), ChannelType()),
             "passage_ids": NeuralType(('B', 'T'), ChannelType()),
         }
 
@@ -262,7 +267,7 @@ class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
             "p_input_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
             "p_input_mask": NeuralType(('B', 'B', 'T'), ChannelType()),
             "p_input_type_ids": NeuralType(('B', 'B', 'T'), ChannelType()),
-            "query_id": NeuralType(('B', ), ChannelType()),
+            "query_id": NeuralType(('B',), ChannelType()),
             "passage_ids": NeuralType(('B', 'T'), ChannelType()),
         }
 
@@ -320,7 +325,7 @@ class BertDensePassageRetrievalDataLayerInfer(TextDataLayer):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
             "input_type_ids": NeuralType(('B', 'T'), ChannelType()),
-            "idx": NeuralType(('B', ), ChannelType()),
+            "idx": NeuralType(('B',), ChannelType()),
         }
 
     def __init__(

@@ -14,8 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
-import numpy as np
 import pickle
+
+import numpy as np
+
 from nemo import logging
 
 __all__ = ["eval_iter_callback", "eval_epochs_done_callback"]
@@ -43,8 +45,7 @@ def eval_iter_callback(tensors, global_vars):
                 global_vars["passage_ids"].append(tensor[0].detach().cpu().numpy())
 
 
-def eval_epochs_done_callback(global_vars, query2rel, topk=[1, 10],
-                              baseline_name="bm25", save_scores=None):
+def eval_epochs_done_callback(global_vars, query2rel, topk=[1, 10], baseline_name="bm25", save_scores=None):
 
     query2passages = {}
     for i in range(len(global_vars["scores"])):
@@ -52,13 +53,13 @@ def eval_epochs_done_callback(global_vars, query2rel, topk=[1, 10],
 
         if query_id in query2passages:
             query2passages[query_id]["psg_ids"] = np.concatenate(
-                (query2passages[query_id]["psg_ids"], global_vars["passage_ids"][i]))
+                (query2passages[query_id]["psg_ids"], global_vars["passage_ids"][i])
+            )
             query2passages[query_id]["scores"] = np.concatenate(
-                (query2passages[query_id]["scores"], global_vars["scores"][i]))
+                (query2passages[query_id]["scores"], global_vars["scores"][i])
+            )
         else:
-            query2passages[query_id] = {
-                "psg_ids": global_vars["passage_ids"][i],
-                "scores": global_vars["scores"][i]}
+            query2passages[query_id] = {"psg_ids": global_vars["passage_ids"][i], "scores": global_vars["scores"][i]}
 
     if save_scores is not None:
         pickle.dump(query2passages, open(save_scores, "wb"))
@@ -69,7 +70,7 @@ def eval_epochs_done_callback(global_vars, query2rel, topk=[1, 10],
     logging.info("--------------------")
     logging.info(f"{baseline_name.upper()} oracle MRR: {np.round(oracle_mrr, 3)}")
     for k in topk:
-        model_mrr = np.mean([(rr >= 1/k) * rr for rr in rrs["model"]])
+        model_mrr = np.mean([(rr >= 1 / k) * rr for rr in rrs["model"]])
         logging.info(f"{baseline_name.upper()} method MRR@{k}: {np.round(model_mrr, 3)}")
     logging.info("--------------------")
 

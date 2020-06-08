@@ -23,7 +23,6 @@ __all__ = ['ListwiseSoftmaxLoss']
 
 
 class ListwiseSoftmaxLoss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -44,8 +43,7 @@ class ListwiseSoftmaxLoss(LossNM):
     def __init__(self, list_size=2, label_smoothing=0):
         LossNM.__init__(self)
 
-        self._loss_fn = ListwiseSoftmax(list_size=list_size,
-                                        label_smoothing=label_smoothing)
+        self._loss_fn = ListwiseSoftmax(list_size=list_size, label_smoothing=label_smoothing)
 
     def _loss_function(self, scores):
         scores, loss = self._loss_fn(scores)
@@ -53,7 +51,6 @@ class ListwiseSoftmaxLoss(LossNM):
 
 
 class ListwiseSoftmax(torch.nn.Module):
-
     def __init__(self, list_size=2, label_smoothing=0):
         super().__init__()
         self._ls = list_size

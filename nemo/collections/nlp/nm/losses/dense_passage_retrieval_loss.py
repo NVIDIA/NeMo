@@ -17,13 +17,12 @@
 import torch
 
 from nemo.backends.pytorch import LossNM
-from nemo.core import LossType, NeuralType, ChannelType
+from nemo.core import ChannelType, LossType, NeuralType
 
 __all__ = ['DensePassageRetrievalLoss']
 
 
 class DensePassageRetrievalLoss(LossNM):
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -45,8 +44,7 @@ class DensePassageRetrievalLoss(LossNM):
     def __init__(self, num_negatives=1, label_smoothing=0.0):
         LossNM.__init__(self)
 
-        self._loss_fn = DPRLoss(num_negatives=num_negatives,
-                                label_smoothing=label_smoothing)
+        self._loss_fn = DPRLoss(num_negatives=num_negatives, label_smoothing=label_smoothing)
 
     def _loss_function(self, queries, passages):
         scores, loss = self._loss_fn(queries, passages)
@@ -54,7 +52,6 @@ class DensePassageRetrievalLoss(LossNM):
 
 
 class DPRLoss(torch.nn.Module):
-
     def __init__(self, num_negatives=2, label_smoothing=0):
         super().__init__()
         self._nn = num_negatives
@@ -62,14 +59,12 @@ class DPRLoss(torch.nn.Module):
 
     def forward(self, queries, passages):
 
-        q_vectors = queries[:, 0, :] # B x H
-        p_vectors = passages[:, 0, :].view(-1, self._nn + 1, passages.shape[-1]) # B x (1 + nn) x H
+        q_vectors = queries[:, 0, :]  # B x H
+        p_vectors = passages[:, 0, :].view(-1, self._nn + 1, passages.shape[-1])  # B x (1 + nn) x H
         p_positives, p_negatives = p_vectors[:, 0], p_vectors[:, 1:]
         scores = torch.cat(
-            (torch.matmul(q_vectors, p_positives.T),
-            torch.einsum("ij,ipj->ip", q_vectors, p_negatives)),
-            dim=1
-        ) # B x (B + nn)
+            (torch.matmul(q_vectors, p_positives.T), torch.einsum("ij,ipj->ip", q_vectors, p_negatives)), dim=1
+        )  # B x (B + nn)
 
         batch_size = scores.shape[0]
         smoothing = (batch_size + self._nn) * self._smoothing / (batch_size + self._nn - 1)

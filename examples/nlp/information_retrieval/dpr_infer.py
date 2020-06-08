@@ -14,11 +14,12 @@
 # limitations under the License.
 # =============================================================================
 
-import torch
-import numpy as np
-
-import time
 import math
+import time
+
+import numpy as np
+import torch
+
 import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir_dl
@@ -39,24 +40,22 @@ nf = nemo.core.NeuralModuleFactory(
     backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
-    log_dir=args.work_dir)
+    log_dir=args.work_dir,
+)
 
 tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model)
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
-encoder = nemo_nlp.nm.trainables.get_huggingface_model(
-    pretrained_model_name=args.pretrained_model)
+encoder = nemo_nlp.nm.trainables.get_huggingface_model(pretrained_model_name=args.pretrained_model)
 device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-    (encoder.bert.embeddings.word_embeddings.weight.data, zeros))
+    (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
+)
 encoder.restore_from(path=args.restore_path, local_rank=args.local_rank)
 
-data_layer_params = {"tokenizer": tokenizer,
-                     "batch_size": args.batch_size,
-                     "passages": None,
-                     "queries": None}
+data_layer_params = {"tokenizer": tokenizer, "batch_size": args.batch_size, "passages": None, "queries": None}
 if args.data_for_eval == "passages":
     data_layer_params["passages"] = f"{args.data_dir}/collection.{args.chunk_id}.tsv"
     filename = f"passages.{args.chunk_id}.tsv"
@@ -73,7 +72,6 @@ evaluated_tensors = nf.infer(tensors=[hiddens, idx])
 
 
 if args.local_rank == 0:
-    vectors = np.vstack([tensor[:, 0].detach().numpy().astype(np.float16)
-                         for tensor in evaluated_tensors[0]])
+    vectors = np.vstack([tensor[:, 0].detach().numpy().astype(np.float16) for tensor in evaluated_tensors[0]])
     indices = np.hstack([tensor.detach().numpy() for tensor in evaluated_tensors[1]])
     np.savez(f"{args.work_dir}/{filename}.npz", vectors=vectors, indices=indices)
