@@ -140,6 +140,14 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str, help="Le
 parser.add_argument("--lr", default=5e-5, type=float, help="The initial learning rate.")
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float, help="Learning rate warm up proportion")
 parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay if we apply some.")
+parser.add_argument("--grad_norm_clip", default=1.0, type=float)
+parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--lr", default=5e-5, type=float, help="The initial learning rate.")
+parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
+parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
+parser.add_argument("--fc_dropout", default=0.1, type=float)
+parser.add_argument("--num_fc_layers", default=1, type=int)
+parser.add_argument("--num_workers", default=1, type=int, help="Num workers to use with data loader.")
 parser.add_argument("--num_epochs", default=3, type=int, help="Total number of training epochs to perform.")
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
 parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
@@ -147,6 +155,8 @@ parser.add_argument(
     "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
 )
 parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
+parser.add_argument("--model-parallel-size", default=None, type=int)
+parser.add_argument("--random_seed", default=None, type=int)
 parser.add_argument(
     "--work_dir",
     default="output_glue",
@@ -173,6 +183,7 @@ parser.add_argument(
     help="Frequency of saving checkpoint '-1' - step checkpoint won't be saved",
 )
 parser.add_argument("--loss_step_freq", default=-1, type=int, help="Frequency of printing loss")
+parser.add_argument("--eval_step_freq", default=100, type=int, help="Frequency of evaluation")
 parser.add_argument(
     "--no_data_cache", action="store_true", help="When specified do not load and store cache preprocessed data.",
 )
@@ -216,16 +227,30 @@ nf = nemo_core.NeuralModuleFactory(
     checkpoint_dir=args.checkpoint_dir,
     files_to_copy=[__file__],
     add_time_to_log_dir=not args.no_time_to_log_dir,
+    model_parallel_size=args.model_parallel_size,
+    random_seed=args.random_seed,
 )
 
-logging.info(f"{args}")
+# print(f'World size: {nf.world_size}')
+# print(f'Model parallel size: {nf.model_parallel_size}')
+# print(f'Data Parallel Size: {nf.data_parallel_size}')
+# print(f'Global rank: {nf.global_rank}')
+# print(f'Local rank: {nf.local_rank}')
+# print(f'Model parallel rank: {nf.model_parallel_rank}')
+# print(f'Data parallel rank: {nf.data_parallel_rank}')
+
+logging.info(f"Args: {args}")
 
 model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
     pretrained_model_name=args.pretrained_model_name,
     config=args.bert_config,
     vocab=args.vocab_file,
     checkpoint=args.bert_checkpoint,
+    local_rank=nf.local_rank,
 )
+import time
+# print('Loaded Megatron and now sleeping for 20')
+# time.sleep(20)
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
@@ -239,12 +264,21 @@ hidden_size = model.hidden_size
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == "sts-b":
-    pooler = SequenceRegression(hidden_size=hidden_size)
+    pooler = SequenceRegression(
+        hidden_size=hidden_size,
+        dropout=args.fc_dropout)
     glue_loss = MSELoss()
 else:
-    pooler = SequenceClassifier(hidden_size=hidden_size, num_classes=num_labels, log_softmax=False)
+    pooler = SequenceClassifier(
+        hidden_size=hidden_size,
+        num_classes=num_labels,
+        log_softmax=False,
+        num_layers=args.num_fc_layers,
+        dropout=args.fc_dropout)
     glue_loss = CrossEntropyLossNM()
 
+# print('Instantiated classifier and now sleeping for 20')
+# time.sleep(20)
 
 def create_pipeline(
     max_seq_length=args.max_seq_length,
@@ -291,7 +325,10 @@ def create_pipeline(
 
 token_params = {"bos_token": None, "eos_token": "[SEP]", "pad_token": "[PAD]", "cls_token": "[CLS]"}
 
-train_loss, steps_per_epoch, _, _ = create_pipeline()
+#train_loss, steps_per_epoch, _, _ = create_pipeline()
+train_loss, steps_per_epoch, train_data_layer, _ = create_pipeline()
+
+logging.info(f'steps_per_epoch: {steps_per_epoch}')
 _, _, eval_data_layer, eval_tensors = create_pipeline(evaluate=True)
 
 callbacks_eval = [
@@ -300,7 +337,7 @@ callbacks_eval = [
         user_iter_callback=lambda x, y: eval_iter_callback(x, y),
         user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, args.work_dir, eval_task_names[0]),
         tb_writer=nf.tb_writer,
-        eval_step=steps_per_epoch,
+        eval_step=args.eval_step_freq,
         wandb_name=args.wandb_experiment,
         wandb_project=args.wandb_project,
     )
@@ -318,11 +355,12 @@ if args.task_name == "mnli":
             user_iter_callback=lambda x, y: eval_iter_callback(x, y),
             user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, args.work_dir, eval_task_names[1]),
             tb_writer=nf.tb_writer,
-            eval_step=steps_per_epoch,
+            eval_step=args.eval_step_freq,
         )
     )
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
+
 callback_train = nemo_core.SimpleLossLoggerCallback(
     tensors=[train_loss],
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
@@ -334,8 +372,11 @@ callback_train = nemo_core.SimpleLossLoggerCallback(
 ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
+#callbacks = [callback_train, ckpt_callback] + callbacks_eval
 
-callbacks = [callback_train, ckpt_callback] + callbacks_eval
+callbacks = [callback_train] + callbacks_eval
+
+logging.info(f"callbacks: {callbacks}")
 
 if args.wandb_project and args.wandb_experiment:
     wand_callback = nemo.core.WandbCallback(
@@ -348,7 +389,9 @@ if args.wandb_project and args.wandb_experiment:
     callbacks.append(wand_callback)
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
+    args.lr_policy,
+    total_steps=args.num_epochs * steps_per_epoch,
+    warmup_ratio=args.lr_warmup_proportion
 )
 
 
@@ -357,5 +400,10 @@ nf.train(
     callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
+    optimization_params={
+        "num_epochs": args.num_epochs,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "grad_norm_clip": args.grad_norm_clip,
+    },
 )
