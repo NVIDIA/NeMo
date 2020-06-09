@@ -54,10 +54,6 @@ class PtActions(Actions):
         self,
         local_rank=None,
         global_rank=None,
-        data_parallel_rank=None,
-        model_parallel_rank=None,
-        data_parallel_group=None,
-        data_parallel_size=None,
         tb_writer=None,
         optimization_level=Optimization.mxprO0,
         ):
@@ -91,10 +87,6 @@ class PtActions(Actions):
         super(PtActions, self).__init__(
             local_rank=local_rank,
             global_rank=global_rank,
-            data_parallel_rank=data_parallel_rank,
-            model_parallel_rank=model_parallel_rank,
-            data_parallel_group=data_parallel_group,
-            data_parallel_size=data_parallel_size,
             optimization_level=optimization_level,
         )
 
@@ -452,14 +444,14 @@ class PtActions(Actions):
             if dl_nm.placement == DeviceType.AllGpu:
                 assert dist.is_initialized()
                 is_distributed = True
-                world_size = torch.distributed.get_world_size()
+                #world_size = torch.distributed.get_world_size()
+                world_size = AppState().world_size
 
                 # logging.info(
                 #     "Doing distributed evaluation. Rank {0} of {1}".format(
                 #         self.local_rank, world_size
                 #     )
                 # )
-                logging.info(f'Data parallel size: {self.data_parallel_size}')
                 if dl_nm.dataset is not None:
                     sampler = None
                     if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
@@ -468,8 +460,8 @@ class PtActions(Actions):
                         #     dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
                         # )
                         sampler = torch.utils.data.distributed.DistributedSampler(
-                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle, rank=self.data_parallel_rank,
-                            num_replicas=self.data_parallel_size
+                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle, rank=AppState().data_parallel_rank,
+                            num_replicas=AppState().data_parallel_size
                         )
                     dataloader_params = {
                         'dataset': dl_nm.dataset,
@@ -650,13 +642,16 @@ class PtActions(Actions):
                     raise NotImplementedError("Caching is not available for distributed training.")
                 assert dist.is_initialized()
                 is_distributed = True
-                world_size = torch.distributed.get_world_size()
+                #world_size = torch.distributed.get_world_size()
+                world_size = AppState().world_size
                 if dl_nm.dataset is not None:
                     sampler = None
                     if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
                         sampler = torch.utils.data.distributed.DistributedSampler(
-                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle,
-                            rank=self.data_parallel_rank, num_replicas=self.data_parallel_size
+                            dataset=dl_nm.dataset,
+                            shuffle=dl_nm.shuffle,
+                            rank=AppState().data_parallel_rank,
+                            num_replicas=AppState().data_parallel_size
                         )
                     dataloader_params = {
                         'dataset': dl_nm.dataset,
@@ -1338,8 +1333,10 @@ class PtActions(Actions):
                 train_sampler = None
                 if not isinstance(t_dataset, torch.utils.data.IterableDataset):
                     train_sampler = torch.utils.data.distributed.DistributedSampler(
-                        dataset=t_dataset, shuffle=dataNM.shuffle,
-                        rank=self.data_parallel_rank, num_replicas=self.data_parallel_size
+                        dataset=t_dataset,
+                        shuffle=dataNM.shuffle,
+                        rank=AppState().data_parallel_rank,
+                        num_replicas=AppState().data_parallel_size
                     )
                     # train_sampler = torch.utils.data.distributed.DistributedSampler(
                     #     dataset=t_dataset, shuffle=dataNM.shuffle, rank=self.dp_rank,
