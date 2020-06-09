@@ -201,3 +201,11 @@ class AppState(metaclass=Singleton):
     @data_parallel_group.setter
     def data_parallel_group(self, group):
         self._data_parallel_group = group
+
+    @property
+    def random_seed(self):
+        return self._random_seed
+    
+    @random_seed.setter
+    def random_seed(self, seed):
+        self._random_seed = seed
