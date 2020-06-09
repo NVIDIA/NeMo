@@ -104,9 +104,10 @@ def main():
     # Callbacks which we'll be using:
     callbacks = []
     # SimpleLossLogger prints basic training stats (e.g. loss) to console
-    train_callback = nemo.core.SimpleLogger(
-        tensors_to_log=[loss, predictions, transcript, transcript_len],
+    train_callback = nemo.core.SimpleLossLoggerCallback(
+        tensors=[loss, predictions, transcript, transcript_len],
         step_freq=args.stats_freq,
+        print_func=partial(monitor_asr_train_progress, labels=asr_model.vocabulary),
     )
     callbacks.append(train_callback)
     if args.checkpoint_dir is not None and args.checkpoint_save_freq is not None:
