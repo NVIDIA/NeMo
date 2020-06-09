@@ -171,6 +171,14 @@ class AppState(metaclass=Singleton):
         self._local_rank = rank
 
     @property
+    def global_rank(self):
+        return self._global_rank
+    
+    @global_rank.setter
+    def global_rank(self, rank):
+        self._global_rank = rank
+
+    @property
     def model_parallel_rank(self):
         return self._model_parallel_rank
     
