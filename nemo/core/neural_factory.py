@@ -252,7 +252,7 @@ class NeuralModuleFactory(object):
                     self._data_parallel_rank = self._global_rank
                     AppState().data_parallel_rank = AppState().global_rank
                     self._data_parallel_size = self._world_size 
-                    AppState().data_parallel_size = Appstate().world_size
+                    AppState().data_parallel_size = AppState().world_size
 
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
                     """Wrapper function to broadcast string values across all
