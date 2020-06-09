@@ -194,9 +194,15 @@ printing methods such as printing 1 element or 1 dimension, please look into :re
 :class:`nemo.core.callbacks.TensorboardLogger`, ``get_tb_values``, and ``log_to_tb_func`` have been removed. By
 default `TensorboardLogger` assumes each tensors passed to it in ``tensors_to_log`` is a scalar and logs it to
 tensorboard as a scalar. For more advanced functionality, `TensorboardLogger` accepts ``custom_tb_log_func`` which
-accepts one tensor from ``tensors_to_log`` at a time. In peusdocode, its looks like:
+obtains the values of all tensors from ``tensors_to_log``. In peusdocode, its looks like:
 
 .. code-block::
 
+    tensor_values = []
     for tensor in tensors_to_log:
-        custom_tb_log_func(tensor)
+        tensor_values.append(state["tensors"].get_tensor(tensor))  # Appends a pytorch tensor to tensor_values
+    custom_tb_log_func(
+        tensor_values,  # The list of pytorch tensors associated with tensors_to_log
+        self.tb_writer,  # The tensorboard SummaryWriter class
+        state["step"],  # The current training step
+    )
