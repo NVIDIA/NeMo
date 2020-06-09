@@ -227,13 +227,6 @@ nf = nemo_core.NeuralModuleFactory(
     random_seed=args.random_seed,
 )
 
-# print(f'World size: {nf.world_size}')
-# print(f'Model parallel size: {nf.model_parallel_size}')
-# print(f'Data Parallel Size: {nf.data_parallel_size}')
-# print(f'Global rank: {nf.global_rank}')
-# print(f'Local rank: {nf.local_rank}')
-# print(f'Model parallel rank: {nf.model_parallel_rank}')
-# print(f'Data parallel rank: {nf.data_parallel_rank}')
 
 logging.info(f"Args: {args}")
 
@@ -244,9 +237,6 @@ model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
     checkpoint=args.bert_checkpoint,
     local_rank=nf.local_rank,
 )
-import time
-# print('Loaded Megatron and now sleeping for 20')
-# time.sleep(20)
 
 tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
@@ -273,8 +263,6 @@ else:
         dropout=args.fc_dropout)
     glue_loss = CrossEntropyLossNM()
 
-# print('Instantiated classifier and now sleeping for 20')
-# time.sleep(20)
 
 def create_pipeline(
     max_seq_length=args.max_seq_length,
