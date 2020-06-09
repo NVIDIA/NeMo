@@ -128,8 +128,8 @@ class MegatronBERT(TrainableNM):
                 )
             )
 
-        if isinstance(AppState().random_seed, int) and AppState().random_seed() > 0:
-            model_parallel_cuda_manual_seed(AppState()._random_seed)
+        if isinstance(AppState().random_seed, int) and AppState().random_seed > 0:
+            model_parallel_cuda_manual_seed(AppState().random_seed)
         else:
             value_error = (
                 f'_random_seed {AppState().random_seed} should be a positive integer'
