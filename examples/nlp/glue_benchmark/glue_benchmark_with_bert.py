@@ -141,7 +141,6 @@ parser.add_argument("--lr", default=5e-5, type=float, help="The initial learning
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float, help="Learning rate warm up proportion")
 parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay if we apply some.")
 parser.add_argument("--grad_norm_clip", default=1.0, type=float)
-parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight deay if we apply some.")
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--num_fc_layers", default=1, type=int)
 parser.add_argument("--num_workers", default=1, type=int, help="Num workers to use with data loader.")
