@@ -33,6 +33,8 @@ import nemo
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
 from nemo.core.neural_types import NmTensor
 from nemo.utils import ExpManager, logging
+from nemo.utils.app_state import AppState
+from nemo.utils.decorators import deprecated
 
 
 class DeploymentFormat(Enum):
@@ -72,205 +74,6 @@ class DeviceType(Enum):
     AllGpu = 3
 
 
-<<<<<<< HEAD
-=======
-class Actions(ABC):
-    """Basic actions allowed on graphs of Neural Modules"""
-
-    def __init__(
-        self, local_rank, global_rank, data_parallel_rank, model_parallel_rank, data_parallel_group,
-        data_parallel_size, optimization_level=Optimization.mxprO0,
-    ):
-        self._local_rank = local_rank
-        self._global_rank = global_rank
-        self._data_parallel_rank = data_parallel_rank
-        self._model_parallel_rank = model_parallel_rank
-        self._data_parallel_group = data_parallel_group
-        self._data_parallel_size = data_parallel_size
-        self._optim_level = optimization_level
-        self.step = None
-        self.epoch_num = None
-
-    @property
-    def local_rank(self):
-        """Local rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._local_rank
-
-    @property
-    def global_rank(self):
-        """Global rank during distributed execution. None if single GPU/CPU
-
-        Returns:
-            (int) rank or worker or None if not in distributed model
-        """
-        return self._global_rank
-
-    @property
-    def model_parallel_rank(self):
-        """Model parallel rank. None if not using model parallelism
-        Returns:
-            (int) model parallel rank or None if not using model parallelism
-        """
-        return self._model_parallel_rank
-
-    @property
-    def data_parallel_rank(self):
-        """Data parallel rank. None if not using data or model parallelism
-        Returns:
-            (int) data parallel rank or None if not using data or model parallelism
-        """
-        return self._data_parallel_rank
-
-    @property
-    def data_parallel_size(self):
-        """Data parallel size. None if not using model parallelism
-        Returns:
-            (int) data parallel size or None if not using data or model parallelism
-        """
-        return self._data_parallel_size
-
-    @property
-    def data_parallel_group(self):
-        """Data parallel group. None if not using model parallelism
-        Returns:
-            (int) data parallel group or None if not using data or model parallelism
-        """
-        return self._data_parallel_group
-
-    @abstractmethod
-    def train(
-        self,
-        tensors_to_optimize: List[NmTensor],
-        callbacks: Optional[List[ActionCallback]],
-        lr_policy=None,
-        batches_per_step=None,
-        stop_on_nan_loss=False,
-    ):
-        """This action executes training and (optionally) evaluation.
-
-        Args:
-            tensors_to_optimize: which tensors to optimize. Typically this is
-                single loss tesnor.
-            callbacks: list of callback objects
-            lr_policy: function which should take (initial_lr, step, epoch) and
-                return learning rate
-            batches_per_step: number of mini-batches to process before one
-                optimizer step. (default: None, same as 1). Use this
-                to simulate larger batch sizes on hardware which could not fit
-                larger batch in memory otherwise. Effectively, this will make
-                "algorithmic" batch size per GPU/worker = batches_per_step*
-                batch_size
-            stop_on_nan_loss: (default: False) If set to True, the training
-                will stop if loss=nan or inf. If set to False, the training
-                will continue.
-
-        Returns:
-            None
-        """
-        pass
-
-    @abstractmethod
-    def infer(self, tensors: List[NmTensor]):
-        """This action executes inference. Nothing is optimized.
-        Args:
-          tensors: which tensors to evaluate.
-
-        Returns:
-          None
-        """
-        pass
-
-    @abstractmethod
-    def save_state_to(self, path: str):
-        """
-        Saves current state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def restore_state_from(self, path: str):
-        """
-        Restores state such as step, epoch and optimizer parameters
-        Args:
-          path:
-
-        Returns:
-
-        """
-        pass
-
-    @abstractmethod
-    def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
-        """
-        Creates an optimizer object to be use in the train() method.
-
-        Args:
-            optimizer: Specifies which optimizer to use.
-            things_to_optimize: A list of neural modules or tensors to be
-                optimized.
-            optimizer_params: Specifies the parameters of the optimizer
-
-        Returns:
-            Optimizer
-        """
-        pass
-
-    def _perform_on_iteration_start(self, callbacks):
-        # TODO: Most of these checks can be relaxed since we enforce callbacks
-        # to be a list of ActionCallback objects
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_start()
-
-    def _perform_on_iteration_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_iteration_end()
-
-    def _perform_on_action_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_start()
-
-    def _perform_on_action_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_action_end()
-
-    def _perform_on_epoch_start(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_start()
-
-    def _perform_on_epoch_end(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.on_epoch_end()
-
-    def _init_callbacks(self, callbacks):
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback.action = self
-
-    def _update_callbacks(
-        self, callbacks=None, registered_tensors=None,
-    ):
-        # if self.local_rank is None or self.local_rank == 0:
-        if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
-            for callback in callbacks:
-                callback._registered_tensors = registered_tensors
-
-
->>>>>>> Added model parallel intialization and properties
 def _str_to_opt_level(opt_str: str) -> Optimization:
     number = int(opt_str[1:])
     if number not in Optimization._value2member_map_:
@@ -324,10 +127,12 @@ class NeuralModuleFactory(object):
         model_parallel_size=None,
     ):
         self._local_rank = local_rank
+        AppState().local_rank = local_rank
         self._global_rank = None
         self._model_parallel_rank = None
         self._data_parallel_rank = None
 
+        AppState().model_parallel_size = model_parallel_size
         self._model_parallel_size = model_parallel_size
         self._data_parallel_size = None # depends on mp size and world size
         self._data_parallel_group = None # needed for model parallel
@@ -412,28 +217,41 @@ class NeuralModuleFactory(object):
                 # Remove test tensor from memory
 
                 self._world_size = torch.distributed.get_world_size()
-                self._global_rank = torch.distributed.get_rank()
+                AppState().world_size = torch.distributed.get_world_size()
 
-                self._data_parallel_size = self._world_size # not when using model parallel
-                self._data_parallel_rank = self._global_rank # not when using model parallel
-                self._data_parallel_size = self._world_size # not when using model parallel
+                self._global_rank = torch.distributed.get_rank()
+                AppState().global_rank = torch.distributed.get_rank()
+
 
                 if self.model_parallel_size is not None:
                     logging.info(f'Model parallel being initialized by Megatron-LM')
-                    #self._dp_rank = None # not when using model parallel
-                    #self._data_parallel_size = None # not when using model parallel
+                    logging.info(f'Updating AppState()')
 
                     from megatron import mpu
                     mpu.initialize.initialize_model_parallel(self._model_parallel_size)
-                    self._model_parallel_rank = mpu.get_model_parallel_rank()
-                    self._data_parallel_rank = mpu.get_data_parallel_rank()
-                    self._data_parallel_size = mpu.get_data_parallel_world_size()
+                    #self._model_parallel_rank = mpu.get_model_parallel_rank()
+                    AppState().model_parallel_rank = mpu.get_model_parallel_rank()
+                    #self._data_parallel_rank = mpu.get_data_parallel_rank()
+                    AppState().data_parallel_rank = mpu.get_data_parallel_rank()
+                    #self._data_parallel_size = mpu.get_data_parallel_world_size()
+                    AppState().data_parallel_size = mpu.get_data_parallel_world_size()
+                    AppState().data_parallel_group = mpu.get_data_parallel_group()
                     # TODO: update app_state properties here
-                    logging.info(f'World size: {self.world_size}')
-                    logging.info(f'Model parallel size: {self.model_parallel_size}')
-                    logging.info(f'Model parallel rank: {self.model_parallel_rank}')
-                    logging.info(f'Data parallel size: {self.data_parallel_size}')
-                    logging.info(f'Data parallel rank: {self.data_parallel_rank}')
+                    logging.info(f'World size: {AppState().world_size}')
+                    logging.info(f'Model parallel size: {AppState().model_parallel_size}')
+                    logging.info(f'Data parallel size: {AppState().data_parallel_size}')
+                    logging.info(f'Local rank: {AppState().local_rank}')
+                    logging.info(f'Global rank: {AppState().global_rank}')
+                    logging.info(f'Model parallel rank: {AppState().model_parallel_rank}')
+                    logging.info(f'Data parallel rank: {AppState().data_parallel_rank}')
+                else:
+                    # data parallel only
+                    self._data_parallel_size = self._world_size
+                    AppState().data_parallel_size = AppState().world_size
+                    self._data_parallel_rank = self._global_rank
+                    AppState().data_parallel_rank = AppState().global_rank
+                    self._data_parallel_size = self._world_size 
+                    AppState().data_parallel_size = Appstate().world_size
 
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
                     """Wrapper function to broadcast string values across all
