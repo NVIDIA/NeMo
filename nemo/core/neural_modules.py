@@ -83,6 +83,11 @@ class NeuralModule(NeuralInterface):
 
         # Get default factory.
         self._factory = NeuralModuleFactory.get_default_factory()
+        if self._factory is None:
+            raise NameError(
+                "A Neural Module was instantiated without first creating a Neural Factory. Please instantiate the "
+                "NeuralModuleFactory class first."
+            )
 
         # Set module properties from factory else use defaults
         self._placement = self._factory.placement
@@ -250,7 +255,7 @@ class NeuralModule(NeuralInterface):
     def __serialize_header(self) -> Dict[str, Any]:
         """
         A protected method that creates a header stored later in the configuration file.
-            
+
         Returns:
             Dictionary containing a header with module specification.
         """
