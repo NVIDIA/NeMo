@@ -549,3 +549,11 @@ class NeuralModuleFactory(object):
     @property
     def random_seed(self):
         return self._random_seed
+
+    @property
+    def random_seed(self):
+        return self._random_seed
+
+    @random_seed.setter
+    def random_seed(self, seed):
+        self._random_seed = seed
