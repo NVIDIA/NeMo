@@ -20,7 +20,11 @@ In order to finetune a pretrained Megatron BERT language model on NLP downstream
 
 .. code-block:: bash
 
+    # to used uncased model
     --pretrained_model_name megatron-bert-345m-uncased
+
+    # to used cased model
+    --pretrained_model_name megatron-bert-345m-cased
 
 For example, to finetune SQuAD v1.1 with Megatron-LM, run:
 
@@ -32,7 +36,8 @@ For example, to finetune SQuAD v1.1 with Megatron-LM, run:
     --pretrained_model_name megatron-bert-345m-uncased
 
 
-If you have a different checkpoint or model configuration, use ``--pretrained_model_name megatron-bert-uncased`` or ``--pretrained_model_name megatron-bert-cased`` and specify ``--bert_config`` and ``--bert_checkpoint`` for your model.
+If you have a different checkpoint or model configuration, use ``--pretrained_model_name megatron-bert-uncased`` \
+or ``--pretrained_model_name megatron-bert-cased`` and specify ``--bert_config`` and ``--bert_checkpoint`` for your model.
 
 .. note::
     Megatron-LM has its own set of training arguments (including tokenizer) that are ignored during finetuning in NeMo. Please use downstream task training scripts for all NeMo supported arguments.

@@ -42,6 +42,12 @@ MEGATRON_CONFIG_MAP = {
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt',
         'do_lower_case': True,
     },
+    'megatron-bert-345m-cased': {
+        'config': CONFIGS['345m'],
+        'checkpoint': 'https://api.ngc.nvidia.com/v2/models/nvidia/megatron_bert_345m/versions/v0.1_cased/files/release/mp_rank_00/model_optim_rng.pt',
+        'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
+        'do_lower_case': False,
+    },
     'megatron-bert-uncased': {
         'config': None,
         'checkpoint': None,
