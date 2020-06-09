@@ -138,6 +138,7 @@ class NeuralModuleFactory(object):
         self._data_parallel_group = None # needed for model parallel
 
         self._random_seed = random_seed
+        AppState().random_seed = random_seed
 
         if isinstance(optimization_level, str):
             optimization_level = _str_to_opt_level(optimization_level)
