@@ -1394,16 +1394,24 @@ class PtActions(Actions):
                         #     pmodule, device_ids=[self.local_rank],
                         #     broadcast_buffers=False, find_unused_parameters=True
                         # )
-                        i = torch.cuda.current_device()
-                        pmodule = DDP(
-                            pmodule, device_ids=[i], output_device=i, 
-                            process_group=self.data_parallel_group
-                        )
+                        # i = torch.cuda.current_device()
+                        # pmodule = DDP(
+                        #     pmodule, device_ids=[i], output_device=i, 
+                        #     process_group=AppState().data_parallel_group
+                        # )
 
                     # By default, disable broadcast_buffers. This disables batch norm synchronization on forward
                     # pass
+                    # module = DDP(
+                    #     module, device_ids=[self.local_rank], broadcast_buffers=False, find_unused_parameters=True
+                    # )
                     module = DDP(
-                        module, device_ids=[self.local_rank], broadcast_buffers=False, find_unused_parameters=True
+                        module,
+                        device_ids=[AppState().local_rank],
+                        output_device=AppState().local_rank,
+                        broadcast_buffers=False,
+                        find_unused_parameters=True,
+                        process_group=AppState().data_parallel_group
                     )
                     self.ddp_module_dict[key] = module
 
