@@ -31,6 +31,7 @@ from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
+from nemo.utils.app_state import AppState
 
 # Parsing arguments
 """Provide extra arguments required for tasks."""
@@ -163,7 +164,7 @@ model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
     config=args.bert_config,
     vocab=args.vocab_file,
     checkpoint=args.bert_checkpoint,
-    local_rank=nf.local_rank,
+    local_rank=AppState().local_rank,
 )
 
 hidden_size = model.hidden_size
