@@ -454,10 +454,6 @@ class NeuralModuleFactory(object):
             instance = constructor(
                 local_rank=self.local_rank,
                 global_rank=self.global_rank,
-                data_parallel_rank=self.data_parallel_rank,
-                model_parallel_rank=self.model_parallel_rank,
-                data_parallel_group=self.data_parallel_group,
-                data_parallel_size=self.data_parallel_size,
                 tb_writer=tb_writer,
                 optimization_level=self._optim_level,
             )
