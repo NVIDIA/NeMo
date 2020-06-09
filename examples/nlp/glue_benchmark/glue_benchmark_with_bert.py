@@ -146,7 +146,9 @@ parser.add_argument("--num_fc_layers", default=1, type=int)
 parser.add_argument("--num_workers", default=1, type=int, help="Num workers to use with data loader.")
 parser.add_argument("--num_epochs", default=3, type=int, help="Total number of training epochs to perform.")
 parser.add_argument("--batch_size", default=8, type=int, help="Batch size per GPU/CPU for training/evaluation.")
-parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs (number of logical GPUs if using model parallelism)")
+parser.add_argument(
+    "--num_gpus", default=1, type=int, help="Number of GPUs (number of logical GPUs if using model parallelism)"
+)
 parser.add_argument(
     "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
 )
@@ -250,9 +252,7 @@ hidden_size = model.hidden_size
 
 # uses [CLS] token for classification (the first token)
 if args.task_name == "sts-b":
-    pooler = SequenceRegression(
-        hidden_size=hidden_size,
-        dropout=args.fc_dropout)
+    pooler = SequenceRegression(hidden_size=hidden_size, dropout=args.fc_dropout)
     glue_loss = MSELoss()
 else:
     pooler = SequenceClassifier(
@@ -260,7 +260,8 @@ else:
         num_classes=num_labels,
         log_softmax=False,
         num_layers=args.num_fc_layers,
-        dropout=args.fc_dropout)
+        dropout=args.fc_dropout,
+    )
     glue_loss = CrossEntropyLossNM()
 
 
@@ -309,7 +310,7 @@ def create_pipeline(
 
 token_params = {"bos_token": None, "eos_token": "[SEP]", "pad_token": "[PAD]", "cls_token": "[CLS]"}
 
-#train_loss, steps_per_epoch, _, _ = create_pipeline()
+# train_loss, steps_per_epoch, _, _ = create_pipeline()
 train_loss, steps_per_epoch, train_data_layer, _ = create_pipeline()
 
 logging.info(f'steps_per_epoch: {steps_per_epoch}')
@@ -356,7 +357,7 @@ callback_train = nemo_core.SimpleLossLoggerCallback(
 ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
-#callbacks = [callback_train, ckpt_callback] + callbacks_eval
+# callbacks = [callback_train, ckpt_callback] + callbacks_eval
 
 callbacks = [callback_train] + callbacks_eval
 
@@ -373,9 +374,7 @@ if args.wandb_project and args.wandb_experiment:
     callbacks.append(wand_callback)
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy,
-    total_steps=args.num_epochs * steps_per_epoch,
-    warmup_ratio=args.lr_warmup_proportion
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 

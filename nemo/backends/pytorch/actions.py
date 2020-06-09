@@ -51,12 +51,8 @@ _float_2_half_req = {
 
 class PtActions(Actions):
     def __init__(
-        self,
-        local_rank=None,
-        global_rank=None,
-        tb_writer=None,
-        optimization_level=Optimization.mxprO0,
-        ):
+        self, local_rank=None, global_rank=None, tb_writer=None, optimization_level=Optimization.mxprO0,
+    ):
         need_apex = local_rank is not None or optimization_level != Optimization.mxprO0
         if need_apex:
             try:
@@ -85,9 +81,7 @@ class PtActions(Actions):
                 )
 
         super(PtActions, self).__init__(
-            local_rank=local_rank,
-            global_rank=global_rank,
-            optimization_level=optimization_level,
+            local_rank=local_rank, global_rank=global_rank, optimization_level=optimization_level,
         )
 
         self._step = 0
@@ -444,7 +438,7 @@ class PtActions(Actions):
             if dl_nm.placement == DeviceType.AllGpu:
                 assert dist.is_initialized()
                 is_distributed = True
-                #world_size = torch.distributed.get_world_size()
+                # world_size = torch.distributed.get_world_size()
                 world_size = AppState().world_size
 
                 # logging.info(
@@ -455,13 +449,15 @@ class PtActions(Actions):
                 if dl_nm.dataset is not None:
                     sampler = None
                     if not isinstance(dl_nm.dataset, torch.utils.data.IterableDataset):
-                        #TODO: add num_replicas = data parallel world size from attribute
+                        # TODO: add num_replicas = data parallel world size from attribute
                         # sampler = torch.utils.data.distributed.DistributedSampler(
                         #     dataset=dl_nm.dataset, shuffle=dl_nm.shuffle
                         # )
                         sampler = torch.utils.data.distributed.DistributedSampler(
-                            dataset=dl_nm.dataset, shuffle=dl_nm.shuffle, rank=AppState().data_parallel_rank,
-                            num_replicas=AppState().data_parallel_size
+                            dataset=dl_nm.dataset,
+                            shuffle=dl_nm.shuffle,
+                            rank=AppState().data_parallel_rank,
+                            num_replicas=AppState().data_parallel_size,
                         )
                     dataloader_params = {
                         'dataset': dl_nm.dataset,
@@ -642,7 +638,7 @@ class PtActions(Actions):
                     raise NotImplementedError("Caching is not available for distributed training.")
                 assert dist.is_initialized()
                 is_distributed = True
-                #world_size = torch.distributed.get_world_size()
+                # world_size = torch.distributed.get_world_size()
                 world_size = AppState().world_size
                 if dl_nm.dataset is not None:
                     sampler = None
@@ -651,7 +647,7 @@ class PtActions(Actions):
                             dataset=dl_nm.dataset,
                             shuffle=dl_nm.shuffle,
                             rank=AppState().data_parallel_rank,
-                            num_replicas=AppState().data_parallel_size
+                            num_replicas=AppState().data_parallel_size,
                         )
                     dataloader_params = {
                         'dataset': dl_nm.dataset,
@@ -1336,7 +1332,7 @@ class PtActions(Actions):
                         dataset=t_dataset,
                         shuffle=dataNM.shuffle,
                         rank=AppState().data_parallel_rank,
-                        num_replicas=AppState().data_parallel_size
+                        num_replicas=AppState().data_parallel_size,
                     )
                     # train_sampler = torch.utils.data.distributed.DistributedSampler(
                     #     dataset=t_dataset, shuffle=dataNM.shuffle, rank=self.dp_rank,
@@ -1396,7 +1392,7 @@ class PtActions(Actions):
                         # )
                         # i = torch.cuda.current_device()
                         # pmodule = DDP(
-                        #     pmodule, device_ids=[i], output_device=i, 
+                        #     pmodule, device_ids=[i], output_device=i,
                         #     process_group=AppState().data_parallel_group
                         # )
 
@@ -1411,7 +1407,7 @@ class PtActions(Actions):
                         output_device=AppState().local_rank,
                         broadcast_buffers=False,
                         find_unused_parameters=True,
-                        process_group=AppState().data_parallel_group
+                        process_group=AppState().data_parallel_group,
                     )
                     self.ddp_module_dict[key] = module
 

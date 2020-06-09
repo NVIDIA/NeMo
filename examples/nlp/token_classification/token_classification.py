@@ -30,8 +30,8 @@ from nemo.collections.nlp.callbacks.token_classification_callback import eval_ep
 from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import BertTokenClassificationDataLayer
 from nemo.collections.nlp.nm.trainables import TokenClassifier
-from nemo.utils.lr_policies import get_lr_policy
 from nemo.utils.app_state import AppState
+from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
 """Provide extra arguments required for tasks."""
@@ -288,9 +288,7 @@ ckpt_callback = nemo.core.CheckpointCallback(
 # callbacks.append(ckpt_callback)
 
 lr_policy_fn = get_lr_policy(
-    args.lr_policy,
-    total_steps=args.num_epochs * steps_per_epoch,
-    warmup_ratio=args.lr_warmup_proportion
+    args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
 )
 
 
@@ -304,6 +302,6 @@ nf.train(
         "num_epochs": args.num_epochs,
         "lr": args.lr,
         "weight_decay": args.weight_decay,
-        "grad_norm_clip": args.grad_norm_clip
+        "grad_norm_clip": args.grad_norm_clip,
     },
 )

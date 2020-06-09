@@ -431,10 +431,7 @@ class CheckpointCallback(NeMoCallback):
         if state["global_rank"] is not None and state["global_rank"] != 0:
             return
         if self.mp_rank is not None:
-            path = os.path.join(
-                path,
-                f'mp_rank_{self.mp_rank:02d}',
-                )
+            path = os.path.join(path, f'mp_rank_{self.mp_rank:02d}',)
         if not os.path.isdir(path):
             logging.info(f"Creating {path} folder")
             os.makedirs(path, exist_ok=True)

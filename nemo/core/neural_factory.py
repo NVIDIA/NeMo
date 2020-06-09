@@ -134,8 +134,8 @@ class NeuralModuleFactory(object):
 
         AppState().model_parallel_size = model_parallel_size
         self._model_parallel_size = model_parallel_size
-        self._data_parallel_size = None # depends on mp size and world size
-        self._data_parallel_group = None # needed for model parallel
+        self._data_parallel_size = None  # depends on mp size and world size
+        self._data_parallel_group = None  # needed for model parallel
 
         self._random_seed = random_seed
         AppState().random_seed = random_seed
@@ -223,18 +223,18 @@ class NeuralModuleFactory(object):
                 self._global_rank = torch.distributed.get_rank()
                 AppState().global_rank = torch.distributed.get_rank()
 
-
                 if self.model_parallel_size is not None:
                     logging.info(f'Model parallel being initialized by Megatron-LM')
                     logging.info(f'Updating AppState()')
 
                     from megatron import mpu
+
                     mpu.initialize.initialize_model_parallel(self._model_parallel_size)
-                    #self._model_parallel_rank = mpu.get_model_parallel_rank()
+                    # self._model_parallel_rank = mpu.get_model_parallel_rank()
                     AppState().model_parallel_rank = mpu.get_model_parallel_rank()
-                    #self._data_parallel_rank = mpu.get_data_parallel_rank()
+                    # self._data_parallel_rank = mpu.get_data_parallel_rank()
                     AppState().data_parallel_rank = mpu.get_data_parallel_rank()
-                    #self._data_parallel_size = mpu.get_data_parallel_world_size()
+                    # self._data_parallel_size = mpu.get_data_parallel_world_size()
                     AppState().data_parallel_size = mpu.get_data_parallel_world_size()
                     AppState().data_parallel_group = mpu.get_data_parallel_group()
                     # TODO: update app_state properties here
@@ -251,7 +251,7 @@ class NeuralModuleFactory(object):
                     AppState().data_parallel_size = AppState().world_size
                     self._data_parallel_rank = self._global_rank
                     AppState().data_parallel_rank = AppState().global_rank
-                    self._data_parallel_size = self._world_size 
+                    self._data_parallel_size = self._world_size
                     AppState().data_parallel_size = AppState().world_size
 
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
@@ -497,15 +497,15 @@ class NeuralModuleFactory(object):
     @property
     def world_size(self):
         return self._world_size
-    
+
     @property
-    def  data_parallel_size(self):
+    def data_parallel_size(self):
         return self._data_parallel_size
 
     @property
     def model_parallel_size(self):
         return self._model_parallel_size
-    
+
     @property
     def data_parallel_group(self):
         return self._data_parallel_group

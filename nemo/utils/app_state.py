@@ -137,11 +137,11 @@ class AppState(metaclass=Singleton):
                 graph: Neural graph object that will become active.
         """
         self._neural_graph_manager.active_graph = graph
-    
+
     @property
     def world_size(self):
         return self._world_size
-    
+
     @world_size.setter
     def world_size(self, size):
         self._world_size = size
@@ -149,7 +149,7 @@ class AppState(metaclass=Singleton):
     @property
     def model_parallel_size(self):
         return self._model_parallel_size
-    
+
     @model_parallel_size.setter
     def model_parallel_size(self, size):
         self._model_parallel_size = size
@@ -157,7 +157,7 @@ class AppState(metaclass=Singleton):
     @property
     def data_parallel_size(self):
         return self._data_parallel_size
-    
+
     @data_parallel_size.setter
     def data_parallel_size(self, size):
         self._data_parallel_size = size
@@ -165,7 +165,7 @@ class AppState(metaclass=Singleton):
     @property
     def local_rank(self):
         return self._local_rank
-    
+
     @local_rank.setter
     def local_rank(self, rank):
         self._local_rank = rank
@@ -173,7 +173,7 @@ class AppState(metaclass=Singleton):
     @property
     def global_rank(self):
         return self._global_rank
-    
+
     @global_rank.setter
     def global_rank(self, rank):
         self._global_rank = rank
@@ -181,7 +181,7 @@ class AppState(metaclass=Singleton):
     @property
     def model_parallel_rank(self):
         return self._model_parallel_rank
-    
+
     @model_parallel_rank.setter
     def model_parallel_rank(self, rank):
         self._model_parallel_rank = rank
@@ -189,7 +189,7 @@ class AppState(metaclass=Singleton):
     @property
     def data_parallel_rank(self):
         return self._data_parallel_rank
-    
+
     @data_parallel_rank.setter
     def data_parallel_rank(self, rank):
         self._data_parallel_rank = rank
@@ -197,7 +197,7 @@ class AppState(metaclass=Singleton):
     @property
     def data_parallel_group(self):
         return self._data_parallel_group
-    
+
     @data_parallel_group.setter
     def data_parallel_group(self, group):
         self._data_parallel_group = group
@@ -205,7 +205,7 @@ class AppState(metaclass=Singleton):
     @property
     def random_seed(self):
         return self._random_seed
-    
+
     @random_seed.setter
     def random_seed(self, seed):
         self._random_seed = seed

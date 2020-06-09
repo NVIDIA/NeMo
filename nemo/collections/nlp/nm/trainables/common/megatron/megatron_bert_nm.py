@@ -24,13 +24,12 @@ from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from megatron.mpu import model_parallel_cuda_manual_seed
 
-
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core import DeviceType
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import add_port_docs
 from nemo.utils.app_state import AppState
+from nemo.utils.decorators import add_port_docs
 
 __all__ = ['MegatronBERT']
 
@@ -110,12 +109,11 @@ class MegatronBERT(TrainableNM):
         self.language_model.to(self._device)
         self._hidden_size = self.language_model.hidden_size
 
-
     def initialize_megatron(self, megatron_args):
         if AppState().model_parallel_size is None:
             # megatron-lm still needs to initialize model parallel for model parallel size 1
             mpu.initialize.initialize_model_parallel(1)
-        
+
         set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
 
         if self.factory.random_seed is None:
@@ -132,8 +130,7 @@ class MegatronBERT(TrainableNM):
             model_parallel_cuda_manual_seed(AppState().random_seed)
         else:
             value_error = (
-                f'_random_seed {AppState().random_seed} should be a positive integer'
-                f'for model parallel megatron'
+                f'_random_seed {AppState().random_seed} should be a positive integer' f'for model parallel megatron'
             )
             raise ValueError(value_error)
 
