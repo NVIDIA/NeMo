@@ -30,6 +30,7 @@ from nemo.core import DeviceType
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
+from nemo.utils.app_state import AppState
 
 __all__ = ['MegatronBERT']
 
@@ -111,7 +112,7 @@ class MegatronBERT(TrainableNM):
 
 
     def initialize_megatron(self, megatron_args):
-        if self.factory.model_parallel_size is None:
+        if AppState().model_parallel_size is None:
             # megatron-lm still needs to initialize model parallel for model parallel size 1
             mpu.initialize.initialize_model_parallel(1)
         
@@ -123,15 +124,15 @@ class MegatronBERT(TrainableNM):
                 (
                     f"Megatron Neural Module requires Neural Factory random seed to be a postive integer "
                     f"when using model parallelism. _random_seed has been set to "
-                    f"{self.factory.random_seed}"
+                    f"{AppState().random_seed}"
                 )
             )
 
-        if isinstance(self.factory._random_seed, int) and self.factory._random_seed > 0:
-            model_parallel_cuda_manual_seed(self.factory._random_seed)
+        if isinstance(AppState().random_seed, int) and AppState().random_seed() > 0:
+            model_parallel_cuda_manual_seed(AppState()._random_seed)
         else:
             value_error = (
-                f'_random_seed {self.factory._random_seed} should be a positive integer'
+                f'_random_seed {AppState().random_seed} should be a positive integer'
                 f'for model parallel megatron'
             )
             raise ValueError(value_error)
@@ -152,7 +153,7 @@ class MegatronBERT(TrainableNM):
             checkpoint_directory = path
             if not os.path.isdir(path):
                 raise ValueError(f'Model parallel Megatron checkpoint directory {checkpoint_directory} not found')
-            path = os.path.join(path, f'mp_rank_{self.factory.model_parallel_rank:02d}', 'model_optim_rng.pt')
+            path = os.path.join(path, f'mp_rank_{AppState().model_parallel_rank:02d}', 'model_optim_rng.pt')
             if not os.path.isfile(path):
                 value_error = (
                     f'Megatron checkpoint file {path} not found.\n'
