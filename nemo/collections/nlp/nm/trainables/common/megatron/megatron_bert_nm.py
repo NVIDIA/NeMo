@@ -130,7 +130,8 @@ class MegatronBERT(TrainableNM):
                 model_parallel_cuda_manual_seed(AppState().random_seed)
             else:
                 value_error = (
-                    f'_random_seed {AppState().random_seed} should be a positive integer' f'for model parallel megatron'
+                    f'_random_seed {AppState().random_seed} should be a positive integer'
+                    f'for model parallel megatron'
                 )
                 raise ValueError(value_error)
 
