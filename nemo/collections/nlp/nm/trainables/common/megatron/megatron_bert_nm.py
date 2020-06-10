@@ -94,7 +94,7 @@ class MegatronBERT(TrainableNM):
             "vocab_file": vocab_file,
         }
 
-        self.initialize_megatron(megatron_args)
+        self.initialize_megatron_lm(megatron_args)
 
         init_method = init_method_normal(init_method_std)
 
@@ -109,30 +109,30 @@ class MegatronBERT(TrainableNM):
         self.language_model.to(self._device)
         self._hidden_size = self.language_model.hidden_size
 
-    def initialize_megatron(self, megatron_args):
+    def initialize_megatron_lm(self, megatron_args):
         if AppState().model_parallel_size is None:
             # megatron-lm still needs to initialize model parallel for model parallel size 1
-            mpu.initialize.initialize_model_parallel(1)
-
-        set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
-
-        if self.factory.random_seed is None:
-            self.factory._random_seed = 1234
-            logging.warning(
-                (
-                    f"Megatron Neural Module requires Neural Factory random seed to be a postive integer "
-                    f"when using model parallelism. _random_seed has been set to "
-                    f"{AppState().random_seed}"
-                )
-            )
-
-        if isinstance(AppState().random_seed, int) and AppState().random_seed > 0:
-            model_parallel_cuda_manual_seed(AppState().random_seed)
+            initialize_megatron(None, megatron_args, ignore_unknown_args=True)
         else:
-            value_error = (
-                f'_random_seed {AppState().random_seed} should be a positive integer' f'for model parallel megatron'
-            )
-            raise ValueError(value_error)
+            set_global_variables(extra_args_provider=None, args_defaults=megatron_args, ignore_unknown_args=True)
+
+            if self.factory.random_seed is None:
+                self.factory._random_seed = 1234
+                logging.warning(
+                    (
+                        f"Megatron Neural Module requires Neural Factory random seed to be a postive integer "
+                        f"when using model parallelism. _random_seed has been set to "
+                        f"{AppState().random_seed}"
+                    )
+                )
+
+            if isinstance(AppState().random_seed, int) and AppState().random_seed > 0:
+                model_parallel_cuda_manual_seed(AppState().random_seed)
+            else:
+                value_error = (
+                    f'_random_seed {AppState().random_seed} should be a positive integer' f'for model parallel megatron'
+                )
+                raise ValueError(value_error)
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         extended_attention_mask = bert_extended_attention_mask(
