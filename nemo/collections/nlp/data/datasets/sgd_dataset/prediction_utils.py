@@ -36,7 +36,7 @@ from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
 REQ_SLOT_THRESHOLD = 0.5
 
 # MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
-MIN_SLOT_RELATION = 0.4
+MIN_SLOT_RELATION = 0.1
 
 __all__ = ['get_predicted_dialog_baseline', 'write_predictions_to_file']
 
