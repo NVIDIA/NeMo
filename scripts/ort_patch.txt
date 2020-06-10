@@ -1,0 +1,43 @@
+diff --git a/onnxruntime/core/providers/cuda/rnn/cudnn_rnn_base.h b/onnxruntime/core/providers/cuda/rnn/cudnn_rnn_base.h
+index 41a6c94c..76fc1583 100644
+--- a/onnxruntime/core/providers/cuda/rnn/cudnn_rnn_base.h
++++ b/onnxruntime/core/providers/cuda/rnn/cudnn_rnn_base.h
+@@ -8,6 +8,9 @@
+ #include "core/providers/cuda/cuda_common.h"
+ #include <cudnn.h>
+ 
++#define cudnnGetRNNDescriptor cudnnGetRNNDescriptor_v6
++#define cudnnSetRNNDescriptor cudnnSetRNNDescriptor_v6
++
+ namespace onnxruntime {
+ namespace cuda {
+ 
+diff --git a/tools/ci_build/build.py b/tools/ci_build/build.py
+index 41250296..1390377d 100755
+--- a/tools/ci_build/build.py
++++ b/tools/ci_build/build.py
+@@ -519,7 +519,7 @@ def generate_build_tree(cmake_path, source_dir, build_dir, cuda_home,
+         "-Donnxruntime_GENERATE_TEST_REPORTS=ON",
+         "-Donnxruntime_DEV_MODE=" + (
+             "OFF" if args.android or args.use_acl or
+-            (args.ios and is_macOS()) else "ON"),
++            (args.ios and is_macOS()) else "OFF"),
+         "-DPYTHON_EXECUTABLE=" + sys.executable,
+         "-Donnxruntime_USE_CUDA=" + ("ON" if args.use_cuda else "OFF"),
+         "-Donnxruntime_CUDNN_HOME=" + (cudnn_home if args.use_cuda else ""),
+diff --git a/cmake/CMakeLists.txt b/cmake/CMakeLists.txt
+index 5db7fbc4..c3972823 100644
+--- a/cmake/CMakeLists.txt
++++ b/cmake/CMakeLists.txt
+@@ -815,9 +815,8 @@ if (onnxruntime_USE_CUDA)
+   endif()
+      list(APPEND onnxruntime_EXTERNAL_LIBRARIES ${ONNXRUNTIME_CUDA_LIBRARIES})
+
+-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_30,code=sm_30") # K series
+-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_50,code=sm_50") # M series
+-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_60,code=sm_60") # P series
++  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_53,code=sm_53") # M series
++  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_62,code=sm_62") # P series
+   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_70,code=sm_70") # V series
+      set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --default-stream legacy")
+         if (NOT WIN32)

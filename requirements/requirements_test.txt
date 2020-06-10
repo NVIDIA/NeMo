@@ -1,6 +1,6 @@
 black
 isort[requirements]
-onnxruntime
+onnxruntime_gpu_tensorrt
 parameterized
 pytest
 pytest-runner
