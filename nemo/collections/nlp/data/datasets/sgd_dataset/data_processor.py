@@ -228,6 +228,7 @@ class SGDDataProcessor(object):
         dialog_id = dialog["dialogue_id"]
         prev_states = {}
         examples = []
+        frame_service_prev = ""
         for turn_idx, turn in enumerate(dialog["turns"]):
             # Generate an example for every frame in every user turn.
             if turn["speaker"] == "USER":
@@ -250,7 +251,6 @@ class SGDDataProcessor(object):
                         user_frames_ordered[frames_list_name[1]] = frames_list_val[1]
                         user_frames_ordered[frames_list_name[0]] = frames_list_val[0]
                         user_frames = user_frames_ordered
-                frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
@@ -270,6 +270,7 @@ class SGDDataProcessor(object):
                 #                     service1, service2 = service2, service1
                 #                     slot1, slot2 = slot2, slot1
                 #                 slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
+            frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
         return examples
 
     def _get_state_update(self, current_state, prev_state):
