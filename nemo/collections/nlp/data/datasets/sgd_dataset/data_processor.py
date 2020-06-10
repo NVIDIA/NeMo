@@ -240,7 +240,7 @@ class SGDDataProcessor(object):
                     system_frames = {}
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
-                turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
+                turn_examples, prev_states = self._create_examples_from_turn(
                     turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, slot_carryover_candlist, services_switch_counts
                 )
                 examples.extend(turn_examples)
@@ -307,7 +307,7 @@ class SGDDataProcessor(object):
         )
 
         examples = []
-        slot_carryover_values = collections.defaultdict(list)
+        #slot_carryover_values = collections.defaultdict(list)
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()
@@ -374,7 +374,7 @@ class SGDDataProcessor(object):
                             # else:
                             #     slot_carryover_candlist[(service, cur_slot, prev_service, prev_slot)] += 1.0
 
-        return examples, states, slot_carryover_values
+        return examples, states
 
     def _find_subword_indices(self, slot_values, utterance, char_slot_spans, alignments, subwords, bias):
         """Find indices for subwords corresponding to slot values."""
