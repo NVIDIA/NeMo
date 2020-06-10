@@ -257,6 +257,7 @@ class SGDDataProcessor(object):
                     turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, slot_carryover_candlist, services_switch_counts
                 )
                 examples.extend(turn_examples)
+                frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
 
                 # for value, slots_list in slot_carryover_values.items():
                 #     if value in ["True", "False"]:
@@ -270,7 +271,6 @@ class SGDDataProcessor(object):
                 #                     service1, service2 = service2, service1
                 #                     slot1, slot2 = slot2, slot1
                 #                 slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
-            frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
         return examples
 
     def _get_state_update(self, current_state, prev_state):
