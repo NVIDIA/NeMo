@@ -36,9 +36,11 @@ from nemo.core.neural_types import (
     NeuralTypeComparisonResult,
     SpectrogramType,
     VoidType,
+    StringType
 )
 
 
+@pytest.mark.usefixtures("neural_factory")
 class NeuralTypeSystemTests(TestCase):
     @pytest.mark.unit
     def test_short_vs_long_version(self):
@@ -241,3 +243,45 @@ class NeuralTypeSystemTests(TestCase):
             ),
         )
         self.assertEqual(T2.compare(T1), NeuralTypeComparisonResult.INCOMPATIBLE)
+
+        self.assertEqual(T2.compare(T2), NeuralTypeComparisonResult.SAME)
+
+
+
+    @pytest.mark.unit
+    def test_tuples_nlp_dialog(self):
+        """ Test focusing on the neural types/tuples used in NLP complete dialog pipeline project. """
+
+        class Utterance(StringType):
+            """Element type representing an utterance (e.g. "Is there a train from Ely to Cambridge on Tuesday ?")."""
+
+        class SystemUtterance(Utterance):
+            """Element type representing an utterance produced by the system."""
+
+        class AgentUtterance(ElementType):
+            """Element type representing utterance returned by an agent (user or system) participating in a dialog."""
+
+            def __str__(self):
+                return "Utterance returned by an agent (user or system) participating in a dialog."
+
+            def fields(self):
+                return ("agent", "utterance")
+
+        # Create the ntype.
+        T1 = NeuralType(
+            axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
+            elements_type=AgentUtterance())
+        
+        # Create the 2nd ntype - with exactly the same definition.
+        T2 = NeuralType(
+            axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
+            elements_type=AgentUtterance())
+
+        print("{} vs {} = {}".format(str(T1), str(T2), T1.compare(T2)))
+
+        # This passes.
+        self.assertEqual(T1.compare(T1), NeuralTypeComparisonResult.SAME)
+
+        # This is not passing?
+        self.assertEqual(T1.compare(T2), NeuralTypeComparisonResult.SAME)
+
