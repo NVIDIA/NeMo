@@ -45,37 +45,37 @@ def carry_over_slots(
     cur_usr_frame,
     all_slot_values,
     slots_relation_list,
-    prev_frame_service,
+    frame_service_prev,
     slot_values,
     sys_slots_agg,
     sys_slots_last,
 ):
     # return
-    if prev_frame_service == "" or prev_frame_service == cur_usr_frame["service"]:
+    if frame_service_prev == "" or frame_service_prev == cur_usr_frame["service"]:
         return
     for (service_dest, slot_dest), cands_list in slots_relation_list.items():
         if service_dest != cur_usr_frame["service"]:
             continue
         for service_src, slot_src, freq in cands_list:
-            if freq < MIN_SLOT_RELATION or service_src != prev_frame_service:
+            if freq < MIN_SLOT_RELATION or service_src != frame_service_prev:
                 continue
 
             if service_src in all_slot_values and slot_src in all_slot_values[service_src]:
                 slot_values[slot_dest] = all_slot_values[service_src][slot_src]
-            # if service_src in sys_slots_agg and slot_src in sys_slots_agg[service_src]:
-            #     slot_values[slot_dest] = sys_slots_agg[service_src][slot_src]
-            # if service_src in sys_slots_last and slot_src in sys_slots_last[service_src]:
-            #     slot_values[slot_dest] = sys_slots_last[service_src][slot_src]
+            if service_src in sys_slots_agg and slot_src in sys_slots_agg[service_src]:
+                slot_values[slot_dest] = sys_slots_agg[service_src][slot_src]
+            if service_src in sys_slots_last and slot_src in sys_slots_last[service_src]:
+                slot_values[slot_dest] = sys_slots_last[service_src][slot_src]
 
 
 def get_carryover_value(
     slot,
     cur_usr_frame,
-    frame_service_prev,
     all_slot_values,
+    slots_relation_list,
+    frame_service_prev,
     sys_slots_last,
     sys_slots_agg,
-    slots_relation_list,
     sys_rets,
 ):
     ext_value = None
@@ -277,14 +277,14 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                         # Add span from the user utterance.
                         extracted_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
                     else:
-                        extracted_value = get_carryover_value(
+                        carryover_value = get_carryover_value(
                             slot,
                             frame,
-                            frame_service_prev,
                             all_slot_values,
+                            slots_relation_list,
+                            frame_service_prev,
                             sys_slots_last,
                             sys_slots_agg,
-                            schemas.slots_relation_list,
                             sys_rets,
                         )
 
