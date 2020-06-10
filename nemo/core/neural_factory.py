@@ -45,6 +45,7 @@ class DeploymentFormat(Enum):
     TRTONNX = 4
     JARVIS = 5
 
+
 class OperationMode(Enum):
     """Training or Inference (Evaluation) mode"""
 
