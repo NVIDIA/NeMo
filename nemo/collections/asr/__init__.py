@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.asr import models
 from nemo.collections.asr.audio_preprocessing import *
@@ -33,10 +34,8 @@ from nemo.collections.asr.jasper import (
 )
 from nemo.collections.asr.las.misc import JasperRNNConnector
 from nemo.collections.asr.losses import CTCLossNM
-from nemo.core import Backend
 
 __all__ = [
-    'Backend',
     'AudioToTextDataLayer',
     'TarredAudioToTextDataLayer',
     'AudioToSpeechLabelDataLayer',

@@ -16,7 +16,6 @@
 # limitations under the License.
 
 __all__ = [
-    'Backend',
     'OperationMode',
     'Optimization',
     'DeviceType',
@@ -45,14 +44,6 @@ class DeploymentFormat(Enum):
     ONNX = 3
     TRTONNX = 4
     JARVIS = 5
-
-
-class Backend(Enum):
-    """Supported backends. For now, it is only PyTorch."""
-
-    PyTorch = 1
-    NotSupported = 2
-
 
 class OperationMode(Enum):
     """Training or Inference (Evaluation) mode"""
