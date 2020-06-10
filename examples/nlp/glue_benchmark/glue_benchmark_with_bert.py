@@ -209,7 +209,6 @@ output_mode = output_modes[args.task_name]
 
 # Instantiate neural factory with supported backend
 nf = nemo_core.NeuralModuleFactory(
-    backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

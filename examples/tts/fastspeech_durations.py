@@ -100,7 +100,7 @@ def create_infer_dags(
 def main():
     args = parse_args()
     neural_factory = nemo.core.NeuralModuleFactory(
-        optimization_level=args.amp_opt_level, backend=nemo.core.Backend.PyTorch, local_rank=args.local_rank,
+        optimization_level=args.amp_opt_level, local_rank=args.local_rank,
     )
 
     use_cache = True

@@ -260,7 +260,6 @@ if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
 nf = NeuralModuleFactory(
-    backend=Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

@@ -34,7 +34,6 @@ import nemo
 from nemo.core.callbacks import ActionCallback, EvaluatorCallback, NeMoCallback
 from nemo.core.neural_types import NmTensor
 from nemo.utils import ExpManager, logging
-from nemo.utils.decorators import deprecated
 
 
 class DeploymentFormat(Enum):
@@ -96,7 +95,6 @@ class NeuralModuleFactory(object):
     trainers
 
     Args:
-        backend (Backend): Currently only Backend.PyTorch is supported
         local_rank (int): Process rank. Should be set by distributed runner
         optimization_level (Optimization): Level of optimization to use. Will
             be passed to neural modules and actions created by this factory.
@@ -119,7 +117,6 @@ class NeuralModuleFactory(object):
 
     def __init__(
         self,
-        backend=Backend.PyTorch,
         local_rank=None,
         optimization_level=Optimization.mxprO0,
         placement=None,
@@ -150,10 +147,9 @@ class NeuralModuleFactory(object):
         else:
             self._placement = placement
 
-        self._backend = backend
         self._world_size = 1
         broadcast_func = None
-        if backend == Backend.PyTorch:
+        if True: # backend == Backend.PyTorch:
             # TODO: Move all framework specific code from this file
             import torch
 
@@ -278,29 +274,6 @@ class NeuralModuleFactory(object):
         for comp in components[1:]:
             mod = getattr(mod, comp)
         return mod
-
-    @deprecated(version=0.11)
-    def get_module(self, name, collection, params, pretrained=False):
-        """
-        Creates NeuralModule instance
-
-        Args:
-          name (str): name of NeuralModule which instance should be returned.
-          params (dict): local parameters which should be passed to
-          NeuralModule's constructor.
-          collection (str): in which collection to look for
-          `neural_module_name`
-          pretrained (bool): return pre-trained instance or randomly
-          initialized (default)
-
-        Returns:
-          NeuralModule instance
-        """
-
-        if self._backend == Backend.PyTorch:
-            return self.__get_pytorch_module(name=name, collection=collection, params=params, pretrained=pretrained,)
-        else:
-            return None
 
     def create_optimizer(self, optimizer, things_to_optimize, optimizer_params):
         return self._trainer.create_optimizer(
@@ -434,7 +407,7 @@ class NeuralModuleFactory(object):
         self._trainer.clear_cache()
 
     def _get_trainer(self, tb_writer=None):
-        if self._backend == Backend.PyTorch:
+        if True: # self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
             instance = constructor(
                 local_rank=self._local_rank,
@@ -446,19 +419,6 @@ class NeuralModuleFactory(object):
         else:
             raise ValueError("Only PyTorch backend is currently supported.")
 
-    @deprecated(
-        version="future",
-        explanation="Please use .train(...), .eval(...), .infer(...) and "
-        f".create_optimizer(...) of the NeuralModuleFactory instance directly.",
-    )
-    def get_trainer(self, tb_writer=None):
-        if self._trainer:
-            logging.warning(
-                "The trainer instance was created during initialization of "
-                "Neural factory, using the already created instance."
-            )
-            return self._trainer
-        return self._get_trainer(tb_writer)
 
     def reset_trainer(self):
         del self._trainer
@@ -478,7 +438,7 @@ class NeuralModuleFactory(object):
         if self._world_size == 1:
             logging.info("sync_all_processes does nothing if there is one process")
             return
-        if self._backend == Backend.PyTorch:
+        if True: # self._backend == Backend.PyTorch:
             import torch
 
             status_tensor = torch.cuda.IntTensor([status])
@@ -507,11 +467,6 @@ class NeuralModuleFactory(object):
     @property
     def optim_level(self):
         return self._optim_level
-
-    @property
-    @deprecated(version=0.11, explanation="Please use ``nemo.logging instead``")
-    def logger(self):
-        return nemo.logging
 
     @property
     def checkpoint_dir(self):

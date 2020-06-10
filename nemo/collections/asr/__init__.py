@@ -62,5 +62,3 @@ __all__ = [
     'CTCLossNM',
     'CrossEntropyLossNM',
 ]
-
-backend = Backend.PyTorch

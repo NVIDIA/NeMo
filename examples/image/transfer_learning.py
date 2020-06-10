@@ -52,7 +52,7 @@ tb_writer = SummaryWriter(tb_folder)
 device = nemo.core.DeviceType.GPU
 
 # Instantiate Neural Factory and Neural Modules
-neural_factory = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, placement=device)
+neural_factory = nemo.core.NeuralModuleFactory(placement=device)
 
 # NOTICE: pretrain=True argument
 resnet = neural_factory.get_module(

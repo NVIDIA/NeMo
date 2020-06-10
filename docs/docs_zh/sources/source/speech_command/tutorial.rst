@@ -329,7 +329,6 @@ QuartzNet 模型使用一种固定的模型定义模式： QuartzNet-[BxR], 其�
 .. code-block:: python
 
     nf = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
         placement=nemo.core.DeviceType.AllGpu,
