@@ -148,6 +148,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
 
             hyp_frames_by_service = {frame["service"]: frame for frame in turn_hyp["frames"]}
 
+            unseen = False
             # Calculate metrics for each frame in each user turn.
             for frame_ref in turn_ref["frames"]:
                 service_name = frame_ref["service"]
@@ -187,10 +188,10 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                 # Get the domain name of the service.
                 domain_name = frame_hyp["service"].split("_")[0]
                 domain_keys = [ALL_SERVICES, frame_hyp["service"], domain_name]
-                if frame_hyp["service"] in in_domain_services:
+                if frame_hyp["service"] in in_domain_services and not unseen:
                     domain_keys.append(SEEN_SERVICES)
-
                 else:
+                    unseen = True
                     domain_keys.append(UNSEEN_SERVICES)
                 for domain_key in domain_keys:
                     for metric_key, metric_value in frame_metric.items():
