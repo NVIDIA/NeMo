@@ -149,7 +149,7 @@ class NeuralModuleFactory(object):
 
         self._world_size = 1
         broadcast_func = None
-        if True: # backend == Backend.PyTorch:
+        if True:  # backend == Backend.PyTorch:
             # TODO: Move all framework specific code from this file
             import torch
 
@@ -407,7 +407,7 @@ class NeuralModuleFactory(object):
         self._trainer.clear_cache()
 
     def _get_trainer(self, tb_writer=None):
-        if True: # self._backend == Backend.PyTorch:
+        if True:  # self._backend == Backend.PyTorch:
             constructor = NeuralModuleFactory.__name_import("nemo.backends.pytorch.PtActions")
             instance = constructor(
                 local_rank=self._local_rank,
@@ -418,7 +418,6 @@ class NeuralModuleFactory(object):
             return instance
         else:
             raise ValueError("Only PyTorch backend is currently supported.")
-
 
     def reset_trainer(self):
         del self._trainer
@@ -438,7 +437,7 @@ class NeuralModuleFactory(object):
         if self._world_size == 1:
             logging.info("sync_all_processes does nothing if there is one process")
             return
-        if True: # self._backend == Backend.PyTorch:
+        if True:  # self._backend == Backend.PyTorch:
             import torch
 
             status_tensor = torch.cuda.IntTensor([status])

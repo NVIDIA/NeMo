@@ -83,9 +83,7 @@ def main():
 
     # Instantiate Neural Factory with supported backend
     neural_factory = nemo.core.NeuralModuleFactory(
-        local_rank=args.local_rank,
-        optimization_level=args.amp_opt_level,
-        placement=device,
+        local_rank=args.local_rank, optimization_level=args.amp_opt_level, placement=device,
     )
 
     if args.local_rank is not None:
