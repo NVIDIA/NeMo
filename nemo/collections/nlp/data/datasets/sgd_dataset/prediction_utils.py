@@ -150,6 +150,12 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
             system_utterance = dialog["turns"][turn_idx - 1]["utterance"] if turn_idx else ""
             turn_id = "{:02d}".format(turn_idx)
 
+            if len(turn["frames"]) == 2:
+                if frame_service_prev != "" and turn["frames"][0]["service"] != frame_service_prev:
+                    frame_tmp = turn["frames"][0]
+                    turn["frames"][0] = turn["frames"][1]
+                    turn["frames"][1] = frame_tmp
+
             for frame in turn["frames"]:
                 cat_slot_status_acc = 0
                 cat_slot_status_num = 0
