@@ -45,94 +45,57 @@ def carry_over_slots(
     cur_usr_frame,
     all_slot_values,
     slots_relation_list,
-    frame_service_prev,
-    sys_slots_last,
-    sys_slots_agg,
+    prev_frame_service,
     slot_values,
+    sys_slots_agg,
+    sys_slots_last,
 ):
-    """This function searches the candidate list for cross-service cases to find and update the values for all the slots in the current predicted state
-    It is called when state is predicted for a frame.
-    Args:
-        cur_usr_frame: the current frame of the user
-        all_slot_values: dictionary of all the slots and their values extracted from the dialogue until the current turn for all services
-        slots_relation_list: list of the candidates for carry-over for each (service, slot)
-        frame_service_prev: the service of the last system's frame
-        sys_slots_last: dictionary of all the slots and values mentioned in the last system utterance
-        sys_slots_agg:  dictionary of all the slots and values mentioned in the all the system utterances until the current turn
-        slot_values: dictionary of all the slots and their values extracted from the dialogue until the current turn for the current service
-      Returns:
-        the extracted value for the slot
-    """
-    if frame_service_prev == cur_usr_frame["service"]:
+    # return
+    if prev_frame_service == "" or prev_frame_service == cur_usr_frame["service"]:
         return
     for (service_dest, slot_dest), cands_list in slots_relation_list.items():
         if service_dest != cur_usr_frame["service"]:
             continue
         for service_src, slot_src, freq in cands_list:
-            if freq < MIN_SLOT_RELATION:
+            if freq < MIN_SLOT_RELATION or service_src != prev_frame_service:
                 continue
-            if (
-                service_src == frame_service_prev
-                and service_src in all_slot_values
-                and slot_src in all_slot_values[service_src]
-            ):
+
+            if service_src in all_slot_values and slot_src in all_slot_values[service_src]:
                 slot_values[slot_dest] = all_slot_values[service_src][slot_src]
-            if (
-                service_src == frame_service_prev
-                and service_src in sys_slots_agg
-                and slot_src in sys_slots_agg[service_src]
-            ):
-                slot_values[slot_dest] = sys_slots_agg[service_src][slot_src]
-            if (
-                service_src == frame_service_prev
-                and service_src in sys_slots_last
-                and slot_src in sys_slots_last[service_src]
-            ):
-                slot_values[slot_dest] = sys_slots_last[service_src][slot_src]
+            # if service_src in sys_slots_agg and slot_src in sys_slots_agg[service_src]:
+            #     slot_values[slot_dest] = sys_slots_agg[service_src][slot_src]
+            # if service_src in sys_slots_last and slot_src in sys_slots_last[service_src]:
+            #     slot_values[slot_dest] = sys_slots_last[service_src][slot_src]
 
 
 def get_carryover_value(
     slot,
     cur_usr_frame,
-    all_slot_values,
-    slots_relation_list,
     frame_service_prev,
+    all_slot_values,
     sys_slots_last,
     sys_slots_agg,
+    slots_relation_list,
     sys_rets,
 ):
-    """This function searches the previous system actions and also the candidate list for cross-service cases to find a value for a slot
-    It is called when a value for a slot can not be found the last user utterance
-
-    Args:
-        slot: name of the slot to find and extract a value for
-        cur_usr_frame: the current frame of the user
-        frame_service_prev: the service of the last system's frame
-        all_slot_values: dictionary of all the slots and their values extracted from the dialogue until the current turn for all services
-        sys_slots_last: dictionary of all the slots and values mentioned in the last system utterance
-        sys_slots_agg:  dictionary of all the slots and values mentioned in the all the system utterances until the current turn
-        slots_relation_list: list of the candidates for carry-over for each (service, slot)
-        sys_rets: list of the extracted slots and values from system utterances until the current turn, used for debugging
-      Returns:
-        the extracted value for the slot
-    """
-
-    extracted_value = None
+    ext_value = None
     if slot in sys_slots_agg[cur_usr_frame["service"]]:
-        extracted_value = sys_slots_agg[cur_usr_frame["service"]][slot]
-        sys_rets[slot] = extracted_value
+        ext_value = sys_slots_agg[cur_usr_frame["service"]][slot]
+        # sys_rets[slot] = ext_value
+
     elif (cur_usr_frame["service"], slot) in slots_relation_list:
+        # return ext_value
         cands_list = slots_relation_list[(cur_usr_frame["service"], slot)]
         for dmn, slt, freq in cands_list:
             if freq < MIN_SLOT_RELATION:
                 continue
             if dmn in all_slot_values and slt in all_slot_values[dmn]:
-                extracted_value = all_slot_values[dmn][slt]
+                ext_value = all_slot_values[dmn][slt]
             if dmn in sys_slots_agg and slt in sys_slots_agg[dmn]:
-                extracted_value = sys_slots_agg[dmn][slt]
+                ext_value = sys_slots_agg[dmn][slt]
             if dmn in sys_slots_last and slt in sys_slots_last[dmn]:
-                extracted_value = sys_slots_last[dmn][slt]
-    return extracted_value
+                ext_value = sys_slots_last[dmn][slt]
+    return ext_value
 
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
@@ -317,11 +280,11 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                         extracted_value = get_carryover_value(
                             slot,
                             frame,
-                            all_slot_values,
-                            slots_relation_list,
                             frame_service_prev,
+                            all_slot_values,
                             sys_slots_last,
                             sys_slots_agg,
+                            schemas.slots_relation_list,
                             sys_rets,
                         )
 
@@ -363,11 +326,11 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                 carry_over_slots(
                     frame,
                     all_slot_values,
-                    slots_relation_list,
+                    schemas.slots_relation_list,
                     frame_service_prev,
-                    sys_slots_last,
-                    sys_slots_agg,
                     slot_values,
+                    sys_slots_agg,
+                    sys_slots_last,
                 )
 
                 # in debug mode, the following outputs would get generated which can be used for performing error analysis.
