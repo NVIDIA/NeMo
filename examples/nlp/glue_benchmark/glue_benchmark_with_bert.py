@@ -357,9 +357,8 @@ callback_train = nemo_core.SimpleLossLoggerCallback(
 ckpt_callback = nemo_core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
 )
-# callbacks = [callback_train, ckpt_callback] + callbacks_eval
 
-callbacks = [callback_train] + callbacks_eval
+callbacks = [callback_train, ckpt_callback] + callbacks_eval
 
 logging.info(f"callbacks: {callbacks}")
 
