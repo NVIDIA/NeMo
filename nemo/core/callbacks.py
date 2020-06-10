@@ -229,7 +229,7 @@ class SimpleLogger(NeMoCallback):
         if state["step"] % self.step_freq == 0:
             for tensor_key in self.tensors_to_log:
                 tensor = state["tensors"].get_tensor(tensor_key)
-                logging.info("%s: %s", tensor_key, tensor)
+                logging.info("%s: %s", tensor_key, tensor.data.cpu().numpy())
 
 
 class TensorboardLogger(NeMoCallback):
@@ -244,9 +244,10 @@ class TensorboardLogger(NeMoCallback):
         tensors_to_log (List of str or NmTensor): A list of either tensor names or NmTensors which will be logged
             every step_freq steps.
             Defaults to ["loss"] which only prints the loss.
-        custom_tb_log_func (func): TensorboardLogger loops through tensors_to_log and passes these elements to
-            custom_tb_log_func. So a custom_tb_log_func will receive one argument on each call with the arugment
-            being an element from tensors_to_log.
+        custom_tb_log_func (func): custom_tb_log_func should accept three position arguments: tensors, tb_writer, and
+            step. tensors is a list of pytorch tensors that correspond to the values of the NmTensors in
+            tensors_to_log. tb_writer is the tensorboard logger passed to TensorboardLogger. step is the current
+            step.
             Defaults to None which logs each tensors_to_log as a scalar.
         log_epoch (bool): Whether to log epoch and epoch training time to tensorboard.
             Defaults to True.
@@ -285,11 +286,17 @@ class TensorboardLogger(NeMoCallback):
     def on_step_end(self, state):
         if state["global_rank"] is None or state["global_rank"] == 0:
             if state["step"] % self.step_freq == 0:
-                tb_log_func = lambda x: self.tb_writer.add_scalar(x, state["tensors"].get_tensor(x), state["step"])
+                tensor_values = []
+                for tensor_key in self.tensors_to_log:
+                    tensor_values.append(state["tensors"].get_tensor(tensor_key))
+
+                def tb_log_func(tensors, tb_writer, step):
+                    for t, name in zip(tensors, self.tensors_to_log):
+                        tb_writer.add_scalar(name, t, step)
+
                 if self.custom_tb_log_func is not None:
                     tb_log_func = self.custom_tb_log_func
-                for tensor_key in self.tensors_to_log:
-                    tb_log_func(tensor_key)
+                tb_log_func(tensor_values, self.tb_writer, state["step"])
 
                 if self._log_lr:
                     self.tb_writer.add_scalar('param/lr', state["optimizers"][0].param_groups[0]['lr'], state["step"])
