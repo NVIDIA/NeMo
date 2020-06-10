@@ -88,7 +88,7 @@ def topological_sort_from_leaves(leaf_nmtensors: List[NmTensor], cached_training
             all_nodes[node] = {k: None for k in nmtensor.producer.output_ports}
         # second, populate output port with current nmtensor
         # where applicable
-        all_nodes[node][nmtensor.name] = nmtensor
+        all_nodes[node][nmtensor.output_port_name] = nmtensor
         processed_nmtensors.add(nmtensor)
 
         new_tensors = set()
@@ -102,6 +102,8 @@ def topological_sort_from_leaves(leaf_nmtensors: List[NmTensor], cached_training
                 if cached_training_state.check_tensor_cached(input_nmtensor.unique_name):
                     new_tensors.remove(input_nmtensor)
 
+        # Order the new set so that all ranks have the callchain in the same order
+        new_tensors = sorted(list(new_tensors), key=lambda x: str(x))
         for new_nmtensor in new_tensors:
             # put in the start of list
             hooks_lst.insert(0, new_nmtensor)

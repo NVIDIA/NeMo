@@ -45,7 +45,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 
 from nemo.backends.pytorch.nm import TrainableNM
-from nemo.core.neural_types import ChannelType, LabelsType, LengthsType, LogitsType, NeuralType
+from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TRADEGenerator']
@@ -70,11 +70,11 @@ class TRADEGenerator(TrainableNM):
         """Returns definitions of module input ports.
         """
         return {
-            'encoder_hidden': NeuralType(('B', 'T', 'C'), ChannelType()),
-            'encoder_outputs': NeuralType(('B', 'T', 'C'), ChannelType()),
-            'input_lens': NeuralType(tuple('B'), LengthsType()),
-            'src_ids': NeuralType(('B', 'T'), ChannelType()),
-            'targets': NeuralType(('B', 'D', 'T'), LabelsType()),
+            'encoder_hidden': NeuralType(('B', 'T', 'D'), ChannelType()),
+            'encoder_outputs': NeuralType(('B', 'T', 'D'), ChannelType()),
+            'dialog_ids': NeuralType(('B', 'T'), elements_type=TokenIndex()),
+            'dialog_lens': NeuralType(tuple('B'), elements_type=Length()),
+            'targets': NeuralType(('B', 'D', 'T'), LabelsType(), optional=True),
         }
 
     @property
@@ -90,7 +90,7 @@ class TRADEGenerator(TrainableNM):
             'gate_outputs': NeuralType(('B', 'D', 'D'), LogitsType()),
         }
 
-    def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5):
+    def __init__(self, vocab, embeddings, hid_size, dropout, slots, nb_gate, teacher_forcing=0.5, max_res_len=10):
         super().__init__()
         self.vocab_size = len(vocab)
         self.vocab = vocab
@@ -105,6 +105,8 @@ class TRADEGenerator(TrainableNM):
         self.sigmoid = nn.Sigmoid()
         self.slots = slots
         self.teacher_forcing = teacher_forcing
+        # max_res_len is used in evaluation mode or when targets are not provided
+        self.max_res_len = max_res_len
 
         self._slots_split_to_index()
         self.slot_emb = nn.Embedding(len(self.slot_w2i), hid_size)
@@ -120,18 +122,19 @@ class TRADEGenerator(TrainableNM):
         self.domain_idx = torch.tensor([self.slot_w2i[domain] for domain in domains], device=self._device)
         self.subslot_idx = torch.tensor([self.slot_w2i[slot] for slot in slots], device=self._device)
 
-    def forward(self, encoder_hidden, encoder_outputs, input_lens, src_ids, targets=None):
+    def forward(self, encoder_hidden, encoder_outputs, dialog_ids, dialog_lens, targets=None):
         if (not self.training) or (random.random() > self.teacher_forcing):
             use_teacher_forcing = False
         else:
             use_teacher_forcing = True
 
-        # TODO: set max_res_len to 10 in evaluation mode or
-        #  when targets are not provided
-        max_res_len = targets.shape[2]
         batch_size = encoder_hidden.shape[0]
 
-        targets = targets.transpose(0, 1)
+        if isinstance(targets, torch.Tensor):
+            max_res_len = targets.shape[2]
+            targets = targets.transpose(0, 1)
+        else:
+            max_res_len = self.max_res_len
 
         all_point_outputs = torch.zeros(len(self.slots), batch_size, max_res_len, self.vocab_size, device=self._device)
         all_gate_outputs = torch.zeros(len(self.slots), batch_size, self.nb_gate, device=self._device)
@@ -146,7 +149,7 @@ class TRADEGenerator(TrainableNM):
 
         hidden = hidden.view(-1, self.hidden_size).unsqueeze(0)
 
-        enc_len = input_lens.repeat(len(self.slots))
+        enc_len = dialog_lens.repeat(len(self.slots))
 
         maxlen = encoder_outputs.size(1)
         padding_mask_bool = ~(torch.arange(maxlen, device=self._device)[None, :] <= enc_len[:, None])
@@ -167,7 +170,7 @@ class TRADEGenerator(TrainableNM):
             vocab_pointer_switches = self.sigmoid(self.w_ratio(p_gen_vec))
             p_context_ptr = torch.zeros(p_vocab.size(), device=self._device)
 
-            p_context_ptr.scatter_add_(1, src_ids.repeat(len(self.slots), 1), prob)
+            p_context_ptr.scatter_add_(1, dialog_ids.repeat(len(self.slots), 1), prob)
 
             final_p_vocab = (1 - vocab_pointer_switches).expand_as(
                 p_context_ptr
@@ -178,7 +181,7 @@ class TRADEGenerator(TrainableNM):
                 final_p_vocab, (len(self.slots), batch_size, self.vocab_size)
             )
 
-            if use_teacher_forcing:
+            if use_teacher_forcing and isinstance(targets, torch.Tensor):
                 decoder_input = self.embedding(torch.flatten(targets[:, :, wi]))
             else:
                 decoder_input = self.embedding(pred_word)

@@ -42,6 +42,9 @@ __all__ = [
     'ImageValue',
     'NormalizedImageValue',
     'StringLabel',
+    'StringType',
+    'TokenIndex',
+    'Length',
 ]
 
 import abc
@@ -219,12 +222,6 @@ class ClassificationTarget(Target):
     """
 
 
-class StringLabel(ElementType):
-    """
-        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
-    """
-
-
 class ImageValue(ElementType):
     """
         Type representing an element/value of a single image channel,
@@ -241,3 +238,25 @@ class NormalizedImageValue(ImageValue):
 
 class ImageFeatureValue(ImageValue):
     """Type representing an element (single value) of a (image) feature maps."""
+
+
+class StringType(ElementType):
+    """Element type representing a single string"""
+
+
+class StringLabel(StringType):
+    """
+        Type representing an label being a string with class name (e.g. the "hamster" class in CIFAR100).
+    """
+
+
+class IntType(ElementType):
+    """Element type representing a single integer"""
+
+
+class TokenIndex(IntType):
+    """Type representing an element being index of a token in some kind of a vocabulary."""
+
+
+class Length(IntType):
+    """Type representing an element storing a "length" (e.g. length of a list)."""

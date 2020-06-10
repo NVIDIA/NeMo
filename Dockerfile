@@ -27,7 +27,7 @@ RUN apt-get update && \
     apt-get install -y \
     libsndfile1 sox \
     python-setuptools \
-    python-dev && \
+    python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # install trt

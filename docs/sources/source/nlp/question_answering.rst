@@ -299,6 +299,13 @@ To run inference:
             --output_prediction_file <path to output file where predictions are written into>
             ...
 
+BioQA
+--------------
+
+To use BioBERT/BioMegatron for biomedical question answering dataset BioASQ please visit:
+
+`https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_qa.ipynb <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_qa.ipynb>`__
+
 
 References
 ----------

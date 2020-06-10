@@ -34,6 +34,14 @@ neural_factory
     :undoc-members:
     :show-inheritance:
 
+callbacks
+------------
+
+.. automodule:: nemo.core.callbacks
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 PyTorch BackEnd
 ===============
 Currently, we only support PyTorch backend.

@@ -85,7 +85,7 @@ If you are using the NVIDIA `NGC PyTorch container <https://ngc.nvidia.com/catal
 
 * Pull the docker: ``docker pull nvcr.io/nvidia/pytorch:20.01-py3``
 * Run:``docker run --gpus all -it --rm -v <nemo_github_folder>:/NeMo --shm-size=8g -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit stack=67108864 nvcr.io/nvidia/pytorch:20.01-py3``
-* ``apt-get update && apt-get install -y libsndfile1``
+* ``apt-get update && apt-get install -y libsndfile1 ffmpeg``
 * ``pip install nemo_toolkit`` Installs NeMo core only.
 * ``pip install nemo_toolkit[all]`` Installs NeMo core and ALL collections
 * ``pip install nemo_toolkit[asr]`` Installs NeMo core and ASR (Speech Recognition) collection
@@ -106,13 +106,19 @@ Pre-trained models
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | Modality   | Model                                                                                        | Trained on            |
 +============+==============================================================================================+=======================+
+| ASR        | `Jasper10x5DR_En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_jasper10x5dr>`_  | LibriSpeech, WSJ,     |
+|            |                                                                                              | Mozilla Common Voice  |
+|            |                                                                                              | (en_1488h_2019-12-10),|
+|            |                                                                                              | Fisher, Switchboard,  |
+|            |                                                                                              | and Singapore English |
+|            |                                                                                              | National Speech Corpus|
+|            |                                                                                              | (Part 1)              |
++------------+----------------------------------------------------------------------------------------------+-----------------------+
 | ASR        | `QuartzNet15x5En <https://ngc.nvidia.com/catalog/models/nvidia:multidataset_quartznet15x5>`_ | LibriSpeech, WSJ,     |
 |            |                                                                                              | Mozilla Common Voice  |
-|            |                                                                                              | (en_1488_2019-12-10), |
-|            |                                                                                              | Fisher, Switchboard   |
-|            |                                                                                              | and Singapore English |
-|            |                                                                                              | National Speech       |
-|            |                                                                                              | Corpus                |
+|            |                                                                                              | (en_1087h_2019-06-12),|
+|            |                                                                                              | Fisher, and           |
+|            |                                                                                              | Switchboard           |
 +------------+----------------------------------------------------------------------------------------------+-----------------------+
 | ASR        | `QuartzNet15x5Zh <https://ngc.nvidia.com/catalog/models/nvidia:aishell2_quartznet15x5>`_     | AISHELL-2 Mandarin    |
 |            |                                                                                              |                       |

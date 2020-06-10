@@ -44,6 +44,7 @@ class AxisKind(AxisKindAbstract):
     Width = 3
     Height = 4
     Any = 5
+    Sequence = 6
 
     def __repr__(self):
         return self.__str__()

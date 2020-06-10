@@ -15,6 +15,7 @@
 # =============================================================================
 
 from nemo.collections.nlp.nm.trainables.common.common_utils import *
+from nemo.collections.nlp.nm.trainables.common.encoder_rnn import *
 from nemo.collections.nlp.nm.trainables.common.huggingface import *
 from nemo.collections.nlp.nm.trainables.common.sequence_classification_nm import *
 from nemo.collections.nlp.nm.trainables.common.sequence_regression_nm import *

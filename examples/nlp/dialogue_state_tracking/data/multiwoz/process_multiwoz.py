@@ -48,14 +48,17 @@ https://github.com/budzianowski/multiwoz
 This script can be used to process and import MultiWOZ 2.0 and 2.1 datasets. 
 You may find more information on how to use this example in NeMo's documentation:
 https://nvidia.github.io/NeMo/nlp/dialogue_state_tracking_trade.html
+
+This file contains code artifacts adapted from the original implementation:
+https://github.com/thu-coai/ConvLab-2
 """
 
 import argparse
 import json
 import os
 import re
-import shutil
-from os.path import exists
+from os.path import exists, expanduser
+from shutil import copyfile
 
 from nemo.collections.nlp.data.datasets.datasets_utils import if_exist
 
@@ -378,7 +381,7 @@ def divideData(data, infold, outfold):
     the data for three different sets"""
 
     os.makedirs(outfold, exist_ok=True)
-    shutil.copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
+    copyfile(f'{infold}/ontology.json', f'{outfold}/ontology.json')
 
     testListFile = []
     fin = open(f'{infold}/testListFile.json', 'r')
@@ -436,6 +439,40 @@ def divideData(data, infold, outfold):
                 train_dials.append(dialogue)
                 count_train += 1
 
+    value_dict = json.load(open(f'{outfold}/ontology.json'))
+    new_ontology = {}
+    # k = {'taxi-arrive by':list_of_values} -> {'taxi':{'arriveby': list_ofslot_values}}
+    for k, v in value_dict.items():
+        domain, slot = k.split('-')
+        slot = slot.replace(' ', '')
+        if domain in new_ontology:
+            new_ontology[domain][slot] = v
+        else:
+            new_ontology[domain] = {slot: v}
+
+    with open(f'{outfold}/value_dict.json', 'w') as f:
+        json.dump(new_ontology, f, indent=4)
+
+    # save all data base *db.json file in a db folder
+    db_fold = os.path.join(outfold, 'db')
+    os.makedirs(db_fold, exist_ok=True)
+
+    for f in os.listdir(infold):
+        if '_db.json' in f:
+            copyfile(f'{infold}/{f}', f'{db_fold}/{f}')
+        # taxi_db.json file is missing a comma in the MultiWOZ2.1 dataset
+        # check if it's so and fix
+        if f == 'taxi_db.json':
+            try:
+                with open(os.path.join(db_fold, f)) as f_:
+                    _ = json.load(f_)
+            except json.decoder.JSONDecodeError:
+                taxi_db_text = open(os.path.join(db_fold, f)).readlines()
+                taxi_db_text[2] = taxi_db_text[2].rstrip() + ',\n'
+                taxi_db_text = '{' + ''.join(taxi_db_text)[1:-2] + '}\n'
+                taxi_db_text = taxi_db_text.replace("'", '"')
+                open(os.path.join(db_fold, f), 'w').write(taxi_db_text)
+
     # save all dialogues
     with open(f'{outfold}/dev_dials.json', 'w') as f:
         json.dump(val_dials, f, indent=4)
@@ -446,7 +483,9 @@ def divideData(data, infold, outfold):
     with open(f'{outfold}/train_dials.json', 'w') as f:
         json.dump(train_dials, f, indent=4)
 
-    print(f"Saving done. Generated dialogs: {count_train} train, {count_val} val, {count_test} test.")
+    print(
+        f"Processing done and saved in `{outfold}`. Generated dialogs: {count_train} train, {count_val} val, {count_test} test."
+    )
 
 
 if __name__ == "__main__":
@@ -456,14 +495,22 @@ if __name__ == "__main__":
         "--source_data_dir", required=True, type=str, help='The path to the folder containing the MultiWOZ data files.'
     )
     parser.add_argument("--target_data_dir", default='multiwoz2.1/', type=str)
+    parser.add_argument("--overwrite_files", action="store_true", help="Whether to overwrite preprocessed file")
     args = parser.parse_args()
 
-    if not exists(args.source_data_dir):
-        raise FileNotFoundError(f"{args.source_data_dir} does not exist.")
+    # Get the absolute path.
+    abs_source_data_dir = expanduser(args.source_data_dir)
+    abs_target_data_dir = expanduser(args.target_data_dir)
+
+    if not exists(abs_source_data_dir):
+        raise FileNotFoundError(f"{abs_source_data_dir} does not exist.")
 
     # Check if the files exist
-    if if_exist(args.target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json']):
-        print(f'Data is already processed and stored at {args.source_data_dir}, skipping pre-processing.')
+    if (
+        if_exist(abs_target_data_dir, ['ontology.json', 'dev_dials.json', 'test_dials.json', 'train_dials.json', 'db'])
+        and not args.overwrite_files
+    ):
+        print(f'Data is already processed and stored at {abs_target_data_dir}, skipping pre-processing.')
         exit(0)
 
     fin = open('multiwoz_mapping.pair', 'r')
@@ -474,6 +521,6 @@ if __name__ == "__main__":
 
     print('Creating dialogues...')
     # Process MultiWOZ dataset
-    delex_data = createData(args.source_data_dir)
+    delex_data = createData(abs_source_data_dir)
     # Divide data
-    divideData(delex_data, args.source_data_dir, args.target_data_dir)
+    divideData(delex_data, abs_source_data_dir, abs_target_data_dir)
