@@ -31,6 +31,8 @@ import torch
 
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
+from collections import OrderedDict
+
 
 __all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor']
 
@@ -238,6 +240,17 @@ class SGDDataProcessor(object):
                 else:
                     system_utterance = ""
                     system_frames = {}
+
+                if len(user_frames) == 2:
+                    frames_list_name = list(user_frames.keys())
+                    frames_list_val = list(user_frames.values())
+                    user_frames_ordered = OrderedDict()
+
+                    if frame_service_prev != "" and frames_list_name[0] != frame_service_prev:
+                        user_frames_ordered[frames_list_name[1]] = frames_list_val[1]
+                        user_frames_ordered[frames_list_name[0]] = frames_list_val[0]
+                        user_frames = user_frames_ordered
+                frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
