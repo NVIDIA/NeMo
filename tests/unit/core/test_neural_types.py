@@ -35,8 +35,8 @@ from nemo.core.neural_types import (
     NeuralType,
     NeuralTypeComparisonResult,
     SpectrogramType,
+    StringType,
     VoidType,
-    StringType
 )
 
 
@@ -246,8 +246,6 @@ class NeuralTypeSystemTests(TestCase):
 
         self.assertEqual(T2.compare(T2), NeuralTypeComparisonResult.SAME)
 
-
-
     @pytest.mark.unit
     def test_tuples_nlp_dialog(self):
         """ Test focusing on the neural types/tuples used in NLP complete dialog pipeline project. """
@@ -270,12 +268,14 @@ class NeuralTypeSystemTests(TestCase):
         # Create the ntype.
         T1 = NeuralType(
             axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
-            elements_type=AgentUtterance())
-        
+            elements_type=AgentUtterance(),
+        )
+
         # Create the 2nd ntype - with exactly the same definition.
         T2 = NeuralType(
             axes=(AxisType(kind=AxisKind.Batch, is_list=True), AxisType(kind=AxisKind.Time, is_list=True),),
-            elements_type=AgentUtterance())
+            elements_type=AgentUtterance(),
+        )
 
         print("{} vs {} = {}".format(str(T1), str(T2), T1.compare(T2)))
 
@@ -284,4 +284,3 @@ class NeuralTypeSystemTests(TestCase):
 
         # This is not passing?
         self.assertEqual(T1.compare(T2), NeuralTypeComparisonResult.SAME)
-
