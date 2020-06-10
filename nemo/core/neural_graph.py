@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ruamel.yaml import YAML
 
-from .neural_modules import OperationMode
+from nemo.core.neural_factory import OperationMode, DeviceType
 from nemo.backends import get_state_dict, load, save, set_state_dict
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
@@ -1079,3 +1079,29 @@ class NeuralGraph(NeuralInterface):
 
         # Else:
         return True
+
+
+    def to(device_type: DeviceType):
+        """ 
+        Moves the all the modules belonging to a given graph to indicated device.
+
+        """
+        logging.info("Moving module(s) to {}".device_type)
+
+        # Work on all modules.
+        if module_names is None:
+            module_names = self._modules.keys()
+
+        
+
+        if self.app_state.use_dataparallel:
+            logging.info("Using data parallelization on {} GPUs!".format(torch.cuda.device_count()))
+
+        # Iterate through the modules one by one.
+        for name in module_names:
+            # Get module.
+            module = self._modules[name]
+            if module.type == ModuleType.trainable:
+                pass
+            # Mode to cuda + override the module in the graph.
+            #self._modules[name] = model.to(self.app_state.device)

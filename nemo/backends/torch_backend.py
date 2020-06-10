@@ -15,9 +15,11 @@
 # =============================================================================
 
 from os.path import expanduser
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import torch
+
+# This should go to settings/NeMo config file.
 
 
 def save(checkpoint: Dict[str, Any], filename: str) -> None:
@@ -69,3 +71,38 @@ def set_state_dict(model: torch.nn.Module, state_dict: Dict[str, Any]) -> None:
         state_dict: State dictionary containing model weights.
     """
     model.load_state_dict(state_dict)
+
+
+
+
+def to(module: Union["TrainableNM", torch.nn.DataParallel] , device_type: "DeviceType", use_dataparallel: bool = True):
+    """
+    Moves Trainable Neural Module to a given device. Optionally uses dataparallel - depending on the settings.
+    
+    Args:
+        module: Module to be moved to CPU/GPU.
+        device_type: device type
+    """
+
+
+    if type(module).__name__ == "DataParallel":
+        # We do not have to wrap it for the second time.
+        return module
+
+    elif type(module).__name__ != "TrainableNM":
+        # Make sure this is trainableNM.
+        raise ValueError("to() accepts only Trainable Neural Modules")
+
+    # Check if we want to use data parallel.
+    if hasattr(module, 'skip_in_data_parallel') and not module.skip_in_data_parallel:
+        use_dataparallel = False
+    
+
+        
+
+    # Wrap model with DataStreamsParallel when required.
+    #if self.app_state.use_dataparallel and  not in components_to_skip_in_data_parallel:
+    #    print("Moving to GPU", model.name)
+    #    model = DataStreamsParallel(model)
+
+    return module
