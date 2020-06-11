@@ -127,6 +127,7 @@ class FilterbankFeatures(nn.Module):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        mel_norm=1.0,
     ):
         super(FilterbankFeatures, self).__init__()
         if (
@@ -192,7 +193,7 @@ class FilterbankFeatures(nn.Module):
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq,),
+            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq, norm=mel_norm),
             dtype=torch.float,
         ).unsqueeze(0)
         # self.fb = filterbanks

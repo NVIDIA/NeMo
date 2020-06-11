@@ -344,6 +344,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
+        mel_norm=1.0,
     ):
         self._sample_rate = sample_rate
         if window_size and n_window_size:
@@ -379,6 +380,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
+            mel_norm=1.0,
         )
         self.featurizer.to(self._device)
 
