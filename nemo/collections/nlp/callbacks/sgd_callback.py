@@ -214,4 +214,4 @@ def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_a
     with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
         f.close()
-    return all_metric_aggregate[ALL_SERVICES]
+    return all_metric_aggregate[SEEN_SERVICES] # changed here
