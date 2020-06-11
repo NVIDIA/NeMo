@@ -123,6 +123,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
     per_frame_metric = {}
 
     for dial_id, dial_hyp in dataset_hyp.items():
+        unseen = False
         dial_ref = dataset_ref[dial_id]
 
         if set(dial_ref["services"]) != set(dial_hyp["services"]):
@@ -148,7 +149,6 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
 
             hyp_frames_by_service = {frame["service"]: frame for frame in turn_hyp["frames"]}
 
-            unseen = False
             # Calculate metrics for each frame in each user turn.
             for frame_ref in turn_ref["frames"]:
                 service_name = frame_ref["service"]
