@@ -155,7 +155,6 @@ class SGDDataProcessor(object):
 
         with open(dial_file, "rb") as f:
             dial_examples = np.load(f, allow_pickle=True)
-            f.close()
 
         if not os.path.exists(self.slots_relation_file):
             raise ValueError(

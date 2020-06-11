@@ -283,7 +283,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                         # Add span from the user utterance.
                         extracted_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
                     else:
-                        carryover_value = get_carryover_value(
+                        extracted_value = get_carryover_value(
                             slot,
                             frame,
                             all_slot_values,
