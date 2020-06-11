@@ -30,6 +30,7 @@ STR_DONTCARE = "dontcare"
 STATUS_OFF = 0
 STATUS_ACTIVE = 1
 STATUS_DONTCARE = 2
+STATUS_CARRY = 3
 
 
 class InputExample(object):
