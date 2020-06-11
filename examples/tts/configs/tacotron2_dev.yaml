@@ -24,7 +24,7 @@ AudioToTextDataLayer_train:
         min_duration: 0.1
         normalize_transcripts: false
         sample_rate: *sr
-        trim_silence: false
+        trim_silence: true
         shuffle: true
         # batch_size: 48  # Overwritten in tacotron2.py
         # num_workers: 20
@@ -45,7 +45,7 @@ AudioToTextDataLayer_eval:
         min_duration: 0.1
         normalize_transcripts: false
         sample_rate: *sr
-        trim_silence: false
+        trim_silence: true
         shuffle: false
         # batch_size: 48  # Overwritten in tacotron2.py
         # num_workers: 20
