@@ -39,7 +39,7 @@ class InputExample(object):
     def __init__(
         self,
         schema_config,
-        service_schema=None,
+        service_schema,
         example_id="NONE",
         example_id_num=[],
         is_real_example=False,
@@ -63,6 +63,7 @@ class InputExample(object):
         self.service_schema = service_schema
         self.example_id = example_id
         self.example_id_num = example_id_num
+        self._add_carry_value = service_schema._add_carry_value
 
         self.is_real_example = is_real_example
         self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]
@@ -295,7 +296,7 @@ class InputExample(object):
         new_example.system_utterance = self.system_utterance
         return new_example
 
-    def add_categorical_slots(self, state_update):
+    def add_categorical_slots(self, state_update, agg_sys_state):
         """Add features for categorical slots."""
         categorical_slots = self.service_schema.categorical_slots
         self.num_categorical_slots = len(categorical_slots)
@@ -315,10 +316,28 @@ class InputExample(object):
             elif values[0] == STR_DONTCARE:
                 self.categorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
-                self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
-                self.categorical_slot_values[slot_idx] = self.service_schema.get_categorical_slot_value_id(
-                    slot, values[0]
-                )
+                slot_id = self.service_schema.get_categorical_slot_value_id(slot, values[0])
+                if slot_id < 0:
+                    logging.warning(
+                        f"Categorical value not found: EXAMPLE_ID:{self.example_id}, EXAMPLE_ID_NUM:{self.example_id_num}"
+                    )
+                    logging.warning(f"SYSTEM: {self.system_utterance} || USER: {self.user_utterance}")
+                else:
+                    if values[0] not in agg_sys_state.get(slot, []):
+                        self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
+                        self.categorical_slot_values[slot_idx] = slot_id
+                    else:
+                        self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
+                        # changed here
+                        if self._add_carry_value:
+                            self.categorical_slot_values[slot_idx] = self.service_schema.get_categorical_slot_value_id(
+                                slot, "#CARRYVALUE#"
+                            )
+                            logging.debug(
+                                f"Found slot:{slot}, value:{values[0]}, slot_id:{self.categorical_slot_values[slot_idx]} in prev states: {agg_sys_state}"
+                            )
+                        else:
+                            self.categorical_slot_values[slot_idx] = slot_id
 
     def add_noncategorical_slots(self, state_update, system_span_boundaries, user_span_boundaries):
         """Add features for non-categorical slots."""

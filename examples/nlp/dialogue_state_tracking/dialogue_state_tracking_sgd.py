@@ -235,6 +235,12 @@ parser.add_argument(
     "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
 )
 
+
+parser.add_argument(
+    "--add_carry_value", action="store_true", help="Add a carry-over value to all categorical slots.",
+)
+
+
 parser.add_argument("--exp_name", default="SGD_Baseline", type=str)
 parser.add_argument("--project", default="SGD", type=str)
 
@@ -303,6 +309,7 @@ schema_preprocessor = SchemaPreprocessor(
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
     bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
+    add_carry_value=args.add_carry_value,
     mode=args.schema_emb_init,
     is_trainable=args.train_schema_emb,
 )

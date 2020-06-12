@@ -31,6 +31,7 @@ import torch
 
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
+import copy
 from collections import OrderedDict
 
 
@@ -227,9 +228,19 @@ class SGDDataProcessor(object):
         dialog_id = dialog["dialogue_id"]
         prev_states = {}
         examples = []
+        agg_sys_states = collections.defaultdict(dict)
+        agg_sys_states_prev = collections.defaultdict(dict)
         frame_service_prev = ""
         for turn_idx, turn in enumerate(dialog["turns"]):
             # Generate an example for every frame in every user turn.
+            if turn["speaker"] == "SYSTEM":
+                agg_sys_states_prev = copy.deepcopy(agg_sys_states)
+                for frame in turn["frames"]:
+                    for action in frame["actions"]:
+                        if action["slot"] and len(action["values"]) > 0:
+                            agg_sys_states[frame["service"]][action["slot"]] = action["values"]
+                            # all_slot_values[frame["service"]][[action["slot"]]].extend(action["values"])
+
             if turn["speaker"] == "USER":
                 user_utterance = turn["utterance"]
                 user_frames = {f["service"]: f for f in turn["frames"]}
@@ -253,7 +264,7 @@ class SGDDataProcessor(object):
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
-                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, slot_carryover_candlist, services_switch_counts
+                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, copy.deepcopy(agg_sys_states_prev), slot_carryover_candlist, services_switch_counts
                 )
                 examples.extend(turn_examples)
                 frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
@@ -290,7 +301,7 @@ class SGDDataProcessor(object):
         return state_update
 
     def _create_examples_from_turn(
-        self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, slot_carryover_candlist, services_switch_counts
+        self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, agg_sys_states, slot_carryover_candlist, services_switch_counts
     ):
         """
         Creates an example for each frame in the user turn.
@@ -309,7 +320,7 @@ class SGDDataProcessor(object):
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
-        base_example = InputExample(schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer,)
+        base_example = InputExample(schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer, service_schema=schemas)
         base_example.example_id = turn_id
 
         _, dialog_id, turn_id_ = turn_id.split('-')
@@ -342,7 +353,7 @@ class SGDDataProcessor(object):
             states[service] = state
 
             # Populate features in the example.
-            example.add_categorical_slots(state_update)
+            example.add_categorical_slots(state_update, agg_sys_states[service])
             # The input tokens to bert are in the format [CLS] [S1] [S2] ... [SEP]
             # [U1] [U2] ... [SEP] [PAD] ... [PAD]. For system token indices a bias of
             # 1 is added for the [CLS] token and for user tokens a bias of 2 +
