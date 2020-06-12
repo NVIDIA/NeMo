@@ -317,8 +317,8 @@ class InputExample(object):
             elif values[0] == STR_DONTCARE:
                 self.categorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
-                slot_id = self.service_schema.get_categorical_slot_value_id(slot, values[0])
-                if slot_id < 0:
+                value_id = self.service_schema.get_categorical_slot_value_id(slot, values[0])
+                if value_id < 0:
                     logging.warning(
                         f"Categorical value not found: EXAMPLE_ID:{self.example_id}, EXAMPLE_ID_NUM:{self.example_id_num}"
                     )
@@ -326,7 +326,7 @@ class InputExample(object):
                 else:
                     if values[0] not in agg_sys_state.get(slot, []):
                         self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
-                        self.categorical_slot_values[slot_idx] = slot_id
+                        self.categorical_slot_values[slot_idx] = value_id
                     else:
                         # changed here
                         if self._add_carry_status:
@@ -342,7 +342,7 @@ class InputExample(object):
                                 f"Found slot:{slot}, value:{values[0]}, slot_id:{self.categorical_slot_values[slot_idx]} in prev states: {agg_sys_state}"
                             )
                         else:
-                            self.categorical_slot_values[slot_idx] = slot_id
+                            self.categorical_slot_values[slot_idx] = value_id
 
     def add_noncategorical_slots(self, state_update, system_span_boundaries, user_span_boundaries):
         """Add features for non-categorical slots."""
@@ -371,9 +371,9 @@ class InputExample(object):
                     # only makes use of the last two utterances to predict state updates,
                     # it will fail in such cases.
                     if self._add_carry_status:
-                        self.categorical_slot_status[slot_idx] = STATUS_CARRY
+                        self.noncategorical_slot_status[slot_idx] = STATUS_CARRY
                     else:
-                        self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
+                        self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
 
                     logging.debug(
                         f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
