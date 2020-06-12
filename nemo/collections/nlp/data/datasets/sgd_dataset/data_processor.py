@@ -264,7 +264,7 @@ class SGDDataProcessor(object):
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
-                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, copy.deepcopy(agg_sys_states_prev), slot_carryover_candlist, services_switch_counts
+                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, copy.deepcopy(agg_sys_states), slot_carryover_candlist, services_switch_counts
                 )
                 examples.extend(turn_examples)
                 frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
