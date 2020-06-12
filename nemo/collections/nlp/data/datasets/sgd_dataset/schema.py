@@ -131,7 +131,7 @@ class ServiceSchema(object):
 class Schema(object):
     """Wrapper for schemas for all services in a dataset."""
 
-    def __init__(self, schema_json_paths, add_carry_value):
+    def __init__(self, schema_json_paths, add_carry_value, add_carry_status):
         """
         TODO fix:
         schema_json_paths: list of .json path to schema files of a single str with path to the json file.
@@ -139,6 +139,7 @@ class Schema(object):
         # Load the schema from the json file.
 
         self._add_carry_value = add_carry_value
+        self._add_carry_status = add_carry_status
 
         if isinstance(schema_json_paths, str):
             with open(schema_json_paths, "r") as f:

@@ -235,11 +235,13 @@ parser.add_argument(
     "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
 )
 
-
 parser.add_argument(
     "--add_carry_value", action="store_true", help="Add a carry-over value to all categorical slots.",
 )
 
+parser.add_argument(
+    "--add_carry_status", action="store_true", help="Add a carry-over status to all categorical slots.",
+)
 
 parser.add_argument("--exp_name", default="SGD_Baseline", type=str)
 parser.add_argument("--project", default="SGD", type=str)
@@ -310,6 +312,7 @@ schema_preprocessor = SchemaPreprocessor(
     bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
     add_carry_value=args.add_carry_value,
+    add_carry_status=args.add_carry_status,
     mode=args.schema_emb_init,
     is_trainable=args.train_schema_emb,
 )
@@ -328,7 +331,7 @@ sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
     embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
 )
-dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
+dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(add_carry_status=args.add_carry_status, reduction=args.loss_reduction)
 
 
 def create_pipeline(dataset_split='train'):

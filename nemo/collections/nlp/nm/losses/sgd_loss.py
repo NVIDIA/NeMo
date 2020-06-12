@@ -87,12 +87,14 @@ class SGDDialogueStateLossNM(LossNM):
         """
         return {"loss": NeuralType(None)}
 
-    def __init__(self, reduction='mean'):
+    def __init__(self, add_carry_status, reduction='mean'):
         """
         Args:
             reduction (str): specifies the reduction to apply to the final loss, choose 'mean' or 'sum'
         """
         super().__init__()
+
+        self._add_carry_status = add_carry_status
 
         if reduction not in ['mean', 'sum']:
             logging.warning(f'{reduction} reduction is not supported. Setting reduction to "mean"')
@@ -143,7 +145,7 @@ class SGDDialogueStateLossNM(LossNM):
             cat_slot_status_loss = torch.clamp(torch.max(logit_cat_slot_status.view(-1)), 0, 0)
         else:
             cat_slot_status_loss = self._cross_entropy(
-                logit_cat_slot_status.view(-1, 3)[cat_slot_status_mask],
+                logit_cat_slot_status.view(-1, logit_cat_slot_status.size()[-1])[cat_slot_status_mask],
                 categorical_slot_status.view(-1)[cat_slot_status_mask],
             )
 
@@ -152,7 +154,11 @@ class SGDDialogueStateLossNM(LossNM):
         max_num_slot_values = logit_cat_slot_value.size()[-1]
 
         # Zero out losses for categorical slot value when the slot status is not active.
-        cat_slot_value_mask = (categorical_slot_status == STATUS_ACTIVE).view(-1)
+        if self._add_carry_status:
+            cat_slot_value_mask = (categorical_slot_status >= STATUS_ACTIVE).view(-1)
+        else:
+            cat_slot_value_mask = (categorical_slot_status == STATUS_ACTIVE).view(-1)
+
         # to handle cases with no active categorical slot value
         if sum(cat_slot_value_mask) == 0:
             logging.warning(f'No active values for categorical slots in the batch.')
@@ -171,7 +177,7 @@ class SGDDialogueStateLossNM(LossNM):
             noncat_slot_status_loss = torch.clamp(torch.max(logit_noncat_slot_status.view(-1)), 0, 0)
         else:
             noncat_slot_status_loss = self._cross_entropy(
-                logit_noncat_slot_status.view(-1, 3)[noncat_slot_status_mask],
+                logit_noncat_slot_status.view(-1, logit_noncat_slot_status.size()[-1])[noncat_slot_status_mask],
                 noncategorical_slot_status.view(-1)[noncat_slot_status_mask],
             )
 
@@ -179,7 +185,11 @@ class SGDDialogueStateLossNM(LossNM):
         # Shape: (batch_size, max_num_noncat_slots, max_num_tokens).n
         max_num_tokens = logit_noncat_slot_start.size()[-1]
         # Zero out losses for non-categorical slot spans when the slot status is not active.
-        non_cat_slot_value_mask = (noncategorical_slot_status == STATUS_ACTIVE).view(-1)
+        if self._add_carry_status:
+            non_cat_slot_value_mask = (noncategorical_slot_status >= STATUS_ACTIVE).view(-1)
+        else:
+            non_cat_slot_value_mask = (noncategorical_slot_status == STATUS_ACTIVE).view(-1)
+
         # to handle cases with no active categorical slot value
         if sum(non_cat_slot_value_mask) == 0:
             logging.warning(f'No active values for non-categorical slots in the batch.')

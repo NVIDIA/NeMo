@@ -64,6 +64,7 @@ class InputExample(object):
         self.example_id = example_id
         self.example_id_num = example_id_num
         self._add_carry_value = service_schema._add_carry_value
+        self._add_carry_status = service_schema._add_carry_status
 
         self.is_real_example = is_real_example
         self._max_seq_length = schema_config["MAX_SEQ_LENGTH"]
@@ -327,8 +328,12 @@ class InputExample(object):
                         self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
                         self.categorical_slot_values[slot_idx] = slot_id
                     else:
-                        self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
                         # changed here
+                        if self._add_carry_status:
+                            self.categorical_slot_status[slot_idx] = STATUS_CARRY
+                        else:
+                            self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
+
                         if self._add_carry_value:
                             self.categorical_slot_values[slot_idx] = self.service_schema.get_categorical_slot_value_id(
                                 slot, "#CARRYVALUE#"
@@ -351,19 +356,25 @@ class InputExample(object):
             elif values[0] == STR_DONTCARE:
                 self.noncategorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
-                self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
                 # Add indices of the start and end tokens for the first encountered
                 # value. Spans in user utterance are prioritized over the system
                 # utterance. If a span is not found, the slot value is ignored.
                 if slot in user_span_boundaries:
+                    self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
                     start, end = user_span_boundaries[slot]
                 elif slot in system_span_boundaries:
+                    self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
                     start, end = system_span_boundaries[slot]
                 else:
                     # A span may not be found because the value was cropped out or because
                     # the value was mentioned earlier in the dialogue. Since this model
                     # only makes use of the last two utterances to predict state updates,
                     # it will fail in such cases.
+                    if self._add_carry_status:
+                        self.categorical_slot_status[slot_idx] = STATUS_CARRY
+                    else:
+                        self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
+
                     logging.debug(
                         f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'
                     )

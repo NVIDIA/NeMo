@@ -76,6 +76,7 @@ class SchemaPreprocessor:
         bert_ckpt_dir,
         nf,
         add_carry_value,
+        add_carry_status,
         datasets=['train', 'test', 'dev'],
         mode='baseline',
         is_trainable=False,
@@ -89,6 +90,11 @@ class SchemaPreprocessor:
         self.datasets = datasets
 
         self._add_carry_value = add_carry_value
+        self._add_carry_status = add_carry_status
+        if self._add_carry_status:
+            self._slot_status_size = 4
+        else:
+            self._slot_status_size = 3
 
         for dataset_split in ['train', 'test', 'dev']:
             if dataset_split not in self.datasets:
@@ -110,7 +116,7 @@ class SchemaPreprocessor:
         all_schema_json_paths = []
         for dataset_split in self.datasets:
             all_schema_json_paths.append(os.path.join(data_dir, dataset_split, "schema.json"))
-        self.schemas = schema.Schema(all_schema_json_paths, add_carry_value=self._add_carry_value)
+        self.schemas = schema.Schema(all_schema_json_paths, add_carry_value=self._add_carry_value, add_carry_status=self._add_carry_status)
 
         if not os.path.exists(self.schema_embedding_file) or overwrite_schema_emb_files:
             # Generate the schema embeddings if needed or specified
