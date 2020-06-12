@@ -3,7 +3,6 @@ import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
-from ruamel.yaml import YAML
 
 from nemo.utils import logging
 
