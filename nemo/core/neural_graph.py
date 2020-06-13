@@ -86,6 +86,16 @@ class NeuralGraph(NeuralInterface):
         # Flag indicating whether the "default" output ports/tensors will be automatically bound.
         self.default_output_binding = True
 
+        # Set default loader params.
+        self._data_loader_params = {
+            "dataset": None,
+            "batch_size": 1, "shuffle": False, "sampler": None, "batch_sampler": None, "num_workers": 0, "collate_fn": None,
+            "pin_memory": False, "drop_last": False, "timeout": 0, "worker_init_fn": None, "multiprocessing_context": None
+        }
+        # Lazy-initialize loader when needed.
+        self._data_loader = None
+
+
     def __call__(self, **kwargs):
         """
         This method "nests" one existing neural graph into another one.
@@ -1136,3 +1146,40 @@ class NeuralGraph(NeuralInterface):
 
                 # Mode to device.
                 self._modules[name] = module.to(pt_device)
+
+    def setup_data_loader(self, 
+        batch_size=1, shuffle=False, sampler=None, batch_sampler=None, num_workers=0, collate_fn=None,
+        pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None, multiprocessing_context=None):
+        
+        # Override all old values.
+        self._data_loader_params = {
+            "dataset": None,
+            "batch_size": batch_size, "shuffle": shuffle, "sampler": sampler, "batch_sampler": batch_sampler, "num_workers": num_workers,
+            "collate_fn": collate_fn, "pin_memory": pin_memory, "drop_last": drop_last, "timeout": timeout, "worker_init_fn": worker_init_fn, "multiprocessing_context": multiprocessing_context
+        }
+        # If loader is set - reset it.
+        self._data_loader = None
+
+
+    def get_batch(self):
+        # If loader is not set - set it.
+        if self._data_loader is None:
+            # Check graph.
+            if not self.is_complete:
+                raise ConfigurationError("Cannot get batch as graph is incomplete!")
+            # Get datalayer/dataset.
+            dl = self.modules[self.steps[0]]
+            # Make sure that this is DataLayer/dataset instance.
+            if dl.type == ModuleType.datalayer:
+                if isinstance(dl, torch.utils.data.Dataset):
+                    self._data_loader_params["dataset"] = dl
+                else:
+                    self._data_loader_params["dataset"] = dl.dataset
+            else:
+                raise ConfigurationError("Module 0 is not a DataLayer!")
+            self._data_loader = torch.utils.data.DataLoader(**self._data_loader_params)
+        
+        # Fetch a batch.
+        for batch in self._data_loader:
+            yield batch
+

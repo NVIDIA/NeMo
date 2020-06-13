@@ -94,6 +94,15 @@ if __name__ == "__main__":
         tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
     )
 
+    # Use default settings of data loader - just change batch_size.
+    training_graph.setup_data_loader(batch_size=64)
+
+    # Iterate over the whole dataset - in batches.
+    for batch in training_graph.get_batch():
+        print("batch: ", batch)
+        # Forward pass.
+        #outputs = training_graph.forward(batch)
+
     # Invoke the "train" action.
     nf.train(
         training_graph=training_graph,
