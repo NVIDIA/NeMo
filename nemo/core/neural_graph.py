@@ -23,7 +23,7 @@ __all__ = [
 import torch
 from torch.nn.parallel import DataParallel
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from os import path
 from typing import Any, Dict, List, Optional, Union
 
@@ -86,8 +86,8 @@ class NeuralGraph(NeuralInterface):
         # Flag indicating whether the "default" output ports/tensors will be automatically bound.
         self.default_output_binding = True
 
-        # Set default loader params.
-        self._data_loader_params = {
+        # Set default data loader params.
+        self._data_loader_config = {
             "dataset": None,
             "batch_size": 1, "shuffle": False, "sampler": None, "batch_sampler": None, "num_workers": 0, "collate_fn": None,
             "pin_memory": False, "drop_last": False, "timeout": 0, "worker_init_fn": None, "multiprocessing_context": None
@@ -204,7 +204,7 @@ class NeuralGraph(NeuralInterface):
                         # producer_name = connection.producer.module_name
                         producer_port_name = connection.producer.port_name
                         break
-                # import pdb;pdb.set_trace()
+
                 # Now, the tensor is already produced in outer (i.e. this) graph!
                 module_args[input_port_name] = self.tensors[bumped_step][producer_port_name]
 
@@ -1154,13 +1154,13 @@ class NeuralGraph(NeuralInterface):
                 # Mode to device.
                 self._modules[name] = module.to(pt_device)
 
-    def setup_data_loader(self, 
+    def configure_data_loader(self, 
         batch_size=1, shuffle=False, sampler=None, batch_sampler=None, num_workers=0, collate_fn=None,
         pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None, multiprocessing_context=None):
         """ Method updates the default parameters of the DataLoader used by a given neural graph. """
         
         # Override all old values.
-        self._data_loader_params = {
+        self._data_loader_config = {
             "dataset": None,
             "batch_size": batch_size, "shuffle": shuffle, "sampler": sampler, "batch_sampler": batch_sampler, "num_workers": num_workers,
             "collate_fn": collate_fn, "pin_memory": pin_memory, "drop_last": drop_last, "timeout": timeout, "worker_init_fn": worker_init_fn, "multiprocessing_context": multiprocessing_context
@@ -1180,16 +1180,16 @@ class NeuralGraph(NeuralInterface):
             dl = self.modules[self.steps[0]]
             # Make sure that this is DataLayer/dataset instance.
             if isinstance(dl, torch.utils.data.Dataset):
-                self._data_loader_params["dataset"] = dl
+                self._data_loader_config["dataset"] = dl
             else:
-                self._data_loader_params["dataset"] = dl.dataset
+                self._data_loader_config["dataset"] = dl.dataset
 
-            self._data_loader = torch.utils.data.DataLoader(**self._data_loader_params)
+            self._data_loader = torch.utils.data.DataLoader(**self._data_loader_config)
 
 
         # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
-        output_class_name = f'{dl.__class__.__name__}Output'
-        result_type = namedtuple(typename=output_class_name, field_names=dl.output_ports.keys())
+        #output_class_name = f'{dl.__class__.__name__}Output'
+        #result_type = namedtuple(typename=output_class_name, field_names=dl.output_ports.keys())
 
         # Fetch a batch.
         for batch in self._data_loader:
@@ -1215,8 +1215,17 @@ class NeuralGraph(NeuralInterface):
             raise ValueError(err)
         
         # Copy inputs to an adequate (module.output->value) structure.
-        #for port_name, input_value in kwargs.items():
-        #    print("hello")
+        passed_data = defaultdict(lambda: {})
+        if self.is_complete:
+            # Treat all the inputs as DL inputs.
+            for key, value in kwargs.items():
+                passed_data[0][key] = value
+
+        # Create a list of connenctions: (producer.port -> consumer.port)
+        connections = []
+        for tensors in self.tensors.values():
+            for t in tensors.values():
+                connections.extend(t.connections())
 
         # Execute modules one by one.
         for step_number in range(1, len(self._steps)):
@@ -1232,6 +1241,73 @@ class NeuralGraph(NeuralInterface):
             # - harvesing input port names of a given module,
             # - checking if the input was not bound (in the inner graph),
             # - checking if we have already tensors leading to that input (in outer graph).
-            # TODO!
+            for input_port_name in module.input_ports.keys():
+                # Check if this port was bound in the inner graph.
+                key = self.inputs.has_binding(step_number, input_port_name)
+                # If so, then we must pass whatever was passed to that port in the list of arguments.
+                if key is not None:
+                    module_args[input_port_name] = kwargs[key]
+                    continue
 
-        return 0
+                # Else: find a tensor that should be passed to the given module's input.
+                producer_step = -1
+                # Search for producer/port that we should use.
+                for connection in connections:
+                    if (
+                        connection.consumer.step_number == step_number
+                        and connection.consumer.module_name == module_name
+                        and connection.consumer.port_name == input_port_name
+                    ):
+                        # Got the connection!
+                        producer_step = connection.producer.step_number
+                        # producer_name = connection.producer.module_name
+                        producer_port_name = connection.producer.port_name
+                        break
+                # Make sure we found the producer.
+                if producer_step == -1:
+                    err = "Couldn't find the producer of the {} input to the module {} called in step {}".format(input_port_name, module_name, step_number)
+                    raise ValueError(err)
+                # Add this to the argument
+                module_args[input_port_name] = passed_data[producer_step][producer_port_name]
+
+            # Ok, now we have all keyword arguments. We can call() the module.
+            module_outputs = module(force_pt=True, **module_args)
+
+            # Collect all the produced output tensors and add them to this graph.
+            output_names = list(module.output_ports.keys())
+
+            if len(output_names) == 1:
+                # Handle the case of a single data produced.
+                passed_data[step_number][output_names[0]] = module_outputs
+            else:
+                # Compare module_outputs with the output port definitions.
+                if len(output_names) != len(module_outputs):
+                    err = "Invalid number of outputs produced by the module "
+                    err += "{} - expected: `{}`, received: `{}`".forward(output_names, len(module_outputs))
+                    raise ValueError(err)
+                
+                # Add them to the passed data.
+                for key, value in zip(output_names, module_outputs):
+                    passed_data[step_number][key] = value
+
+        import pdb; pdb.set_trace()
+
+        # Ok, now return only the bound outputs.
+        if len(self.outputs) == 1:
+            # Return a single object.
+            smp = self.outputs[list(self.outputs.keys())[0]].producer_step_module_port
+            return passed_data[smp.step_number][smp.port_name]
+        elif len(self.outputs) > 1:
+            # Return a tuple.
+            output_class_name = f'{self.__class__.__name__}Output'
+            result_type = namedtuple(typename=output_class_name, field_names=self.outputs.keys())
+            # Prepare list values.
+            values = []
+            for output in self.outputs.values():
+                smp = output.producer_step_module_port
+                values.append(passed_data[smp.step_number][smp.port_name])
+            # Return the object
+            return result_type(*values)
+        else: #(==0)
+            # Generally this should not happen!
+            return 
