@@ -1257,25 +1257,25 @@ class NeuralGraph(NeuralInterface):
         Accepts a batch (passed as a tuple in args) OR a list of named arguments (as kwargs).
 
         Use-case 1:
-            ...
-            # Retrieve batch as a tuple and pass it to forward() as tuple.
-            for batch in training_graph.get_batch():
-                training_graph.forward(batch)
-            ...
+        ...
+        # Retrieve batch as a tuple and pass it to forward() as tuple.
+        for batch in training_graph.get_batch():
+            training_graph.forward(batch)
+        ...
 
         Use-case 2:
-            ...
-            # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
-            for batch in training_graph.get_batch():
-                training_graph.forward(input1=batch.input1, input2=batch.input2)
-            ...        
+        ...
+        # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
+        for batch in training_graph.get_batch():
+            training_graph.forward(input1=batch.input1, input2=batch.input2)
+        ...        
 
         Use-case 3:
-            ...
-            # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
-            for batch in training_graph.get_batch(yield_dict=True):
-                training_graph.forward(**batch)
-            ...        
+        ...
+        # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
+        for batch in training_graph.get_batch(yield_dict=True):
+            training_graph.forward(**batch)
+        ...        
 
         Args:
             args: A tuple object (a batch) with all required inputs (optional)
