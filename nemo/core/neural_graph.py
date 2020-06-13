@@ -1267,6 +1267,7 @@ class NeuralGraph(NeuralInterface):
         Use-case 2:
 
         .. code-block:: python
+
             # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
             for batch in training_graph.get_batch():
                 training_graph.forward(input1=batch.input1, input2=batch.input2)
@@ -1275,6 +1276,7 @@ class NeuralGraph(NeuralInterface):
         Use-case 3:
 
         .. code-block:: python
+        
             # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
             for batch in training_graph.get_batch(yield_dict=True):
                 training_graph.forward(**batch)
