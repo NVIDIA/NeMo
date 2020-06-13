@@ -1064,6 +1064,7 @@ class NeuralGraph(NeuralInterface):
         else:
             logging.info(log_str)
 
+    @property
     def is_complete(self) -> bool:
         """
         Method checks if graph is "complete". In here the "complete" means that the graph has:
@@ -1075,6 +1076,12 @@ class NeuralGraph(NeuralInterface):
         Returns:
             True or false.
         """
+        # We assume the first modules is DL.
+        dl = self.modules[self.steps[0]]
+        if dl.type != ModuleType.datalayer:
+            return False
+
+        # We assume there is only one DL in the whole graph.
         has_datalayer = False
         # Iterate through the modules one by one.
         for module in self._modules.values():
@@ -1150,6 +1157,7 @@ class NeuralGraph(NeuralInterface):
     def setup_data_loader(self, 
         batch_size=1, shuffle=False, sampler=None, batch_sampler=None, num_workers=0, collate_fn=None,
         pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None, multiprocessing_context=None):
+        """ Method updates the default parameters of the DataLoader used by a given neural graph. """
         
         # Override all old values.
         self._data_loader_params = {
@@ -1162,6 +1170,7 @@ class NeuralGraph(NeuralInterface):
 
 
     def get_batch(self):
+        """ Method yields a single batch. Optionally, instantiates the DataLoader object uset by a given graph. """
         # If loader is not set - set it.
         if self._data_loader is None:
             # Check graph.
@@ -1183,3 +1192,8 @@ class NeuralGraph(NeuralInterface):
         for batch in self._data_loader:
             yield batch
 
+
+    def forward(self, **kwargs):
+        # Get list of argument names.
+        if self.is_complete:
+            # Use dataset definitions.
