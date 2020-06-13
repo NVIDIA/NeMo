@@ -20,6 +20,9 @@ __all__ = [
     'NeuralGraph',
 ]
 
+import torch
+from torch.nn.parallel import DataParallel
+
 from collections import OrderedDict, namedtuple
 from os import path
 from typing import Any, Dict, List, Optional, Union
@@ -1081,27 +1084,55 @@ class NeuralGraph(NeuralInterface):
         return True
 
 
-    def to(device_type: DeviceType):
+    def to(self, device_type: DeviceType, use_dataparallel: bool = False):
         """ 
-        Moves the all the modules belonging to a given graph to indicated device.
+        Moves the all the (trainable) modules belonging to a given graph to indicated device.
 
         """
-        logging.info("Moving module(s) to {}".device_type)
+        logging.info("Moving module(s) to {}".format(device_type))
+
+        # Check device.
+        if device_type == DeviceType.CPU:
+            pt_device = torch.device("cpu") 
+
+        elif device_type == DeviceType.GPU:
+            if not torch.cuda.is_available():
+                raise ConfigurationError("Coudn't use GPUs as there is no CUDA installed")
+
+            if torch.cuda.device_count() == 1:
+                # Cannot use data parallel.
+                if use_dataparallel:
+                    raise ConfigurationError("Coudn't use Data Parallel as there is only one GPU device found")
+
+            # Using cuda -- all devices.
+            pt_device = torch.device("cuda")
+
+        else: # DeviceType.AllGpu : distributed data parallel.
+            if not torch.cuda.is_available():
+                raise ConfigurationError("Coudn't use Distributed Data Parallel as there is no CUDA installed")
+
+            # Each worker will use a single gpu.
+            use_dataparallel = False
+            pt_device = torch.device("cuda")
+
+        if use_dataparallel:
+            logging.info("Using Data Parallelization on {} GPUs!".format(torch.cuda.device_count()))
+            logging.warning("Data Parallel is currently under development, so use if it with caution")
 
         # Work on all modules.
-        if module_names is None:
-            module_names = self._modules.keys()
+        module_names = self._modules.keys()
 
-        
-
-        if self.app_state.use_dataparallel:
-            logging.info("Using data parallelization on {} GPUs!".format(torch.cuda.device_count()))
-
-        # Iterate through the modules one by one.
+          # Iterate through the modules one by one.
         for name in module_names:
             # Get module.
             module = self._modules[name]
             if module.type == ModuleType.trainable:
-                pass
-            # Mode to cuda + override the module in the graph.
-            #self._modules[name] = model.to(self.app_state.device)
+                # Check if we want to use data parallel.
+                if use_dataparallel:
+                    # Skip if the user explicitly said the module shouldn't be parallelized.
+                    if not hasattr(module, 'skip_in_data_parallel') or not module.skip_in_data_parallel:
+                        # Parallize model.
+                        module = DataParallel(module)
+
+                # Mode to device.
+                self._modules[name] = module.to(pt_device)
