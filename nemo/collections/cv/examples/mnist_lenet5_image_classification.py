@@ -98,12 +98,14 @@ if __name__ == "__main__":
     training_graph.configure_data_loader(batch_size=64)
 
     # Iterate over the whole dataset - in batches.
-    for batch in training_graph.get_batch():
+    for batch in training_graph.get_batch():#return_dict=True):
         print("batch: ", batch)
         # Forward pass.
-        outputs = training_graph.forward(**batch)
+        
+        outputs = training_graph.forward(indices = batch.indices, images = batch.images, targets = batch.targets, labels = batch.targets)
+        #outputs = training_graph.forward(**batch)
         print("outputs: ", outputs)
-
+    
     # Invoke the "train" action.
     #nf.train(
     #    training_graph=training_graph,

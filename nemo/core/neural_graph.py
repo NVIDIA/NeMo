@@ -25,7 +25,7 @@ from torch.nn.parallel import DataParallel
 
 from collections import OrderedDict, namedtuple, defaultdict
 from os import path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 from ruamel.yaml import YAML
 
@@ -1157,7 +1157,11 @@ class NeuralGraph(NeuralInterface):
     def configure_data_loader(self, 
         batch_size=1, shuffle=False, sampler=None, batch_sampler=None, num_workers=0, collate_fn=None,
         pin_memory=False, drop_last=False, timeout=0, worker_init_fn=None, multiprocessing_context=None):
-        """ Method updates the default parameters of the DataLoader used by a given neural graph. """
+        """
+        Method updates the default parameters of the DataLoader used by a given neural graph.
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+        """
         
         # Override all old values.
         self._data_loader_config = {
@@ -1169,13 +1173,21 @@ class NeuralGraph(NeuralInterface):
         self._data_loader = None
 
 
-    def get_batch(self):
-        """ Method yields a single batch. Optionally, instantiates the DataLoader object uset by a given graph. """
+    def get_batch(self, return_dict: bool=False) -> Union[Dict[str,  Any], Tuple]:
+        """
+        Method yields a single batch. Optionally, instantiates the DataLoader object used by a given graph.
+            
+        Args:
+            return_dict: Flag used to a tuple or a dict - depending on the user needs (DEFAULT: False, i.e.
+            returning tuples)
+        Returns:
+            Depending on the mode: a dictionary 
+        """
         # If loader is not set - set it.
         if self._data_loader is None:
             # Check graph.
             if not self.is_complete:
-                raise ConfigurationError("Cannot get batch as graph is incomplete!")
+                raise ConfigurationError("Cannot get a batch as graph is incomplete!")
             # Get datalayer/dataset.
             dl = self.modules[self.steps[0]]
             # Make sure that this is DataLayer/dataset instance.
@@ -1186,39 +1198,105 @@ class NeuralGraph(NeuralInterface):
 
             self._data_loader = torch.utils.data.DataLoader(**self._data_loader_config)
 
+        # Return tuple or dict - depending on the user needs.
+        if return_dict:
+            # Fetch a batch - in the form of a dict.
+            for batch in self._data_loader:
+                if len(dl.output_ports.keys()) > 1:
+                    yield dict(zip(dl.output_ports.keys(), batch))
+                else: 
+                    # Dict with a single key:value pair.
+                    yield {list(dl.output_ports.keys())[0]: batch}
 
-        # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
-        #output_class_name = f'{dl.__class__.__name__}Output'
-        #result_type = namedtuple(typename=output_class_name, field_names=dl.output_ports.keys())
-
-        # Fetch a batch.
-        for batch in self._data_loader:
+        else:
+            # Create a tuple class - if required.
             if len(dl.output_ports.keys()) > 1:
-                yield dict(zip(dl.output_ports.keys(),batch))
-            else: 
-                yield {list(dl.output_ports.keys())[0]: batch}
+                # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
+                output_class_name = f'{dl.__class__.__name__}Output'
+                result_type = namedtuple(typename=output_class_name, field_names=dl.output_ports.keys())
+    
+            # Fetch a batch - in the form of a tuple.
+            for batch in self._data_loader:
+                if len(dl.output_ports.keys()) == 1:
+                    # Return a single object.
+                    yield batch
+                else: 
+                    # Return a tuple.
+                    yield result_type(*batch)
 
 
-    def forward(self, **kwargs):
+    def forward(self, *args: Optional[Tuple], **kwargs: Optional[Dict[str, Any]]):
+        """
+        Graph forward method. In the execution it follows the order of the modules defined in steps and passes data
+        between modules following the connectivity stored in NmTensors.
+
+        Accepts a batch (passed as a tuple in args) OR a list of named arguments (as kwargs).
+
+        Use-case 1:
+            ...
+            # Retrieve batch as a tuple and pass it to forward() as tuple.
+            for batch in training_graph.get_batch():
+                training_graph.forward(batch)
+            ...
+
+        Use-case 2:
+            ...
+            # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
+            for batch in training_graph.get_batch():
+                training_graph.forward(input1=batch.input1, input2=batch.input2)
+            ...        
+
+        Use-case 3:
+            ...
+            # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
+            for batch in training_graph.get_batch(return_dict=True):
+                training_graph.forward(**batch)
+            ...        
+
+        Args:
+            args: A tuple object (a batch) with all required inputs (optional)
+            kwargs: a dictionary containing all required inputs (optional)
+        Returns:
+            A tuple object containing all graph outputs
+        """
+
         # Get list of argument names.
         if self.is_complete:
             # Use dataset definitions.
             dl = self.modules[self.steps[0]]
-            input_names = dl.output_ports.keys()
+            input_names = list(dl.output_ports.keys())
         else:
-            input_names = self._inputs.keys()
+            input_names = list(self._inputs.keys())
+
+        # Work on args or kwargs - depending on input_dict settings.
+        if len(args) > 0:
+            # Operate on args, i.e. a single tuple or a single "object" (1 input port to graph).
+            if len(args) == 1:
+                # Check if it is a tuple.
+                if isinstance(args[0], tuple) and hasattr(args[0], "_fields"):
+                    inputs = args[0]._asdict()
+                else:
+                    # There is only one input - use the input_names[0] as key.
+                    inputs = {input_names[0]: args[0]} 
+            else:
+                err = "Invalid argument passed to `graph forward()`"
+                err += " - expected: a tuple, received: `{}`".format(args)
+                raise ValueError(err)
+        else:
+            # Operate on named arguments.
+            inputs = kwargs
 
         # Compare inputs with the desired inputs.
-        if len(input_names) != len(kwargs) or sorted(input_names) != sorted(kwargs.keys()):
-            err = "Invalid list of arguments passed to the graph forward()"
-            err += " - expected: `{}`, received: `{}`".forward(input_names, kwargs.keys())
+        if len(input_names) != len(inputs) or sorted(input_names) != sorted(inputs.keys()):
+            err = "Invalid list of arguments passed to the `graph forward()`"
+            err += " - expected: `{}`, received: `{}`".format(input_names, kwargs.keys())
             raise ValueError(err)
-        
+            
         # Copy inputs to an adequate (module.output->value) structure.
         passed_data = defaultdict(lambda: {})
         if self.is_complete:
-            # Treat all the inputs as DL inputs.
-            for key, value in kwargs.items():
+            # Treat all the inputs as "DL outputs".
+            for key, value in inputs.items():
                 passed_data[0][key] = value
 
         # Create a list of connenctions: (producer.port -> consumer.port)
@@ -1233,7 +1311,6 @@ class NeuralGraph(NeuralInterface):
             # Get the module.
             module_name = self._steps[step_number]
             module = self._modules[module_name]
-            print(module)
 
             # Produce list of arguments that will be passed to a given modules.
             module_args = {}
@@ -1283,14 +1360,12 @@ class NeuralGraph(NeuralInterface):
                 # Compare module_outputs with the output port definitions.
                 if len(output_names) != len(module_outputs):
                     err = "Invalid number of outputs produced by the module "
-                    err += "{} - expected: `{}`, received: `{}`".forward(output_names, len(module_outputs))
+                    err += "{} - expected: `{}`, received: `{}`".format(output_names, len(module_outputs))
                     raise ValueError(err)
                 
                 # Add them to the passed data.
                 for key, value in zip(output_names, module_outputs):
                     passed_data[step_number][key] = value
-
-        import pdb; pdb.set_trace()
 
         # Ok, now return only the bound outputs.
         if len(self.outputs) == 1:
