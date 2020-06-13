@@ -890,7 +890,7 @@ class NeuralGraph(NeuralInterface):
         desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
         desc += "The `{}` Neural Graph [{}]".format(self.name, self.operation_mode)
-        if self.is_complete():
+        if self.is_complete:
             desc += " [COMPLETE]:\n"
         else:
             desc += " [INCOMPLETE]:\n"
@@ -1179,21 +1179,59 @@ class NeuralGraph(NeuralInterface):
             # Get datalayer/dataset.
             dl = self.modules[self.steps[0]]
             # Make sure that this is DataLayer/dataset instance.
-            if dl.type == ModuleType.datalayer:
-                if isinstance(dl, torch.utils.data.Dataset):
-                    self._data_loader_params["dataset"] = dl
-                else:
-                    self._data_loader_params["dataset"] = dl.dataset
+            if isinstance(dl, torch.utils.data.Dataset):
+                self._data_loader_params["dataset"] = dl
             else:
-                raise ConfigurationError("Module 0 is not a DataLayer!")
+                self._data_loader_params["dataset"] = dl.dataset
+
             self._data_loader = torch.utils.data.DataLoader(**self._data_loader_params)
-        
+
+
+        # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
+        output_class_name = f'{dl.__class__.__name__}Output'
+        result_type = namedtuple(typename=output_class_name, field_names=dl.output_ports.keys())
+
         # Fetch a batch.
         for batch in self._data_loader:
-            yield batch
+            if len(dl.output_ports.keys()) > 1:
+                yield dict(zip(dl.output_ports.keys(),batch))
+            else: 
+                yield {list(dl.output_ports.keys())[0]: batch}
 
 
     def forward(self, **kwargs):
         # Get list of argument names.
         if self.is_complete:
             # Use dataset definitions.
+            dl = self.modules[self.steps[0]]
+            input_names = dl.output_ports.keys()
+        else:
+            input_names = self._inputs.keys()
+
+        # Compare inputs with the desired inputs.
+        if len(input_names) != len(kwargs) or sorted(input_names) != sorted(kwargs.keys()):
+            err = "Invalid list of arguments passed to the graph forward()"
+            err += " - expected: `{}`, received: `{}`".forward(input_names, kwargs.keys())
+            raise ValueError(err)
+        
+        # Copy inputs to an adequate (module.output->value) structure.
+        #for port_name, input_value in kwargs.items():
+        #    print("hello")
+
+        # Execute modules one by one.
+        for step_number in range(1, len(self._steps)):
+
+            # Get the module.
+            module_name = self._steps[step_number]
+            module = self._modules[module_name]
+            print(module)
+
+            # Produce list of arguments that will be passed to a given modules.
+            module_args = {}
+            # Do it by:
+            # - harvesing input port names of a given module,
+            # - checking if the input was not bound (in the inner graph),
+            # - checking if we have already tensors leading to that input (in outer graph).
+            # TODO!
+
+        return 0

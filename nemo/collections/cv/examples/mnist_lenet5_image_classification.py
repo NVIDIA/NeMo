@@ -61,38 +61,38 @@ if __name__ == "__main__":
     logging.info(training_graph.summary())
 
     # Create a validation graph, starting from the second data layer.
-    with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
-        _, x, y, _ = dl_e()
-        p = lenet5(images=x)
-        loss_e = nll_loss(predictions=p, targets=y)
+    #with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
+    #    _, x, y, _ = dl_e()
+    #    p = lenet5(images=x)
+    #    loss_e = nll_loss(predictions=p, targets=y)
 
     # Display the graph summmary.
-    logging.info(evaluation_graph.summary())
+    #logging.info(evaluation_graph.summary())
 
     # Create the callbacks.
-    def eval_loss_per_batch_callback(tensors, global_vars):
-        if "eval_loss" not in global_vars.keys():
-            global_vars["eval_loss"] = []
-        for key, value in tensors.items():
-            if key.startswith("loss"):
-                global_vars["eval_loss"].append(mean(stack(value)))
+    #def eval_loss_per_batch_callback(tensors, global_vars):
+    #    if "eval_loss" not in global_vars.keys():
+    #        global_vars["eval_loss"] = []
+    #    for key, value in tensors.items():
+    #        if key.startswith("loss"):
+    #            global_vars["eval_loss"].append(mean(stack(value)))
 
-    def eval_loss_epoch_finished_callback(global_vars):
-        eloss = max(tensor(global_vars["eval_loss"]))
-        logging.info("Evaluation Loss: {0}".format(eloss))
-        return dict({"Evaluation Loss": eloss})
+    #def eval_loss_epoch_finished_callback(global_vars):
+    #    eloss = max(tensor(global_vars["eval_loss"]))
+    #    logging.info("Evaluation Loss: {0}".format(eloss))
+    #    return dict({"Evaluation Loss": eloss})
 
-    ecallback = EvaluatorCallback(
-        eval_tensors=[loss_e],
-        user_iter_callback=eval_loss_per_batch_callback,
-        user_epochs_done_callback=eval_loss_epoch_finished_callback,
-        eval_step=100,
-    )
+    #ecallback = EvaluatorCallback(
+    #    eval_tensors=[loss_e],
+    #    user_iter_callback=eval_loss_per_batch_callback,
+    #    user_epochs_done_callback=eval_loss_epoch_finished_callback,
+    #    eval_step=100,
+    #)
 
     # SimpleLossLoggerCallback will print loss values to console.
-    callback = SimpleLossLoggerCallback(
-        tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
-    )
+    #callback = SimpleLossLoggerCallback(
+    #    tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
+    #)
 
     # Use default settings of data loader - just change batch_size.
     training_graph.setup_data_loader(batch_size=64)
@@ -101,12 +101,12 @@ if __name__ == "__main__":
     for batch in training_graph.get_batch():
         print("batch: ", batch)
         # Forward pass.
-        #outputs = training_graph.forward(batch)
+        outputs = training_graph.forward(**batch)
 
     # Invoke the "train" action.
-    nf.train(
-        training_graph=training_graph,
-        callbacks=[callback, ecallback],
-        optimization_params={"num_epochs": 10, "lr": 0.001},
-        optimizer="adam",
-    )
+    #nf.train(
+    #    training_graph=training_graph,
+    #    callbacks=[callback, ecallback],
+    #    optimization_params={"num_epochs": 10, "lr": 0.001},
+    #    optimizer="adam",
+    #)
