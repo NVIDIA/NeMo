@@ -55,61 +55,61 @@ if __name__ == "__main__":
         p = lenet5(images=x)
         loss = nll_loss(predictions=p, targets=y)
         # Set output - that output will be used for training.
-        #training_graph.outputs["loss"] = loss
+        # training_graph.outputs["loss"] = loss
 
     # Display the graph summmary.
     logging.info(training_graph.summary())
 
     # Create a validation graph, starting from the second data layer.
-    #with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
+    # with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
     #    _, x, y, _ = dl_e()
     #    p = lenet5(images=x)
     #    loss_e = nll_loss(predictions=p, targets=y)
 
     # Display the graph summmary.
-    #logging.info(evaluation_graph.summary())
+    # logging.info(evaluation_graph.summary())
 
     # Create the callbacks.
-    #def eval_loss_per_batch_callback(tensors, global_vars):
+    # def eval_loss_per_batch_callback(tensors, global_vars):
     #    if "eval_loss" not in global_vars.keys():
     #        global_vars["eval_loss"] = []
     #    for key, value in tensors.items():
     #        if key.startswith("loss"):
     #            global_vars["eval_loss"].append(mean(stack(value)))
 
-    #def eval_loss_epoch_finished_callback(global_vars):
+    # def eval_loss_epoch_finished_callback(global_vars):
     #    eloss = max(tensor(global_vars["eval_loss"]))
     #    logging.info("Evaluation Loss: {0}".format(eloss))
     #    return dict({"Evaluation Loss": eloss})
 
-    #ecallback = EvaluatorCallback(
+    # ecallback = EvaluatorCallback(
     #    eval_tensors=[loss_e],
     #    user_iter_callback=eval_loss_per_batch_callback,
     #    user_epochs_done_callback=eval_loss_epoch_finished_callback,
     #    eval_step=100,
-    #)
+    # )
 
     # SimpleLossLoggerCallback will print loss values to console.
-    #callback = SimpleLossLoggerCallback(
+    # callback = SimpleLossLoggerCallback(
     #    tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
-    #)
+    # )
 
     # Use default settings of data loader - just change batch_size.
     training_graph.configure_data_loader(batch_size=64)
 
     # Iterate over the whole dataset - in batches.
-    for batch in training_graph.get_batch():#return_dict=True):
+    for batch in training_graph.get_batch(yield_dict=True):
         print("batch: ", batch)
         # Forward pass.
-        
-        outputs = training_graph.forward(indices = batch.indices, images = batch.images, targets = batch.targets, labels = batch.targets)
-        #outputs = training_graph.forward(**batch)
+
+        # outputs = training_graph.forward(indices = batch.indices, images = batch.images, targets = batch.targets, labels = batch.targets)
+        outputs = training_graph.forward(**batch)
         print("outputs: ", outputs)
-    
+
     # Invoke the "train" action.
-    #nf.train(
+    # nf.train(
     #    training_graph=training_graph,
     #    callbacks=[callback, ecallback],
     #    optimization_params={"num_epochs": 10, "lr": 0.001},
     #    optimizer="adam",
-    #)
+    # )

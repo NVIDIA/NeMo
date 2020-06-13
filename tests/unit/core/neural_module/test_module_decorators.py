@@ -19,7 +19,8 @@
 
 import pytest
 
-from nemo.core import NeuralModule, DeviceType, skip_in_data_parallel, run_only_on_device
+from nemo.core import DeviceType, NeuralModule, run_only_on_device, skip_in_data_parallel
+
 
 @pytest.mark.usefixtures("neural_factory")
 class TestModuleDecorators:
@@ -36,7 +37,7 @@ class TestModuleDecorators:
         def __init__(self):
             super().__init__()
 
-    @run_only_on_device(device_type=DeviceType.CPU)    
+    @run_only_on_device(device_type=DeviceType.CPU)
     class MockupModuleOnCPU(NeuralModule):
         """
         Mockup component class.

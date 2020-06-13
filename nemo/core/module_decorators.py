@@ -19,17 +19,21 @@
 __all__ = ["skip_in_data_parallel", "run_only_on_device"]
 
 from functools import partial
-from nemo.core.neural_factory import DeviceType 
+
+from nemo.core.neural_factory import DeviceType
+
 
 def skip_in_data_parallel(cls):
     """ Decorator that adds the skip_in_data_parallel_ property (set to True) to neural module. """
+
     def decorator():
         setattr(cls, "skip_in_data_parallel", True)
         return cls
+
     return decorator
 
 
-def run_only_on_device(cls=None, device_type: "DeviceType"=DeviceType.CPU):
+def run_only_on_device(cls=None, device_type: "DeviceType" = DeviceType.CPU):
     """ Decorator that adds the run_only_on_device property to neural module.
     Args:
         device_type: Type device to be set.
@@ -41,4 +45,5 @@ def run_only_on_device(cls=None, device_type: "DeviceType"=DeviceType.CPU):
     def decorator():
         setattr(cls, "run_only_on_device", device_type)
         return cls
+
     return decorator
