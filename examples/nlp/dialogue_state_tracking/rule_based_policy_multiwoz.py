@@ -62,64 +62,6 @@ examples = [
     # ["I want to find a moderate hotel", "What is the address ?"],
 ]
 
-
-def forward(dialog_pipeline, user_uttr, dial_history, belief_state):
-    """
-    Forward pass of the "Complete Dialog Pipeline".
-
-    Returns system reply and updates dialogue belief 
-    by passing system and user utterances (dialogue history) through the TRADE Dialogue State Tracker,
-    then the output of the TRADE model goes to the Rule-base Dialogue Policy Magager
-    and the output of the Dialog Policy Manager goes to the Template-based Natural Language Generation module.
-
-    ..note: NeuralGraph is now lacking a generic forward() pass. Once implemented, this function will become obsolete.
-    
-    Args:
-        user_uttr (str): User utterance
-        dialog_history (str): Dialogue history contains all previous system and user utterances
-        belief_state (dict): dialogue state
-    Returns:
-        system_uttr (str): system response
-        belief_state (dict): updated dialogue state
-        dialog_history (str): Dialogue history contains all previous system and user utterances
-    """
-    # Manually execute modules in the graph, following the order defined in steps.
-    # 1. Forward pass throught Word-Level Dialog State Tracking modules (TRADE).
-    # 1.1. User utterance encoder.
-    dialog_ids, dialog_lens, dial_history = dialog_pipeline.modules[dialog_pipeline.steps[0]].forward(
-        user_uttr=user_uttr, dialog_history=dial_history,
-    )
-    # 1.2. TRADE encoder.
-    outputs, hidden = dialog_pipeline.modules[dialog_pipeline.steps[1]].forward(
-        inputs=dialog_ids, input_lens=dialog_lens
-    )
-    # 1.3. TRADE generator.
-    point_outputs, gate_outputs = dialog_pipeline.modules[dialog_pipeline.steps[2]].forward(
-        encoder_hidden=hidden, encoder_outputs=outputs, dialog_ids=dialog_ids, dialog_lens=dialog_lens,
-    )
-
-    # 1.4. The module "decoding" the TRADE output into belief and request states.
-    belief_state, request_state = dialog_pipeline.modules[dialog_pipeline.steps[3]].forward(
-        gating_preds=gate_outputs, point_outputs_pred=point_outputs, belief_state=belief_state, user_uttr=user_uttr
-    )
-
-    # 2. Forward pass throught Dialog Policy Manager module (Rule-Based, queries a "simple DB" to get required data).
-    belief_state, system_acts = dialog_pipeline.modules[dialog_pipeline.steps[4]].forward(
-        belief_state=belief_state, request_state=request_state
-    )
-
-    # 3. Forward pass throught Natural Language Generator module (Template-Based).
-    system_uttr = dialog_pipeline.modules[dialog_pipeline.steps[5]].forward(system_acts=system_acts)
-
-    # 4. Update dialog  history with system utterance
-    dial_history = dialog_pipeline.modules[dialog_pipeline.steps[6]].forward(
-        sys_uttr=system_uttr, dialog_history=dial_history
-    )
-
-    # Return the updated states and dialog history.
-    return system_uttr, belief_state, dial_history
-
-
 if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(
@@ -212,7 +154,7 @@ if __name__ == "__main__":
     with NeuralGraph(operation_mode=OperationMode.evaluation) as dialog_pipeline:
         # 1.1. User utterance encoder.
         # Bind all the input ports of this module.
-        dialog_ids, dialog_lens, dial_history = user_utterance_encoder(
+        dialog_ids, dialog_lens, dialog_history = user_utterance_encoder(
             user_uttr=dialog_pipeline, dialog_history=dialog_pipeline,
         )
         # Fire step 1: 1.2. TRADE encoder.
@@ -238,7 +180,12 @@ if __name__ == "__main__":
         system_uttr = template_nlg(system_acts=system_acts)
 
         # 4. Update dialog  history with system utterance
-        dial_history = sys_utter_history_update(sys_uttr=system_uttr, dialog_history=dial_history)
+        dialog_history = sys_utter_history_update(sys_uttr=system_uttr, dialog_history=dialog_history)
+
+        # Define required outputs.
+        dialog_pipeline.outputs["system_uttr"] = system_uttr
+        dialog_pipeline.outputs["belief_state"] = belief_state
+        dialog_pipeline.outputs["dialog_history"] = dialog_history
 
     # Show the graph summary.
     logging.info(dialog_pipeline.summary())
@@ -247,7 +194,7 @@ if __name__ == "__main__":
     if args.mode == 'interactive':
         # for user_uttr in user_uttrs:
         logging.info("============ Starting a new dialogue ============")
-        system_uttr, system_action, belief_state, dial_history = init_state()
+        system_uttr, system_action, belief_state, dialog_history = init_state()
         while True:
             logging.info("Type your text, use STOP to exit and RESTART to start a new dialogue.")
             user_uttr = input()
@@ -256,22 +203,22 @@ if __name__ == "__main__":
                 logging.info("===================== Exiting ===================")
                 break
             elif user_uttr == "RESTART":
-                system_uttr, system_action, belief_state, dial_history = init_state()
+                system_uttr, system_action, belief_state, dialog_history = init_state()
                 logging.info("============ Starting a new dialogue ============")
             else:
                 # Pass the "user uterance" as inputs to the dialog pipeline.
-                system_uttr, belief_state, dial_history = forward(
-                    dialog_pipeline, user_uttr, dial_history, belief_state
+                system_uttr, belief_state, dialog_history = dialog_pipeline.forward(
+                    user_uttr=user_uttr, dialog_history=dialog_history, belief_state=belief_state
                 )
 
     elif args.mode == 'example':
         for example in examples:
             logging.info("============ Starting a new dialogue ============")
-            system_uttr, system_action, belief_state, dial_history = init_state()
+            system_uttr, system_action, belief_state, dialog_history = init_state()
             # system_uttr, dialog_history = "", ""
             # Execute the dialog by passing the consecutive "user uterances" as inputs to the dialog pipeline.
             for user_uttr in example:
                 logging.info("User utterance: %s", user_uttr)
-                system_uttr, belief_state, dial_history = forward(
-                    dialog_pipeline, user_uttr, dial_history, belief_state
+                system_uttr, belief_state, dialog_history = dialog_pipeline.forward(
+                    user_uttr=user_uttr, dialog_history=dialog_history, belief_state=belief_state
                 )

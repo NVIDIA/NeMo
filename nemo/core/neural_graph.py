@@ -1331,7 +1331,11 @@ class NeuralGraph(NeuralInterface):
                 connections.extend(t.connections())
 
         # Execute modules one by one.
-        for step_number in range(1, len(self._steps)):
+        for step_number in range(0, len(self._steps)):
+            # If graph is complete - we already fetched data from module 0 (DL)
+            if self.is_complete and step_number == 0:
+                # So lets skip it.
+                continue
 
             # Get the module.
             module_name = self._steps[step_number]
@@ -1367,12 +1371,16 @@ class NeuralGraph(NeuralInterface):
                         break
                 # Make sure we found the producer.
                 if producer_step == -1:
-                    err = "Couldn't find the producer of the {} input to the module {} called in step {}".format(
-                        input_port_name, module_name, step_number
-                    )
-                    raise ValueError(err)
-                # Add this to the argument
-                module_args[input_port_name] = passed_data[producer_step][producer_port_name]
+                    # Check if this port is not optional.
+                    if not module.input_ports[input_port_name].optional:
+                        err = "Couldn't find the producer of the {} input to the module {} called in step {}".format(
+                            input_port_name, module_name, step_number
+                        )
+                        raise ValueError(err)
+                    # If it is optional and not provided - simply do nothing...
+                else:
+                    # Add this to the argument
+                    module_args[input_port_name] = passed_data[producer_step][producer_port_name]
 
             # Ok, now we have all keyword arguments. We can call() the module.
             module_outputs = module(force_pt=True, **module_args)
