@@ -105,7 +105,7 @@ if __name__ == "__main__":
         outputs = training_graph.forward(batch)
         print("outputs: ", outputs.loss)
 
-        training_graph.backward()
+        training_graph.backward(losses=[outputs.loss])
 
     # Invoke the "train" action.
     # nf.train(
