@@ -15,7 +15,7 @@
 # =============================================================================
 
 from os.path import expanduser
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 import torch
 
