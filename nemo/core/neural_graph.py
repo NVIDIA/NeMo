@@ -100,8 +100,12 @@ class NeuralGraph(NeuralInterface):
             "worker_init_fn": None,
             "multiprocessing_context": None,
         }
+
         # Lazy-initialize loader when needed.
         self._data_loader = None
+
+        # Data collected during forward propagation.
+        self._forward_data = defaultdict(lambda: {})
 
     def __call__(self, **kwargs):
         """
@@ -896,11 +900,15 @@ class NeuralGraph(NeuralInterface):
         # Line "decorator".
         desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
-        desc += "The `{}` Neural Graph [{}]".format(self.name, self.operation_mode)
+        desc += "The `{}` Neural Graph [{}, ".format(self.name, self.operation_mode)
         if self.is_complete:
-            desc += " [COMPLETE]:\n"
+            desc += " COMPLETE,"
         else:
-            desc += " [INCOMPLETE]:\n"
+            desc += " INCOMPLETE,"
+        if self.is_trainable:
+            desc += " TRAINABLE]:\n"
+        else:
+            desc += " NON-TRAINABLE]:\n"
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
@@ -1074,12 +1082,10 @@ class NeuralGraph(NeuralInterface):
     @property
     def is_complete(self) -> bool:
         """
-        Method checks if graph is "complete". In here the "complete" means that the graph has:
+        Property checks if graph is "complete", which means that the graph has:
             * exactly one DataLayer
             * zero bound input ports
 
-        In short it means that the graph can be complete.
-        
         Returns:
             True or false.
         """
@@ -1092,7 +1098,7 @@ class NeuralGraph(NeuralInterface):
         has_datalayer = False
         # Iterate through the modules one by one.
         for module in self._modules.values():
-            # Get module.
+            # Get module type.
             if module.type == ModuleType.datalayer:
                 if has_datalayer:
                     # More than one DL is not acceptable.
@@ -1106,6 +1112,31 @@ class NeuralGraph(NeuralInterface):
 
         # Else:
         return True
+
+    @property
+    def is_trainable(self) -> bool:
+        """
+        Property checks if graph is "trainable", which means that the graph:
+            * is in eval mode
+            * has at least one Loss Neural Modules
+
+        Returns:
+            True or false.
+        """
+        # Check if gradients are collected in forward pass.
+        if self.operation_mode == OperationMode.evaluation:
+            return False
+
+        # Iterate through the modules one by one.
+        for module in self._modules.values():
+            # Get module type.
+            if module.type == ModuleType.loss:
+                return True
+        
+        # No loss modules - cannot train the graph using back-propagation.
+        return False
+
+
 
     def to(self, device_type: DeviceType, use_dataparallel: bool = False):
         """ 
@@ -1276,7 +1307,7 @@ class NeuralGraph(NeuralInterface):
         Use-case 3:
 
         .. code-block:: python
-        
+
             # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
             for batch in training_graph.get_batch(yield_dict=True):
                 training_graph.forward(**batch)
@@ -1322,11 +1353,11 @@ class NeuralGraph(NeuralInterface):
             raise ValueError(err)
 
         # Copy inputs to an adequate (module.output->value) structure.
-        passed_data = defaultdict(lambda: {})
+        self._forward_data = defaultdict(lambda: {})
         if self.is_complete:
             # Treat all the inputs as "DL outputs".
             for key, value in inputs.items():
-                passed_data[0][key] = value
+                self._forward_data[0][key] = value
 
         # Create a list of connenctions: (producer.port -> consumer.port)
         connections = []
@@ -1335,7 +1366,7 @@ class NeuralGraph(NeuralInterface):
                 connections.extend(t.connections())
 
         # Execute modules one by one.
-        for step_number in range(0, len(self._steps)):
+        for step_number in range(len(self._steps)):
             # If graph is complete - we already fetched data from module 0 (DL)
             if self.is_complete and step_number == 0:
                 # So lets skip it.
@@ -1344,6 +1375,9 @@ class NeuralGraph(NeuralInterface):
             # Get the module.
             module_name = self._steps[step_number]
             module = self._modules[module_name]
+
+            # Change the module's operation mode.
+            module.operation_mode = self.operation_mode
 
             # Produce list of arguments that will be passed to a given modules.
             module_args = {}
@@ -1384,7 +1418,7 @@ class NeuralGraph(NeuralInterface):
                     # If it is optional and not provided - simply do nothing...
                 else:
                     # Add this to the argument
-                    module_args[input_port_name] = passed_data[producer_step][producer_port_name]
+                    module_args[input_port_name] = self._forward_data[producer_step][producer_port_name]
 
             # Ok, now we have all keyword arguments. We can call() the module.
             module_outputs = module(force_pt=True, **module_args)
@@ -1394,7 +1428,7 @@ class NeuralGraph(NeuralInterface):
 
             if len(output_names) == 1:
                 # Handle the case of a single data produced.
-                passed_data[step_number][output_names[0]] = module_outputs
+                self._forward_data[step_number][output_names[0]] = module_outputs
             else:
                 # Compare module_outputs with the output port definitions.
                 if len(output_names) != len(module_outputs):
@@ -1404,13 +1438,13 @@ class NeuralGraph(NeuralInterface):
 
                 # Add them to the passed data.
                 for key, value in zip(output_names, module_outputs):
-                    passed_data[step_number][key] = value
+                    self._forward_data[step_number][key] = value
 
         # Ok, now return only the bound outputs.
         if len(self.outputs) == 1:
             # Return a single object.
             smp = self.outputs[list(self.outputs.keys())[0]].producer_step_module_port
-            return passed_data[smp.step_number][smp.port_name]
+            return self._forward_data[smp.step_number][smp.port_name]
         elif len(self.outputs) > 1:
             # Return a tuple.
             output_class_name = f'{self.__class__.__name__}Output'
@@ -1419,9 +1453,57 @@ class NeuralGraph(NeuralInterface):
             values = []
             for output in self.outputs.values():
                 smp = output.producer_step_module_port
-                values.append(passed_data[smp.step_number][smp.port_name])
+                values.append(self._forward_data[smp.step_number][smp.port_name])
             # Return the object
             return result_type(*values)
         else:  # (==0)
             # Generally this should not happen!
             return
+
+    def backward(self, losses=[]):
+        """
+        Backward pass through the graph. Optionally the method accepts list of losses to backpropagate from.
+        If not provided, will collect all output of all loss modules in the graph and backpropagate from them.
+
+        Args:
+            losses: list of losses to backpropagate from (OPTIONAL, DEFAULT: [])
+
+        Raises:
+            ConfigurationError if graph is non-trainable.
+        """
+        # Check if we can run backwards at all.
+        if not self.is_trainable:
+            raise ConfigurationError(
+                "Cannot run backward propagation as the graph `{}`` is non-trainable".format(self.name)
+            )
+
+        # If losses are passed - use those during backpropagation.
+        if len(losses) == 0:
+            # Else: collect outputs of all Loss NMs.
+            for step_number in range(len(self._steps)):
+
+                # Get the module.
+                module_name = self._steps[step_number]
+                module = self._modules[module_name]
+
+                # Collect module outputs.
+                # Assumption: loss modules return only loss.
+                if module.type == ModuleType.loss:
+                    for output_port_names in module.output_ports.keys():
+                        losses.append(self._forward_data[step_number][output_port_names])
+
+        # Estimate the total number of backward passes (one from each tensor).
+        total_passes = len(losses)
+        #import pdb; pdb.set_trace()
+
+        # All but the last call to backward should have the retain_graph=True option.
+        pass_counter = 0
+        for loss in losses:
+            pass_counter += 1
+            if pass_counter == total_passes:
+                # Last pass.
+                loss.backward()
+            else:
+                # "Other pass."
+                loss.backward(retain_graph=True)
+       
