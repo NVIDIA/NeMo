@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch as t
 import torch.nn as nn
 
-from nemo.core import DeviceType, ModuleType, NeuralModule, WeightShareTransform, OperationMode
+from nemo.core import DeviceType, ModuleType, NeuralModule, OperationMode, WeightShareTransform
 from nemo.utils.helpers import get_cuda_device, rgetattr, rsetattr
 
 

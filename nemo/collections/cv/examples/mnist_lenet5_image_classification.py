@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     # Iterate over the whole dataset - in batches.
     for batch in training_graph.get_batch():
-        #print("batch: ", batch)
+        # print("batch: ", batch)
         # Forward pass.
 
         outputs = training_graph.forward(batch)

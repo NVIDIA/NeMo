@@ -1132,11 +1132,9 @@ class NeuralGraph(NeuralInterface):
             # Get module type.
             if module.type == ModuleType.loss:
                 return True
-        
+
         # No loss modules - cannot train the graph using back-propagation.
         return False
-
-
 
     def to(self, device_type: DeviceType, use_dataparallel: bool = False):
         """ 
@@ -1494,7 +1492,7 @@ class NeuralGraph(NeuralInterface):
 
         # Estimate the total number of backward passes (one from each tensor).
         total_passes = len(losses)
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         # All but the last call to backward should have the retain_graph=True option.
         pass_counter = 0
@@ -1506,4 +1504,3 @@ class NeuralGraph(NeuralInterface):
             else:
                 # "Other pass."
                 loss.backward(retain_graph=True)
-       
