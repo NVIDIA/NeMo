@@ -16,7 +16,7 @@
 
 import argparse
 
-from torch import max, mean, optim, stack, tensor
+from torch import optim
 
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers import MNISTDataLayer

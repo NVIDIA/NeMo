@@ -1442,7 +1442,7 @@ class NeuralGraph(NeuralInterface):
                 # Compare module_outputs with the output port definitions.
                 if len(output_names) != len(module_outputs):
                     err = "Invalid number of outputs produced by the module "
-                    err += "{} - expected: `{}`, received: `{}`".format(output_names, len(module_outputs))
+                    err += "{} - expected: `{}`, received: `{}`".format(module_name, output_names, len(module_outputs))
                     raise ValueError(err)
 
                 # Add them to the passed data.
