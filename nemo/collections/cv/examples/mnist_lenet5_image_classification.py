@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # Perform operations on GPU.
     training_graph.to(DeviceType.GPU)
     evaluation_graph.to(DeviceType.GPU)
-    
+
     # Create optimizer.
     opt = optim.Adam(training_graph.parameters(), lr=0.001)
 
