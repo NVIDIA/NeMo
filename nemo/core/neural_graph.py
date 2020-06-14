@@ -1351,7 +1351,10 @@ class NeuralGraph(NeuralInterface):
             raise ValueError(err)
 
         # Copy inputs to an adequate (module.output->value) structure.
+        if self._forward_data is not None:
+            self._forward_data = None
         self._forward_data = defaultdict(lambda: {})
+
         if self.is_complete:
             # Treat all the inputs as "DL outputs".
             for key, value in inputs.items():
@@ -1475,8 +1478,11 @@ class NeuralGraph(NeuralInterface):
                 "Cannot run backward propagation as the graph `{}`` is non-trainable".format(self.name)
             )
 
+        losses_to_backpropagate = []
         # If losses are passed - use those during backpropagation.
-        if len(losses) == 0:
+        if len(losses) != 0:
+            losses_to_backpropagate = losses
+        else:
             # Else: collect outputs of all Loss NMs.
             for step_number in range(len(self._steps)):
 
@@ -1488,15 +1494,15 @@ class NeuralGraph(NeuralInterface):
                 # Assumption: loss modules return only loss.
                 if module.type == ModuleType.loss:
                     for output_port_names in module.output_ports.keys():
-                        losses.append(self._forward_data[step_number][output_port_names])
+                        losses_to_backpropagate.append(self._forward_data[step_number][output_port_names])
 
         # Estimate the total number of backward passes (one from each tensor).
-        total_passes = len(losses)
+        total_passes = len(losses_to_backpropagate)
         # import pdb; pdb.set_trace()
 
         # All but the last call to backward should have the retain_graph=True option.
         pass_counter = 0
-        for loss in losses:
+        for loss in losses_to_backpropagate:
             pass_counter += 1
             if pass_counter == total_passes:
                 # Last pass.
@@ -1504,3 +1510,33 @@ class NeuralGraph(NeuralInterface):
             else:
                 # "Other pass."
                 loss.backward(retain_graph=True)
+
+    def parameters(self, recurse=True):
+        """
+        Args:
+            recurse (bool): if True, then yields parameters of graph modules and all their submodules.
+        Returns:
+            An iterator over parameter of all trainable modules.
+        """
+        for module_name in self._modules:
+            # Get module.
+            module = self._modules[module_name]
+            if module.type == ModuleType.trainable:
+                # Yield it parameters.
+                for _, param in module.named_parameters(recurse=recurse):
+                    yield param
+
+    def named_parameters(self, recurse=True):
+        """
+        Args:
+            recurse (bool): if True, then yields parameters of graph modules and all their submodules.
+        Returns:
+            An iterator ovar all named parameters of all trainable components.
+        """
+        for module_name in self._modules:
+            # Get module.
+            module = self._modules[module_name]
+            if module.type == ModuleType.trainable:
+                # Yield it parameters.
+                for name, param in model.named_parameters(recurse=recurse):
+                    yield name, param
