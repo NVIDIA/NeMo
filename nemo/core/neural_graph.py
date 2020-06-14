@@ -107,6 +107,9 @@ class NeuralGraph(NeuralInterface):
         # Data collected during forward propagation.
         self._forward_data = defaultdict(lambda: {})
 
+        # Initial device: CPU.
+        self._pt_device = torch.device("cpu")
+
     def __call__(self, **kwargs):
         """
         This method "nests" one existing neural graph into another one.
@@ -1145,7 +1148,7 @@ class NeuralGraph(NeuralInterface):
 
         # Check device.
         if device_type == DeviceType.CPU:
-            pt_device = torch.device("cpu")
+            self._pt_device = torch.device("cpu")
 
         elif device_type == DeviceType.GPU:
             if not torch.cuda.is_available():
@@ -1157,7 +1160,7 @@ class NeuralGraph(NeuralInterface):
                     raise ConfigurationError("Coudn't use Data Parallel as there is only one GPU device found")
 
             # Using cuda -- all devices.
-            pt_device = torch.device("cuda")
+            self._pt_device = torch.device("cuda")
 
         else:  # DeviceType.AllGpu : distributed data parallel.
             if not torch.cuda.is_available():
@@ -1165,7 +1168,7 @@ class NeuralGraph(NeuralInterface):
 
             # Each worker will use a single gpu.
             use_dataparallel = False
-            pt_device = torch.device("cuda")
+            self._pt_device = torch.device("cuda")
 
         if use_dataparallel:
             logging.info("Using Data Parallelization on {} GPUs!".format(torch.cuda.device_count()))
@@ -1187,7 +1190,7 @@ class NeuralGraph(NeuralInterface):
                         module = DataParallel(module)
 
                 # Mode to device.
-                self._modules[name] = module.to(pt_device)
+                self._modules[name] = module.to(self._pt_device)
 
     def configure_data_loader(
         self,
@@ -1256,11 +1259,14 @@ class NeuralGraph(NeuralInterface):
         if yield_dict:
             # Fetch a batch - in the form of a dict.
             for batch in self._data_loader:
-                if len(dl.output_ports.keys()) > 1:
-                    yield dict(zip(dl.output_ports.keys(), batch))
-                else:
+                if len(dl.output_ports.keys()) == 1:
                     # Dict with a single key:value pair.
+                    batch = batch.to(self._pt_device) if isinstance(batch, torch.Tensor) else batch
                     yield {list(dl.output_ports.keys())[0]: batch}
+                else:
+                    # Yield a dictionary.
+                    batch = [elem.to(self._pt_device) if isinstance(elem, torch.Tensor) else elem for elem in batch]
+                    yield dict(zip(dl.output_ports.keys(), batch))
 
         else:
             # Create a tuple class - if required.
@@ -1273,9 +1279,11 @@ class NeuralGraph(NeuralInterface):
             for batch in self._data_loader:
                 if len(dl.output_ports.keys()) == 1:
                     # Return a single object.
+                    batch = batch.to(self._pt_device) if isinstance(batch, torch.Tensor) else batch
                     yield batch
                 else:
                     # Return a tuple.
+                    batch = [elem.to(self._pt_device) if isinstance(elem, torch.Tensor) else elem for elem in batch]
                     yield result_type(*batch)
 
     def forward(self, *args: Optional[Tuple], **kwargs: Optional[Dict[str, Any]]):
