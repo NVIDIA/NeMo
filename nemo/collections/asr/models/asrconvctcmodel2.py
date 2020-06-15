@@ -20,7 +20,6 @@ from typing import Dict, Optional
 import torch
 from pytorch_lightning import LightningModule
 
-from nemo.collections.asr.data_layer import AudioToTextDataLayer2
 from nemo.collections.asr.losses import CTCLoss2
 from nemo.core.apis import NeuralModelAPI, NeuralModuleAPI
 
@@ -41,15 +40,15 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         self.preprocessor = NeuralModuleAPI.from_config(preprocessor_params)
         self.encoder = NeuralModuleAPI.from_config(encoder_params)
         self.decoder = NeuralModuleAPI.from_config(decoder_params)
-
         self.loss = CTCLoss2(num_classes=self.decoder._num_classes - 1)
-
+        self.__train_dl = None
         if spec_augment_params is not None:
             self.spec_augmentation = NeuralModuleAPI.from_config(spec_augment_params)
         else:
             self.spec_augmentation = None
 
     def forward(self, input_signal, input_signal_length):
+        # Non-typed old-fashioned way
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
@@ -59,6 +58,18 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         return log_probs, encoded_len, greedy_predictions
+
+        # # Typed way -- good for "production-ready"
+        # processed_signal, processed_signal_len = self.preprocessor.typed_forward(
+        #     input_signal=input_signal, length=input_signal_length,
+        # )
+        # if self.spec_augmentation is not None:
+        #     processed_signal = self.spec_augmentation.typed_forward(input_spec=processed_signal)
+        # encoded, encoded_len = self.encoder.typed_forward(audio_signal=processed_signal, length=processed_signal_len)
+        # # log_probs = self.decoder.typed_forward(encoder_output=processed_signal)
+        # log_probs = self.decoder.typed_forward(encoder_output=encoded)
+        # greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+        # return log_probs, encoded_len, greedy_predictions
 
     def training_step(self, batch, batch_nb):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
@@ -74,41 +85,14 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         return torch.optim.Adam(self.parameters(), lr=0.001)
 
     def train_dataloader(self):
-        data_loader = AudioToTextDataLayer2(
-            manifest_filepath='/Users/okuchaiev/Data/an4_dataset/an4_train.json',
-            labels=[
-                " ",
-                "a",
-                "b",
-                "c",
-                "d",
-                "e",
-                "f",
-                "g",
-                "h",
-                "i",
-                "j",
-                "k",
-                "l",
-                "m",
-                "n",
-                "o",
-                "p",
-                "q",
-                "r",
-                "s",
-                "t",
-                "u",
-                "v",
-                "w",
-                "x",
-                "y",
-                "z",
-                "'",
-            ],
-            batch_size=32,
-            trim_silence=True,
-            max_duration=16.7,
-            shuffle=True,
-        )
-        return data_loader.data_loader
+        return self.__train_dl.data_loader
+
+    def setup_training_data(self, train_data_layer_params):
+        """
+        Setups data loader to be used in training
+        Args:
+            train_data_layer_params: training data layer parameters.
+        Returns:
+
+        """
+        self.__train_dl = NeuralModuleAPI.from_config(train_data_layer_params)

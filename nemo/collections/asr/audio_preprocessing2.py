@@ -20,6 +20,7 @@ from abc import abstractmethod
 import torch
 
 from nemo.collections.asr.parts.features import FilterbankFeatures
+from nemo.core import AudioSignal, LengthsType, MelSpectrogramType, NeuralType
 from nemo.core.apis import NeuralModuleAPI
 
 __all__ = ['AudioToMelSpectrogramPreprocessor2']
@@ -125,6 +126,37 @@ class AudioToMelSpectrogramPreprocessor2(AudioPreprocessor2):
             prior to multiplication with mel basis.
             Defaults to 2 for a power spec
     """
+
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports.
+
+        processed_signal:
+
+            0: AxisType(BatchTag)
+
+            1: AxisType(MelSpectrogramSignalTag)
+
+            2: AxisType(ProcessedTimeTag)
+
+        processed_length:
+
+            0: AxisType(BatchTag)
+
+        """
+        return {
+            "processed_signal": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "processed_length": NeuralType(tuple('B'), LengthsType()),
+        }
 
     def __init__(
         self,

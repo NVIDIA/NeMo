@@ -6,6 +6,16 @@ repeat:  &rep  1
 labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
+AudioToTextDataLayer:
+    header:
+        full_spec: nemo.collections.asr.AudioToTextDataLayer2
+    init_params:
+        manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
+        labels: *labels
+        batch_size: 32
+        trim_silence: True
+        max_duration: 16.7
+        shuffle: True
 
 AudioToMelSpectrogramPreprocessor:
     header:
