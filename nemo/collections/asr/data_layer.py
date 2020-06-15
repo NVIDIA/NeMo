@@ -297,6 +297,7 @@ transcript_n}
         drop_last=False,
         shuffle=True,
         num_workers=0,
+        parser='en',
         augmentor: Optional[Union[AudioAugmentor, Dict[str, Dict[str, Any]]]] = None,
     ):
         super().__init__()
@@ -321,6 +322,7 @@ transcript_n}
             'bos_id': bos_id,
             'eos_id': eos_id,
             'load_audio': load_audio,
+            'parser': parser,
         }
         self._dataset = AudioDataset(**dataset_params)
         self._batch_size = batch_size
