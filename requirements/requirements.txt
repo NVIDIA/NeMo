@@ -1,6 +1,7 @@
 numpy>=1.18.2
 onnx
 onnxruntime
+pytorch-lightning
 pandas
 python-dateutil
 tensorboardX

@@ -4,7 +4,7 @@ import glob
 import os
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 import wget
@@ -12,7 +12,61 @@ import wget
 import nemo
 from nemo.utils import logging
 
-# from nemo.utils import logging
+
+def instantiate_class_from_config(
+    configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
+):
+    """
+    Method instantiating the object based on the configuration (dictionary).
+
+    Args:
+        configuration: Dictionary containing proper "header" and "init_params" sections.
+        name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
+        overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
+        the default init parameters loaded from the configuration file (the module "init_params" section).
+
+    Returns:
+        Instance of the created Neural Module object.
+    """
+
+    def __class_from_header(serialized_header: Dict[str, Any]):
+        """
+        Args:
+            Serialized_header: Dictionary containing module header.
+        Returns:
+            Class of the module to be created.
+        """
+        # Parse the "full specification".
+        spec_list = serialized_header["full_spec"].split(".")
+
+        # Get module class from the "full specification".
+        mod_obj = __import__(spec_list[0])
+        for spec in spec_list[1:]:
+            mod_obj = getattr(mod_obj, spec)
+
+        return mod_obj
+
+    # Deserialize header - get object class.
+    module_class = __class_from_header(configuration["header"])
+
+    # Update parameters with additional ones.
+    configuration["init_params"].update(overwrite_params)
+
+    # Override module name in init_params using the logic:
+    #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
+    #  * name (if None) overrides init_params.name
+    if name is not None:
+        configuration["init_params"]["name"] = name
+
+    # Get init parameters.
+    init_params = configuration["init_params"]
+
+    # Create the module instance.
+    new_module = module_class(**init_params)
+    logging.info(f"Instantiated a new Neural Module of type {type(new_module).__name__}")
+
+    # Return the module instance.
+    return new_module
 
 
 def rgetattr(obj, attr, *args):

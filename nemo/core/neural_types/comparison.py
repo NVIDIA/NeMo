@@ -32,3 +32,4 @@ class NeuralTypeComparisonResult(Enum):
     CONTAINER_SIZE_MISMATCH = 5  # A and B contain different number of elements
     INCOMPATIBLE = 6  # A and B are incompatible
     SAME_TYPE_INCOMPATIBLE_PARAMS = 7  # A and B are of the same type but parametrized differently
+    UNCHECKED = 8  # type comparison wasn't done
