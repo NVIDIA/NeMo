@@ -18,12 +18,31 @@
 import torch
 
 from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
+from nemo.core import AcousticEncodedRepresentation, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.core.apis import NeuralModuleAPI
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder']
 
 
 class ConvASREncoder(torch.nn.Module, NeuralModuleAPI):
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {
+            "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "length": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {
+            "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+        }
+
     def __init__(
         self,
         jasper,
@@ -102,6 +121,14 @@ class ConvASREncoder(torch.nn.Module, NeuralModuleAPI):
 
 
 class ConvASRDecoder(torch.nn.Module, NeuralModuleAPI):
+    @property
+    def input_types(self):
+        return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}
+
+    @property
+    def output_types(self):
+        return {"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())}
+
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
         super(ConvASRDecoder, self).__init__()
 
