@@ -26,6 +26,7 @@ AudioToTextDataLayer_train:
         sample_rate: *sr
         trim_silence: true
         shuffle: true
+        parser: en
         # batch_size: 48  # Overwritten in tacotron2.py
         # num_workers: 20
         # manifest_filepath: ljspeech_train.json
@@ -47,6 +48,7 @@ AudioToTextDataLayer_eval:
         sample_rate: *sr
         trim_silence: true
         shuffle: false
+        parser: en
         # batch_size: 48  # Overwritten in tacotron2.py
         # num_workers: 20
         # manifest_filepath: ljspeech_eval.json
