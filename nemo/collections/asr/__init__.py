@@ -15,11 +15,14 @@
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.asr import models
 from nemo.collections.asr.audio_preprocessing import *
+from nemo.collections.asr.audio_preprocessing2 import AudioToMelSpectrogramPreprocessor2
 from nemo.collections.asr.beam_search_decoder import BeamSearchDecoderWithLM
 from nemo.collections.asr.contextnet import ContextNetDecoderForCTC, ContextNetEncoder
+from nemo.collections.asr.ctc_asr import ConvASRDecoder, ConvASREncoder
 from nemo.collections.asr.data_layer import (
     AudioToSpeechLabelDataLayer,
     AudioToTextDataLayer,
+    AudioToTextDataLayer2,
     KaldiFeatureDataLayer,
     TarredAudioToTextDataLayer,
     TranscriptDataLayer,
@@ -32,7 +35,7 @@ from nemo.collections.asr.jasper import (
     JasperEncoder,
 )
 from nemo.collections.asr.las.misc import JasperRNNConnector
-from nemo.collections.asr.losses import CTCLossNM
+from nemo.collections.asr.losses import CTCLoss2, CTCLossNM
 from nemo.core import Backend
 
 __all__ = [
@@ -61,6 +64,11 @@ __all__ = [
     'ContextNetDecoderForCTC',
     'CTCLossNM',
     'CrossEntropyLossNM',
+    'ConvASREncoder',
+    'ConvASRDecoder',
+    'AudioToMelSpectrogramPreprocessor2',
+    'CTCLoss2',
+    'AudioToTextDataLayer2',
 ]
 
 backend = Backend.PyTorch
