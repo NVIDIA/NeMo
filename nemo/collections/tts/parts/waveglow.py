@@ -89,7 +89,7 @@ class WN(torch.nn.Module):
         end.bias.data.zero_()
         self.end = end
 
-        cond_layer = torch.nn.Conv1d(n_mel_channels, 2*n_channels*n_layers, 1)
+        cond_layer = torch.nn.Conv1d(n_mel_channels, 2 * n_channels * n_layers, 1)
         self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
         for i in range(n_layers):
@@ -117,15 +117,17 @@ class WN(torch.nn.Module):
         spect = self.cond_layer(spect)
 
         for i in range(self.n_layers):
-            spect_offset = i*2*self.n_channels
+            spect_offset = i * 2 * self.n_channels
             acts = fused_add_tanh_sigmoid_multiply(
-                self.in_layers[i](audio), spect[:, spect_offset:spect_offset+2*self.n_channels, :], n_channels_tensor
+                self.in_layers[i](audio),
+                spect[:, spect_offset : spect_offset + 2 * self.n_channels, :],
+                n_channels_tensor,
             )
 
             res_skip_acts = self.res_skip_layers[i](acts)
             if i < self.n_layers - 1:
-                audio = audio + res_skip_acts[:, :self.n_channels, :]
-                output = output + res_skip_acts[:, self.n_channels:, :]
+                audio = audio + res_skip_acts[:, : self.n_channels, :]
+                output = output + res_skip_acts[:, self.n_channels :, :]
             else:
                 output = output + res_skip_acts
 
