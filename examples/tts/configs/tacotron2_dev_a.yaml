@@ -1,5 +1,5 @@
 model: "Tacotron 2"
-sample_rate: &sr 22050
+sample_rate: &sr 16000
 # <PAD>, <BOS>, <EOS> will be added by the tacotron2.py script
 labels: &labels [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B',
          'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -10,7 +10,7 @@ n_fft: &n_fft 1024
 n_mels: &n_mels 80
 fmax: &fmax null
 n_stride: &n_window_stride 256
-pad_value: &pad_value -4.61
+pad_value: &pad_value -11.52
 
 AudioToTextDataLayer_train:
     header: {collection_type: asr, collection_version: null,
