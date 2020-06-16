@@ -242,7 +242,6 @@ class SGDDataProcessor(object):
                     for action in frame["actions"]:
                         if action["slot"] and len(action["values"]) > 0:
                             agg_sys_states[frame["service"]][action["slot"]] = action["values"]
-                            # all_slot_values[frame["service"]][[action["slot"]]].extend(action["values"])
 
             if turn["speaker"] == "USER":
                 user_utterance = turn["utterance"]
@@ -280,19 +279,6 @@ class SGDDataProcessor(object):
                 )
                 examples.extend(turn_examples)
                 frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
-
-                # for value, slots_list in slot_carryover_values.items():
-                #     if value in ["True", "False"]:
-                #         continue
-                #     if len(slots_list) > 1:
-                #         for service1, slot1 in slots_list:
-                #             for service2, slot2 in slots_list:
-                #                 if service1 == service2:
-                #                     continue
-                #                 if service1 > service2:
-                #                     service1, service2 = service2, service1
-                #                     slot1, slot2 = slot2, slot1
-                #                 slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
         return examples
 
     def _get_state_update(self, current_state, prev_state):
@@ -417,10 +403,7 @@ class SGDDataProcessor(object):
                         if "True" in cur_values or "False" in cur_values:
                             continue
                         if set(cur_values) & set(prev_values):
-                            # if prev_service <= service:
                             slot_carryover_candlist[(prev_service, prev_slot, service, cur_slot)] += 1.0
-                            # else:
-                            #     slot_carryover_candlist[(service, cur_slot, prev_service, prev_slot)] += 1.0
 
         return examples, states
 
