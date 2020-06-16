@@ -50,28 +50,28 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
             self.spec_augmentation = None
 
     def forward(self, input_signal, input_signal_length):
-        # # Non-typed old-fashioned way
-        # processed_signal, processed_signal_len = self.preprocessor(
-        #     input_signal=input_signal, length=input_signal_length,
-        # )
-        # if self.spec_augmentation is not None:
-        #     processed_signal = self.spec_augmentation(input_spec=processed_signal)
-        # encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
-        # log_probs = self.decoder(encoder_output=encoded)
-        # greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-        # return log_probs, encoded_len, greedy_predictions
-
-        # Typed way -- good for "production-ready"
-        processed_signal, processed_signal_len = self.preprocessor.typed_forward(
+        # Non-typed old-fashioned way
+        processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
         if self.spec_augmentation is not None:
-            processed_signal = self.spec_augmentation.typed_forward(input_spec=processed_signal)
-        encoded, encoded_len = self.encoder.typed_forward(audio_signal=processed_signal, length=processed_signal_len)
-        # log_probs = self.decoder.typed_forward(encoder_output=processed_signal)
-        log_probs = self.decoder.typed_forward(encoder_output=encoded)
+            processed_signal = self.spec_augmentation(input_spec=processed_signal)
+        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         return log_probs, encoded_len, greedy_predictions
+
+        # Typed way -- good for "production-ready"
+        #processed_signal, processed_signal_len = self.preprocessor.typed_forward(
+        #    input_signal=input_signal, length=input_signal_length,
+        #)
+        #if self.spec_augmentation is not None:
+        #    processed_signal = self.spec_augmentation.typed_forward(input_spec=processed_signal)
+        #encoded, encoded_len = self.encoder.typed_forward(audio_signal=processed_signal, length=processed_signal_len)
+        ## log_probs = self.decoder.typed_forward(encoder_output=processed_signal)
+        #log_probs = self.decoder.typed_forward(encoder_output=encoded)
+        #greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
+        #return log_probs, encoded_len, greedy_predictions
 
     def save_to(self, save_path: str, optimize_for_deployment=False):
         print("TODO: Implement Me")
@@ -95,7 +95,7 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.001)
+        return torch.optim.Adam(self.parameters(), lr=0.0003)
 
     def train_dataloader(self):
         return self.__train_dl.data_loader
