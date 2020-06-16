@@ -100,6 +100,15 @@ class FeaturizerFactory(object):
         return WaveformFeaturizer.from_config(input_cfg, perturbation_configs=perturbation_configs)
 
 
+# Create helper class to patch forward func for use with AMP
+class STFTPatch(STFT):
+    def __init__(self, *params, **kw_params):
+        super(STFTPatch, self).__init__(*params, **kw_params)
+
+    def forward(self, input_data):
+        return super(STFTPatch, self).transform(input_data)[0]
+
+
 class FilterbankFeatures(nn.Module):
     """Featurizer that converts wavs to Mel Spectrograms.
     See AudioToMelSpectrogramPreprocessor for args.
@@ -129,6 +138,7 @@ class FilterbankFeatures(nn.Module):
         mag_power=2.0,
     ):
         super(FilterbankFeatures, self).__init__()
+        self.log_zero_guard_value = log_zero_guard_value
         if (
             n_window_size is None
             or n_window_stride is None
@@ -150,15 +160,6 @@ class FilterbankFeatures(nn.Module):
 
         if stft_conv:
             logging.info("STFT using conv")
-
-            # Create helper class to patch forward func for use with AMP
-            class STFTPatch(STFT):
-                def __init__(self, *params, **kw_params):
-                    super(STFTPatch, self).__init__(*params, **kw_params)
-
-                def forward(self, input_data):
-                    return super(STFTPatch, self).transform(input_data)[0]
-
             self.stft = STFTPatch(self.n_fft, self.hop_length, self.win_length, window)
 
         else:
@@ -216,19 +217,36 @@ class FilterbankFeatures(nn.Module):
             )
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
-        self.log_zero_guard_value = lambda _: log_zero_guard_value
-        if isinstance(log_zero_guard_value, str):
-            if log_zero_guard_value == "tiny":
-                self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).tiny
-            elif log_zero_guard_value == "eps":
-                self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).eps
+
+        # self.log_zero_guard_value = lambda _: log_zero_guard_value
+        # if isinstance(log_zero_guard_value, str):
+        #     if log_zero_guard_value == "tiny":
+        #         self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).tiny
+        #     elif log_zero_guard_value == "eps":
+        #         self.log_zero_guard_value = lambda x: torch.finfo(x.dtype).eps
+        #     else:
+        #         raise ValueError(
+        #             f"{self} received {log_zero_guard_value} for the "
+        #             f"log_zero_guard_type parameter. It must be either a "
+        #             f"number, 'tiny', or 'eps'"
+        #         )
+        self.log_zero_guard_type = log_zero_guard_type
+
+    def log_zero_guard_value_fn(self, x):
+        if isinstance(self.log_zero_guard_value, str):
+            if self.log_zero_guard_value == "tiny":
+                return torch.finfo(x.dtype).tiny
+            elif self.log_zero_guard_value == "eps":
+                return torch.finfo(x.dtype).eps
             else:
                 raise ValueError(
-                    f"{self} received {log_zero_guard_value} for the "
+                    f"{self} received {self.log_zero_guard_value} for the "
                     f"log_zero_guard_type parameter. It must be either a "
                     f"number, 'tiny', or 'eps'"
                 )
-        self.log_zero_guard_type = log_zero_guard_type
+        else:
+            return self.log_zero_guard_value
+
 
     def get_seq_len(self, seq_len):
         return torch.ceil(seq_len / self.hop_length).to(dtype=torch.long)
@@ -263,9 +281,9 @@ class FilterbankFeatures(nn.Module):
         # log features if required
         if self.log:
             if self.log_zero_guard_type == "add":
-                x = torch.log(x + self.log_zero_guard_value(x))
+                x = torch.log(x + self.log_zero_guard_value_fn(x))
             elif self.log_zero_guard_type == "clamp":
-                x = torch.log(torch.clamp(x, min=self.log_zero_guard_value(x)))
+                x = torch.log(torch.clamp(x, min=self.log_zero_guard_value_fn(x)))
             else:
                 raise ValueError("log_zero_guard_type was not understood")
 
