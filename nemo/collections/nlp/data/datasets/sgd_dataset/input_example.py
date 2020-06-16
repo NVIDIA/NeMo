@@ -328,7 +328,6 @@ class InputExample(object):
                         self.categorical_slot_status[slot_idx] = STATUS_ACTIVE
                         self.categorical_slot_values[slot_idx] = value_id
                     else:
-                        # changed here
                         if self._add_carry_status:
                             self.categorical_slot_status[slot_idx] = STATUS_CARRY
                         else:

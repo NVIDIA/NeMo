@@ -388,8 +388,6 @@ class SGDDataProcessor(object):
                 for prev_s, prev_slot_value_list in prev_states.items():
                     if prev_s != service:
                         prev_service = prev_s
-                if prev_service == "":
-                    print("ERRRRRRRRRRRRRRRRRRR!!!")
                 services_switch_counts[(prev_service, service)] += 1
 
                 if prev_service in states:
