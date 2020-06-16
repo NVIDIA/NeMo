@@ -63,8 +63,8 @@ def monitor_asr_train_progress2(tensors: list, labels: list, eval_metric='WER', 
         raise ValueError('eval_metric must be \'WER\' or \'CER\'')
     use_cer = True if eval_metric == 'CER' else False
     wer = word_error_rate(hypotheses, references, use_cer=use_cer)
-    logging.info(f'Prediction: {hypotheses[0]}')
-    logging.info(f'Reference: {references[0]}')
+    #logging.info(f'Prediction: {hypotheses[0]}')
+    #logging.info(f'Reference: {references[0]}')
     return wer, hypotheses[0], references[0]
 
 

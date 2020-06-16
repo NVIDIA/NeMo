@@ -1,3 +1,3 @@
 from .asrconvctcmodel import ASRConvCTCModel, JasperNet, QuartzNet
-
-__all__ = ['ASRConvCTCModel', 'QuartzNet', 'JasperNet']
+from .asrconvctcmodel2 import ASRConvCTCModel as ASRConvCTCModel2
+__all__ = ['ASRConvCTCModel', 'QuartzNet', 'JasperNet', 'ASRConvCTCModel2']

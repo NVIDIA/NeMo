@@ -102,6 +102,26 @@ class NeuralModelAPI(NeuralModuleAPI):
         """
         pass
 
+    def setup_validation_data(self, val_data_layer_params):
+        """
+        (Optionally) Setups data loader to be used in validation
+        Args:
+            val_data_layer_params: validation data layer parameters.
+        Returns:
+
+        """
+        return None
+
+    def setup_optimizer(self, optimizer_params):
+        """
+        Setups data loader to be used in validation
+        Args:
+            val_data_layer_params: validation data layer parameters.
+        Returns:
+
+        """
+        return None
+
     @abstractmethod
     def save_to(self, save_path: str, optimize_for_deployment=True):
         pass
