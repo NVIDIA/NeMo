@@ -1,9 +1,10 @@
 import json
 import math
+import sys
 
 import torch
-import utils
 from absl import logging
+from examples.nlp.lasertagger.official_lasertagger import bert_example, tagging, tagging_converter, utils
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -11,15 +12,17 @@ import nemo.collections.nlp.data.tokenizers.tokenizer_utils
 import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
-from nemo.collections.nlp.callbacks.machine_translation_callback import (
-    eval_epochs_done_callback_wer,
-    eval_iter_callback,
-)
+from nemo.collections.nlp.callbacks.lasertagger_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.nm.data_layers.lasertagger_datalayer import LaserTaggerDataLayer
 from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
 from nemo.core import WeightShareTransform
 from nemo.core.callbacks import CheckpointCallback
 from nemo.utils.lr_policies import SquareAnnealing, get_lr_policy
+
+sys.modules['bert_example'] = bert_example
+sys.modules['tagging'] = tagging
+sys.modules['tagging_converter'] = tagging_converter
+sys.modules['utils'] = utils
 
 
 def parse_args():
@@ -43,6 +46,9 @@ def parse_args():
     )
     parser.add_argument(
         "--eval_file", type=str, help="The path to evaluation pkl file",
+    )
+    parser.add_argument(
+        "--test_file", type=str, help="The path to test pkl file",
     )
     parser.add_argument(
         "--label_map_file",
@@ -75,6 +81,10 @@ if __name__ == "__main__":
 
     args = parse_args()
 
+    train_examples, num_train_examples = torch.load(args.train_file)
+    eval_examples, num_eval_examples, eval_special_tokens = torch.load(args.eval_file)
+    test_examples, num_test_examples, test_special_tokens = torch.load(args.test_file)
+
     num_tags = len(utils.read_label_map(args.label_map_file))
 
     config = None
@@ -92,19 +102,23 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
+    encoder = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
+
     tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
+
+    tokenizer.add_special_tokens({"additional_special_tokens": eval_special_tokens})
+    # encoder.resize_token_embeddings(len(tokenizer))
+
     vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
     tokens_to_add = vocab_size - tokenizer.vocab_size
 
     encoder = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
 
     device = encoder.bert.embeddings.word_embeddings.weight.get_device()
-    zeros = torch.zeros((tokens_to_add, config['hidden_size'])).to(device=device)
+    zeros = torch.zeros((tokens_to_add, config['decoder_hidden_size'])).to(device=device)
     encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
         (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
     )
-
-    # hidden_size = model.hidden_size
 
     # Size of the output vocabulary which contains the tags + begin and end
     # tokens used by the Transformer decoder.
@@ -121,6 +135,7 @@ if __name__ == "__main__":
         max_seq_length=args.max_seq_length,
         embedding_dropout=0.25,
         hidden_act='gelu',
+        use_full_attention=config['use_full_attention'],
     )
 
     logits = nemo_nlp.nm.trainables.TokenClassifier(
@@ -128,6 +143,7 @@ if __name__ == "__main__":
     )
 
     loss_fn = CrossEntropyLossNM(logits_ndim=3)
+    loss_eval_metric = CrossEntropyLossNM(logits_ndim=3, reduction='none')
     # loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=0.1)
 
     beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
@@ -163,10 +179,20 @@ if __name__ == "__main__":
         },
     )
 
-    def create_pipeline(dataset, training=True):
+    def create_pipeline(dataset, tokenizer, num_examples, training=False):
 
-        data_layer = LaserTaggerDataLayer(preprocessed_data=dataset)
-        input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels = data_layer()
+        data_layer = LaserTaggerDataLayer(dataset, tokenizer, num_examples, training)
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            tgt_ids,
+            labels_mask,
+            labels,
+            loss_mask,
+            src_ids,
+            src_first_tokens,
+        ) = data_layer()
 
         src_hiddens = encoder(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
         tgt_hiddens = decoder(
@@ -174,20 +200,24 @@ if __name__ == "__main__":
         )
 
         log_softmax = logits(hidden_states=tgt_hiddens)
-        loss = loss_fn(logits=log_softmax, labels=labels)
+
+        # if(training):
+        loss = loss_fn(logits=log_softmax, labels=labels, loss_mask=loss_mask)
+        per_example_loss = loss_eval_metric(logits=log_softmax, labels=labels, loss_mask=loss_mask)
+
         beam_results = None
         if not training:
             beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=input_mask)
-        return loss, [tgt_ids, loss, beam_results]
+        return loss, [tgt_ids, input_ids, loss, per_example_loss, log_softmax, beam_results, src_ids, src_first_tokens]
 
     # training pipeline
-    train_loss, _ = create_pipeline(args.train_file)
+    train_loss, _ = create_pipeline(train_examples, tokenizer, num_train_examples, True)
 
     # evaluation pipelines
     all_eval_losses = {}
     all_eval_tensors = {}
     # for eval_dataset in args.eval_datasets:
-    eval_loss, eval_tensors = create_pipeline(args.eval_file, training=False)
+    eval_loss, eval_tensors = create_pipeline(eval_examples, tokenizer, num_eval_examples)
     all_eval_losses[0] = eval_loss
     all_eval_tensors[0] = eval_tensors
 
@@ -210,11 +240,11 @@ if __name__ == "__main__":
     callback_eval = nemo.core.EvaluatorCallback(
         eval_tensors=all_eval_tensors[0],
         user_iter_callback=lambda x, y: eval_iter_callback(x, y, tokenizer),
-        user_epochs_done_callback=eval_epochs_done_callback_wer,
+        user_epochs_done_callback=eval_epochs_done_callback,
         eval_step=args.eval_freq,
         tb_writer=nf.tb_writer,
     )
-    # callbacks.append(callback_eval)
+    callbacks.append(callback_eval)
 
     checkpointer_callback = CheckpointCallback(folder=args.work_dir, step_freq=args.checkpoint_save_freq)
     callbacks.append(checkpointer_callback)

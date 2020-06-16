@@ -25,7 +25,7 @@ from __future__ import absolute_import, division, print_function
 from enum import Enum
 from typing import Sequence, Text
 
-import utils
+from examples.nlp.lasertagger.official_lasertagger import utils
 
 
 class TagType(Enum):

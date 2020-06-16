@@ -17,9 +17,10 @@
 import torch
 from torch.utils import data as pt_data
 
+import nemo
 from nemo.collections.nlp.data.datasets.lasertagger_dataset import LaserTaggerDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.core import ChannelType, LabelsType, MaskType, NeuralType, StringLabel
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['LaserTaggerDataLayer']
@@ -66,10 +67,37 @@ class LaserTaggerDataLayer(TextDataLayer):
             "tgt_ids": NeuralType(('B', 'T'), ChannelType()),
             "labels_mask": NeuralType(('B', 'T'), ChannelType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
+            "loss_mask": NeuralType(('B', 'T'), MaskType()),
+            "src_ids": NeuralType(('B', 'T'), ChannelType()),
+            "src_first_tokens": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(
-        self, preprocessed_data, shuffle=False, dataset_type=LaserTaggerDataset,
+        self, preprocessed_data, tokenizer, num_examples, training, shuffle=False, dataset_type=LaserTaggerDataset,
     ):
-        dataset_params = {'preprocessed_data': preprocessed_data}
+        dataset_params = {
+            'preprocessed_data': preprocessed_data,
+            'tokenizer': tokenizer,
+            'num_examples': num_examples,
+            'training': training,
+        }
         super().__init__(dataset_type, dataset_params, batch_size=64, shuffle=shuffle)
+
+    # 	if self._placement == nemo.core.DeviceType.AllGpu:
+    # 		sampler = pt_data.distributed.DistributedSampler(self._dataset)
+    # 	else:
+    # 		sampler = None
+
+    # 	self._dataloader = pt_data.DataLoader(
+    # 		dataset=self._dataset, batch_size=64, collate_fn=self._collate_fn, shuffle=sampler is None, sampler=sampler
+    # 	)
+
+    # def _collate_fn(self, x):
+    # 	input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, labels_mask, source_tokens = x[0]
+    # 	input_ids = input_ids.to(self._device)
+    # 	input_mask = input_mask.to(self._device)
+    # 	segment_ids = segment_ids.to(self._device)
+    # 	tgt_ids = tgt_ids.to(self._device)
+    # 	labels_mask = labels_mask.to(self._device)
+    # 	labels = labels.to(self._device)
+    # 	return input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, labels_mask, source_tokens

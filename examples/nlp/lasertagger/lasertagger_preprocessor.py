@@ -21,22 +21,23 @@ import json
 import os
 from collections import OrderedDict, deque
 
-import bert_example
-import tagging_converter
 import torch
-import utils
 from absl import logging
+from examples.nlp.lasertagger.official_lasertagger import bert_example, tagging_converter, utils
 
-from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
+from nemo.collections.nlp.data.tokenizers import bert_tokenizer
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="LaserTagger Preprocessor")
     parser.add_argument(
-        "--train_file", type=str, help="The training data file. Should be *.json",
+        "--train_file", type=str, help="The training data file. Should be *.tsv",
     )
     parser.add_argument(
-        "--eval_file", type=str, help="The evaluation data file. Should be *.json",
+        "--eval_file", type=str, help="The evaluation data file. Should be *.tsv",
+    )
+    parser.add_argument(
+        "--test_file", type=str, help="The test data file. Should be *.tsv",
     )
 
     parser.add_argument(
@@ -53,7 +54,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_examples=False):
+def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_examples=False, save_tokens=True):
 
     label_map = utils.read_label_map(args.label_map_file)
     converter = tagging_converter.TaggingConverter(
@@ -64,13 +65,17 @@ def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_ex
     examples = deque()
     for i, (sources, target) in enumerate(utils.yield_sources_and_targets(input_file)):
         logging.log_every_n(logging.INFO, f'{i} examples processed, {num_converted} converted.', 10000)
-        example = builder.build_bert_example(sources, target, output_arbitrary_targets_for_infeasible_examples)
+        example = builder.build_bert_example(
+            sources, target, output_arbitrary_targets_for_infeasible_examples, save_tokens
+        )
         if example is None:
             continue
         num_converted += 1
         examples.append(example)
     logging.info(f'Done. {num_converted} examples converted.')
-    return examples, num_converted
+
+    tokenizer = bert_tokenizer.NemoBertTokenizer(vocab_file=args.vocab_file, do_lower_case=False)
+    return examples, num_converted, builder.get_special_tokens_and_ids()
 
 
 if __name__ == "__main__":
@@ -81,8 +86,10 @@ if __name__ == "__main__":
         os.makedirs(args.save_path)
 
     processed = OrderedDict()
-    train_examples, num_train_examples = read_input_file(args, args.train_file, False)
-    eval_examples, num_eval_examples = read_input_file(args, args.eval_file, True)
+    train_examples, num_train_examples, _ = read_input_file(args, args.train_file, False, False)
+    eval_examples, num_eval_examples, eval_special_tokens = read_input_file(args, args.eval_file, True, False)
+    test_examples, num_test_examples, test_special_tokens = read_input_file(args, args.test_file, False, True)
 
     torch.save((train_examples, num_train_examples), args.save_path + "/lt_train_examples.pkl")
-    torch.save((eval_examples, num_eval_examples), args.save_path + "/lt_eval_examples.pkl")
+    torch.save((eval_examples, num_eval_examples, eval_special_tokens), args.save_path + "/lt_eval_examples.pkl")
+    torch.save((test_examples, num_test_examples, test_special_tokens), args.save_path + "/lt_test_examples.pkl")

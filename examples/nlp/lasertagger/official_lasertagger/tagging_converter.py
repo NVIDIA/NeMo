@@ -24,8 +24,7 @@ from __future__ import absolute_import, division, print_function
 
 from typing import Iterable, Mapping, Sequence, Set, Text, Tuple
 
-import tagging
-import utils
+from examples.nlp.lasertagger.official_lasertagger import tagging, utils
 
 
 class TaggingConverter(object):

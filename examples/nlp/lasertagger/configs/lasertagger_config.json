@@ -10,7 +10,7 @@
   "num_hidden_layers": 12,
   "type_vocab_size": 2,
   "vocab_size": 28996,
-  "use_t2t_decoder": false,
+  "use_t2t_decoder": true,
   "decoder_num_hidden_layers": 1,
   "decoder_hidden_size": 768,
   "decoder_num_attention_heads": 4,

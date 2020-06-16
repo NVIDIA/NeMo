@@ -16,6 +16,7 @@
 
 from nemo.collections.nlp.callbacks.glue_benchmark_callback import *
 from nemo.collections.nlp.callbacks.joint_intent_slot_callback import *
+from nemo.collections.nlp.callbacks.lasertagger_callback import *
 from nemo.collections.nlp.callbacks.lm_bert_callback import *
 from nemo.collections.nlp.callbacks.lm_transformer_callback import *
 from nemo.collections.nlp.callbacks.machine_translation_callback import *

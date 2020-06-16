@@ -29,8 +29,8 @@ from typing import Sequence, Text
 
 import numpy as np
 import scipy.sparse
-import utils
 from absl import app, flags, logging
+from examples.nlp.lasertagger.official_lasertagger import utils
 
 FLAGS = flags.FLAGS
 

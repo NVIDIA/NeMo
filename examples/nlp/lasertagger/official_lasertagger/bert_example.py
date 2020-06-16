@@ -20,9 +20,7 @@ from __future__ import absolute_import, division, print_function
 import collections
 from typing import Mapping, MutableSequence, Optional, Sequence, Text
 
-import tagging
-import tagging_converter
-import utils
+from examples.nlp.lasertagger.official_lasertagger import tagging, tagging_converter, utils
 
 from nemo.collections.nlp.data.tokenizers import bert_tokenizer
 
@@ -124,8 +122,11 @@ class BertExampleBuilder(object):
         self._converter = converter
         self._pad_id = self._get_pad_id()
         self._keep_tag_id = self._label_map['KEEP']
+        self._task_tokens = collections.OrderedDict()
 
-    def build_bert_example(self, sources, target=None, use_arbitrary_target_ids_for_infeasible_examples=False):
+    def build_bert_example(
+        self, sources, target=None, use_arbitrary_target_ids_for_infeasible_examples=False, save_tokens=True
+    ):
         """Constructs a BERT Example.
 
     Args:
@@ -174,6 +175,12 @@ class BertExampleBuilder(object):
         tgt_ids = self._truncate_list(self._tokenizer.text_to_ids(target))
         tgt_ids = [self._tokenizer.bos_id] + tgt_ids + [self._tokenizer.eos_id]
 
+        if save_tokens:
+            for i, t in enumerate(task.source_tokens):
+                # Check of out of vocabulary tokens and save them
+                if self._tokenizer.token_to_id(t) == 100:
+                    self._task_tokens[t] = None
+
         example = BertExample(
             input_ids=input_ids,
             input_mask=input_mask,
@@ -187,6 +194,9 @@ class BertExampleBuilder(object):
         )
         example.pad_to_max_length(self._max_seq_length, self._pad_id)
         return example
+
+    def get_special_tokens_and_ids(self):
+        return list(self._task_tokens.keys())
 
     def _split_to_wordpieces(self, tokens, labels):
         """Splits tokens (and the labels accordingly) to WordPieces.

@@ -23,9 +23,11 @@ __all__ = ['LaserTaggerDataset']
 
 
 class LaserTaggerDataset(Dataset):
-    def __init__(self, preprocessed_data):
+    def __init__(self, preprocessed_data, tokenizer, num_examples, training):
 
-        self.examples, self.num_examples = torch.load(preprocessed_data)
+        self.examples, self.num_examples = preprocessed_data, num_examples
+        self.tokenizer = tokenizer
+        self.training = training
 
     def __len__(self):
         return self.num_examples
@@ -37,5 +39,14 @@ class LaserTaggerDataset(Dataset):
         tgt_ids = torch.Tensor(self.examples[idx].features['tgt_ids']).long()
         labels_mask = torch.Tensor(self.examples[idx].features['labels_mask'])
         labels = torch.Tensor(self.examples[idx].features['labels']).long()
-        task = self.examples[idx].editing_task
-        return input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels  # , task
+
+        src_ids, src_first_tokens = torch.zeros([1]), torch.zeros([1])
+        if not self.training:
+            source_tokens = self.examples[idx].editing_task.source_tokens
+            src_ids = self.tokenizer.tokens_to_ids(source_tokens)
+            src_ids.extend([self.tokenizer.pad_id] * (128 - len(src_ids)))
+            first_tokens = self.examples[idx].editing_task.first_tokens
+            first_tokens.extend([-1] * (2 - len(first_tokens)))
+            src_ids = torch.Tensor(src_ids).long()
+            src_first_tokens = torch.Tensor(first_tokens).long()
+        return input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, labels_mask, src_ids, src_first_tokens

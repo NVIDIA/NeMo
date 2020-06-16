@@ -186,6 +186,7 @@ class TransformerDecoderNM(TrainableNM):
         attn_layer_dropout=0.0,
         learn_positional_encodings=False,
         hidden_act='relu',
+        use_full_attention=True,
     ):
         super().__init__()
 
@@ -205,6 +206,7 @@ class TransformerDecoderNM(TrainableNM):
             hidden_act=hidden_act,
             attn_score_dropout=attn_score_dropout,
             attn_layer_dropout=attn_layer_dropout,
+            use_full_attention=use_full_attention,
         )
 
         std_init_range = 1 / math.sqrt(d_model)

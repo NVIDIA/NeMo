@@ -137,6 +137,9 @@ class BERT(TrainableNM):
         self.config = model.config
         self._hidden_size = model.config.hidden_size
 
+    def resize_token_embeddings(self, new_vocab_size):
+        return self.bert.resize_token_embeddings(new_vocab_size)
+
     @property
     def hidden_size(self):
         """
