@@ -243,9 +243,6 @@ parser.add_argument(
     "--add_carry_status", action="store_true", help="Add a carry-over status to all categorical slots.",
 )
 
-parser.add_argument("--exp_name", default="SGD_Baseline", type=str)
-parser.add_argument("--project", default="SGD", type=str)
-
 args = parser.parse_args()
 logging.info(args)
 
