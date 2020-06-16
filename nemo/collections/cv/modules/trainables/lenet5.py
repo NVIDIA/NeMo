@@ -58,7 +58,6 @@ class LeNet5(TrainableNM):
             torch.nn.Linear(84, 10),
             torch.nn.LogSoftmax(dim=1),
         )
-        self.to(self._device)
 
     @property
     @add_port_docs()

@@ -19,6 +19,8 @@ from typing import Any, Dict
 
 import torch
 
+# This should go to settings/NeMo config file.
+
 
 def save(checkpoint: Dict[str, Any], filename: str) -> None:
     """
