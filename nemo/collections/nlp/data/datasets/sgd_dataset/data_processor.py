@@ -21,19 +21,18 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 """
 
 import collections
+import copy
 import json
 import os
 import pickle
 import re
+from collections import OrderedDict
 
 import numpy as np
 import torch
 
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import InputExample
 from nemo.utils import logging
-import copy
-from collections import OrderedDict
-
 
 __all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor']
 
@@ -195,7 +194,11 @@ class SGDDataProcessor(object):
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
                 logging.info(f'Processed {dialog_idx} dialogues.')
-            examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset, slot_carryover_candlist, services_switch_counts))
+            examples.extend(
+                self._create_examples_from_dialog(
+                    dialog, schemas, dataset, slot_carryover_candlist, services_switch_counts
+                )
+            )
 
         slots_relation_list = collections.defaultdict(list)
         for slots_relation, relation_size in slot_carryover_candlist.items():
@@ -264,7 +267,16 @@ class SGDDataProcessor(object):
 
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
                 turn_examples, prev_states = self._create_examples_from_turn(
-                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, copy.deepcopy(agg_sys_states_prev), slot_carryover_candlist, services_switch_counts
+                    turn_id,
+                    system_utterance,
+                    user_utterance,
+                    system_frames,
+                    user_frames,
+                    prev_states,
+                    schemas,
+                    copy.deepcopy(agg_sys_states_prev),
+                    slot_carryover_candlist,
+                    services_switch_counts,
                 )
                 examples.extend(turn_examples)
                 frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
@@ -301,7 +313,17 @@ class SGDDataProcessor(object):
         return state_update
 
     def _create_examples_from_turn(
-        self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas, agg_sys_states, slot_carryover_candlist, services_switch_counts
+        self,
+        turn_id,
+        system_utterance,
+        user_utterance,
+        system_frames,
+        user_frames,
+        prev_states,
+        schemas,
+        agg_sys_states,
+        slot_carryover_candlist,
+        services_switch_counts,
     ):
         """
         Creates an example for each frame in the user turn.
@@ -320,7 +342,9 @@ class SGDDataProcessor(object):
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
-        base_example = InputExample(schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer, service_schema=schemas)
+        base_example = InputExample(
+            schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer, service_schema=schemas
+        )
         base_example.example_id = turn_id
 
         _, dialog_id, turn_id_ = turn_id.split('-')
@@ -331,7 +355,7 @@ class SGDDataProcessor(object):
         )
 
         examples = []
-        #slot_carryover_values = collections.defaultdict(list)
+        # slot_carryover_values = collections.defaultdict(list)
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()

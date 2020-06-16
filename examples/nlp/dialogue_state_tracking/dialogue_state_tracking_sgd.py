@@ -29,7 +29,14 @@ import nemo.collections.nlp.data.datasets.sgd_dataset.data_processor as data_pro
 from nemo.collections.nlp.callbacks.sgd_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import SchemaPreprocessor
 from nemo.collections.nlp.nm.trainables import SGDDecoderNM, SGDEncoderNM
-from nemo.core import Backend, CheckpointCallback, EvaluatorCallback, NeuralModuleFactory, SimpleLossLoggerCallback, WandbCallback
+from nemo.core import (
+    Backend,
+    CheckpointCallback,
+    EvaluatorCallback,
+    NeuralModuleFactory,
+    SimpleLossLoggerCallback,
+    WandbCallback,
+)
 from nemo.utils import logging
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -331,7 +338,9 @@ sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
     embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
 )
-dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(add_carry_status=args.add_carry_status, reduction=args.loss_reduction)
+dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(
+    add_carry_status=args.add_carry_status, reduction=args.loss_reduction
+)
 
 
 def create_pipeline(dataset_split='train'):

@@ -28,9 +28,9 @@ from collections import OrderedDict, defaultdict
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
     STATUS_ACTIVE,
+    STATUS_CARRY,
     STATUS_DONTCARE,
     STATUS_OFF,
-    STATUS_CARRY,
     STR_DONTCARE,
 )
 
@@ -284,9 +284,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                         cat_slot_status_acc += 1
                     if predictions["cat_slot_status_GT"][slot_idx] != STATUS_OFF:
                         cat_slot_value_num += 1
-                        if (
-                            extracted_value in true_state['slot_values'][slot]
-                        ):
+                        if extracted_value in true_state['slot_values'][slot]:
                             cat_slot_value_acc += 1
                     ################################################################
 
@@ -305,7 +303,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     elif slot_status == STATUS_ACTIVE:
                         if ch_start_idx > 0 and ch_end_idx > 0:
                             # Add span from the user utterance.
-                            extracted_value = user_utterance[ch_start_idx - 1: ch_end_idx]
+                            extracted_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
                         # elif ch_start_idx < 0 and ch_end_idx < 0:
                         # # Add span from the system utterance.
                         #    extracted_value = system_utterance[-ch_start_idx - 1 : -ch_end_idx]

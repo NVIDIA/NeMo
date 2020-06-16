@@ -166,7 +166,9 @@ class Schema(object):
         service_schemas = {}
         for schema in all_schemas:
             service = schema["service_name"]
-            service_schemas[service] = ServiceSchema(schema, service_id=self.get_service_id(service), add_carry_value=self._add_carry_value)
+            service_schemas[service] = ServiceSchema(
+                schema, service_id=self.get_service_id(service), add_carry_value=self._add_carry_value
+            )
 
         self._service_schemas = service_schemas
         self._schemas = all_schemas
