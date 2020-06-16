@@ -19,6 +19,7 @@ from typing import Dict, Optional
 # =============================================================================
 import torch
 from pytorch_lightning import LightningModule
+
 from nemo.collections.asr.helpers import monitor_asr_train_progress2
 from nemo.collections.asr.losses import CTCLoss2
 from nemo.core.apis import NeuralModelAPI, NeuralModuleAPI
@@ -81,12 +82,15 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
     def training_step(self, batch, batch_nb):
         self.train()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        log_probs, encoded_len, predictions = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        log_probs, encoded_len, predictions = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
         loss_value = self.loss.loss_function(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
         )
-        wer, prediction, reference = monitor_asr_train_progress2(tensors=[predictions, transcript, transcript_len],
-                                                                 labels=self.decoder.vocabulary)
+        wer, prediction, reference = monitor_asr_train_progress2(
+            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
+        )
         tensorboard_logs = {'train_loss': loss_value, 'wer': wer}
         return {'loss': loss_value, 'log': tensorboard_logs}
 

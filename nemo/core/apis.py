@@ -14,6 +14,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import instantiate_class_from_config
 

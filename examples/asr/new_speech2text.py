@@ -1,8 +1,10 @@
 import pytorch_lightning as pl
-from nemo.collections.asr.models.asrconvctcmodel2 import ASRConvCTCModel
 
 # Load model definition
 from ruamel.yaml import YAML
+
+from nemo.collections.asr.models.asrconvctcmodel2 import ASRConvCTCModel
+
 yaml = YAML(typ="safe")
 with open('/Users/okuchaiev/repos/NeMo/examples/asr/configs/jasper_an4-2.yaml') as f:
     model_config = yaml.load(f)
