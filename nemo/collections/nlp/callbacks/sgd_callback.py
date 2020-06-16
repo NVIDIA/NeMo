@@ -185,7 +185,7 @@ def eval_epochs_done_callback(
     metrics = evaluate(
         prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match,
     )
-    return metrics
+    return metrics[SEEN_SERVICES]
 
 
 def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
@@ -214,4 +214,4 @@ def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_a
     with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
         f.close()
-    return all_metric_aggregate[SEEN_SERVICES]  # changed here
+    return all_metric_aggregate
