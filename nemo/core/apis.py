@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-
-# =============================================================================
-# Copyright (c) 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,17 +8,12 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-
-
-# limitations under the License.
-# =============================================================================
-from abc import ABC, abstractmethod
-
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-from typing import Any, Dict, Optional
+# limitations under the License.
 
-from nemo import logging
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import instantiate_class_from_config
 
@@ -107,4 +99,13 @@ class NeuralModelAPI(NeuralModuleAPI):
         Returns:
 
         """
+        pass
+
+    @abstractmethod
+    def save_to(self, save_path: str, optimize_for_deployment=True):
+        pass
+
+    @classmethod
+    @abstractmethod
+    def restore_from(cls, restore_path: str):
         pass

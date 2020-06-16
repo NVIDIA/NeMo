@@ -149,3 +149,7 @@ class ConvASRDecoder(torch.nn.Module, NeuralModuleAPI):
 
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+
+    @property
+    def vocabulary(self):
+        return self.__vocabulary
