@@ -158,7 +158,7 @@ def parse_args():
         "--mode",
         default="train_eval",
         choices=["train", "train_eval", "eval", "test"],
-        help="Mode of model usage. When using test mode no ground-truth labels are required in the dataset.",
+        help="Mode of model usage. When using test mode the script is running inference on the data, i.e. no ground-truth labels are required in the dataset.",
     )
     parser.add_argument(
         "--no_data_cache", action='store_true', help="When specified do not load and store cache preprocessed data.",
