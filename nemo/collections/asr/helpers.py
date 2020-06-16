@@ -16,7 +16,7 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
     prediction_cpu_tensor = tensor.long().cpu()
     # iterate over batch
     for ind in range(prediction_cpu_tensor.shape[0]):
-        prediction = prediction_cpu_tensor[ind].numpy().tolist()
+        prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
         # CTC decoding procedure
         decoded_prediction = []
         previous = len(labels)  # id of a blank symbol
@@ -27,6 +27,45 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
         hypothesis = ''.join([labels_map[c] for c in decoded_prediction])
         hypotheses.append(hypothesis)
     return hypotheses
+
+
+def monitor_asr_train_progress2(tensors: list, labels: list, eval_metric='WER', tb_logger=None):
+    """
+    Takes output of greedy ctc decoder and performs ctc decoding algorithm to
+    remove duplicates and special symbol. Prints sample to screen, computes
+    and logs AVG WER to console and (optionally) Tensorboard
+    Args:
+      tensors: A list of 3 tensors (predictions, targets, target_lengths)
+      labels: A list of labels
+      eval_metric: An optional string from 'WER', 'CER'. Defaults to 'WER'.
+      tb_logger: Tensorboard logging object
+    Returns:
+      None
+    """
+    references = []
+
+    labels_map = dict([(i, labels[i]) for i in range(len(labels))])
+    with torch.no_grad():
+        # prediction_cpu_tensor = tensors[0].long().cpu()
+        targets_cpu_tensor = tensors[1].long().cpu()
+        tgt_lenths_cpu_tensor = tensors[2].long().cpu()
+
+        # iterate over batch
+        for ind in range(targets_cpu_tensor.shape[0]):
+            tgt_len = tgt_lenths_cpu_tensor[ind].item()
+            target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
+            reference = ''.join([labels_map[c] for c in target])
+            references.append(reference)
+        hypotheses = __ctc_decoder_predictions_tensor(tensors[0], labels=labels)
+
+    eval_metric = eval_metric.upper()
+    if eval_metric not in {'WER', 'CER'}:
+        raise ValueError('eval_metric must be \'WER\' or \'CER\'')
+    use_cer = True if eval_metric == 'CER' else False
+    wer = word_error_rate(hypotheses, references, use_cer=use_cer)
+    logging.info(f'Prediction: {hypotheses[0]}')
+    logging.info(f'Reference: {references[0]}')
+    return wer, hypotheses[0], references[0]
 
 
 def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', tb_logger=None):
@@ -71,6 +110,7 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', t
     logging.info(f'{tag}: {wer * 100 : 5.2f}%')
     logging.info(f'Prediction: {hypotheses[0]}')
     logging.info(f'Reference: {references[0]}')
+    return wer, hypotheses[0], references[0]
 
 
 def monitor_classification_training_progress(tensors: list, eval_metric=None, tb_logger=None):

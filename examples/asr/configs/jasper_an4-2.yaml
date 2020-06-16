@@ -17,6 +17,16 @@ AudioToTextDataLayer:
         max_duration: 16.7
         shuffle: True
 
+
+AudioToTextDataLayer_eval:
+    header:
+        full_spec: nemo.collections.asr.AudioToTextDataLayer2
+    init_params:
+        manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
+        labels: *labels
+        batch_size: 32
+        shuffle: False
+
 AudioToMelSpectrogramPreprocessor:
     header:
         full_spec: nemo.collections.asr.AudioToMelSpectrogramPreprocessor2
@@ -101,4 +111,5 @@ JasperDecoder:
         full_spec: nemo.collections.asr.ConvASRDecoder
     init_params:
         feat_in: *enc_feat_out
+        vocabulary: *labels
         num_classes: 28
