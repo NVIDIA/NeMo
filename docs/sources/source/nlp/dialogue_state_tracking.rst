@@ -316,8 +316,8 @@ In this tutorial, we are using the Schema-Guided Dialogue (SGD) dataset :cite:`n
 The data represents conversations between a user and a virtual assistant, and it can be used for various dialogue management tasks:
 intent prediction, slot filling, dialogue state tracking, policy imitation learning, language generation. 
 
-One part of the dialogues in the dataset spans across only a single domain dialogues, use ``--task_name sgd_single_domain`` to use such dialogues. Another part focuses only on dialogues that span across multiple domains during a single conversation, 
-``--task_name sgd_multi_domain`` to train and evaluate on the multi-domain task. ``--task_name sgd_all`` will use all available dialogues for training and evaluation.
+One part of the dialogues in the dataset spans across only a single domain dialogues, use ``--task_name dtsc8_single_domain`` to use such dialogues. Another part focuses only on dialogues that span across multiple domains during a single conversation,
+``--task_name dstc8_multi_domain`` to train and evaluate on the multi-domain task. ``--task_name dstc8_all`` will use all available dialogues for training and evaluation.
 
 An example of the data format could be found `here <https://raw.githubusercontent.com/google-research-datasets/dstc8-schema-guided-dialogue/master/train/dialogues_001.json>`_.
 Every dialogue contains the following information:
@@ -493,7 +493,7 @@ In order to train the Baseline SGD model on a single domain task and evaluate on
 
     cd examples/nlp/dialogue_state_tracking
     python dialogue_state_tracking_sgd.py \
-        --task_name sgd_single_domain \
+        --task_name dstc8_single_domain \
         --data_dir PATH_TO/dstc8-schema-guided-dialogue \
         --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ \
         --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \

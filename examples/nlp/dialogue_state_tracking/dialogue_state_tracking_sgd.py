@@ -105,7 +105,7 @@ parser.add_argument("--num_gpus", default=1, type=int)
 # Input and output paths and other flags.
 parser.add_argument(
     "--task_name",
-    default="sgd_single_domain",
+    default="dstc8_single_domain",
     type=str,
     choices=data_processor.FILE_RANGES.keys(),
     help="The name of the task to train.",
