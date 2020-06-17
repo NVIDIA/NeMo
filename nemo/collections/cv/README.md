@@ -19,3 +19,6 @@ For now the collection focuses only on Image Classification.
 3. CIFAR100 classification:
  * a thin DL wrapper around torchvision CIFAR100 dataset
  * classification with a graph: ImageEncoder (VGG-16 with FC6 reshaped) -> LogProbs
+
+4. STL10 classification:
+  * a thin DL wrapper around torchvision STL10 dataset
