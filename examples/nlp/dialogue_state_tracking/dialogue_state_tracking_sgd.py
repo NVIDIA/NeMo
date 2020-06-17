@@ -223,9 +223,10 @@ parser.add_argument(
     "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
-    "--add_attention_head",
-    action="store_true",
-    help="Whether to use attention when computing projections. When False, uses linear projection.",
+    "--no_attention_head",
+    dest='add_attention_head',
+    action="store_false",
+    help="Whether to use attention when computing projections for slot statuses and categorical slot values. When specified, does back to using linear projection.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
