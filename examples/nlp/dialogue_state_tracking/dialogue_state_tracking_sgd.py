@@ -236,11 +236,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--no_carry_value", action="store_false", help="Add a carry-over value to all categorical slots.", dest="add_carry_value"
+    "--no_carry_value",
+    action="store_false",
+    help="Add a carry-over value to all categorical slots.",
+    dest="add_carry_value",
 )
 
 parser.add_argument(
-    "--no_carry_status", action="store_false", help="Add a carry-over status to all categorical slots.", dest="add_carry_status"
+    "--no_carry_status",
+    action="store_false",
+    help="Add a carry-over status to all categorical slots.",
+    dest="add_carry_status",
 )
 
 args = parser.parse_args()
@@ -336,9 +342,7 @@ sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
     embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
 )
-dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(
-    add_carry_status=add_carry_status, reduction=args.loss_reduction
-)
+dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(add_carry_status=add_carry_status, reduction=args.loss_reduction)
 
 
 def create_pipeline(dataset_split='train'):
