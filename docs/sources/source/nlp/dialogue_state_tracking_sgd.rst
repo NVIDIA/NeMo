@@ -1,7 +1,7 @@
 .. _sgd_tutorial:
 
-Schema Guided Dialogues (SGD) Tutorial
-======================================
+Schema Guided Dialogues Tutorial
+================================
 
 Introduction
 ------------
@@ -12,8 +12,8 @@ Dialog Policy Manager and Response Generator modules are typically very task-dep
 
 In this tutorial, we are using Schema-Guided Dialogue dataset :cite:`nlp-sgd-rastogi2019towards` that contains over 16k multi-domain goal-oriented conversations across 16 domains. We present efficient and flexible models that can be trained and work on datasets with the format of the SGD dataset.
 
-The Schema-Guided Dialogue Dataset
-----------------------------------
+The Schema-Guided Dialogue (SGD) Dataset
+----------------------------------------
 Most of the public datasets such as MultiWOZ use a fixed list of slots for each domain across all dialogues. As a result, the systems developed on these datasets learn to recognize seen slots but fail to understand the semantic similarity between the slots. Such systems might struggle to handle unseen slots and APIs even when the new APIs and slots are similar in functionality to those present in the training data. The Schema-Guided Dialogue (SGD) dataset proposed by :cite:`nlp-sgd-rastogi2019towards` is created to overcome this challenge, which includes a schema for every service (or domain). A schema can be interpreted as an ontology encompassing representation, naming, and definition of the categories, properties, and relations between the concepts. In other words, schema defines not only the structure of the underlying data, all the services, slots, intents and values, but also provides descriptions of all of those entities expressed in natural language. This enables the dialogue system to use the current power of language understanding of models like BERT to transfer or share knowledge between different services and domains. The recent emergence of SGD dataset has triggered a new line of research on dialogue systems based on schemas.
 
 The SGD dataset contains conversations between a user and a virtual assistant, and it contains various annotations and can be used for various dialogue management tasks: intent prediction, slot filling, dialogue state tracking, policy imitation learning, language generation. One part of the dialogues in the dataset spans across only a single domain dialogue, use ``--task_name dtsc8_single_domain`` as input parameter to the example script to use such dialogues. Another part focuses only on dialogues that span across multiple domains during a single conversation which can be used by ``--task_name dstc8_multi_domain``. The param ``--task_name dstc8_all`` will use all the available dialogues for training and evaluation.
