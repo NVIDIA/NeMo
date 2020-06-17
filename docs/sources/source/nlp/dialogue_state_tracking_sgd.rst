@@ -141,6 +141,8 @@ We proposed to use multi-head attention projections instead of the linear layers
 
 The idea is that domain-specific and slot-specific information can be extracted more efficiently from the collection of token-level representations than from a single sentence-level encoding. We used these multi-head attention layers just for the slot status detection and the categorical value decoders.
 
+The attention mechanisms can be enabled by passing "--tracker_model=nemotracker" params to the example script.
+
 Slot Carry-over Mechanisms
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 The slot carry-over procedures enable the model to retrieve a value for a slot from the preceding system utterance or even previous turns in the dialogue :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. There are many cases where the user is accepting some values offered by the system and the value is not mentioned explicitly in the user utterance.In our system, we have implemented two different carry-over procedures. The value may be offered in the last system utterance, or even in the previous turns. The procedure to retrieve values in these cases is called in-service carry-over. There are also cases where a switch is happening between two services in multi-domain dialogues. A dialogue may contain more than one service and the user may switch between these services. When a switch happens, we may need to carry some values from a slot in the previous service to another slot in the current service. The carry-over procedure to carry values between two services is called cross-service carry-over.
@@ -212,7 +214,6 @@ To train the FastSGT model on a single domain task and evaluate on its dev and t
         --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \
         --eval_dataset dev_test
         --tracker_model=nemotracker
-        --add_attention_head
 
 Metrics
 -------
