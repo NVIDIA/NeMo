@@ -157,7 +157,7 @@ It should be noted that the cross-service carry-over feature does not work for m
 the candidate list is extracted from the training dialogues which does not contain unseen services.
 To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots :cite:`nlp-sgd-limiao2019dstc8`.
 
-The slot carry-over mechanisms can be enabled by passing "--state_tracker=nemotracker --add_carry_value --add_carry_status" params to the example script.
+The slot carry-over mechanisms can be enabled by passing "--tracker_model=nemotracker" params to the example script.
 
 Data Augmentation
 ^^^^^^^^^^^^^^^^^
@@ -196,7 +196,7 @@ In order to train the SGD Baseline model on a single domain task and evaluate on
         --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ \
         --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \
         --eval_dataset dev_test
-        --state_tracker=baseline
+        --tracker_model=baseline
 
 To train the FastSGT model on a single domain task and evaluate on its dev and test data, you may run:
 
@@ -209,9 +209,7 @@ To train the FastSGT model on a single domain task and evaluate on its dev and t
         --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ \
         --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \
         --eval_dataset dev_test
-        --state_tracker=nemotracker
-        --add_carry_value
-        --add_carry_status
+        --tracker_model=nemotracker
         --add_attention_head
 
 Metrics

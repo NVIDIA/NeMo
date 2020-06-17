@@ -156,7 +156,7 @@ def eval_epochs_done_callback(
     eval_dataset,
     data_dir,
     prediction_dir,
-    state_tracker,
+    tracker_model,
     eval_debug,
     dialogues_processor,
     schema_emb_preprocessor,
@@ -178,7 +178,7 @@ def eval_epochs_done_callback(
         input_json_files,
         prediction_dir,
         schemas=schema_emb_preprocessor.schemas,
-        state_tracker=state_tracker,
+        tracker_model=tracker_model,
         eval_debug=eval_debug,
         in_domain_services=in_domain_services,
     )

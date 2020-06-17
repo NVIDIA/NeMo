@@ -124,7 +124,7 @@ def get_carryover_value(
 
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
-    """This is NeMo Tracker which would be enabled by passing "--state_tracker=nemotracker".
+    """This is NeMo Tracker which would be enabled by passing "--tracker_model=nemotracker".
     It improves the performance significantly by employing carry-over mechanism for in-service and cross-service.
 
     * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions.\
@@ -590,7 +590,7 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
 
 
 def write_predictions_to_file(
-    predictions, input_json_files, output_dir, schemas, state_tracker, eval_debug, in_domain_services
+    predictions, input_json_files, output_dir, schemas, tracker_model, eval_debug, in_domain_services
 ):
     """Write the predicted dialogues as json files.
 
@@ -620,14 +620,14 @@ def write_predictions_to_file(
             logging.debug(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
-                if state_tracker == 'baseline':
+                if tracker_model == 'baseline':
                     pred_dialog = get_predicted_dialog_baseline(d, all_predictions, schemas)
-                elif state_tracker == 'nemotracker':
+                elif tracker_model == 'nemotracker':
                     pred_dialog = get_predicted_dialog_nemotracker(
                         d, all_predictions, schemas, eval_debug, in_domain_services
                     )
                 else:
-                    raise ValueError(f"tracker_mode {state_tracker} is not defined.")
+                    raise ValueError(f"tracker_mode {tracker_model} is not defined.")
                 pred_dialogs.append(pred_dialog)
             f.close()
         input_file_name = os.path.basename(input_file_path)
