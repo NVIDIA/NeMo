@@ -101,7 +101,7 @@ def _plot_confusion_matrix(labels, preds, graph_fold):
     plt.savefig(os.path.join(graph_fold, time.strftime('%Y%m%d-%H%M%S')))
 
 
-def get_classification_report(labels, preds, label_ids):
+def get_classification_report(labels, preds, label_ids, output_dict=False):
     """
     Returns classification report
     """
@@ -113,7 +113,7 @@ def get_classification_report(labels, preds, label_ids):
         if v in used_labels
     ]
 
-    return classification_report(labels, preds, target_names=labels_names, digits=4)
+    return classification_report(labels, preds, target_names=labels_names, digits=4, output_dict=output_dict)
 
 
 def get_f1_scores(labels, preds, average_modes=['binary', 'weighted', 'macro', 'micro']):

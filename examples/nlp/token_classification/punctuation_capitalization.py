@@ -46,6 +46,12 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
+parser.add_argument(
+    "--num_workers",
+    default=2,
+    type=int,
+    help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
+)
 parser.add_argument("--data_dir", default="/data", type=str)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
@@ -96,6 +102,10 @@ parser.add_argument(
                     and checkpoints will be written.",
 )
 parser.add_argument(
+    "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
+)
+parser.add_argument('--add_confusion_matrix', action='store_true', help='Calculates and plots confusion matrix. Increases evaluation time.')
+parser.add_argument(
     "--checkpoint_dir",
     default=None,
     type=str,
@@ -116,12 +126,23 @@ parser.add_argument(
     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved",
 )
-parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
+parser.add_argument(
+    "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
+)
+parser.add_argument(
+    "--loss_log_freq", default=-1, type=int, help="Frequency of logging loss values, '-1' - at the end of the epoch",
+)
 parser.add_argument(
     "--use_weighted_loss_punct",
     action='store_true',
     help="Flag to indicate whether to use weighted loss \
                     to mitigate classs unbalancing for the punctuation task",
+)
+parser.add_argument(
+    "--wandb_project", default=None, type=str, help='Project name for tracking with Weights and Biases'
+)
+parser.add_argument(
+    "--wandb_experiment", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
 )
 
 args = parser.parse_args()
@@ -211,6 +232,7 @@ def create_pipeline(
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
         use_cache=use_cache,
+        num_workers=args.num_workers,
     )
 
     (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels) = data_layer()
@@ -289,22 +311,34 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=losses + train_logits,
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=args.loss_step_freq,
+    step_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
     tb_writer=nf.tb_writer,
 )
+
+graph_dir = f'{nf.work_dir}/graphs' if args.add_confusion_matrix else None
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, punct_label_ids, capit_label_ids, f'{nf.work_dir}/graphs'
+        x, punct_label_ids, capit_label_ids, graph_dir
     ),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=args.eval_epoch_freq * steps_per_epoch,
+    wandb_name=args.wandb_experiment,
+    wandb_project=args.wandb_project,
 )
 
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=args.checkpoints_to_keep
+)
+
+wand_callback = nemo.core.WandbCallback(
+    train_tensors=[losses[0]],
+    wandb_name=args.wandb_experiment,
+    wandb_project=args.wandb_project,
+    update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
+    args=args,
 )
 
 lr_policy_fn = get_lr_policy(
@@ -313,7 +347,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[losses[0]],
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=[train_callback, ckpt_callback, eval_callback, wand_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},

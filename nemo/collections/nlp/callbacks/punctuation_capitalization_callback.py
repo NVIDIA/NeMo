@@ -79,8 +79,7 @@ def eval_iter_callback(tensors, global_vars):
     global_vars["capit_all_preds"].extend(capit_all_preds)
     global_vars["capit_all_labels"].extend(capit_all_labels)
 
-    global_vars["all_subtokens_mask"].extend(all_subtokens_mask)
-
+    global_vars["all_subtokens_mask"].extend(all_subtokens_mask)  
 
 def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, graph_fold=None, normalize_cm=True):
     '''
@@ -89,12 +88,21 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
       normalize_cm (bool): flag to indicate whether to
         normalize confusion matrix
     '''
+    results = {}
+    punct_accuracy, punct_class_report = _eval_epochs_done_callback('punct', global_vars, punct_label_ids, graph_fold, normalize_cm)
 
-    punct_accuracy = _eval_epochs_done_callback('punct', global_vars, punct_label_ids, graph_fold, normalize_cm)
-
-    capit_accuracy = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
-
-    return {"Punctuation_task_accuracy": punct_accuracy, "Capitalization_task_accuracy": capit_accuracy}
+    for label in punct_class_report:
+        label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
+    
+        results['punct F1 ' + label_name] = round(punct_class_report[label]['f1-score'] * 100, 2)
+    
+    capit_accuracy, capit_class_report = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
+    for label in capit_class_report:
+        label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
+        results['capit F1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)   
+    
+    # {"Punct_accuracy": punct_accuracy, "Capit_acc": capit_accuracy}
+    return results
 
 
 def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=None, normalize_cm=True):
@@ -122,4 +130,4 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
     # calculate and plot confusion_matrix
     if graph_fold:
         plot_confusion_matrix(labels, preds, graph_fold, label_ids, normalize=normalize_cm, prefix=task_name)
-    return accuracy
+    return accuracy, get_classification_report(labels, preds, label_ids, output_dict=True)
