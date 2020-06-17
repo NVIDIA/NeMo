@@ -127,34 +127,11 @@ FastSGT (Improved Model)
 We proposed an improved version of the SGD Baseline model called Fast Schema Guided Tracker (FastSGT) which is designed and optimized for seen services.
 It has a significantly higher performance in terms of accuracy compared to the baseline for seen services. FastSGT has the following features:
 
-- Data augmentation for non-categorical slots
 - Multi-head attention projection layers for decoders
 - In-service slot carry-over mechanism
 - Cross-service slot carry-over mechanism
+- Data augmentation for non-categorical slots
 - Ability to make schema embeddings trainable during the model training
-
-Data Augmentation
------------------
-The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data /sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
-altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
-Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
-``get_new_noncat_value()`` is used to replace a non-categorical value by a different value from the same service slot.
-``num2str()`` is used to replace a regular word that is a number with its string representation, e.g. '11' becomes 'eleven'.
-The script allows the user to easily extend the set of functions by custom ones, e.g. deleting words could be realized by a function that
-replaces a regular word by the empty string ''.
-The input arguments include configuration settings that determine how many augmentation sweeps are done on the dataset and the probability of modifying a word.
-For our experiments we used 9 augmentation sweeps (and concatenated it with the original dataset) at 100% modification rate, resulting in a dataset 10x as large:
-
-.. code-block:: bash
-
-    cd examples/nlp/dialogue_state_tracking/data/sgd
-    python dialogue_augmentation.py \
-        --input_dir <sgd/train> \
-        --repeat 9 \
-        --replace_turn_prob 1.0 \
-        --replace_word_prob 1.0 \
-        --concat_orig_dialogue
-
 
 Attention-based Projections
 ---------------------------
@@ -177,6 +154,28 @@ the candidate list is extracted from the training dialogues which does not conta
 To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots :cite:`nlp-sgd-limiao2019dstc8`.
 
 The slot carry-over mechanisms can be enabled by passing "--state_tracker=nemotracker --add_carry_value --add_carry_status" params to the example script.
+
+Data Augmentation
+-----------------
+The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data /sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
+altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
+Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
+``get_new_noncat_value()`` is used to replace a non-categorical value by a different value from the same service slot.
+``num2str()`` is used to replace a regular word that is a number with its string representation, e.g. '11' becomes 'eleven'.
+The script allows the user to easily extend the set of functions by custom ones, e.g. deleting words could be realized by a function that
+replaces a regular word by the empty string ''.
+The input arguments include configuration settings that determine how many augmentation sweeps are done on the dataset and the probability of modifying a word.
+For our experiments we used 9 augmentation sweeps (and concatenated it with the original dataset) at 100% modification rate, resulting in a dataset 10x as large:
+
+.. code-block:: bash
+
+    cd examples/nlp/dialogue_state_tracking/data/sgd
+    python dialogue_augmentation.py \
+        --input_dir <sgd/train> \
+        --repeat 9 \
+        --replace_turn_prob 1.0 \
+        --replace_word_prob 1.0 \
+        --concat_orig_dialogue
 
 
 Training
