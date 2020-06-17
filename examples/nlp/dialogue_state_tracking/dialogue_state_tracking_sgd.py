@@ -223,9 +223,10 @@ parser.add_argument(
     "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
-    "--add_attention_head",
-    action="store_true",
-    help="Whether to use attention when computing projections. When False, uses linear projection.",
+    "--no_attention_head",
+    dest='add_attention_head',
+    action="store_false",
+    help="Whether to use attention when computing projections for slot statuses and categorical slot values. Is always disabled for the baseline model tracker. When specified for nemotracker goes back to using linear projection.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
@@ -306,9 +307,11 @@ tokenizer = nemo_nlp.data.tokenizers.get_tokenizer(
 if args.tracker_model == "baseline":
     add_carry_status = False
     add_carry_value = False
+    add_attention_head = False
 else:
     add_carry_status = args.add_carry_status
     add_carry_value = args.add_carry_value
+    add_attention_head = args.add_attention_head
 
 hidden_size = pretrained_bert_model.hidden_size
 
@@ -340,7 +343,7 @@ dialogues_processor = data_processor.SGDDataProcessor(
 # define model pipeline
 sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
-    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
+    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=add_attention_head
 )
 dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(add_carry_status=add_carry_status, reduction=args.loss_reduction)
 

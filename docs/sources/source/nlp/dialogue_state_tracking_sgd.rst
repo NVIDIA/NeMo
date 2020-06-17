@@ -141,6 +141,8 @@ We proposed to use multi-head attention projections instead of the linear layers
 
 The idea is that domain-specific and slot-specific information can be extracted more efficiently from the collection of token-level representations than from a single sentence-level encoding. We used these multi-head attention layers just for the slot status detection and the categorical value decoders.
 
+The attention mechanism can be enabled by passing "--tracker_model=nemotracker" params to the example script.
+
 Slot Carry-over Mechanisms
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 The slot carry-over procedures enable the model to retrieve a value for a slot from the preceding system utterance or even previous turns in the dialogue :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. There are many cases where the user is accepting some values offered by the system and the value is not mentioned explicitly in the user utterance.In our system, we have implemented two different carry-over procedures. The value may be offered in the last system utterance, or even in the previous turns. The procedure to retrieve values in these cases is called in-service carry-over. There are also cases where a switch is happening between two services in multi-domain dialogues. A dialogue may contain more than one service and the user may switch between these services. When a switch happens, we may need to carry some values from a slot in the previous service to another slot in the current service. The carry-over procedure to carry values between two services is called cross-service carry-over.
@@ -162,7 +164,9 @@ The slot carry-over mechanisms can be enabled by passing "--tracker_model=nemotr
 Data Augmentation
 ^^^^^^^^^^^^^^^^^
 We provide scripts for data augmentation which can be used to mitigate the problem of low-resource annotated training data. The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data /sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
-altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
+altered along with all affected dialogue meta information, e.g. dialogue states, to preserve dialogue integrity. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
+Augmentation for categorical slots was not possible in the SGD dataset since the dataset does not provide the unique position of the categorical slot value in the dialogue utterance. 
+Also, we did not try the augmentation on multi-domain dialogues as switching between services makes it more challenging to maintain the consistency of the dialogue. 
 
 Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
 ``get_new_noncat_value()`` is used to replace a non-categorical value by a different value from the same service slot.
@@ -198,19 +202,7 @@ In order to train the SGD Baseline model on a single domain task and evaluate on
         --eval_dataset dev_test
         --tracker_model=baseline
 
-To train the FastSGT model on a single domain task and evaluate on its dev and test data, you may run:
-
-.. code-block:: bash
-
-    cd examples/nlp/dialogue_state_tracking
-    python dialogue_state_tracking_sgd.py \
-        --task_name dstc8_single_domain \
-        --data_dir PATH_TO/dstc8-schema-guided-dialogue \
-        --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ \
-        --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \
-        --eval_dataset dev_test
-        --tracker_model=nemotracker
-        --add_attention_head
+To train the FastSGT model use "--tracker_model=nemotracker" instead.
 
 Metrics
 -------
@@ -244,7 +236,7 @@ We used 16 heads for each of the attention-based projection layers, similar to t
 +                                                                    +----------------+---------------+-------------+-------------+
 | Model                                                              | Active Int Acc | Req Slot F1   | Aver GA     | Joint GA    |
 +====================================================================+================+===============+=============+=============+
-| SGD Baseline (original implementation w/o eval fixes)              |   99.06/-      |  98.67/-      | 88.08/-     | 68.58/-     |
+| SGD Baseline (original implementation w/o eval fixes)              |   99.06/78.73  |  98.67/96.84  | 88.08/92.00 | 68.58/74.49 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 | SGD Baseline (NeMo's implementation w/o eval fixes)                |   99.03/78.22  |  98.74/96.83  | 88.12/92.17 | 68.61/73.94 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
@@ -264,15 +256,13 @@ We used 16 heads for each of the attention-based projection layers, similar to t
 +                                                                    +----------------+---------------+-------------+-------------+
 | Model                                                              | Active Int Acc | Req Slot F1   | Aver GA     | Joint GA    |
 +====================================================================+================+===============+=============+=============+
-| SGD Baseline (original implementation w/o eval fixes)              |                |               |             |             |
+| SGD Baseline (original implementation w/o eval fixes)              |     -/95.06    |    -/99.55    |   -/67.78   |    -/41.25  |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| SGD Baseline (NeMo's implementation w/o eval fixes)                |                |               |             |             |
+| SGD Baseline (NeMo's implementation w/o eval fixes)                |   96.44/94.50  |  99.47/99.29  | 79.86/67.77 | 54.68/41.63 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| FastSGT (w/o eval fixes)                                           |                |               |             |             |
+| FastSGT (w/o eval fixes)                                           |   96.61/94.18  |  99.66/99.55  | 88.78/76.52 | 71.34/55.23 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| FastSGT (with eval fixes)                                          |                |               |             |             |
-+--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| FastSGD + Augmentation (with eval fixes)                           |                |               |             |             |
+| FastSGT (with eval fixes)                                          |   96.26/91.44  |  99.65/99.64  | 92.33/92.12 | 79.65/78.55 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 
 
