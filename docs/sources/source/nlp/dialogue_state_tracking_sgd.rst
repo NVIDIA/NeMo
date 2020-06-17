@@ -202,18 +202,7 @@ In order to train the SGD Baseline model on a single domain task and evaluate on
         --eval_dataset dev_test
         --tracker_model=baseline
 
-To train the FastSGT model on a single domain task and evaluate on its dev and test data, you may run:
-
-.. code-block:: bash
-
-    cd examples/nlp/dialogue_state_tracking
-    python dialogue_state_tracking_sgd.py \
-        --task_name dstc8_single_domain \
-        --data_dir PATH_TO/dstc8-schema-guided-dialogue \
-        --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ \
-        --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \
-        --eval_dataset dev_test
-        --tracker_model=nemotracker
+To train the FastSGT model use "--tracker_model=nemotracker" instead.
 
 Metrics
 -------
