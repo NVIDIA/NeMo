@@ -59,6 +59,7 @@ class AppState(metaclass=Singleton):
 
         self._world_size = None
         self._model_parallel_size = None
+        self._model_parallel_group = None
         self._data_parallel_size = None
         self._data_parallel_group = None
 
@@ -185,6 +186,14 @@ class AppState(metaclass=Singleton):
     @model_parallel_rank.setter
     def model_parallel_rank(self, rank):
         self._model_parallel_rank = rank
+
+    @property
+    def model_parallel_group(self):
+        return self._model_parallel_group
+
+    @model_parallel_group.setter
+    def model_parallel_group(self, group):
+        self._model_parallel_group = group
 
     @property
     def data_parallel_rank(self):
