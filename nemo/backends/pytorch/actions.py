@@ -4,6 +4,8 @@ import importlib
 import itertools
 import json
 import os
+import types
+
 from collections import defaultdict
 from contextlib import ExitStack
 from pathlib import Path
@@ -1258,6 +1260,13 @@ class PtActions(Actions):
                 params_to_optimize=params_to_optimize,
             )
 
+            # need param_groups to have model_parallel attribute for mpu grad clipping to work
+            if AppState().model_parallel_rank is not None:
+                for param_group in optimizer.param_groups:
+                    for param in param_group['params']:
+                        if not hasattr(param, 'model_parallel'):
+                            param.model_parallel = False
+
             training_loop = [(optimizer, tensors_to_optimize, opt_call_chain)]
 
             self._optimizers.append(optimizer)
@@ -1321,6 +1330,18 @@ class PtActions(Actions):
                     step[2],
                 )
 
+            # if using model parallel amp overflow must be reduced across mp group
+            # so we monkey patch the apex amp loss scaler to first reduce the overflow
+            if AppState().model_parallel_rank is not None:
+                loss_scaler = amp._amp_state.loss_scalers[0]
+                def new_update_scale(self):
+                    torch.distributed.all_reduce(self._overflow_buf,
+                                                op=torch.distributed.ReduceOp.MAX,
+                                                group=AppState().model_parallel_group)
+                    return(self.old_update_scale())
+                loss_scaler.old_update_scale = loss_scaler.update_scale
+                loss_scaler.update_scale = types.MethodType(new_update_scale, loss_scaler)
+
         dataNM = training_loop[0][2][0][0]
         placement_gpu = dataNM.placement == DeviceType.AllGpu
         if placement_gpu:
@@ -1334,10 +1355,6 @@ class PtActions(Actions):
                         rank=AppState().data_parallel_rank,
                         num_replicas=AppState().data_parallel_size,
                     )
-                    # train_sampler = torch.utils.data.distributed.DistributedSampler(
-                    #     dataset=t_dataset, shuffle=dataNM.shuffle, rank=self.dp_rank,
-                    #     num_replicas=1
-                    # )
                 dataloader_params = {
                     'dataset': t_dataset,
                     'sampler': train_sampler,
@@ -1557,10 +1574,11 @@ class PtActions(Actions):
                 if batch_counter == batches_per_step:
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
-                        torch.nn.utils.clip_grad_norm_(master_params(curr_optimizer), grad_norm_clip)
-                    # if grad_norm_clip is not None:
-                    #     from megatron import mpu
-                    #     mpu.clip_grad_norm(master_params(curr_optimizer), grad_norm_clip)
+                        if AppState().model_parallel_rank is not None:
+                            from megatron import mpu
+                            mpu.clip_grad_norm(master_params(curr_optimizer), grad_norm_clip)
+                        else:
+                            torch.nn.utils.clip_grad_norm_(master_params(curr_optimizer), grad_norm_clip)
                     curr_optimizer.step()
                     batch_counter = 0
                     _perform_on_step_end(callbacks, get_state(self))
