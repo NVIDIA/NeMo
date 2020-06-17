@@ -57,7 +57,7 @@ examples = [
         "Is there a train from Ely to Cambridge on Tuesday ?",
         "I need to arrive by 11 am .",
         "What is the trip duration ?",
-        "Yes, please book it",
+        "Yes, please book the tickets",
     ],
     # ["I want to find a moderate hotel", "What is the address ?"],
 ]
