@@ -223,87 +223,48 @@ The evaluation results are shown for Seen Services (all services seen during mod
 Note, during the evaluation, the model first generates predictions and writes them to a file in the same format as the original dialogue files, and then uses these files to compare the predicted dialogue state to the ground truth.
 
 There were some issues in the original evaluation process of the SGD Baseline which we fixed.
-First, some services were considered seen services during evaluation for single domain dialogues while they do not actually exist in the training data.
-The other issue was that the turns which come after an unseen service in multi-domain dialogues could be counted as seen by the original evaluation,
-which means errors from unseen services may propagate through the dialogue and affect some of the metrics for seen services.
-We fixed it by just considering only turns as by seen services if there are no turns before them in the dialogue by unseen services.
-These fixes helped to improve the results. To have a fair comparison we also reported the performance of the baseline model and ours with and without these fixes in the table.
+First, some services were considered seen services during evaluation for single domain dialogues while they do not actually exist in the training data. In the original version of the single domain task, the evaluation falsely classified two services ``Travel_1`` and ``Weather_1`` as Seen Services although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on Seen Services increased. The other issue was that the turns which come after an unseen service in multi-domain dialogues could be counted as seen by the original evaluation, which means errors from unseen services may propagate through the dialogue and affect some of the metrics for seen services.
+We fixed it by just considering only turns as by seen services if there are no turns before them in the dialogue by unseen services. These fixes helped to improve the results. To have a fair comparison we also reported the performance of the baseline model and ours with and without these fixes in the results tables.
 
 
 Results on Single Domain
 ------------------------
-The following table shows the results of the SGD baseline and that of some NeMo model features. The focus was to improve seen services.
-We use * to denote the issue fixed in NeMo that occurred in the original TensorFlow implementation of SGD for single domain dialogues.
-In the original version of the single domain task, the evaluation falsely classified two services ``Travel_1`` and ``Weather_1`` as Seen Services
-although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on Seen Services increased.
+The following table shows the performance results of the SGD Baseline and FastSGD. The focus was to improve seen services. We specified the experiments where the evaluation issue with the original TensorFlow implementation of SGD is fixed. We did all our experiments on systems with 8 V100 GPUs using mixed precision training ("--amp_opt_level=O1") to make the training process faster. All of the models are trained for 160 epochs to have less variance in the results while most of them already converge in less than 60 epochs. The variation of the main metric which is joint goal accuracy can be significant if not trained more epochs. The reason is that even small errors in predicting some values for some turns may propagate through the whole dialogue and increase the error in joint goal accuracy significantly. We repeated each experiment three times and report the average in all tables. We used 16 heads for each of the attention-based projection layers, similar to the BERT-based encoders. We have optimized the model using Adam optimizer with default parameter settings. Batch size was set to 128 per GPU, maximum learning rate to $4e-4$ and weight decay to 0.01. Linear decay annealing was used with warm-up of 0.02% of the total steps. Dropout was set to 0.2 to have higher regularization considering we used higher learning rate compared to the recommended learning rate for fine-tuning BERT with smaller batch sizes.
 
 
+The performance results of the models on seen services:
++--------------------------------------------------------------------+----------------+----------------+------------+-------------+
+|                                                                    |                          Dev/Test                          |
+|                                                                    +----------------+----------------+------------+-------------+
+| Model                                                              | Active Int Acc | Req Slot F1   | Aver GA     | Joint GA    |
++====================================================================+================+===============+=============+=============+
+| SGD Baseline (original implementation w/o eval fixes)              |   99.06/-      |  98.67/-      | 88.08/-     | 68.58/-     |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| SGD Baseline (NeMo's implementation w/o eval fixes)                |   99.03/78.22  |  98.74/96.83  | 88.12/92.17 | 68.61/73.94 |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| FastSGT (w/o eval fixes)                                           |   98.94/77.53  |  98.80/96.89  | 92.98/94.12 | 83.13/80.25 |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| FastSGT (with eval fixes)                                          |   98.94/77.53  |  98.80/96.89  | 92.98/94.12 | 83.13/80.25 |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| FastSGD + Augmentation (with eval fixes)                           |   98.74/73.97  |  99.59/99.31  | 96.70/96.31 | 88.66/83.12 |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 
-Seen Services
-
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                    |                        Dev set                           |
-+                                                                    +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                       | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+====================================================================+=================+===============+===========+============+
-| Original SGD baseline codebase                                     |      99.06      |     98.67     |   88.08   |    68.58   |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                              |      98.91      |     99.60     |   90.71   |    70.94   |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker                                       |      98.94      |     99.52     |   95.72   |    85.34   |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + attention head                      |      98.99      |     99.66     |   96.26   |    86.81   |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + data augmentation                   |      98.89      |     99.70     |   96.23   |    86.53   |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + attention head + data augmentation  |     98.95       |     99.70     |   94.96   |    88.06   |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-
-
-
-Unseen Services
-
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                    |                        Dev set                           |
-+                                                                    +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                       | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+====================================================================+=================+===============+===========+============+
-| Original SGD baseline codebase                                     |       94.8      |      93.6     |   66.03   |   28.05    |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                              |       94.75     |      93.46    |   65.33   |   32.18    |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker                                       |      94.74      |    93.49      |   67.55   |   34.68    |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + attention head                      |      92.39      |    94.04      |   68.47   |   33.41    |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + data augmentation                   |      94.94      |    93.97      |   65.73   |   30.89    |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + attention head + data augmentation  |      92.68      |    94.55      |   69.59   |   32.76    |
-+--------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-
-
-
-All Services
-
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-|                                                                   |                        Dev set                           |
-+                                                                   +-----------------+---------------+-----------+------------+
-| SGD baseline implementations                                      | Active Int Acc  | Req Slot F1   | Aver GA   | Joint GA   |
-+===================================================================+=================+===============+===========+============+
-| Original SGD trained on single domain task                        |      96.6       |     96.5      |   77.6    |    48.6    |
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo's Implementation of the Baseline                             |      96.56      |     96.13     |   76.49   |    49.05   |
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker                                      |      96.57      |     96.12     |   79.93   |    56.73   |
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + attention head                     |      95.26      |     96.49     |   80.68   |    56.65   |
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + data augmentation                  |      96.66      |     96.46     |   79.14   |    55.11   |
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-| NeMo baseline + NeMo Tracker + attention head + data augmentation |      95.41      |     96.79     |   81.47   |    56.83   |
-+-------------------------------------------------------------------+-----------------+---------------+-----------+------------+
-
-
+The performance results of the models on all services:
++--------------------------------------------------------------------+----------------+----------------+------------+-------------+
+|                                                                    |                          Dev/Test                          |
+|                                                                    +----------------+----------------+------------+-------------+
+| Model                                                              | Active Int Acc | Req Slot F1   | Aver GA     | Joint GA    |
++====================================================================+================+===============+=============+=============+
+| SGD Baseline (original implementation w/o eval fixes)              |   96.60/-      |  96.50/-      | 77.60/-     | 48.6/-      |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| SGD Baseline (NeMo's implementation w/o eval fixes)                |   96.00/88.05  |  96.50/95.60  | 77.60/68.40 | 48.60/35.60 |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| FastSGT (w/o eval fixes)                                           |   96.45/88.60  |  96.55/94.65  | 81.11/71.22 | 56.66/39.77 |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| FastSGT (with eval fixes)                                          |                |               |             |             |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
+| FastSGD + Augmentation (with eval fixes)                           |                |               |             |             |
++--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 
 
 .. note::
