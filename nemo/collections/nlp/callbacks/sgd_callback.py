@@ -156,7 +156,7 @@ def eval_epochs_done_callback(
     eval_dataset,
     data_dir,
     prediction_dir,
-    state_tracker,
+    tracker_model,
     eval_debug,
     dialogues_processor,
     schema_emb_preprocessor,
@@ -178,14 +178,14 @@ def eval_epochs_done_callback(
         input_json_files,
         prediction_dir,
         schemas=schema_emb_preprocessor.schemas,
-        state_tracker=state_tracker,
+        tracker_model=tracker_model,
         eval_debug=eval_debug,
         in_domain_services=in_domain_services,
     )
     metrics = evaluate(
         prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match,
     )
-    return metrics
+    return metrics[SEEN_SERVICES]
 
 
 def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_acc_across_turn, no_fuzzy_match):
@@ -214,4 +214,4 @@ def evaluate(prediction_dir, data_dir, eval_dataset, in_domain_services, joint_a
     with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w") as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
         f.close()
-    return all_metric_aggregate[ALL_SERVICES]
+    return all_metric_aggregate

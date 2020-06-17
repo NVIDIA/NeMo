@@ -20,11 +20,12 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
 """
 
-import collections
+import copy
 import json
 import os
 import pickle
 import re
+from collections import OrderedDict, defaultdict
 
 import numpy as np
 import torch
@@ -35,11 +36,13 @@ from nemo.utils import logging
 __all__ = ['FILE_RANGES', 'PER_FRAME_OUTPUT_FILENAME', 'SGDDataProcessor']
 
 FILE_RANGES = {
-    "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
-    "sgd_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
-    "sgd_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
+    "dstc8_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
+    "dstc8_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
+    "dstc8_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
     "debug_sample": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
+    "sgdplus_single": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
+    "sgdplus_all": {"train": range(1, 3), "dev": range(1, 3), "test": range(1, 3)},
 }
 
 # Name of the file containing all predictions and their corresponding frame metrics.
@@ -151,7 +154,6 @@ class SGDDataProcessor(object):
 
         with open(dial_file, "rb") as f:
             dial_examples = np.load(f, allow_pickle=True)
-            f.close()
 
         if not os.path.exists(self.slots_relation_file):
             raise ValueError(
@@ -185,15 +187,26 @@ class SGDDataProcessor(object):
         dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
 
         examples = []
-        slot_carryover_candlist = collections.defaultdict(int)
+        slot_carryover_candlist = defaultdict(int)
+        services_switch_counts = defaultdict(int)
+
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
                 logging.info(f'Processed {dialog_idx} dialogues.')
-            examples.extend(self._create_examples_from_dialog(dialog, schemas, dataset, slot_carryover_candlist))
+            examples.extend(
+                self._create_examples_from_dialog(
+                    dialog, schemas, dataset, slot_carryover_candlist, services_switch_counts
+                )
+            )
 
-        slots_relation_list = collections.defaultdict(list)
+        slots_relation_list = defaultdict(list)
         for slots_relation, relation_size in slot_carryover_candlist.items():
             if relation_size > 0:
+                switch_counts = (
+                    services_switch_counts[(slots_relation[0], slots_relation[2])]
+                    + services_switch_counts[(slots_relation[2], slots_relation[0])]
+                )
+                relation_size = relation_size / switch_counts
                 slots_relation_list[(slots_relation[0], slots_relation[1])].append(
                     (slots_relation[2], slots_relation[3], relation_size)
                 )
@@ -203,7 +216,7 @@ class SGDDataProcessor(object):
 
         return examples, slots_relation_list
 
-    def _create_examples_from_dialog(self, dialog, schemas, dataset, slot_carryover_candlist):
+    def _create_examples_from_dialog(self, dialog, schemas, dataset, slot_carryover_candlist, services_switch_counts):
         """
         Create examples for every turn in the dialog.
         Args:
@@ -217,8 +230,18 @@ class SGDDataProcessor(object):
         dialog_id = dialog["dialogue_id"]
         prev_states = {}
         examples = []
+        agg_sys_states = defaultdict(dict)
+        agg_sys_states_prev = defaultdict(dict)
+        frame_service_prev = ""
         for turn_idx, turn in enumerate(dialog["turns"]):
             # Generate an example for every frame in every user turn.
+            if turn["speaker"] == "SYSTEM":
+                agg_sys_states_prev = copy.deepcopy(agg_sys_states)
+                for frame in turn["frames"]:
+                    for action in frame["actions"]:
+                        if action["slot"] and len(action["values"]) > 0:
+                            agg_sys_states[frame["service"]][action["slot"]] = action["values"]
+
             if turn["speaker"] == "USER":
                 user_utterance = turn["utterance"]
                 user_frames = {f["service"]: f for f in turn["frames"]}
@@ -230,24 +253,31 @@ class SGDDataProcessor(object):
                     system_utterance = ""
                     system_frames = {}
 
+                if len(user_frames) == 2:
+                    frames_list_name = list(user_frames.keys())
+                    frames_list_val = list(user_frames.values())
+                    user_frames_ordered = OrderedDict()
+
+                    if frame_service_prev != "" and frames_list_name[0] != frame_service_prev:
+                        user_frames_ordered[frames_list_name[1]] = frames_list_val[1]
+                        user_frames_ordered[frames_list_name[0]] = frames_list_val[0]
+                        user_frames = user_frames_ordered
+
                 turn_id = "{}-{}-{:02d}".format(dataset, dialog_id, turn_idx)
-                turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
-                    turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
+                turn_examples, prev_states = self._create_examples_from_turn(
+                    turn_id,
+                    system_utterance,
+                    user_utterance,
+                    system_frames,
+                    user_frames,
+                    prev_states,
+                    schemas,
+                    copy.deepcopy(agg_sys_states_prev),
+                    slot_carryover_candlist,
+                    services_switch_counts,
                 )
                 examples.extend(turn_examples)
-
-                for value, slots_list in slot_carryover_values.items():
-                    if value in ["True", "False"]:
-                        continue
-                    if len(slots_list) > 1:
-                        for service1, slot1 in slots_list:
-                            for service2, slot2 in slots_list:
-                                if service1 == service2:
-                                    continue
-                                if service1 > service2:
-                                    service1, service2 = service2, service1
-                                    slot1, slot2 = slot2, slot1
-                                slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
+                frame_service_prev = user_frames[list(user_frames.keys())[-1]]["service"]
         return examples
 
     def _get_state_update(self, current_state, prev_state):
@@ -268,7 +298,17 @@ class SGDDataProcessor(object):
         return state_update
 
     def _create_examples_from_turn(
-        self, turn_id, system_utterance, user_utterance, system_frames, user_frames, prev_states, schemas
+        self,
+        turn_id,
+        system_utterance,
+        user_utterance,
+        system_frames,
+        user_frames,
+        prev_states,
+        schemas,
+        agg_sys_states,
+        slot_carryover_candlist,
+        services_switch_counts,
     ):
         """
         Creates an example for each frame in the user turn.
@@ -280,6 +320,9 @@ class SGDDataProcessor(object):
             user_frames (dict): all user utterances and slot - slot value pairs
             prev_states (dict): slot - slot value pairs from the previous turns
             schemas (obj): carries information about the service from the current turn
+            agg_sys_states (dict): the collection of all the slots and values mentioned by the system until the previous turn
+            slot_carryover_candlist (dict): a dictionary to keep and aggregate the counts of the relations found between any two slots
+            services_switch_counts (dict): a dictionary to keep and aggregate the number of switches between any two services
         Returns:
             examples: a list of `InputExample`s.
             prev_states (dict): updated dialogue state
@@ -287,7 +330,9 @@ class SGDDataProcessor(object):
         system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
         user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
         states = {}
-        base_example = InputExample(schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer,)
+        base_example = InputExample(
+            schema_config=self.schema_config, is_real_example=True, tokenizer=self._tokenizer, service_schema=schemas
+        )
         base_example.example_id = turn_id
 
         _, dialog_id, turn_id_ = turn_id.split('-')
@@ -298,7 +343,6 @@ class SGDDataProcessor(object):
         )
 
         examples = []
-        slot_carryover_values = collections.defaultdict(list)
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()
@@ -320,7 +364,7 @@ class SGDDataProcessor(object):
             states[service] = state
 
             # Populate features in the example.
-            example.add_categorical_slots(state_update)
+            example.add_categorical_slots(state_update, agg_sys_states[service])
             # The input tokens to bert are in the format [CLS] [S1] [S2] ... [SEP]
             # [U1] [U2] ... [SEP] [PAD] ... [PAD]. For system token indices a bias of
             # 1 is added for the [CLS] token and for user tokens a bias of 2 +
@@ -341,19 +385,26 @@ class SGDDataProcessor(object):
             examples.append(example)
 
             if service not in prev_states and int(turn_id_) > 0:
-                for slot_name, values in state_update.items():
-                    for value in values:
-                        slot_carryover_values[value].append((service, slot_name))
-                for prev_service, prev_slot_value_list in prev_states.items():
-                    if prev_service == service:
-                        continue
-                    if prev_service in state:
-                        prev_slot_value_list = state[prev_service]
-                    for prev_slot_name, prev_values in prev_slot_value_list.items():
-                        for prev_value in prev_values:
-                            slot_carryover_values[prev_value].append((prev_service, prev_slot_name))
+                prev_service = ""
+                for prev_s, prev_slot_value_list in prev_states.items():
+                    if prev_s != service:
+                        prev_service = prev_s
+                services_switch_counts[(prev_service, service)] += 1
 
-        return examples, states, slot_carryover_values
+                if prev_service in states:
+                    prev_slot_value_list = states[prev_service]
+                else:
+                    prev_slot_value_list = prev_states[prev_service]
+
+                cur_slot_value_list = state_update
+                for cur_slot, cur_values in cur_slot_value_list.items():
+                    for prev_slot, prev_values in prev_slot_value_list.items():
+                        if "True" in cur_values or "False" in cur_values:
+                            continue
+                        if set(cur_values) & set(prev_values):
+                            slot_carryover_candlist[(prev_service, prev_slot, service, cur_slot)] += 1.0
+
+        return examples, states
 
     def _find_subword_indices(self, slot_values, utterance, char_slot_spans, alignments, subwords, bias):
         """Find indices for subwords corresponding to slot values."""
