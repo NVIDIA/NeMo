@@ -99,8 +99,8 @@ Every dialogue contains the following information:
 
 To find more details and download the dataset, use `this link <https://github.com/google-research-datasets/dstc8-schema-guided-dialogue>`_.
 
-Baseline model
---------------
+SGD Baseline Model
+------------------
 
 The SGD dataset for every dataset split (train, dev, test) provides detailed schema files (see `this for an example here <https://github.com/google-research-datasets/dstc8-schema-guided-dialogue/blob/master/train/schema.json>`_).
 These files contain information about slots supported by every service, possible values for categorical slots, along with the supported intents.
@@ -124,33 +124,23 @@ The SGD model is learning to understand and extract from the dialogue the follow
 - categorical slots
 - non-categorical slots
 
-Note that for every abovementioned slot, the model predicts slot status and slot value. Only if the slot status is predicted to be active, the associated slot value is taken into account.
+Note that for every above mentioned slot, the model predicts slot status and slot value. Only if the slot status is predicted to be active, the associated slot value is taken into account.
 
 Model components:
 
 - **SGDEncoder** - uses a BERT model to encode user utterance. By default, the SGD model uses the pre-trained BERT base cased model from `Hugging Face Transformers <https://huggingface.co/transformers/>`_ to get embedded representations for schema elements and also to encode user utterance. The SGDEncoder returns encoding of the whole user utterance using 'CLS' token and embedded representation of every token in the utterance.
 - **SGDDecoder** - returns logits for predicted elements by conditioning on the encoded utterance
 
-Metrics
--------
-Metrics used for automatic evaluation of the model :cite:`nlp-sgd-rastogi2020schema`:
+FastSGT (Improved Model)
+------------------------
+We proposed an improved version of the SGD baseline model called Fast Schema Guided Tracker (FastSGT) which is designed and optimzied for seen services.
+It has a significantly higher performance in terms of accuracy comparing to the baseline for seen services. FastSGT has the following features:
 
-- **Active Intent Accuracy** - the fraction of user turns for which the active intent has been correctly predicted.
-- **Requested Slot F1** - the macro-averaged F1 score for requested slots over all eligible turns. Turns with no requested slots in ground truth and predictions are skipped.
-- **Average Goal Accuracy** For each turn, we predict a single value for each slot present in the dialogue state. This is the average accuracy of predicting the value of a slot correctly.
-- **Joint Goal Accuracy** - the average accuracy of predicting all slot assignments for a given service in a turn correctly.
-
-The evaluation results are shown for Seen Services (all services seen during model training), Unseen Services (services not seen during training), and All Services (the combination of Seen and Unseen Services).
-Note, during the evaluation, the model first generates predictions and writes them to a file in the same format as the original dialogue files, and then uses these files to compare the predicted dialogue state to the ground truth.
-
-Model Improvements
-------------------
-We did following improvements are done to the baseline to get better performance and also increase the model's flexibility:
-
-- Data augmentation
-- Slot carry-over mechanism (NeMo Tracker)
+- Data augmentation for non-categorical slots
+- Multi-head attention projection layers for decoders
+- In-service slot carry-over mechanism
+- Cross-service slot carry-over mechanism
 - Ability to make schema embeddings trainable during the model training
-- Adding an attention layer between the encoder and the model heads
 
 Data Augmentation
 -----------------
@@ -175,18 +165,30 @@ For our experiments we used 9 augmentation sweeps (and concatenated it with the 
         --concat_orig_dialogue
 
 
-Nemo Tracker
-------------
-The performance of the original baseline for SGD dataset is inferior to the current state-of-the-art approches proposed for this dataset. Therefore, we improved the state tracker of the baseline significantly by the following updates.
-The new state tracker is called Nemo Tracker and can be set by passing "--state_tracker=nemotracker".
+Slot Carry-over Mechanisms
+--------------------------
+The slot carry-over procedures enable the model to retrieve a value for a slot from the preceding system utterance or even previous turns in the dialogue.
+There are many cases where the user is accepting some values offered by the system and the value is not mentioned explicitly in the user utterance.
+In our system we have implemented two different carry-over procedures.
+The value may be offered in the last system utterance, or even in the previous turns. The procedure to retrieve values in these cases is called in-service carry-over.
+There are also cases where a switch is happening between two services in multi-domain dialogues.
+A dialogue may contain more than one service and the user may switch between these services.
+When a switch happens, we may need to carry some values from a slot in the previous service to another slot in the current service.
+The carry-over procedure to carry values between two services is called cross-service carry-over.
+To support carry-over, we added an status of "carryover" to all the slots which is active when the value of the slot in updated in a turn but it is not explicly mentioned in the current user utterance.
+The value for such slots may come from the previous system utterances and offers. We also added an extra value ("#CARRYOVER#") to all the categorical slots.
+When a categorical slot has status of "carryover", the value of "#CARRYOVER#" should be predictd for that slot.
 
-    * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions. Therefore, whenever the status of a non-categorical slot is active but no value can be found in the user utterance, we search the list of slots and their values mentioned in the previous system actions to find a value for this slot. The most recent value is used as the value for the slot. It is called in-domain carry-over as it happens inside a service.
+    * **In-service carry-over**: We trigger this procedure in three cases: 1-status of a slot is predicted as "carry\_over", 2-the spanning region found for the non-categorical slots is not in the span of the user utterance, 3-"#CARRYOVER#" value is predicted for a categorical slot with "active" or "carry\_over" statuses. The in-service carry-over procedure tries to retrieve a value for a slot from the previous system utterances in the dialogue. We first search the system actions starting from the most recent system utterance and then move backwards for a value mentioned for that slot. The most recent value would be considered for the slot if multiple values are found. If no value could be found, that slot would not get updated in the current state.
+    * **Cross-service carry-over mechanism**: Carrying values from previous services to the current one when a switch happens in a turn is done by cross-service carry-over procedure. The previous service and slots are called sources, and the new service and slots are called the targets. To perform the carry-over, we need to build a list of candidates for each slot which contains the slots where a carry-over can happen from them. We create this carry-over candidate list from the training data. We process the whole dialogues in the training data, and count the number of times a value from a source slot and service carry-overs to a target service and slot when a switch happens. We look for the values updated in each turn and check if that value is proposed by the system in the preceding turns. These counts are normalized to the number of the switches between each two services in the whole training dialogues. This carry-over relation between two slots is considered symmetric and statistics from both sides are aggregated. This candidate list for each slot contains a list of slot candidates from other services which is looked up to find a carry-over value. We normalize the number of carry-overs by the number of switches to have a better estimate of the likelihood of carry-overs. In our experiments, the ones with likelihoods less than 0.1 are ignored.
 
+When the carry-over procedures are triggered in a turn, we search for the candidates of each slot to find if any value is mentioned for the slots. If multiple values for a slot are found, the most recent one is used.
+The need and effectivness of the carry-over mechanisms are shown by some researches :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. It improved the accuracy of the state tracker for SGD significantly.
+It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
+the candidate list is extracted from the training dialogues which does not contain unseen services.
+To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots :cite:`nlp-sgd-limiao2019dstc8`.
 
-    * **Cross-service carry-over mechanism**: In multi-domain dialogues, switching between two services can happen in the dialogue. In such cases, there can be some values to get transfered to the new service automatically. For instance when user is reserving flight tickets for two persons, it can be assumed that number of people for hotel reservation should also be two. To handle such cases, when we process the dialogues, we also record the list of these carry-over between two services from the training data. A candidate list for each (service, slot) is produced which show the list possible carry-over for that slot. These lists are stored in a file along with the processed dialogues and would be read and used in the state tracker to carry values when switches happens from one service to another. Whenever we find a switch and have an active non-categorical slot without any value, we would try to use that candidate list to retrieve a value for that slot from other slots in other services in previous turns. The latest value is used if multiple values are found.
-
-The main idea of carry-over between slots are inspired from :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. These two updates improved the accuracy of the state tracker for SGD significantly. It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
-the candidate list is extracted from the training dialogues which does not contain unseen services. To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots.
+The slot Carry-over mechanisms can be enabled by passing "--state_tracker=nemotracker --add_carry_value --add_carry_status" to the example script.
 
 
 Training
@@ -202,6 +204,26 @@ In order to train the Baseline SGD model on a single domain task and evaluate on
         --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ \
         --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir \
         --eval_dataset dev_test
+
+
+Metrics
+-------
+Metrics used for automatic evaluation of the model :cite:`nlp-sgd-rastogi2020schema`:
+
+- **Active Intent Accuracy** - the fraction of user turns for which the active intent has been correctly predicted.
+- **Requested Slot F1** - the macro-averaged F1 score for requested slots over all eligible turns. Turns with no requested slots in ground truth and predictions are skipped.
+- **Average Goal Accuracy** For each turn, we predict a single value for each slot present in the dialogue state. This is the average accuracy of predicting the value of a slot correctly.
+- **Joint Goal Accuracy** - the average accuracy of predicting all slot assignments for a given service in a turn correctly.
+
+The evaluation results are shown for Seen Services (all services seen during model training), Unseen Services (services not seen during training), and All Services (the combination of Seen and Unseen Services).
+Note, during the evaluation, the model first generates predictions and writes them to a file in the same format as the original dialogue files, and then uses these files to compare the predicted dialogue state to the ground truth.
+
+There were some issues in the original evaluation process of the SGD baseline which we fixed.
+First, some services were considered seen services during evaluation for single domain dialogues while they do not actually exist in the training data.
+The other issue was that the turns which come after an unseen service in multi-domain dialogues could be counted as seen by the original evaluation,
+which means errors from unseen services may propagate through the dialogue and affect some of the metrics for seen services.
+We fixed it by just considering only turns as by seen services if there are no turns before them in the dialogue by unseen services.
+These fixes helped to improve the results. To have a fair comparison we also reported the performance of the baseline model and ours with and without these fixes in the table.
 
 
 Results on Single Domain
