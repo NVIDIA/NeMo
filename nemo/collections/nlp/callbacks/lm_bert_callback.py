@@ -25,17 +25,17 @@ def eval_iter_callback(tensors, global_vars):
 
     for kv, v in tensors.items():
 
-        if 'SmoothedCrossEntropyLoss' in kv:
+        if 'smoothedcrossentropyloss' in kv:
             if "dev_mlm_loss" not in global_vars.keys():
                 global_vars["dev_mlm_loss"] = []
             for dev_mlm_loss in v:
                 global_vars["dev_mlm_loss"].append(dev_mlm_loss.item())
-        if 'CrossEntropyLossNM' in kv:
+        if 'crossentropylossnm' in kv:
             if "dev_nsp_loss" not in global_vars.keys():
                 global_vars["dev_nsp_loss"] = []
             for dev_nsp_loss in v:
                 global_vars["dev_nsp_loss"].append(dev_nsp_loss.item())
-        if 'LossAggregatorNM' in kv:
+        if 'lossaggregator' in kv:
             if "dev_loss" not in global_vars.keys():
                 global_vars["dev_loss"] = []
             for dev_loss in v:
