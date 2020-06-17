@@ -191,6 +191,8 @@ def parse_args():
         "--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
     )
     parser.add_argument("--local_rank", type=int, default=None, help="For distributed training: local_rank")
+    parser.add_argument("--model-parallel-size", default=None, type=int, help="For Megatron style model parallelism.")
+    parser.add_argument("--random_seed", default=None, type=int)
     parser.add_argument(
         "--work_dir",
         default='output_squad',
@@ -251,6 +253,7 @@ def parse_args():
         default="nbest.json",
         help="File to write nbest predictions to. Only in evaluation or test mode.",
     )
+    parser.add_argument("--no_time_to_log_dir", action="store_true", help="whether to add time to work_dir or not")
     args = parser.parse_args()
     return args
 
@@ -338,7 +341,9 @@ if __name__ == "__main__":
         log_dir=args.work_dir,
         create_tb_writer=True,
         files_to_copy=[__file__],
-        add_time_to_log_dir=False,
+        add_time_to_log_dir=not args.no_time_to_log_dir,
+        model_parallel_size=args.model_parallel_size,
+        random_seed=args.random_seed,
     )
 
     model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
@@ -346,6 +351,7 @@ if __name__ == "__main__":
         config=args.bert_config,
         vocab=args.vocab_file,
         checkpoint=args.bert_checkpoint,
+        local_rank=args.local_rank,
     )
 
     tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
