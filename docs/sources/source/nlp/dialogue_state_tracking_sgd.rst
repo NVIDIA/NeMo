@@ -141,7 +141,7 @@ We proposed to use multi-head attention projections instead of the linear layers
 
 The idea is that domain-specific and slot-specific information can be extracted more efficiently from the collection of token-level representations than from a single sentence-level encoding. We used these multi-head attention layers just for the slot status detection and the categorical value decoders.
 
-The attention mechanisms can be enabled by passing "--tracker_model=nemotracker" params to the example script.
+The attention mechanism can be enabled by passing "--tracker_model=nemotracker" params to the example script.
 
 Slot Carry-over Mechanisms
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
