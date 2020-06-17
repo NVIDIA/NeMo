@@ -27,7 +27,7 @@ def rsetattr(obj, attr, val):
     return setattr(rgetattr(obj, pre) if pre else obj, post, val)
 
 
-def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
+def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern='', return_steps=False):
     """ Grab all the modules with match a certain pattern in cpkt_dir
     If multiple checkpoints found, by default, use the one last created.
     """
@@ -38,6 +38,7 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
         module_names = [module_names]
 
     ckpts = []
+    steps = []
 
     for module in module_names:
         if not isinstance(module, str):
@@ -59,7 +60,10 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern=''):
         if len(module_ckpts) > 1:
             module_ckpt = max(module_ckpts, key=step_from_checkpoint)
         ckpts.append(module_ckpt)
+        steps.append(step_from_checkpoint(module_ckpt))
 
+    if return_step:
+        return ckpts, steps
     return ckpts
 
 
