@@ -5,7 +5,6 @@ import itertools
 import json
 import os
 import types
-
 from collections import defaultdict
 from contextlib import ExitStack
 from pathlib import Path
@@ -1334,11 +1333,13 @@ class PtActions(Actions):
             # so we monkey patch the apex amp loss scaler to first reduce the overflow
             if AppState().model_parallel_rank is not None:
                 loss_scaler = amp._amp_state.loss_scalers[0]
+
                 def new_update_scale(self):
-                    torch.distributed.all_reduce(self._overflow_buf,
-                                                op=torch.distributed.ReduceOp.MAX,
-                                                group=AppState().model_parallel_group)
-                    return(self.old_update_scale())
+                    torch.distributed.all_reduce(
+                        self._overflow_buf, op=torch.distributed.ReduceOp.MAX, group=AppState().model_parallel_group
+                    )
+                    return self.old_update_scale()
+
                 loss_scaler.old_update_scale = loss_scaler.update_scale
                 loss_scaler.update_scale = types.MethodType(new_update_scale, loss_scaler)
 
@@ -1576,6 +1577,7 @@ class PtActions(Actions):
                     if grad_norm_clip is not None:
                         if AppState().model_parallel_rank is not None:
                             from megatron import mpu
+
                             mpu.clip_grad_norm(master_params(curr_optimizer), grad_norm_clip)
                         else:
                             torch.nn.utils.clip_grad_norm_(master_params(curr_optimizer), grad_norm_clip)
