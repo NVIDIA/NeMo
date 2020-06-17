@@ -1,7 +1,7 @@
 .. _sgd_tutorial:
 
-SGD Tutorial
-============
+Schema Guided Dialogues (SGD) Tutorial
+======================================
 
 Introduction
 ------------
