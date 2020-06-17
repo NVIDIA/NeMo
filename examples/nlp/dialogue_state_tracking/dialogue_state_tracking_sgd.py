@@ -238,14 +238,14 @@ parser.add_argument(
 parser.add_argument(
     "--no_carry_value",
     action="store_false",
-    help="Add a carry-over value to all categorical slots.",
+    help="Disables adding carry-over value to all categorical slots for nemotracker.",
     dest="add_carry_value",
 )
 
 parser.add_argument(
     "--no_carry_status",
     action="store_false",
-    help="Add a carry-over status to all categorical slots.",
+    help="Disables adding carry-over status to the slots for nemotracker.",
     dest="add_carry_status",
 )
 
