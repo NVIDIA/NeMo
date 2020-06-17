@@ -485,12 +485,9 @@ class CheckpointCallback(NeMoCallback):
                 for step in steps:
                     if step_check is None:
                         step_check = step
-                    else:
-                        if step != step_check:
-                            logging.warning(
-                                "Restoring from modules checkpoints where the training step does not match"
-                            )
-                            break
+                    elif step != step_check:
+                        logging.warning("Restoring from modules checkpoints where the training step does not match")
+                        break
 
                 for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
                     mod.restore_from(checkpoint, state["local_rank"])
