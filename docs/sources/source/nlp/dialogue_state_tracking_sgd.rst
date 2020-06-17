@@ -122,8 +122,8 @@ The SGD Baseline model is implemented with the following module components:
 - **SGDDecoder** - returns logits for predicted elements by conditioning on the encoded utterance
 
 
-FastSGT (Improved Model)
-------------------------
+FastSGT Model
+-------------
 We proposed an improved version of the SGD Baseline model called Fast Schema Guided Tracker (FastSGT) which is designed and optimized for seen services.
 It has a significantly higher performance in terms of accuracy compared to the baseline for seen services. FastSGT has the following features:
 
