@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
             # Forward pass.
             outputs = training_graph.forward(batch)
-            # Pring loss.
+            # Print loss.
             if step % freq == 0:
                 logging.info("Epoch: {} Step: {} Training Loss: {}".format(epoch, step, outputs.loss))
 

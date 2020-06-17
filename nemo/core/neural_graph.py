@@ -1286,94 +1286,11 @@ class NeuralGraph(NeuralInterface):
                     batch = [elem.to(self._pt_device) if isinstance(elem, torch.Tensor) else elem for elem in batch]
                     yield result_type(*batch)
 
-    def forward(self, *args: Optional[Tuple], **kwargs: Optional[Dict[str, Any]]):
+    def __forward(self, inputs: Dict[str, Any], connections: Dict[str, Any]):
         """
         Graph forward method. In the execution it follows the order of the modules defined in steps and passes data
         between modules following the connectivity stored in NmTensors.
-
-        Accepts a batch (passed as a tuple in args) OR a list of named arguments (as kwargs).
-
-        Use-case 1:
-        
-        .. code-block:: python
-
-            # Retrieve batch as a tuple and pass it to forward() as tuple.
-            for batch in training_graph.get_batch():
-                training_graph.forward(batch)
-
-        Use-case 2:
-
-        .. code-block:: python
-
-            # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
-            for batch in training_graph.get_batch():
-                training_graph.forward(input1=batch.input1, input2=batch.input2)
-
-
-        Use-case 3:
-
-        .. code-block:: python
-
-            # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
-            for batch in training_graph.get_batch(yield_dict=True):
-                training_graph.forward(**batch)
-
-        Args:
-            args: A tuple object (a batch) with all required inputs (optional)
-            kwargs: a dictionary containing all required inputs (optional)
-
-        Returns:
-            A tuple object containing all graph outputs
         """
-
-        # Get list of argument names.
-        if self.is_complete:
-            # Use dataset definitions.
-            dl = self.modules[self.steps[0]]
-            input_names = list(dl.output_ports.keys())
-        else:
-            input_names = list(self._inputs.keys())
-
-        # Work on args or kwargs - depending on input_dict settings.
-        if len(args) > 0:
-            # Operate on args, i.e. a single tuple or a single "object" (1 input port to graph).
-            if len(args) == 1:
-                # Check if it is a tuple.
-                if isinstance(args[0], tuple) and hasattr(args[0], "_fields"):
-                    inputs = args[0]._asdict()
-                else:
-                    # There is only one input - use the input_names[0] as key.
-                    inputs = {input_names[0]: args[0]}
-            else:
-                err = "Invalid argument passed to `graph forward()`"
-                err += " - expected: a tuple, received: `{}`".format(args)
-                raise ValueError(err)
-        else:
-            # Operate on named arguments.
-            inputs = kwargs
-
-        # Compare inputs with the desired inputs.
-        if len(input_names) != len(inputs) or sorted(input_names) != sorted(inputs.keys()):
-            err = "Invalid list of arguments passed to the `graph forward()`"
-            err += " - expected: `{}`, received: `{}`".format(input_names, kwargs.keys())
-            raise ValueError(err)
-
-        # Copy inputs to an adequate (module.output->value) structure.
-        if self._forward_data is not None:
-            self._forward_data = None
-        self._forward_data = defaultdict(lambda: {})
-
-        if self.is_complete:
-            # Treat all the inputs as "DL outputs".
-            for key, value in inputs.items():
-                self._forward_data[0][key] = value
-
-        # Create a list of connenctions: (producer.port -> consumer.port)
-        connections = []
-        for tensors in self.tensors.values():
-            for t in tensors.values():
-                connections.extend(t.connections())
-
         # Execute modules one by one.
         for step_number in range(len(self._steps)):
             # If graph is complete - we already fetched data from module 0 (DL)
@@ -1399,7 +1316,7 @@ class NeuralGraph(NeuralInterface):
                 key = self.inputs.has_binding(step_number, input_port_name)
                 # If so, then we must pass whatever was passed to that port in the list of arguments.
                 if key is not None:
-                    module_args[input_port_name] = kwargs[key]
+                    module_args[input_port_name] = inputs[key]
                     continue
 
                 # Else: find a tensor that should be passed to the given module's input.
@@ -1469,7 +1386,103 @@ class NeuralGraph(NeuralInterface):
             # Generally this should not happen!
             return
 
-    def backward(self, losses=[]):
+    def forward(self, *args: Optional[Tuple], **kwargs: Optional[Dict[str, Any]]):
+        """
+        Graph forward method. In the execution it follows the order of the modules defined in steps and passes data
+        between modules following the connectivity stored in NmTensors.
+
+        Accepts a batch (passed as a tuple in args) OR a list of named arguments (as kwargs).
+
+        Use-case 1:
+        
+        .. code-block:: python
+
+            # Retrieve batch as a tuple and pass it to forward() as tuple.
+            for batch in training_graph.get_batch():
+                training_graph.forward(batch)
+
+        Use-case 2:
+
+        .. code-block:: python
+
+            # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
+            for batch in training_graph.get_batch():
+                training_graph.forward(input1=batch.input1, input2=batch.input2)
+
+
+        Use-case 3:
+
+        .. code-block:: python
+
+            # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
+            for batch in training_graph.get_batch(yield_dict=True):
+                training_graph.forward(**batch)
+
+        Args:
+            args: A tuple object (a batch) with all required inputs (optional)
+            kwargs: a dictionary containing all required inputs (optional)
+
+        Returns:
+            A tuple object containing all graph outputs
+        """
+
+        # Get list of argument names.
+        if self.is_complete:
+            # Use dataset definitions.
+            dl = self.modules[self.steps[0]]
+            input_names = list(dl.output_ports.keys())
+        else:
+            input_names = list(self._inputs.keys())
+
+        # Work on args or kwargs - depending on input_dict settings.
+        if len(args) > 0:
+            # Operate on args, i.e. a single tuple or a single "object" (1 input port to graph).
+            if len(args) == 1:
+                # Check if it is a tuple.
+                if isinstance(args[0], tuple) and hasattr(args[0], "_fields"):
+                    inputs = args[0]._asdict()
+                else:
+                    # There is only one input - use the input_names[0] as key.
+                    inputs = {input_names[0]: args[0]}
+            else:
+                err = "Invalid argument passed to `graph forward()`"
+                err += " - expected: a tuple, received: `{}`".format(args)
+                raise ValueError(err)
+        else:
+            # Operate on named arguments.
+            inputs = kwargs
+
+        # Compare inputs with the desired inputs.
+        if len(input_names) != len(inputs) or sorted(input_names) != sorted(inputs.keys()):
+            err = "Invalid list of arguments passed to the `graph forward()`"
+            err += " - expected: `{}`, received: `{}`".format(input_names, inputs.keys())
+            raise ValueError(err)
+
+        # Copy inputs to an adequate (module.output->value) structure.
+        if self._forward_data is not None:
+            self._forward_data = None
+        self._forward_data = defaultdict(lambda: {})
+
+        if self.is_complete:
+            # Treat all the inputs as "DL outputs".
+            for key, value in inputs.items():
+                self._forward_data[0][key] = value
+
+        # Create a list of connenctions: (producer.port -> consumer.port)
+        connections = []
+        for tensors in self.tensors.values():
+            for t in tensors.values():
+                connections.extend(t.connections())
+
+        if self.operation_mode == OperationMode.evaluation:
+            # Perform forward - without collecting of the gradients.
+            with torch.no_grad():
+                return self.__forward(inputs, connections)
+        else:
+            # Perform forward - and collect all the gradients.
+            return self.__forward(inputs, connections)
+
+    def backward(self, losses: List["Tensor"] = []):
         """
         Backward pass through the graph. Optionally the method accepts list of losses to backpropagate from.
         If not provided, will collect all output of all loss modules in the graph and backpropagate from them.
@@ -1506,7 +1519,6 @@ class NeuralGraph(NeuralInterface):
 
         # Estimate the total number of backward passes (one from each tensor).
         total_passes = len(losses_to_backpropagate)
-        # import pdb; pdb.set_trace()
 
         # All but the last call to backward should have the retain_graph=True option.
         pass_counter = 0
@@ -1519,7 +1531,7 @@ class NeuralGraph(NeuralInterface):
                 # "Other pass."
                 loss.backward(retain_graph=True)
 
-    def parameters(self, recurse=True):
+    def parameters(self, recurse: bool = True):
         """
         Args:
             recurse (bool): if True, then yields parameters of graph modules and all their submodules.
@@ -1534,7 +1546,7 @@ class NeuralGraph(NeuralInterface):
                 for _, param in module.named_parameters(recurse=recurse):
                     yield param
 
-    def named_parameters(self, recurse=True):
+    def named_parameters(self, recurse: bool = True):
         """
         Args:
             recurse (bool): if True, then yields parameters of graph modules and all their submodules.
