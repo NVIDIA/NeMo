@@ -20,13 +20,12 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
 """
 
-import collections
 import copy
 import json
 import os
 import pickle
 import re
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import numpy as np
 import torch
@@ -188,8 +187,8 @@ class SGDDataProcessor(object):
         dialogs = SGDDataProcessor.load_dialogues(dialog_paths)
 
         examples = []
-        slot_carryover_candlist = collections.defaultdict(int)
-        services_switch_counts = collections.defaultdict(int)
+        slot_carryover_candlist = defaultdict(int)
+        services_switch_counts = defaultdict(int)
 
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
@@ -200,7 +199,7 @@ class SGDDataProcessor(object):
                 )
             )
 
-        slots_relation_list = collections.defaultdict(list)
+        slots_relation_list = defaultdict(list)
         for slots_relation, relation_size in slot_carryover_candlist.items():
             if relation_size > 0:
                 switch_counts = (
@@ -231,8 +230,8 @@ class SGDDataProcessor(object):
         dialog_id = dialog["dialogue_id"]
         prev_states = {}
         examples = []
-        agg_sys_states = collections.defaultdict(dict)
-        agg_sys_states_prev = collections.defaultdict(dict)
+        agg_sys_states = defaultdict(dict)
+        agg_sys_states_prev = defaultdict(dict)
         frame_service_prev = ""
         for turn_idx, turn in enumerate(dialog["turns"]):
             # Generate an example for every frame in every user turn.
@@ -341,7 +340,6 @@ class SGDDataProcessor(object):
         )
 
         examples = []
-        # slot_carryover_values = collections.defaultdict(list)
         for service, user_frame in user_frames.items():
             # Create an example for this service.
             example = base_example.make_copy_with_utterance_features()
