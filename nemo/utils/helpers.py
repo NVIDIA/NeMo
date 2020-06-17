@@ -62,7 +62,7 @@ def get_checkpoint_from_dir(module_names, cpkt_dir, ckpt_pattern='', return_step
         ckpts.append(module_ckpt)
         steps.append(step_from_checkpoint(module_ckpt))
 
-    if return_step:
+    if return_steps:
         return ckpts, steps
     return ckpts
 
