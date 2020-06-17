@@ -9,7 +9,7 @@ Introduction
 The goal of **Dialog State Tracking (DST)** :cite:`nlp-dst-henderson2015machine` \
 is to build a representation of the status of the ongoing conversation \
 being a sequence of utterances exchanged between dialog participants. \
-In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
+In other words, the goal of DST system is to capture user goals and intentions and encode them as a set of \
 **slots** along with the corresponding **values**. DST is considered an important module for most of the goal-oriented dialogue systems.
 
 
@@ -22,7 +22,7 @@ In another words, the goal of DST system is to capture user goals and intentions
 In this tutorial we will focus on a multi-domain dialogue MultiWOZ dataset :cite:`nlp-dst-budzianowski2018multiwoz` \
 and show how one can train a TRADE model :cite:`nlp-dst-wu2019transferable`, \
 being one of the recent, state of the art models. \
-**Multi-domain** setting introduces several challanges, with the most important coming from the need for \
+**Multi-domain** setting introduces several challenges, with the most important coming from the need for \
 **multi-turn mapping**. In a **single-turn mapping** scenario the (**domain**, **slot**, **value**) triplet can be \
 inferred from a single turn. In multi-turn this assumption does not hold and the DST system must infer those from \
 multiple turns, possibly spanning over several different domains.
@@ -36,7 +36,7 @@ The MultiWOZ Dataset
 The Multi-Domain Wizard-of-Oz dataset (`MultiWOZ`_) is a collection of human-to-human conversations spanning over \
 7 distinct domains and containing over 10,000 dialogues.
 The original MultiWOZ 2.0 dataset was introduced in :cite:`nlp-dst-budzianowski2018multiwoz`.
-However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which is an updated version of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value canonicalization etc.). Our model can also get trained on MultiWOZ 2.0.
+However, in this tutorial we will utilize MultiWOZ 2.1  :cite:`nlp-dst-eric2019multiwoz`, which is an updated version of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value canonicalization, etc.). Our model can also get trained on MultiWOZ 2.0.
 
 .. _MultiWOZ: https://www.repository.cam.ac.uk/handle/1810/294507
 
@@ -77,17 +77,17 @@ As well as the following slots:
  * no of days (123).
 
 
-Please note that some of the actions and slots are associated with particular domain(s), whereas some are universal, \
+Please note that some of the actions and slots are associated with a particular domain(s), whereas some are universal, \
 i.e. domain independent. The latter ones are denoted with (∗).
 
 
 MultiWOZ offers 10,438 dialogues, with 115,434 turns in total. \
 Dialogues are generally classified into single and multi-domain dialogues. \
 Dialogue length distribution is varying from 1 to 31, with around 70% of dialogues have more than 10 turns. \
-The average number of turns are 8.93 and 15.39 for single and multi-domain dialogues. \
+The average number of turns is 8.93 and 15.39 for single and multi-domain dialogues. \
 
 Each dialogue consists of a goal, multiple user and system utterances as well as a belief state and set of dialogue \
-acts with slots per turn. Additionally, each dialog is supported with a task description. \
+acts with slots per turn. Additionally, each dialog is supported with task description. \
 Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).
 
 
@@ -113,14 +113,14 @@ The model is composed of three main components:
  * **State Generator**
 
 The **utterance encoder** is a bi-directional Gated Recurrent Unit (GRU), returning both \
-context words and and an aggregated context vector encoding the whole dialogue history.
+context words and an aggregated context vector encoding the whole dialogue history.
 
-The **state generator** also uses GRU to predict the value for each(domain, slot) pair. Generator employ a soft-gated \
+The **state generator** also uses GRU to predict the value for each(domain, slot) pair. Generator employs a soft-gated \
 pointer-generator copying to combine a **distribution over the vocabulary** and a **distribution over the dialogue \
 history** into a single output distribution.
 
-Finally, the **slot gate** is a simple classifier that maps a context  vector taken from the encoder hidden states \
-to a probability  distribution  over three classes: *ptr*, *none*,  and *dontcare*.
+Finally, the **slot gate** is a simple classifier that maps a context vector taken from the encoder hidden states \
+to a probability distribution over three classes: *ptr*, *none*,  and *dontcare*.
 
 Data Pre-processing
 -------------------
@@ -133,13 +133,13 @@ contain the older version of this dataset.
 
 .. _MultiWOZ2.0: https://www.repository.cam.ac.uk/handle/1810/280608
 
-Next, we need to preprocess and reformat the dataset, what will result in division of data into three splits:
+Next, we need to preprocess and reformat the dataset. The dataset will be divided into three splits:
 
- * traininig split (8242 dialogs in the ``train_dials.json`` file)
+ * training split (8242 dialogs in the ``train_dials.json`` file)
  * development/validation split (1000 dialogs in the ``dev_dials.json`` file)
  * test split (999 dialogs in the ``test_dials.json`` file)
 
-In order to preprocess the MultiWOZ dataset you can use the provided `process_multiwoz.py`_ script:
+To preprocess the MultiWOZ dataset, you can use the provided `process_multiwoz.py`_ script:
 
 .. _process_multiwoz.py: https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/multiwoz/process_multiwoz.py
 
@@ -186,7 +186,7 @@ the `dialogue_state_tracking_trade.py`_ script with default parameters:
         --eval_file_prefix <test or dev>
 
 You may find the list of parameters in the example file and update them as see fits. \
-By default the script would train the model for 10 epochs on 1 single gpu. \
+By default, the script would train the model for 10 epochs on 1 single gpu. \
 The police and hospital domains are excluded from the training by default as they do not exist in the development set. \
 The list of the domains can get updated in the example.
 
@@ -194,7 +194,7 @@ The list of the domains can get updated in the example.
 Evaluating Checkpoints
 ----------------------
 
-By default a folder named "checkpoints" would get created under the working folder specified by `--work_dir` and \
+By default, a folder named "checkpoints" would get created under the working folder specified by `--work_dir` and \
 checkpoints are stored under it. To do evaluation a checkpoint on test or dev set, \
 you may run the same script by passing `--checkpoint_dir` and setting `--num_epochs` as zero to avoid the training:
 
@@ -211,7 +211,7 @@ you may run the same script by passing `--checkpoint_dir` and setting `--num_epo
 Metrics and Results
 -------------------
 
-In the following table we compare the results achieved by our TRADE model implementation with the results reported \
+In the following table, we compare the results achieved by our TRADE model implementation with the results reported \
 in the original paper :cite:`nlp-dst-wu2019transferable`. We trained our models for 10 epochs on a single GPU with 16GB memory. \
 As the authors reported results on just MultiWOZ 2.0 dataset, we ran the original implementation on MultiWOZ 2.1 dataset \
 and reported those too.
@@ -221,13 +221,13 @@ the original one. The main difference is that our model does not use pre-trained
 the performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of \
 fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the \
 original one is to create vocabulary from all the data including test and development sets. The main reason behind \
-the improvement of our model in terms of accuracy is utilizing better learning rate policy. When we used fixed \
+the improvement of our model in terms of accuracy is utilizing a better learning rate policy. When we used fixed \
 learning rate in our implementation, we got similar results as the original one.
 
 We also did some improvements to the implementation of the model to have faster training. It makes our implementation \
 significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster \
-training time. It should be noted that learning rate needs to get \
-increased if you want to use multi-GPU training because of having larger batch size.
+training time. It should be noted that the learning rate needs to get \
+increased if you want to use multi-GPU training because of having a larger batch size.
 
 Following :cite:`nlp-dst-wu2019transferable`, we used two main metrics to evaluate the model performance:
 

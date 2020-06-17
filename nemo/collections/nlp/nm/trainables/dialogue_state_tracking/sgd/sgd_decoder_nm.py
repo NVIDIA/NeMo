@@ -206,8 +206,8 @@ class SGDDecoderNM(TrainableNM):
         else:
             projection_module = Logits
 
-        self.intent_layer = projection_module(1, embedding_dim).to(self._device)
-        self.requested_slots_layer = projection_module(1, embedding_dim).to(self._device)
+        self.intent_layer = Logits(1, embedding_dim).to(self._device)
+        self.requested_slots_layer = Logits(1, embedding_dim).to(self._device)
 
         self.cat_slot_value_layer = projection_module(1, embedding_dim).to(self._device)
 
