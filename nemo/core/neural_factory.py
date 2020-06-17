@@ -230,14 +230,11 @@ class NeuralModuleFactory(object):
                     from megatron import mpu
 
                     mpu.initialize.initialize_model_parallel(self._model_parallel_size)
-                    # self._model_parallel_rank = mpu.get_model_parallel_rank()
                     AppState().model_parallel_rank = mpu.get_model_parallel_rank()
-                    # self._data_parallel_rank = mpu.get_data_parallel_rank()
+                    AppState().model_parallel_group = mpu.get_model_parallel_group()
                     AppState().data_parallel_rank = mpu.get_data_parallel_rank()
-                    # self._data_parallel_size = mpu.get_data_parallel_world_size()
                     AppState().data_parallel_size = mpu.get_data_parallel_world_size()
                     AppState().data_parallel_group = mpu.get_data_parallel_group()
-                    # TODO: update app_state properties here
                     logging.info(f'World size: {AppState().world_size}')
                     logging.info(f'Model parallel size: {AppState().model_parallel_size}')
                     logging.info(f'Data parallel size: {AppState().data_parallel_size}')
@@ -247,12 +244,8 @@ class NeuralModuleFactory(object):
                     logging.info(f'Data parallel rank: {AppState().data_parallel_rank}')
                 else:
                     # data parallel only
-                    self._data_parallel_size = self._world_size
                     AppState().data_parallel_size = AppState().world_size
-                    self._data_parallel_rank = self._global_rank
                     AppState().data_parallel_rank = AppState().global_rank
-                    self._data_parallel_size = self._world_size
-                    AppState().data_parallel_size = AppState().world_size
 
                 def torch_broadcast_wrapper(str_len=None, string=None, src=0):
                     """Wrapper function to broadcast string values across all
