@@ -134,11 +134,11 @@ It has a significantly higher performance in terms of accuracy compared to the b
 - Ability to make schema embeddings trainable during the model training
 
 Attention-based Projections
----------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 We proposed to use multi-head attention projections instead of the linear layers used in the decoders of the SGD Baseline model. In the SGD Baseline model, some linear-based projection layers are used for the all the decoders. These layers try to predict the desire goal for most of the targets by just using the output of the [CLS] token. We propsoed a more powerful projection layer based on multi-head attention mechanism. It uses the schema embedding vector as the query to attend to the token representations of the BERT as outputted by the encoder. The idea is that domain-specific and slot-specific information can be extracted more efficiently from the collection of token-level representations than from a single sentence-level encoding. We used these multi-head attention layers just for the slot status detection and the categorical value decoders.
 
 Slot Carry-over Mechanisms
---------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 The slot carry-over procedures enable the model to retrieve a value for a slot from the preceding system utterance or even previous turns in the dialogue :cite:`nlp-sgd-limiao2019dstc8` and :cite:`nlp-sgd-ruan2020fine`. There are many cases where the user is accepting some values offered by the system and the value is not mentioned explicitly in the user utterance.In our system, we have implemented two different carry-over procedures. The value may be offered in the last system utterance, or even in the previous turns. The procedure to retrieve values in these cases is called in-service carry-over. There are also cases where a switch is happening between two services in multi-domain dialogues. A dialogue may contain more than one service and the user may switch between these services. When a switch happens, we may need to carry some values from a slot in the previous service to another slot in the current service. The carry-over procedure to carry values between two services is called cross-service carry-over.
 
 To support carry-over procedures, we added an status of "carryover" to all the slots which is active when the value of the slot in updated in a turn but it is not explicitly mentioned in the current user utterance. The value for such slots may come from the previous system utterances and offers. We also added an extra value ("#CARRYOVER#") to all the categorical slots. When a categorical slot has the status of "carryover", the value of "#CARRYOVER#" should be predicted for that slot. We have explained our proposed carry-over mechanisms in the following.
@@ -156,8 +156,8 @@ To make it work for unseen services, such transfers can get learned by a model b
 The slot carry-over mechanisms can be enabled by passing "--state_tracker=nemotracker --add_carry_value --add_carry_status" params to the example script.
 
 Data Augmentation
------------------
-The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data /sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
+^^^^^^^^^^^^^^^^^
+We provide scripts for data augmentation which can be used to mitigate the problem of low-resource annotated training data. The data augmentation is done offline with `examples/nlp/dialogue_state_tracking/data /sgd/dialogue_augmentation.py <https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py>`_. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
 altered along with all affected dialogue meta information, e.g. dialogue states, to preserve semantic consistency. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
 Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
 ``get_new_noncat_value()`` is used to replace a non-categorical value by a different value from the same service slot.
