@@ -123,7 +123,7 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
     per_frame_metric = {}
 
     for dial_id, dial_hyp in dataset_hyp.items():
-        unseen = False
+        found_unseen = False
         dial_ref = dataset_ref[dial_id]
 
         if set(dial_ref["services"]) != set(dial_hyp["services"]):
@@ -188,10 +188,10 @@ def get_metrics(dataset_ref, dataset_hyp, service_schemas, in_domain_services, j
                 # Get the domain name of the service.
                 domain_name = frame_hyp["service"].split("_")[0]
                 domain_keys = [ALL_SERVICES, frame_hyp["service"], domain_name]
-                if frame_hyp["service"] in in_domain_services and not unseen:
+                if frame_hyp["service"] in in_domain_services and not found_unseen:
                     domain_keys.append(SEEN_SERVICES)
                 else:
-                    unseen = True
+                    found_unseen = True
                     domain_keys.append(UNSEEN_SERVICES)
                 for domain_key in domain_keys:
                     for metric_key, metric_value in frame_metric.items():

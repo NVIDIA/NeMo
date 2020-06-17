@@ -355,14 +355,13 @@ class InputExample(object):
             elif values[0] == STR_DONTCARE:
                 self.noncategorical_slot_status[slot_idx] = STATUS_DONTCARE
             else:
+                self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
                 # Add indices of the start and end tokens for the first encountered
                 # value. Spans in user utterance are prioritized over the system
                 # utterance. If a span is not found, the slot value is ignored.
                 if slot in user_span_boundaries:
-                    self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
                     start, end = user_span_boundaries[slot]
                 elif slot in system_span_boundaries:
-                    self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
                     start, end = system_span_boundaries[slot]
                 else:
                     # A span may not be found because the value was cropped out or because
@@ -371,8 +370,6 @@ class InputExample(object):
                     # it will fail in such cases.
                     if self._add_carry_status:
                         self.noncategorical_slot_status[slot_idx] = STATUS_CARRY
-                    else:
-                        self.noncategorical_slot_status[slot_idx] = STATUS_ACTIVE
 
                     logging.debug(
                         f'"Slot values {str(values)} not found in user or system utterance in example with id - {self.example_id}.'

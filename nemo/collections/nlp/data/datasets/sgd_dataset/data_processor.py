@@ -320,6 +320,9 @@ class SGDDataProcessor(object):
             user_frames (dict): all user utterances and slot - slot value pairs
             prev_states (dict): slot - slot value pairs from the previous turns
             schemas (obj): carries information about the service from the current turn
+            agg_sys_states (dict): the collection of all the slots and values mentioned by the system until the previous turn
+            slot_carryover_candlist (dict): a dictionary to keep and aggregate the counts of the relations found between any two slots
+            services_switch_counts (dict): a dictionary to keep and aggregate the number of switches between any two services
         Returns:
             examples: a list of `InputExample`s.
             prev_states (dict): updated dialogue state

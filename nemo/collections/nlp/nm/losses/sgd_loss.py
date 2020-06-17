@@ -90,6 +90,7 @@ class SGDDialogueStateLossNM(LossNM):
     def __init__(self, add_carry_status, reduction='mean'):
         """
         Args:
+            add_carry_status (bool): specifies that carry status is enabled for slots
             reduction (str): specifies the reduction to apply to the final loss, choose 'mean' or 'sum'
         """
         super().__init__()
