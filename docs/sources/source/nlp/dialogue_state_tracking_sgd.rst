@@ -233,12 +233,13 @@ The other issue was that the turns which come after an unseen service in multi-d
 
 Experimental Results
 --------------------
-The following tables shows the performance results of the SGD Baseline and FastSGD on seen services as the focus of FastSGD is to improve seen services. We specified the experiments where the evaluation issue with the original TensorFlow implementation of SGD is fixed. We did all our experiments on systems with 8 V100 GPUs using mixed precision training ("--amp_opt_level=O1") to make the training process faster. All of the models are trained for 160 epochs to have less variance in the results while most of them already converge in less than 60 epochs. The variation of the main metric which is joint goal accuracy can be significant if not trained more epochs. The reason is that even small errors in predicting some values for some turns may propagate through the whole dialogue and increase the error in joint goal accuracy significantly. We repeated each experiment three times and report the average in all tables.
+In the following tables 1 and 2 the performance results of the SGD Baseline and FastSGD on seen services are reported. The results on the unseen results are not reported as the focus of FastSGD is to improve seen services. We specified the experiments where the evaluation issue with the original TensorFlow implementation of SGD is fixed. We did all our experiments on systems with 8 V100 GPUs using mixed precision training ("--amp_opt_level=O1") to make the training process faster. All of the models are trained for 160 epochs to have less variance in the results while most of them already converge in less than 60 epochs. The variation of the main metric which is joint goal accuracy can be significant if not trained more epochs. The reason is that even small errors in predicting some values for some turns may propagate through the whole dialogue and increase the error in joint goal accuracy significantly. We repeated each experiment three times and report the average in all tables.
 
 We used 16 heads for each of the attention-based projection layers, similar to the BERT-based encoders. We have optimized the model using Adam optimizer with default parameter settings. Batch size was set to 128 per GPU, maximum learning rate to 4e-4 and weight decay to 0.01. Linear decay annealing was used with warm-up of 0.02% of the total steps. Dropout was set to 0.2 to have higher regularization considering we used higher learning rate compared to the recommended learning rate for fine-tuning BERT with smaller batch sizes.
 
 
-The performance results of the models on seen services of the single domains dialogues (--task_name=dstc8_single_domains):
+| **Table 1: The performance results of the models on seen services of the single-domain dialogues**
+| **(--task_name=dstc8_single_domains)**
 
 +--------------------------------------------------------------------+----------------+----------------+------------+-------------+
 |                                                                    |                          Dev/Test                          |
@@ -257,7 +258,8 @@ The performance results of the models on seen services of the single domains dia
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 
 
-The performance results of the models on seen services of all the dialogues (--task_name=dstc8_single_domains):
+| **Table 2: The performance results of the models on seen services of all the dialogues**
+| **(--task_name=dstc8_all)**
 
 +--------------------------------------------------------------------+----------------+----------------+------------+-------------+
 |                                                                    |                          Dev/Test                          |
