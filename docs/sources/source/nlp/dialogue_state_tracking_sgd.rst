@@ -226,16 +226,16 @@ First, some services were considered seen services during evaluation for single 
 We fixed it by just considering only turns as by seen services if there are no turns before them in the dialogue by unseen services. These fixes helped to improve the results. To have a fair comparison we also reported the performance of the baseline model and ours with and without these fixes in the results tables.
 
 
-Results on Single Domain
-------------------------
-The following table shows the performance results of the SGD Baseline and FastSGD. The focus was to improve seen services. We specified the experiments where the evaluation issue with the original TensorFlow implementation of SGD is fixed. We did all our experiments on systems with 8 V100 GPUs using mixed precision training ("--amp_opt_level=O1") to make the training process faster. All of the models are trained for 160 epochs to have less variance in the results while most of them already converge in less than 60 epochs. The variation of the main metric which is joint goal accuracy can be significant if not trained more epochs. The reason is that even small errors in predicting some values for some turns may propagate through the whole dialogue and increase the error in joint goal accuracy significantly. We repeated each experiment three times and report the average in all tables. We used 16 heads for each of the attention-based projection layers, similar to the BERT-based encoders. We have optimized the model using Adam optimizer with default parameter settings. Batch size was set to 128 per GPU, maximum learning rate to $4e-4$ and weight decay to 0.01. Linear decay annealing was used with warm-up of 0.02% of the total steps. Dropout was set to 0.2 to have higher regularization considering we used higher learning rate compared to the recommended learning rate for fine-tuning BERT with smaller batch sizes.
+Experimental Results
+--------------------
+The following tables shows the performance results of the SGD Baseline and FastSGD on seen services as the focus of FastSGD is to improve seen services. We specified the experiments where the evaluation issue with the original TensorFlow implementation of SGD is fixed. We did all our experiments on systems with 8 V100 GPUs using mixed precision training ("--amp_opt_level=O1") to make the training process faster. All of the models are trained for 160 epochs to have less variance in the results while most of them already converge in less than 60 epochs. The variation of the main metric which is joint goal accuracy can be significant if not trained more epochs. The reason is that even small errors in predicting some values for some turns may propagate through the whole dialogue and increase the error in joint goal accuracy significantly. We repeated each experiment three times and report the average in all tables. We used 16 heads for each of the attention-based projection layers, similar to the BERT-based encoders. We have optimized the model using Adam optimizer with default parameter settings. Batch size was set to 128 per GPU, maximum learning rate to $4e-4$ and weight decay to 0.01. Linear decay annealing was used with warm-up of 0.02% of the total steps. Dropout was set to 0.2 to have higher regularization considering we used higher learning rate compared to the recommended learning rate for fine-tuning BERT with smaller batch sizes.
 
 
-The performance results of the models on seen services:
+The performance results of the models on seen services of the single domains dialogues (--task_name=dstc8_single_domains)::
 
 +--------------------------------------------------------------------+----------------+----------------+------------+-------------+
 |                                                                    |                          Dev/Test                          |
-|                                                                    +----------------+----------------+------------+-------------+
++                                                                    +----------------+---------------+-------------+-------------+
 | Model                                                              | Active Int Acc | Req Slot F1   | Aver GA     | Joint GA    |
 +====================================================================+================+===============+=============+=============+
 | SGD Baseline (original implementation w/o eval fixes)              |   99.06/-      |  98.67/-      | 88.08/-     | 68.58/-     |
@@ -244,23 +244,24 @@ The performance results of the models on seen services:
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 | FastSGT (w/o eval fixes)                                           |   98.94/77.53  |  98.80/96.89  | 92.98/94.12 | 83.13/80.25 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| FastSGT (with eval fixes)                                          |   98.94/77.53  |  98.80/96.89  | 92.98/94.12 | 83.13/80.25 |
+| FastSGT (with eval fixes)                                          |   98.86/73.98  |  99.64/99.24  | 96.54/95.31 | 88.03/81.56 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 | FastSGD + Augmentation (with eval fixes)                           |   98.74/73.97  |  99.59/99.31  | 96.70/96.31 | 88.66/83.12 |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 
-The performance results of the models on all services:
+
+The performance results of the models on seen services of all the dialogues (--task_name=dstc8_single_domains):
 
 +--------------------------------------------------------------------+----------------+----------------+------------+-------------+
 |                                                                    |                          Dev/Test                          |
-|                                                                    +----------------+----------------+------------+-------------+
++                                                                    +----------------+---------------+-------------+-------------+
 | Model                                                              | Active Int Acc | Req Slot F1   | Aver GA     | Joint GA    |
 +====================================================================+================+===============+=============+=============+
-| SGD Baseline (original implementation w/o eval fixes)              |   96.60/-      |  96.50/-      | 77.60/-     | 48.6/-      |
+| SGD Baseline (original implementation w/o eval fixes)              |                |               |             |             |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| SGD Baseline (NeMo's implementation w/o eval fixes)                |   96.00/88.05  |  96.50/95.60  | 77.60/68.40 | 48.60/35.60 |
+| SGD Baseline (NeMo's implementation w/o eval fixes)                |                |               |             |             |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
-| FastSGT (w/o eval fixes)                                           |   96.45/88.60  |  96.55/94.65  | 81.11/71.22 | 56.66/39.77 |
+| FastSGT (w/o eval fixes)                                           |                |               |             |             |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
 | FastSGT (with eval fixes)                                          |                |               |             |             |
 +--------------------------------------------------------------------+----------------+---------------+-------------+-------------+
