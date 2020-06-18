@@ -10,7 +10,7 @@ AudioToTextDataLayer:
     header:
         full_spec: nemo.collections.asr.AudioToTextDataLayer2
     init_params:
-        manifest_filepath: '/mnt/D1/Data/an4_dataset/an4_train.json'
+        manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
         labels: *labels
         batch_size: 32
         trim_silence: True
@@ -22,7 +22,7 @@ AudioToTextDataLayer_eval:
     header:
         full_spec: nemo.collections.asr.AudioToTextDataLayer2
     init_params:
-        manifest_filepath: '/mnt/D1/Data/an4_dataset/an4_val.json'
+        manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
         labels: *labels
         batch_size: 32
         shuffle: False

@@ -15,16 +15,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+from typing import Any, Dict
+
 import torch
 
 from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.core import AcousticEncodedRepresentation, LengthsType, LogprobsType, NeuralType, SpectrogramType
-from nemo.core.apis import NeuralModuleAPI
+from nemo.core.apis import NeuralModulePT
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder']
 
 
-class ConvASREncoder(torch.nn.Module, NeuralModuleAPI):
+class ConvASREncoder(NeuralModulePT):
+    def save_to(self, save_path: str):
+        raise NotImplementedError()
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        raise NotImplementedError()
+
+    @classmethod
+    def from_config_dict(cls, configuration: Dict[str, Any]):
+        raise NotImplementedError()
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        raise NotImplementedError()
+
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
@@ -120,7 +136,21 @@ class ConvASREncoder(torch.nn.Module, NeuralModuleAPI):
         return s_input[-1], length
 
 
-class ConvASRDecoder(torch.nn.Module, NeuralModuleAPI):
+class ConvASRDecoder(NeuralModulePT):
+    def save_to(self, save_path: str):
+        raise NotImplementedError()
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        raise NotImplementedError()
+
+    @classmethod
+    def from_config_dict(cls, configuration: Dict[str, Any]):
+        raise NotImplementedError()
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        raise NotImplementedError()
+
     @property
     def input_types(self):
         return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}

@@ -1,4 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
+from typing import Any, Dict
+
 import torch
 import torch.nn as nn
 
@@ -71,6 +73,16 @@ class CTCLoss2(NeuralModuleAPI):
             By default, it is False. Infinite losses mainly occur when the inputs are too
             short to be aligned to the targets.
     """
+
+    def save_to(self, save_path: str):
+        raise NotImplementedError()
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        raise NotImplementedError()
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        raise NotImplementedError()
 
     def __init__(self, num_classes, zero_infinity=False):
         super().__init__()

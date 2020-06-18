@@ -431,6 +431,16 @@ transcript_n}
             disabled and a warning is logged.
     """
 
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        pass
+
     def __init__(
         self,
         manifest_filepath,

@@ -11,22 +11,26 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+
+
 # limitations under the License.
 # =============================================================================
 from abc import abstractmethod
+
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+from typing import Any, Dict
 
 import torch
 
 from nemo.collections.asr.parts.features import FilterbankFeatures
 from nemo.core import AudioSignal, LengthsType, MelSpectrogramType, NeuralType
-from nemo.core.apis import NeuralModuleAPI
+from nemo.core.apis import NeuralModulePT
 
 __all__ = ['AudioToMelSpectrogramPreprocessor2']
 
 
-class AudioPreprocessor2(torch.nn.Module, NeuralModuleAPI):
+class AudioPreprocessor2(NeuralModulePT):
     """
     A base class for Neural Modules that performs audio preprocessing,
     transforming the wav files to features.
@@ -126,6 +130,20 @@ class AudioToMelSpectrogramPreprocessor2(AudioPreprocessor2):
             prior to multiplication with mel basis.
             Defaults to 2 for a power spec
     """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @classmethod
+    def from_config_dict(cls, configuration: Dict[str, Any]):
+        raise NotImplementedError()
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        raise NotImplementedError()
 
     @property
     def input_types(self):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 # =============================================================================
 # Copyright (c) 2020 NVIDIA. All Rights Reserved.
@@ -18,14 +18,28 @@ from typing import Dict, Optional
 # limitations under the License.
 # =============================================================================
 import torch
-from pytorch_lightning import LightningModule
 
 from nemo.collections.asr.helpers import monitor_asr_train_progress2
 from nemo.collections.asr.losses import CTCLoss2
-from nemo.core.apis import NeuralModelAPI, NeuralModuleAPI
+from nemo.core.apis import NeuralModelPT, NeuralModuleAPI
 
 
-class ASRConvCTCModel(LightningModule, NeuralModelAPI):
+class ASRConvCTCModel(NeuralModelPT):
+    def export(self, **kwargs):
+        pass
+
+    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+        pass
+
+    def setup_optimization(self, optim_params: Optional[Dict]):
+        pass
+
+    def to_config_file(self, path2yaml_file: str):
+        pass
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        pass
+
     @classmethod
     def from_cloud(cls, name: str):
         pass
@@ -38,12 +52,12 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         spec_augment_params: Optional[Dict] = None,
     ):
         super().__init__()
-        self.preprocessor = NeuralModuleAPI.from_config(preprocessor_params)
-        self.encoder = NeuralModuleAPI.from_config(encoder_params)
-        self.decoder = NeuralModuleAPI.from_config(decoder_params)
+        self.preprocessor = NeuralModuleAPI.from_config_dict(preprocessor_params)
+        self.encoder = NeuralModuleAPI.from_config_dict(encoder_params)
+        self.decoder = NeuralModuleAPI.from_config_dict(decoder_params)
         self.loss = CTCLoss2(num_classes=self.decoder._num_classes - 1)
         if spec_augment_params is not None:
-            self.spec_augmentation = NeuralModuleAPI.from_config(spec_augment_params)
+            self.spec_augmentation = NeuralModuleAPI.from_config_dict(spec_augment_params)
         else:
             self.spec_augmentation = None
 
@@ -65,10 +79,10 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
 
         # Typed way -- good for "production-ready"
         processed_signal, processed_signal_len = self.preprocessor.typed_forward(
-           input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal, length=input_signal_length,
         )
         if self.spec_augmentation is not None:
-           processed_signal = self.spec_augmentation.typed_forward(input_spec=processed_signal)
+            processed_signal = self.spec_augmentation.typed_forward(input_spec=processed_signal)
         encoded, encoded_len = self.encoder.typed_forward(audio_signal=processed_signal, length=processed_signal_len)
         # log_probs = self.decoder.typed_forward(encoder_output=processed_signal)
         log_probs = self.decoder.typed_forward(encoder_output=encoded)
@@ -110,7 +124,7 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         Returns:
 
         """
-        self.__train_dl = NeuralModuleAPI.from_config(train_data_layer_params)
+        self.__train_dl = NeuralModuleAPI.from_config_dict(train_data_layer_params)
 
     def validation_step(self, batch, batch_idx):
         self.eval()
@@ -137,7 +151,7 @@ class ASRConvCTCModel(LightningModule, NeuralModelAPI):
         Returns:
 
         """
-        self.__val_dl = NeuralModuleAPI.from_config(val_data_layer_params)
+        self.__val_dl = NeuralModuleAPI.from_config_dict(val_data_layer_params)
 
     def setup_optimizer(self, optimizer_params):
         self.__optimizer = torch.optim.Adam(self.parameters(), lr=optimizer_params['lr'])
