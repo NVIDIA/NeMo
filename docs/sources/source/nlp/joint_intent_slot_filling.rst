@@ -58,7 +58,7 @@ By setting the dataset_name parameter to one of ['atis', 'snips'], you can proce
 Code Structure
 --------------
 
-First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
+First, we instantiate Neural Module Factory which defines 1) backend (just PyTorch is currently supported), 2) mixed precision optimization level,
 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.
 
     .. code-block:: python
