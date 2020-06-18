@@ -78,16 +78,19 @@ class ASRConvCTCModel(NeMoModel):
                 i_encoded, i_encoded_len = self._encoder(
                     audio_signal=i_processed_signal, length=i_processed_signal_len
                 )
-                i_log_probs = self._ecoder(encoder_output=i_encoded)
+                i_log_probs = self._decoder(encoder_output=i_encoded)
                 # Bind the selected outputs.
                 self.__evaluation_neural_graph.outputs["log_probs"] = i_log_probs
                 self.__evaluation_neural_graph.outputs["encoded_len"] = i_encoded_len
             return self.__evaluation_neural_graph
 
     def __instantiate_modules(
-        self, preprocessor_params, encoder_params, decoder_params, spec_augment_params=None,
+        self, preprocessor_params, encoder_params, decoder_params, spec_augment_params=None, disable_dither=False,
     ):
-        preprocessor = NeuralModule.deserialize(preprocessor_params)
+        overwrite_params = None
+        if disable_dither:
+            overwrite_params = {"dither": 0}
+        preprocessor = NeuralModule.deserialize(preprocessor_params, overwrite_params=overwrite_params)
         encoder = NeuralModule.deserialize(encoder_params)
         decoder = NeuralModule.deserialize(decoder_params)
         if hasattr(decoder, 'vocabulary'):

@@ -378,7 +378,7 @@ class NeuralGraph(NeuralInterface):
 
         Returns:
             Graph output ports definitions.
-            
+
         """
         return self._outputs.definitions
 
@@ -400,7 +400,7 @@ class NeuralGraph(NeuralInterface):
 
             Args:
                 key: Name of the variable.
-            
+
             Raises:
                 KeyError: Neural Graph doesn't contain a module with a given name (key).
         """
@@ -459,7 +459,7 @@ class NeuralGraph(NeuralInterface):
         return self._operation_mode
 
     def __enter__(self) -> 'NeuralGraph':
-        """ 
+        """
         Activates this graph.
 
         Returns:
@@ -475,7 +475,7 @@ class NeuralGraph(NeuralInterface):
         self._app_state.active_graph = None
 
     def activate(self):
-        """ 
+        """
         Activates this graph.
         """
         self._app_state.active_graph = self
@@ -608,7 +608,7 @@ class NeuralGraph(NeuralInterface):
         cls,
         config_file: str,
         reuse_existing_modules: bool = False,
-        overwrite_params: Dict[str, Any] = {},
+        overwrite_params: Dict[str, Any] = None,
         name: Optional[str] = None,
     ) -> 'NeuralGraph':
         """
@@ -896,7 +896,7 @@ class NeuralGraph(NeuralInterface):
         self.default_output_binding = True
 
     def summary(self) -> str:
-        """ 
+        """
         Returns:
             A nice, full graph summary.
         """
@@ -1140,7 +1140,7 @@ class NeuralGraph(NeuralInterface):
         return False
 
     def to(self, device_type: DeviceType, use_dataparallel: bool = False):
-        """ 
+        """
         Moves the all the (trainable) modules belonging to a given graph to indicated device.
 
         """
@@ -1233,7 +1233,7 @@ class NeuralGraph(NeuralInterface):
     def get_batch(self, yield_dict: bool = False) -> Union[Dict[str, Any], Tuple]:
         """
         Method yields a single batch. Optionally, instantiates the DataLoader object used by a given graph.
-            
+
         Args:
             yield_dict: Flag used to yield a tuple or a dict - depending on the user needs
             (DEFAULT: False, i.e. yielding NamedTuples)
@@ -1394,7 +1394,7 @@ class NeuralGraph(NeuralInterface):
         Accepts a batch (passed as a tuple in args) OR a list of named arguments (as kwargs).
 
         Use-case 1:
-        
+
         .. code-block:: python
 
             # Retrieve batch as a tuple and pass it to forward() as tuple.

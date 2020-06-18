@@ -324,7 +324,7 @@ class NeuralModule(NeuralInterface):
 
     @classmethod
     def import_from_config(
-        cls, config_file: str, section_name: str = None, name: str = None, overwrite_params: Dict = {}
+        cls, config_file: str, section_name: str = None, name: str = None, overwrite_params: Dict = None
     ) -> 'NeuralModule':
         """
         Class method importing the configuration file.
@@ -405,7 +405,7 @@ class NeuralModule(NeuralInterface):
 
     @classmethod
     def deserialize(
-        cls, configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
+        cls, configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = None
     ) -> 'NeuralModule':
         """
         Class method instantiating the neural module object based on the configuration (dictionary).
@@ -424,8 +424,9 @@ class NeuralModule(NeuralInterface):
         # Deserialize header - get object class.
         module_class = cls.__deserialize_header(configuration["header"])
 
-        # Update parameters with additional ones.
-        configuration["init_params"].update(overwrite_params)
+        if overwrite_params is not None:
+            # Update parameters with additional ones.
+            configuration["init_params"].update(overwrite_params)
 
         # Override module name in init_params using the logic:
         #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
