@@ -73,7 +73,14 @@ class LaserTaggerDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self, preprocessed_data, tokenizer, num_examples, batch_size, infer, shuffle=False, dataset_type=LaserTaggerDataset,
+        self,
+        preprocessed_data,
+        tokenizer,
+        num_examples,
+        batch_size,
+        infer,
+        shuffle=False,
+        dataset_type=LaserTaggerDataset,
     ):
         dataset_params = {
             'preprocessed_data': preprocessed_data,

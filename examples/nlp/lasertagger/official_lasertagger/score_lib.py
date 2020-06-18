@@ -16,20 +16,16 @@
 # Lint as: python3
 """Utility functions for computing evaluation metrics."""
 
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import re
 from typing import List, Text, Tuple
 
 from examples.nlp.lasertagger.official_lasertagger import sari_hook
 
-def read_data(
-    path,
-    lowercase):
-  """Reads data from prediction TSV file.
+
+def read_data(path, lowercase):
+    """Reads data from prediction TSV file.
 
   The prediction file should contain 3 or more columns:
   1: sources (concatenated)
@@ -44,25 +40,24 @@ def read_data(
   Returns:
     Tuple (list of sources, list of predictions, list of target lists)
   """
-  sources = []
-  predictions = []
-  target_lists = []
-  with open(path, 'r') as f:
-    for line in f:
-      source, pred, *targets = line.rstrip('\n').split('\t')
-      if lowercase:
-        source = source.lower()
-        pred = pred.lower()
-        targets = [t.lower() for t in targets]
-      sources.append(source)
-      predictions.append(pred)
-      target_lists.append(targets)
-  return sources, predictions, target_lists
+    sources = []
+    predictions = []
+    target_lists = []
+    with open(path, 'r') as f:
+        for line in f:
+            source, pred, *targets = line.rstrip('\n').split('\t')
+            if lowercase:
+                source = source.lower()
+                pred = pred.lower()
+                targets = [t.lower() for t in targets]
+            sources.append(source)
+            predictions.append(pred)
+            target_lists.append(targets)
+    return sources, predictions, target_lists
 
 
-def compute_exact_score(predictions,
-                        target_lists):
-  """Computes the Exact score (accuracy) of the predictions.
+def compute_exact_score(predictions, target_lists):
+    """Computes the Exact score (accuracy) of the predictions.
 
   Exact score is defined as the percentage of predictions that match at least
   one of the targets.
@@ -74,18 +69,12 @@ def compute_exact_score(predictions,
   Returns:
     Exact score between [0, 1].
   """
-  num_matches = sum(any(pred == target for target in targets)
-                    for pred, targets in zip(predictions, target_lists))
-  return num_matches / max(len(predictions), 0.1)  # Avoids 0/0.
+    num_matches = sum(any(pred == target for target in targets) for pred, targets in zip(predictions, target_lists))
+    return num_matches / max(len(predictions), 0.1)  # Avoids 0/0.
 
 
-def compute_sari_scores(
-    sources,
-    predictions,
-    target_lists,
-    ignore_wikisplit_separators = True
-):
-  """Computes SARI scores.
+def compute_sari_scores(sources, predictions, target_lists, ignore_wikisplit_separators=True):
+    """Computes SARI scores.
 
   Wraps the t2t implementation of SARI computation.
 
@@ -104,23 +93,24 @@ def compute_sari_scores(
   Returns:
     Tuple (SARI score, keep score, addition score, deletion score).
   """
-  sari_sum = 0
-  keep_sum = 0
-  add_sum = 0
-  del_sum = 0
-  for source, pred, targets in zip(sources, predictions, target_lists):
-    if ignore_wikisplit_separators:
-      source = re.sub(' <::::> ', ' ', source)
-      pred = re.sub(' <::::> ', ' ', pred)
-      targets = [re.sub(' <::::> ', ' ', t) for t in targets]
-    source_ids = source.split()
-    pred_ids = pred.split()
-    list_of_targets = [t.split() for t in targets]
-    sari, keep, addition, deletion = sari_hook.get_sari_score(
-        source_ids, pred_ids, list_of_targets, beta_for_deletion=1)
-    sari_sum += sari
-    keep_sum += keep
-    add_sum += addition
-    del_sum += deletion
-  n = max(len(sources), 0.1)  # Avoids 0/0.
-  return (sari_sum / n, keep_sum / n, add_sum / n, del_sum / n)
+    sari_sum = 0
+    keep_sum = 0
+    add_sum = 0
+    del_sum = 0
+    for source, pred, targets in zip(sources, predictions, target_lists):
+        if ignore_wikisplit_separators:
+            source = re.sub(' <::::> ', ' ', source)
+            pred = re.sub(' <::::> ', ' ', pred)
+            targets = [re.sub(' <::::> ', ' ', t) for t in targets]
+        source_ids = source.split()
+        pred_ids = pred.split()
+        list_of_targets = [t.split() for t in targets]
+        sari, keep, addition, deletion = sari_hook.get_sari_score(
+            source_ids, pred_ids, list_of_targets, beta_for_deletion=1
+        )
+        sari_sum += sari
+        keep_sum += keep
+        add_sum += addition
+        del_sum += deletion
+    n = max(len(sources), 0.1)  # Avoids 0/0.
+    return (sari_sum / n, keep_sum / n, add_sum / n, del_sum / n)
