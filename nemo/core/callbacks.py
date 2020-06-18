@@ -477,8 +477,17 @@ class CheckpointCallback(NeMoCallback):
                 if module.num_weights > 0:
                     modules_to_restore.append(module)
                     modules_to_restore_name.append(str(module))
+            step_check = None
             try:
-                module_checkpoints = get_checkpoint_from_dir(modules_to_restore_name, path)
+                module_checkpoints, steps = get_checkpoint_from_dir(modules_to_restore_name, path, return_steps=True)
+
+                # If the steps are different, print a warning message
+                for step in steps:
+                    if step_check is None:
+                        step_check = step
+                    elif step != step_check:
+                        logging.warning("Restoring from modules checkpoints where the training step does not match")
+                        break
 
                 for mod, checkpoint in zip(modules_to_restore, module_checkpoints):
                     mod.restore_from(checkpoint, state["local_rank"])
@@ -495,7 +504,12 @@ class CheckpointCallback(NeMoCallback):
                 return
 
             try:
-                trainer_checkpoints = get_checkpoint_from_dir(["trainer"], path)
+                trainer_checkpoints, steps = get_checkpoint_from_dir(["trainer"], path, return_steps=True)
+                if step_check is not None and step_check != steps[0]:
+                    logging.error(
+                        "The step we are restoring from the trainer checkpoint does not match one or more steps that "
+                        "are being restored from modules."
+                    )
                 state.restore_state_from(trainer_checkpoints[0])
             except (ValueError) as e:
                 logging.warning(e)
