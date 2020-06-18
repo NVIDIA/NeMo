@@ -173,7 +173,6 @@ class NeMoModel(NeuralModule):
             logging.error("Could not perform NeMoModel export")
         finally:
             shutil.rmtree(rnd_path)
-            pass
 
     @property
     @abstractmethod
