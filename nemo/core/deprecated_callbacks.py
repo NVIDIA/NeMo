@@ -479,16 +479,13 @@ class WandbCallback(ActionCallback):
 
     def on_action_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            if _WANDB_AVAILABLE:
+            if _WANDB_AVAILABLE and wandb.run is None:
                 wandb.init(name=self._name, project=self._project)
                 if self._args is not None:
                     logging.info('init wandb session and append args')
                     wandb.config.update(self._args)
             elif _WANDB_AVAILABLE and wandb.run is not None:
                 logging.info("Re-using wandb session")
-                if self._args is not None:
-                    wandb.config.update(self._args)
-                    logging.info('appending args')
             else:
                 logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
                 logging.info("Will not log data to weights and biases.")
