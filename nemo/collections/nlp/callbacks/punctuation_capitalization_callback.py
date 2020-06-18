@@ -104,6 +104,7 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
     
     logging.info(f'results: {results}')
     # {"Punct_accuracy": punct_accuracy, "Capit_acc": capit_accuracy}
+    print ('-->')
     return results
 
 
@@ -132,4 +133,5 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
     # calculate and plot confusion_matrix
     if graph_fold:
         plot_confusion_matrix(labels, preds, graph_fold, label_ids, normalize=normalize_cm, prefix=task_name)
+    print ('ok')
     return accuracy, get_classification_report(labels, preds, label_ids, output_dict=True)
