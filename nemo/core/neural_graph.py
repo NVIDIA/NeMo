@@ -20,14 +20,16 @@ __all__ = [
     'NeuralGraph',
 ]
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 from os import path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import torch
 from ruamel.yaml import YAML
+from torch.nn.parallel import DataParallel
 
-from .neural_modules import OperationMode
 from nemo.backends import get_state_dict, load, save, set_state_dict
+from nemo.core.neural_factory import DeviceType, OperationMode
 from nemo.core.neural_interface import NeuralInterface
 from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
@@ -82,6 +84,31 @@ class NeuralGraph(NeuralInterface):
 
         # Flag indicating whether the "default" output ports/tensors will be automatically bound.
         self.default_output_binding = True
+
+        # Set default data loader params.
+        self._data_loader_config = {
+            "dataset": None,
+            "batch_size": 1,
+            "shuffle": False,
+            "sampler": None,
+            "batch_sampler": None,
+            "num_workers": 0,
+            "collate_fn": None,
+            "pin_memory": False,
+            "drop_last": False,
+            "timeout": 0,
+            "worker_init_fn": None,
+            "multiprocessing_context": None,
+        }
+
+        # Lazy-initialize loader when needed.
+        self._data_loader = None
+
+        # Data collected during forward propagation.
+        self._forward_data = defaultdict(lambda: {})
+
+        # Initial device: CPU.
+        self._pt_device = torch.device("cpu")
 
     def __call__(self, **kwargs):
         """
@@ -191,7 +218,7 @@ class NeuralGraph(NeuralInterface):
                         # producer_name = connection.producer.module_name
                         producer_port_name = connection.producer.port_name
                         break
-                # import pdb;pdb.set_trace()
+
                 # Now, the tensor is already produced in outer (i.e. this) graph!
                 module_args[input_port_name] = self.tensors[bumped_step][producer_port_name]
 
@@ -876,11 +903,15 @@ class NeuralGraph(NeuralInterface):
         # Line "decorator".
         desc = "\n" + 113 * '=' + "\n"
         # 1. general information.
-        desc += "The `{}` Neural Graph [{}]".format(self.name, self.operation_mode)
-        if self.is_complete():
-            desc += " [COMPLETE]:\n"
+        desc += "The `{}` Neural Graph [{}, ".format(self.name, self.operation_mode)
+        if self.is_complete:
+            desc += " COMPLETE,"
         else:
-            desc += " [INCOMPLETE]:\n"
+            desc += " INCOMPLETE,"
+        if self.is_trainable:
+            desc += " TRAINABLE]:\n"
+        else:
+            desc += " NON-TRAINABLE]:\n"
 
         # 2. modules.
         desc += " * Modules ({}):\n".format(len(self._modules))
@@ -1051,21 +1082,26 @@ class NeuralGraph(NeuralInterface):
         else:
             logging.info(log_str)
 
+    @property
     def is_complete(self) -> bool:
         """
-        Method checks if graph is "complete". In here the "complete" means that the graph has:
+        Property checks if graph is "complete", which means that the graph has:
             * exactly one DataLayer
             * zero bound input ports
 
-        In short it means that the graph can be complete.
-        
         Returns:
             True or false.
         """
+        # We assume the first modules is DL.
+        dl = self.modules[self.steps[0]]
+        if dl.type != ModuleType.datalayer:
+            return False
+
+        # We assume there is only one DL in the whole graph.
         has_datalayer = False
         # Iterate through the modules one by one.
         for module in self._modules.values():
-            # Get module.
+            # Get module type.
             if module.type == ModuleType.datalayer:
                 if has_datalayer:
                     # More than one DL is not acceptable.
@@ -1079,3 +1115,448 @@ class NeuralGraph(NeuralInterface):
 
         # Else:
         return True
+
+    @property
+    def is_trainable(self) -> bool:
+        """
+        Property checks if graph is "trainable", which means that the graph:
+            * is in eval mode
+            * has at least one Loss Neural Modules
+
+        Returns:
+            True or false.
+        """
+        # Check if gradients are collected in forward pass.
+        if self.operation_mode == OperationMode.evaluation:
+            return False
+
+        # Iterate through the modules one by one.
+        for module in self._modules.values():
+            # Get module type.
+            if module.type == ModuleType.loss:
+                return True
+
+        # No loss modules - cannot train the graph using back-propagation.
+        return False
+
+    def to(self, device_type: DeviceType, use_dataparallel: bool = False):
+        """ 
+        Moves the all the (trainable) modules belonging to a given graph to indicated device.
+
+        """
+        logging.info("Moving module(s) to {}".format(device_type))
+
+        # Check device.
+        if device_type == DeviceType.CPU:
+            self._pt_device = torch.device("cpu")
+
+        elif device_type == DeviceType.GPU:
+            if not torch.cuda.is_available():
+                raise ConfigurationError("Coudn't use GPUs as there is no CUDA installed")
+
+            if torch.cuda.device_count() == 1:
+                # Cannot use data parallel.
+                if use_dataparallel:
+                    raise ConfigurationError("Coudn't use Data Parallel as there is only one GPU device found")
+
+            # Using cuda -- all devices.
+            self._pt_device = torch.device("cuda")
+
+        else:  # DeviceType.AllGpu : distributed data parallel.
+            if not torch.cuda.is_available():
+                raise ConfigurationError("Coudn't use Distributed Data Parallel as there is no CUDA installed")
+
+            # Each worker will use a single gpu.
+            use_dataparallel = False
+            self._pt_device = torch.device("cuda")
+
+        if use_dataparallel:
+            logging.info("Using Data Parallelization on {} GPUs!".format(torch.cuda.device_count()))
+            logging.warning("Data Parallel is currently under development, so use if it with caution")
+
+        # Work on all modules.
+        module_names = self._modules.keys()
+
+        # Iterate through the modules one by one.
+        for name in module_names:
+            # Get module.
+            module = self._modules[name]
+            if module.type == ModuleType.trainable:
+                # Check if we want to use data parallel.
+                if use_dataparallel:
+                    # Skip if the user explicitly said the module shouldn't be parallelized.
+                    if not hasattr(module, 'skip_in_data_parallel') or not module.skip_in_data_parallel:
+                        # Parallize model.
+                        module = DataParallel(module)
+
+                # Mode to device.
+                self._modules[name] = module.to(self._pt_device)
+
+    def configure_data_loader(
+        self,
+        batch_size=1,
+        shuffle=False,
+        sampler=None,
+        batch_sampler=None,
+        num_workers=0,
+        collate_fn=None,
+        pin_memory=False,
+        drop_last=False,
+        timeout=0,
+        worker_init_fn=None,
+        multiprocessing_context=None,
+    ):
+        """
+        Method updates the default parameters of the DataLoader used by a given neural graph.
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+        """
+
+        # Override all old values.
+        self._data_loader_config = {
+            "dataset": None,
+            "batch_size": batch_size,
+            "shuffle": shuffle,
+            "sampler": sampler,
+            "batch_sampler": batch_sampler,
+            "num_workers": num_workers,
+            "collate_fn": collate_fn,
+            "pin_memory": pin_memory,
+            "drop_last": drop_last,
+            "timeout": timeout,
+            "worker_init_fn": worker_init_fn,
+            "multiprocessing_context": multiprocessing_context,
+        }
+        # If loader is set - reset it.
+        self._data_loader = None
+
+    def get_batch(self, yield_dict: bool = False) -> Union[Dict[str, Any], Tuple]:
+        """
+        Method yields a single batch. Optionally, instantiates the DataLoader object used by a given graph.
+            
+        Args:
+            yield_dict: Flag used to yield a tuple or a dict - depending on the user needs
+            (DEFAULT: False, i.e. yielding NamedTuples)
+        Returns:
+            Depending on the mode: a batch in the form of a singe namedtuple or of a dictionary.
+        """
+        # If loader is not set - set it.
+        if self._data_loader is None:
+            # Check graph.
+            if not self.is_complete:
+                raise ConfigurationError("Cannot get a batch as graph is incomplete!")
+            # Get datalayer/dataset.
+            dl = self.modules[self.steps[0]]
+            # Make sure that this is DataLayer/dataset instance.
+            if isinstance(dl, torch.utils.data.Dataset):
+                self._data_loader_config["dataset"] = dl
+            else:
+                self._data_loader_config["dataset"] = dl.dataset
+
+            self._data_loader = torch.utils.data.DataLoader(**self._data_loader_config)
+
+        # Return tuple or dict - depending on the user needs.
+        if yield_dict:
+            # Fetch a batch - in the form of a dict.
+            for batch in self._data_loader:
+                if len(dl.output_ports.keys()) == 1:
+                    # Dict with a single key:value pair.
+                    batch = batch.to(self._pt_device) if isinstance(batch, torch.Tensor) else batch
+                    yield {list(dl.output_ports.keys())[0]: batch}
+                else:
+                    # Yield a dictionary.
+                    batch = [elem.to(self._pt_device) if isinstance(elem, torch.Tensor) else elem for elem in batch]
+                    yield dict(zip(dl.output_ports.keys(), batch))
+
+        else:
+            # Create a tuple class - if required.
+            if len(dl.output_ports.keys()) > 1:
+                # Create a named tuple type enabling to access outputs by attributes (e.g. out.x).
+                output_class_name = f'{dl.__class__.__name__}Output'
+                result_type = namedtuple(typename=output_class_name, field_names=dl.output_ports.keys())
+
+            # Fetch a batch - in the form of a tuple.
+            for batch in self._data_loader:
+                if len(dl.output_ports.keys()) == 1:
+                    # Return a single object.
+                    batch = batch.to(self._pt_device) if isinstance(batch, torch.Tensor) else batch
+                    yield batch
+                else:
+                    # Return a tuple.
+                    batch = [elem.to(self._pt_device) if isinstance(elem, torch.Tensor) else elem for elem in batch]
+                    yield result_type(*batch)
+
+    def __forward(self, inputs: Dict[str, Any], connections: Dict[str, Any]):
+        """
+        Graph forward method. In the execution it follows the order of the modules defined in steps and passes data
+        between modules following the connectivity stored in NmTensors.
+        """
+        # Execute modules one by one.
+        for step_number in range(len(self._steps)):
+            # If graph is complete - we already fetched data from module 0 (DL)
+            if self.is_complete and step_number == 0:
+                # So lets skip it.
+                continue
+
+            # Get the module.
+            module_name = self._steps[step_number]
+            module = self._modules[module_name]
+
+            # Change the module's operation mode.
+            module.operation_mode = self.operation_mode
+
+            # Produce list of arguments that will be passed to a given modules.
+            module_args = {}
+            # Do it by:
+            # - harvesing input port names of a given module,
+            # - checking if the input was not bound (in the inner graph),
+            # - checking if we have already tensors leading to that input (in outer graph).
+            for input_port_name in module.input_ports.keys():
+                # Check if this port was bound in the inner graph.
+                key = self.inputs.has_binding(step_number, input_port_name)
+                # If so, then we must pass whatever was passed to that port in the list of arguments.
+                if key is not None:
+                    module_args[input_port_name] = inputs[key]
+                    continue
+
+                # Else: find a tensor that should be passed to the given module's input.
+                producer_step = -1
+                # Search for producer/port that we should use.
+                for connection in connections:
+                    if (
+                        connection.consumer.step_number == step_number
+                        and connection.consumer.module_name == module_name
+                        and connection.consumer.port_name == input_port_name
+                    ):
+                        # Got the connection!
+                        producer_step = connection.producer.step_number
+                        # producer_name = connection.producer.module_name
+                        producer_port_name = connection.producer.port_name
+                        break
+                # Make sure we found the producer.
+                if producer_step == -1:
+                    # Check if this port is not optional.
+                    if not module.input_ports[input_port_name].optional:
+                        err = "Couldn't find the producer of the {} input to the module {} called in step {}".format(
+                            input_port_name, module_name, step_number
+                        )
+                        raise ValueError(err)
+                    # If it is optional and not provided - simply do nothing...
+                else:
+                    # Add this to the argument
+                    module_args[input_port_name] = self._forward_data[producer_step][producer_port_name]
+
+            # Ok, now we have all keyword arguments. We can call() the module.
+            module_outputs = module(force_pt=True, **module_args)
+
+            # Collect all the produced output tensors and add them to this graph.
+            output_names = list(module.output_ports.keys())
+
+            if len(output_names) == 1:
+                # Handle the case of a single data produced.
+                self._forward_data[step_number][output_names[0]] = module_outputs
+            else:
+                # Compare module_outputs with the output port definitions.
+                if len(output_names) != len(module_outputs):
+                    err = "Invalid number of outputs produced by the module "
+                    err += "{} - expected: `{}`, received: `{}`".format(module_name, output_names, len(module_outputs))
+                    raise ValueError(err)
+
+                # Add them to the passed data.
+                for key, value in zip(output_names, module_outputs):
+                    self._forward_data[step_number][key] = value
+
+        # Ok, now return only the bound outputs.
+        if len(self.outputs) == 1:
+            # Return a single object.
+            smp = self.outputs[list(self.outputs.keys())[0]].producer_step_module_port
+            return self._forward_data[smp.step_number][smp.port_name]
+        elif len(self.outputs) > 1:
+            # Return a tuple.
+            output_class_name = f'{self.__class__.__name__}Output'
+            result_type = namedtuple(typename=output_class_name, field_names=self.outputs.keys())
+            # Prepare list values.
+            values = []
+            for output in self.outputs.values():
+                smp = output.producer_step_module_port
+                values.append(self._forward_data[smp.step_number][smp.port_name])
+            # Return the object
+            return result_type(*values)
+        else:  # (==0)
+            # Generally this should not happen!
+            return
+
+    def forward(self, *args: Optional[Tuple], **kwargs: Optional[Dict[str, Any]]):
+        """
+        Graph forward method. In the execution it follows the order of the modules defined in steps and passes data
+        between modules following the connectivity stored in NmTensors.
+
+        Accepts a batch (passed as a tuple in args) OR a list of named arguments (as kwargs).
+
+        Use-case 1:
+        
+        .. code-block:: python
+
+            # Retrieve batch as a tuple and pass it to forward() as tuple.
+            for batch in training_graph.get_batch():
+                training_graph.forward(batch)
+
+        Use-case 2:
+
+        .. code-block:: python
+
+            # Retrieve batch as a tuple and pass it to forward() as list of named arguments.
+            for batch in training_graph.get_batch():
+                training_graph.forward(input1=batch.input1, input2=batch.input2)
+
+
+        Use-case 3:
+
+        .. code-block:: python
+
+            # Retrieve batch as dictionary and pass it to forward() as list of named arguments.
+            for batch in training_graph.get_batch(yield_dict=True):
+                training_graph.forward(**batch)
+
+        Args:
+            args: A tuple object (a batch) with all required inputs (optional)
+            kwargs: a dictionary containing all required inputs (optional)
+
+        Returns:
+            A tuple object containing all graph outputs
+        """
+
+        # Get list of argument names.
+        if self.is_complete:
+            # Use dataset definitions.
+            dl = self.modules[self.steps[0]]
+            input_names = list(dl.output_ports.keys())
+        else:
+            input_names = list(self._inputs.keys())
+
+        # Work on args or kwargs - depending on input_dict settings.
+        if len(args) > 0:
+            # Operate on args, i.e. a single tuple or a single "object" (1 input port to graph).
+            if len(args) == 1:
+                # Check if it is a tuple.
+                if isinstance(args[0], tuple) and hasattr(args[0], "_fields"):
+                    inputs = args[0]._asdict()
+                else:
+                    # There is only one input - use the input_names[0] as key.
+                    inputs = {input_names[0]: args[0]}
+            else:
+                err = "Invalid argument passed to `graph forward()`"
+                err += " - expected: a tuple, received: `{}`".format(args)
+                raise ValueError(err)
+        else:
+            # Operate on named arguments.
+            inputs = kwargs
+
+        # Compare inputs with the desired inputs.
+        if len(input_names) != len(inputs) or sorted(input_names) != sorted(inputs.keys()):
+            err = "Invalid list of arguments passed to the `graph forward()`"
+            err += " - expected: `{}`, received: `{}`".format(input_names, inputs.keys())
+            raise ValueError(err)
+
+        # Copy inputs to an adequate (module.output->value) structure.
+        if self._forward_data is not None:
+            self._forward_data = None
+        self._forward_data = defaultdict(lambda: {})
+
+        if self.is_complete:
+            # Treat all the inputs as "DL outputs".
+            for key, value in inputs.items():
+                self._forward_data[0][key] = value
+
+        # Create a list of connenctions: (producer.port -> consumer.port)
+        connections = []
+        for tensors in self.tensors.values():
+            for t in tensors.values():
+                connections.extend(t.connections())
+
+        if self.operation_mode == OperationMode.evaluation:
+            # Perform forward - without collecting of the gradients.
+            with torch.no_grad():
+                return self.__forward(inputs, connections)
+        else:
+            # Perform forward - and collect all the gradients.
+            return self.__forward(inputs, connections)
+
+    def backward(self, losses: List["Tensor"] = []):
+        """
+        Backward pass through the graph. Optionally the method accepts list of losses to backpropagate from.
+        If not provided, will collect all output of all loss modules in the graph and backpropagate from them.
+
+        Args:
+            losses: list of losses to backpropagate from (OPTIONAL, DEFAULT: [])
+
+        Raises:
+            ConfigurationError if graph is non-trainable.
+        """
+        # Check if we can run backwards at all.
+        if not self.is_trainable:
+            raise ConfigurationError(
+                "Cannot run backward propagation as the graph `{}`` is non-trainable".format(self.name)
+            )
+
+        losses_to_backpropagate = []
+        # If losses are passed - use those during backpropagation.
+        if len(losses) != 0:
+            losses_to_backpropagate = losses
+        else:
+            # Else: collect outputs of all Loss NMs.
+            for step_number in range(len(self._steps)):
+
+                # Get the module.
+                module_name = self._steps[step_number]
+                module = self._modules[module_name]
+
+                # Collect module outputs.
+                # Assumption: loss modules return only loss.
+                if module.type == ModuleType.loss:
+                    for output_port_names in module.output_ports.keys():
+                        losses_to_backpropagate.append(self._forward_data[step_number][output_port_names])
+
+        # Estimate the total number of backward passes (one from each tensor).
+        total_passes = len(losses_to_backpropagate)
+
+        # All but the last call to backward should have the retain_graph=True option.
+        pass_counter = 0
+        for loss in losses_to_backpropagate:
+            pass_counter += 1
+            if pass_counter == total_passes:
+                # Last pass.
+                loss.backward()
+            else:
+                # "Other pass."
+                loss.backward(retain_graph=True)
+
+    def parameters(self, recurse: bool = True):
+        """
+        Args:
+            recurse (bool): if True, then yields parameters of graph modules and all their submodules.
+        Returns:
+            An iterator over parameter of all trainable modules.
+        """
+        for module_name in self._modules:
+            # Get module.
+            module = self._modules[module_name]
+            if module.type == ModuleType.trainable:
+                # Yield it parameters.
+                for _, param in module.named_parameters(recurse=recurse):
+                    yield param
+
+    def named_parameters(self, recurse: bool = True):
+        """
+        Args:
+            recurse (bool): if True, then yields parameters of graph modules and all their submodules.
+        Returns:
+            An iterator ovar all named parameters of all trainable components.
+        """
+        for module_name in self._modules:
+            # Get module.
+            module = self._modules[module_name]
+            if module.type == ModuleType.trainable:
+                # Yield it parameters.
+                for name, param in model.named_parameters(recurse=recurse):
+                    yield name, param

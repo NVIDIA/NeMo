@@ -16,20 +16,13 @@
 
 import argparse
 
-from torch import max, mean, stack, tensor
+from torch import optim
 
 import nemo.utils.argparse as nm_argparse
 from nemo.collections.cv.modules.data_layers import MNISTDataLayer
 from nemo.collections.cv.modules.losses import NLLLoss
 from nemo.collections.cv.modules.trainables import LeNet5
-from nemo.core import (
-    DeviceType,
-    EvaluatorCallback,
-    NeuralGraph,
-    NeuralModuleFactory,
-    OperationMode,
-    SimpleLossLoggerCallback,
-)
+from nemo.core import DeviceType, NeuralGraph, NeuralModuleFactory, OperationMode
 from nemo.utils import logging
 
 if __name__ == "__main__":
@@ -39,7 +32,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Instantiate Neural Factory.
-    nf = NeuralModuleFactory(local_rank=args.local_rank, placement=DeviceType.GPU)
+    nf = NeuralModuleFactory(local_rank=args.local_rank)
 
     # Data layers for training and validation.
     dl = MNISTDataLayer(height=32, width=32, train=True)
@@ -54,8 +47,6 @@ if __name__ == "__main__":
         _, x, y, _ = dl()
         p = lenet5(images=x)
         loss = nll_loss(predictions=p, targets=y)
-        # Set output - that output will be used for training.
-        training_graph.outputs["loss"] = loss
 
     # Display the graph summmary.
     logging.info(training_graph.summary())
@@ -66,38 +57,48 @@ if __name__ == "__main__":
         p = lenet5(images=x)
         loss_e = nll_loss(predictions=p, targets=y)
 
-    # Display the graph summmary.
-    logging.info(evaluation_graph.summary())
+    # Perform operations on GPU.
+    training_graph.to(DeviceType.GPU)
+    evaluation_graph.to(DeviceType.GPU)
 
-    # Create the callbacks.
-    def eval_loss_per_batch_callback(tensors, global_vars):
-        if "eval_loss" not in global_vars.keys():
-            global_vars["eval_loss"] = []
-        for key, value in tensors.items():
-            if key.startswith("loss"):
-                global_vars["eval_loss"].append(mean(stack(value)))
+    # Create optimizer.
+    opt = optim.Adam(training_graph.parameters(), lr=0.001)
 
-    def eval_loss_epoch_finished_callback(global_vars):
-        eloss = max(tensor(global_vars["eval_loss"]))
-        logging.info("Evaluation Loss: {0}".format(eloss))
-        return dict({"Evaluation Loss": eloss})
+    # Print frequency.
+    freq = 10
+    # Train for 5 epochs.
+    for epoch in range(5):
+        # Configure data loader - once per epoch.
+        # Just change the batch_size and turn sample shuffling on.
+        training_graph.configure_data_loader(batch_size=128, shuffle=True)
 
-    ecallback = EvaluatorCallback(
-        eval_tensors=[loss_e],
-        user_iter_callback=eval_loss_per_batch_callback,
-        user_epochs_done_callback=eval_loss_epoch_finished_callback,
-        eval_step=100,
-    )
+        # Iterate over the whole dataset - in batches.
+        for step, batch in enumerate(training_graph.get_batch()):
 
-    # SimpleLossLoggerCallback will print loss values to console.
-    callback = SimpleLossLoggerCallback(
-        tensors=[loss], print_func=lambda x: logging.info(f'Training Loss: {str(x[0].item())}')
-    )
+            # Reset the gradients.
+            opt.zero_grad()
 
-    # Invoke the "train" action.
-    nf.train(
-        training_graph=training_graph,
-        callbacks=[callback, ecallback],
-        optimization_params={"num_epochs": 10, "lr": 0.001},
-        optimizer="adam",
-    )
+            # Forward pass.
+            outputs = training_graph.forward(batch)
+            # Print loss.
+            if step % freq == 0:
+                logging.info("Epoch: {} Step: {} Training Loss: {}".format(epoch, step, outputs.loss))
+
+            # Backpropagate the gradients.
+            training_graph.backward()
+
+            # Update the parameters.
+            opt.step()
+        # Epoch ended.
+
+        # Evaluate graph on test set.
+        # Configure data loader - once per epoch.
+        eval_losses = []
+        evaluation_graph.configure_data_loader(batch_size=128)
+        # Iterate over the whole dataset - in batches.
+        for step, batch in enumerate(evaluation_graph.get_batch()):
+            # Forward pass.
+            outputs = evaluation_graph.forward(batch)
+            eval_losses.append(outputs.loss)
+        # Print avg. loss.
+        logging.info("Epoch: {} Avg. Evaluation Loss: {}".format(epoch, sum(eval_losses) / len(eval_losses)))

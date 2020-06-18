@@ -105,7 +105,7 @@ parser.add_argument("--num_gpus", default=1, type=int)
 # Input and output paths and other flags.
 parser.add_argument(
     "--task_name",
-    default="sgd_single_domain",
+    default="dstc8_single_domain",
     type=str,
     choices=data_processor.FILE_RANGES.keys(),
     help="The name of the task to train.",
@@ -206,7 +206,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--state_tracker",
+    "--tracker_model",
     type=str,
     default='baseline',
     choices=['baseline', 'nemotracker'],
@@ -223,9 +223,10 @@ parser.add_argument(
     "--train_schema_emb", action="store_true", help="Specifies whether schema embeddings are trainables.",
 )
 parser.add_argument(
-    "--add_attention_head",
-    action="store_true",
-    help="Whether to use attention when computing projections. When False, uses linear projection.",
+    "--no_attention_head",
+    dest='add_attention_head',
+    action="store_false",
+    help="Whether to use attention when computing projections for slot statuses and categorical slot values. Is always disabled for the baseline model tracker. When specified for nemotracker goes back to using linear projection.",
 )
 parser.add_argument(
     "--debug_mode", action="store_true", help="Enables debug mode with more info on data preprocessing and evaluation",
@@ -233,6 +234,20 @@ parser.add_argument(
 
 parser.add_argument(
     "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
+)
+
+parser.add_argument(
+    "--no_carry_value",
+    action="store_false",
+    help="Disables adding carry-over value to all categorical slots for nemotracker.",
+    dest="add_carry_value",
+)
+
+parser.add_argument(
+    "--no_carry_status",
+    action="store_false",
+    help="Disables adding carry-over status to the slots for nemotracker.",
+    dest="add_carry_status",
 )
 
 args = parser.parse_args()
@@ -288,6 +303,16 @@ tokenizer = nemo_nlp.data.tokenizers.get_tokenizer(
     do_lower_case=args.do_lower_case,
 )
 
+# disabling add_carry_status and add_carry_value for the SGD Baseline model
+if args.tracker_model == "baseline":
+    add_carry_status = False
+    add_carry_value = False
+    add_attention_head = False
+else:
+    add_carry_status = args.add_carry_status
+    add_carry_value = args.add_carry_value
+    add_attention_head = args.add_attention_head
+
 hidden_size = pretrained_bert_model.hidden_size
 
 # Run SGD preprocessor to generate and store schema embeddings
@@ -298,8 +323,10 @@ schema_preprocessor = SchemaPreprocessor(
     tokenizer=tokenizer,
     bert_model=pretrained_bert_model,
     overwrite_schema_emb_files=args.overwrite_schema_emb_files,
-    bert_ckpt_dir=args.checkpoint_dir,
+    bert_ckpt_dir=args.bert_checkpoint,
     nf=nf,
+    add_carry_value=add_carry_value,
+    add_carry_status=add_carry_status,
     mode=args.schema_emb_init,
     is_trainable=args.train_schema_emb,
 )
@@ -316,9 +343,9 @@ dialogues_processor = data_processor.SGDDataProcessor(
 # define model pipeline
 sgd_encoder = SGDEncoderNM(hidden_size=hidden_size, dropout=args.dropout)
 sgd_decoder = SGDDecoderNM(
-    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=args.add_attention_head
+    embedding_dim=hidden_size, schema_emb_processor=schema_preprocessor, add_attention_head=add_attention_head
 )
-dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(reduction=args.loss_reduction)
+dst_loss = nemo_nlp.nm.losses.SGDDialogueStateLossNM(add_carry_status=add_carry_status, reduction=args.loss_reduction)
 
 
 def create_pipeline(dataset_split='train'):
@@ -400,7 +427,7 @@ def create_pipeline(dataset_split='train'):
     return steps_per_epoch, tensors
 
 
-steps_per_epoch, train_tensors = create_pipeline()
+steps_per_epoch, train_tensors = create_pipeline(dataset_split='train')
 logging.info(f'Steps per epoch: {steps_per_epoch}')
 
 # Create trainer and execute training action
@@ -424,7 +451,7 @@ def get_eval_callback(eval_dataset):
             eval_dataset,
             args.data_dir,
             nf.work_dir,
-            args.state_tracker,
+            args.tracker_model,
             args.debug_mode,
             dialogues_processor,
             schema_preprocessor,

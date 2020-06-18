@@ -111,7 +111,8 @@ Dialogue State Tracking
 .. toctree::
    :maxdepth: 8
 
-   dialogue_state_tracking
+   dialogue_state_tracking_trade
+   dialogue_state_tracking_sgd
 
 ASR Postprocessing with BERT
 ----------------------------

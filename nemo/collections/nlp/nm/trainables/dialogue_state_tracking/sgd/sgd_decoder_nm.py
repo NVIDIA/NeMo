@@ -206,14 +206,18 @@ class SGDDecoderNM(TrainableNM):
         else:
             projection_module = Logits
 
-        self.intent_layer = projection_module(1, embedding_dim).to(self._device)
-        self.requested_slots_layer = projection_module(1, embedding_dim).to(self._device)
+        self.intent_layer = Logits(1, embedding_dim).to(self._device)
+        self.requested_slots_layer = Logits(1, embedding_dim).to(self._device)
 
         self.cat_slot_value_layer = projection_module(1, embedding_dim).to(self._device)
 
         # Slot status values: none, dontcare, active.
-        self.cat_slot_status_layer = projection_module(3, embedding_dim).to(self._device)
-        self.noncat_slot_layer = projection_module(3, embedding_dim).to(self._device)
+        self.cat_slot_status_layer = projection_module(schema_emb_processor._slot_status_size, embedding_dim).to(
+            self._device
+        )
+        self.noncat_slot_layer = projection_module(schema_emb_processor._slot_status_size, embedding_dim).to(
+            self._device
+        )
 
         # dim 2 for non_categorical slot - to represent start and end position
         self.noncat_layer1 = nn.Linear(2 * embedding_dim, embedding_dim).to(self._device)
