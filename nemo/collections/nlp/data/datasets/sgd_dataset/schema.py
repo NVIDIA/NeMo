@@ -32,11 +32,12 @@ __all__ = ['ServiceSchema', 'Schema']
 class ServiceSchema(object):
     """A wrapper for schema for a service."""
 
-    def __init__(self, schema_json, service_id=None):
+    def __init__(self, schema_json, add_carry_value, service_id=None):
         self._service_name = schema_json["service_name"]
         self._description = schema_json["description"]
         self._schema_json = schema_json
         self._service_id = service_id
+        self._add_carry_value = add_carry_value
 
         # Construct the vocabulary for intents, slots, categorical slots,
         # non-categorical slots and categorical slot values. These vocabs are used
@@ -55,6 +56,8 @@ class ServiceSchema(object):
         for slot in self._categorical_slots:
             slot_schema = slot_schemas[slot]
             values = sorted(slot_schema["possible_values"])
+            if self._add_carry_value:
+                values.append("#CARRYVALUE#")
             categorical_slot_values[slot] = values
             value_ids = {value: idx for idx, value in enumerate(values)}
             categorical_slot_value_ids[slot] = value_ids
@@ -128,12 +131,16 @@ class ServiceSchema(object):
 class Schema(object):
     """Wrapper for schemas for all services in a dataset."""
 
-    def __init__(self, schema_json_paths):
+    def __init__(self, schema_json_paths, add_carry_value, add_carry_status):
         """
         TODO fix:
         schema_json_paths: list of .json path to schema files of a single str with path to the json file.
         """
         # Load the schema from the json file.
+
+        self._add_carry_value = add_carry_value
+        self._add_carry_status = add_carry_status
+
         if isinstance(schema_json_paths, str):
             with open(schema_json_paths, "r") as f:
                 all_schemas = json.load(f)
@@ -159,11 +166,13 @@ class Schema(object):
         service_schemas = {}
         for schema in all_schemas:
             service = schema["service_name"]
-            service_schemas[service] = ServiceSchema(schema, service_id=self.get_service_id(service))
+            service_schemas[service] = ServiceSchema(
+                schema, service_id=self.get_service_id(service), add_carry_value=self._add_carry_value
+            )
 
         self._service_schemas = service_schemas
         self._schemas = all_schemas
-        self.slots_relation_list = {}
+        self._slots_relation_list = {}
 
     def get_service_id(self, service):
         return self._services_vocab[service]

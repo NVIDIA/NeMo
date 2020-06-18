@@ -62,7 +62,7 @@ def parse_args():
 
     # Create new args
     parser.add_argument("--exp_name", default="Tacotron2", type=str)
-
+    parser.add_argument("--add_audio", action='store_true', help="toggle whether to add audio to tensorboard")
     args = parser.parse_args()
 
     if args.lr_policy:
@@ -131,6 +131,11 @@ def create_train_dag(
     checkpoint_save_freq,
     labels,
     cpu_per_dl=1,
+    add_audio=True,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
 ):
     (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
@@ -176,7 +181,16 @@ def create_train_dag(
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss_t, spec_target, mel_postnet, gate, gate_target, alignments],
         print_func=lambda x: logging.info(f"Loss: {x[0].data}"),
-        log_to_tb_func=partial(tacotron2_log_to_tb_func, log_images=True, log_images_freq=log_freq),
+        log_to_tb_func=partial(
+            tacotron2_log_to_tb_func,
+            log_images=True,
+            log_images_freq=log_freq,
+            add_audio=add_audio,
+            sr=sr,
+            n_fft=n_fft,
+            n_mels=n_mels,
+            fmax=fmax,
+        ),
         tb_writer=neural_factory.tb_writer,
     )
 
@@ -196,6 +210,11 @@ def create_eval_dags(
     labels,
     cpu_per_dl=1,
     do_not_eval_at_start=False,
+    add_audio=True,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
 ):
     (data_preprocessor, text_embedding, t2_enc, t2_dec, t2_postnet, t2_loss, makegatetarget) = neural_modules
 
@@ -249,12 +268,19 @@ def create_eval_dags(
             eval_tensors=eval_tensors,
             user_iter_callback=tacotron2_process_eval_batch,
             user_epochs_done_callback=partial(tacotron2_process_final_eval, tag=tagname),
-            tb_writer_func=partial(tacotron2_eval_log_to_tb_func, tag=tagname),
+            tb_writer_func=partial(
+                tacotron2_eval_log_to_tb_func,
+                tag=tagname,
+                add_audio=add_audio,
+                sr=sr,
+                n_fft=n_fft,
+                n_mels=n_mels,
+                fmax=fmax,
+            ),
             eval_step=eval_freq,
             tb_writer=neural_factory.tb_writer,
             eval_at_start=not do_not_eval_at_start,
         )
-
         callbacks.append(eval_callback)
     return callbacks
 
@@ -271,6 +297,11 @@ def create_all_dags(
     eval_datasets=None,
     eval_batch_size=None,
     do_not_eval_at_start=False,
+    add_audio=True,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
 ):
     # Calculate num_workers for dataloader
     cpu_per_dl = max(int(os.cpu_count() / neural_factory.world_size), 1)
@@ -285,6 +316,11 @@ def create_all_dags(
         checkpoint_save_freq=checkpoint_save_freq,
         cpu_per_dl=cpu_per_dl,
         labels=labels,
+        add_audio=add_audio,
+        sr=sr,
+        n_fft=n_fft,
+        n_mels=n_mels,
+        fmax=fmax,
     )
 
     eval_callbacks = []
@@ -299,6 +335,11 @@ def create_all_dags(
             cpu_per_dl=cpu_per_dl,
             labels=labels,
             do_not_eval_at_start=do_not_eval_at_start,
+            add_audio=add_audio,
+            sr=sr,
+            n_fft=n_fft,
+            n_mels=n_mels,
+            fmax=fmax,
         )
     else:
         logging.info("There were no val datasets passed")
@@ -351,6 +392,11 @@ def main():
         eval_batch_size=args.eval_batch_size,
         labels=labels,
         do_not_eval_at_start=args.do_not_eval_at_start,
+        add_audio=args.add_audio,
+        sr=tacotron2_params["sample_rate"],
+        n_fft=tacotron2_params["n_fft"],
+        n_mels=tacotron2_params["n_mels"],
+        fmax=tacotron2_params["fmax"],
     )
 
     # train model

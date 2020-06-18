@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch as t
 import torch.nn as nn
 
-from nemo.core import DeviceType, ModuleType, NeuralModule, WeightShareTransform
+from nemo.core import DeviceType, ModuleType, NeuralModule, OperationMode, WeightShareTransform
 from nemo.utils.helpers import get_cuda_device, rgetattr, rsetattr
 
 
@@ -155,6 +155,25 @@ class TrainableNM(NeuralModule, nn.Module):
                 True/False depending whether there are any frozen weights or not.
         """
         return self._frozen
+
+    @property
+    def operation_mode(self):
+        """ Returns the operation mode. """
+        return self._operation_mode
+
+    @operation_mode.setter
+    def operation_mode(self, operation_mode: OperationMode):
+        """ Sets the operation mode. Additionally, depending on the mode, runs PyTorch train()/eval()"""
+        # Copy operation mode.
+        self._operation_mode = operation_mode
+
+        # Set PyTorch train/eval flag.
+        if operation_mode == OperationMode.evaluation:
+            self.eval()
+        else:
+            # & OperationMode.training & OperationMode.both.
+            # In the latter not sure what the user will do, so collect the gradients "just in case".
+            self.train()
 
     @property
     def num_weights(self):

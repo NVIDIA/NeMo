@@ -28,6 +28,7 @@ from collections import OrderedDict, defaultdict
 from nemo import logging
 from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
     STATUS_ACTIVE,
+    STATUS_CARRY,
     STATUS_DONTCARE,
     STATUS_OFF,
     STR_DONTCARE,
@@ -36,7 +37,7 @@ from nemo.collections.nlp.data.datasets.sgd_dataset.input_example import (
 REQ_SLOT_THRESHOLD = 0.5
 
 # MIN_SLOT_RELATION specifes the minimum number of relations between two slots in the training dialogues to get considered for carry-over
-MIN_SLOT_RELATION = 25
+MIN_SLOT_RELATION = 0.1
 
 __all__ = ['get_predicted_dialog_baseline', 'write_predictions_to_file']
 
@@ -46,9 +47,9 @@ def carry_over_slots(
     all_slot_values,
     slots_relation_list,
     frame_service_prev,
-    sys_slots_last,
-    sys_slots_agg,
     slot_values,
+    sys_slots_agg,
+    sys_slots_last,
 ):
     """This function searches the candidate list for cross-service cases to find and update the values for all the slots in the current predicted state
     It is called when state is predicted for a frame.
@@ -63,31 +64,20 @@ def carry_over_slots(
       Returns:
         the extracted value for the slot
     """
-    if frame_service_prev == cur_usr_frame["service"]:
+
+    if frame_service_prev == "" or frame_service_prev == cur_usr_frame["service"]:
         return
     for (service_dest, slot_dest), cands_list in slots_relation_list.items():
         if service_dest != cur_usr_frame["service"]:
             continue
         for service_src, slot_src, freq in cands_list:
-            if freq < MIN_SLOT_RELATION:
+            if freq < MIN_SLOT_RELATION or service_src != frame_service_prev:
                 continue
-            if (
-                service_src == frame_service_prev
-                and service_src in all_slot_values
-                and slot_src in all_slot_values[service_src]
-            ):
+            if service_src in all_slot_values and slot_src in all_slot_values[service_src]:
                 slot_values[slot_dest] = all_slot_values[service_src][slot_src]
-            if (
-                service_src == frame_service_prev
-                and service_src in sys_slots_agg
-                and slot_src in sys_slots_agg[service_src]
-            ):
+            if service_src in sys_slots_agg and slot_src in sys_slots_agg[service_src]:
                 slot_values[slot_dest] = sys_slots_agg[service_src][slot_src]
-            if (
-                service_src == frame_service_prev
-                and service_src in sys_slots_last
-                and slot_src in sys_slots_last[service_src]
-            ):
+            if service_src in sys_slots_last and slot_src in sys_slots_last[service_src]:
                 slot_values[slot_dest] = sys_slots_last[service_src][slot_src]
 
 
@@ -103,7 +93,6 @@ def get_carryover_value(
 ):
     """This function searches the previous system actions and also the candidate list for cross-service cases to find a value for a slot
     It is called when a value for a slot can not be found the last user utterance
-
     Args:
         slot: name of the slot to find and extract a value for
         cur_usr_frame: the current frame of the user
@@ -116,7 +105,6 @@ def get_carryover_value(
       Returns:
         the extracted value for the slot
     """
-
     extracted_value = None
     if slot in sys_slots_agg[cur_usr_frame["service"]]:
         extracted_value = sys_slots_agg[cur_usr_frame["service"]][slot]
@@ -136,7 +124,7 @@ def get_carryover_value(
 
 
 def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debug, in_domain_services):
-    """This is NeMo Tracker which would be enabled by passing "--state_tracker=nemotracker".
+    """This is NeMo Tracker which would be enabled by passing "--tracker_model=nemotracker".
     It improves the performance significantly by employing carry-over mechanism for in-service and cross-service.
 
     * **In-service carry-over mechanism**: There are cases that the value for some slots are not mentioned in the last user utterrance, but in the previous system utterances or actions.\
@@ -186,6 +174,11 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
             user_utterance = turn["utterance"]
             system_utterance = dialog["turns"][turn_idx - 1]["utterance"] if turn_idx else ""
             turn_id = "{:02d}".format(turn_idx)
+            if len(turn["frames"]) == 2:
+                if frame_service_prev != "" and turn["frames"][0]["service"] != frame_service_prev:
+                    frame_tmp = turn["frames"][0]
+                    turn["frames"][0] = turn["frames"][1]
+                    turn["frames"][1] = frame_tmp
 
             for frame in turn["frames"]:
                 cat_slot_status_acc = 0
@@ -250,26 +243,43 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     if slot_status == STATUS_DONTCARE:
                         extracted_value = STR_DONTCARE
                     elif slot_status == STATUS_ACTIVE:
+                        carryover_value = get_carryover_value(
+                            slot,
+                            frame,
+                            all_slot_values,
+                            slots_relation_list,
+                            frame_service_prev,
+                            sys_slots_last,
+                            sys_slots_agg,
+                            sys_rets,
+                        )
+
                         if (
                             service_schema.get_categorical_slot_values(slot)[predictions["cat_slot_value"][slot_idx]]
                             != "#CARRYVALUE#"
+                            or carryover_value is None
                         ):
                             value_idx = predictions["cat_slot_value"][slot_idx]
                             extracted_value = service_schema.get_categorical_slot_values(slot)[value_idx]
                         else:
-                            carryover_value = get_carryover_value(
-                                slot,
-                                frame,
-                                all_slot_values,
-                                slots_relation_list,
-                                frame_service_prev,
-                                sys_slots_last,
-                                sys_slots_agg,
-                                sys_rets,
-                            )
-                            if carryover_value is not None:
-                                extracted_value = carryover_value
-                                print(f'slot:{slot} with value:{carryover_value} extratced with CARRYVALUE')
+                            extracted_value = carryover_value
+                    elif slot_status == STATUS_CARRY:
+                        carryover_value = get_carryover_value(
+                            slot,
+                            frame,
+                            all_slot_values,
+                            slots_relation_list,
+                            frame_service_prev,
+                            sys_slots_last,
+                            sys_slots_agg,
+                            sys_rets,
+                        )
+
+                        if carryover_value is None:
+                            extracted_value = None
+                        else:
+                            extracted_value = carryover_value
+
                     elif slot_status == STATUS_OFF:
                         extracted_value = None
 
@@ -310,11 +320,28 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     ch_start_idx = predictions["noncat_alignment_start"][tok_start_idx]
                     ch_end_idx = predictions["noncat_alignment_end"][tok_end_idx]
                     extracted_value = None
-                    if ch_start_idx > 0 and ch_end_idx > 0:
-                        # Add span from the user utterance.
-                        extracted_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
-                    else:
-                        extracted_value = get_carryover_value(
+
+                    slot_status = predictions["noncat_slot_status"][slot_idx]
+                    if slot_status == STATUS_DONTCARE:
+                        slot_values[slot] = STR_DONTCARE
+                    elif slot_status == STATUS_ACTIVE:
+                        if ch_start_idx > 0 and ch_end_idx > 0:
+                            # Add span from the user utterance.
+                            extracted_value = user_utterance[ch_start_idx - 1 : ch_end_idx]
+                        else:
+                            carryover_value = get_carryover_value(
+                                slot,
+                                frame,
+                                all_slot_values,
+                                slots_relation_list,
+                                frame_service_prev,
+                                sys_slots_last,
+                                sys_slots_agg,
+                                sys_rets,
+                            )
+                            extracted_value = carryover_value
+                    elif slot_status == STATUS_CARRY:
+                        carryover_value = get_carryover_value(
                             slot,
                             frame,
                             all_slot_values,
@@ -325,14 +352,15 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                             sys_rets,
                         )
 
-                    slot_status = predictions["noncat_slot_status"][slot_idx]
-                    if slot_status == STATUS_DONTCARE:
-                        slot_values[slot] = STR_DONTCARE
-                    elif slot_status == STATUS_ACTIVE:
-                        if extracted_value is not None:
-                            slot_values[slot] = extracted_value
+                        if carryover_value is None:
+                            extracted_value = None
+                        else:
+                            extracted_value = carryover_value
 
-                    # debugging info processing
+                    if extracted_value is not None:
+                        slot_values[slot] = extracted_value
+
+                    # debugging info processing ended
                     if predictions["noncat_slot_status_GT"][slot_idx] != predictions["noncat_slot_status"][
                         slot_idx
                     ] or (
@@ -360,16 +388,16 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                     if predictions["noncat_slot_status_GT"][slot_idx] == predictions["noncat_slot_status"][slot_idx]:
                         noncat_slot_status_acc += 1
                     # debugging info processing ended
+
                 carry_over_slots(
                     frame,
                     all_slot_values,
                     slots_relation_list,
                     frame_service_prev,
-                    sys_slots_last,
-                    sys_slots_agg,
                     slot_values,
+                    sys_slots_agg,
+                    sys_slots_last,
                 )
-
                 # in debug mode, the following outputs would get generated which can be used for performing error analysis.
                 # It prints out the information about the frames in the evaluation set which contain errors and those error in the predictaed state are not originated from previous frames or turns.
                 # Therefore, these frames would be the origin of errors in the evaluation dialogues.
@@ -411,7 +439,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                         if found_err:
                             logging.debug("-----------------------------------New Frame------------------------------")
                             logging.debug(
-                                f'DIALOGUE ID : {dialog_id}, TURN ID: {turn_id}, SERVICE: {frame["service"]}'
+                                f'DIALOGUE ID : {dialog_id}, TURN ID: {turn_id}, SERVICE: {frame["service"]}, PREV_SERVICE: {frame_service_prev}'
                             )
 
                             logging.debug(f'SYS : {system_utterance}')
@@ -429,6 +457,7 @@ def get_predicted_dialog_nemotracker(dialog, all_predictions, schemas, eval_debu
                             logging.debug("\n")
                             logging.debug(f"SLOTS - LABEL: {true_slots}")
                             logging.debug(f"SYS SLOT AGG: {sys_slots_agg}")
+                            logging.debug(f"SYS SLOT LAST: {sys_slots_last}")
                             logging.debug(f"SYS RETS: {sys_rets}")
 
                             logging.debug("\n")
@@ -561,7 +590,7 @@ def get_predicted_dialog_baseline(dialog, all_predictions, schemas):
 
 
 def write_predictions_to_file(
-    predictions, input_json_files, output_dir, schemas, state_tracker, eval_debug, in_domain_services
+    predictions, input_json_files, output_dir, schemas, tracker_model, eval_debug, in_domain_services
 ):
     """Write the predicted dialogues as json files.
 
@@ -591,14 +620,14 @@ def write_predictions_to_file(
             logging.debug(f'{input_file_path} file is loaded')
             pred_dialogs = []
             for d in dialogs:
-                if state_tracker == 'baseline':
+                if tracker_model == 'baseline':
                     pred_dialog = get_predicted_dialog_baseline(d, all_predictions, schemas)
-                elif state_tracker == 'nemotracker':
+                elif tracker_model == 'nemotracker':
                     pred_dialog = get_predicted_dialog_nemotracker(
                         d, all_predictions, schemas, eval_debug, in_domain_services
                     )
                 else:
-                    raise ValueError(f"tracker_mode {state_tracker} is not defined.")
+                    raise ValueError(f"tracker_mode {tracker_model} is not defined.")
                 pred_dialogs.append(pred_dialog)
             f.close()
         input_file_name = os.path.basename(input_file_path)

@@ -17,6 +17,24 @@ __all__ = [
 ]
 
 
+def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
+    """
+    Griffin-Lim algorithm to convert magnitude spectrograms to audio signals
+    """
+    phase = np.exp(2j * np.pi * np.random.rand(*magnitudes.shape))
+    complex_spec = magnitudes * phase
+    signal = librosa.istft(complex_spec)
+    if not np.isfinite(signal).all():
+        logging.warning("audio was not finite, skipping audio saving")
+        return np.array([0])
+
+    for _ in range(n_iters):
+        _, phase = librosa.magphase(librosa.stft(signal, n_fft=n_fft))
+        complex_spec = magnitudes * phase
+        signal = librosa.istft(complex_spec)
+    return signal
+
+
 def waveglow_log_to_tb_func(
     swriter,
     tensors,
@@ -88,7 +106,21 @@ def waveglow_eval_log_to_tb_func(
     )
 
 
-def tacotron2_log_to_tb_func(swriter, tensors, step, tag="train", log_images=False, log_images_freq=1):
+def tacotron2_log_to_tb_func(
+    swriter,
+    tensors,
+    step,
+    tag="train",
+    log_images=False,
+    log_images_freq=1,
+    add_audio=True,
+    griffin_lim_mag_scale=1024,
+    griffin_lim_power=1.2,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
+):
     loss, spec_target, mel_postnet, gate, gate_target, alignments = tensors
     if loss:
         swriter.add_scalar("loss", loss, step)
@@ -111,6 +143,19 @@ def tacotron2_log_to_tb_func(swriter, tensors, step, tag="train", log_images=Fal
             step,
             dataformats="HWC",
         )
+        if add_audio:
+            filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+            log_mel = mel_postnet[0].data.cpu().numpy().T
+            mel = np.exp(log_mel)
+            magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+            audio = griffin_lim(magnitude.T ** griffin_lim_power)
+            swriter.add_audio(f"audio/{tag}_predicted", audio / max(np.abs(audio)), step, sample_rate=sr)
+
+            log_mel = spec_target[0].data.cpu().numpy().T
+            mel = np.exp(log_mel)
+            magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+            audio = griffin_lim(magnitude.T ** griffin_lim_power)
+            swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
 
 
 def tacotron2_process_eval_batch(tensors: dict, global_vars: dict):
@@ -143,7 +188,19 @@ def tacotron2_process_final_eval(global_vars: dict, tag=None):
     return global_vars
 
 
-def tacotron2_eval_log_to_tb_func(swriter, global_vars, step, tag=None):
+def tacotron2_eval_log_to_tb_func(
+    swriter,
+    global_vars,
+    step,
+    tag=None,
+    add_audio=True,
+    griffin_lim_mag_scale=1024,
+    griffin_lim_power=1.2,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
+):
     spec_target = global_vars['tensorboard']["mel_target"]
     mel_postnet = global_vars['tensorboard']["mel_pred"]
     gate = global_vars['tensorboard']["gate"]
@@ -151,7 +208,18 @@ def tacotron2_eval_log_to_tb_func(swriter, global_vars, step, tag=None):
     alignments = global_vars['tensorboard']["alignments"]
     swriter.add_scalar(f"{tag}.loss", global_vars['EvalLoss'], step)
     tacotron2_log_to_tb_func(
-        swriter, [None, spec_target, mel_postnet, gate, gate_target, alignments], step, tag=tag, log_images=True,
+        swriter,
+        [None, spec_target, mel_postnet, gate, gate_target, alignments],
+        step,
+        tag=tag,
+        log_images=True,
+        add_audio=add_audio,
+        griffin_lim_mag_scale=griffin_lim_mag_scale,
+        griffin_lim_power=griffin_lim_power,
+        sr=sr,
+        n_fft=n_fft,
+        n_mels=n_mels,
+        fmax=fmax,
     )
 
 
