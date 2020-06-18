@@ -33,7 +33,7 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
-    parser.add_argument("--wer_tolerance", type=float, default=None, help="used by test")
+    parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
     args = parser.parse_args()
 
