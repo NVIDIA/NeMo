@@ -103,7 +103,6 @@ parser.add_argument("--local_rank", default=None, type=int, help="For distribute
 args = parser.parse_args()
 
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

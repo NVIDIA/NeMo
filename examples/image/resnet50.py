@@ -47,7 +47,6 @@ tb_writer = SummaryWriter(tb_folder)
 
 # instantiate Neural Factory with supported backend
 neural_factory = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     # Set this to nemo.core.Optimization.mxprO1
     # if you have Volta or Turing GPU

@@ -56,10 +56,7 @@ def main():
 
     # Instantiate Neural Factory with supported backend
     neural_factory = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
-        local_rank=args.local_rank,
-        optimization_level=nemo.core.Optimization.mxprO1,
-        placement=device,
+        local_rank=args.local_rank, optimization_level=nemo.core.Optimization.mxprO1, placement=device,
     )
 
     if args.local_rank is not None:

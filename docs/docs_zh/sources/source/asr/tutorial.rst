@@ -231,7 +231,6 @@ NeMo 中的混合精度和分布式训练是基于 `英伟达的 APEX 库 <https
 .. code-block:: python
 
     nf = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
         cudnn_benchmark=True)
