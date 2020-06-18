@@ -102,6 +102,7 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
             label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
             results['capit F1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)   
     
+    logging.info(f'results: {results}')
     # {"Punct_accuracy": punct_accuracy, "Capit_acc": capit_accuracy}
     return results
 
