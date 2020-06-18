@@ -68,6 +68,7 @@ def get_parser():
     parser.add_argument("--max-batch-size", type=int, default=64, help="Maximum sequence length of input")
     parser.add_argument("--batch-size", type=int, default=8, help="Preferred batch size of input")
     parser.add_argument("--no-fp16", action="store_true", help="Disable fp16 model building, use fp32 instead")
+    parser.add_argument("--max-workspace-size", type=int, default=128, help="Max WS size, in MB")
 
     return parser
 
