@@ -92,16 +92,17 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
     punct_accuracy, punct_class_report = _eval_epochs_done_callback('punct', global_vars, punct_label_ids, graph_fold, normalize_cm)
 
     for label in punct_class_report:
-        
-        label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
-        if 'f1-score' in punct_class_report[label]:
-            results['punct F1 ' + label_name] = round(punct_class_report[label]['f1-score'] * 100, 2)
+        results[label_name] = punct_class_report[label]['f1-score']
+        # label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
+        # if 'f1-score' in punct_class_report[label]:
+        #     results['punct F1 ' + label_name] = round(punct_class_report[label]['f1-score'] * 100, 2)
     
     capit_accuracy, capit_class_report = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
     for label in capit_class_report:
-        label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
-        if 'f1-score' in capit_class_report[label]:
-            results['capit F1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)   
+        results[label_name] = capit_class_report[label]['f1-score']
+        # label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
+        # if 'f1-score' in capit_class_report[label]:
+        #     results['capit F1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)   
     
     # {"Punct_accuracy": punct_accuracy, "Capit_acc": capit_accuracy}
     return results
