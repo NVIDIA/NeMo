@@ -19,13 +19,14 @@ from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_s
     BertJointIntentSlotDataset,
     BertJointIntentSlotInferDataset,
 )
+from nemo.collections.nlp.data.datasets.lasertagger_dataset import LaserTaggerDataset
 from nemo.collections.nlp.data.datasets.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataset,
 )
 from nemo.collections.nlp.data.datasets.lm_transformer_dataset import LanguageModelingDataset
 from nemo.collections.nlp.data.datasets.machine_translation_dataset import TranslationDataset
-from nemo.collections.nlp.data.datasets.multiwoz_dataset.multiwoz_dataset import MultiWOZDataDesc, MultiWOZDataset
+from nemo.collections.nlp.data.datasets.multiwoz_dataset import *
 from nemo.collections.nlp.data.datasets.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
     BertPunctuationCapitalizationInferDataset,
