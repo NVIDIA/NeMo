@@ -33,6 +33,7 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
+    parser.add_argument("--wer_tolerance", type=float, default=None, help="used by test")
     parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
     args = parser.parse_args()
 
@@ -73,7 +74,7 @@ def main():
     wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
     logging.info("Greedy WER {:.2f}%".format(wer * 100))
     if args.wer_target is not None:
-        if args.wer_target < wer:
+        if args.wer_target * args.wer_tolerance < wer:
             raise ValueError(f"Resulting WER {wer} is higher than the target {args.wer_target}")
 
 
