@@ -229,23 +229,23 @@ class NeMoModel(NeuralModule):
         return path.join(out_folder, NEMO_TMP_FOLDER), out_folder
 
     def get_weights(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def set_weights(
         self, name2weight, name2name_and_transform,
     ):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def tie_weights_with(
         self, module, weight_names, name2name_and_transform,
     ):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def restore_from(self, path: str):
-        raise NotImplemented("Please use from_pretrained method for NeMoModels")
+        raise NotImplementedError("Please use from_pretrained method for NeMoModels")
 
     def freeze(self, weights):
-        raise NotImplemented
+        raise NotImplementedError()
 
     def unfreeze(self, weights):
-        raise NotImplemented
+        raise NotImplementedError()
