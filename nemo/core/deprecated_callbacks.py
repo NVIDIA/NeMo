@@ -479,7 +479,7 @@ class WandbCallback(ActionCallback):
 
     def on_action_start(self):
         if self.global_rank is None or self.global_rank == 0:
-            if _WANDB_AVAILABLE and wandb.run is None:
+            if _WANDB_AVAILABLE:
                 wandb.init(name=self._name, project=self._project)
                 if self._args is not None:
                     logging.info('init wandb session and append args')
