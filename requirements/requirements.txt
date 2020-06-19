@@ -1,6 +1,6 @@
 numpy>=1.18.2
 onnx
-onnxruntime_gpu_tensorrt
+onnxruntime_gpu
 pandas
 python-dateutil
 tensorboardX

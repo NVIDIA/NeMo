@@ -96,7 +96,7 @@ WORKDIR /tmp/nemo-src
 COPY . .
 
 RUN pip3 install -U pytest 
-RUN pip3 install ./packages/onnxruntime_gpu_tensorrt-1.3.0*.whl
+RUN pip3 install ./packages/onnxruntime*.whl
 RUN pip3 install megatron
 
 # start building the final container

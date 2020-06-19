@@ -48,6 +48,11 @@ ARG DEB=python-libnvinfer_7.0.0-1+cuda10.2_amd64.deb
 RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
 RUN dpkg -i *.deb && cd ../.. && rm -rf /tmp/trt-oss
 
+WORKDIR /tmp/ort
+COPY scripts/build_onnxruntime.sh .
+RUN build_onnxruntime.sh .
+RUN pip install onnxruntime*.whl
+
 # install nemo dependencies
 WORKDIR /tmp/nemo
 COPY requirements/requirements_docker.txt requirements.txt
