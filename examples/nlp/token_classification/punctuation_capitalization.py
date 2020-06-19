@@ -124,7 +124,7 @@ parser.add_argument(
     "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
 )
 parser.add_argument(
-    "--loss_log_freq", default=-1, type=int, help="Frequency of logging loss values, '-1' - at the end of the epoch",
+    "--loss_log_freq", default=50, type=int, help="Frequency of logging loss values, '-1' - at the end of the epoch",
 )
 parser.add_argument(
     "--use_weighted_loss_punct",
@@ -133,10 +133,10 @@ parser.add_argument(
                     to mitigate classs unbalancing for the punctuation task",
 )
 parser.add_argument(
-    "--wandb_project", default=None, type=str, help='Project name for tracking with Weights and Biases'
+    "--project", default=None, type=str, help='Project name for tracking with Weights and Biases'
 )
 parser.add_argument(
-    "--wandb_experiment", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
+    "--exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
 )
 
 args = parser.parse_args()
@@ -155,7 +155,7 @@ nf = nemo.core.NeuralModuleFactory(
     add_time_to_log_dir=True,
 )
 
-logging.info(args)
+logging.info(f"{args}")
 
 output_file = f'{nf.work_dir}/output.txt'
 
@@ -299,6 +299,18 @@ eval_tensors, data_layer = create_pipeline(
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
 
+eval_callback = nemo.core.EvaluatorCallback(
+    eval_tensors=eval_tensors,
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x, punct_label_ids, capit_label_ids, graph_dir
+    ),
+    tb_writer=nf.tb_writer,
+    eval_step=args.eval_epoch_freq * steps_per_epoch,
+    wandb_name=args.exp_name,
+    wandb_project=args.project,
+)
+
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=losses + train_logits,
@@ -310,26 +322,14 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 
 graph_dir = f'{nf.work_dir}/graphs' if args.add_confusion_matrix else None
 
-eval_callback = nemo.core.EvaluatorCallback(
-    eval_tensors=eval_tensors,
-    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, punct_label_ids, capit_label_ids, graph_dir
-    ),
-    tb_writer=nf.tb_writer,
-    eval_step=args.eval_epoch_freq * steps_per_epoch,
-    wandb_name=args.wandb_experiment,
-    wandb_project=args.wandb_project,
-)
-
 ckpt_callback = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=args.checkpoints_to_keep
 )
 
 wand_callback = nemo.core.WandbCallback(
     train_tensors=[losses[0]],
-    wandb_name=args.wandb_experiment,
-    wandb_project=args.wandb_project,
+    wandb_name=args.exp_name,
+    wandb_project=args.project,
     update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
     args=args,
 )
@@ -340,7 +340,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[losses[0]],
-    callbacks=[train_callback, ckpt_callback, eval_callback, wand_callback],
+    callbacks=[train_callback, ckpt_callback, wand_callback, eval_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
