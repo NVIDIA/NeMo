@@ -290,7 +290,9 @@ if __name__ == "__main__":
         all_eval_losses = {}
         all_eval_tensors = {}
         # for eval_dataset in args.eval_datasets:
-        eval_loss, eval_tensors = create_pipeline(eval_examples, tokenizer, num_eval_examples, args.eval_batch_size, mode="eval")
+        eval_loss, eval_tensors = create_pipeline(
+            eval_examples, tokenizer, num_eval_examples, args.eval_batch_size, mode="eval"
+        )
         all_eval_losses[0] = eval_loss
         all_eval_tensors[0] = eval_tensors
 

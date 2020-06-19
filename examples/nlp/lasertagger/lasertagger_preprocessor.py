@@ -19,10 +19,10 @@ import os
 from collections import OrderedDict, deque
 
 import torch
-import nemo.collections.nlp as nemo_nlp
+from absl import logging
 from examples.nlp.lasertagger.official_lasertagger import bert_example, tagging_converter, utils
 
-from absl import logging
+import nemo.collections.nlp as nemo_nlp
 
 
 def parse_args():
@@ -63,7 +63,9 @@ def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_ex
     converter = tagging_converter.TaggingConverter(
         tagging_converter.get_phrase_vocabulary_from_label_map(label_map), True
     )
-    builder = bert_example.BertExampleBuilder(label_map, args.pretrained_model_name, args.max_seq_length, False, converter)
+    builder = bert_example.BertExampleBuilder(
+        label_map, args.pretrained_model_name, args.max_seq_length, False, converter
+    )
     num_converted = 0
     examples = deque()
     for i, (sources, target) in enumerate(utils.yield_sources_and_targets(input_file)):

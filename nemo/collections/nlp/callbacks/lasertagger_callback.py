@@ -63,6 +63,7 @@ def eval_iter_callback(tensors, global_vars, tokenizer):
                 m = mask.cpu().numpy().tolist()
                 global_vars["labels_mask"].extend(m)
 
+
 def eval_epochs_done_callback(global_vars, validation_dataset=None):
     losses = np.array(global_vars["per_example_loss"])
     eval_loss = np.mean(losses)
