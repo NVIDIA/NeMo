@@ -46,12 +46,6 @@ parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
 parser.add_argument("--weight_decay", default=0, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
-parser.add_argument(
-    "--num_workers",
-    default=2,
-    type=int,
-    help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
-)
 parser.add_argument("--data_dir", default="/data", type=str)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
@@ -232,7 +226,6 @@ def create_pipeline(
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
         use_cache=use_cache,
-        num_workers=args.num_workers,
     )
 
     (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels) = data_layer()

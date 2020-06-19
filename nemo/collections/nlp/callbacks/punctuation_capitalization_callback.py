@@ -125,8 +125,8 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
     logging.info("Sampled preds: [%s]" % list2str(preds[i : i + sample_size]))
     logging.info("Sampled labels: [%s]" % list2str(labels[i : i + sample_size]))
 
-    classification_report = get_classification_report(labels, preds, label_ids)
-    logging.info(classification_report)
+    # classification_report = get_classification_report(labels, preds, label_ids)
+    # logging.info(classification_report)
 
     # calculate and plot confusion_matrix
     if graph_fold:
