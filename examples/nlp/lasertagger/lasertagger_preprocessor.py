@@ -1,7 +1,5 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +15,14 @@
 # =============================================================================
 
 import argparse
-import json
 import os
 from collections import OrderedDict, deque
 
 import torch
+import nemo.collections.nlp as nemo_nlp
 from examples.nlp.lasertagger.official_lasertagger import bert_example, tagging_converter, utils
 
-from nemo import logging
-from nemo.collections.nlp.data.tokenizers import bert_tokenizer
+from absl import logging
 
 
 def parse_args():
@@ -47,7 +44,13 @@ def parse_args():
 				that maps each possible tag to an ID, or a text file that \
 				has one tag per line.",
     )
-    parser.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
+    parser.add_argument(
+        '--pretrained_model_name',
+        default='bert-base-cased',
+        type=str,
+        help='Name of the pre-trained model',
+        choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
+    )
     parser.add_argument("--max_seq_length", default=128, type=int)
     parser.add_argument("--save_path", default=None, help="Path to the save the preprocessed data.")
 
@@ -60,7 +63,7 @@ def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_ex
     converter = tagging_converter.TaggingConverter(
         tagging_converter.get_phrase_vocabulary_from_label_map(label_map), True
     )
-    builder = bert_example.BertExampleBuilder(label_map, args.vocab_file, args.max_seq_length, False, converter)
+    builder = bert_example.BertExampleBuilder(label_map, args.pretrained_model_name, args.max_seq_length, False, converter)
     num_converted = 0
     examples = deque()
     for i, (sources, target) in enumerate(utils.yield_sources_and_targets(input_file)):
@@ -73,8 +76,6 @@ def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_ex
         num_converted += 1
         examples.append(example)
     logging.info(f'Done. {num_converted} examples converted.')
-
-    tokenizer = bert_tokenizer.NemoBertTokenizer(vocab_file=args.vocab_file, do_lower_case=False)
     return examples, num_converted, builder.get_special_tokens_and_ids()
 
 
@@ -85,7 +86,6 @@ if __name__ == "__main__":
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
 
-    processed = OrderedDict()
     train_examples, num_train_examples, _ = read_input_file(args, args.train_file, False, False)
     eval_examples, num_eval_examples, eval_special_tokens = read_input_file(args, args.eval_file, True, False)
     test_examples, num_test_examples, test_special_tokens = read_input_file(args, args.test_file, False, True)

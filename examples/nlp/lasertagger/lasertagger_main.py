@@ -1,3 +1,19 @@
+# =============================================================================
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
 import json
 import math
 import sys
@@ -8,15 +24,13 @@ from examples.nlp.lasertagger.official_lasertagger import bert_example, score_li
 import nemo
 import nemo.collections.nlp as nemo_nlp
 import nemo.collections.nlp.data.tokenizers.tokenizer_utils
-import nemo.core as nemo_core
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.lasertagger_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.nm.data_layers.lasertagger_datalayer import LaserTaggerDataLayer
-from nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm import BERT
 from nemo.core import WeightShareTransform
 from nemo.core.callbacks import CheckpointCallback
-from nemo.utils.lr_policies import PolynomialDecayAnnealing, get_lr_policy
+from nemo.utils.lr_policies import PolynomialDecayAnnealing
 
 sys.modules['bert_example'] = bert_example
 sys.modules['score_lib'] = score_lib
@@ -40,19 +54,21 @@ def parse_args():
         lr=3e-5,
         weight_decay=0.1,
         iter_per_step=1,
+        max_steps=2000,
+        warmup_steps=200,
         checkpoint_save_freq=1000,
         work_dir='outputs/lt-2',
         eval_freq=1000,
         pretrained_model_name='bert-base-cased',
     )
     parser_train.add_argument(
-        "--train_file", type=str, help="The path to training pkl file",
+        "--train_file_preprocessed", type=str, help="The path to training pkl file",
     )
     parser_train.add_argument(
-        "--eval_file", type=str, help="The path to evaluation pkl file",
+        "--eval_file_preprocessed", type=str, help="The path to evaluation pkl file",
     )
     parser_train.add_argument(
-        "--test_file", type=str, help="The path to test pkl file",
+        "--test_file_preprocessed", type=str, help="The path to test pkl file",
     )
     parser_train.add_argument(
         "--label_map_file",
@@ -74,7 +90,6 @@ def parse_args():
     parser_train.add_argument(
         "--model_config_file", default=None, type=str, help="Path to LaserTagger config file in json format"
     )
-    parser_train.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
     parser_train.add_argument("--max_seq_length", default=128, type=int)
     parser_train.add_argument("--warmup_steps", default=4500, type=int)
 
@@ -83,7 +98,7 @@ def parse_args():
         amp_opt_level="O1", batch_size=64, work_dir='outputs/lt-2', pretrained_model_name='bert-base-cased'
     )
     parser_infer.add_argument(
-        "--test_file_raw", type=str, help="The path to test tsv file",
+        "--test_file", type=str, help="The path to test tsv file",
     )
     parser_infer.add_argument(
         "--test_file_preprocessed", type=str, help="The path to preprocessed test pkl file",
@@ -108,7 +123,6 @@ def parse_args():
     parser_infer.add_argument(
         "--model_config_file", default=None, type=str, help="Path to LaserTagger config file in json format"
     )
-    parser_infer.add_argument("--vocab_file", default=None, help="Path to the vocab file.")
     parser_infer.add_argument("--max_seq_length", default=128, type=int)
 
     return parser.parse_args()
@@ -136,9 +150,9 @@ if __name__ == "__main__":
     args = parse_args()
 
     if args.command == 'train':
-        train_examples, num_train_examples = torch.load(args.train_file)
-        if args.eval_file:
-            eval_examples, num_eval_examples, eval_special_tokens = torch.load(args.eval_file)
+        train_examples, num_train_examples = torch.load(args.train_file_preprocessed)
+        if args.eval_file_preprocessed:
+            eval_examples, num_eval_examples, eval_special_tokens = torch.load(args.eval_file_preprocessed)
     test_examples, num_test_examples, test_special_tokens = torch.load(args.test_file_preprocessed)
 
     label_map = utils.read_label_map(args.label_map_file)
@@ -149,8 +163,8 @@ if __name__ == "__main__":
         text = reader.read()
         config = json.loads(text)
 
-    nf = nemo_core.NeuralModuleFactory(
-        backend=nemo_core.Backend.PyTorch,
+    nf = nemo.core.NeuralModuleFactory(
+        backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=args.amp_opt_level,
         log_dir=args.work_dir,
@@ -201,7 +215,6 @@ if __name__ == "__main__":
 
     loss_fn = CrossEntropyLossNM(logits_ndim=3)
     loss_eval_metric = CrossEntropyLossNM(logits_ndim=3, reduction='none')
-    # loss_fn = nemo_nlp.nm.losses.SmoothedCrossEntropyLoss(pad_id=tokenizer.pad_id, label_smoothing=0.1)
 
     beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
         decoder=decoder,
@@ -236,9 +249,9 @@ if __name__ == "__main__":
         },
     )
 
-    def create_pipeline(dataset, tokenizer, num_examples, mode):
+    def create_pipeline(dataset, tokenizer, num_examples, batch_size, mode):
 
-        data_layer = LaserTaggerDataLayer(dataset, tokenizer, num_examples, args.batch_size, mode == "infer")
+        data_layer = LaserTaggerDataLayer(dataset, tokenizer, num_examples, batch_size, mode == "infer")
         (
             input_ids,
             input_mask,
@@ -271,13 +284,13 @@ if __name__ == "__main__":
 
     if args.command == "train":
         # training pipeline
-        train_loss, _ = create_pipeline(train_examples, tokenizer, num_train_examples, mode="train")
+        train_loss, _ = create_pipeline(train_examples, tokenizer, num_train_examples, args.batch_size, mode="train")
 
         # evaluation pipelines
         all_eval_losses = {}
         all_eval_tensors = {}
         # for eval_dataset in args.eval_datasets:
-        eval_loss, eval_tensors = create_pipeline(eval_examples, tokenizer, num_eval_examples, mode="eval")
+        eval_loss, eval_tensors = create_pipeline(eval_examples, tokenizer, num_eval_examples, args.eval_batch_size, mode="eval")
         all_eval_losses[0] = eval_loss
         all_eval_tensors[0] = eval_tensors
 
@@ -310,10 +323,10 @@ if __name__ == "__main__":
         checkpointer_callback = CheckpointCallback(folder=args.work_dir, step_freq=args.checkpoint_save_freq)
         callbacks.append(checkpointer_callback)
 
-        max_steps, warmup_steps = _calculate_steps(num_train_examples, args.batch_size, args.num_epochs, 0.1)
+        # max_steps, warmup_steps = _calculate_steps(num_train_examples, args.batch_size, args.num_epochs, 0.1)
 
         # define learning rate decay policy
-        lr_policy = PolynomialDecayAnnealing(total_steps=max_steps, min_lr=0, warmup_steps=warmup_steps)
+        lr_policy = PolynomialDecayAnnealing(total_steps=args.max_steps, min_lr=0, warmup_steps=args.warmup_steps)
 
         # Create trainer and execute training action
         nf.train(
@@ -322,8 +335,8 @@ if __name__ == "__main__":
             optimizer=args.optimizer,
             lr_policy=lr_policy,
             optimization_params={
-                "num_epochs": args.num_epochs,
-                "max_steps": max_steps,
+                "num_epochs": 300,
+                "max_steps": args.max_steps,
                 "lr": args.lr,
                 "weight_decay": args.weight_decay,
             },
@@ -331,7 +344,7 @@ if __name__ == "__main__":
         )
 
     elif args.command == 'infer':
-        tensors_pred = create_pipeline(test_examples, tokenizer, num_test_examples, mode="infer")
+        tensors_pred = create_pipeline(test_examples, tokenizer, num_test_examples, args.batch_size, mode="infer")
         computed_tensors = nf.infer(tensors=tensors_pred, checkpoint_dir=args.work_dir)
 
         id_2_tag = {tag_id: tagging.Tag(tag) for tag, tag_id in label_map.items()}
@@ -348,7 +361,7 @@ if __name__ == "__main__":
             labels = [id_2_tag[label_id] for label_id in example.get_token_labels()]
             predictions.append(example.editing_task.realize_output(labels))
 
-        with open(args.test_file_raw, 'r') as f:
+        with open(args.test_file, 'r') as f:
             for line in f:
                 source, *targets = line.rstrip('\n').split('\t')
                 ## TODO: For bert uncased models
