@@ -48,10 +48,11 @@ ARG DEB=python-libnvinfer_7.0.0-1+cuda10.2_amd64.deb
 RUN curl -sL --output ${DEB} ${NV_REPO}/${DEB}
 RUN dpkg -i *.deb && cd ../.. && rm -rf /tmp/trt-oss
 
-WORKDIR /tmp/ort
-COPY scripts/build_onnxruntime.sh .
-RUN build_onnxruntime.sh .
-RUN pip install onnxruntime*.whl
+# Uncomment if you want to rebuild onnxruntime_gpu
+# WORKDIR /tmp/ort
+# COPY scripts/build_onnxruntime.sh .
+# RUN ./build_onnxruntime.sh
+# RUN ls onnxruntime*.whl | xargs pip install
 
 # install nemo dependencies
 WORKDIR /tmp/nemo
@@ -64,7 +65,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION
+ARG NEMO_VERSION=0.10.2b0
 ARG BASE_IMAGE
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
