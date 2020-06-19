@@ -164,7 +164,6 @@ if __name__ == "__main__":
         config = json.loads(text)
 
     nf = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=args.amp_opt_level,
         log_dir=args.work_dir,
