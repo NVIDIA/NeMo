@@ -30,7 +30,7 @@ def main():
         type=str,
         default="QuartzNet15x5-En",
         required=True,
-        help="Pass: 'QuartzNet15x5', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
+        help="Pass: 'QuartzNet15x5-En', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En' to train from pre-trained models. To train from scratch pass path to modelfile ending with .yaml.",
     )
     parser.add_argument(
         "--amp_opt_level",
