@@ -1,2 +1,0 @@
-B-LOC I-LOC O O O O O O O O O O O O O O O O O O O O 
-O O O B-PER I-PER O O O O O O O 

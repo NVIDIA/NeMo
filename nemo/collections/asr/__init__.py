@@ -1,4 +1,7 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,64 +14,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
-from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
-from nemo.collections.asr import models
-from nemo.collections.asr.audio_preprocessing import *
-from nemo.collections.asr.audio_preprocessing2 import AudioToMelSpectrogramPreprocessor2
-from nemo.collections.asr.beam_search_decoder import BeamSearchDecoderWithLM
-from nemo.collections.asr.contextnet import ContextNetDecoderForCTC, ContextNetEncoder
-from nemo.collections.asr.ctc_asr import ConvASRDecoder, ConvASREncoder
-from nemo.collections.asr.data_layer import (
-    AudioToSpeechLabelDataLayer,
-    AudioToTextDataLayer,
-    AudioToTextDataLayer2,
-    KaldiFeatureDataLayer,
-    TarredAudioToTextDataLayer,
-    TranscriptDataLayer,
-)
-from nemo.collections.asr.greedy_ctc_decoder import GreedyCTCDecoder
-from nemo.collections.asr.jasper import (
-    JasperDecoderForClassification,
-    JasperDecoderForCTC,
-    JasperDecoderForSpkrClass,
-    JasperEncoder,
-)
-from nemo.collections.asr.las.misc import JasperRNNConnector
-from nemo.collections.asr.losses import CTCLoss2, CTCLossNM
-from nemo.core import Backend
 
-__all__ = [
-    'Backend',
-    'AudioToTextDataLayer',
-    'TarredAudioToTextDataLayer',
-    'AudioToSpeechLabelDataLayer',
-    'AudioPreprocessing',
-    'AudioPreprocessor',
-    'AudioToMFCCPreprocessor',
-    'AudioToMelSpectrogramPreprocessor',
-    'AudioToSpectrogramPreprocessor',
-    'CropOrPadSpectrogramAugmentation',
-    'MultiplyBatch',
-    'SpectrogramAugmentation',
-    'KaldiFeatureDataLayer',
-    'TranscriptDataLayer',
-    'GreedyCTCDecoder',
-    'BeamSearchDecoderWithLM',
-    'JasperEncoder',
-    'JasperDecoderForCTC',
-    'JasperDecoderForClassification',
-    'JasperDecoderForSpkrClass',
-    'JasperRNNConnector',
-    'ContextNetEncoder',
-    'ContextNetDecoderForCTC',
-    'CTCLossNM',
-    'CrossEntropyLossNM',
-    'ConvASREncoder',
-    'ConvASRDecoder',
-    'AudioToMelSpectrogramPreprocessor2',
-    'CTCLoss2',
-    'AudioToTextDataLayer2',
-]
-
-backend = Backend.PyTorch
+from nemo.collections.asr import data, losses, models, modules

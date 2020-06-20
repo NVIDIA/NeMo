@@ -15,24 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+__all__ = ['AudioToMelSpectrogramPreprocessor']
 
-from .package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
+from nemo.core.classes import NeuralModule
 
-if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo.utils import logging, logging_mode
-    from nemo import core
-    from nemo import utils
-    from nemo import collections
+
+class AudioPreprocessor(NeuralModule):
+    pass
+
+
+class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
+    pass

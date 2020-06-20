@@ -15,24 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+__all__ = ['NeuralModule']
 
-from .package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
+from torch.nn import Module
 
-if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo.utils import logging, logging_mode
-    from nemo import core
-    from nemo import utils
-    from nemo import collections
+from nemo.core.classes.common import NeMoTyping
+
+
+class NeuralModule(Module, NeMoTyping):
+    """
+    Abstract class offering interface shared between all PyTorch Neural Modules.
+    """
+
+    def typed_forward(self, **kwargs):
+        # TODO: Consider if this can be turned into decorator for __call__ or forward
+        self.__validate_input_types(in_objects=kwargs)
+        result = self.forward(**kwargs)
+        self.__attach_and_validate_output_types(out_objects=result)
+        return result

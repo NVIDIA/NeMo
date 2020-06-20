@@ -1,1 +1,0 @@
-.. include:: ../asr/installation.rst

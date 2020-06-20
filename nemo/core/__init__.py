@@ -15,9 +15,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.core.callbacks import *
-from nemo.core.nemo_model import NeMoModel
-from nemo.core.neural_factory import *
-from nemo.core.neural_graph import *
-from nemo.core.neural_modules import *
-from nemo.core.neural_types import *
+import nemo.core.classes as classes
+import nemo.core.neural_types as neural_types
