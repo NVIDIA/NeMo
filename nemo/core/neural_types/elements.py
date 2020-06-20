@@ -48,7 +48,7 @@ __all__ = [
 ]
 
 import abc
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Dict, Optional, Tuple
 
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult

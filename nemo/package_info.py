@@ -16,9 +16,9 @@
 # limitations under the License.
 
 MAJOR = 0
-MINOR = 11
-PATCH = 0
-PRE_RELEASE = 'b6'
+MINOR = 88
+PATCH = 1
+PRE_RELEASE = 'b0'
 
 # Use the following formatting: (major, minor, patch, pre-release)
 VERSION = (MAJOR, MINOR, PATCH, PRE_RELEASE)

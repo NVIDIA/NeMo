@@ -1,10 +1,13 @@
-# Copyright (C) NVIDIA CORPORATION. All Rights Reserved.
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -82,7 +85,7 @@ class StatsPoolLayer(nn.Module):
             time_len = encoder_output.shape[-1]
             # encoder_output = encoder_output
             cov = encoder_output.bmm(encoder_output.transpose(2, 1))  # cov matrix
-            cov = cov.view(cov.shape[0], -1) / (time_len)
+            cov = cov.view(cov.shape[0], -1) / time_len
 
         if self.gram and not self.super:
             return cov

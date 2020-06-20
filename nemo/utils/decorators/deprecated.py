@@ -1,10 +1,13 @@
-# Copyright (C) NVIDIA. All Rights Reserved.
+# ! /usr/bin/python
+# -*- coding: utf-8 -*-
+
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,8 +24,6 @@ import functools
 import wrapt
 
 from nemo.utils import logging
-
-# from nemo.utils import logging
 
 # Remember which deprecation warnings have been printed already.
 _PRINTED_WARNING = {}
