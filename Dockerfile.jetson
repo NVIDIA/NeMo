@@ -118,7 +118,9 @@ RUN PATH=${HOME}/.cargo/bin:${PATH} PYTHONPATH=${HOME}/.cargo/bin:${PYTHONPATH} 
 
 # RUN pip3 install torchaudio
 RUN apt install -y libsox-dev libsox-fmt-all
-RUN mkdir -p /tmp/audio && cd /tmp/audion && git clone https://github.com/pytorch/audio.git -b v0.5.0 && cd audio && pip3 install .[all]
+# This fails during docker build time. Install from running container to run examples/notebooks
+# ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/cuda-10.0/targets/aarch64-linux/lib/"
+# RUN mkdir -p /tmp/audio && cd /tmp/audio && git clone https://github.com/pytorch/audio.git -b v0.5.0 && cd audio && pip3 install .[all]
 
 RUN cd /tmp/nemo-src && pip3 install ".[all]"
 
