@@ -350,17 +350,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
             logging.info('Three most popular labels')
             _, label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
 
-            out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
-            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-            out.write('\n'.join(labels))
+            if master_device:
+                out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
+                labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+                out.write('\n'.join(labels))
             logging.info(f'Labels: {label_ids}')
             logging.info(f'Labels mapping saved to : {out.name}')
-
             return label_frequencies
 
-        if master_device:
-            self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')
-            self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels, self.capit_label_ids, 'capit')
+        self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')
+        self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels, self.capit_label_ids, 'capit')
 
     def __len__(self):
         return len(self.all_input_ids)
