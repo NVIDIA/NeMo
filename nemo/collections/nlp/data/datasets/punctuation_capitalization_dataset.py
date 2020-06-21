@@ -22,6 +22,7 @@ import pickle
 
 import numpy as np
 from torch.utils.data import Dataset
+import torch
 
 from nemo import logging
 from nemo.collections.nlp.data.datasets.datasets_utils import get_label_stats, get_stats
@@ -222,29 +223,26 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_label_ids=None,
         ignore_extra_tokens=False,
         ignore_start_end=False,
-        use_cache=False,
+        overwrite_processed_files=False,
     ):
 
-        if use_cache:
-            # Cache features
-            data_dir = os.path.dirname(text_file)
-            filename = os.path.basename(text_file)
+        # Cache features
+        data_dir = os.path.dirname(text_file)
+        filename = os.path.basename(text_file)
 
-            if not filename.endswith('.txt'):
-                raise ValueError("{text_file} should have extension .txt")
+        if not filename.endswith('.txt'):
+            raise ValueError("{text_file} should have extension .txt")
 
-            filename = filename[:-4]
-            tokenizer_type = type(tokenizer.tokenizer).__name__
-            vocab_size = getattr(tokenizer, "vocab_size", 0)
-            features_pkl = os.path.join(
-                data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
-            )
+        filename = filename[:-4]
+        tokenizer_type = type(tokenizer.tokenizer).__name__
+        vocab_size = getattr(tokenizer, "vocab_size", 0)
+        features_pkl = os.path.join(
+            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+        )
 
-        if use_cache and os.path.exists(features_pkl):
-            # If text_file was already processed, load from pickle
-            features = pickle.load(open(features_pkl, 'rb'))
-            logging.info(f'features restored from {features_pkl}')
-        else:
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+
+        if master_device and (not os.path.exists(features_pkl) or overwrite_processed_files):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
 
@@ -326,9 +324,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 ignore_start_end=ignore_start_end,
             )
 
-            if use_cache:
-                pickle.dump(features, open(features_pkl, "wb"))
-                logging.info(f'features saved to {features_pkl}')
+            pickle.dump(features, open(features_pkl, "wb"))
+            logging.info(f'Features saved to {features_pkl}')
+
+        # wait until the master process writes to the processed data files
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        features = pickle.load(open(features_pkl, 'rb'))
+        logging.info(f'features restored from {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -355,8 +358,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
             return label_frequencies
 
-        self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')
-        self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels, self.capit_label_ids, 'capit')
+        if master_device:
+            self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')
+            self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels, self.capit_label_ids, 'capit')
 
     def __len__(self):
         return len(self.all_input_ids)

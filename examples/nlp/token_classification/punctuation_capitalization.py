@@ -105,7 +105,7 @@ parser.add_argument(
     type=str,
     help="The folder containing the checkpoints for the model to continue training",
 )
-parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
+parser.add_argument("--overwrite_processed_files", action='store_true', help="Whether to overwrite preprocessed data files")
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -187,7 +187,7 @@ def create_pipeline(
     capit_label_ids=None,
     ignore_extra_tokens=args.ignore_extra_tokens,
     ignore_start_end=args.ignore_start_end,
-    use_cache=args.use_cache,
+    overwrite_processed_files=args.overwrite_processed_files,
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
     punct_classifier=TokenClassifier,
@@ -225,7 +225,7 @@ def create_pipeline(
         shuffle=shuffle,
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
-        use_cache=use_cache,
+        overwrite_processed_files=overwrite_processed_files,
     )
 
     (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels) = data_layer()
@@ -326,13 +326,14 @@ ckpt_callback = nemo.core.CheckpointCallback(
     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=args.checkpoints_to_keep
 )
 
-wand_callback = nemo.core.WandbCallback(
-    train_tensors=[losses[0]],
-    wandb_name=args.exp_name,
-    wandb_project=args.project,
-    update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
-    args=args,
-)
+if args.project is not None:
+    wand_callback = nemo.core.WandbCallback(
+        train_tensors=[losses[0]],
+        wandb_name=args.exp_name,
+        wandb_project=args.project,
+        update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
+        args=args,
+    )
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
@@ -340,7 +341,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[losses[0]],
-    callbacks=[train_callback, ckpt_callback, wand_callback, eval_callback],
+    callbacks=[train_callback], #, ckpt_callback, wand_callback, eval_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
