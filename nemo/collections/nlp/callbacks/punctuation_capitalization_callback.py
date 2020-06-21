@@ -114,12 +114,12 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
     '''
     results = {}
     punct_accuracy, punct_class_report = _eval_epochs_done_callback('punct', global_vars, punct_label_ids, graph_fold, normalize_cm)
-    start = time.time()
+    # start = time.time()
     for label in punct_class_report:
         if label != 'accuracy':
             label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
             results['pF1 ' + label_name] = round(punct_class_report[label]['f1-score'] * 100, 2)
-    logging.info(f'calc time {time.time() - start}')
+    # logging.info(f'calc time {time.time() - start}')
     capit_accuracy, capit_class_report = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
     for label in capit_class_report:
         if label != 'accuracy':
@@ -141,13 +141,13 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
     accuracy = sum(labels == preds) / labels.shape[0]
     logging.info(f'Accuracy for task {task_name}: {accuracy}')
 
-    punct_labels = np.array(global_vars['punct_labels'])
-    punct_preds = np.array(global_vars['punct_preds'])
-    capit_labels = np.array(global_vars['capit_labels'])
-    capit_preds = np.array(global_vars['capit_preds'])
-    accuracy_new_punct = sum(punct_labels == punct_preds) / punct_labels.shape[0]
-    accuracy_new_capit = sum(capit_labels == capit_preds) / capit_labels.shape[0]
-    print ('new:', accuracy_new_punct, accuracy_new_capit)
+    # punct_labels = np.array(global_vars['punct_labels'])
+    # punct_preds = np.array(global_vars['punct_preds'])
+    # capit_labels = np.array(global_vars['capit_labels'])
+    # capit_preds = np.array(global_vars['capit_preds'])
+    # accuracy_new_punct = sum(punct_labels == punct_preds) / punct_labels.shape[0]
+    # accuracy_new_capit = sum(capit_labels == capit_preds) / capit_labels.shape[0]
+    # print ('new:', accuracy_new_punct, accuracy_new_capit)
     
     # if task_name == 'punct':
     #     assert accuracy_new_punct == accuracy

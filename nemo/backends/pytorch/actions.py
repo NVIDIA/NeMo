@@ -1007,6 +1007,7 @@ class PtActions(Actions):
         def _perform_on_step_end(callbacks, state):
             if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
                 for callback in callbacks:
+                    logging.info(f'IN: {self.global_rank}, {callback}')
                     if isinstance(callback, ActionCallback):
                         callback.on_iteration_end()
                     elif isinstance(callback, NeMoCallback):
@@ -1015,6 +1016,8 @@ class PtActions(Actions):
                         raise ValueError(
                             "Callback was not a child of ActionCallback nor NeMoCallback and was not understood"
                         )
+                    logging.info(f'OUT: {self.global_rank}, {callback}')
+                    
 
         def _perform_on_action_start(callbacks, state):
             if callbacks is not None and isinstance(callbacks, List) and len(callbacks) > 0:
@@ -1406,15 +1409,18 @@ class PtActions(Actions):
             # iteration over batches in epoch
             batch_counter = 0
             for _, data in enumerate(train_dataloader, 0):
+                logging.info(f'ok: {self.global_rank}')
                 if max_steps is not None and self.step >= max_steps:
                     break
 
                 if batch_counter == 0:
+                    logging.info(f'ok: {self.global_rank}')
                     # Started step, zero gradients
                     curr_optimizer = training_loop[self.step % len(training_loop)][0]
                     curr_optimizer.zero_grad()
                     # Register iteration start with callbacks
                     _perform_on_step_start(callbacks, get_state(self))
+                    logging.info(f'ok: {self.global_rank}')
 
                 # Perform batch start callbacks
                 _perform_on_batch_start(callbacks, get_state(self))
@@ -1446,7 +1452,7 @@ class PtActions(Actions):
                         tensors.append(d.to(dl_device))
                     else:
                         tensors.append(d)
-
+                logging.info(f'ok: {self.global_rank}')
                 for t, d in zip(curr_call_chain[0][2].values(), tensors):
                     if t is not None:
                         self._training_state.set_tensor(t, d)
@@ -1454,7 +1460,7 @@ class PtActions(Actions):
                 self.__nm_graph_forward_pass(
                     call_chain=curr_call_chain, registered_tensors=self._training_state.tensor_dict,
                 )
-
+                logging.info(f'ok: {self.global_rank}')
                 curr_tensors_to_optimize = training_loop[self.step % len(training_loop)][1]
                 final_loss = 0
                 for tensor in curr_tensors_to_optimize:
@@ -1511,18 +1517,25 @@ class PtActions(Actions):
                 _perform_on_batch_end(callbacks, get_state(self))
 
                 batch_counter += 1
+                logging.info(f'batches_per_step: {batches_per_step}')
                 if batch_counter == batches_per_step:
+                    logging.info(f'batch_counter: {batch_counter}')
                     # Ended step. Do optimizer update
                     if grad_norm_clip is not None:
                         torch.nn.utils.clip_grad_norm_(master_params(curr_optimizer), grad_norm_clip)
                     curr_optimizer.step()
                     batch_counter = 0
                     _perform_on_step_end(callbacks, get_state(self))
+                    logging.info(f' step end: {self.global_rank}')
                     self.step += 1
+                logging.info(f'ok: {self.global_rank}')
                 self._training_state.clear_dict()
+                logging.info(f'ok: {self.global_rank}')
             # End of epoch for loop
             # Register epochs end with callbacks
+            logging.info(f'before epoch end: {self.global_rank}')
             _perform_on_epoch_end(callbacks, get_state(self))
+            logging.info(f'epoch end: {self.global_rank}')
             self.epoch += 1
         _perform_on_action_end(callbacks, get_state(self))
 
