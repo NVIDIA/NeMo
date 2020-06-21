@@ -285,17 +285,7 @@ eval_tensors, data_layer = create_pipeline(
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
 
-# eval_callback = nemo.core.EvaluatorCallback(
-#     eval_tensors=eval_tensors,
-#     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-#     user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-#         x, punct_label_ids, capit_label_ids, graph_dir
-#     ),
-#     tb_writer=nf.tb_writer,
-#     eval_step=args.eval_epoch_freq * steps_per_epoch,
-#     wandb_name=args.exp_name,
-#     wandb_project=args.project,
-# )
+
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
@@ -308,9 +298,11 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 
 graph_dir = f'{nf.work_dir}/graphs' if args.add_confusion_matrix else None
 
-# ckpt_callback = nemo.core.CheckpointCallback(
-#     folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=args.checkpoints_to_keep
-# )
+ckpt_callback = nemo.core.CheckpointCallback(
+    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=args.checkpoints_to_keep
+)
+
+callbacks = [train_callback, ckpt_callback]
 
 if args.project is not None:
     wand_callback = nemo.core.WandbCallback(
@@ -320,6 +312,20 @@ if args.project is not None:
         update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
         args=args,
     )
+    callbacks.append(wand_callback)
+
+eval_callback = nemo.core.EvaluatorCallback(
+    eval_tensors=eval_tensors,
+    user_iter_callback=lambda x, y: eval_iter_callback(x, y),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+        x, punct_label_ids, capit_label_ids, graph_dir
+    ),
+    tb_writer=nf.tb_writer,
+    eval_step=args.eval_epoch_freq * steps_per_epoch,
+    wandb_name=args.exp_name,
+    wandb_project=args.project,
+)
+callbacks.append(eval_callback)
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
@@ -327,7 +333,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[losses[0]],
-    callbacks=[train_callback], #, eval_callback], #, ckpt_callback, wand_callback, eval_callback],
+    callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
