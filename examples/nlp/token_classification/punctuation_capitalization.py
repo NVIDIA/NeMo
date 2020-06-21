@@ -138,7 +138,7 @@ parser.add_argument(
 parser.add_argument(
     "--exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
 )
-
+parser.add_argument("--punct_loss_weight", default=0.5, type=float, help="Punctuation task weight loss")
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -257,7 +257,7 @@ def create_pipeline(
         )
         capit_loss = CrossEntropyLossNM(logits_ndim=3)
 
-        task_loss = LossAggregatorNM(num_inputs=2)
+        task_loss = LossAggregatorNM(num_inputs=2, weights=[args.punct_loss_weight, 1.0 - args.punct_loss_weight])
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
