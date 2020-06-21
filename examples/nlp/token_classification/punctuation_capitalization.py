@@ -27,7 +27,7 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
 )
 from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
-from nemo.collections.nlp.nm.trainables import TokenClassifier
+from nemo.collections.nlp.nm.trainables import PunctCapitTokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -176,7 +176,6 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
 
 hidden_size = model.hidden_size
 
-
 def create_pipeline(
     pad_label=args.none_label,
     max_seq_length=args.max_seq_length,
@@ -190,8 +189,7 @@ def create_pipeline(
     overwrite_processed_files=args.overwrite_processed_files,
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
-    punct_classifier=TokenClassifier,
-    capit_classifier=TokenClassifier,
+    classifier=PunctCapitTokenClassifier
 ):
 
     logging.info(f"Loading {mode} data...")
@@ -240,30 +238,20 @@ def create_pipeline(
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
             class_weights = calc_class_weights(punct_label_freqs)
 
-        # Initialize punctuation loss
-        punct_classifier = punct_classifier(
-            hidden_size=hidden_size,
-            num_classes=len(punct_label_ids),
-            dropout=dropout,
-            num_layers=punct_num_layers,
-            name='Punctuation',
+        classifier = classifier(hidden_size=hidden_size,
+        punct_num_classes=len(punct_label_ids),
+        capit_num_classes=len(capit_label_ids),
+        dropout=dropout,
+        punct_num_layers=punct_num_layers,
         )
 
         punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
-
-        # Initialize capitalization loss
-        capit_classifier = capit_classifier(
-            hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, 
-            name='Capitalization'
-        )
         capit_loss = CrossEntropyLossNM(logits_ndim=3)
-
         task_loss = LossAggregatorNM(num_inputs=2, weights=[args.punct_loss_weight, 1.0 - args.punct_loss_weight])
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-    punct_logits = punct_classifier(hidden_states=hidden_states)
-    capit_logits = capit_classifier(hidden_states=hidden_states)
+    punct_logits, capit_logits = classifier(hidden_states=hidden_states)
 
     if mode == 'train':
         punct_loss = punct_loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
@@ -274,11 +262,10 @@ def create_pipeline(
 
         losses = [task_loss, punct_loss, capit_loss]
         logits = [punct_logits, capit_logits]
-        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids, punct_classifier, capit_classifier
+        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids, classifier
     else:
         tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
-
 
 (
     losses,
@@ -286,16 +273,14 @@ def create_pipeline(
     steps_per_epoch,
     punct_label_ids,
     capit_label_ids,
-    punct_classifier,
-    capit_classifier,
+    classifier
 ) = create_pipeline()
 
 eval_tensors, data_layer = create_pipeline(
     mode='dev',
     punct_label_ids=punct_label_ids,
     capit_label_ids=capit_label_ids,
-    punct_classifier=punct_classifier,
-    capit_classifier=capit_classifier,
+    classifier=classifier
 )
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
