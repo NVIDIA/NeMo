@@ -17,6 +17,7 @@
 import random
 
 import numpy as np
+import torch
 
 from nemo import logging
 from nemo.collections.nlp.utils.callback_utils import (
@@ -25,6 +26,7 @@ from nemo.collections.nlp.utils.callback_utils import (
     plot_confusion_matrix,
     tensor2list,
 )
+import time
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -40,6 +42,27 @@ def eval_iter_callback(tensors, global_vars):
         global_vars["capit_all_labels"] = []
     if "all_subtokens_mask" not in global_vars.keys():
         global_vars["all_subtokens_mask"] = []
+
+    GLOBAL_KEYS = ['punct_labels', 'capit_labels', 'punct_preds', 'capit_preds']
+    for key in GLOBAL_KEYS:
+        if key not in global_vars:
+            global_vars[key] = []  
+
+    output = {}
+    for k, v in tensors.items():
+        name = k.split('~~~')
+        if len(name) > 1:
+            if name[1] in ['Punctuation', 'Capitalization']:
+                output[''.join(name[:2])] = torch.cat(v)
+            else:
+                output[name[0]] = torch.cat(v)
+    
+    subtokens_mask= output['subtokens_mask'] > 0.5
+    global_vars['punct_preds'].extend(torch.argmax(output['logitsPunctuation'], axis=-1)[subtokens_mask])
+    global_vars['capit_preds'].extend(torch.argmax(output['logitsCapitalization'], axis=-1)[subtokens_mask])
+    global_vars['punct_labels'].extend(output['punct_labels'][subtokens_mask])
+    global_vars['capit_labels'].extend(output['capit_labels'][subtokens_mask])
+
 
     all_subtokens_mask = []
     punct_all_logits, punct_all_labels = [], []
@@ -78,8 +101,9 @@ def eval_iter_callback(tensors, global_vars):
     capit_all_preds = list(np.argmax(np.asarray(capit_all_logits), 2).flatten())
     global_vars["capit_all_preds"].extend(capit_all_preds)
     global_vars["capit_all_labels"].extend(capit_all_labels)
-
     global_vars["all_subtokens_mask"].extend(all_subtokens_mask)  
+
+
 
 def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, graph_fold=None, normalize_cm=True):
     '''
@@ -90,12 +114,12 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
     '''
     results = {}
     punct_accuracy, punct_class_report = _eval_epochs_done_callback('punct', global_vars, punct_label_ids, graph_fold, normalize_cm)
-
+    start = time.time()
     for label in punct_class_report:
         if label != 'accuracy':
             label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
             results['pF1 ' + label_name] = round(punct_class_report[label]['f1-score'] * 100, 2)
-    
+    logging.info(f'calc time {time.time() - start}')
     capit_accuracy, capit_class_report = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
     for label in capit_class_report:
         if label != 'accuracy':
@@ -113,10 +137,22 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
 
     labels = labels[subtokens_mask]
     preds = preds[subtokens_mask]
-
+    
     accuracy = sum(labels == preds) / labels.shape[0]
     logging.info(f'Accuracy for task {task_name}: {accuracy}')
 
+    punct_labels = np.array(global_vars['punct_labels'])
+    punct_preds = np.array(global_vars['punct_preds'])
+    capit_labels = np.array(global_vars['capit_labels'])
+    capit_preds = np.array(global_vars['capit_preds'])
+    accuracy_new_punct = sum(punct_labels == punct_preds) / punct_labels.shape[0]
+    accuracy_new_capit = sum(capit_labels == capit_preds) / capit_labels.shape[0]
+    print ('new:', accuracy_new_punct, accuracy_new_capit)
+    
+    # if task_name == 'punct':
+    #     assert accuracy_new_punct == accuracy
+    # else:
+    #     assert accuracy_new_capit == accuracy
     # print predictions and labels for a small random subset of data
     sample_size = 20
     i = 0

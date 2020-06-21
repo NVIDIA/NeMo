@@ -341,7 +341,7 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[losses[0]],
-    callbacks=[train_callback], #, ckpt_callback, wand_callback, eval_callback],
+    callbacks=[train_callback, eval_callback], #, ckpt_callback, wand_callback, eval_callback],
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
     optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
