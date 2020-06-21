@@ -354,8 +354,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
                 labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
                 out.write('\n'.join(labels))
-            logging.info(f'Labels: {label_ids}')
-            logging.info(f'Labels mapping saved to : {out.name}')
+                logging.info(f'Labels: {label_ids}')
+                logging.info(f'Labels mapping saved to : {out.name}')
             return label_frequencies
 
         self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')
