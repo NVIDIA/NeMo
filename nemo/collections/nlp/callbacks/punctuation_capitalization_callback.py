@@ -15,6 +15,7 @@
 # =============================================================================
 
 import random
+import time
 
 import numpy as np
 import torch
@@ -26,7 +27,6 @@ from nemo.collections.nlp.utils.callback_utils import (
     plot_confusion_matrix,
     tensor2list,
 )
-import time
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
@@ -42,23 +42,24 @@ def eval_iter_callback(tensors, global_vars):
         global_vars["capit_all_labels"] = []
     if "all_subtokens_mask" not in global_vars.keys():
         global_vars["all_subtokens_mask"] = []
-   
+
     GLOBAL_KEYS = ['punct_labels', 'capit_labels', 'punct_preds', 'capit_preds']
     for key in GLOBAL_KEYS:
         if key not in global_vars:
-            global_vars[key] = []  
+            global_vars[key] = []
 
     output = {}
     for k, v in tensors.items():
         name = k.split('~~~')
         if len(name) > 1:
             output[name[0]] = torch.cat(v)
-    
-    subtokens_mask= output['subtokens_mask'] > 0.5
+
+    subtokens_mask = output['subtokens_mask'] > 0.5
     global_vars['punct_preds'].extend(tensor2list(torch.argmax(output['punct_logits'], axis=-1)[subtokens_mask]))
     global_vars['capit_preds'].extend(tensor2list(torch.argmax(output['capit_logits'], axis=-1)[subtokens_mask]))
     global_vars['punct_labels'].extend(tensor2list(output['punct_labels'][subtokens_mask]))
     global_vars['capit_labels'].extend(tensor2list(output['capit_labels'][subtokens_mask]))
+
 
 def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, graph_fold=None, normalize_cm=True):
     '''
@@ -79,8 +80,8 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
     for label in capit_class_report:
         if label != 'accuracy':
             label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
-            results['cF1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)   
-    
+            results['cF1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)
+
     logging.info(f'results: {results}')
     return results
 

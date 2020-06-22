@@ -51,8 +51,10 @@ class PunctCapitTokenClassifier(TrainableNM):
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {"punct_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
-                "capit_logits": NeuralType(('B', 'T', 'D'), LogitsType())}
+        return {
+            "punct_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "capit_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+        }
 
     def __init__(
         self,
@@ -69,9 +71,13 @@ class PunctCapitTokenClassifier(TrainableNM):
         # Pass name up the module class hierarchy.
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.punct_mlp = MultiLayerPerceptron(hidden_size, punct_num_classes, self._device, punct_num_layers, activation, log_softmax)
-        self.capit_mlp = MultiLayerPerceptron(hidden_size, capit_num_classes, self._device, capit_num_layers, activation, log_softmax)
-        
+        self.punct_mlp = MultiLayerPerceptron(
+            hidden_size, punct_num_classes, self._device, punct_num_layers, activation, log_softmax
+        )
+        self.capit_mlp = MultiLayerPerceptron(
+            hidden_size, capit_num_classes, self._device, capit_num_layers, activation, log_softmax
+        )
+
         if use_transformer_pretrained:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary

@@ -245,7 +245,7 @@ class SimpleLossLoggerCallback(ActionCallback):
                     self._swriter.add_scalar('misc/step_time', run_time, step)
                 run_time = time.time() - self._last_iter_start
                 logging.info(f"Step time: {run_time} seconds")
-                
+
                 # To keep support in line with the removal of learning rate logging from inside actions, log learning
                 # rate to tensorboard. However it now logs ever self._step_freq as opposed to every step
                 if self._swriter is not None:

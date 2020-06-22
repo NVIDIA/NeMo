@@ -100,14 +100,20 @@ parser.add_argument(
 parser.add_argument(
     "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
 )
-parser.add_argument('--add_confusion_matrix', action='store_true', help='Calculates and plots confusion matrix. Increases evaluation time.')
+parser.add_argument(
+    '--add_confusion_matrix',
+    action='store_true',
+    help='Calculates and plots confusion matrix. Increases evaluation time.',
+)
 parser.add_argument(
     "--checkpoint_dir",
     default=None,
     type=str,
     help="The folder containing the checkpoints for the model to continue training",
 )
-parser.add_argument("--overwrite_processed_files", action='store_true', help="Whether to overwrite preprocessed data files")
+parser.add_argument(
+    "--overwrite_processed_files", action='store_true', help="Whether to overwrite preprocessed data files"
+)
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -134,12 +140,8 @@ parser.add_argument(
     help="Flag to indicate whether to use weighted loss \
                     to mitigate classs unbalancing for the punctuation task",
 )
-parser.add_argument(
-    "--project", default=None, type=str, help='Project name for tracking with Weights and Biases'
-)
-parser.add_argument(
-    "--exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
-)
+parser.add_argument("--project", default=None, type=str, help='Project name for tracking with Weights and Biases')
+parser.add_argument("--exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases')
 parser.add_argument("--punct_loss_weight", default=0.5, type=float, help="Punctuation task weight loss")
 args = parser.parse_args()
 
@@ -178,6 +180,7 @@ tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
 
 hidden_size = model.hidden_size
 
+
 def create_pipeline(
     pad_label=args.none_label,
     max_seq_length=args.max_seq_length,
@@ -192,7 +195,7 @@ def create_pipeline(
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
     capit_num_layers=args.capit_num_fc_layers,
-    classifier=PunctCapitTokenClassifier
+    classifier=PunctCapitTokenClassifier,
 ):
 
     logging.info(f"Loading {mode} data...")
@@ -241,12 +244,13 @@ def create_pipeline(
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
             class_weights = calc_class_weights(punct_label_freqs)
 
-        classifier = classifier(hidden_size=hidden_size,
-        punct_num_classes=len(punct_label_ids),
-        capit_num_classes=len(capit_label_ids),
-        dropout=dropout,
-        punct_num_layers=punct_num_layers,
-        capit_num_layers=capit_num_layers,
+        classifier = classifier(
+            hidden_size=hidden_size,
+            punct_num_classes=len(punct_label_ids),
+            capit_num_classes=len(capit_label_ids),
+            dropout=dropout,
+            punct_num_layers=punct_num_layers,
+            capit_num_layers=capit_num_layers,
         )
 
         punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
@@ -271,24 +275,14 @@ def create_pipeline(
         tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
 
-(
-    losses,
-    train_logits,
-    steps_per_epoch,
-    punct_label_ids,
-    capit_label_ids,
-    classifier
-) = create_pipeline()
+
+(losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids, classifier) = create_pipeline()
 
 eval_tensors, data_layer = create_pipeline(
-    mode='dev',
-    punct_label_ids=punct_label_ids,
-    capit_label_ids=capit_label_ids,
-    classifier=classifier
+    mode='dev', punct_label_ids=punct_label_ids, capit_label_ids=capit_label_ids, classifier=classifier
 )
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
-
 
 
 # Create trainer and execute training action
@@ -303,7 +297,10 @@ train_callback = nemo.core.SimpleLossLoggerCallback(
 graph_dir = f'{nf.work_dir}/graphs' if args.add_confusion_matrix else None
 
 ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq, checkpoints_to_keep=args.checkpoints_to_keep
+    folder=nf.checkpoint_dir,
+    epoch_freq=args.save_epoch_freq,
+    step_freq=args.save_step_freq,
+    checkpoints_to_keep=args.checkpoints_to_keep,
 )
 
 callbacks = [train_callback, ckpt_callback]
@@ -321,9 +318,7 @@ if args.project is not None:
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, punct_label_ids, capit_label_ids, graph_dir
-    ),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, punct_label_ids, capit_label_ids, graph_dir),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,
     wandb_name=args.exp_name,
@@ -340,5 +335,10 @@ nf.train(
     callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay, "grad_norm_clip": args.grad_norm_clip},
+    optimization_params={
+        "num_epochs": args.num_epochs,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "grad_norm_clip": args.grad_norm_clip,
+    },
 )
