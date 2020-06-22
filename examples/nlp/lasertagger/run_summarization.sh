@@ -62,6 +62,8 @@ python lasertagger_main.py train \
     --model_config_file=${LASERTAGGER_CONFIG} \
     --work_dir=${OUTPUT_DIR}/lt
 
+# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
+pip install rouge-score
 
 # Infer
 python lasertagger_main.py infer \

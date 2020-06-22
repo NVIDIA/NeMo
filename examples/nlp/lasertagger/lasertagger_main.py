@@ -20,6 +20,7 @@ import sys
 
 import torch
 from examples.nlp.lasertagger.official_lasertagger import bert_example, score_lib, tagging, tagging_converter, utils
+from rouge_score import rouge_scorer, scoring
 
 import nemo
 import nemo.collections.nlp as nemo_nlp
@@ -49,12 +50,12 @@ def parse_args():
         optimizer="adam_w",
         amp_opt_level="O1",
         num_epochs=3,
-        batch_size=64,
+        batch_size=8,
         eval_batch_size=8,
         lr=3e-5,
         weight_decay=0.1,
         iter_per_step=1,
-        max_steps=2000,
+        max_steps=4000,
         warmup_steps=200,
         checkpoint_save_freq=1000,
         work_dir='outputs/lt-2',
@@ -176,23 +177,25 @@ if __name__ == "__main__":
 
     tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
-    tokenizer.add_special_tokens({"additional_special_tokens": test_special_tokens})
+    # tokenizer.add_special_tokens({"additional_special_tokens": test_special_tokens})
     # encoder.resize_token_embeddings(len(tokenizer))
 
-    vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
-    tokens_to_add = vocab_size - tokenizer.vocab_size
+    # vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
+    # tokens_to_add = vocab_size - tokenizer.vocab_size
 
     encoder = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
 
-    device = encoder.bert.embeddings.word_embeddings.weight.get_device()
-    zeros = torch.zeros((tokens_to_add, config['decoder_hidden_size'])).to(device=device)
-    encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-        (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
-    )
+    hidden_size = encoder.hidden_size
+
+    # device = encoder.bert.embeddings.word_embeddings.weight.get_device()
+    # zeros = torch.zeros((tokens_to_add, config['decoder_hidden_size'])).to(device=device)
+    # # encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
+    # #     (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
+    # # )
 
     # Size of the output vocabulary which contains the tags + begin and end
     # tokens used by the Transformer decoder.
-    output_vocab_size = num_tags + 2
+    output_vocab_size = num_tags
 
     decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
         d_model=config['decoder_hidden_size'],
@@ -203,13 +206,13 @@ if __name__ == "__main__":
         vocab_size=output_vocab_size,
         attn_score_dropout=0.1,
         max_seq_length=args.max_seq_length,
-        embedding_dropout=0.25,
-        hidden_act='gelu',
+        embedding_dropout=0.1,
+        hidden_act='relu',
         use_full_attention=config['use_full_attention'],
     )
 
     logits = nemo_nlp.nm.trainables.TokenClassifier(
-        config['decoder_hidden_size'], num_classes=output_vocab_size, num_layers=1, log_softmax=False
+        hidden_size, num_classes=output_vocab_size, num_layers=1, log_softmax=False, dropout=0.1
     )
 
     loss_fn = CrossEntropyLossNM(logits_ndim=3)
@@ -227,71 +230,61 @@ if __name__ == "__main__":
     )
 
     # tie all embeddings weights
-    decoder.tie_weights_with(
-        encoder,
-        weight_names=["embedding_layer.token_embedding.weight"],
-        name2name_and_transform={
-            "embedding_layer.token_embedding.weight": (
-                "bert.embeddings.word_embeddings.weight",
-                WeightShareTransform.SAME,
-            )
-        },
-    )
-    decoder.tie_weights_with(
-        encoder,
-        weight_names=["embedding_layer.position_embedding.weight"],
-        name2name_and_transform={
-            "embedding_layer.position_embedding.weight": (
-                "bert.embeddings.position_embeddings.weight",
-                WeightShareTransform.SAME,
-            )
-        },
-    )
+    if config['use_t2t_decoder']:
+        decoder.tie_weights_with(
+            encoder,
+            weight_names=["embedding_layer.token_embedding.weight"],
+            name2name_and_transform={
+                "embedding_layer.token_embedding.weight": (
+                    "bert.embeddings.word_embeddings.weight",
+                    WeightShareTransform.SAME,
+                )
+            },
+        )
+        decoder.tie_weights_with(
+            encoder,
+            weight_names=["embedding_layer.position_embedding.weight"],
+            name2name_and_transform={
+                "embedding_layer.position_embedding.weight": (
+                    "bert.embeddings.position_embeddings.weight",
+                    WeightShareTransform.SAME,
+                )
+            },
+        )
 
-    def create_pipeline(dataset, tokenizer, num_examples, batch_size, mode):
+    def create_pipeline(dataset, num_examples, batch_size, mode):
 
-        data_layer = LaserTaggerDataLayer(dataset, tokenizer, num_examples, batch_size, mode == "infer")
-        (
-            input_ids,
-            input_mask,
-            segment_ids,
-            tgt_ids,
-            labels_mask,
-            labels,
-            loss_mask,
-            src_ids,
-            src_first_tokens,
-        ) = data_layer()
+        data_layer = LaserTaggerDataLayer(
+            dataset, config['use_t2t_decoder'], num_examples, batch_size, mode == "infer"
+        )
+        (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask,) = data_layer()
 
         src_hiddens = encoder(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
         tgt_hiddens = decoder(
             input_ids_tgt=tgt_ids, hidden_states_src=src_hiddens, input_mask_src=input_mask, input_mask_tgt=labels_mask
         )
-
-        log_softmax = logits(hidden_states=tgt_hiddens)
-
+        log_softmax = (
+            logits(hidden_states=tgt_hiddens) if config['use_t2t_decoder'] else logits(hidden_states=src_hiddens)
+        )
         if mode != "infer":
             loss = loss_fn(logits=log_softmax, labels=labels, loss_mask=loss_mask)
             per_example_loss = loss_eval_metric(logits=log_softmax, labels=labels, loss_mask=loss_mask)
-
-        beam_results = None
         if mode == "infer":
-            beam_results = beam_search(hidden_states_src=src_hiddens, input_mask_src=input_mask)
-            return [beam_results]
-
-        return loss, [tgt_ids, input_ids, loss, per_example_loss, log_softmax, labels, labels_mask]
+            if config['use_t2t_decoder']:
+                return [beam_search(hidden_states_src=src_hiddens, input_mask_src=input_mask)]
+            else:
+                return [log_softmax]
+        return loss, [loss, per_example_loss, log_softmax, labels, labels_mask]
 
     if args.command == "train":
         # training pipeline
-        train_loss, _ = create_pipeline(train_examples, tokenizer, num_train_examples, args.batch_size, mode="train")
+        train_loss, _ = create_pipeline(train_examples, num_train_examples, args.batch_size, mode="train")
 
         # evaluation pipelines
         all_eval_losses = {}
         all_eval_tensors = {}
         # for eval_dataset in args.eval_datasets:
-        eval_loss, eval_tensors = create_pipeline(
-            eval_examples, tokenizer, num_eval_examples, args.eval_batch_size, mode="eval"
-        )
+        eval_loss, eval_tensors = create_pipeline(eval_examples, num_eval_examples, args.eval_batch_size, mode="eval")
         all_eval_losses[0] = eval_loss
         all_eval_tensors[0] = eval_tensors
 
@@ -324,10 +317,10 @@ if __name__ == "__main__":
         checkpointer_callback = CheckpointCallback(folder=args.work_dir, step_freq=args.checkpoint_save_freq)
         callbacks.append(checkpointer_callback)
 
-        # max_steps, warmup_steps = _calculate_steps(num_train_examples, args.batch_size, args.num_epochs, 0.1)
+        max_steps, warmup_steps = _calculate_steps(num_train_examples, args.batch_size, args.num_epochs, 0.1)
 
         # define learning rate decay policy
-        lr_policy = PolynomialDecayAnnealing(total_steps=args.max_steps, min_lr=0, warmup_steps=args.warmup_steps)
+        lr_policy = PolynomialDecayAnnealing(total_steps=max_steps, min_lr=0, warmup_steps=warmup_steps)
 
         # Create trainer and execute training action
         nf.train(
@@ -336,8 +329,8 @@ if __name__ == "__main__":
             optimizer=args.optimizer,
             lr_policy=lr_policy,
             optimization_params={
-                "num_epochs": 300,
-                "max_steps": args.max_steps,
+                "num_epochs": args.num_epochs,
+                "max_steps": max_steps,
                 "lr": args.lr,
                 "weight_decay": args.weight_decay,
             },
@@ -345,22 +338,26 @@ if __name__ == "__main__":
         )
 
     elif args.command == 'infer':
-        tensors_pred = create_pipeline(test_examples, tokenizer, num_test_examples, args.batch_size, mode="infer")
+        tensors_pred = create_pipeline(test_examples, num_test_examples, args.batch_size, mode="infer")
         computed_tensors = nf.infer(tensors=tensors_pred, checkpoint_dir=args.work_dir)
 
         id_2_tag = {tag_id: tagging.Tag(tag) for tag, tag_id in label_map.items()}
 
-        beam_results = []
+        results = []
         for i in computed_tensors[0]:
-            beam_results.extend(i[:, 1:].cpu().numpy().tolist())
+            if config['use_t2t_decoder']:
+                results.extend((i[:, 1:]).cpu().numpy().tolist())
+            else:
+                results.extend(torch.argmax(i, dim=-1).int().cpu().numpy().tolist())
 
         # compute and realize predictions with LaserTagger
         sources, predictions, target_lists = [], [], []
         for i, example in enumerate(test_examples):
-            example.features['labels'] = beam_results[i]
-            example.features['labels_mask'] = [0] + [1] * (len(beam_results[i]) - 2) + [0]
+            example.features['labels'] = results[i]
+            example.features['labels_mask'] = [0] + [1] * (len(results[i]) - 2) + [0]
             labels = [id_2_tag[label_id] for label_id in example.get_token_labels()]
-            predictions.append(example.editing_task.realize_output(labels))
+            prediction = example.editing_task.realize_output(labels)
+            predictions.append(prediction)
 
         with open(args.test_file, 'r') as f:
             for line in f:
@@ -369,14 +366,41 @@ if __name__ == "__main__":
                 # if lowercase:
                 # 	source = source.lower()
                 # 	pred = pred.lower()
-                # 	targets = [t.lower() for t in targets]
+                # 	target = t.lower()
                 sources.append(source)
                 target_lists.append(targets)
 
+        # Exact and SARI scores
         exact = score_lib.compute_exact_score(predictions, target_lists)
         sari, keep, addition, deletion = score_lib.compute_sari_scores(sources, predictions, target_lists)
-        logging.info(f'Exact score:     {100*exact:.3f}')
-        logging.info(f'SARI score:      {100*sari:.3f}')
-        logging.info(f' KEEP score:     {100*keep:.3f}')
-        logging.info(f' ADDITION score: {100*addition:.3f}')
-        logging.info(f' DELETION score: {100*deletion:.3f}')
+        print(f'Exact score:     {100*exact:.3f}')
+        print(f'SARI score:      {100*sari:.3f}')
+        print(f' KEEP score:     {100*keep:.3f}')
+        print(f' ADDITION score: {100*addition:.3f}')
+        print(f' DELETION score: {100*deletion:.3f}')
+
+        # ROUGE-L scores
+        scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
+        aggregator = scoring.BootstrapAggregator()
+        scores = []
+        for target, pred in zip(target_lists, predictions):
+            aggregator.add_scores(scorer.score(target[0], pred))
+
+        aggregates = aggregator.aggregate()
+
+        print("\nROUGE scores:")
+        print("score_type\t\tlow\t\tmid\t\thigh")
+        print("----------------------------------------------------------------")
+        for score_type, aggregate in sorted(aggregates.items()):
+            print(
+                "%s-Recall:   \t%f\t%f\t%f"
+                % (score_type, aggregate.low.recall, aggregate.mid.recall, aggregate.high.recall)
+            )
+            print(
+                "%s-Precision:\t%f\t%f\t%f"
+                % (score_type, aggregate.low.precision, aggregate.mid.precision, aggregate.high.precision)
+            )
+            print(
+                "%s-F_measure:\t%f\t%f\t%f"
+                % (score_type, aggregate.low.fmeasure, aggregate.mid.fmeasure, aggregate.high.fmeasure)
+            )

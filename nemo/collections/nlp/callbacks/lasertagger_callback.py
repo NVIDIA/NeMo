@@ -22,11 +22,8 @@ from nemo import logging
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
 GLOBAL_KEYS = [
-    "tgt_ids",
-    "input_ids",
     "loss",
     "per_example_loss",
-    "log_softmax",
     "beam_results",
     "src_ids",
     "src_first_tokens",
@@ -76,11 +73,11 @@ def eval_epochs_done_callback(global_vars, validation_dataset=None):
         global_vars[key] = []
 
     lor = np.logical_or(labels == predictions, ~labels_mask.astype(np.bool))
-    accuracy = np.all(lor, axis=1).astype(np.float32)
+    accuracy = np.mean(np.all(lor, axis=1).astype(np.float32))
 
     logging.info("------------------------------------------------------------")
     logging.info("Validation loss: {0}".format(np.round(eval_loss, 3)))
-    # logging.info("Sentence level accuracy: {0}".format(accuracy))
+    logging.info("Sentence level accuracy: {0}".format(accuracy))
     logging.info("------------------------------------------------------------")
 
     return dict({"eval_loss": eval_loss})

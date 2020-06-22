@@ -125,7 +125,12 @@ class BertExampleBuilder(object):
         self._task_tokens = collections.OrderedDict()
 
     def build_bert_example(
-        self, sources, target=None, use_arbitrary_target_ids_for_infeasible_examples=False, save_tokens=True
+        self,
+        sources,
+        target=None,
+        use_arbitrary_target_ids_for_infeasible_examples=False,
+        save_tokens=True,
+        infer=False,
     ):
         """Constructs a BERT Example.
 
@@ -142,7 +147,7 @@ class BertExampleBuilder(object):
     """
         # Compute target labels.
         task = tagging.EditingTask(sources)
-        if target is not None:
+        if (target is not None) and (not infer):
             tags = self._converter.compute_tags(task, target)
             if not tags:
                 if use_arbitrary_target_ids_for_infeasible_examples:
@@ -167,7 +172,6 @@ class BertExampleBuilder(object):
         labels_mask = [0] + [1] * len(labels) + [0]
         labels = [0] + labels + [0]
 
-        # print([str(t) for t in tags])
         input_ids = self._tokenizer.tokens_to_ids(input_tokens)
         input_mask = [1] * len(input_ids)
         segment_ids = [0] * len(input_ids)

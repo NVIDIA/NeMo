@@ -24,38 +24,6 @@ from typing import List, Text, Tuple
 from examples.nlp.lasertagger.official_lasertagger import sari_hook
 
 
-def read_data(path, lowercase):
-    """Reads data from prediction TSV file.
-
-  The prediction file should contain 3 or more columns:
-  1: sources (concatenated)
-  2: prediction
-  3-n: targets (1 or more)
-
-  Args:
-    path: Path to the prediction file.
-    lowercase: Whether to lowercase the data (to compute case insensitive
-      scores).
-
-  Returns:
-    Tuple (list of sources, list of predictions, list of target lists)
-  """
-    sources = []
-    predictions = []
-    target_lists = []
-    with open(path, 'r') as f:
-        for line in f:
-            source, pred, *targets = line.rstrip('\n').split('\t')
-            if lowercase:
-                source = source.lower()
-                pred = pred.lower()
-                targets = [t.lower() for t in targets]
-            sources.append(source)
-            predictions.append(pred)
-            target_lists.append(targets)
-    return sources, predictions, target_lists
-
-
 def compute_exact_score(predictions, target_lists):
     """Computes the Exact score (accuracy) of the predictions.
 

@@ -57,7 +57,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_examples=False, save_tokens=True):
+def read_input_file(
+    args, input_file, output_arbitrary_targets_for_infeasible_examples=False, save_tokens=False, infer=False
+):
 
     label_map = utils.read_label_map(args.label_map_file)
     converter = tagging_converter.TaggingConverter(
@@ -71,7 +73,7 @@ def read_input_file(args, input_file, output_arbitrary_targets_for_infeasible_ex
     for i, (sources, target) in enumerate(utils.yield_sources_and_targets(input_file)):
         logging.log_every_n(logging.INFO, f'{i} examples processed, {num_converted} converted.', 10000)
         example = builder.build_bert_example(
-            sources, target, output_arbitrary_targets_for_infeasible_examples, save_tokens
+            sources, target, output_arbitrary_targets_for_infeasible_examples, save_tokens, infer
         )
         if example is None:
             continue
@@ -88,9 +90,11 @@ if __name__ == "__main__":
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
 
-    train_examples, num_train_examples, _ = read_input_file(args, args.train_file, False, False)
-    eval_examples, num_eval_examples, eval_special_tokens = read_input_file(args, args.eval_file, True, False)
-    test_examples, num_test_examples, test_special_tokens = read_input_file(args, args.test_file, False, True)
+    train_examples, num_train_examples, _ = read_input_file(args, args.train_file, False)
+    eval_examples, num_eval_examples, eval_special_tokens = read_input_file(args, args.eval_file, True)
+    test_examples, num_test_examples, test_special_tokens = read_input_file(
+        args, args.test_file, False, save_tokens=True, infer=True
+    )
 
     torch.save((train_examples, num_train_examples), args.save_path + "/lt_train_examples.pkl")
     torch.save((eval_examples, num_eval_examples, eval_special_tokens), args.save_path + "/lt_eval_examples.pkl")

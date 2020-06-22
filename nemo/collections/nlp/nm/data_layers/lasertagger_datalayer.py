@@ -64,14 +64,12 @@ class LaserTaggerDataLayer(TextDataLayer):
             "labels_mask": NeuralType(('B', 'T'), ChannelType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "loss_mask": NeuralType(('B', 'T'), MaskType()),
-            "src_ids": NeuralType(('B', 'T'), ChannelType()),
-            "src_first_tokens": NeuralType(('B', 'T'), ChannelType()),
         }
 
     def __init__(
         self,
         preprocessed_data,
-        tokenizer,
+        use_t2t_decoder,
         num_examples,
         batch_size,
         infer,
@@ -80,7 +78,7 @@ class LaserTaggerDataLayer(TextDataLayer):
     ):
         dataset_params = {
             'preprocessed_data': preprocessed_data,
-            'tokenizer': tokenizer,
+            'use_t2t_decoder': use_t2t_decoder,
             'num_examples': num_examples,
             'infer': infer,
         }

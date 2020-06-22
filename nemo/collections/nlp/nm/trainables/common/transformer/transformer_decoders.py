@@ -65,7 +65,6 @@ class TransformerDecoderBlock(nn.Module):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
-
         self.use_full_attention = use_full_attention
 
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
