@@ -89,7 +89,6 @@ logging.info(f"Logging the experiment to: {args.work_dir}")
 data_desc = MultiWOZDataDesc(args.data_dir, domains)
 
 nf = nemo_core.NeuralModuleFactory(
-    backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

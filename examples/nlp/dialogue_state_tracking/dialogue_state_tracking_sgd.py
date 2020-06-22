@@ -29,7 +29,7 @@ import nemo.collections.nlp.data.datasets.sgd_dataset.data_processor as data_pro
 from nemo.collections.nlp.callbacks.sgd_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.data.datasets.sgd_dataset.schema_processor import SchemaPreprocessor
 from nemo.collections.nlp.nm.trainables import SGDDecoderNM, SGDEncoderNM
-from nemo.core import Backend, CheckpointCallback, EvaluatorCallback, NeuralModuleFactory, SimpleLossLoggerCallback
+from nemo.core import CheckpointCallback, EvaluatorCallback, NeuralModuleFactory, SimpleLossLoggerCallback
 from nemo.utils import logging
 from nemo.utils.lr_policies import get_lr_policy
 
@@ -275,7 +275,6 @@ if not os.path.exists(args.data_dir):
     raise ValueError(f'Data not found at {args.data_dir}')
 
 nf = NeuralModuleFactory(
-    backend=Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

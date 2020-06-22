@@ -91,8 +91,7 @@ First, we instantiate Neural Module Factory which defines 1) backend (PyTorch), 
     
         import nemo
         import nemo.collections.nlp as nemo_nlp
-        nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
-                                               local_rank=args.local_rank,
+        nf = nemo.core.NeuralModuleFactory(local_rank=args.local_rank,
                                                optimization_level=args.amp_opt_level,
                                                log_dir=work_dir,
                                                create_tb_writer=True,

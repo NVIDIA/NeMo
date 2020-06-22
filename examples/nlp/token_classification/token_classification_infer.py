@@ -88,7 +88,7 @@ if not os.path.exists(args.checkpoint_dir):
 if not os.path.exists(args.labels_dict):
     raise ValueError(f'Dictionary with ids to labels not found at {args.labels_dict}')
 
-nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, log_dir=None)
+nf = nemo.core.NeuralModuleFactory(log_dir=None)
 
 labels_dict = get_vocab(args.labels_dict)
 

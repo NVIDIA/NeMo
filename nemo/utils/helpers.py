@@ -121,8 +121,7 @@ def get_cuda_device(placement):
 #         An instance of the NeuralModuleFactory
 #     """
 #     device = nemo.utils.get_device(local_rank)
-#     return nemo.core.NeuralModuleFactory(backend=backend,
-#                                          local_rank=local_rank,
+#     return nemo.core.NeuralModuleFactory(local_rank=local_rank,
 #                                          optimization_level=precision,
 #                                          placement=device)
 

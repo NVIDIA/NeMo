@@ -106,7 +106,7 @@ if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_lab
          or {args.punct_labels_dict}'
     )
 
-nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch, log_dir=None)
+nf = nemo.core.NeuralModuleFactory(log_dir=None)
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
 capit_labels_dict = get_vocab(args.capit_labels_dict)

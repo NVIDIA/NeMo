@@ -92,8 +92,7 @@ labels.txt 文件的每行都应该是下面这个格式的:
 
     .. code-block:: python
 
-        nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
-                                           local_rank=None,
+        nf = nemo.core.NeuralModuleFactory(local_rank=None,
                                            optimization_level="O1",
                                            log_dir=WORK_DIR,
                                            placement=nemo.core.DeviceType.GPU)
