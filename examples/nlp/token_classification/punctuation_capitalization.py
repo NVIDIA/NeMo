@@ -27,7 +27,7 @@ from nemo.collections.nlp.callbacks.punctuation_capitalization_callback import (
 )
 from nemo.collections.nlp.data.datasets.datasets_utils import calc_class_weights
 from nemo.collections.nlp.nm.data_layers import PunctuationCapitalizationDataLayer
-from nemo.collections.nlp.nm.trainables import TokenClassifier
+from nemo.collections.nlp.nm.trainables import PunctCapitTokenClassifier
 from nemo.utils.lr_policies import get_lr_policy
 
 # Parsing arguments
@@ -43,11 +43,13 @@ parser.add_argument("--num_epochs", default=5, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--grad_norm_clip", type=float, default=1, help="Gradient clipping")
 parser.add_argument("--weight_decay", default=0, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
+parser.add_argument("--capit_num_fc_layers", default=2, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
@@ -95,7 +97,23 @@ parser.add_argument(
     help="The output directory where the model prediction\
                     and checkpoints will be written.",
 )
-parser.add_argument("--use_cache", action='store_true', help="Whether to cache preprocessed data")
+parser.add_argument(
+    "--checkpoints_to_keep", default=1, type=int, help="The number of last checkpoints to keep",
+)
+parser.add_argument(
+    '--add_confusion_matrix',
+    action='store_true',
+    help='Calculates and plots confusion matrix. Increases evaluation time.',
+)
+parser.add_argument(
+    "--checkpoint_dir",
+    default=None,
+    type=str,
+    help="The folder containing the checkpoints for the model to continue training",
+)
+parser.add_argument(
+    "--overwrite_processed_files", action='store_true', help="Whether to overwrite preprocessed data files"
+)
 parser.add_argument(
     "--save_epoch_freq",
     default=1,
@@ -110,14 +128,35 @@ parser.add_argument(
     help="Frequency of saving checkpoint \
                     '-1' - step checkpoint won't be saved",
 )
-parser.add_argument("--loss_step_freq", default=250, type=int, help="Frequency of printing loss")
+parser.add_argument(
+    "--eval_epoch_freq", default=1, type=int, help="Frequency of evaluation",
+)
+parser.add_argument(
+    "--loss_log_freq", default=50, type=int, help="Frequency of logging loss values, '-1' - at the end of the epoch",
+)
 parser.add_argument(
     "--use_weighted_loss_punct",
     action='store_true',
     help="Flag to indicate whether to use weighted loss \
                     to mitigate classs unbalancing for the punctuation task",
 )
+parser.add_argument(
+    "--wandb_project", default=None, type=str, help='Project name for tracking with Weights and Biases'
+)
+parser.add_argument(
+    "--wandb_exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
+)
+parser.add_argument("--punct_loss_weight", default=0.5, type=float, help="Punctuation task weight loss")
+parser.add_argument(
+    "--num_workers",
+    default=2,
+    type=int,
+    help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
+)
 
+parser.add_argument(
+    "--enable_pin_memory", action="store_true", help="Enables the pin_memory feature of Pytroch's DataLoader",
+)
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -128,11 +167,12 @@ nf = nemo.core.NeuralModuleFactory(
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,
     create_tb_writer=True,
+    checkpoint_dir=args.checkpoint_dir,
     files_to_copy=[__file__],
     add_time_to_log_dir=True,
 )
 
-logging.info(args)
+logging.info(f"{args}")
 
 output_file = f'{nf.work_dir}/output.txt'
 
@@ -164,11 +204,11 @@ def create_pipeline(
     capit_label_ids=None,
     ignore_extra_tokens=args.ignore_extra_tokens,
     ignore_start_end=args.ignore_start_end,
-    use_cache=args.use_cache,
+    overwrite_processed_files=args.overwrite_processed_files,
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
-    punct_classifier=TokenClassifier,
-    capit_classifier=TokenClassifier,
+    capit_num_layers=args.capit_num_fc_layers,
+    classifier=PunctCapitTokenClassifier,
 ):
 
     logging.info(f"Loading {mode} data...")
@@ -202,7 +242,9 @@ def create_pipeline(
         shuffle=shuffle,
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
-        use_cache=use_cache,
+        overwrite_processed_files=overwrite_processed_files,
+        num_workers=args.num_workers,
+        pin_memory=args.enable_pin_memory,
     )
 
     (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels) = data_layer()
@@ -217,29 +259,22 @@ def create_pipeline(
             punct_label_freqs = data_layer.dataset.punct_label_frequencies
             class_weights = calc_class_weights(punct_label_freqs)
 
-        # Initialize punctuation loss
-        punct_classifier = punct_classifier(
+        classifier = classifier(
             hidden_size=hidden_size,
-            num_classes=len(punct_label_ids),
+            punct_num_classes=len(punct_label_ids),
+            capit_num_classes=len(capit_label_ids),
             dropout=dropout,
-            num_layers=punct_num_layers,
-            name='Punctuation',
+            punct_num_layers=punct_num_layers,
+            capit_num_layers=capit_num_layers,
         )
 
         punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
-
-        # Initialize capitalization loss
-        capit_classifier = capit_classifier(
-            hidden_size=hidden_size, num_classes=len(capit_label_ids), dropout=dropout, name='Capitalization'
-        )
         capit_loss = CrossEntropyLossNM(logits_ndim=3)
-
-        task_loss = LossAggregatorNM(num_inputs=2)
+        task_loss = LossAggregatorNM(num_inputs=2, weights=[args.punct_loss_weight, 1.0 - args.punct_loss_weight])
 
     hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-    punct_logits = punct_classifier(hidden_states=hidden_states)
-    capit_logits = capit_classifier(hidden_states=hidden_states)
+    punct_logits, capit_logits = classifier(hidden_states=hidden_states)
 
     if mode == 'train':
         punct_loss = punct_loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
@@ -250,54 +285,61 @@ def create_pipeline(
 
         losses = [task_loss, punct_loss, capit_loss]
         logits = [punct_logits, capit_logits]
-        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids, punct_classifier, capit_classifier
+        return losses, logits, steps_per_epoch, punct_label_ids, capit_label_ids, classifier
     else:
         tensors_to_evaluate = [punct_logits, capit_logits, punct_labels, capit_labels, subtokens_mask]
         return tensors_to_evaluate, data_layer
 
 
-(
-    losses,
-    train_logits,
-    steps_per_epoch,
-    punct_label_ids,
-    capit_label_ids,
-    punct_classifier,
-    capit_classifier,
-) = create_pipeline()
+(losses, train_logits, steps_per_epoch, punct_label_ids, capit_label_ids, classifier) = create_pipeline()
 
 eval_tensors, data_layer = create_pipeline(
-    mode='dev',
-    punct_label_ids=punct_label_ids,
-    capit_label_ids=capit_label_ids,
-    punct_classifier=punct_classifier,
-    capit_classifier=capit_classifier,
+    mode='dev', punct_label_ids=punct_label_ids, capit_label_ids=capit_label_ids, classifier=classifier
 )
 
 logging.info(f"steps_per_epoch = {steps_per_epoch}")
+
 
 # Create trainer and execute training action
 train_callback = nemo.core.SimpleLossLoggerCallback(
     tensors=losses + train_logits,
     print_func=lambda x: logging.info("Loss: {:.3f}".format(x[0].item())),
     get_tb_values=lambda x: [["loss", x[0]]],
-    step_freq=args.loss_step_freq,
+    step_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
     tb_writer=nf.tb_writer,
 )
+
+graph_dir = f'{nf.work_dir}/graphs' if args.add_confusion_matrix else None
+
+ckpt_callback = nemo.core.CheckpointCallback(
+    folder=nf.checkpoint_dir,
+    epoch_freq=args.save_epoch_freq,
+    step_freq=args.save_step_freq,
+    checkpoints_to_keep=args.checkpoints_to_keep,
+)
+
+callbacks = [train_callback, ckpt_callback]
+
+if args.wandb_project is not None:
+    wand_callback = nemo.core.WandbCallback(
+        train_tensors=[losses[0]],
+        wandb_name=args.wandb_exp_name,
+        wandb_project=args.wandb_project,
+        update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
+        args=args,
+    )
+    callbacks.append(wand_callback)
 
 eval_callback = nemo.core.EvaluatorCallback(
     eval_tensors=eval_tensors,
     user_iter_callback=lambda x, y: eval_iter_callback(x, y),
-    user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-        x, punct_label_ids, capit_label_ids, f'{nf.work_dir}/graphs'
-    ),
+    user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, punct_label_ids, capit_label_ids, graph_dir),
     tb_writer=nf.tb_writer,
-    eval_step=steps_per_epoch,
+    eval_step=args.eval_epoch_freq * steps_per_epoch,
+    wandb_name=args.wandb_exp_name,
+    wandb_project=args.wandb_project,
 )
-
-ckpt_callback = nemo.core.CheckpointCallback(
-    folder=nf.checkpoint_dir, epoch_freq=args.save_epoch_freq, step_freq=args.save_step_freq
-)
+callbacks.append(eval_callback)
 
 lr_policy_fn = get_lr_policy(
     args.lr_policy, total_steps=args.num_epochs * steps_per_epoch, warmup_ratio=args.lr_warmup_proportion
@@ -305,8 +347,13 @@ lr_policy_fn = get_lr_policy(
 
 nf.train(
     tensors_to_optimize=[losses[0]],
-    callbacks=[train_callback, eval_callback, ckpt_callback],
+    callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
+    optimization_params={
+        "num_epochs": args.num_epochs,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "grad_norm_clip": args.grad_norm_clip,
+    },
 )

@@ -29,6 +29,7 @@ from nemo.collections.nlp.utils.data_utils import get_vocab
 parser = argparse.ArgumentParser(description='Punctuation and capitalization detection inference')
 parser.add_argument("--max_seq_length", default=128, type=int)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
+parser.add_argument("--capit_num_fc_layers", default=2, type=int)
 parser.add_argument(
     "--pretrained_model_name",
     default="bert-base-uncased",
@@ -108,14 +109,13 @@ if not (os.path.exists(args.punct_labels_dict) and os.path.exists(args.capit_lab
 nf = nemo.core.NeuralModuleFactory(log_dir=None)
 
 punct_labels_dict = get_vocab(args.punct_labels_dict)
-
 capit_labels_dict = get_vocab(args.capit_labels_dict)
 
 model = nemo_nlp.nm.trainables.get_pretrained_lm_model(
     pretrained_model_name=args.pretrained_model_name, config=args.bert_config, vocab=args.vocab_file
 )
 
-tokenizer = nemo.collections.nlp.data.tokenizers.get_tokenizer(
+tokenizer = nemo_nlp.data.tokenizers.get_tokenizer(
     tokenizer_name=args.tokenizer,
     pretrained_model_name=args.pretrained_model_name,
     tokenizer_model=args.tokenizer_model,
@@ -129,27 +129,19 @@ data_layer = BertTokenClassificationInferDataLayer(
     queries=args.queries, tokenizer=tokenizer, max_seq_length=args.max_seq_length, batch_size=1
 )
 
-punct_classifier = nemo_nlp.nm.trainables.TokenClassifier(
+classifier = nemo_nlp.nm.trainables.PunctCapitTokenClassifier(
     hidden_size=hidden_size,
-    num_classes=len(punct_labels_dict),
-    num_layers=args.punct_num_fc_layers,
-    name='Punctuation',
-)
-
-capit_classifier = nemo_nlp.nm.trainables.TokenClassifier(
-    hidden_size=hidden_size, num_classes=len(capit_labels_dict), name='Capitalization'
+    punct_num_classes=len(punct_labels_dict),
+    capit_num_classes=len(capit_labels_dict),
+    punct_num_layers=args.punct_num_fc_layers,
+    capit_num_layers=args.capit_num_fc_layers,
 )
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
-
 hidden_states = model(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
-punct_logits = punct_classifier(hidden_states=hidden_states)
-capit_logits = capit_classifier(hidden_states=hidden_states)
+punct_logits, capit_logits = classifier(hidden_states=hidden_states)
 
 ###########################################################################
-
-# Instantiate an optimizer to perform `infer` action
 evaluated_tensors = nf.infer(tensors=[punct_logits, capit_logits, subtokens_mask], checkpoint_dir=args.checkpoint_dir)
 
 
