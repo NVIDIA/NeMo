@@ -70,17 +70,20 @@ def eval_epochs_done_callback(global_vars, punct_label_ids, capit_label_ids, gra
     '''
     results = {}
     punct_class_report = _eval_epochs_done_callback('punct', global_vars, punct_label_ids, graph_fold, normalize_cm)
-
     for label in punct_class_report:
         if label != 'accuracy':
             label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
             results['pF1 ' + label_name] = round(punct_class_report[label]['f1-score'] * 100, 2)
+            results['pPR ' + label_name] = round(punct_class_report[label]['precision'] * 100, 2)
+            results['pR ' + label_name] = round(punct_class_report[label]['recall'] * 100, 2)
 
     capit_class_report = _eval_epochs_done_callback('capit', global_vars, capit_label_ids, graph_fold, normalize_cm)
     for label in capit_class_report:
         if label != 'accuracy':
             label_name = label[: label.index('(label id') - 1] if 'label id' in label else label
             results['cF1: ' + label_name] = round(capit_class_report[label]['f1-score'] * 100, 2)
+            results['pPR ' + label_name] = round(capit_class_report[label]['precision'] * 100, 2)
+            results['pR ' + label_name] = round(capit_class_report[label]['recall'] * 100, 2)
 
     logging.info(f'results: {results}')
     return results
@@ -94,4 +97,5 @@ def _eval_epochs_done_callback(task_name, global_vars, label_ids, graph_fold=Non
     if graph_fold:
         plot_confusion_matrix(labels, preds, graph_fold, label_ids, normalize=normalize_cm, prefix=task_name)
 
+    logging.info(f'{get_classification_report(labels, preds, label_ids)}')
     return get_classification_report(labels, preds, label_ids, output_dict=True)
