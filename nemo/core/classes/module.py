@@ -26,10 +26,18 @@ class NeuralModule(Module, NeMoTyping):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
-
-    def typed_forward(self, **kwargs):
-        # TODO: Consider if this can be turned into decorator for __call__ or forward
-        self.__validate_input_types(in_objects=kwargs)
-        result = self.forward(**kwargs)
-        self.__attach_and_validate_output_types(out_objects=result)
+    def __call__(self, *args, **kwargs):
+        if NEMO_TYPE_CHECK:
+            self.__validate_input_types(in_objects=kwargs)
+            result = Module.__call__(*args, **kwargs)
+            self.__attach_and_validate_output_types(out_objects=result)
+        else:
+            result = Module.__call__(*args, **kwargs)
         return result
+
+    # def typed_forward(self, **kwargs):
+    #     # TODO: Consider if this can be turned into decorator for __call__ or forward
+    #     self.__validate_input_types(in_objects=kwargs)
+    #     result = self.forward(**kwargs)
+    #     self.__attach_and_validate_output_types(out_objects=result)
+    #     return result

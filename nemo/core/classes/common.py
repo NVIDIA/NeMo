@@ -16,7 +16,7 @@
 # limitations under the License.
 
 """Interfaces common to all Neural Modules and Models."""
-__all__ = ['NeMoTyping', 'NeuralModuleIO', 'NeMoModelAPI']
+__all__ = ['NeMoTyping', 'NeMoIO', 'NeMoModelAPI']
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
@@ -62,7 +62,7 @@ class NeMoTyping(ABC):
                     res.neural_type = out_types_list[ind][1]
 
 
-class NeuralModuleIO(ABC):
+class NeMoIO(ABC):
     @abstractmethod
     def save_to(self, save_path: str):
         """Saves module/model with weights"""
@@ -86,7 +86,7 @@ class NeuralModuleIO(ABC):
         raise NotImplementedError()
 
 
-class NeMoModelAPI(NeMoTyping, NeuralModuleIO):
+class NeMoModelAPI(NeMoTyping, NeMoIO):
     """
     Abstract class offering interface which should be implemented by all NeMo models.
     """
