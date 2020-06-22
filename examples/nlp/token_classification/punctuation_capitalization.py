@@ -43,11 +43,13 @@ parser.add_argument("--num_epochs", default=5, type=int)
 parser.add_argument("--lr_warmup_proportion", default=0.1, type=float)
 parser.add_argument("--lr", default=5e-5, type=float)
 parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str)
+parser.add_argument("--grad_norm_clip", type=float, default=1, help="Gradient clipping")
 parser.add_argument("--weight_decay", default=0, type=float)
 parser.add_argument("--optimizer_kind", default="adam", type=str)
 parser.add_argument("--amp_opt_level", default="O0", type=str, choices=["O0", "O1", "O2"])
 parser.add_argument("--data_dir", default="/data", type=str)
 parser.add_argument("--punct_num_fc_layers", default=3, type=int)
+parser.add_argument("--capit_num_fc_layers", default=3, type=int)
 parser.add_argument("--fc_dropout", default=0.1, type=float)
 parser.add_argument("--ignore_start_end", action='store_false')
 parser.add_argument("--ignore_extra_tokens", action='store_false')
@@ -189,6 +191,7 @@ def create_pipeline(
     overwrite_processed_files=args.overwrite_processed_files,
     dropout=args.fc_dropout,
     punct_num_layers=args.punct_num_fc_layers,
+    capit_num_layers=args.capit_num_fc_layers,
     classifier=PunctCapitTokenClassifier
 ):
 
@@ -243,6 +246,7 @@ def create_pipeline(
         capit_num_classes=len(capit_label_ids),
         dropout=dropout,
         punct_num_layers=punct_num_layers,
+        capit_num_layers=capit_num_layers,
         )
 
         punct_loss = CrossEntropyLossNM(logits_ndim=3, weight=class_weights)
@@ -336,5 +340,5 @@ nf.train(
     callbacks=callbacks,
     lr_policy=lr_policy_fn,
     optimizer=args.optimizer_kind,
-    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay},
+    optimization_params={"num_epochs": args.num_epochs, "lr": args.lr, "weight_decay": args.weight_decay, "grad_norm_clip": args.grad_norm_clip},
 )
