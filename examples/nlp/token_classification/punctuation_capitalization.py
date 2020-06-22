@@ -140,9 +140,23 @@ parser.add_argument(
     help="Flag to indicate whether to use weighted loss \
                     to mitigate classs unbalancing for the punctuation task",
 )
-parser.add_argument("--project", default=None, type=str, help='Project name for tracking with Weights and Biases')
-parser.add_argument("--exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases')
+parser.add_argument(
+    "--wandb_project", default=None, type=str, help='Project name for tracking with Weights and Biases'
+)
+parser.add_argument(
+    "--wandb_exp_name", default=None, type=str, help='Experiment name for tracking with Weights and Biases'
+)
 parser.add_argument("--punct_loss_weight", default=0.5, type=float, help="Punctuation task weight loss")
+parser.add_argument(
+    "--num_workers",
+    default=2,
+    type=int,
+    help="Number of workers for data loading, -1 means set it automatically to the number of CPU cores",
+)
+
+parser.add_argument(
+    "--enable_pin_memory", action="store_true", help="Enables the pin_memory feature of Pytroch's DataLoader",
+)
 args = parser.parse_args()
 
 if not os.path.exists(args.data_dir):
@@ -229,6 +243,8 @@ def create_pipeline(
         ignore_extra_tokens=ignore_extra_tokens,
         ignore_start_end=ignore_start_end,
         overwrite_processed_files=overwrite_processed_files,
+        num_workers=args.num_workers,
+        pin_memory=args.enable_pin_memory,
     )
 
     (input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels) = data_layer()
@@ -304,11 +320,11 @@ ckpt_callback = nemo.core.CheckpointCallback(
 
 callbacks = [train_callback, ckpt_callback]
 
-if args.project is not None:
+if args.wandb_project is not None:
     wand_callback = nemo.core.WandbCallback(
         train_tensors=[losses[0]],
-        wandb_name=args.exp_name,
-        wandb_project=args.project,
+        wandb_name=args.wandb_exp_name,
+        wandb_project=args.wandb_project,
         update_freq=args.loss_log_freq if args.loss_log_freq > 0 else steps_per_epoch,
         args=args,
     )
@@ -320,8 +336,8 @@ eval_callback = nemo.core.EvaluatorCallback(
     user_epochs_done_callback=lambda x: eval_epochs_done_callback(x, punct_label_ids, capit_label_ids, graph_dir),
     tb_writer=nf.tb_writer,
     eval_step=args.eval_epoch_freq * steps_per_epoch,
-    wandb_name=args.exp_name,
-    wandb_project=args.project,
+    wandb_name=args.wandb_exp_name,
+    wandb_project=args.wandb_project,
 )
 callbacks.append(eval_callback)
 

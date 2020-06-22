@@ -102,6 +102,8 @@ class PunctuationCapitalizationDataLayer(TextDataLayer):
         ignore_extra_tokens=False,
         ignore_start_end=False,
         overwrite_processed_files=False,
+        num_workers=-1,
+        pin_memory=False,
         dataset_type=BertPunctuationCapitalizationDataset,
     ):
         dataset_params = {
@@ -117,4 +119,6 @@ class PunctuationCapitalizationDataLayer(TextDataLayer):
             'ignore_start_end': ignore_start_end,
             'overwrite_processed_files': overwrite_processed_files,
         }
-        super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle, num_workers=2, pin_memory=True)
+        super().__init__(
+            dataset_type, dataset_params, batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory
+        )
