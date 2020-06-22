@@ -133,8 +133,8 @@ classifier = nemo_nlp.nm.trainables.PunctCapitTokenClassifier(
     hidden_size=hidden_size,
     punct_num_classes=len(punct_labels_dict),
     capit_num_classes=len(capit_labels_dict),
-    punct_num_layers=args.punct_num_layers,
-    capit_num_layers=args.capit_num_layers,
+    punct_num_layers=args.punct_num_fc_layers,
+    capit_num_layers=args.capit_num_fc_layers,
 )
 
 input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask = data_layer()
