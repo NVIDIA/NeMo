@@ -144,21 +144,17 @@ Now, create the train and evaluation data layers:
                                             capit_label_ids=capit_label_ids)
 
 
-Now, create punctuation and capitalization classifiers to sit on top of the pretrained BERT model and define the task loss function:
+Now, create punctuation-capitalization classifier to sit on top of the pretrained BERT model and define the task loss function:
 
   .. code-block:: python
 
-      punct_classifier = TokenClassifier(
-                                         hidden_size=hidden_size,
-                                         num_classes=len(punct_label_ids),
-                                         dropout=CLASSIFICATION_DROPOUT,
-                                         num_layers=PUNCT_NUM_FC_LAYERS,
-                                         name='Punctuation')
-
-      capit_classifier = TokenClassifier(hidden_size=hidden_size,
-                                         num_classes=len(capit_label_ids),
-                                         dropout=CLASSIFICATION_DROPOUT,
-                                         name='Capitalization')
+      classifier = nemo_nlp.nm.trainables.PunctCapitTokenClassifier(
+            hidden_size=hidden_size,
+            punct_num_classes=len(punct_label_ids),
+            capit_num_classes=len(capit_label_ids),
+            dropout=0.1,
+            punct_num_layers=PUNCT_NUM_FC_LAYERS
+        )
 
 
       # If you don't want to use weighted loss for Punctuation task, use class_weights=None
@@ -181,8 +177,7 @@ Below, we're passing the output of the datalayers through the pretrained BERT mo
                             token_type_ids=input_type_ids,
                             attention_mask=input_mask)
 
-      punct_logits = punct_classifier(hidden_states=hidden_states)
-      capit_logits = capit_classifier(hidden_states=hidden_states)
+      punct_logits, capit_logits = classifier(hidden_states=hidden_states)
 
       punct_loss = punct_loss(logits=punct_logits,
                               labels=punct_labels,
@@ -200,8 +195,7 @@ Below, we're passing the output of the datalayers through the pretrained BERT mo
                                  token_type_ids=eval_input_type_ids,
                                  attention_mask=eval_input_mask)
 
-      eval_punct_logits = punct_classifier(hidden_states=hidden_states)
-      eval_capit_logits = capit_classifier(hidden_states=hidden_states)
+      eval_punct_logits, eval_capit_logits = classifier(hidden_states=hidden_states)
 
 
 
