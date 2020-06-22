@@ -485,7 +485,7 @@ class WandbCallback(ActionCallback):
                     logging.info('init wandb session and append args')
                     wandb.config.update(self._args)
             elif _WANDB_AVAILABLE and wandb.run is not None:
-                logging.info(f"Re-using wandb session: {self._args}")
+                logging.info("Re-using wandb session")
             else:
                 logging.error("Could not import wandb. Did you install it (pip install --upgrade wandb)?")
                 logging.info("Will not log data to weights and biases.")
