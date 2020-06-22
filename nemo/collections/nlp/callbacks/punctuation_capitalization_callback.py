@@ -14,19 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
-import random
-import time
-
 import numpy as np
 import torch
 
 from nemo import logging
-from nemo.collections.nlp.utils.callback_utils import (
-    get_classification_report,
-    list2str,
-    plot_confusion_matrix,
-    tensor2list,
-)
+from nemo.collections.nlp.utils.callback_utils import get_classification_report, plot_confusion_matrix, tensor2list
 
 __all__ = ['eval_iter_callback', 'eval_epochs_done_callback']
 
