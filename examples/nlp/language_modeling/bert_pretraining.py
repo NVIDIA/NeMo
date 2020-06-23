@@ -238,7 +238,6 @@ parser_preprocessed.add_argument(
 args = parser.parse_args()
 
 nf = nemo_core.NeuralModuleFactory(
-    backend=nemo_core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

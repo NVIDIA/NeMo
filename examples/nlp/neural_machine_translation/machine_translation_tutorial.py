@@ -73,7 +73,6 @@ args = parser.parse_args()
 
 work_dir = f'{args.work_dir}/{args.dataset_name.upper()}'
 nf = nemo.core.NeuralModuleFactory(
-    backend=nemo.core.Backend.PyTorch,
     local_rank=args.local_rank,
     optimization_level=args.amp_opt_level,
     log_dir=args.work_dir,

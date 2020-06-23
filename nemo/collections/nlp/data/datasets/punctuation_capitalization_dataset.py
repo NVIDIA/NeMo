@@ -21,6 +21,7 @@ import os
 import pickle
 
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
@@ -222,32 +223,29 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_label_ids=None,
         ignore_extra_tokens=False,
         ignore_start_end=False,
-        use_cache=False,
+        overwrite_processed_files=False,
     ):
 
-        if use_cache:
-            # Cache features
-            data_dir = os.path.dirname(text_file)
-            filename = os.path.basename(text_file)
+        # Cache features
+        data_dir = os.path.dirname(text_file)
+        filename = os.path.basename(text_file)
 
-            if not filename.endswith('.txt'):
-                raise ValueError("{text_file} should have extension .txt")
+        if not filename.endswith('.txt'):
+            raise ValueError("{text_file} should have extension .txt")
 
-            filename = filename[:-4]
-            tokenizer_type = type(tokenizer.tokenizer).__name__
-            vocab_size = getattr(tokenizer, "vocab_size", 0)
-            features_pkl = os.path.join(
-                data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
-            )
+        filename = filename[:-4]
+        tokenizer_type = type(tokenizer.tokenizer).__name__
+        vocab_size = getattr(tokenizer, "vocab_size", 0)
+        features_pkl = os.path.join(
+            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+        )
 
-        if use_cache and os.path.exists(features_pkl):
-            # If text_file was already processed, load from pickle
-            features = pickle.load(open(features_pkl, 'rb'))
-            logging.info(f'features restored from {features_pkl}')
-        else:
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+
+        if master_device and (not os.path.exists(features_pkl) or overwrite_processed_files):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
-
+            logging.info(f'Processing {text_file}')
             with open(text_file, 'r') as f:
                 text_lines = f.readlines()
 
@@ -326,9 +324,14 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 ignore_start_end=ignore_start_end,
             )
 
-            if use_cache:
-                pickle.dump(features, open(features_pkl, "wb"))
-                logging.info(f'features saved to {features_pkl}')
+            pickle.dump(features, open(features_pkl, "wb"))
+            logging.info(f'Features saved to {features_pkl}')
+
+        # wait until the master process writes to the processed data files
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        features = pickle.load(open(features_pkl, 'rb'))
+        logging.info(f'Features restored from {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -347,12 +350,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
             logging.info('Three most popular labels')
             _, label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
 
-            out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
-            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-            out.write('\n'.join(labels))
-            logging.info(f'Labels: {label_ids}')
-            logging.info(f'Labels mapping saved to : {out.name}')
-
+            if master_device:
+                out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
+                labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+                out.write('\n'.join(labels))
+                logging.info(f'Labels: {label_ids}')
+                logging.info(f'Labels mapping saved to : {out.name}')
             return label_frequencies
 
         self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')

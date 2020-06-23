@@ -14,7 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.nm.trainables.common import *
-from nemo.collections.nlp.nm.trainables.dialogue_state_tracking import *
-from nemo.collections.nlp.nm.trainables.joint_intent_slot import *
-from nemo.collections.nlp.nm.trainables.punctuation_capitalization import *
+from nemo.collections.nlp.nm.trainables.punctuation_capitalization.punctuation_capitalization_classifier_nm import *

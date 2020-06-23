@@ -352,7 +352,6 @@ To train with mixed-precision all you need is to set `optimization_level` parame
 .. code-block:: python
 
     nf = nemo.core.NeuralModuleFactory(
-        backend=nemo.core.Backend.PyTorch,
         local_rank=args.local_rank,
         optimization_level=nemo.core.Optimization.mxprO1,
         placement=nemo.core.DeviceType.AllGpu,

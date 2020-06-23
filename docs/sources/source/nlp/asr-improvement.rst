@@ -56,7 +56,6 @@ local rank of the GPU, and 4) an experiment manager that creates a timestamped f
     .. code-block:: python
 
         nf = nemo.core.NeuralModuleFactory(
-                        backend=nemo.core.Backend.PyTorch,
                         local_rank=args.local_rank,
                         optimization_level=args.amp_opt_level,
                         log_dir=work_dir,
