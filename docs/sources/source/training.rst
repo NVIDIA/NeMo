@@ -1,4 +1,4 @@
-Fast Training 
+Fast Training
 =============
 
 Training a large model (especially from scratch) requires significant compute. NeMo provides support for mixed precision and distributed training to speed-up training. NeMo uses `NVIDIA's APEX library <https://github.com/NVIDIA/apex>`_ to get maximum performance out of NVIDIA's GPUs. Furthermore, multi-GPU systems (such as DGX Station, DGX-1 and DGX-2) have *NVLINK* to speed-up multi-GPU communication.
@@ -39,7 +39,7 @@ Use `torch.distributed.launch` package to run your script like this (assuming 8 
 Example
 ~~~~~~~
 
-Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for a comprehensive example. 
+Please refer to the `<nemo_git_repo_root>/examples/asr/jasper.py` for a comprehensive example.
 It builds one train DAG and up to three validation DAGs to evaluate on different datasets.
 
 If you are working with a Volta-based DGX, you can run training like this:
@@ -51,7 +51,7 @@ If you are working with a Volta-based DGX, you can run training like this:
 The command above should trigger 8-GPU training with mixed precision. In the command above various manifests (.json) files are various datasets. Substitute them with the ones containing your data.
 
 .. tip::
-    You can pass several manifests (comma-separated) to train on a combined dataset like this: `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`. 
+    You can pass several manifests (comma-separated) to train on a combined dataset like this: `--train_manifest=/manifests/librivox-train-all.json,/manifests/librivox-train-all-sp10pcnt.json,/manifests/cv/validated.json`.
 
 This example would train on 3 data sets: LibriSpeech, Mozilla Common Voice and LibriSpeech speed perturbed.
 
