@@ -71,8 +71,12 @@ def create_all_dags(args, neural_factory):
     with open(args.model_config) as f:
         quartz_params = yaml.load(f)
 
-    vocab = quartz_params['labels']
-    sample_rate = quartz_params['sample_rate']
+    try:
+        vocab = quartz_params['labels']
+        sample_rate = quartz_params['sample_rate']
+    except KeyError:
+        logging.error("Please make sure you are using older config format (the ones with -old suffix)")
+        exit(1)
 
     # Calculate num_workers for dataloader
     total_cpus = os.cpu_count()
