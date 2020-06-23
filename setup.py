@@ -102,8 +102,8 @@ extras_require = {
 
 extras_require['all'] = list(chain(extras_require.values()))
 
-# TTS depends on ASR
-extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr']]))
+# TTS depends on ASR and NLP
+extras_require['tts'] = list(chain([extras_require['tts'], extras_require['asr'], extras_require['nlp']]))
 
 tests_requirements = extras_require["test"]
 
