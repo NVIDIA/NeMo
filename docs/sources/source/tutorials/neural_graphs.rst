@@ -48,8 +48,8 @@ This part covers the following:
  * how to save and load graph checkpoints (containing weights of the Trainable NMs)
  * how to freeze/unfreeze modules in a graph
  
-Additionally, we will show how use `AppState` to list all the modules and graphs we have created in the scope of
-our application.
+Additionally, we will show how use :class:`nemo.utils.app_state.AppState` to list all the modules and graphs we have
+created in the scope of our application.
 
 Tutorial III: Custom Training
 ---------------------------------------
