@@ -129,13 +129,9 @@ class NeuralModuleFactory(object):
         self._local_rank = local_rank
         AppState().local_rank = local_rank
         self._global_rank = None
-        self._model_parallel_rank = None
-        self._data_parallel_rank = None
 
-        AppState().model_parallel_size = model_parallel_size
         self._model_parallel_size = model_parallel_size
-        self._data_parallel_size = None  # depends on mp size and world size
-        self._data_parallel_group = None  # needed for model parallel
+        AppState().model_parallel_size = model_parallel_size
 
         self._random_seed = random_seed
         AppState().random_seed = random_seed
@@ -492,16 +488,8 @@ class NeuralModuleFactory(object):
         return self._world_size
 
     @property
-    def data_parallel_size(self):
-        return self._data_parallel_size
-
-    @property
     def model_parallel_size(self):
         return self._model_parallel_size
-
-    @property
-    def data_parallel_group(self):
-        return self._data_parallel_group
 
     @property
     def tb_writer(self):
@@ -532,21 +520,5 @@ class NeuralModuleFactory(object):
         return self._local_rank
 
     @property
-    def model_parallel_rank(self):
-        return self._model_parallel_rank
-
-    @property
-    def data_parallel_rank(self):
-        return self._data_parallel_rank
-
-    @property
     def random_seed(self):
         return self._random_seed
-
-    @property
-    def random_seed(self):
-        return self._random_seed
-
-    @random_seed.setter
-    def random_seed(self, seed):
-        self._random_seed = seed
