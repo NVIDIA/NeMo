@@ -15,6 +15,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.utils.decorators.deprecated import deprecated
-from nemo.utils.decorators.experimental import experimental
-from nemo.utils.decorators.port_docs import add_port_docs
+__all__ = ['experimental']
+
+from nemo.utils import logging
+
+
+def experimental(cls):
+    """ Decorator which indicates that module is experimental.
+    Use it to mark experimental or research modules.
+    """
+
+    def wrapped(cls):
+        class WrappedClass(cls):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                logging.warning(
+                    f'Module {cls} is experimental, not ready for production and is not supported. Use at your own risk.'
+                )
+
+        return WrappedClass
+
+    return wrapped(cls=cls)
