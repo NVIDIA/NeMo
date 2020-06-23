@@ -43,7 +43,12 @@ def parse_args():
     subparsers.required = True
 
     # LaserTagger model config args
-    parser.add_argument("--use_t2t_decoder", help="Use AutoRegressive decoder for decoding", action='store_true')
+    parser.add_argument(
+        "--use_t2t_decoder",
+        type=bool,
+        help="Use AutoRegressive decoder instead of feed-forward decoder for decoding",
+        default=False,
+    )
     parser.add_argument("--decoder_hidden_size", type=float, help="Dimensionality of the decoder layers", default=768)
     parser.add_argument(
         "--decoder_filter_size",
@@ -62,8 +67,9 @@ def parse_args():
     )
     parser.add_argument(
         "--use_full_attention",
+        type=bool,
         help="Use a full attention over the sequence of encoder activations",
-        action='store_true',
+        default=False,
     )
     parser.add_argument(
         "--decoder_ffn_dropout", type=float, help="Decoder Feed-forward layer dropout prob", default=0.1
@@ -348,12 +354,15 @@ if __name__ == "__main__":
 
         # compute and realize predictions with LaserTagger
         sources, predictions, target_lists = [], [], []
-        for i, example in enumerate(test_examples):
-            example.features['labels'] = results[i]
-            example.features['labels_mask'] = [0] + [1] * (len(results[i]) - 2) + [0]
-            labels = [id_2_tag[label_id] for label_id in example.get_token_labels()]
-            prediction = example.editing_task.realize_output(labels)
-            predictions.append(prediction)
+        logging.info("Saving predictions to " + args.work_dir + "/pred.txt")
+        with open(args.work_dir + "/pred.txt", 'w') as f:
+            for i, example in enumerate(test_examples):
+                example.features['labels'] = results[i]
+                example.features['labels_mask'] = [0] + [1] * (len(results[i]) - 2) + [0]
+                labels = [id_2_tag[label_id] for label_id in example.get_token_labels()]
+                prediction = example.editing_task.realize_output(labels)
+                predictions.append(prediction)
+                f.write(prediction + "\n")
 
         with open(args.test_file, 'r') as f:
             for line in f:

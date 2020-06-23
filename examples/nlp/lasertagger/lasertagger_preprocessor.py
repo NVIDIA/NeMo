@@ -14,19 +14,19 @@
 # limitations under the License.
 # =============================================================================
 
-import argparse
 import os
 from collections import deque
 
 import torch
-from absl import logging
 from examples.nlp.lasertagger.official_lasertagger import bert_example, tagging_converter, utils
 
 import nemo.collections.nlp as nemo_nlp
+from nemo import logging
+from nemo.utils import NemoArgParser
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="LaserTagger Preprocessor")
+    parser = NemoArgParser(description="LaserTagger Preprocessor")
     parser.add_argument(
         "--train_file", type=str, help="The training data file. Should be *.tsv",
     )
@@ -36,7 +36,6 @@ def parse_args():
     parser.add_argument(
         "--test_file", type=str, help="The test data file. Should be *.tsv",
     )
-
     parser.add_argument(
         "--label_map_file",
         type=str,
@@ -71,7 +70,8 @@ def read_input_file(
     num_converted = 0
     examples = deque()
     for i, (sources, target) in enumerate(utils.yield_sources_and_targets(input_file)):
-        logging.log_every_n(logging.INFO, f'{i} examples processed, {num_converted} converted.', 10000)
+        if num_converted % 1000 == 0:
+            logging.info("{} examples processed.".format(num_converted))
         example = builder.build_bert_example(
             sources, target, output_arbitrary_targets_for_infeasible_examples, save_tokens, infer
         )
