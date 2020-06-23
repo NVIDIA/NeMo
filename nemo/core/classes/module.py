@@ -26,6 +26,7 @@ class NeuralModule(Module, NeMoTyping):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
+
     def __call__(self, *args, **kwargs):
         if NEMO_TYPE_CHECK:
             self.__validate_input_types(in_objects=kwargs)
