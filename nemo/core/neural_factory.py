@@ -525,4 +525,4 @@ class NeuralModuleFactory(object):
 
     @random_seed.setter
     def random_seed(self, seed):
-        return self._random_seed = seed
+        self._random_seed = seed
