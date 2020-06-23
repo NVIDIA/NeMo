@@ -92,8 +92,12 @@ def main():
     yaml = YAML(typ="safe")
     with open(args.model_config) as f:
         jasper_params = yaml.load(f)
-    vocab = jasper_params['labels']
-    sample_rate = jasper_params['sample_rate']
+    try:
+        vocab = jasper_params['labels']
+        sample_rate = jasper_params['sample_rate']
+    except KeyError:
+        logging.error("Please make sure you are using older config format (the ones with -old suffix)")
+        exit(1)
 
     eval_datasets = args.eval_datasets
 

@@ -60,6 +60,9 @@ def main():
     parser.add_argument("--wandb_project", default=None, type=str)
     parser.add_argument("--max_train_audio_len", default=16.7, type=float, help="max audio length")
     parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
+    parser.add_argument(
+        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+    )
     args = parser.parse_args()
 
     # Setup NeuralModuleFactory to control training
@@ -92,6 +95,7 @@ def main():
         trim_silence=args.trim_silence,
         max_duration=args.max_train_audio_len,
         shuffle=True,
+        normalize_transcripts=args.normalize_text,
     )
     ctc_loss = nemo_asr.CTCLossNM(num_classes=len(asr_model.vocabulary))
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
@@ -130,7 +134,10 @@ def main():
         logging.info(f"Will perform evaluation every {args.eval_freq} steps.")
         for ind, eval_dataset in enumerate(args.eval_datasets):
             eval_data_layer = nemo_asr.AudioToTextDataLayer(
-                manifest_filepath=eval_dataset, labels=asr_model.vocabulary, batch_size=args.eval_batch_size
+                manifest_filepath=eval_dataset,
+                labels=asr_model.vocabulary,
+                batch_size=args.eval_batch_size,
+                normalize_transcripts=args.normalize_text,
             )
             audio_signal, audio_signal_len, transcript, transcript_len = eval_data_layer()
             log_probs, encoded_len = asr_model(input_signal=audio_signal, length=audio_signal_len)
