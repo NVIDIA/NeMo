@@ -15,7 +15,6 @@
 # =============================================================================
 
 import json
-import math
 import sys
 
 import torch
@@ -45,6 +44,43 @@ def parse_args():
     subparsers = parser.add_subparsers(help='sub-command', dest='command')
     subparsers.required = True
 
+    # LaserTagger model config args
+    parser.add_argument("--use_t2t_decoder", help="Use AutoRegressive decoder for decoding", action='store_true')
+    parser.add_argument("--decoder_hidden_size", type=float, help="Dimensionality of the decoder layers", default=768)
+    parser.add_argument(
+        "--decoder_filter_size",
+        type=int,
+        help="Dimensionality of the “intermediate” (i.e., feed-forward) layer in the Transformer Decoder",
+        default=3072,
+    )
+    parser.add_argument(
+        "--decoder_num_hidden_layers", type=int, help="Number of hidden layers in the Transformer Decoder", default=1,
+    )
+    parser.add_argument(
+        "--decoder_num_attention_heads",
+        type=int,
+        help="Number of attention heads for each attention layer in the Transformer Decoder",
+        default=4,
+    )
+    parser.add_argument(
+        "--use_full_attention",
+        help="Use a full attention over the sequence of encoder activations",
+        action='store_true',
+    )
+    parser.add_argument(
+        "--decoder_ffn_dropout", type=float, help="Decoder Feed-forward layer dropout prob", default=0.1
+    )
+    parser.add_argument(
+        "--decoder_attn_score_dropout", type=float, help="Decoder Self-Attention layer dropout prob", default=0.1
+    )
+    parser.add_argument(
+        "--decoder_embedding_dropout", type=float, help="Decoder Embedding layer dropout prob", default=0.1
+    )
+    parser.add_argument(
+        "--decoder_hidden_act", type=str, help="Decoder Position-Wise Feed-forward layer activation", default='relu'
+    )
+
+    # Training arguments
     parser_train = subparsers.add_parser('train', help='train a lasertagger model')
     parser_train.set_defaults(
         optimizer="adam_w",
@@ -55,12 +91,10 @@ def parse_args():
         lr=3e-5,
         weight_decay=0.1,
         iter_per_step=1,
-        max_steps=4000,
-        warmup_steps=200,
+        warmup_proportion=0.1,
         checkpoint_save_freq=1000,
-        work_dir='outputs/lt-2',
         eval_freq=1000,
-        pretrained_model_name='bert-base-cased',
+        work_dir='outputs/msr_ab_sum/lt',
     )
     parser_train.add_argument(
         "--train_file_preprocessed", type=str, help="The path to training pkl file",
@@ -85,18 +119,13 @@ def parse_args():
         help='Name of the pre-trained model',
         choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
     )
-    parser_train.add_argument(
-        '--bert_checkpoint', default='bert-base-cased', type=str, help='Path to the pre-trained model checkpoint'
-    )
-    parser_train.add_argument(
-        "--model_config_file", default=None, type=str, help="Path to LaserTagger config file in json format"
-    )
     parser_train.add_argument("--max_seq_length", default=128, type=int)
     parser_train.add_argument("--warmup_steps", default=4500, type=int)
 
+    # Inference arguments
     parser_infer = subparsers.add_parser('infer', help='infer on a dataset using lasertagger saved model checkpoint')
     parser_infer.set_defaults(
-        amp_opt_level="O1", batch_size=64, work_dir='outputs/lt-2', pretrained_model_name='bert-base-cased'
+        amp_opt_level="O1", batch_size=64, beam_size=4, length_penalty=0.0, work_dir='outputs/msr_ab_sum/lt'
     )
     parser_infer.add_argument(
         "--test_file", type=str, help="The path to test tsv file",
@@ -117,12 +146,6 @@ def parse_args():
         type=str,
         help='Name of the pre-trained model',
         choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
-    )
-    parser_infer.add_argument(
-        '--bert_checkpoint', default='bert-base-cased', type=str, help='Path to the pre-trained model checkpoint'
-    )
-    parser_infer.add_argument(
-        "--model_config_file", default=None, type=str, help="Path to LaserTagger config file in json format"
     )
     parser_infer.add_argument("--max_seq_length", default=128, type=int)
 
@@ -159,11 +182,6 @@ if __name__ == "__main__":
     label_map = utils.read_label_map(args.label_map_file)
     num_tags = len(label_map)
 
-    config = None
-    with open(args.model_config_file, "r", encoding="utf-8") as reader:
-        text = reader.read()
-        config = json.loads(text)
-
     nf = nemo.core.NeuralModuleFactory(
         local_rank=args.local_rank,
         optimization_level=args.amp_opt_level,
@@ -177,38 +195,24 @@ if __name__ == "__main__":
 
     tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 
-    # tokenizer.add_special_tokens({"additional_special_tokens": test_special_tokens})
-    # encoder.resize_token_embeddings(len(tokenizer))
-
-    # vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
-    # tokens_to_add = vocab_size - tokenizer.vocab_size
-
-    encoder = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
-
     hidden_size = encoder.hidden_size
-
-    # device = encoder.bert.embeddings.word_embeddings.weight.get_device()
-    # zeros = torch.zeros((tokens_to_add, config['decoder_hidden_size'])).to(device=device)
-    # # encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
-    # #     (encoder.bert.embeddings.word_embeddings.weight.data, zeros)
-    # # )
 
     # Size of the output vocabulary which contains the tags + begin and end
     # tokens used by the Transformer decoder.
     output_vocab_size = num_tags
 
     decoder = nemo_nlp.nm.trainables.TransformerDecoderNM(
-        d_model=config['decoder_hidden_size'],
-        d_inner=config['decoder_filter_size'],
-        num_layers=config['decoder_num_hidden_layers'],
-        num_attn_heads=config['decoder_num_attention_heads'],
-        ffn_dropout=0.1,
+        d_model=args.decoder_hidden_size,
+        d_inner=args.decoder_filter_size,
+        num_layers=args.decoder_num_hidden_layers,
+        num_attn_heads=args.decoder_num_attention_heads,
+        ffn_dropout=args.decoder_ffn_dropout,
         vocab_size=output_vocab_size,
-        attn_score_dropout=0.1,
+        attn_score_dropout=args.decoder_attn_score_dropout,
         max_seq_length=args.max_seq_length,
-        embedding_dropout=0.1,
-        hidden_act='relu',
-        use_full_attention=config['use_full_attention'],
+        embedding_dropout=args.decoder_embedding_dropout,
+        hidden_act=args.decoder_hidden_act,
+        use_full_attention=args.use_full_attention,
     )
 
     logits = nemo_nlp.nm.trainables.TokenClassifier(
@@ -218,19 +222,20 @@ if __name__ == "__main__":
     loss_fn = CrossEntropyLossNM(logits_ndim=3)
     loss_eval_metric = CrossEntropyLossNM(logits_ndim=3, reduction='none')
 
-    beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
-        decoder=decoder,
-        log_softmax=logits,
-        max_seq_length=args.max_seq_length,
-        beam_size=4,
-        length_penalty=0.0,
-        bos_token=tokenizer.bos_id,
-        pad_token=tokenizer.pad_id,
-        eos_token=tokenizer.eos_id,
-    )
+    if args.command == "infer":
+        beam_search = nemo_nlp.nm.trainables.BeamSearchTranslatorNM(
+            decoder=decoder,
+            log_softmax=logits,
+            max_seq_length=args.max_seq_length,
+            beam_size=args.beam_size,
+            length_penalty=args.length_penalty,
+            bos_token=tokenizer.bos_id,
+            pad_token=tokenizer.pad_id,
+            eos_token=tokenizer.eos_id,
+        )
 
     # tie all embeddings weights
-    if config['use_t2t_decoder']:
+    if args.use_t2t_decoder:
         decoder.tie_weights_with(
             encoder,
             weight_names=["embedding_layer.token_embedding.weight"],
@@ -254,39 +259,30 @@ if __name__ == "__main__":
 
     def create_pipeline(dataset, num_examples, batch_size, mode):
 
-        data_layer = LaserTaggerDataLayer(
-            dataset, config['use_t2t_decoder'], num_examples, batch_size, mode == "infer"
-        )
+        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, num_examples, batch_size, mode == "infer")
         (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask,) = data_layer()
 
         src_hiddens = encoder(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
         tgt_hiddens = decoder(
             input_ids_tgt=tgt_ids, hidden_states_src=src_hiddens, input_mask_src=input_mask, input_mask_tgt=labels_mask
         )
-        log_softmax = (
-            logits(hidden_states=tgt_hiddens) if config['use_t2t_decoder'] else logits(hidden_states=src_hiddens)
-        )
+        log_softmax = logits(hidden_states=tgt_hiddens) if args.use_t2t_decoder else logits(hidden_states=src_hiddens)
         if mode != "infer":
             loss = loss_fn(logits=log_softmax, labels=labels, loss_mask=loss_mask)
             per_example_loss = loss_eval_metric(logits=log_softmax, labels=labels, loss_mask=loss_mask)
-        if mode == "infer":
-            if config['use_t2t_decoder']:
+            return [loss, per_example_loss, log_softmax, labels, labels_mask]
+        else:
+            if args.use_t2t_decoder:
                 return [beam_search(hidden_states_src=src_hiddens, input_mask_src=input_mask)]
             else:
                 return [log_softmax]
-        return loss, [loss, per_example_loss, log_softmax, labels, labels_mask]
 
     if args.command == "train":
         # training pipeline
-        train_loss, _ = create_pipeline(train_examples, num_train_examples, args.batch_size, mode="train")
+        train_tensors = create_pipeline(train_examples, num_train_examples, args.batch_size, mode="train")
 
         # evaluation pipelines
-        all_eval_losses = {}
-        all_eval_tensors = {}
-        # for eval_dataset in args.eval_datasets:
-        eval_loss, eval_tensors = create_pipeline(eval_examples, num_eval_examples, args.eval_batch_size, mode="eval")
-        all_eval_losses[0] = eval_loss
-        all_eval_tensors[0] = eval_tensors
+        eval_tensors = create_pipeline(eval_examples, num_eval_examples, args.eval_batch_size, mode="eval")
 
         def print_loss(x):
             loss = x[0].item()
@@ -294,7 +290,7 @@ if __name__ == "__main__":
 
         # callbacks
         callback_train = nemo.core.SimpleLossLoggerCallback(
-            tensors=[train_loss],
+            tensors=[train_tensors[0]],
             step_freq=100,
             print_func=print_loss,
             get_tb_values=lambda x: [["loss", x[0]]],
@@ -305,7 +301,7 @@ if __name__ == "__main__":
 
         # for eval_dataset in args.eval_datasets:
         callback_eval = nemo.core.EvaluatorCallback(
-            eval_tensors=all_eval_tensors[0],
+            eval_tensors=eval_tensors,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y, tokenizer),
             user_epochs_done_callback=eval_epochs_done_callback,
             eval_step=args.eval_freq,
@@ -317,14 +313,16 @@ if __name__ == "__main__":
         checkpointer_callback = CheckpointCallback(folder=args.work_dir, step_freq=args.checkpoint_save_freq)
         callbacks.append(checkpointer_callback)
 
-        max_steps, warmup_steps = _calculate_steps(num_train_examples, args.batch_size, args.num_epochs, 0.1)
+        max_steps, warmup_steps = _calculate_steps(
+            num_train_examples, args.batch_size, args.num_epochs, args.warmup_proportion
+        )
 
         # define learning rate decay policy
         lr_policy = PolynomialDecayAnnealing(total_steps=max_steps, min_lr=0, warmup_steps=warmup_steps)
 
         # Create trainer and execute training action
         nf.train(
-            tensors_to_optimize=[train_loss],
+            tensors_to_optimize=[train_tensors[0]],
             callbacks=callbacks,
             optimizer=args.optimizer,
             lr_policy=lr_policy,
@@ -345,7 +343,7 @@ if __name__ == "__main__":
 
         results = []
         for i in computed_tensors[0]:
-            if config['use_t2t_decoder']:
+            if args.use_t2t_decoder:
                 results.extend((i[:, 1:]).cpu().numpy().tolist())
             else:
                 results.extend(torch.argmax(i, dim=-1).int().cpu().numpy().tolist())
@@ -389,6 +387,7 @@ if __name__ == "__main__":
         aggregates = aggregator.aggregate()
 
         print("\nROUGE scores:")
+        print("----------------------------------------------------------------")
         print("score_type\t\tlow\t\tmid\t\thigh")
         print("----------------------------------------------------------------")
         for score_type, aggregate in sorted(aggregates.items()):

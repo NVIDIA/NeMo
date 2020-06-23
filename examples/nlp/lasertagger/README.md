@@ -13,8 +13,11 @@ Operation 3 can be combined with 1 and 2. Compared to sequence-to-sequence
 models, LaserTagger is (1) less prone to hallucination, (2) more data efficient,
 and (3) faster at inference time.
 
-A detailed method description and evaluation can be found in our EMNLP'19 paper:
+A detailed method description and evaluation can be found in this EMNLP'19 paper:
 [https://arxiv.org/abs/1909.01187](https://arxiv.org/abs/1909.01187)
+
+This example contains code artifacts adapted from the original implementation:
+https://github.com/google-research/lasertagger
 
 ## Usage Instructions
 
@@ -93,7 +96,12 @@ python lasertagger_preprocessor.py \
 Model hyperparameters are specified in [lasertagger_config.json](configs/lasertagger_config.json). This configuration file extends the original
 `bert_config.json` which comes with the zipped pretrained BERT model.
 
+**Note:** Please run `pip install rouge-score` before using `lasertagger_main.py`
+
 ```
+# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
+pip install rouge-score
+
 # Training and evaluation, comment --eval_file_preprocessed to skip evaluation
 python lasertagger_main.py train \
     --train_file_preprocessed=${OUTPUT_DIR}/lt_train_examples.pkl \
@@ -112,9 +120,6 @@ The inference relies on `ROUGE-L` metric which computes the longest common subse
 The inference also calculates another metric called `SARI (System output Against References and against the Input sentence)`. It explicitly measures the goodness of words that are added, deleted and kept by the systems.
 
 ```
-# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
-pip install rouge-score
-
 # Infer
 python lasertagger_main.py infer \
     --test_file=${TEST_FILE} \

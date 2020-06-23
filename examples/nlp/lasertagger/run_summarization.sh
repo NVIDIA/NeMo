@@ -52,6 +52,9 @@ python lasertagger_preprocessor.py \
     --save_path=${OUTPUT_DIR}
 
 
+# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
+pip install rouge-score
+
 # Training and evaluation, comment --eval_file_preprocessed to skip evaluation
 python lasertagger_main.py train \
     --train_file_preprocessed=${OUTPUT_DIR}/lt_train_examples.pkl \
@@ -59,11 +62,7 @@ python lasertagger_main.py train \
     --test_file_preprocessed=${OUTPUT_DIR}/lt_test_examples.pkl \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
-    --model_config_file=${LASERTAGGER_CONFIG} \
     --work_dir=${OUTPUT_DIR}/lt
-
-# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
-pip install rouge-score
 
 # Infer
 python lasertagger_main.py infer \
@@ -71,5 +70,4 @@ python lasertagger_main.py infer \
     --test_file_preprocessed=${OUTPUT_DIR}/lt_test_examples.pkl \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
-    --model_config_file=${LASERTAGGER_CONFIG} \
     --work_dir=${OUTPUT_DIR}/lt

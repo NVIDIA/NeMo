@@ -16,7 +16,7 @@
 
 import argparse
 import os
-from collections import OrderedDict, deque
+from collections import deque
 
 import torch
 from absl import logging
