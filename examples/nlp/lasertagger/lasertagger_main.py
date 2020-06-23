@@ -14,22 +14,20 @@
 # limitations under the License.
 # =============================================================================
 
-import json
 import sys
 
 import torch
 from examples.nlp.lasertagger.official_lasertagger import bert_example, score_lib, tagging, tagging_converter, utils
 from rouge_score import rouge_scorer, scoring
 
-import nemo
 import nemo.collections.nlp as nemo_nlp
-import nemo.collections.nlp.data.tokenizers.tokenizer_utils
 from nemo import logging
 from nemo.backends.pytorch.common.losses import CrossEntropyLossNM
 from nemo.collections.nlp.callbacks.lasertagger_callback import eval_epochs_done_callback, eval_iter_callback
 from nemo.collections.nlp.nm.data_layers.lasertagger_datalayer import LaserTaggerDataLayer
-from nemo.core import WeightShareTransform
+from nemo.core import EvaluatorCallback, NeuralModuleFactory, SimpleLossLoggerCallback, WeightShareTransform
 from nemo.core.callbacks import CheckpointCallback
+from nemo.utils import NemoArgParser
 from nemo.utils.lr_policies import PolynomialDecayAnnealing
 
 sys.modules['bert_example'] = bert_example
@@ -40,7 +38,7 @@ sys.modules['utils'] = utils
 
 
 def parse_args():
-    parser = nemo.utils.NemoArgParser(description='LaserTagger')
+    parser = NemoArgParser(description='LaserTagger')
     subparsers = parser.add_subparsers(help='sub-command', dest='command')
     subparsers.required = True
 
@@ -182,7 +180,7 @@ if __name__ == "__main__":
     label_map = utils.read_label_map(args.label_map_file)
     num_tags = len(label_map)
 
-    nf = nemo.core.NeuralModuleFactory(
+    nf = NeuralModuleFactory(
         local_rank=args.local_rank,
         optimization_level=args.amp_opt_level,
         log_dir=args.work_dir,
@@ -289,7 +287,7 @@ if __name__ == "__main__":
             logging.info("Training loss: {:.4f}".format(loss))
 
         # callbacks
-        callback_train = nemo.core.SimpleLossLoggerCallback(
+        callback_train = SimpleLossLoggerCallback(
             tensors=[train_tensors[0]],
             step_freq=100,
             print_func=print_loss,
@@ -300,7 +298,7 @@ if __name__ == "__main__":
         callbacks = [callback_train]
 
         # for eval_dataset in args.eval_datasets:
-        callback_eval = nemo.core.EvaluatorCallback(
+        callback_eval = EvaluatorCallback(
             eval_tensors=eval_tensors,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y, tokenizer),
             user_epochs_done_callback=eval_epochs_done_callback,
