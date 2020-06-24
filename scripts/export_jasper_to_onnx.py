@@ -58,32 +58,22 @@ def main(
         jasper_model_definition = yaml.load(f)
 
     logging.info("Determining model shape...")
-    if 'AudioPreprocessing' in jasper_model_definition:
-        num_encoder_input_features = jasper_model_definition['AudioPreprocessing']['features']
-    elif 'AudioToMelSpectrogramPreprocessor' in jasper_model_definition:
-        num_encoder_input_features = jasper_model_definition['AudioToMelSpectrogramPreprocessor']['features']
-    elif 'AudioToMFCCPreprocessor' in jasper_model_definition:
-        num_encoder_input_features = jasper_model_definition['AudioToMFCCPreprocessor']['n_mfcc']
-    else:
-        num_encoder_input_features = 64
-    num_decoder_input_features = jasper_model_definition['JasperEncoder']['jasper'][-1]['filters']
+    num_encoder_input_features = 64
+    decoder_params = jasper_model_definition['init_params']['decoder_params']['init_params']
+    num_decoder_input_features = decoder_params['feat_in']
     logging.info("  Num encoder input features: {}".format(num_encoder_input_features))
     logging.info("  Num decoder input features: {}".format(num_decoder_input_features))
 
     nf = nemo.core.NeuralModuleFactory(create_tb_writer=False)
 
-    # Compatibility for `feat_in` defined in config file
-    if 'feat_in' in jasper_model_definition['JasperEncoder']:
-        jasper_model_definition['JasperEncoder'].pop('feat_in')
-
     logging.info("Initializing models...")
-    jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=num_encoder_input_features, **jasper_model_definition['JasperEncoder']
-    )
+    jasper_encoder = nemo_asr.JasperEncoder(**jasper_model_definition['init_params']['encoder_params']['init_params'])
 
     if decoder_type == 'ctc':
         jasper_decoder = nemo_asr.JasperDecoderForCTC(
-            feat_in=num_decoder_input_features, num_classes=len(jasper_model_definition['labels']),
+            feat_in=num_decoder_input_features,
+            num_classes=decoder_params['num_classes'],
+            vocabulary=decoder_params['vocabulary'],
         )
     elif decoder_type == 'classification':
         if 'labels' in jasper_model_definition:
@@ -116,11 +106,11 @@ def main(
 
     # Create export directories if they don't already exist
     base_export_dir, export_fn = os.path.split(nn_onnx_encoder)
-    if not os.path.exists(base_export_dir):
+    if base_export_dir and not os.path.exists(base_export_dir):
         os.makedirs(base_export_dir)
 
     base_export_dir, export_fn = os.path.split(nn_onnx_decoder)
-    if not os.path.exists(base_export_dir):
+    if base_export_dir and not os.path.exists(base_export_dir):
         os.makedirs(base_export_dir)
 
     logging.info("Exporting encoder...")
@@ -130,6 +120,7 @@ def main(
         nemo.core.neural_factory.DeploymentFormat.ONNX,
         torch.zeros(batch_size, num_encoder_input_features, time_steps, dtype=torch.float, device="cuda:0",),
     )
+    del jasper_encoder
     logging.info("Exporting decoder...")
     nf.deployment_export(
         jasper_decoder,
@@ -137,6 +128,7 @@ def main(
         nemo.core.neural_factory.DeploymentFormat.ONNX,
         (torch.zeros(batch_size, num_decoder_input_features, time_steps // 2, dtype=torch.float, device="cuda:0",)),
     )
+    del jasper_decoder
     logging.info("Export completed successfully.")
 
 

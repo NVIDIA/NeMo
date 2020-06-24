@@ -1,0 +1,140 @@
+# syntax=docker/dockerfile:experimental
+
+# Copyright (c) 2019,2020 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# Please make sure you have nvidia-runtime enabled in docker config and build like:
+#
+# sudo -H DOCKER_BUILDKIT=1 nvidia-docker build -f Dockerfile.jetson -t nemo
+#
+
+ARG BASE_IMAGE=nvcr.io/ea-linux4tegra/jetson-voice:jetpack_4.4_DP
+
+
+# build an image that includes only the nemo dependencies, ensures that dependencies
+# are included first for optimal caching, and useful for building a development
+# image (by specifying build target as `nemo-deps`)
+FROM ${BASE_IMAGE} as nemo-deps
+
+# Ensure apt-get won't prompt for selecting options
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PKG_CONFIG_PATH=..
+ENV LLVM_CONFIG=/usr/lib/llvm-7/bin/llvm-config
+ENV MPLLOCALFREETYPE=1
+ENV LD_LIBRARY_PATH=/usr/local/cuda/targets/aarch64-linux/lib:${LD_LIBRARY_PATH}
+
+WORKDIR /tmp/nemo
+
+RUN apt-get update && \
+apt-get install -y \
+libsndfile1 sox \
+build-essential \
+cmake \
+pkg-config \
+apt-utils \
+libgoogle-glog0v5 \
+libre2-dev \
+libssl-dev \
+libtool \
+libboost-dev \
+libopencv-dev \
+python3-dev \
+libffi-dev  \
+llvm-7-dev \
+liblzma-dev libbz2-dev \
+rapidjson-dev \
+python3-pyaudio \
+libasound-dev \
+portaudio19-dev \
+libportaudio2 \
+libportaudiocpp0 \
+libsndfile1 \
+alsa-base \
+alsa-utils \
+ffmpeg \
+wget \
+bc \
+unzip \
+parallel \
+python3-distutils \
+python3-pip \
+libhdf5-serial-dev hdf5-tools libhdf5-dev \
+libprotobuf-dev protobuf-compiler
+
+#Install PyTorch 1.5
+RUN wget https://nvidia.box.com/shared/static/3ibazbiwtkl181n95n9em3wtrca7tdzp.whl -O torch-1.5.0-cp36-cp36m-linux_aarch64.whl
+RUN apt-get install -y libopenblas-base libopenmpi-dev
+RUN pip3 install --upgrade pip
+RUN pip3 install Cython
+RUN pip3 install numpy torch-1.5.0-cp36-cp36m-linux_aarch64.whl
+
+#Install torchvision  v0.6.0
+RUN apt-get install -y git cmake libjpeg-dev zlib1g-dev
+# RUN git clone --branch  v0.6.0 https://github.com/pytorch/vision torchvision
+# RUN cd torchvision && pip3 install -e .
+# RUN cd ../  && pip3 install 'pillow<7' 
+
+RUN apt-get install -y cmake build-essential pkg-config libgoogle-perftools-dev
+RUN git clone -b v0.1.85 https://github.com/google/sentencepiece/ sentencepiece-0.1.85
+RUN cd sentencepiece-0.1.85 && mkdir build && cd build && cmake .. && make -j $(nproc) && make install && ldconfig -v && \
+    cd ../python && python3 setup.py bdist_wheel && cd dist && pip3 install sentencepiece-0.1.85-cp36-cp36m-linux_aarch64.whl --verbose
+
+# install nemo dependencies
+WORKDIR /tmp/nemo
+COPY requirements/requirements_docker.txt requirements.txt
+RUN pip3 install --disable-pip-version-check -r requirements.txt
+
+# copy nemo source into a scratch image
+WORKDIR /tmp/nemo-src
+COPY . .
+
+RUN pip3 install -U pytest 
+RUN pip3 install megatron
+
+# start building the final container
+FROM nemo-deps as nemo
+ARG NEMO_VERSION=0.10.2b0
+ARG BASE_IMAGE
+
+# Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
+# version information as runtime environment variable for introspection purposes
+RUN /usr/bin/test -n "${NEMO_VERSION}" && \
+/bin/echo "export NEMO_VERSION=${NEMO_VERSION}" >> /root/.bashrc && \
+/bin/echo "export BASE_IMAGE=${BASE_IMAGE}" >> /root/.bashrc
+RUN apt-get install -y curl portaudio19-dev
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > r.sh
+RUN chmod 777 ./r.sh && ./r.sh -y
+ENV PATH=${HOME}/.cargo/bin:${PATH} 
+RUN pip3 install setuptools_rust
+RUN PATH=${HOME}/.cargo/bin:${PATH} PYTHONPATH=${HOME}/.cargo/bin:${PYTHONPATH} pip3 install tokenizers
+
+# RUN pip3 install torchaudio
+RUN apt install -y libsox-dev libsox-fmt-all
+# This fails during docker build time. Install from running container to run examples/notebooks
+# ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/cuda-10.0/targets/aarch64-linux/lib/"
+# RUN mkdir -p /tmp/audio && cd /tmp/audio && git clone https://github.com/pytorch/audio.git -b v0.5.0 && cd audio && pip3 install .[all]
+
+RUN cd /tmp/nemo-src && pip3 install ".[all]"
+
+# copy scripts/examples/tests into container for end user
+WORKDIR /workspace/nemo
+COPY scripts /workspace/nemo/scripts
+COPY examples /workspace/nemo/examples
+COPY tests /workspace/nemo/tests
+COPY README.rst LICENSE /workspace/nemo/
+
+RUN printf "#!/bin/bash\njupyter lab --no-browser --allow-root --ip=0.0.0.0" >> start-jupyter.sh && \
+chmod +x start-jupyter.sh
+
