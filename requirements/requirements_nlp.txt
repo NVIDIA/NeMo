@@ -12,3 +12,4 @@ rapidfuzz
 gdown
 megatron-lm
 inflect
+rouge-score

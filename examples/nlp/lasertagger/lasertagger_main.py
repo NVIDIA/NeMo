@@ -263,8 +263,8 @@ if __name__ == "__main__":
 
     def create_pipeline(dataset, num_examples, batch_size, mode):
 
-        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, num_examples, batch_size, mode == "infer")
-        (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask,) = data_layer()
+        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, num_examples, batch_size)
+        (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask) = data_layer()
 
         src_hiddens = encoder(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
         tgt_hiddens = decoder(

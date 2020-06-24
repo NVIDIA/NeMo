@@ -27,18 +27,10 @@ class LaserTaggerDataLayer(TextDataLayer):
 	Data layer for LaserTagger from source (src) to target (tgt) editing tasks.
 
 	Args:
-		tokenizer_src (TokenizerSpec): source language tokenizer
-		tokenizer_tgt (TokenizerSpec): target language tokenizer
-		dataset_src (str): path to source data
-		dataset_tgt (str): path to target data
-		tokens_in_batch (int): maximum allowed number of tokens in batches,
-			batches will be constructed to minimize the use of <pad> tokens
-		clean (bool): whether to use parallel data cleaning such as removing
-			pairs with big difference in sentences length, removing pairs with
-			the same tokens in src and tgt, etc; useful for training data layer
-			and should not be used in evaluation data layer
+		preprocessed_data (str): path to preprocessed train/validation/test data
+		use_t2t_decoder (bool): whether to use Autoregressive Decoder
 		dataset_type (Dataset):
-				the underlying dataset. Default: TranslationDataset
+				the underlying dataset. Default: LaserTaggerDataset
 	"""
 
     @property
@@ -49,6 +41,7 @@ class LaserTaggerDataLayer(TextDataLayer):
 		input_ids: indices of tokens which constitute batches of masked text segments
 		input_mask: bool tensor with 0s in place of source tokens to be masked
 		segment_ids: bool tensor with 0's and 1's to denote the text segment type
+        tgt_ids: indices of target tokens which constitute batches of masked text segments
 		labels_mask: bool tensor with 0s in place of label tokens to be masked
 		labels: indices of tokens which should be predicted from each of the
 			corresponding target tokens in tgt_ids
@@ -72,7 +65,6 @@ class LaserTaggerDataLayer(TextDataLayer):
         use_t2t_decoder,
         num_examples,
         batch_size,
-        infer,
         shuffle=False,
         dataset_type=LaserTaggerDataset,
     ):
@@ -80,6 +72,5 @@ class LaserTaggerDataLayer(TextDataLayer):
             'preprocessed_data': preprocessed_data,
             'use_t2t_decoder': use_t2t_decoder,
             'num_examples': num_examples,
-            'infer': infer,
         }
         super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)

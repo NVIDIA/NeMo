@@ -23,7 +23,7 @@ __all__ = ['LaserTaggerDataset']
 
 
 class LaserTaggerDataset(Dataset):
-    def __init__(self, preprocessed_data, use_t2t_decoder, num_examples, infer):
+    def __init__(self, preprocessed_data, use_t2t_decoder, num_examples):
 
         self.examples, self.num_examples = preprocessed_data, num_examples
         self.use_t2t_decoder = use_t2t_decoder

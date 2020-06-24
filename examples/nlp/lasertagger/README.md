@@ -1,4 +1,4 @@
-# LaserTagger Summarization Example
+# LaserTagger Abstractive Summarization Example
 
 LaserTagger is a text-editing model which predicts a sequence of token-level
 edit operations to transform a source text into a target text. The model
@@ -57,6 +57,7 @@ export TEST_FILE=./data/${TASK}/test.tsv
 export PHRASE_VOCAB_SIZE=500
 export MAX_INPUT_EXAMPLES=1000000
 export OUTPUT_DIR=./outputs/${TASK}
+export MAX_SEQ_LENGTH=128
 
 if [ ! -d ${OUTPUT_DIR} ]; then
     mkdir -p ${OUTPUT_DIR};
@@ -78,9 +79,6 @@ We've used the 12-layer "BERT-Base, Cased" model for of our experiments.
 Then convert the original TSV datasets into pkl format.
 
 ```
-export MAX_SEQ_LENGTH=128
-export LASERTAGGER_CONFIG=./configs/lasertagger_config.json
-
 # Preprocess text to tags
 python lasertagger_preprocessor.py \
     --train_file=${TRAIN_FILE} \
@@ -93,15 +91,9 @@ python lasertagger_preprocessor.py \
 
 ### 3. Model Training
 
-Model hyperparameters are specified in [lasertagger_config.json](configs/lasertagger_config.json). This configuration file extends the original
-`bert_config.json` which comes with the zipped pretrained BERT model.
-
-**Note:** Please run `pip install rouge-score` before using `lasertagger_main.py`
+Model hyperparameters are specified in [lasertagger_main.py](lasertagger_main.py).
 
 ```
-# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
-pip install rouge-score
-
 # Training and evaluation, comment --eval_file_preprocessed to skip evaluation
 python lasertagger_main.py train \
     --train_file_preprocessed=${OUTPUT_DIR}/lt_train_examples.pkl \
@@ -109,7 +101,6 @@ python lasertagger_main.py train \
     --test_file_preprocessed=${OUTPUT_DIR}/lt_test_examples.pkl \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
-    --model_config_file=${LASERTAGGER_CONFIG} \
     --work_dir=${OUTPUT_DIR}/lt
 ```
 
@@ -126,7 +117,6 @@ python lasertagger_main.py infer \
     --test_file_preprocessed=${OUTPUT_DIR}/lt_test_examples.pkl \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
-    --model_config_file=${LASERTAGGER_CONFIG} \
     --work_dir=${OUTPUT_DIR}/lt
 ```
 

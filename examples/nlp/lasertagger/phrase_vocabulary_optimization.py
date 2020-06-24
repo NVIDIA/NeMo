@@ -31,17 +31,18 @@
 # limitations under the License.
 
 # Lint as: python3
+
+"""
+This file contains code artifacts adapted from the original implementation:
+https://github.com/google-research/lasertagger/blob/master/phrase_vocabulary_optimization.py
+"""
+
 """Optimizes the vocabulary of phrases that can be added by LaserTagger.
 
 The goal is to find a fixed-size set of phrases that cover as many training
 examples as possible. Based on the phrases, saves a file containing all possible
 tags to be predicted and another file reporting the percentage of covered
 training examples with different vocabulary sizes.
-"""
-
-"""
-This file contains code artifacts adapted from the original implementation:
-https://github.com/google-research/lasertagger/blob/master/phrase_vocabulary_optimization.py
 """
 
 import collections

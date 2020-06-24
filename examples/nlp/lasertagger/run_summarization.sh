@@ -24,6 +24,7 @@ TEST_FILE=./data/${TASK}/test.tsv
 PHRASE_VOCAB_SIZE=500
 MAX_INPUT_EXAMPLES=1000000
 OUTPUT_DIR=./outputs/${TASK}
+MAX_SEQ_LENGTH=128
 
 if [ ! -d ${OUTPUT_DIR} ]; then
     mkdir -p ${OUTPUT_DIR};
@@ -38,10 +39,6 @@ python phrase_vocabulary_optimization.py \
   --output_file=${OUTPUT_DIR}/label_map.txt
 
 
-MAX_SEQ_LENGTH=128
-LASERTAGGER_CONFIG=./configs/lasertagger_config.json
-
-
 # Preprocess text to tags
 python lasertagger_preprocessor.py \
     --train_file=${TRAIN_FILE} \
@@ -52,9 +49,6 @@ python lasertagger_preprocessor.py \
     --save_path=${OUTPUT_DIR}
 
 
-# Setup ROUGE metrics from https://github.com/google-research/google-research/tree/master/rouge
-pip install rouge-score
-
 # Training and evaluation, comment --eval_file_preprocessed to skip evaluation
 python lasertagger_main.py train \
     --train_file_preprocessed=${OUTPUT_DIR}/lt_train_examples.pkl \
@@ -63,6 +57,7 @@ python lasertagger_main.py train \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
     --work_dir=${OUTPUT_DIR}/lt
+
 
 # Infer
 python lasertagger_main.py infer \
