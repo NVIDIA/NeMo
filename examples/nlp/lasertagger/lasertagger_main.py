@@ -262,7 +262,6 @@ if __name__ == "__main__":
         )
 
     def create_pipeline(dataset, num_examples, batch_size, mode):
-
         data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, num_examples, batch_size)
         (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask) = data_layer()
 
@@ -303,7 +302,7 @@ if __name__ == "__main__":
 
         callbacks = [callback_train]
 
-        # for eval_dataset in args.eval_datasets:
+        # for eval_examples in args.eval_file_preprocessed:
         callback_eval = EvaluatorCallback(
             eval_tensors=eval_tensors,
             user_iter_callback=lambda x, y: eval_iter_callback(x, y, tokenizer),

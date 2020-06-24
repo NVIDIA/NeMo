@@ -41,7 +41,7 @@ class LaserTaggerDataLayer(TextDataLayer):
 		input_ids: indices of tokens which constitute batches of masked text segments
 		input_mask: bool tensor with 0s in place of source tokens to be masked
 		segment_ids: bool tensor with 0's and 1's to denote the text segment type
-        tgt_ids: indices of target tokens which constitute batches of masked text segments
+		tgt_ids: indices of target tokens which constitute batches of masked text segments
 		labels_mask: bool tensor with 0s in place of label tokens to be masked
 		labels: indices of tokens which should be predicted from each of the
 			corresponding target tokens in tgt_ids

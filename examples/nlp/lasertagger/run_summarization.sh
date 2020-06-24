@@ -15,6 +15,12 @@
 # limitations under the License.
 # =============================================================================
 
+# Download the preprocessed version of MSR Abstractive Text Compression Dataset
+# Original dataset: https://www.microsoft.com/en-us/download/details.aspx?id=54262
+wget https://dldata-public.s3.us-east-2.amazonaws.com/msr_ab_sum.tar.gz
+tar xzvf msr_ab_sum.tar.gz
+rm msr_ab_sum.tar.gz
+
 TASK=msr_ab_sum
 
 TRAIN_FILE=./data/${TASK}/train.tsv

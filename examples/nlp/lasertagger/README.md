@@ -30,7 +30,7 @@ Running an experiment with LaserTagger consists of the following steps:
 5. Evaluate the predictions.
 
 Next we go through these steps, using Abstractive Summarization
-([MSR Abstractive Summarization](https://www.microsoft.com/en-us/download/details.aspx?id=54262)) task as a
+([MSR Abstractive Text Compression](https://www.microsoft.com/en-us/research/publication/dataset-evaluation-metrics-abstractive-sentence-paragraph-compression/)) task as a
 running example.
 
 You can run all of the steps with
@@ -43,9 +43,19 @@ after setting the paths in the beginning of the script.
 
 **Note:** Text should be tokenized with spaces separating the tokens before applying LaserTagger.
 
-### 1. Phrase Vocabulary Optimization
+### 1. Dataset Download
 
-The MSR Abstractive Summarization dataset is in the `data` folder. This has been pretokenized with the BERT base tokenizer.
+Download the preprocessed version of [MSR Abstractive Text Compression Dataset](https://www.microsoft.com/en-us/download/details.aspx?id=54262)
+
+```
+wget https://dldata-public.s3.us-east-2.amazonaws.com/msr_ab_sum.tar.gz
+tar xzvf msr_ab_sum.tar.gz
+rm msr_ab_sum.tar.gz
+```
+
+The MSR Abstractive Summarization dataset after extracting can be found in the `data` folder. This has been pretokenized with the BERT basic tokenizer (punctuation splitting, lower casing, etc.).
+
+### 2. Phrase Vocabulary Optimization
 
 ```
 export TASK=msr_ab_sum
@@ -73,7 +83,7 @@ python phrase_vocabulary_optimization.py \
 Note that you can also set `MAX_INPUT_EXAMPLES` to a smaller value to get a
 reasonable vocabulary.
 
-### 2. Converting Target Texts to Tags
+### 3. Converting Target Texts to Tags
 
 We've used the 12-layer "BERT-Base, Cased" model for of our experiments.
 Then convert the original TSV datasets into pkl format.
@@ -89,7 +99,7 @@ python lasertagger_preprocessor.py \
     --save_path=${OUTPUT_DIR}
 ```
 
-### 3. Model Training
+### 4. Model Training
 
 Model hyperparameters are specified in [lasertagger_main.py](lasertagger_main.py).
 
@@ -104,7 +114,7 @@ python lasertagger_main.py train \
     --work_dir=${OUTPUT_DIR}/lt
 ```
 
-### 4. Prediction and Evaluation
+### 5. Prediction and Evaluation
 
 The inference relies on `ROUGE-L` metric which computes the longest common subsequence (LCS) between two pieces of text.
 
@@ -120,6 +130,6 @@ python lasertagger_main.py infer \
     --work_dir=${OUTPUT_DIR}/lt
 ```
 
-### 5. Acknowledgement
+### 6. Acknowledgement
 
 We would like to thank the authors of the original work done by the Google Research team on [Encode, Tag, Realize: High-Precision Text Editing](https://arxiv.org/abs/1909.01187)
