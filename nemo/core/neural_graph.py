@@ -35,6 +35,7 @@ from nemo.core.neural_modules import ModuleType, NeuralModule
 from nemo.core.neural_types import NeuralPortNameMismatchError, NeuralType, NmTensor
 from nemo.package_info import __version__ as nemo_version
 from nemo.utils import logging
+from nemo.utils.configuration_error import ConfigurationError
 from nemo.utils.neural_graph.connection import Connection, StepModulePort
 from nemo.utils.neural_graph.graph_inputs import GraphInputs
 from nemo.utils.neural_graph.graph_outputs import GraphOutputs
@@ -44,7 +45,8 @@ YAML = YAML(typ='safe')
 
 class NeuralGraph(NeuralInterface):
     """
-        Neural Graph class stores dynamically defined graphs of connected Neural Modules.
+    Neural Graph class stores dynamically defined graphs of connected Neural Modules.
+    Once defined, the graph is static, i.e. the connectivity between the nodes is frozen.
     """
 
     def __init__(self, operation_mode: OperationMode = OperationMode.both, name: Optional[str] = None):
@@ -1558,5 +1560,5 @@ class NeuralGraph(NeuralInterface):
             module = self._modules[module_name]
             if module.type == ModuleType.trainable:
                 # Yield it parameters.
-                for name, param in model.named_parameters(recurse=recurse):
+                for name, param in module.named_parameters(recurse=recurse):
                     yield name, param

@@ -59,6 +59,7 @@ autodoc_mock_imports = [
     'braceexpand',
     'webdataset',
     'tqdm',
+    'numba',
 ]
 
 # -- General configuration ------------------------------------------------
@@ -80,6 +81,13 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.githubpages",
     "sphinxcontrib.bibtex",
+]
+
+# Set default flags for all classes.
+autodoc_default_flags = [
+    'members',
+    'undoc-members',
+    'show-inheritance',
 ]
 
 locale_dirs = ['locale/']  # path is example but recommended.

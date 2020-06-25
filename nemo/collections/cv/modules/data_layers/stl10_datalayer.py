@@ -107,6 +107,7 @@ class STL10DataLayer(DataLayerNM, Dataset):
 
     def __len__(self):
         """
+
         Returns:
             Length of the dataset.
         """
@@ -118,6 +119,9 @@ class STL10DataLayer(DataLayerNM, Dataset):
 
         Args:
             index: index of the sample to return.
+
+        Returns:
+            A single sample consisting of (index, image, target id, target label)
         """
         # Get image and target.
         img, target = self._dataset.__getitem__(index)
@@ -128,6 +132,7 @@ class STL10DataLayer(DataLayerNM, Dataset):
     @property
     def ix_to_word(self):
         """
+
         Returns:
             Dictionary with mapping of target indices (int) to labels (class names as strings)
             that can we used by other modules.

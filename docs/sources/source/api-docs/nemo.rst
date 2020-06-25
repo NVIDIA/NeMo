@@ -1,16 +1,26 @@
 Core APIs
 =========
 
-neural_types
+Neural Types
 ------------
 
-.. automodule:: nemo.core.neural_types
+.. automodule:: nemo.core.neural_types.neural_type
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: nemo.core.neural_types.axes
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+.. automodule:: nemo.core.neural_types.elements
     :members:
     :undoc-members:
     :show-inheritance:
 
 
-neural_modules
+Neural Modules
 --------------
 
 .. automodule:: nemo.core.neural_modules
@@ -18,23 +28,24 @@ neural_modules
     :undoc-members:
     :show-inheritance:
 
-neural_graph
+Neural Graph
 --------------
 
 .. automodule:: nemo.core.neural_graph
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
-neural_factory
---------------
+.. automodule:: nemo.utils.app_state
+    :special-members: __init__
+
+Neural Module Factory
+---------------------
 
 .. automodule:: nemo.core.neural_factory
     :members:
     :undoc-members:
     :show-inheritance:
 
-callbacks
+Callbacks
 ------------
 
 .. automodule:: nemo.core.callbacks

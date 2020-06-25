@@ -15,13 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import random
 import shutil
 import string
 import tarfile
 from abc import abstractmethod
-from os import path
+from os import makedirs, path
 from typing import Iterable
 
 from nemo.core.neural_factory import DeploymentFormat, OperationMode
@@ -107,7 +106,7 @@ class NeMoModel(NeuralModule):
 
         def __make_nemo_file_from_folder(filename, source_dir):
             with tarfile.open(filename, "w:gz") as tar:
-                tar.add(source_dir, arcname=os.path.basename(source_dir))
+                tar.add(source_dir, arcname=path.basename(source_dir))
 
         if output_folder is None:
             output_folder = ""
@@ -121,7 +120,7 @@ class NeMoModel(NeuralModule):
         else:
             resulting_file = path.join(output_folder, output_file_name + ".nemo")
         if not path.exists(tmp_folder):
-            os.makedirs(tmp_folder)
+            makedirs(tmp_folder)
         try:
             # create header file
             main_configuration_file_name = "module.yaml"
@@ -173,7 +172,6 @@ class NeMoModel(NeuralModule):
             logging.error("Could not perform NeMoModel export")
         finally:
             shutil.rmtree(rnd_path)
-            pass
 
     @property
     @abstractmethod
@@ -229,23 +227,23 @@ class NeMoModel(NeuralModule):
         return path.join(out_folder, NEMO_TMP_FOLDER), out_folder
 
     def get_weights(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def set_weights(
         self, name2weight, name2name_and_transform,
     ):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def tie_weights_with(
         self, module, weight_names, name2name_and_transform,
     ):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def restore_from(self, path: str):
-        raise NotImplemented("Please use from_pretrained method for NeMoModels")
+        raise NotImplementedError("Please use from_pretrained method for NeMoModels")
 
     def freeze(self, weights):
-        raise NotImplemented
+        raise NotImplementedError()
 
     def unfreeze(self, weights):
-        raise NotImplemented
+        raise NotImplementedError()
