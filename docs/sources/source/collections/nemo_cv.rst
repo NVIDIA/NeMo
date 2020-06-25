@@ -4,62 +4,40 @@ NeMo CV collection
 DataLayers
 ----------
 .. automodule:: nemo.collections.cv.modules.data_layers.cifar10_datalayer
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__, __len__, __getitem__
 
 .. automodule:: nemo.collections.cv.modules.data_layers.cifar100_datalayer
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__, __len__, __getitem__
 
 .. automodule:: nemo.collections.cv.modules.data_layers.mnist_datalayer
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__, __len__, __getitem__
 
 .. automodule:: nemo.collections.cv.modules.data_layers.stl10_datalayer
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__, __len__, __getitem__
 
 Trainable Modules
 -----------------
 .. automodule:: nemo.collections.cv.modules.trainables.convnet_encoder
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
 .. automodule:: nemo.collections.cv.modules.trainables.feed_forward_network
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
 .. automodule:: nemo.collections.cv.modules.trainables.image_encoder
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
 .. automodule:: nemo.collections.cv.modules.trainables.lenet5
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
 NonTrainable Modules
 --------------------
 .. automodule:: nemo.collections.cv.modules.non_trainables.non_linearity
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
 .. automodule:: nemo.collections.cv.modules.non_trainables.reshape_tensor
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
 
 Losses
 ------
 .. automodule:: nemo.collections.cv.modules.losses.nll_loss
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__

@@ -83,6 +83,13 @@ extensions = [
     "sphinxcontrib.bibtex",
 ]
 
+# Set default flags for all classes.
+autodoc_default_flags = [
+    'members',
+    'undoc-members',
+    'show-inheritance',
+]
+
 locale_dirs = ['locale/']  # path is example but recommended.
 gettext_compact = False  # optional.
 
