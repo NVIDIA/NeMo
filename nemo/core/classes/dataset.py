@@ -17,10 +17,10 @@ __all__ = ['INMDataset']
 
 from torch.utils.data import Dataset
 
-from nemo.core.classes import INMTyping
+from nemo.core.classes import Typing
 
 
-class INMDataset(Dataset, INMTyping):
+class NeMoDataset(Dataset, Typing):
     """Dataset with output ports"""
 
     pass

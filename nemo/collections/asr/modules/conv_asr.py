@@ -20,7 +20,7 @@ from collections import OrderedDict
 import torch
 
 from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
-from nemo.core.classes import INeuralModule
+from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,

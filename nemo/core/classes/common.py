@@ -25,7 +25,7 @@ from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
 
 
-class INMTyping(ABC):
+class Typing(ABC):
     """
     An interface which endows module with neural types
     """
@@ -61,7 +61,7 @@ class INMTyping(ABC):
                     res.neural_type = out_types_list[ind][1]
 
 
-class INMSerialization(ABC):
+class Serialization(ABC):
     @staticmethod
     def __instantiate_class_from_config(
         configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
@@ -127,7 +127,7 @@ class INMSerialization(ABC):
         pass
 
 
-class INMFileIO(ABC):
+class FileIO(ABC):
     @abstractmethod
     def save_to(self, save_path: str):
         """Saves module/model with weights"""

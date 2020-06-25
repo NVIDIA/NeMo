@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['IASRModel']
+__all__ = ['ASRModel']
 
 from abc import ABC, abstractmethod
 
-from nemo.core.classes import INMmodelPT
+from nemo.core.classes import ModelPT
 
 
-class IASRModel(INMmodelPT, ABC):
+class ASRModel(ModelPT, ABC):
     @abstractmethod
     def transcribe(self, path2audio_file: str) -> str:
         """
