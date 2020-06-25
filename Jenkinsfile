@@ -26,7 +26,7 @@ pipeline {
         sh 'python setup.py style'
       }
     }
-
+  }
   post {
     always {
         sh "chmod -R 777 ."
