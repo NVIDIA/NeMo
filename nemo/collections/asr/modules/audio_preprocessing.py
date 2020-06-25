@@ -22,6 +22,7 @@ import torch
 from nemo.collections.asr.parts.features import FilterbankFeatures
 from nemo.core.classes import INeuralModule
 from nemo.core.neural_types import AudioSignal, LengthsType, MelSpectrogramType, NeuralType
+from nemo.utils.decorators import experimental
 
 
 class IAudioPreprocessor(INeuralModule, ABC):
@@ -62,6 +63,7 @@ class IAudioPreprocessor(INeuralModule, ABC):
         return torch.ceil(length / self.hop_length).to(dtype=torch.long)
 
 
+@experimental
 class AudioToMelSpectrogramPreprocessorNM(IAudioPreprocessor):
     """Featurizer module that converts wavs to mel spectrograms.
         We don't use torchaudio's implementation here because the original
@@ -123,6 +125,13 @@ class AudioToMelSpectrogramPreprocessorNM(IAudioPreprocessor):
                 prior to multiplication with mel basis.
                 Defaults to 2 for a power spec
         """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
 
     @property
     def input_types(self):

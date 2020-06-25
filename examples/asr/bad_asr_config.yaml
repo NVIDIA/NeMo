@@ -1,0 +1,111 @@
+model: "Jasper"
+sample_rate: &sample_rate 16000
+dropout: &drop 0.0
+repeat:  &rep  1
+
+labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+
+AudioToTextDataLayer:
+    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    trim_silence: True
+    max_duration: 16.7
+    shuffle: True
+
+
+AudioToTextDataLayer_eval:
+    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    shuffle: False
+
+AudioToMelSpectrogramPreprocessor:
+    header:
+        full_spec: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessorNM
+    init_params:
+        normalize: "per_feature"
+        window_size: 0.02
+        sample_rate: *sample_rate
+        window_stride: 0.01
+        window: "hann"
+        features: &n_mels 64
+        n_fft: 512
+        frame_splicing: 1
+        dither: 0.00001
+        stft_conv: true
+
+JasperEncoder:
+    header:
+        full_spec: nemo.collections.asr.modules.ConvASREncoder
+    init_params:
+        feat_in: *n_mels
+        activation: "relu"
+
+        jasper:
+            -   filters: 128
+                repeat: 1
+                kernel: [11]
+                stride: [1]
+                dilation: [1]
+                dropout: *drop
+                residual: true
+
+            -   filters: 256
+                repeat: *rep
+                kernel: [13]
+                stride: [1]
+                dilation: [1]
+                dropout: *drop
+                residual: true
+
+            -   filters: 256
+                repeat: *rep
+                kernel: [15]
+                stride: [1]
+                dilation: [1]
+                dropout: *drop
+                residual: true
+
+            -   filters: 256
+                repeat: *rep
+                kernel: [17]
+                stride: [1]
+                dilation: [1]
+                dropout: *drop
+                residual: true
+
+            -   filters: 256
+                repeat: *rep
+                kernel: [19]
+                stride: [1]
+                dilation: [1]
+                dropout: *drop
+                residual: true
+
+            -   filters: 256
+                repeat: 1
+                kernel: [21]
+                stride: [1]
+                dilation: [1]
+                dropout: 0.0
+                residual: false
+
+            -   filters: &enc_feat_out 1024
+                repeat: 1
+                kernel: [1]
+                stride: [1]
+                dilation: [1]
+                dropout: 0.0
+                residual: false
+
+JasperDecoder:
+    header:
+        full_spec: nemo.collections.asr.modules.ConvASRDecoder
+    init_params:
+        feat_in: *enc_feat_out
+        vocabulary: *labels
+        num_classes: 28

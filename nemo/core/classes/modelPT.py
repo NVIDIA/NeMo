@@ -40,7 +40,7 @@ class INMmodelPT(LightningModule, INMModelAPI):
         pass
 
     @abstractmethod
-    def setup_training_data(self, val_data_layer_params: Optional[Dict]):
+    def setup_validation_data(self, val_data_layer_params: Optional[Dict]):
         """
         (Optionally) Setups data loader to be used in validation
         Args:
