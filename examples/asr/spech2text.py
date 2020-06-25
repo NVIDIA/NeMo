@@ -20,7 +20,7 @@ from ruamel.yaml import YAML
 from nemo.collections.asr.models import EncDecCTCModel
 
 yaml = YAML(typ="safe")
-with open('/Users/okuchaiev/repos/NeMo/examples/asr/bad_asr_config.yaml') as f:
+with open('/home/okuchaiev/repos/NeMo/examples/asr/bad_asr_config.yaml') as f:
     model_config = yaml.load(f)
 
 asr_model = EncDecCTCModel(
@@ -33,6 +33,6 @@ asr_model = EncDecCTCModel(
 asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
 asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
 asr_model.setup_optimization(optim_params={'lr': 0.0003})
-# trainer = pl.Trainer(val_check_interval=5, amp_level='O1', precision=16, gpus=2, max_epochs=50, distributed_backend='ddp')
-trainer = pl.Trainer(val_check_interval=5)
+trainer = pl.Trainer(val_check_interval=5, amp_level='O1', precision=16, gpus=2, max_epochs=30, distributed_backend='ddp')
+# trainer = pl.Trainer(val_check_interval=5)
 trainer.fit(asr_model)
