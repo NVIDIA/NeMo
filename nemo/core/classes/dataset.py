@@ -20,7 +20,7 @@ from torch.utils.data import Dataset
 from nemo.core.classes import Typing
 
 
-class NeMoDataset(Dataset, Typing):
+class Dataset(Dataset, Typing):
     """Dataset with output ports"""
 
     pass
