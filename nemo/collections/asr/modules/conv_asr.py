@@ -1,7 +1,4 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 __all__ = ['ConvASRDecoder', 'ConvASREncoder']
 
-from typing import Any, Dict
+from collections import OrderedDict
 
 import torch
 
 from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
-from nemo.core.classes import NeuralModule
+from nemo.core.classes import INeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,
@@ -32,7 +30,7 @@ from nemo.core.neural_types import (
 )
 
 
-class ConvASREncoder(NeuralModule):
+class ConvASREncoder(INeuralModule):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
     Based on these papers:
@@ -40,33 +38,27 @@ class ConvASREncoder(NeuralModule):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def save_to(self, save_path: str):
-        raise NotImplementedError()
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        raise NotImplementedError()
-
-    def to_config_dict(self) -> Dict[str, Any]:
-        raise NotImplementedError()
-
     @property
     def input_ports(self):
         """Returns definitions of module input ports.
         """
-        return {
-            "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "length": NeuralType(tuple('B'), LengthsType()),
-        }
+        return OrderedDict(
+            {
+                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
+                "length": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
 
     @property
     def output_ports(self):
         """Returns definitions of module output ports.
         """
-        return {
-            "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-        }
+        return OrderedDict(
+            {
+                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
 
     def __init__(
         self,
@@ -145,7 +137,7 @@ class ConvASREncoder(NeuralModule):
         return s_input[-1], length
 
 
-class ConvASRDecoder(NeuralModule):
+class ConvASRDecoder(INeuralModule):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
      Based on these papers:
@@ -154,27 +146,13 @@ class ConvASRDecoder(NeuralModule):
         https://arxiv.org/pdf/2005.04290.pdf
     """
 
-    def save_to(self, save_path: str):
-        raise NotImplementedError()
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        raise NotImplementedError()
-
-    @classmethod
-    def from_config_dict(cls, configuration: Dict[str, Any]):
-        raise NotImplementedError()
-
-    def to_config_dict(self) -> Dict[str, Any]:
-        raise NotImplementedError()
-
     @property
     def input_types(self):
-        return {"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())}
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
 
     @property
     def output_types(self):
-        return {"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())}
+        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
 
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
         super(ConvASRDecoder, self).__init__()
@@ -200,3 +178,7 @@ class ConvASRDecoder(NeuralModule):
     @property
     def vocabulary(self):
         return self.__vocabulary
+
+    @property
+    def num_classes_with_blank(self):
+        return self._num_classes

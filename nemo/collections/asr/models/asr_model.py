@@ -12,15 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+__all__ = ['IASRModel']
 
-__all__ = ['INMDataset']
+from abc import ABC, abstractmethod
 
-from torch.utils.data import Dataset
-
-from nemo.core.classes import INMTyping
+from nemo.core.classes import INMmodelPT
 
 
-class INMDataset(Dataset, INMTyping):
-    """Dataset with output ports"""
+class IASRModel(INMmodelPT, ABC):
+    @abstractmethod
+    def transcribe(self, path2audio_file: str) -> str:
+        """
+        Takes path to audio file and returns text transcription
+        Args:
+            path2audio_file: path to audio fragment to be transcribed
 
-    pass
+        Returns:
+            transcription text
+        """
+        pass
