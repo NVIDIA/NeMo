@@ -80,6 +80,7 @@ then you can simply use pip to install the latest released version (**currently 
 
 .. code-block:: bash
 
+    apt-get update && apt-get install -y libsndfile1 ffmpeg && pip install Cython
     pip install nemo_toolkit[all] # Installs NeMo Core and all collections including nemo_asr, nemo_nlp, nemo_tts
 
 Tutorials
@@ -99,10 +100,11 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 
 .. code-block:: bash
 
+    apt-get update && apt-get install -y libsndfile1 ffmpeg && pip install Cython
     ./reinstall.sh
 
 .. note::
-    reinstall.sh install NeMo in development mode.
+    reinstall.sh installs NeMo in development mode.
 
 Unittests
 ---------
@@ -111,7 +113,6 @@ This command runs unittests:
 
 .. code-block:: bash
 
-    ./reinstall.sh
     python -m unittest tests/*.py
 
 Building Docker Container
