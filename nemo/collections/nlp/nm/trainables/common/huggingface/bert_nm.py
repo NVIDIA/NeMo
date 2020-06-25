@@ -22,7 +22,7 @@ from transformers import BERT_PRETRAINED_CONFIG_ARCHIVE_MAP, BERT_PRETRAINED_MOD
 
 from nemo.backends.pytorch.nm import TrainableNM
 from nemo.core.neural_modules import PretrainedModelInfo
-from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['BERT']
