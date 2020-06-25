@@ -27,7 +27,7 @@ from nemo.collections.nlp.nm.trainables.common.transformer.transformer_generator
 )
 from nemo.collections.nlp.nm.trainables.common.transformer.transformer_modules import TransformerEmbedding
 from nemo.collections.nlp.utils.transformer_utils import transformer_weights_init
-from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TransformerEncoderNM', 'TransformerDecoderNM', 'GreedyLanguageGeneratorNM', 'BeamSearchTranslatorNM']
@@ -158,10 +158,10 @@ class TransformerDecoderNM(TrainableNM):
         input_mask_tgt: target token mask
         """
         return {
-            "input_ids_tgt": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids_tgt": NeuralType(('B', 'T'), LabelsType()),
             "hidden_states_src": NeuralType(('B', 'T', 'D'), ChannelType()),
-            "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask_tgt": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask_src": NeuralType(('B', 'T'), MaskType()),
+            "input_mask_tgt": NeuralType(('B', 'T'), MaskType()),
         }
 
     @property

@@ -51,10 +51,10 @@ class LaserTaggerDataLayer(TextDataLayer):
         """
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), MaskType()),
             "segment_ids": NeuralType(('B', 'T'), ChannelType()),
-            "tgt_ids": NeuralType(('B', 'T'), ChannelType()),
-            "labels_mask": NeuralType(('B', 'T'), ChannelType()),
+            "tgt_ids": NeuralType(('B', 'T'), LabelsType()),
+            "labels_mask": NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "loss_mask": NeuralType(('B', 'T'), MaskType()),
         }

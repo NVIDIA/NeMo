@@ -202,7 +202,9 @@ if __name__ == "__main__":
         add_time_to_log_dir=False,
     )
 
-    encoder = nemo_nlp.nm.trainables.huggingface.BERT(pretrained_model_name=args.pretrained_model_name)
+    encoder = nemo_nlp.nm.trainables.huggingface.get_huggingface_lm_model(
+        pretrained_model_name=args.pretrained_model_name
+    )
 
     tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_model_name)
 

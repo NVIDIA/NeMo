@@ -47,11 +47,11 @@ from nemo.collections.nlp.data.tokenizers import bert_tokenizer
 class BertExample(object):
     """Class for training and inference examples for BERT.
 
-      Attributes:
+    Attributes:
         editing_task: The EditingTask from which this example was created. Needed
             when realizing labels predicted for this example.
         features: Feature dictionary.
-      """
+    """
 
     def __init__(
         self,
