@@ -2,8 +2,7 @@ import argparse
 import os
 
 import torch
-from transformers import BERT_PRETRAINED_MODEL_ARCHIVE_MAP
-from transformers.file_utils import cached_path
+from transformers import BertModel
 
 state_dict_mappings = {
     'gamma': 'weight',
@@ -46,8 +45,7 @@ parser.add_argument("--save_to", default="", type=str, help="folder to save outp
 
 args = parser.parse_args()
 
-path = cached_path(BERT_PRETRAINED_MODEL_ARCHIVE_MAP[args.model_name])
-weights_bert = torch.load(path)
+weights_bert = BertModel.from_pretrained(args.model_name).state_dict()
 bert_keys = list(weights_bert.keys())
 
 nemo_bert_mapping = {}
