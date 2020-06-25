@@ -20,11 +20,11 @@ from typing import Dict, Optional
 
 from pytorch_lightning import LightningModule
 
-from nemo.core.classes.common import INMModelAPI
+from nemo.core.classes.common import Model
 from nemo.core.classes.common import NeMoModel
 
 
-class NeMoModelPT(LightningModule, Model):
+class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
     """
