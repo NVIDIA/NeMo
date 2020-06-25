@@ -34,6 +34,12 @@ Model results on downstream tasks:
 | BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% | 88.72% | 91.96% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+
 
+BioBERT Large Cased Model (~330M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:biobertlargecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:biobertlargecasedfornemo>`__
+
+BioBERT Base Cased Model (~110M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedfornemo>`__
+
 Introduction
 ------------
 

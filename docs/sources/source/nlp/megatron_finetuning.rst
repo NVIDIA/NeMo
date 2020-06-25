@@ -13,6 +13,21 @@ To use Megatron-LM models, please install NVIDIA APEX `from here <https://github
 We strongly recommend using one of NGC's recent PyTorch containers (has APEX pre-installed) or NeMo docker container with all dependencies pre-installed, \
 more details could be found in the `Getting Started section <https://nvidia.github.io/NeMo/index.html#getting-started>`_.
 
+Download pretrained models
+--------------------------
+
+Original and domain-specific Megatron-LM BERT models and model configuration files can be downloaded at following links.
+
+Megatron-LM BERT 345M (~345M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:megatron_bert_345m <https://ngc.nvidia.com/catalog/models/nvidia:megatron_bert_345m>`__
+
+BioMegatron-LM BERT Cased 345M (~345M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345mcased <https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345mcased>`__
+
+BioMegatron-LM BERT Uncased 345M (~345M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345muncased <https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345muncased>`__
+
+
 Fine-tuning
 -----------
 
