@@ -24,31 +24,31 @@ __all__ = ['LaserTaggerDataLayer']
 
 class LaserTaggerDataLayer(TextDataLayer):
     """
-	Data layer for LaserTagger from source (src) to target (tgt) editing tasks.
+    Data layer for LaserTagger from source (src) to target (tgt) editing tasks.
 
-	Args:
-		preprocessed_data (str): path to preprocessed train/validation/test data
-		use_t2t_decoder (bool): whether to use Autoregressive Decoder
-		dataset_type (Dataset):
-				the underlying dataset. Default: LaserTaggerDataset
-	"""
+    Args:
+        preprocessed_data (str): path to preprocessed train/validation/test data
+        use_t2t_decoder (bool): whether to use Autoregressive Decoder
+        dataset_type (Dataset):
+                the underlying dataset. Default: LaserTaggerDataset
+    """
 
     @property
     @add_port_docs()
     def output_ports(self):
         """Returns definitions of module output ports.
 
-		input_ids: indices of tokens which constitute batches of masked text segments
-		input_mask: bool tensor with 0s in place of source tokens to be masked
-		segment_ids: bool tensor with 0's and 1's to denote the text segment type
-		tgt_ids: indices of target tokens which constitute batches of masked text segments
-		labels_mask: bool tensor with 0s in place of label tokens to be masked
-		labels: indices of tokens which should be predicted from each of the
-			corresponding target tokens in tgt_ids
-		sent_ids: indices of the sentences in a batch; important for
-			evaluation with external metrics, such as SacreBLEU
+        input_ids: indices of tokens which constitute batches of masked text segments
+        input_mask: bool tensor with 0s in place of source tokens to be masked
+        segment_ids: bool tensor with 0's and 1's to denote the text segment type
+        tgt_ids: indices of target tokens which constitute batches of masked text segments
+        labels_mask: bool tensor with 0s in place of label tokens to be masked
+        labels: indices of tokens which should be predicted from each of the
+            corresponding target tokens in tgt_ids
+        loss_mask: bool tensor with 0s in place of label tokens to be masked used for
+            CrossEntropyLossNM
 
-		"""
+        """
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), ChannelType()),
@@ -60,17 +60,10 @@ class LaserTaggerDataLayer(TextDataLayer):
         }
 
     def __init__(
-        self,
-        preprocessed_data,
-        use_t2t_decoder,
-        num_examples,
-        batch_size,
-        shuffle=False,
-        dataset_type=LaserTaggerDataset,
+        self, preprocessed_data, use_t2t_decoder, batch_size, shuffle=False, dataset_type=LaserTaggerDataset,
     ):
         dataset_params = {
             'preprocessed_data': preprocessed_data,
             'use_t2t_decoder': use_t2t_decoder,
-            'num_examples': num_examples,
         }
         super().__init__(dataset_type, dataset_params, batch_size=batch_size, shuffle=shuffle)

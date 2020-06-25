@@ -14,6 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
+'''
+LaserTagger preprocessor for converting the training, validation, and test files
+to examples used in the LaserTagger main file.
+'''
+
 import os
 from collections import deque
 
@@ -26,6 +31,9 @@ from nemo.utils import NemoArgParser
 
 
 def parse_args():
+    '''
+    LaserTagger preprocessor argument parser
+    '''
     parser = NemoArgParser(description="LaserTagger Preprocessor")
     parser.add_argument(
         "--train_file", type=str, help="The training data file. Should be *.tsv",
@@ -59,6 +67,24 @@ def parse_args():
 def read_input_file(
     args, input_file, output_arbitrary_targets_for_infeasible_examples=False, save_tokens=False, infer=False
 ):
+    '''Reads in Tab Separated Value file and converts to training/infernece-ready examples.
+
+    Args:
+        args: Parsed args returned by the parse_args().
+        input_file: Path to the TSV input file.
+        output_arbitrary_targets_for_infeasible_examples: Set this to True when preprocessing 
+            the development set. Determines whether to output a TF example also for sources 
+            that can not be converted to target via the available tagging operations. In these 
+            cases, the target ids will correspond to the tag sequence KEEP-DELETE-KEEP-DELETE... 
+            which should be very unlikely to be predicted by chance. This will be useful for 
+            getting more accurate eval scores during training.
+        save_tokens: To save tokens required in example.task, only needs to be True for testing.
+        infer: Whether test files or not.
+
+    Returns:
+        examples: List of converted examples(features and Editing Tasks).
+        saved_tokens: List of additional out-of-vocab special tokens in test files.
+    '''
 
     label_map = utils.read_label_map(args.label_map_file)
     converter = tagging_converter.TaggingConverter(
@@ -67,20 +93,18 @@ def read_input_file(
     builder = bert_example.BertExampleBuilder(
         label_map, args.pretrained_model_name, args.max_seq_length, False, converter
     )
-    num_converted = 0
     examples = deque()
     for i, (sources, target) in enumerate(utils.yield_sources_and_targets(input_file)):
-        if num_converted % 1000 == 0:
-            logging.info("{} examples processed.".format(num_converted))
+        if len(examples) % 1000 == 0:
+            logging.info("{} examples processed.".format(len(examples)))
         example = builder.build_bert_example(
             sources, target, output_arbitrary_targets_for_infeasible_examples, save_tokens, infer
         )
         if example is None:
             continue
-        num_converted += 1
         examples.append(example)
-    logging.info(f'Done. {num_converted} examples converted.')
-    return examples, num_converted, builder.get_special_tokens_and_ids()
+    logging.info(f'Done. {len(examples)} examples converted.')
+    return examples, builder.get_special_tokens_and_ids()
 
 
 if __name__ == "__main__":
@@ -90,12 +114,10 @@ if __name__ == "__main__":
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path)
 
-    train_examples, num_train_examples, _ = read_input_file(args, args.train_file, False)
-    eval_examples, num_eval_examples, eval_special_tokens = read_input_file(args, args.eval_file, True)
-    test_examples, num_test_examples, test_special_tokens = read_input_file(
-        args, args.test_file, False, save_tokens=True, infer=True
-    )
+    train_examples, _ = read_input_file(args, args.train_file, False)
+    eval_examples, eval_special_tokens = read_input_file(args, args.eval_file, True)
+    test_examples, test_special_tokens = read_input_file(args, args.test_file, False, save_tokens=True, infer=True)
 
-    torch.save((train_examples, num_train_examples), args.save_path + "/lt_train_examples.pkl")
-    torch.save((eval_examples, num_eval_examples, eval_special_tokens), args.save_path + "/lt_eval_examples.pkl")
-    torch.save((test_examples, num_test_examples, test_special_tokens), args.save_path + "/lt_test_examples.pkl")
+    torch.save((train_examples), args.save_path + "/lt_train_examples.pkl")
+    torch.save((eval_examples, eval_special_tokens), args.save_path + "/lt_eval_examples.pkl")
+    torch.save((test_examples, test_special_tokens), args.save_path + "/lt_test_examples.pkl")

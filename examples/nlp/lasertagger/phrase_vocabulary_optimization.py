@@ -57,6 +57,9 @@ from nemo.utils import NemoArgParser
 
 
 def parse_args():
+    '''
+    LaserTagger Phrase Vocabulary Optimization argument parser
+    '''
     parser = NemoArgParser(description="LaserTagger Phrase Vocabulary Optimization")
     parser.add_argument(
         "--input_file",

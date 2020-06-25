@@ -14,6 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
+'''
+LaserTagger model training and inference main file
+'''
+
 import sys
 
 import torch
@@ -38,6 +42,9 @@ sys.modules['utils'] = utils
 
 
 def parse_args():
+    '''
+    LaserTagger model trainer and inference argument parser
+    '''
     parser = NemoArgParser(description='LaserTagger')
     subparsers = parser.add_subparsers(help='sub-command', dest='command')
     subparsers.required = True
@@ -178,10 +185,10 @@ if __name__ == "__main__":
     args = parse_args()
 
     if args.command == 'train':
-        train_examples, num_train_examples = torch.load(args.train_file_preprocessed)
+        train_examples = torch.load(args.train_file_preprocessed)
         if args.eval_file_preprocessed:
-            eval_examples, num_eval_examples, eval_special_tokens = torch.load(args.eval_file_preprocessed)
-    test_examples, num_test_examples, test_special_tokens = torch.load(args.test_file_preprocessed)
+            eval_examples, eval_special_tokens = torch.load(args.eval_file_preprocessed)
+    test_examples, test_special_tokens = torch.load(args.test_file_preprocessed)
 
     label_map = utils.read_label_map(args.label_map_file)
     num_tags = len(label_map)
@@ -261,8 +268,8 @@ if __name__ == "__main__":
             },
         )
 
-    def create_pipeline(dataset, num_examples, batch_size, mode):
-        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, num_examples, batch_size)
+    def create_pipeline(dataset, batch_size, mode):
+        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, batch_size)
         (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask) = data_layer()
 
         src_hiddens = encoder(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
@@ -282,10 +289,10 @@ if __name__ == "__main__":
 
     if args.command == "train":
         # training pipeline
-        train_tensors = create_pipeline(train_examples, num_train_examples, args.batch_size, mode="train")
+        train_tensors = create_pipeline(train_examples, args.batch_size, mode="train")
 
         # evaluation pipelines
-        eval_tensors = create_pipeline(eval_examples, num_eval_examples, args.eval_batch_size, mode="eval")
+        eval_tensors = create_pipeline(eval_examples, args.eval_batch_size, mode="eval")
 
         def print_loss(x):
             loss = x[0].item()
@@ -317,7 +324,7 @@ if __name__ == "__main__":
         callbacks.append(checkpointer_callback)
 
         max_steps, warmup_steps = _calculate_steps(
-            num_train_examples, args.batch_size, args.num_epochs, args.warmup_proportion
+            len(train_examples), args.batch_size, args.num_epochs, args.warmup_proportion
         )
 
         # define learning rate decay policy
@@ -339,7 +346,7 @@ if __name__ == "__main__":
         )
 
     elif args.command == 'infer':
-        tensors_pred = create_pipeline(test_examples, num_test_examples, args.batch_size, mode="infer")
+        tensors_pred = create_pipeline(test_examples, args.batch_size, mode="infer")
         computed_tensors = nf.infer(tensors=tensors_pred, checkpoint_dir=args.work_dir)
 
         id_2_tag = {tag_id: tagging.Tag(tag) for tag, tag_id in label_map.items()}

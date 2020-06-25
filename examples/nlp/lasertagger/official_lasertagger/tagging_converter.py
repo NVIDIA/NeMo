@@ -51,10 +51,10 @@ class TaggingConverter(object):
     def __init__(self, phrase_vocabulary, do_swap=True):
         """Initializes an instance of TaggingConverter.
 
-    Args:
-      phrase_vocabulary: Iterable of phrase vocabulary items (strings).
-      do_swap: Whether to enable the SWAP tag.
-    """
+        Args:
+            phrase_vocabulary: Iterable of phrase vocabulary items (strings).
+            do_swap: Whether to enable the SWAP tag.
+        """
         self._phrase_vocabulary = set(phrase.lower() for phrase in phrase_vocabulary)
         self._do_swap = do_swap
         # Maximum number of tokens in an added phrase (inferred from the
@@ -71,14 +71,14 @@ class TaggingConverter(object):
     def compute_tags(self, task, target):
         """Computes tags needed for converting the source into the target.
 
-    Args:
-      task: tagging.EditingTask that specifies the input.
-      target: Target text.
+        Args:
+            task: tagging.EditingTask that specifies the input.
+            target: Target text.
 
-    Returns:
-      List of tagging.Tag objects. If the source couldn't be converted into the
-      target via tagging, returns an empty list.
-    """
+        Returns:
+            List of tagging.Tag objects. If the source couldn't be converted into the
+            target via tagging, returns an empty list.
+        """
         target_tokens = utils.get_token_list(target.lower())
         tags = self._compute_tags_fixed_order(task.source_tokens, target_tokens)
         # If conversion fails, try to obtain the target after swapping the source
@@ -97,14 +97,14 @@ class TaggingConverter(object):
     def _compute_tags_fixed_order(self, source_tokens, target_tokens):
         """Computes tags when the order of sources is fixed.
 
-    Args:
-      source_tokens: List of source tokens.
-      target_tokens: List of tokens to be obtained via edit operations.
+        Args:
+            source_tokens: List of source tokens.
+            target_tokens: List of tokens to be obtained via edit operations.
 
-    Returns:
-      List of tagging.Tag objects. If the source couldn't be converted into the
-      target via tagging, returns an empty list.
-    """
+        Returns:
+            List of tagging.Tag objects. If the source couldn't be converted into the
+            target via tagging, returns an empty list.
+        """
         tags = [tagging.Tag('DELETE') for _ in source_tokens]
         # Indices of the tokens currently being processed.
         source_token_idx = 0
@@ -144,17 +144,17 @@ class TaggingConverter(object):
     def _compute_single_tag(self, source_token, target_token_idx, target_tokens):
         """Computes a single tag.
 
-    The tag may match multiple target tokens (via tag.added_phrase) so we return
-    the next unmatched target token.
+        The tag may match multiple target tokens (via tag.added_phrase) so we return
+        the next unmatched target token.
 
-    Args:
-      source_token: The token to be tagged.
-      target_token_idx: Index of the current target tag.
-      target_tokens: List of all target tokens.
+        Args:
+            source_token: The token to be tagged.
+            target_token_idx: Index of the current target tag.
+            target_tokens: List of all target tokens.
 
-    Returns:
-      A tuple with (1) the computed tag and (2) the next target_token_idx.
-    """
+        Returns:
+            A tuple with (1) the computed tag and (2) the next target_token_idx.
+        """
         source_token = source_token.lower()
         target_token = target_tokens[target_token_idx].lower()
         if source_token == target_token:
@@ -176,17 +176,17 @@ class TaggingConverter(object):
     def _find_first_deletion_idx(self, source_token_idx, tags):
         """Finds the start index of a span of deleted tokens.
 
-    If `source_token_idx` is preceded by a span of deleted tokens, finds the
-    start index of the span. Otherwise, returns `source_token_idx`.
+        If `source_token_idx` is preceded by a span of deleted tokens, finds the
+        start index of the span. Otherwise, returns `source_token_idx`.
 
-    Args:
-      source_token_idx: Index of the current source token.
-      tags: List of tags.
+        Args:
+            source_token_idx: Index of the current source token.
+            tags: List of tags.
 
-    Returns:
-      The index of the first deleted token preceding `source_token_idx` or
-      `source_token_idx` if there are no deleted tokens right before it.
-    """
+        Returns:
+            The index of the first deleted token preceding `source_token_idx` or
+            `source_token_idx` if there are no deleted tokens right before it.
+        """
         # Backtrack until the beginning of the tag sequence.
         for idx in range(source_token_idx, 0, -1):
             if tags[idx - 1].tag_type != tagging.TagType.DELETE:
@@ -197,12 +197,12 @@ class TaggingConverter(object):
 def get_phrase_vocabulary_from_label_map(label_map):
     """Extract the set of all phrases from label map.
 
-  Args:
-    label_map: Mapping from tags to tag IDs.
+    Args:
+        label_map: Mapping from tags to tag IDs.
 
-  Returns:
-    Set of all phrases appearing in the label map.
-  """
+    Returns:
+        Set of all phrases appearing in the label map.
+    """
     phrase_vocabulary = set()
     for label in label_map.keys():
         tag = tagging.Tag(label)

@@ -44,31 +44,25 @@ import json
 def get_token_list(text):
     """Returns a list of tokens.
 
-  This function expects that the tokens in the text are separated by space
-  character(s). Example: "ca n't , touch". This is the case at least for the
-  public DiscoFuse and WikiSplit datasets.
+    This function expects that the tokens in the text are separated by space
+    character(s). Example: "ca n't , touch". This is the case at least for the
+    public DiscoFuse and WikiSplit datasets.
 
-  Args:
-    text: String to be split into tokens.
-  """
+    Args:
+        text: String to be split into tokens.
+    """
     return text.split()
 
 
 def yield_sources_and_targets(input_file):
     """Reads and yields source lists and targets from the input file.
 
-  Args:
-    input_file: Path to the input file.
+    Args:
+        input_file: Path to the input file.
 
-  Yields:
-    Tuple with (list of source texts, target text).
-  """
-
-    for sources, target in _yield_fn(input_file):
-        yield sources, target
-
-
-def _yield_fn(input_file):
+    Yields:
+        Tuple with (list of source texts, target text).
+    """
     # The format expects a TSV file with the source on the first and the
     # target on the second column.
     with open(input_file, 'r') as f:

@@ -63,24 +63,24 @@ class TagType(Enum):
 class Tag(object):
     """Tag that corresponds to a token edit operation.
 
-  Attributes:
-    tag_type: TagType of the tag.
-    added_phrase: A phrase that's inserted before the tagged token (can be
-      empty).
-  """
+    Attributes:
+        tag_type: TagType of the tag.
+        added_phrase: A phrase that's inserted before the tagged token (can be
+            empty).
+    """
 
     def __init__(self, tag):
         """Constructs a Tag object by parsing tag to tag_type and added_phrase.
 
-    Args:
-      tag: String representation for the tag which should have the following
-        format "<TagType>|<added_phrase>" or simply "<TagType>" if no phrase
-        is added before the tagged token. Examples of valid tags include "KEEP",
-        "DELETE|and", and "SWAP|.".
+        Args:
+            tag: String representation for the tag which should have the following
+                format "<TagType>|<added_phrase>" or simply "<TagType>" if no phrase
+                is added before the tagged token. Examples of valid tags include "KEEP",
+                "DELETE|and", and "SWAP|.".
 
-    Raises:
-      ValueError: If <TagType> is invalid.
-    """
+        Raises:
+            ValueError: If <TagType> is invalid.
+        """
         if '|' in tag:
             pos_pipe = tag.index('|')
             tag_type, added_phrase = tag[:pos_pipe], tag[pos_pipe + 1 :]
@@ -102,20 +102,20 @@ class Tag(object):
 class EditingTask(object):
     """Text-editing task.
 
-  Attributes:
-    sources: Source texts.
-    source_tokens: Tokens of the source texts concatenated into a single list.
-    first_tokens: The indices of the first tokens of each source text.
-  """
+    Attributes:
+        sources: Source texts.
+        source_tokens: Tokens of the source texts concatenated into a single list.
+        first_tokens: The indices of the first tokens of each source text.
+    """
 
     def __init__(self, sources):
         """Initializes an instance of EditingTask.
 
-    Args:
-      sources: A list of source strings. Typically contains only one string but
-        for sentence fusion it contains two strings to be fused (whose order may
-        be swapped).
-    """
+        Args:
+            sources: A list of source strings. Typically contains only one string but
+                for sentence fusion it contains two strings to be fused (whose order may
+                be swapped).
+        """
         self.sources = sources
         source_token_lists = [utils.get_token_list(text) for text in self.sources]
         # Tokens of the source texts concatenated into a single list.
@@ -129,13 +129,13 @@ class EditingTask(object):
     def _realize_sequence(self, tokens, tags):
         """Realizes output text corresponding to a single source text.
 
-    Args:
-      tokens: Tokens of the source text.
-      tags: Tags indicating the edit operations.
+        Args:
+            tokens: Tokens of the source text.
+            tags: Tags indicating the edit operations.
 
-    Returns:
-      The realized text.
-    """
+        Returns:
+            The realized text.
+        """
         output_tokens = []
         for token, tag in zip(tokens, tags):
             if tag.added_phrase:
@@ -161,16 +161,16 @@ class EditingTask(object):
     def realize_output(self, tags):
         """Realize output text based on the source tokens and predicted tags.
 
-    Args:
-      tags: Predicted tags (one for each token in `self.source_tokens`).
+        Args:
+            tags: Predicted tags (one for each token in `self.source_tokens`).
 
-    Returns:
-      The realizer output text.
+        Returns:
+            The realizer output text.
 
-    Raises:
-      ValueError: If the number of tags doesn't match the number of source
-        tokens.
-    """
+        Raises:
+            ValueError: If the number of tags doesn't match the number of source
+                tokens.
+        """
         if len(tags) != len(self.source_tokens):
             raise ValueError(
                 'The number of tags ({}) should match the number of '

@@ -47,11 +47,11 @@ from nemo.collections.nlp.data.tokenizers import bert_tokenizer
 class BertExample(object):
     """Class for training and inference examples for BERT.
 
-  Attributes:
-    editing_task: The EditingTask from which this example was created. Needed
-      when realizing labels predicted for this example.
-    features: Feature dictionary.
-  """
+      Attributes:
+        editing_task: The EditingTask from which this example was created. Needed
+            when realizing labels predicted for this example.
+        features: Feature dictionary.
+      """
 
     def __init__(
         self,
@@ -65,6 +65,20 @@ class BertExample(object):
         task,
         default_label,
     ):
+        """Inputs to the example wrapper
+
+        Args:
+            input_ids: indices of tokens which constitute batches of masked text segments
+            input_mask: bool tensor with 0s in place of source tokens to be masked
+            segment_ids: bool tensor with 0's and 1's to denote the text segment type
+            tgt_ids: indices of target tokens which constitute batches of masked text segments
+            labels_mask: bool tensor with 0s in place of label tokens to be masked
+            labels: indices of tokens which should be predicted from each of the
+                corresponding target tokens in tgt_ids
+            token_start_indices: the indices of the WordPieces that start a token.
+            task: Example Text-Editing Task used by the LaserTagger model during inference.
+            default_label: The default label for the KEEP tag-ID
+        """
         input_len = len(input_ids)
         if not (
             input_len == len(input_mask)
@@ -91,11 +105,11 @@ class BertExample(object):
     def pad_to_max_length(self, max_seq_length, pad_token_id):
         """Pad the feature vectors so that they all have max_seq_length.
 
-    Args:
-      max_seq_length: The length that features will have after padding.
-      pad_token_id: input_ids feature is padded with this ID, other features
-        with ID 0.
-    """
+        Args:
+            max_seq_length: The length that features will have after padding.
+            pad_token_id: input_ids feature is padded with this ID, other features
+                with ID 0.
+        """
         pad_len = max_seq_length - len(self.features['input_ids'])
         for key in self.features:
             if key == 'tgt_ids':
@@ -127,14 +141,14 @@ class BertExampleBuilder(object):
     def __init__(self, label_map, pretrained_model_name, max_seq_length, do_lower_case, converter):
         """Initializes an instance of BertExampleBuilder.
 
-    Args:
-      label_map: Mapping from tags to tag IDs.
-      pretrained_model_name: Name of the pre-trained model.
-      max_seq_length: Maximum sequence length.
-      do_lower_case: Whether to lower case the input text. Should be True for
-        uncased models and False for cased models.
-      converter: Converter from text targets to tags.
-    """
+        Args:
+            label_map: Mapping from tags to tag IDs.
+            pretrained_model_name: Name of the pre-trained model.
+            max_seq_length: Maximum sequence length.
+            do_lower_case: Whether to lower case the input text. Should be True for
+                uncased models and False for cased models.
+            converter: Converter from text targets to tags.
+        """
         self._label_map = label_map
         self._tokenizer = bert_tokenizer.NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self._max_seq_length = max_seq_length
@@ -153,17 +167,17 @@ class BertExampleBuilder(object):
     ):
         """Constructs a BERT Example.
 
-    Args:
-      sources: List of source texts.
-      target: Target text or None when building an example during inference.
-      use_arbitrary_target_ids_for_infeasible_examples: Whether to build an
-        example with arbitrary target ids even if the target can't be obtained
-        via tagging.
+        Args:
+            sources: List of source texts.
+            target: Target text or None when building an example during inference.
+            use_arbitrary_target_ids_for_infeasible_examples: Whether to build an
+                example with arbitrary target ids even if the target can't be obtained
+                via tagging.
 
-    Returns:
-      BertExample, or None if the conversion from text to tags was infeasible
-      and use_arbitrary_target_ids_for_infeasible_examples == False.
-    """
+        Returns:
+            BertExample, or None if the conversion from text to tags was infeasible
+            and use_arbitrary_target_ids_for_infeasible_examples == False.
+        """
         # Compute target labels.
         task = tagging.EditingTask(sources)
         if (target is not None) and (not infer):
@@ -219,19 +233,22 @@ class BertExampleBuilder(object):
         return example
 
     def get_special_tokens_and_ids(self):
+        '''Returns list of additional out-of-vocab special tokens in test files
+        used later by Editing Task during inference.
+        '''
         return list(self._task_tokens.keys())
 
     def _split_to_wordpieces(self, tokens, labels):
         """Splits tokens (and the labels accordingly) to WordPieces.
 
-    Args:
-      tokens: Tokens to be split.
-      labels: Labels (one per token) to be split.
+        Args:
+            tokens: Tokens to be split.
+            labels: Labels (one per token) to be split.
 
-    Returns:
-      3-tuple with the split tokens, split labels, and the indices of the
-      WordPieces that start a token.
-    """
+        Returns:
+            3-tuple with the split tokens, split labels, and the indices of the
+            WordPieces that start a token.
+        """
         bert_tokens = []  # Original tokens split into wordpieces.
         bert_labels = []  # Label for each wordpiece.
         # Index of each wordpiece that starts a new token.

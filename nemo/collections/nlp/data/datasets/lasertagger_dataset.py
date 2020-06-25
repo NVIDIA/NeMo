@@ -23,13 +23,22 @@ __all__ = ['LaserTaggerDataset']
 
 
 class LaserTaggerDataset(Dataset):
-    def __init__(self, preprocessed_data, use_t2t_decoder, num_examples):
+    """
+    Dataset as used by the LaserTaggerDataLayer for training, validation, and inference
+    pipelines.
 
-        self.examples, self.num_examples = preprocessed_data, num_examples
+    Args:
+        preprocessed_data (str): path to preprocessed train/validation/test data
+        use_t2t_decoder (bool): whether to use Autoregressive Decoder
+    """
+
+    def __init__(self, preprocessed_data, use_t2t_decoder):
+
+        self.examples = preprocessed_data
         self.use_t2t_decoder = use_t2t_decoder
 
     def __len__(self):
-        return self.num_examples
+        return len(self.examples)
 
     def __getitem__(self, idx):
         input_ids = torch.Tensor(self.examples[idx].features['input_ids']).long()
