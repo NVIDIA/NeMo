@@ -220,9 +220,15 @@ class AudioToMelSpectrogramPreprocessorNM(IAudioPreprocessor):
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal, length)
 
+class AudioPreprocessor(NeuralModule):
+    pass
+
     def get_seq_len(self, seq_len):
         return self.featurizer.get_seq_len(seq_len)
 
     @property
     def filter_banks(self):
         return self.featurizer.filter_banks
+
+class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
+    pass

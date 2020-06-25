@@ -32,7 +32,7 @@ from nemo.utils.decorators import experimental
 
 
 @experimental
-class ConvASREncoder(INeuralModule):
+class ConvASREncoder(NeuralModule):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
     Based on these papers:
@@ -147,7 +147,7 @@ class ConvASREncoder(INeuralModule):
 
 
 @experimental
-class ConvASRDecoder(INeuralModule):
+class ConvASRDecoder(NeuralModule):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
      Based on these papers:
