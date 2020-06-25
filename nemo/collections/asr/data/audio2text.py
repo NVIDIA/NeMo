@@ -164,3 +164,7 @@ def seq_collate_fn(batch, token_pad_value=0):
     tokens_lengths = torch.stack(tokens_lengths)
 
     return audio_signal, audio_lengths, tokens, tokens_lengths
+
+class NeMoAudio2TextDataLayer(NeMoDataset):
+    pass
+

@@ -169,7 +169,7 @@ class INMFileIO(ABC):
         pass
 
 
-class INMModelAPI(INMTyping, INMSerialization, INMFileIO):
+class Model(Typing, Serialization, FileIO):
     """
     Abstract class offering interface which should be implemented by all NeMo models.
     """

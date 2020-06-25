@@ -75,3 +75,6 @@ class CTCLossNM(INMTyping):
     # TODO: type check decorator could be applied here
     def loss_function(self, **kwargs):
         return self._loss(*(kwargs.values()))
+
+class CTCLoss(NeuralModule):
+    pass
