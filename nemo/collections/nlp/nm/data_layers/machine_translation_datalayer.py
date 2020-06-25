@@ -20,7 +20,7 @@ from torch.utils import data as pt_data
 import nemo
 from nemo.collections.nlp.data import TranslationDataset
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
-from nemo.core import ChannelType, LabelsType, NeuralType
+from nemo.core import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils.decorators import add_port_docs
 
 __all__ = ['TranslationDataLayer']
@@ -65,8 +65,8 @@ class TranslationDataLayer(TextDataLayer):
         return {
             "src_ids": NeuralType(('B', 'T'), ChannelType()),
             "src_mask": NeuralType(('B', 'T'), ChannelType()),
-            "tgt_ids": NeuralType(('B', 'T'), ChannelType()),
-            "tgt_mask": NeuralType(('B', 'T'), ChannelType()),
+            "tgt_ids": NeuralType(('B', 'T'), LabelsType()),
+            "tgt_mask": NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
             "sent_ids": NeuralType(tuple('B'), ChannelType()),
         }

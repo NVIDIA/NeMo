@@ -54,6 +54,7 @@ class TransformerDecoderBlock(nn.Module):
         attn_layer_dropout=0,
         ffn_dropout=0,
         hidden_act="relu",
+        use_full_attention=True,
     ):
         super().__init__()
 
@@ -64,10 +65,15 @@ class TransformerDecoderBlock(nn.Module):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.use_full_attention = use_full_attention
 
     def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
         self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
-        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output = (
+            self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+            if self.use_full_attention
+            else self_attn_output
+        )
         output_states = self.third_sub_layer(enc_dec_attn_output)
         return output_states
 

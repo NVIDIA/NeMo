@@ -137,6 +137,22 @@ class BERT(TrainableNM):
         self.config = model.config
         self._hidden_size = model.config.hidden_size
 
+    def resize_token_embeddings(self, new_vocab_size):
+        """ Resize input token embeddings matrix of the model if new_num_tokens != config.vocab_size.
+        Take care of tying weights embeddings afterwards if the model class has a `tie_weights()` method.
+
+        Args:
+            new_vocab_size: (`optional`) int:
+                New number of tokens in the embedding matrix. Increasing the size will add newly initialized 
+                vectors at the end. Reducing the size will remove vectors from the end.
+                If not provided or None: does nothing and just returns a pointer to the input tokens 
+                ``torch.nn.Embeddings`` Module of the model.
+
+        Return: ``torch.nn.Embeddings``
+            Pointer to the input tokens Embeddings Module of the model
+        """
+        return self.bert.resize_token_embeddings(new_vocab_size)
+
     @property
     def hidden_size(self):
         """

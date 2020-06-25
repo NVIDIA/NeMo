@@ -19,6 +19,7 @@ from nemo.collections.nlp.data.datasets.joint_intent_slot_dataset.joint_intent_s
     BertJointIntentSlotDataset,
     BertJointIntentSlotInferDataset,
 )
+from nemo.collections.nlp.data.datasets.lasertagger_dataset import LaserTaggerDataset
 from nemo.collections.nlp.data.datasets.lm_bert_dataset import (
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataset,
