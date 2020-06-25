@@ -17,12 +17,12 @@ __all__ = ['Audio2TextDatasetNM', 'seq_collate_fn']
 import torch
 
 from nemo.collections.asr.parts import collections, parsers
-from nemo.core.classes import INMDataset
+from nemo.core.classes import Dataset
 from nemo.utils.decorators import experimental
 
 
 @experimental
-class Audio2TextDatasetNM(INMDataset):
+class Audio2TextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, transcripts, and durations (in seconds). Each new line is a
@@ -164,7 +164,3 @@ def seq_collate_fn(batch, token_pad_value=0):
     tokens_lengths = torch.stack(tokens_lengths)
 
     return audio_signal, audio_lengths, tokens, tokens_lengths
-
-class NeMoAudio2TextDataLayer(NeMoDataset):
-    pass
-
