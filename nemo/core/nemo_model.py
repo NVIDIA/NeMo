@@ -20,7 +20,7 @@ import shutil
 import string
 import tarfile
 from abc import abstractmethod
-from os import path, makedirs
+from os import makedirs, path
 from typing import Iterable
 
 from nemo.core.neural_factory import DeploymentFormat, OperationMode
