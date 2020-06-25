@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-__all__ = ['INeuralModule']
+__all__ = ['NeuralModule']
 
 from torch.nn import Module
 

@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-__all__ = ['CTCLossNM']
+__all__ = ['CTCLoss']
 
 
 import torch
