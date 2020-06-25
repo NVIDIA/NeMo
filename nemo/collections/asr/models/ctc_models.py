@@ -13,32 +13,74 @@
 # limitations under the License.
 
 
-__all__ = ['CTCModel', 'JasperNet', 'QuartzNet']
+__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
-from abc import ABC
+from functools import partial
 from typing import Dict, Optional
 
+import torch
+
+from nemo.collections.asr.data.audio2text import Audio2TextDatasetNM, seq_collate_fn
 from nemo.collections.asr.losses.ctc import CTCLossNM
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import IASRModel
+from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import INMSerialization
 from nemo.core.neural_types import NeuralType
+from nemo.utils.decorators import experimental
 
 
+@experimental
 class EncDecCTCModel(IASRModel):
     """Encoder decoder CTC-based models."""
 
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
+    @staticmethod
+    def __setup_dataloader_from_config(config: Optional[Dict]):
+        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
+        dataset = Audio2TextDatasetNM(
+            manifest_filepath=config['manifest_filepath'],
+            labels=config['labels'],
+            featurizer=featurizer,
+            max_duration=config.get('max_duration', None),
+            min_duration=config.get('min_duration', None),
+            max_utts=config.get('max_utts', 0),
+            blank_index=config.get('blank_index', -1),
+            unk_index=config.get('unk_index', -1),
+            normalize=config.get('normalize_transcripts', False),
+            trim=config.get('trim_silence', True),
+            load_audio=config.get('load_audio', True),
+            parser=config.get('parser', 'en'),
+        )
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=config['batch_size'],
+            collate_fn=partial(seq_collate_fn, token_pad_value=config.get('pad_id', 0)),
+            drop_last=config.get('drop_last', False),
+            shuffle=config['shuffle'],
+            num_workers=config.get('num_workers', 0),
+        )
+
     def setup_training_data(self, train_data_layer_params: Optional[Dict]):
-        pass
+        if 'shuffle' not in train_data_layer_params:
+            train_data_layer_params['shuffle'] = True
+        self.__train_dl = self.__setup_dataloader_from_config(config=train_data_layer_params)
+
+    def setup_validation_data(self, val_data_layer_params: Optional[Dict]):
+        if 'shuffle' not in val_data_layer_params:
+            val_data_layer_params['shuffle'] = False
+        self.__val_dl = self.__setup_dataloader_from_config(config=val_data_layer_params)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-        pass
+        if 'shuffle' not in test_data_layer_params:
+            test_data_layer_params['shuffle'] = False
+        self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
     def setup_optimization(self, optim_params: Optional[Dict]):
-        pass
+        self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -84,8 +126,14 @@ class EncDecCTCModel(IASRModel):
         else:
             self.spec_augmentation = None
 
+        # This will be set by setup_training_data
         self.__train_dl = None
+        # This will be set by setup_validation_data
         self.__val_dl = None
+        # This will be set by setup_test_data
+        self.__test_dl = None
+        # This will be set by setup_optimization
+        self.__optimizer = None
 
     # TODO: typing decorator should go here
     def forward(self, input_signal, input_signal_length):
@@ -99,6 +147,7 @@ class EncDecCTCModel(IASRModel):
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
         return log_probs, encoded_len, greedy_predictions
 
+    # PTL-specific methods
     def training_step(self, batch, batch_nb):
         self.train()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
@@ -114,10 +163,35 @@ class EncDecCTCModel(IASRModel):
         tensorboard_logs = {'train_loss': loss_value, 'wer': wer}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
+    def validation_step(self, batch, batch_idx):
+        self.eval()
+        audio_signal, audio_signal_len, transcript, transcript_len = batch
+        log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        loss_value = self.loss.loss_function(
+            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+        )
+        tensorboard_logs = {'val_loss': loss_value}
+        return {'val_loss': loss_value, 'log': tensorboard_logs}
 
+    def validation_epoch_end(self, outputs):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        return {'val_loss': val_loss_mean}
+
+    def configure_optimizers(self):
+        return self.__optimizer
+
+    def train_dataloader(self):
+        return self.__train_dl
+
+    def val_dataloader(self):
+        return self.__val_dl
+
+
+@experimental
 class JasperNet(EncDecCTCModel):
     pass
 
 
+@experimental
 class QuartzNet(EncDecCTCModel):
     pass

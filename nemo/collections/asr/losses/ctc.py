@@ -22,8 +22,10 @@ from torch import nn
 
 from nemo.core.classes import INMTyping
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.utils.decorators import experimental
 
 
+@experimental
 class CTCLossNM(INMTyping):
     """
     CTCLoss

@@ -28,8 +28,10 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils.decorators import experimental
 
 
+@experimental
 class ConvASREncoder(INeuralModule):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
@@ -37,6 +39,13 @@ class ConvASREncoder(INeuralModule):
         https://arxiv.org/pdf/1904.03288.pdf
         https://arxiv.org/pdf/1910.10261.pdf
     """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
 
     @property
     def input_ports(self):
@@ -72,7 +81,7 @@ class ConvASREncoder(INeuralModule):
         frame_splicing=1,
         init_mode='xavier_uniform',
     ):
-        super(ConvASREncoder, self).__init__()
+        super().__init__()
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing
 
@@ -137,6 +146,7 @@ class ConvASREncoder(INeuralModule):
         return s_input[-1], length
 
 
+@experimental
 class ConvASRDecoder(INeuralModule):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
@@ -145,6 +155,13 @@ class ConvASRDecoder(INeuralModule):
         https://arxiv.org/pdf/1910.10261.pdf
         https://arxiv.org/pdf/2005.04290.pdf
     """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
 
     @property
     def input_types(self):
@@ -155,7 +172,7 @@ class ConvASRDecoder(INeuralModule):
         return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
 
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
-        super(ConvASRDecoder, self).__init__()
+        super().__init__()
 
         if vocabulary is not None:
             if num_classes != len(vocabulary):
