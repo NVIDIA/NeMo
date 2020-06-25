@@ -59,6 +59,7 @@ autodoc_mock_imports = [
     'braceexpand',
     'webdataset',
     'tqdm',
+    'numba',
 ]
 
 
