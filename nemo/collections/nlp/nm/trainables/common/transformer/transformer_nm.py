@@ -160,7 +160,7 @@ class TransformerDecoderNM(TrainableNM):
         return {
             "input_ids_tgt": NeuralType(('B', 'T'), LabelsType()),
             "hidden_states_src": NeuralType(('B', 'T', 'D'), ChannelType()),
-            "input_mask_src": NeuralType(('B', 'T'), MaskType()),
+            "input_mask_src": NeuralType(('B', 'T'), ChannelType()),
             "input_mask_tgt": NeuralType(('B', 'T'), MaskType()),
         }
 

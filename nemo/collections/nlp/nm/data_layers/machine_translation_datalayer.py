@@ -64,7 +64,7 @@ class TranslationDataLayer(TextDataLayer):
         """
         return {
             "src_ids": NeuralType(('B', 'T'), ChannelType()),
-            "src_mask": NeuralType(('B', 'T'), MaskType()),
+            "src_mask": NeuralType(('B', 'T'), ChannelType()),
             "tgt_ids": NeuralType(('B', 'T'), LabelsType()),
             "tgt_mask": NeuralType(('B', 'T'), MaskType()),
             "labels": NeuralType(('B', 'T'), LabelsType()),
