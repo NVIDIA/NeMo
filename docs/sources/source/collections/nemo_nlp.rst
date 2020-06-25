@@ -1,9 +1,9 @@
 NeMo NLP collection
 ===================
 
-NLP data processing modules
----------------------------
-.. automodule:: nemo.collections.nlp.data.datasets
+NLP Datasets
+------------
+.. automodule:: nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset
     :members:
     :undoc-members:
     :show-inheritance:

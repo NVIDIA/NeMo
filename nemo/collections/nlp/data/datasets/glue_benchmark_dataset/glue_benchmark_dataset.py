@@ -16,11 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-"""
-Utility functions for GLUE tasks
-Some transformer of this code were adapted from the HuggingFace library at
-https://github.com/huggingface/transformers
-"""
+# Some code of this file was adapted from the HuggingFace library available at
+# https://github.com/huggingface/transformers
 
 import os
 import pickle
@@ -142,36 +139,44 @@ class GLUEDataset(Dataset):
         sequence_a_segment_id=0,
         sequence_b_segment_id=1,
     ):
-        """ Loads a data file into a list of `InputBatch`s
-            `cls_token_at_end` define the location of the CLS token:
-                - False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
-                - True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
-            `cls_token_segment_id` define the segment id associated to the CLS
-            token (0 for BERT, 2 for XLNet)
-             The convention in BERT is:
-             (a) For sequence pairs:
-              tokens:   [CLS] is this jack ##ville ? [SEP] no it is not . [SEP]
-              type_ids:   0   0  0    0    0       0   0   1  1  1  1   1   1
-             (b) For single sequences:
-              tokens:   [CLS] the dog is hairy . [SEP]
-              type_ids:   0   0   0   0  0     0   0
-             Where "type_ids" are used to indicate whether this is the first
-             sequence or the second sequence. The embedding vectors for `type=0`
-             and `type=1` were learned during pre-training and are added to the
-             wordpiece embedding vector (and position vector). This is
-             not *strictly* necessarysince the [SEP] token unambiguously separates
-             the sequences, but it makes it easier for the model to learn
-             the concept of sequences.
-             For classification tasks, the first vector (corresponding to [CLS])
-             is used as as the "sentence vector". Note that this only makes sense
-             because the entire model is fine-tuned.
-             For NMT:
-             (a) For sequence pairs:
-              tokens:<BOS> is this jack ##ville ? <EOS> <BOS> no it is not . <EOS>
-              type_ids:0   0  0    0    0       0   0     1   1  1  1  1   1   1
-             (b) For single sequences:
-              tokens:   <BOS> the dog is hairy . <EOS>
-              type_ids:   0   0   0   0  0     0   0
+        """
+        Loads a data file into a list of `InputBatch`s.
+        The `cls_token_at_end` defines the location of the CLS token:
+
+            * False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
+            * True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
+
+        The `cls_token_segment_id` defines the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
+        
+        The convention in BERT is:
+        
+            a. For sequence pairs:
+                * tokens:   [CLS] is this jack ##ville ? [SEP] no it is not . [SEP]
+                * type_ids:   0   0  0    0    0       0   0   1  1  1  1   1   1
+            b. For single sequences:
+                * tokens:   [CLS] the dog is hairy . [SEP]
+                * type_ids:   0   0   0   0  0     0   0
+
+        Where "type_ids" are used to indicate whether this is the first
+        sequence or the second sequence. The embedding vectors for `type=0`
+        and `type=1` were learned during pre-training and are added to the
+        wordpiece embedding vector (and position vector). This is
+        not *strictly* necessarysince the [SEP] token unambiguously separates
+        the sequences, but it makes it easier for the model to learn
+        the concept of sequences.
+        For classification tasks, the first vector (corresponding to [CLS])
+        is used as as the "sentence vector". Note that this only makes sense
+        because the entire model is fine-tuned.
+        
+        The convention for NMT is:
+        
+            a. For sequence pairs:
+                * tokens:<BOS> is this jack ##ville ? <EOS> <BOS> no it is not . <EOS>
+                * type_ids:0   0  0    0    0       0   0     1   1  1  1  1   1   1
+            b. For single sequences:
+                * tokens:   <BOS> the dog is hairy . <EOS>
+                * type_ids:   0   0   0   0  0     0   0
+
         """
         label_map = {label: i for i, label in enumerate(label_list)}
 
@@ -276,10 +281,10 @@ class GLUEDataset(Dataset):
     def _truncate_seq_pair(self, tokens_a, tokens_b, max_length):
         """Truncates a sequence pair in place to the maximum length.
 
-         This will always truncate the longer sequence one token at a time.
-         This makes more sense than truncating an equal percent
-         of tokens from each, since if one sequence is very short then each token
-         that's truncated likely contains more information than a longer sequence.
+        This will always truncate the longer sequence one token at a time.
+        This makes more sense than truncating an equal percent
+        of tokens from each, since if one sequence is very short then each token
+        that's truncated likely contains more information than a longer sequence.
         """
         while True:
             total_length = len(tokens_a) + len(tokens_b)
@@ -289,12 +294,6 @@ class GLUEDataset(Dataset):
                 tokens_a.pop()
             else:
                 tokens_b.pop()
-
-    """
-    Utility functions for GLUE tasks
-    This code was adapted from the HuggingFace library at
-    https://github.com/huggingface/transformers
-    """
 
 
 class InputFeatures(object):
