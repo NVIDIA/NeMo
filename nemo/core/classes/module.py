@@ -1,7 +1,4 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,30 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['NeuralModule']
+
+__all__ = ['INeuralModule']
 
 from torch.nn import Module
 
-from nemo.core.classes.common import NeMoTyping
+from nemo.core.classes.common import INMFileIO, INMSerialization, INMTyping
 
 
-class NeuralModule(Module, NeMoTyping):
+class INeuralModule(Module, INMTyping, INMSerialization, INMFileIO):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
 
-    def __call__(self, *args, **kwargs):
-        if NEMO_TYPE_CHECK:
-            self.__validate_input_types(in_objects=kwargs)
-            result = Module.__call__(*args, **kwargs)
-            self.__attach_and_validate_output_types(out_objects=result)
-        else:
-            result = Module.__call__(*args, **kwargs)
+    def typed_forward(self, **kwargs):
+        # TODO: Consider if this can be turned into decorator for __call__ or forward
+        self.validate_input_types(in_objects=kwargs)
+        result = self.forward(**kwargs)
+        self.attach_and_validate_output_types(out_objects=result)
         return result
-
-    # def typed_forward(self, **kwargs):
-    #     # TODO: Consider if this can be turned into decorator for __call__ or forward
-    #     self.__validate_input_types(in_objects=kwargs)
-    #     result = self.forward(**kwargs)
-    #     self.__attach_and_validate_output_types(out_objects=result)
-    #     return result

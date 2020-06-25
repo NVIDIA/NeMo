@@ -1,7 +1,4 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """Interfaces common to all Neural Modules and Models."""
-__all__ = ['NeMoTyping', 'NeMoIO', 'NeMoModelAPI']
+__all__ = ['INMTyping', 'INMFileIO', 'INMModelAPI', 'INMSerialization']
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
@@ -24,9 +22,10 @@ from typing import Any, Dict, Optional
 from ruamel.yaml import YAML
 
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
+from nemo.utils import logging
 
 
-class NeMoTyping(ABC):
+class INMTyping(ABC):
     """
     An interface which endows module with neural types
     """
@@ -41,7 +40,7 @@ class NeMoTyping(ABC):
         """Define these to enable output neural type checks"""
         return None
 
-    def __validate_input_types(self, in_objects):
+    def validate_input_types(self, in_objects):
         # TODO: Properly implement this
         if self.input_types is not None:
             for key, value in in_objects.items():
@@ -51,7 +50,7 @@ class NeMoTyping(ABC):
                 ):
                     raise TypeError(f"{self.input_types[key].compare(value.neural_type)}")
 
-    def __attach_and_validate_output_types(self, out_objects):
+    def attach_and_validate_output_types(self, out_objects):
         # TODO: Properly implement this
         if self.output_types is not None:
             out_types_list = list(self.output_types.items())
@@ -62,7 +61,73 @@ class NeMoTyping(ABC):
                     res.neural_type = out_types_list[ind][1]
 
 
-class NeMoIO(ABC):
+class INMSerialization(ABC):
+    @staticmethod
+    def __instantiate_class_from_config(
+        configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
+    ):
+        """
+        Method instantiating the object based on the configuration (dictionary).
+        Args:
+            configuration: Dictionary containing proper "header" and "init_params" sections.
+            name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
+            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
+            the default init parameters loaded from the configuration file (the module "init_params" section).
+        Returns:
+            Instance of the created object.
+        """
+
+        def __class_from_header(serialized_header: Dict[str, Any]):
+            """
+            Args:
+                Serialized_header: Dictionary containing module header.
+            Returns:
+                Class of the module to be created.
+            """
+            # Parse the "full specification".
+            spec_list = serialized_header["full_spec"].split(".")
+
+            # Get module class from the "full specification".
+            mod_obj = __import__(spec_list[0])
+            for spec in spec_list[1:]:
+                mod_obj = getattr(mod_obj, spec)
+
+            return mod_obj
+
+        # Deserialize header - get object class.
+        module_class = __class_from_header(configuration["header"])
+
+        # Update parameters with additional ones.
+        configuration["init_params"].update(overwrite_params)
+
+        # Override module name in init_params using the logic:
+        #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
+        #  * name (if None) overrides init_params.name
+        if name is not None:
+            configuration["init_params"]["name"] = name
+
+        # Get init parameters.
+        init_params = configuration["init_params"]
+
+        # Create the module instance.
+        new_module = module_class(**init_params)
+        logging.info(f"Instantiated a new Neural Module of type {type(new_module).__name__}")
+
+        # Return the module instance.
+        return new_module
+
+    @classmethod
+    def from_config_dict(cls, configuration: Dict[str, Any]):
+        """Instantiates object using dictionary-based configuration"""
+        return cls.__instantiate_class_from_config(configuration=configuration)
+
+    def to_config_dict(self) -> Dict[str, Any]:
+        """Saves object's configuration to config dictionary"""
+        # TODO: Implement me here
+        pass
+
+
+class INMFileIO(ABC):
     @abstractmethod
     def save_to(self, save_path: str):
         """Saves module/model with weights"""
@@ -73,58 +138,6 @@ class NeMoIO(ABC):
     def restore_from(cls, restore_path: str):
         """Restores module/model with weights"""
         pass
-
-    @classmethod
-    def from_config_dict(cls, configuration: Dict[str, Any]):
-        """Instantiates object using dictionary-based configuration"""
-        # TODO: Implement me here
-        raise NotImplementedError()
-
-    def to_config_dict(self) -> Dict[str, Any]:
-        """Saves object's configuration to config dictionary"""
-        # TODO: Implement me here
-        raise NotImplementedError()
-
-
-class NeMoModelAPI(NeMoTyping, NeMoIO):
-    """
-    Abstract class offering interface which should be implemented by all NeMo models.
-    """
-
-    @classmethod
-    @abstractmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        """
-        Should list all pre-trained models available via NVIDIA NGC cloud
-
-        Returns:
-            A dictionary of NeMo model key name -> NGC wget URI
-        """
-        pass
-
-    @classmethod
-    @abstractmethod
-    def from_cloud(cls, name: str):
-        """
-        Instantiates an instance of NeMo from NVIDIA NGC cloud
-        Args:
-            name: string key which will be used to find the module
-
-        Returns:
-            A model instance of a class derived from NeMoModelAPI
-        """
-        pass
-
-    @abstractmethod
-    def export(self, **kwargs):
-        """
-        Exports model for deployment
-        Args:
-            **kwargs:
-
-        Returns:
-
-        """
 
     @classmethod
     def from_config_file(cls, path2yaml_file: str):
@@ -152,4 +165,46 @@ class NeMoModelAPI(NeMoTyping, NeMoIO):
         Returns:
 
         """
-        raise NotImplementedError()
+        # TODO: implement me
+        pass
+
+
+class INMModelAPI(INMTyping, INMSerialization, INMFileIO):
+    """
+    Abstract class offering interface which should be implemented by all NeMo models.
+    """
+
+    @classmethod
+    @abstractmethod
+    def list_available_models(cls) -> Optional[Dict[str, str]]:
+        """
+        Should list all pre-trained models available via NVIDIA NGC cloud
+
+        Returns:
+            A dictionary of NeMo model key name -> NGC wget URI
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_pretrained(cls, name: str):
+        """
+        Instantiates an instance of NeMo from NVIDIA NGC cloud
+        Args:
+            name: string key which will be used to find the module. Could be path to local .nemo file.
+
+        Returns:
+            A model instance of a class derived from INMModelAPI
+        """
+        pass
+
+    @abstractmethod
+    def export(self, **kwargs):
+        """
+        Exports model for deployment
+        Args:
+            **kwargs:
+
+        Returns:
+
+        """
