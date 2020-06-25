@@ -188,10 +188,10 @@ class EncDecCTCModel(ASRModel):
 
 
 @experimental
-class JasperNet(EncDecCTCModel):
+class JasperNetModel(EncDecCTCModel):
     pass
 
 
 @experimental
-class QuartzNet(EncDecCTCModel):
+class QuartzNetModel(EncDecCTCModel):
     pass
