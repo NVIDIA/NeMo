@@ -30,6 +30,11 @@ BERT Large uncased models (~110M parameters) finetuned on SQuADv1.1 or SQuADv2.0
 `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1>`__
 `https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2 <https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2>`__
 
+BioBERT Base cased model (~110M parameters) finetuned on SQuADv1.1 dataset: 
+`https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedsquadv1>`__
+
+BioMegatron-LM BERT 345M uncased model (~345M parameters) finetuned on SQuADv1.1 dataset: 
+`https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345muncasedsquadv1 <https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345muncasedsquadv1>`__
 
 .. tip::
 
