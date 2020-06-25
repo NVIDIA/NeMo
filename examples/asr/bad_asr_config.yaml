@@ -7,7 +7,7 @@ labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 AudioToTextDataLayer:
-    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
+    manifest_filepath: '/mnt/D1/Data/an4_dataset/an4_train.json'
     sample_rate: 16000
     labels: *labels
     batch_size: 32
@@ -17,7 +17,7 @@ AudioToTextDataLayer:
 
 
 AudioToTextDataLayer_eval:
-    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
+    manifest_filepath: '/mnt/D1/Data/an4_dataset/an4_val.json'
     sample_rate: 16000
     labels: *labels
     batch_size: 32
