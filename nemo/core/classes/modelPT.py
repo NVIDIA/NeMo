@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-__all__ = ['INMmodelPT']
+__all__ = ['ModelPT']
 
 from abc import abstractmethod
 from typing import Dict, Optional

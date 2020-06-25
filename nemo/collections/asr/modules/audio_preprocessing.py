@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['AudioToMelSpectrogramPreprocessorNM']
+__all__ = ['AudioToMelSpectrogramPreprocessor']
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict

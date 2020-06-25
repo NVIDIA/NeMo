@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['Audio2TextDatasetNM', 'seq_collate_fn']
+__all__ = ['Audio2TextDataset', 'seq_collate_fn']
 
 import torch
 
