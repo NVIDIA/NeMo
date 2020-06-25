@@ -32,9 +32,10 @@ Neural Graph
 --------------
 
 .. automodule:: nemo.core.neural_graph
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
+
+.. automodule:: nemo.utils.app_state
+    :special-members: __init__
 
 Neural Module Factory
 ---------------------

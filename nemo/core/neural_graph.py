@@ -45,7 +45,8 @@ YAML = YAML(typ='safe')
 
 class NeuralGraph(NeuralInterface):
     """
-        Neural Graph class stores dynamically defined graphs of connected Neural Modules.
+    Neural Graph class stores dynamically defined graphs of connected Neural Modules.
+    Once defined, the graph is static, i.e. the connectivity between the nodes is frozen.
     """
 
     def __init__(self, operation_mode: OperationMode = OperationMode.both, name: Optional[str] = None):
