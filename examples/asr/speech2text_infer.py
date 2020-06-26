@@ -83,8 +83,8 @@ def main():
         metric = 'WER'
     logging.info(f"Greedy {metric} = {val}")
     if args.wer_target is not None:
-        if args.wer_target * args.wer_tolerance < wer:
-            raise ValueError(f"Resulting WER {wer} is higher than the target {args.wer_target}")
+        if args.wer_target * args.wer_tolerance < val:
+            raise ValueError(f"Resulting {metric} {val} is higher than the target {args.wer_target}")
 
 
 if __name__ == '__main__':
