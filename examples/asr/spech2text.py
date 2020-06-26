@@ -49,10 +49,10 @@ def main():
     asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
     asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
     asr_model.setup_optimization(optim_params={'lr': 0.0003})
-    # trainer = pl.Trainer(
-    #    val_check_interval=5, amp_level='O1', precision=16, gpus=2, max_epochs=30, distributed_backend='ddp'
-    # )
-    trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
+    trainer = pl.Trainer(
+        val_check_interval=35, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
+    )
+    #trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
     trainer.fit(asr_model)
 
 
