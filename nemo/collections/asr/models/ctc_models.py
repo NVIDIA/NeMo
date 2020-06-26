@@ -20,7 +20,7 @@ from typing import Dict, Optional
 
 import torch
 
-from nemo.collections.asr.data.audio_to_text import AudioToTextDataset, seq_collate_fn
+from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -58,7 +58,7 @@ class EncDecCTCModel(ASRModel):
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
-            collate_fn=partial(seq_collate_fn, token_pad_value=config.get('pad_id', 0)),
+            collate_fn=partial(dataset.seq_collate_fn, token_pad_value=config.get('pad_id', 0)),
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
             num_workers=config.get('num_workers', 0),

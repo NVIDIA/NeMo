@@ -125,42 +125,42 @@ class AudioToTextDataset(Dataset):
     def __len__(self):
         return len(self.collection)
 
-
-def seq_collate_fn(batch, token_pad_value=0):
-    """collate batch of audio sig, audio len, tokens, tokens len
-    Args:
-        batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-               LongTensor):  A tuple of tuples of signal, signal lengths,
-               encoded tokens, and encoded tokens length.  This collate func
-               assumes the signals are 1d torch tensors (i.e. mono audio).
-    """
-    _, audio_lengths, _, tokens_lengths = zip(*batch)
-    max_audio_len = 0
-    has_audio = audio_lengths[0] is not None
-    if has_audio:
-        max_audio_len = max(audio_lengths).item()
-    max_tokens_len = max(tokens_lengths).item()
-
-    audio_signal, tokens = [], []
-    for sig, sig_len, tokens_i, tokens_i_len in batch:
+    @staticmethod
+    def seq_collate_fn(batch, token_pad_value=0):
+        """collate batch of audio sig, audio len, tokens, tokens len
+        Args:
+            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+                   LongTensor):  A tuple of tuples of signal, signal lengths,
+                   encoded tokens, and encoded tokens length.  This collate func
+                   assumes the signals are 1d torch tensors (i.e. mono audio).
+        """
+        _, audio_lengths, _, tokens_lengths = zip(*batch)
+        max_audio_len = 0
+        has_audio = audio_lengths[0] is not None
         if has_audio:
-            sig_len = sig_len.item()
-            if sig_len < max_audio_len:
-                pad = (0, max_audio_len - sig_len)
-                sig = torch.nn.functional.pad(sig, pad)
-            audio_signal.append(sig)
-        tokens_i_len = tokens_i_len.item()
-        if tokens_i_len < max_tokens_len:
-            pad = (0, max_tokens_len - tokens_i_len)
-            tokens_i = torch.nn.functional.pad(tokens_i, pad, value=token_pad_value)
-        tokens.append(tokens_i)
+            max_audio_len = max(audio_lengths).item()
+        max_tokens_len = max(tokens_lengths).item()
 
-    if has_audio:
-        audio_signal = torch.stack(audio_signal)
-        audio_lengths = torch.stack(audio_lengths)
-    else:
-        audio_signal, audio_lengths = None, None
-    tokens = torch.stack(tokens)
-    tokens_lengths = torch.stack(tokens_lengths)
+        audio_signal, tokens = [], []
+        for sig, sig_len, tokens_i, tokens_i_len in batch:
+            if has_audio:
+                sig_len = sig_len.item()
+                if sig_len < max_audio_len:
+                    pad = (0, max_audio_len - sig_len)
+                    sig = torch.nn.functional.pad(sig, pad)
+                audio_signal.append(sig)
+            tokens_i_len = tokens_i_len.item()
+            if tokens_i_len < max_tokens_len:
+                pad = (0, max_tokens_len - tokens_i_len)
+                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=token_pad_value)
+            tokens.append(tokens_i)
 
-    return audio_signal, audio_lengths, tokens, tokens_lengths
+        if has_audio:
+            audio_signal = torch.stack(audio_signal)
+            audio_lengths = torch.stack(audio_lengths)
+        else:
+            audio_signal, audio_lengths = None, None
+        tokens = torch.stack(tokens)
+        tokens_lengths = torch.stack(tokens_lengths)
+
+        return audio_signal, audio_lengths, tokens, tokens_lengths
