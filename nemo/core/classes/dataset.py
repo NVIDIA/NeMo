@@ -13,14 +13,14 @@
 # limitations under the License.
 
 
-__all__ = ['INMDataset']
+__all__ = ['Dataset']
 
 from torch.utils.data import Dataset
 
-from nemo.core.classes import INMTyping
+from nemo.core.classes import Typing
 
 
-class INMDataset(Dataset, INMTyping):
+class Dataset(Dataset, Typing):
     """Dataset with output ports"""
 
     pass

@@ -13,14 +13,14 @@
 # limitations under the License.
 
 
-__all__ = ['INeuralModule']
+__all__ = ['NeuralModule']
 
 from torch.nn import Module
 
-from nemo.core.classes.common import INMFileIO, INMSerialization, INMTyping
+from nemo.core.classes.common import FileIO, Serialization, Typing
 
 
-class INeuralModule(Module, INMTyping, INMSerialization, INMFileIO):
+class NeuralModule(Module, Typing, Serialization, FileIO):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """

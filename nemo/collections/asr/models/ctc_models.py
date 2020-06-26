@@ -20,18 +20,18 @@ from typing import Dict, Optional
 
 import torch
 
-from nemo.collections.asr.data.audio2text import Audio2TextDatasetNM, seq_collate_fn
-from nemo.collections.asr.losses.ctc import CTCLossNM
+from nemo.collections.asr.data.audio2text import Audio2TextDataset, seq_collate_fn
+from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
-from nemo.collections.asr.models.asr_model import IASRModel
+from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes.common import INMSerialization
+from nemo.core.classes.common import Serialization
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
 
 @experimental
-class EncDecCTCModel(IASRModel):
+class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
     def transcribe(self, path2audio_file: str) -> str:
@@ -40,7 +40,7 @@ class EncDecCTCModel(IASRModel):
     @staticmethod
     def __setup_dataloader_from_config(config: Optional[Dict]):
         featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
-        dataset = Audio2TextDatasetNM(
+        dataset = Audio2TextDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
             featurizer=featurizer,
@@ -117,12 +117,12 @@ class EncDecCTCModel(IASRModel):
         spec_augment_params: Optional[Dict] = None,
     ):
         super().__init__()
-        self.preprocessor = INMSerialization.from_config_dict(preprocessor_params)
-        self.encoder = INMSerialization.from_config_dict(encoder_params)
-        self.decoder = INMSerialization.from_config_dict(decoder_params)
-        self.loss = CTCLossNM(num_classes=self.decoder.num_classes_with_blank - 1)
+        self.preprocessor = Serialization.from_config_dict(preprocessor_params)
+        self.encoder = Serialization.from_config_dict(encoder_params)
+        self.decoder = Serialization.from_config_dict(decoder_params)
+        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
         if spec_augment_params is not None:
-            self.spec_augmentation = INMSerialization.from_config_dict(spec_augment_params)
+            self.spec_augmentation = Serialization.from_config_dict(spec_augment_params)
         else:
             self.spec_augmentation = None
 
@@ -188,10 +188,10 @@ class EncDecCTCModel(IASRModel):
 
 
 @experimental
-class JasperNet(EncDecCTCModel):
+class JasperNetModel(EncDecCTCModel):
     pass
 
 
 @experimental
-class QuartzNet(EncDecCTCModel):
+class QuartzNetModel(EncDecCTCModel):
     pass

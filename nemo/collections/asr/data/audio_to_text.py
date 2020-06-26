@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['Audio2TextDatasetNM', 'seq_collate_fn']
+__all__ = ['Audio2TextDataset', 'seq_collate_fn']
 
 import torch
 
 from nemo.collections.asr.parts import collections, parsers
-from nemo.core.classes import INMDataset
+from nemo.core.classes import Dataset
 from nemo.utils.decorators import experimental
 
 
 @experimental
-class Audio2TextDatasetNM(INMDataset):
+class AudioToTextDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, transcripts, and durations (in seconds). Each new line is a
