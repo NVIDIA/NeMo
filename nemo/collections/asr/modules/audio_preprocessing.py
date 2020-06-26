@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['AudioToMelSpectrogramPreprocessorNM']
+__all__ = ['AudioToMelSpectrogramPreprocessor']
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict
@@ -20,12 +20,12 @@ from typing import Any, Dict
 import torch
 
 from nemo.collections.asr.parts.features import FilterbankFeatures
-from nemo.core.classes import INeuralModule
+from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import AudioSignal, LengthsType, MelSpectrogramType, NeuralType
 from nemo.utils.decorators import experimental
 
 
-class IAudioPreprocessor(INeuralModule, ABC):
+class AudioPreprocessor(NeuralModule, ABC):
     """
         An interface for Neural Modules that performs audio pre-processing,
         transforming the wav files to features.
@@ -64,7 +64,7 @@ class IAudioPreprocessor(INeuralModule, ABC):
 
 
 @experimental
-class AudioToMelSpectrogramPreprocessorNM(IAudioPreprocessor):
+class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     """Featurizer module that converts wavs to mel spectrograms.
         We don't use torchaudio's implementation here because the original
         implementation is not the same, so for the sake of backwards-compatibility
@@ -219,10 +219,3 @@ class AudioToMelSpectrogramPreprocessorNM(IAudioPreprocessor):
 
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal, length)
-
-    def get_seq_len(self, seq_len):
-        return self.featurizer.get_seq_len(seq_len)
-
-    @property
-    def filter_banks(self):
-        return self.featurizer.filter_banks

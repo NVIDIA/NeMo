@@ -13,17 +13,18 @@
 # limitations under the License.
 
 
-__all__ = ['INMmodelPT']
+__all__ = ['ModelPT']
 
 from abc import abstractmethod
 from typing import Dict, Optional
 
 from pytorch_lightning import LightningModule
 
-from nemo.core.classes.common import INMModelAPI
+from nemo.core.classes.common import Model
+from nemo.core.classes.common import NeMoModel
 
 
-class INMmodelPT(LightningModule, INMModelAPI):
+class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
     """
