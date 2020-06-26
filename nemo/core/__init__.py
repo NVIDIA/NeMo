@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.core.classes as classes
-import nemo.core.neural_types as neural_types
+from nemo.core.classes import *
+from nemo.core.neural_types import *
