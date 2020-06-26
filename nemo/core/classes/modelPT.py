@@ -21,7 +21,6 @@ from typing import Dict, Optional
 from pytorch_lightning import LightningModule
 
 from nemo.core.classes.common import Model
-from nemo.core.classes.common import NeMoModel
 
 
 class ModelPT(LightningModule, Model):

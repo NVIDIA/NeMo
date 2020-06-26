@@ -20,7 +20,7 @@ from typing import Dict, Optional
 
 import torch
 
-from nemo.collections.asr.data.audio2text import Audio2TextDataset, seq_collate_fn
+from nemo.collections.asr.data.audio_to_text import AudioToTextDataset, seq_collate_fn
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -40,7 +40,7 @@ class EncDecCTCModel(ASRModel):
     @staticmethod
     def __setup_dataloader_from_config(config: Optional[Dict]):
         featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
-        dataset = Audio2TextDataset(
+        dataset = AudioToTextDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
             featurizer=featurizer,
@@ -154,7 +154,8 @@ class EncDecCTCModel(ASRModel):
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
         )
-        loss_value = self.loss.loss_function(
+        # loss_value = self.loss.loss_function(
+        loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
         )
         wer, prediction, reference = monitor_asr_train_progress(
@@ -167,7 +168,8 @@ class EncDecCTCModel(ASRModel):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss.loss_function(
+        # loss_value = self.loss.loss_function(
+        loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
         )
         tensorboard_logs = {'val_loss': loss_value}
@@ -188,10 +190,10 @@ class EncDecCTCModel(ASRModel):
 
 
 @experimental
-class JasperNetModel(EncDecCTCModel):
+class JasperNet(EncDecCTCModel):
     pass
 
 
 @experimental
-class QuartzNetModel(EncDecCTCModel):
+class QuartzNet(EncDecCTCModel):
     pass
