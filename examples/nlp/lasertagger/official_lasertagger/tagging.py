@@ -44,7 +44,7 @@ output text given the predicted tags.
 
 from enum import Enum
 
-from examples.nlp.lasertagger.official_lasertagger import utils
+from official_lasertagger import utils
 
 
 class TagType(Enum):

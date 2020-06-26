@@ -19,7 +19,7 @@ progressbar
 requests
 ruamel.yaml
 sentencepiece
-six
+six>=1.14
 sox
 tqdm
 unidecode

@@ -40,7 +40,7 @@ https://github.com/google-research/lasertagger/blob/master/score_lib.py
 
 import re
 
-from examples.nlp.lasertagger.official_lasertagger import sari_hook
+from official_lasertagger import sari_hook
 
 
 def compute_exact_score(predictions, target_lists):

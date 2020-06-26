@@ -23,7 +23,7 @@ import os
 from collections import deque
 
 import torch
-from examples.nlp.lasertagger.official_lasertagger import bert_example, tagging_converter, utils
+from official_lasertagger import bert_example, tagging_converter, utils
 
 import nemo.collections.nlp as nemo_nlp
 from nemo import logging
