@@ -44,7 +44,6 @@ class LaserTaggerDataset(Dataset):
         input_ids = torch.Tensor(self.examples[idx].features['input_ids']).long()
         input_mask = torch.Tensor(self.examples[idx].features['input_mask'])
         segment_ids = torch.Tensor(self.examples[idx].features['segment_ids']).long()
-        tgt_ids = torch.Tensor(self.examples[idx].features['tgt_ids']).long()
         labels_mask = torch.Tensor(self.examples[idx].features['labels_mask'])
         labels = torch.Tensor(self.examples[idx].features['labels']).long()
         return input_ids, input_mask, segment_ids, labels, labels_mask, labels, input_mask
