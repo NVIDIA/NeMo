@@ -20,7 +20,7 @@ from collections import OrderedDict
 import torch
 
 from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
-from nemo.core.classes import NeuralModule
+from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,
@@ -138,6 +138,7 @@ class ConvASREncoder(NeuralModule):
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
+    @typecheck()
     def forward(self, audio_signal, length=None):
         s_input, length = self.encoder(([audio_signal], length))
         if length is None:
@@ -189,6 +190,7 @@ class ConvASRDecoder(NeuralModule):
         )
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
+    @typecheck()
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 

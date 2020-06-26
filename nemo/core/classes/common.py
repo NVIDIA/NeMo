@@ -14,7 +14,7 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
-__all__ = ['Typing', 'FileIO', 'Model', 'Serialization']
+__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
 import inspect
 from abc import ABC, abstractmethod
@@ -241,7 +241,7 @@ class typecheck:
     def _attach_and_validate_output_types(self, instance, out_objects):
         # TODO: Properly implement this
         if instance.output_types is not None:
-            out_types_list = list(instance.items())
+            out_types_list = list(instance.output_types.items())
             if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
                 out_objects.neural_type = out_types_list[0][1]
             else:

@@ -17,7 +17,7 @@ __all__ = ['AudioToTextDataset', 'seq_collate_fn']
 import torch
 
 from nemo.collections.asr.parts import collections, parsers
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, typecheck
 from nemo.utils.decorators import experimental
 
 
@@ -87,7 +87,7 @@ class AudioToTextDataset(Dataset):
         self.load_audio = load_audio
         self._add_misc = add_misc
 
-    # TODO: add typing decorator for datasets here
+    @typecheck()
     def __getitem__(self, index):
         sample = self.collection[index]
         if self.load_audio:
