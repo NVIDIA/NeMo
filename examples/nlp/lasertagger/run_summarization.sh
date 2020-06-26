@@ -21,6 +21,8 @@ wget https://dldata-public.s3.us-east-2.amazonaws.com/msr_ab_sum.tar.gz
 tar xzvf msr_ab_sum.tar.gz
 rm msr_ab_sum.tar.gz
 
+PRETRAINED_MODEL_NAME=bert-base-cased
+
 TASK=msr_ab_sum
 
 TRAIN_FILE=./data/${TASK}/train.tsv
@@ -50,6 +52,7 @@ python lasertagger_preprocessor.py \
     --train_file=${TRAIN_FILE} \
     --eval_file=${EVAL_FILE} \
     --test_file=${TEST_FILE} \
+    --pretrained_model_name=${PRETRAINED_MODEL_NAME} \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
     --save_path=${OUTPUT_DIR}
@@ -60,6 +63,7 @@ python lasertagger_main.py train \
     --train_file_preprocessed=${OUTPUT_DIR}/lt_train_examples.pkl \
     --eval_file_preprocessed=${OUTPUT_DIR}/lt_eval_examples.pkl \
     --test_file_preprocessed=${OUTPUT_DIR}/lt_test_examples.pkl \
+    --pretrained_model_name=${PRETRAINED_MODEL_NAME} \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
     --work_dir=${OUTPUT_DIR}/lt
@@ -69,6 +73,7 @@ python lasertagger_main.py train \
 python lasertagger_main.py infer \
     --test_file=${TEST_FILE} \
     --test_file_preprocessed=${OUTPUT_DIR}/lt_test_examples.pkl \
+    --pretrained_model_name=${PRETRAINED_MODEL_NAME} \
     --label_map_file=${OUTPUT_DIR}/label_map.txt \
     --max_seq_length=${MAX_SEQ_LENGTH} \
     --work_dir=${OUTPUT_DIR}/lt

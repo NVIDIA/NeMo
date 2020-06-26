@@ -42,7 +42,7 @@ pairs is described in Algorithm 1 of the LaserTagger paper
 (https://arxiv.org/abs/1909.01187).
 """
 
-from examples.nlp.lasertagger.official_lasertagger import tagging, utils
+from official_lasertagger import tagging, utils
 
 
 class TaggingConverter(object):

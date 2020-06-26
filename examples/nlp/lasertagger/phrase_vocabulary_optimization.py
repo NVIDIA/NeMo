@@ -50,7 +50,7 @@ from typing import Sequence, Text
 
 import numpy as np
 import scipy.sparse
-from examples.nlp.lasertagger.official_lasertagger import utils
+from official_lasertagger import utils
 
 from nemo import logging
 from nemo.utils import NemoArgParser

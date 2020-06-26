@@ -39,7 +39,7 @@ https://github.com/google-research/lasertagger/blob/master/bert_example.py
 
 import collections
 
-from examples.nlp.lasertagger.official_lasertagger import tagging
+from official_lasertagger import tagging
 
 from nemo.collections.nlp.data.tokenizers import bert_tokenizer
 

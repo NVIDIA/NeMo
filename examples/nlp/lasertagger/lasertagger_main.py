@@ -21,7 +21,7 @@ LaserTagger model training and inference main file
 import sys
 
 import torch
-from examples.nlp.lasertagger.official_lasertagger import bert_example, score_lib, tagging, tagging_converter, utils
+from official_lasertagger import bert_example, score_lib, tagging, tagging_converter, utils
 from rouge_score import rouge_scorer, scoring
 
 import nemo.collections.nlp as nemo_nlp
@@ -271,17 +271,19 @@ if __name__ == "__main__":
         )
 
     def create_pipeline(dataset, batch_size, mode):
-        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, batch_size)
-        (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, loss_mask) = data_layer()
-
+        data_layer = LaserTaggerDataLayer(dataset, args.use_t2t_decoder, batch_size, shuffle=(mode == "train"))
+        (input_ids, input_mask, segment_ids, tgt_ids, labels_mask, labels, input_mask_tgt) = data_layer()
         src_hiddens = encoder(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
         tgt_hiddens = decoder(
-            input_ids_tgt=tgt_ids, hidden_states_src=src_hiddens, input_mask_src=input_mask, input_mask_tgt=labels_mask
+            input_ids_tgt=tgt_ids,
+            hidden_states_src=src_hiddens,
+            input_mask_src=input_mask,
+            input_mask_tgt=input_mask_tgt,
         )
         log_softmax = logits(hidden_states=tgt_hiddens) if args.use_t2t_decoder else logits(hidden_states=src_hiddens)
         if mode != "infer":
-            loss = loss_fn(logits=log_softmax, labels=labels, loss_mask=loss_mask)
-            per_example_loss = loss_eval_metric(logits=log_softmax, labels=labels, loss_mask=loss_mask)
+            loss = loss_fn(logits=log_softmax, labels=labels, loss_mask=labels_mask)
+            per_example_loss = loss_eval_metric(logits=log_softmax, labels=labels, loss_mask=labels_mask)
             return [loss, per_example_loss, log_softmax, labels, labels_mask]
         else:
             if args.use_t2t_decoder:
