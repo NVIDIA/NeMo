@@ -1,0 +1,205 @@
+model: "QuartzNet15x5"
+sample_rate: &sample_rate 16000
+
+labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
+
+AudioToTextDataLayer:
+    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    trim_silence: True
+    max_duration: 16.7
+    shuffle: True
+
+
+AudioToTextDataLayer_eval:
+    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    shuffle: False
+
+preprocessor_params:
+    header:
+        full_spec: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    init_params:
+        normalize: "per_feature"
+        window_size: 0.02
+        sample_rate: *sample_rate
+        window_stride: 0.01
+        window: "hann"
+        features: &n_mels 64
+        n_fft: 512
+        frame_splicing: 1
+        dither: 0.00001
+        stft_conv: true
+
+spec_augment_params:
+    header:
+        full_spec: nemo.collections.asr.SpectrogramAugmentation
+    init_params:
+        rect_freq: 50
+        rect_masks: 5
+        rect_time: 120
+
+encoder_params:
+    header:
+        full_spec: nemo.collections.asr.JasperEncoder
+    init_params:
+        activation: relu
+        conv_mask: true
+        feat_in: *n_mels
+        jasper:
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [33]
+          repeat: 1
+          residual: false
+          separable: true
+          stride: [2]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [33]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [33]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [33]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [39]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [39]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 256
+          kernel: [39]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [51]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [51]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [51]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [63]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [63]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [63]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [75]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [75]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 512
+          kernel: [75]
+          repeat: 5
+          residual: true
+          separable: true
+          stride: [1]
+        - dilation: [2]
+          dropout: 0.0
+          filters: 512
+          kernel: [87]
+          repeat: 1
+          residual: false
+          separable: true
+          stride: [1]
+        - dilation: [1]
+          dropout: 0.0
+          filters: 1024
+          kernel: [1]
+          repeat: 1
+          residual: false
+          stride: [1]
+
+decoder_params:
+    header:
+        full_spec: nemo.collections.asr.JasperDecoderForCTC
+    init_params:
+        feat_in: 1024
+        num_classes: 28
+        vocabulary: *labels
