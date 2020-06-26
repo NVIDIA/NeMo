@@ -5,9 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ...core import DeviceType
-from .parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
+from nemo.collections.asr.parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
+from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
