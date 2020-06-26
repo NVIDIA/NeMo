@@ -16,6 +16,11 @@ pipeline {
         sh 'python -c "import torch; print(torch.__version__)"'
       }
     }
+    stage('NVIDIA-SMI') {
+      steps {
+        sh 'nvidia-smi'
+      }
+    }
     stage('Install test requirements') {
       steps {
         sh 'apt-get update && apt-get install -y bc && pip install -r requirements/requirements_test.txt'
