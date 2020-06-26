@@ -267,14 +267,14 @@ class SpectrogramAugmentation(NeuralModule):
         pass
 
     @property
-    def input_ports(self):
-        """Returns definitions of module input ports.
+    def input_types(self):
+        """Returns definitions of module input types
         """
         return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     @property
-    def output_ports(self):
-        """Returns definitions of module output ports.
+    def output_types(self):
+        """Returns definitions of module output types
         """
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
@@ -293,7 +293,7 @@ class SpectrogramAugmentation(NeuralModule):
 
         if rect_masks > 0:
             self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
-            self.spec_cutout.to(self._device)
+            # self.spec_cutout.to(self._device)
         else:
             self.spec_cutout = lambda x: x
 

@@ -8,7 +8,7 @@ AudioToTextDataLayer:
     manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 32
+    batch_size: 64
     trim_silence: True
     max_duration: 16.7
     shuffle: True
@@ -38,7 +38,7 @@ preprocessor_params:
 
 spec_augment_params:
     header:
-        full_spec: nemo.collections.asr.SpectrogramAugmentation
+        full_spec: nemo.collections.asr.modules.SpectrogramAugmentation
     init_params:
         rect_freq: 50
         rect_masks: 5
@@ -46,7 +46,7 @@ spec_augment_params:
 
 encoder_params:
     header:
-        full_spec: nemo.collections.asr.JasperEncoder
+        full_spec: nemo.collections.asr.modules.ConvASREncoder
     init_params:
         activation: relu
         conv_mask: true
@@ -198,7 +198,7 @@ encoder_params:
 
 decoder_params:
     header:
-        full_spec: nemo.collections.asr.JasperDecoderForCTC
+        full_spec: nemo.collections.asr.modules.ConvASRDecoder
     init_params:
         feat_in: 1024
         num_classes: 28
