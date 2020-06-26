@@ -5,8 +5,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
 from nemo.backends.pytorch.nm import TrainableNM
+from nemo.collections.asr.parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
+from nemo.core import DeviceType
 from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import add_port_docs
@@ -145,8 +146,9 @@ class JasperEncoder(TrainableNM):
                 m.use_mask = False
                 m_count += 1
         logging.warning(f"Turned off {m_count} masked convolutions")
-
         input_example = torch.randn(16, self.__feat_in, 256)
+        if self._placement == DeviceType.GPU or self._placement == DeviceType.AllGpu:
+            input_example = input_example.cuda()
         return input_example, None
 
     def __init__(
@@ -287,6 +289,8 @@ class JasperDecoderForCTC(TrainableNM):
 
     def _prepare_for_deployment(self):
         input_example = torch.randn(34, self._feat_in, 1)
+        if self._placement == DeviceType.GPU or self._placement == DeviceType.AllGpu:
+            input_example = input_example.cuda()
         return input_example, None
 
     @property
