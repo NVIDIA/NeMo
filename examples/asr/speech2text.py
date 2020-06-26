@@ -82,6 +82,13 @@ def main():
         asr_model = nemo_asr.models.ASRConvCTCModel.from_pretrained(
             model_info=args.asr_model, local_rank=args.local_rank
         )
+
+    if args.asr_model.strip().endswith('-Zh'):
+        logging.info('USING CER')
+        eval_metric = 'CER'
+    else:
+        eval_metric = 'WER'
+
     logging.info("\n\n")
     logging.info(f"Speech2Text: Training on {nf.world_size} GPUs.")
     logging.info(f"Training {type(asr_model)} model.")
@@ -111,7 +118,7 @@ def main():
     train_callback = nemo.core.SimpleLossLoggerCallback(
         tensors=[loss, predictions, transcript, transcript_len],
         step_freq=args.stats_freq,
-        print_func=partial(monitor_asr_train_progress, labels=asr_model.vocabulary),
+        print_func=partial(monitor_asr_train_progress, labels=asr_model.vocabulary, eval_metric=eval_metric),
     )
     callbacks.append(train_callback)
     if args.checkpoint_dir is not None and args.checkpoint_save_freq is not None:
@@ -149,7 +156,7 @@ def main():
             eval_callback = nemo.core.EvaluatorCallback(
                 eval_tensors=[eval_loss, eval_predictions, transcript, transcript_len],
                 user_iter_callback=partial(process_evaluation_batch, labels=asr_model.vocabulary),
-                user_epochs_done_callback=partial(process_evaluation_epoch, tag=tag_name),
+                user_epochs_done_callback=partial(process_evaluation_epoch, tag=tag_name, eval_metric=eval_metric),
                 eval_step=args.eval_freq,
                 wandb_name=args.wandb_exp_name,
                 wandb_project=args.wandb_project,

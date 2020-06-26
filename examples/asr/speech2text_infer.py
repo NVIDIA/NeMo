@@ -75,8 +75,13 @@ def main():
     greedy_hypotheses = post_process_predictions(evaluated_tensors[1], asr_model.vocabulary)
     references = post_process_transcripts(evaluated_tensors[2], evaluated_tensors[3], asr_model.vocabulary)
 
-    wer = word_error_rate(hypotheses=greedy_hypotheses, references=references)
-    logging.info("Greedy WER {:.2f}%".format(wer * 100))
+    if args.asr_model.strip().endswith('-Zh'):
+        val = word_error_rate(hypotheses=greedy_hypotheses, references=references, use_cer=True)
+        metric = 'CER'
+    else:
+        val = word_error_rate(hypotheses=greedy_hypotheses, references=references, use_cer=False)
+        metric = 'WER'
+    logging.info(f"Greedy {metric} = {val}")
     if args.wer_target is not None:
         if args.wer_target * args.wer_tolerance < wer:
             raise ValueError(f"Resulting WER {wer} is higher than the target {args.wer_target}")
