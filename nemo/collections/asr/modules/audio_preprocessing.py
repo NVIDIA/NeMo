@@ -20,7 +20,7 @@ import torch
 
 from nemo.collections.asr.parts.features import FilterbankFeatures
 from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
-from nemo.core.classes import NeuralModule
+from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, MelSpectrogramType, NeuralType, SpectrogramType
 from nemo.utils.decorators import experimental
 
@@ -305,6 +305,7 @@ class SpectrogramAugmentation(NeuralModule):
         else:
             self.spec_augment = lambda x: x
 
+    @typecheck()
     def forward(self, input_spec):
         augmented_spec = self.spec_cutout(input_spec)
         augmented_spec = self.spec_augment(augmented_spec)
