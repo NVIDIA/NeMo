@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['AudioToMelSpectrogramPreprocessor']
+__all__ = ['AudioToMelSpectrogramPreprocessor', 'SpectrogramAugmentation']
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
 
 import torch
 
 from nemo.collections.asr.parts.features import FilterbankFeatures
+from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import AudioSignal, LengthsType, MelSpectrogramType, NeuralType
+from nemo.core.neural_types import AudioSignal, LengthsType, MelSpectrogramType, NeuralType, SpectrogramType
 from nemo.utils.decorators import experimental
 
 
@@ -226,3 +226,86 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     @property
     def filter_banks(self):
         return self.featurizer.filter_banks
+
+
+@experimental
+class SpectrogramAugmentation(NeuralModule):
+    """
+    Performs time and freq cuts in one of two ways.
+    SpecAugment zeroes out vertical and horizontal sections as described in
+    SpecAugment (https://arxiv.org/abs/1904.08779). Arguments for use with
+    SpecAugment are `freq_masks`, `time_masks`, `freq_width`, and `time_width`.
+    SpecCutout zeroes out rectangulars as described in Cutout
+    (https://arxiv.org/abs/1708.04552). Arguments for use with Cutout are
+    `rect_masks`, `rect_freq`, and `rect_time`.
+    Args:
+        freq_masks (int): how many frequency segments should be cut.
+            Defaults to 0.
+        time_masks (int): how many time segments should be cut
+            Defaults to 0.
+        freq_width (int): maximum number of frequencies to be cut in one
+            segment.
+            Defaults to 10.
+        time_width (int): maximum number of time steps to be cut in one
+            segment
+            Defaults to 10.
+        rect_masks (int): how many rectangular masks should be cut
+            Defaults to 0.
+        rect_freq (int): maximum size of cut rectangles along the frequency
+            dimension
+            Defaults to 5.
+        rect_time (int): maximum size of cut rectangles along the time
+            dimension
+            Defaults to 25.
+    """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_ports(self):
+        """Returns definitions of module input ports.
+        """
+        return {"input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
+    @property
+    def output_ports(self):
+        """Returns definitions of module output ports.
+        """
+        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+
+    def __init__(
+        self,
+        freq_masks=0,
+        time_masks=0,
+        freq_width=10,
+        time_width=10,
+        rect_masks=0,
+        rect_time=5,
+        rect_freq=20,
+        rng=None,
+    ):
+        super().__init__()
+
+        if rect_masks > 0:
+            self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
+            self.spec_cutout.to(self._device)
+        else:
+            self.spec_cutout = lambda x: x
+
+        if freq_masks + time_masks > 0:
+            self.spec_augment = SpecAugment(
+                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
+            )
+            self.spec_augment.to(self._device)
+        else:
+            self.spec_augment = lambda x: x
+
+    def forward(self, input_spec):
+        augmented_spec = self.spec_cutout(input_spec)
+        augmented_spec = self.spec_augment(augmented_spec)
+        return augmented_spec
