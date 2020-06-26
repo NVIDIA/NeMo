@@ -14,7 +14,7 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
-__all__ = ['Typing', 'FileIO', 'ModelAPI', 'Serialization']
+__all__ = ['Typing', 'FileIO', 'Model', 'Serialization']
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
