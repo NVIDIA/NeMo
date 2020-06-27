@@ -87,7 +87,6 @@ class AudioToTextDataset(Dataset):
         self.load_audio = load_audio
         self._add_misc = add_misc
 
-    @typecheck()
     def __getitem__(self, index):
         sample = self.collection[index]
         if self.load_audio:
