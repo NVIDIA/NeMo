@@ -14,6 +14,7 @@
 
 # TODO: This is WIP and needs a lot of polishing
 # python examples/asr/spech2text.py --asr_model=examples/asr/bad_asr_config.yaml --train_data=/Users/okuchaiev/Data/an4_dataset/an4_train.json --eval_dataset=/Users/okuchaiev/Data/an4_dataset/an4_val.json
+# python spech2text.py --asr_model=./bad_asr_config.yaml --train_data=./an4/train_manifest.json --eval_dataset=./an4/test_manifest.json
 
 from argparse import ArgumentParser
 

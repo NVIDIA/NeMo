@@ -24,10 +24,3 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
-
-    def typed_forward(self, **kwargs):
-        # TODO: Consider if this can be turned into decorator for __call__ or forward
-        self.validate_input_types(in_objects=kwargs)
-        result = self.forward(**kwargs)
-        self.attach_and_validate_output_types(out_objects=result)
-        return result

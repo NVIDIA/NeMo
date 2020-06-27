@@ -20,7 +20,7 @@ __all__ = ['CTCLoss']
 import torch
 from torch import nn
 
-from nemo.core.classes import NeuralModule, Typing
+from nemo.core.classes import NeuralModule, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 from nemo.utils.decorators import experimental
 
@@ -69,6 +69,7 @@ class CTCLoss(NeuralModule):
         self._blank = num_classes
         self._criterion = nn.CTCLoss(blank=self._blank, reduction='none', zero_infinity=zero_infinity)
 
+    @typecheck()
     def forward(self, log_probs, targets, input_length, target_length):
         input_length = input_length.long()
         target_length = target_length.long()
