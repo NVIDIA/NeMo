@@ -14,11 +14,13 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
-__all__ = ['Typing', 'FileIO', 'Model', 'Serialization']
+__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
+import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
+import wrapt
 from ruamel.yaml import YAML
 
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
@@ -39,26 +41,6 @@ class Typing(ABC):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Define these to enable output neural type checks"""
         return None
-
-    def validate_input_types(self, in_objects):
-        # TODO: Properly implement this
-        if self.input_types is not None:
-            for key, value in in_objects.items():
-                if (
-                    hasattr(value, 'neural_type')
-                    and self.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
-                ):
-                    raise TypeError(f"{self.input_types[key].compare(value.neural_type)}")
-
-    def attach_and_validate_output_types(self, out_objects):
-        # TODO: Properly implement this
-        if self.output_types is not None:
-            out_types_list = list(self.output_types.items())
-            if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
-                out_objects.neural_type = out_types_list[0][1]
-            else:
-                for ind, res in enumerate(out_objects):
-                    res.neural_type = out_types_list[ind][1]
 
 
 class Serialization(ABC):
@@ -208,3 +190,60 @@ class Model(Typing, Serialization, FileIO):
         Returns:
 
         """
+
+
+class typecheck:
+
+    def __init__(self):
+        pass
+
+    @wrapt.decorator
+    def __call__(self, wrapped, instance: Typing, args, kwargs):
+        if instance is None:
+            raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
+
+        if not (hasattr(instance, 'input_types') and hasattr(instance, 'output_types')):
+            raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
+
+        # If types are not defined, skip type checks and just call the
+        if instance.input_types is None and instance.output_types is None:
+            return wrapped(*args, **kwargs)
+
+        # Check that all arguments are kwargs
+        if len(args) > 0:
+            raise TypeError("All arguments must be passed by kwargs only for typed methods")
+
+        # Perform rudimentary input checks here
+        self._validate_input_types(instance, kwargs)
+
+        # Call the method - this can be forward, or any other callable method
+        outputs = wrapped(*args, **kwargs)
+
+        self._attach_and_validate_output_types(instance, outputs)
+
+        return outputs
+
+    def _validate_input_types(self, instance, kwargs):
+        # TODO: Properly implement this
+        if instance.input_types is not None:
+            if len(kwargs) != len(instance.input_types):
+                raise TypeError("Number of input arguments provided ({}) is not as expected ({})".format(
+                    len(kwargs), len(instance.input_types))
+                )
+
+            for key, value in kwargs.items():
+                if (
+                    hasattr(value, 'neural_type')
+                    and instance.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
+                ):
+                    raise TypeError(f"{instance.input_types[key].compare(value.neural_type)}")
+
+    def _attach_and_validate_output_types(self, instance, out_objects):
+        # TODO: Properly implement this
+        if instance.output_types is not None:
+            out_types_list = list(instance.output_types.items())
+            if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
+                out_objects.neural_type = out_types_list[0][1]
+            else:
+                for ind, res in enumerate(out_objects):
+                    res.neural_type = out_types_list[ind][1]

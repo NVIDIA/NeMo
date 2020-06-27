@@ -25,7 +25,7 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes.common import Serialization
+from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
@@ -135,7 +135,7 @@ class EncDecCTCModel(ASRModel):
         # This will be set by setup_optimization
         self.__optimizer = None
 
-    # TODO: typing decorator should go here
+    @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
