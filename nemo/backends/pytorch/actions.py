@@ -232,23 +232,31 @@ class PtActions(Actions):
                 )
             elif optimizer_class.lower() == "adam":
                 optimizer = optim.Adam(
-                    params=params_to_optimize, lr=lr, betas=optimization_params.get("betas", (0.9, 0.999)),
+                    params=params_to_optimize,
+                    lr=lr,
+                    betas=optimization_params.get("betas", (0.9, 0.999)),
+                    eps=optimization_params.get("eps", 1e-8),
+                    weight_decay=optimization_params.get("weight_decay", 0),
+                    amsgrad=optimization_params.get("amsgrad", False),
                 )
             elif optimizer_class.lower() == "fused_adam":
                 if not FusedAdam:
                     raise ValueError("FusedAdam works only with torch DDP.")
-                optimizer = FusedAdam(
+                optimizer = FusedAdam(  # Note: amsgrad = True is not supported.
                     params=params_to_optimize,
                     lr=lr,
-                    weight_decay=optimization_params.get("weight_decay", 0.0),
                     betas=optimization_params.get("betas", (0.9, 0.999)),
+                    eps=optimization_params.get("eps", 1e-8),
+                    weight_decay=optimization_params.get("weight_decay", 0.0),
                 )
             elif optimizer_class.lower() == "adam_w":
                 optimizer = AdamW(
                     params=params_to_optimize,
                     lr=lr,
-                    weight_decay=optimization_params.get("weight_decay", 0.0),
                     betas=optimization_params.get("betas", (0.9, 0.999)),
+                    eps=optimization_params.get("eps", 1e-8),
+                    weight_decay=optimization_params.get("weight_decay", 0.0),
+                    amsgrad=optimization_params.get("amsgrad", False),
                 )
             elif optimizer_class.lower() == "novograd":
                 optimizer = Novograd(
