@@ -193,7 +193,6 @@ class Model(Typing, Serialization, FileIO):
 
 
 class typecheck:
-
     def __init__(self):
         pass
 
@@ -227,8 +226,10 @@ class typecheck:
         # TODO: Properly implement this
         if instance.input_types is not None:
             if len(kwargs) != len(instance.input_types):
-                raise TypeError("Number of input arguments provided ({}) is not as expected ({})".format(
-                    len(kwargs), len(instance.input_types))
+                raise TypeError(
+                    "Number of input arguments provided ({}) is not as expected ({})".format(
+                        len(kwargs), len(instance.input_types)
+                    )
                 )
 
             for key, value in kwargs.items():
