@@ -22,16 +22,10 @@ import pytorch_lightning as pl
 from ruamel.yaml import YAML
 
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.arguments import add_asr_args
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument("--asr_model", type=str, required=True, default="bad_quartznet15x5.yaml", help="")
-    parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
-    parser.add_argument("--eval_dataset", type=str, required=True, help="evaluation dataset path")
-    parser.add_argument("--num_epochs", default=5, type=int, help="number of epochs to train")
-
-    args = parser.parse_args()
+def main(args):
 
     yaml = YAML(typ="safe")
     with open(args.asr_model) as f:
@@ -50,12 +44,26 @@ def main():
     asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
     asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
     asr_model.setup_optimization(optim_params={'lr': 0.0003})
+<<<<<<< HEAD
     trainer = pl.Trainer(
         val_check_interval=35, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
     )
     # trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
+=======
+    # trainer = pl.Trainer(
+    #     val_check_interval=1, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
+    # )
+    #trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
+    trainer = pl.Trainer.from_argparse_args(args)
+>>>>>>> updated arg parsing
     trainer.fit(asr_model)
 
 
 if __name__ == '__main__':
-    main()
+    parser = ArgumentParser()
+    parser = pl.Trainer.add_argparse_args(parser)
+    parser = add_asr_args(parser) 
+
+    args = parser.parse_args()
+
+    main(args)
