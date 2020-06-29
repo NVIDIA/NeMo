@@ -228,7 +228,7 @@ class AudioDataset(Dataset):
         output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
 
         if self._add_misc:
-            misc = dict()
+            misc = {}
             misc['id'] = sample.id
             misc['text_raw'] = sample.text_raw
             misc['speaker'] = sample.speaker

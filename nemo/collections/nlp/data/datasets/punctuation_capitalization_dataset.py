@@ -250,8 +250,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 text_lines = f.readlines()
 
             # Collect all possible labels
-            punct_unique_labels = set([])
-            capit_unique_labels = set([])
+            punct_unique_labels = set()
+            capit_unique_labels = set()
             punct_labels_lines = []
             capit_labels_lines = []
             with open(label_file, 'r') as f:

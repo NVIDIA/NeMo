@@ -175,7 +175,7 @@ def map_entities(entity2value, entities):
     for key in entities:
         if 'data' in entities[key]:
             if key not in entity2value:
-                entity2value[key] = set([])
+                entity2value[key] = set()
 
             values = []
             for value in entities[key]['data']:
@@ -198,7 +198,7 @@ def get_entities(files):
 
 
 def get_data(files):
-    all_data, all_slots, all_intents = [], set(['O']), set()
+    all_data, all_slots, all_intents = [], {'O'}, set()
     for file in files:
         file_data = []
         with open(file, 'r') as json_file:

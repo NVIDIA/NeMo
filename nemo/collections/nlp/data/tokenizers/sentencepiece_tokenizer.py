@@ -145,20 +145,20 @@ class SentencePieceTokenizer(TokenizerSpec):
 
     @property
     def pad_id(self):
-        return self.tokens_to_ids([getattr(self, 'pad_token')])[0]
+        return self.tokens_to_ids([self.pad_token])[0]
 
     @property
     def bos_id(self):
-        return self.tokens_to_ids([getattr(self, 'bos_token')])[0]
+        return self.tokens_to_ids([self.bos_token])[0]
 
     @property
     def eos_id(self):
-        return self.tokens_to_ids([getattr(self, 'eos_token')])[0]
+        return self.tokens_to_ids([self.eos_token])[0]
 
     @property
     def sep_id(self):
-        return self.tokens_to_ids([getattr(self, 'sep_token')])[0]
+        return self.tokens_to_ids([self.sep_token])[0]
 
     @property
     def cls_id(self):
-        return self.tokens_to_ids([getattr(self, 'cls_token')])[0]
+        return self.tokens_to_ids([self.cls_token])[0]

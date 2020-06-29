@@ -101,7 +101,7 @@ def __process_data(data_folder: str, dst_folder: str, manifest_file: str):
                 # check duration
                 duration = subprocess.check_output("soxi -D {0}".format(wav_file), shell=True)
 
-                entry = dict()
+                entry = {}
                 entry['audio_filepath'] = os.path.abspath(wav_file)
                 entry['duration'] = float(duration)
                 entry['text'] = transcript_text
