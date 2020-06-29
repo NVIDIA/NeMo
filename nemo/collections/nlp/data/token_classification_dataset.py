@@ -30,7 +30,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 from nemo import logging
-from nemo.collections.nlp.datasets.datasets_utils.data_preprocessing import get_label_stats, get_stats
+from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
