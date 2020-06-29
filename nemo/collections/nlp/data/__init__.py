@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.datasets.datasets_utils import *
-from nemo.collections.nlp.datasets.token_classification_dataset import (
+from nemo.collections.nlp.data.data_utils import *
+from nemo.collections.nlp.data.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )

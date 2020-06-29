@@ -17,8 +17,8 @@
 import re
 
 from nemo import logging
-from nemo.collections.common_parts.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common_parts.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 
 __all__ = [
     'NemoBertTokenizer',
