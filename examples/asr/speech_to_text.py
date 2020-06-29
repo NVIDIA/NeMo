@@ -21,8 +21,8 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 from ruamel.yaml import YAML
 
-from nemo.collections.asr.models import EncDecCTCModel
 from nemo.collections.asr.arguments import add_asr_args
+from nemo.collections.asr.models import EncDecCTCModel
 
 
 def main(args):
@@ -47,7 +47,7 @@ def main(args):
     # trainer = pl.Trainer(
     #     val_check_interval=1, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
     # )
-    #trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
+    # trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
     trainer = pl.Trainer.from_argparse_args(args)
     trainer.fit(asr_model)
 
@@ -55,7 +55,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser = pl.Trainer.add_argparse_args(parser)
-    parser = add_asr_args(parser) 
+    parser = add_asr_args(parser)
 
     args = parser.parse_args()
 
