@@ -15,12 +15,17 @@
 
 __all__ = ['Dataset']
 
-from torch.utils.data import Dataset
-
+from torch.utils import data
 from nemo.core.classes import Typing
 
 
-class Dataset(Dataset, Typing):
+class Dataset(data.Dataset, Typing):
     """Dataset with output ports"""
+
+    pass
+
+
+class IterableDataset(data.IterableDataset, Typing):
+    """Iterable Dataset with output ports"""
 
     pass
