@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common_parts.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.common_parts.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.common_parts.tokenizers.tokenizer_utils import *
+from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.common.tokenizers.tokenizer_utils import *

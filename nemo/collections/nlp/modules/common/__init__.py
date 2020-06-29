@@ -1,0 +1,1 @@
+from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
