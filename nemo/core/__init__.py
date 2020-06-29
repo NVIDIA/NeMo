@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from nemo.core.classes import *
-from nemo.core.neural_types import *
+import nemo.core.neural_types
