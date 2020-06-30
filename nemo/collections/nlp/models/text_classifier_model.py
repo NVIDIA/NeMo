@@ -145,7 +145,9 @@ class BERTTextClassifier(pl.LightningModule):
 
     def setup_optimization(self, optim_params: Optional[Dict]):
         # TODO: complete here
-        self.__optimizer = torch.optim.Adam(lr=optim_params['lr'])
+        self.__optimizer = torch.optim.Adam(
+            self.parameters(), lr=optim_params['lr'], weight_decay=optim_params['weight_decay']
+        )
 
     def configure_optimizers(self):
         return self.__optimizer

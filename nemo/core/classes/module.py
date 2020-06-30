@@ -24,4 +24,5 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
-    device="cuda"
+
+    device = "cuda"

@@ -16,17 +16,20 @@
 
 # TODO: WIP
 
-from argparse import ArgumentParser
 import os
+from argparse import ArgumentParser
 
 import pytorch_lightning as pl
+import torch
 
-#import nemo.collections.nlp as nemo_nlp
+# import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.text_classifier_model import BERTTextClassifier
 
 
 def main():
     parser = ArgumentParser(description='Sentence classification with pretrained BERT models')
+
+    # Data Arguments
     parser.add_argument("--work_dir", default='outputs', type=str)
     parser.add_argument(
         "--checkpoint_dir",
@@ -35,6 +38,20 @@ def main():
         help="The folder containing the checkpoints for the model to continue training",
     )
     parser.add_argument("--data_dir", required=True, type=str)
+    parser.add_argument("--file_prefix_train", default='train', type=str, help="train file prefix")
+    parser.add_argument("--file_prefix_val", default='dev', type=str, help="eval file prefix")
+    parser.add_argument("--no_shuffle", action='store_false', dest="shuffle", help="Shuffle is enabled by default.")
+    parser.add_argument("--num_samples_train", default=-1, type=int, help="Number of samples to use for training")
+    parser.add_argument("--num_samples_val", default=-1, type=int, help="Number of samples to use for evaluation")
+    parser.add_argument("--num_workers", default=0, type=int, help="The number of workers for the data loaders.")
+    parser.add_argument(
+        "--pin_memory", action='store_true', help="Whether to enable the pin_memory feature of the data loaders."
+    )
+    parser.add_argument(
+        "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
+    )
+
+    # BERT Arguments
     parser.add_argument(
         '--pretrained_model_name',
         default='roberta-base',
@@ -72,14 +89,18 @@ def main():
         help="The maximum total input sequence length after tokenization.Sequences longer than this will be \
                         truncated, sequences shorter will be padded.",
     )
+
+    # Model Arguments
+    parser.add_argument("--num_output_layers", default=2, type=int, help="Number of layers in the Classifier")
+    parser.add_argument("--fc_dropout", default=0.1, type=float, help="Dropout rate")
+    parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
+
+    # Training Arguments
     parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
     parser.add_argument("--num_epochs", default=10, type=int, help="Total number of training epochs to perform.")
+    parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
 
-    parser.add_argument("--file_prefix_train", default='train', type=str, help="train file prefix")
-    parser.add_argument("--file_prefix_val", default='dev', type=str, help="eval file prefix")
-    parser.add_argument("--num_samples_train", default=-1, type=int, help="Number of samples to use for training")
-    parser.add_argument("--num_samples_val", default=-1, type=int, help="Number of samples to use for evaluation")
-
+    # Optimization Arguments
     parser.add_argument(
         "--amp_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
     )
@@ -88,24 +109,14 @@ def main():
     parser.add_argument("--lr", default=2e-5, type=float, help="Initial learning rate")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str, help="Learning rate policy")
     parser.add_argument("--weight_decay", default=0.01, type=float, help="Weight decay.")
+    parser.add_argument("--beta1", default=0.9, type=float, help="Beta1 parameter of Adam.")
+    parser.add_argument("--beta2", default=0.999, type=float, help="Beta2 parameter of Adam.")
 
-    parser.add_argument("--num_output_layers", default=2, type=int, help="Number of layers in the Classifier")
-    parser.add_argument("--fc_dropout", default=0.1, type=float, help="Dropout rate")
-    parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
-    parser.add_argument(
-        "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
-    )
-    parser.add_argument(
-        "--no_shuffle", action='store_false', dest="shuffle", help="Shuffle is enabled by default."
-    )
+    # Validation Arguments
     parser.add_argument("--save_epoch_freq", default=1, type=int, help="Epoch frequency of saving checkpoints")
     parser.add_argument("--save_step_freq", default=-1, type=int, help="Step frequency of saving checkpoints")
     parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
     parser.add_argument('--eval_step_freq', default=100, type=int, help='Frequency of evaluation')
-
-    parser.add_argument("--num_workers", default=0, type=int, help="The number of workers for the data loaders.")
-    parser.add_argument("--pin_memory", action='store_true', help="Whether to enable the pin_memory feature of the data loaders.")
-    parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
 
     args = parser.parse_args()
 
@@ -143,24 +154,31 @@ def main():
     }
 
     text_classification_model.setup_validation_data(
-        file_path=os.path.join(args.data_dir, f'{args.file_prefix_val}.tsv'),
-        dataloader_params=dataloader_params_val,
+        file_path=os.path.join(args.data_dir, f'{args.file_prefix_val}.tsv'), dataloader_params=dataloader_params_val,
     )
 
-    optim_params = {
-        'optimizer_kind': args.optimizer_kind,
-        'lr': args.lr,
-        'lr_policy': args.lr_policy,
-        'weight_decay': args.weight_decay,
-        'lr_warmup_proportion': args.lr_warmup_proportion,
-    }
+    # optim_params = {
+    #     'optimizer_kind': args.optimizer_kind,
+    #     'lr': args.lr,
+    #     'lr_policy': args.lr_policy,
+    #     'weight_decay': args.weight_decay,
+    #     'lr_warmup_proportion': args.lr_warmup_proportion,
+    # }
+    # text_classification_model.setup_optimization(optim_params=optim_params)
 
-    text_classification_model.setup_optimization(optim_params=optim_params)
+    text_classification_model.__optimizer = torch.optim.Adam(
+        text_classification_model.parameters(),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        betas=(args.beta1, args.beta2),
+    )
+
+    # text_classification_model.setup_optimization(optim_params=optim_params)
 
     trainer = pl.Trainer(
         val_check_interval=args.eval_step_freq,
         amp_level=args.amp_level,
-        precision=16,
+        precision=32 if args.amp_level == "O0" else 16,  # TODO: How to set precision?
         gpus=args.num_gpus,
         max_epochs=args.num_epochs,
         distributed_backend='ddp',

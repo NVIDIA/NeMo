@@ -52,7 +52,13 @@ class SequenceClassifier(NeuralModule):
     ):
         super().__init__()
         # TODO: what happens to device?
-        self.mlp = MultiLayerPerceptron(hidden_size=hidden_size, num_classes=num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax)
+        self.mlp = MultiLayerPerceptron(
+            hidden_size=hidden_size,
+            num_classes=num_classes,
+            num_layers=num_layers,
+            activation=activation,
+            log_softmax=log_softmax,
+        )
         self.dropout = torch.nn.Dropout(dropout)
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
