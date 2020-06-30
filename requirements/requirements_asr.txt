@@ -3,7 +3,6 @@ editdistance
 frozendict
 inflect
 kaldi-io
-librosa
 marshmallow
 packaging
 num2words
@@ -14,3 +13,5 @@ torch-stft
 unidecode
 webdataset
 kaldi-python-io
+librosa<=0.7.2
+numba<=0.48
