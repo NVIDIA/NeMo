@@ -18,7 +18,7 @@ from torch import nn as nn
 
 from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import NeuralType
+from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['TokenClassifier']
@@ -30,11 +30,11 @@ ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 class TokenClassifier(NeuralModule):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return None
+        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return None
+        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
 
     def __init__(
         self,

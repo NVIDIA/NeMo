@@ -25,8 +25,9 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 
 # TODO replace with nemo module
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.neural_types import NeuralType
+from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['NERModel']
@@ -36,11 +37,15 @@ __all__ = ['NERModel']
 class NERModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return None
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
+        }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return None
+        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
 
     def __init__(
         self,
@@ -75,6 +80,7 @@ class NERModel(ModelPT):
         # This will be set by setup_optimization
         self.__optimizer = None
 
+    @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
         No special modification required for Lightning, define it as you normally would
@@ -83,7 +89,7 @@ class NERModel(ModelPT):
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )[0]
-        logits = self.classifier(hidden_states)
+        logits = self.classifier(hidden_states=hidden_states)
         return logits
 
     def training_step(self, batch, batch_idx):
