@@ -20,13 +20,12 @@ from argparse import ArgumentParser
 
 import pytorch_lightning as pl
 
-import nemo.collections.nlp as nemo_nlp
+#import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.text_classifier_model import BERTTextClassifier
 
 
 def main():
-    parser = ArgumentParser()
-    parser.add_argument(description='Sentence classification with pretrained BERT models')
+    parser = ArgumentParser(description='Sentence classification with pretrained BERT models')
     parser.add_argument("--work_dir", default='outputs', type=str)
     parser.add_argument(
         "--checkpoint_dir",
@@ -40,7 +39,7 @@ def main():
         default='roberta-base',
         type=str,
         help='Name of the pre-trained model',
-        choices=nemo_nlp.nm.trainables.get_pretrained_lm_models_list(),
+        # choices=nemo_nlp.modules.common.get_pretrained_lm_models_list(),
     )
     parser.add_argument("--bert_checkpoint", default=None, type=str, help="Path to pre-trained BERT checkpoint")
     parser.add_argument("--bert_config", default=None, type=str, help="Path to bert config file in json format")

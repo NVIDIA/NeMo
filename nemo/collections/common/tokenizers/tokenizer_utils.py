@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
 import os
 
 from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
@@ -20,16 +21,15 @@ from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
 import nemo
 from nemo.utils import logging
 
-try:
-    __megatron_utils_satisfied = True
-    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import (
-        get_megatron_vocab_file,
-        is_lower_cased_megatron,
-    )
-except Exception as e:
-    logging.warning('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
-    __megatron_utils_satisfied = False
-
+# try:
+#     __megatron_utils_satisfied = True
+#     from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import (
+#         get_megatron_vocab_file,
+#         is_lower_cased_megatron,
+#     )
+# except Exception as e:
+#     logging.error('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
+#     __megatron_utils_satisfied = False
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 

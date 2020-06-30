@@ -20,17 +20,15 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-# TODO replace with nemo module
-from transformers import BertModel
+from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.modules.common import TokenClassifier
 
-from nemo.collections.common_parts.parts.multi_layer_perveptron import MultiLayerPerceptron
-from nemo.collections.common_parts.parts.transformer_utils import transformer_weights_init
-from nemo.collections.common_parts.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.nlp.datasets.token_classification_dataset import BertTokenClassificationDataset
+# TODO replace with nemo module
+# from transformers import BertModel
+from nemo.collections.nlp.modules.common.huggingface import BertEncoder
 
 __all__ = ['NERModel']
-
-ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 
 
 class NERModel(pl.LightningModule):
@@ -45,7 +43,7 @@ class NERModel(pl.LightningModule):
     ):
         # init superclass
         super().__init__()
-        self.bert_model = BertModel.from_pretrained(pretrained_model_name)
+        self.bert_model = BertEncoder.from_pretrained(pretrained_model_name)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.classifier = TokenClassifier(
@@ -72,7 +70,9 @@ class NERModel(pl.LightningModule):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        hidden_states = self.bert_model(input_ids, token_type_ids, attention_mask)[0]
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )[0]
         logits = self.classifier(hidden_states)
         return logits
 
@@ -144,7 +144,7 @@ class NERModel(pl.LightningModule):
         if optimizer == 'adam':
             self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
         else:
-            raise ValueError(f'TODO {optimizer}')
+            raise NotImplementedError()
 
     def __setup_dataloader_ner(
         self,
@@ -187,35 +187,3 @@ class NERModel(pl.LightningModule):
 
     def val_dataloader(self):
         return self.__val_dl
-
-
-class TokenClassifier(nn.Module):
-    def __init__(
-        self,
-        hidden_size: object,
-        num_classes: object,
-        activation: object = 'relu',
-        log_softmax: object = True,
-        dropout: object = 0.0,
-        use_transformer_pretrained: object = True,
-    ) -> object:
-        super().__init__()
-        if activation not in ACT2FN:
-            raise ValueError(f'activation "{activation}" not found')
-        self.dense = nn.Linear(hidden_size, hidden_size)
-        self.act = ACT2FN[activation]
-        self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
-        self.mlp = MultiLayerPerceptron(
-            hidden_size, num_classes, num_layers=1, activation=activation, log_softmax=log_softmax
-        )
-        self.dropout = nn.Dropout(dropout)
-        if use_transformer_pretrained:
-            self.apply(lambda module: transformer_weights_init(module, xavier=False))
-
-    def forward(self, hidden_states):
-        hidden_states = self.dropout(hidden_states)
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.act(hidden_states)
-        transform = self.norm(hidden_states)
-        logits = self.mlp(transform)
-        return logits

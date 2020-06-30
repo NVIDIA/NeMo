@@ -24,7 +24,7 @@ from nemo.collections.nlp.models.ner_model import NERModel
 def main():
     parser = ArgumentParser()
     parser.add_argument("--data_dir", type=str, required=True, default='', help="Path to data folder")
-    parser.add_argument("--num_classes", type=int, required=True, default=9, help="Number of classes")
+    parser.add_argument("--num_classes", type=int, default=9, help="Number of classes")
     parser.add_argument("--num_epochs", default=5, type=int, help="Number of epochs to train")
 
     args = parser.parse_args()
@@ -33,9 +33,13 @@ def main():
     ner_model.setup_training_data(args.data_dir, train_data_layer_params={'shuffle': True})
     ner_model.setup_validation_data(data_dir=args.data_dir, val_data_layer_params={'shuffle': False})
     ner_model.setup_optimization(optim_params={'lr': 0.0003})
-    trainer = pl.Trainer(
-        val_check_interval=35, amp_level='O1', precision=16, gpus=2, max_epochs=123, distributed_backend='ddp'
-    )
+
+    # multi GPU
+    # trainer = pl.Trainer(
+    #     val_check_interval=35, amp_level='O1', precision=16, gpus=2, max_epochs=123, distributed_backend='ddp'
+    # )
+    # single GPU
+    trainer = pl.Trainer(fast_dev_run=True)
     trainer.fit(ner_model)
 
 

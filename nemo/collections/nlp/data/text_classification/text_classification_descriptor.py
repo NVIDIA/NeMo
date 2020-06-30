@@ -17,7 +17,7 @@
 # =============================================================================
 
 from nemo import logging
-from nemo.collections.nlp.datasets.datasets_utils.data_preprocessing import (
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights,
     get_freq_weights,
     get_label_stats,

@@ -1,7 +1,7 @@
 import torch
 
-from nemo.collections.common_parts.parts.multi_layer_perveptron import MultiLayerPerceptron
-from nemo.collections.common_parts.parts.transformer_utils import transformer_weights_init
+from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron
+from nemo.collections.common.parts.transformer_utils import transformer_weights_init
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental

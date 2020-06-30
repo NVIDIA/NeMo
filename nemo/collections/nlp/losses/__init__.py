@@ -14,7 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.datasets.text_classification.text_classification_datasets import (
-    BERTTextClassificationDataset,
-)
-from nemo.collections.nlp.datasets.text_classification.text_classification_descriptor import TextClassificationDataDesc
+from nemo.collections.nlp.losses.crossentropy_loss import CrossEntropyLoss

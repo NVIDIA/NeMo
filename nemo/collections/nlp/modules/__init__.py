@@ -14,5 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.modules.crossentropy_loss import CrossEntropyLoss
-from nemo.collections.nlp.modules.sequence_classifier import SequenceClassifier
+from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
