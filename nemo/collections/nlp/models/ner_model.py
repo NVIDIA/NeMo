@@ -19,20 +19,20 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-# TODO replace with nemo module
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
-
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.modules.common import TokenClassifier
+
+# TODO replace with nemo module
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.core.classes.modelPT import ModelPT
+from nemo.core.neural_types import NeuralType
+from nemo.utils.decorators import experimental
 
 __all__ = ['NERModel']
 
-from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.core.classes.modelPT import ModelPT
-from nemo.utils.decorators import experimental
-from nemo.core.neural_types import NeuralType
 
-@ experimental
+@experimental
 class NERModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -80,7 +80,9 @@ class NERModel(ModelPT):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        hidden_states = self.bert_model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )[0]
         logits = self.classifier(hidden_states)
         return logits
 
@@ -211,5 +213,3 @@ class NERModel(ModelPT):
     @classmethod
     def restore_from(cls, restore_path: str):
         pass
-
-

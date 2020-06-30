@@ -1,14 +1,11 @@
-from transformers import (
-    AlbertModel,
-)
+from transformers import AlbertModel
 
+from nemo.collections.nlp.modules.common.huggingface.bert import BertModule
+from nemo.core.classes import NeuralModule, typecheck
 from nemo.utils.decorators import experimental
 
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.collections.nlp.modules.common.huggingface.bert import BertModule
-
-
 __all__ = ['AlbertEncoder']
+
 
 @experimental
 class AlbertEncoder(AlbertModel, BertModule):
@@ -30,7 +27,6 @@ class AlbertEncoder(AlbertModel, BertModule):
         max_position_embeddings (int): The maximum number of tokens in a
         sequence.
     """
-
 
     def save_to(self, save_path: str):
         pass

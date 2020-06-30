@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.common.parts.transformer_utils import *
+from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron

@@ -1,10 +1,9 @@
-from transformers import (
-    BertModel,
-)
+from typing import Dict, Optional
+
+from transformers import BertModel
 
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import NeuralType, ChannelType
-from typing import Dict, Optional
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertEncoder']
@@ -13,7 +12,7 @@ __all__ = ['BertEncoder']
 @experimental
 class BertModule(NeuralModule):
     @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]: 
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
@@ -23,10 +22,11 @@ class BertModule(NeuralModule):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-                "last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
-                "pooler_output ": NeuralType(('B', 'D'), ChannelType()),
-                "hidden_states ": NeuralType(('B', 'T', 'D'), ChannelType()),
-                "attentions ": NeuralType(('B', 'H', 'T', 'D'), ChannelType()),}
+            "last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "pooler_output ": NeuralType(('B', 'D'), ChannelType()),
+            "hidden_states ": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "attentions ": NeuralType(('B', 'H', 'T', 'D'), ChannelType()),
+        }
 
 
 @experimental
@@ -50,14 +50,13 @@ class BertEncoder(BertModel, BertModule):
         sequence.
     """
 
-
     def save_to(self, save_path: str):
         pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
         pass
-    
+
     @typecheck()
     def forward(self, **kwargs):
         res = super().forward(**kwargs)

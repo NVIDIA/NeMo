@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict, Optional
+
 from torch import nn as nn
 
-from nemo.collections.common.modules import MultiLayerPerceptron
-from nemo.collections.common.parts import transformer_weights_init
-from nemo.core.neural_types import NeuralType
+from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
-from typing import Dict, Optional
 
 __all__ = ['TokenClassifier']
 
 ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
+
 
 @experimental
 class TokenClassifier(NeuralModule):
