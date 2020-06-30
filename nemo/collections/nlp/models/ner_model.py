@@ -84,7 +84,7 @@ class NERModel(ModelPT):
         """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )[0]
+        )
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 
