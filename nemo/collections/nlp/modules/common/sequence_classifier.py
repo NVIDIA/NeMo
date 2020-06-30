@@ -48,12 +48,13 @@ class SequenceClassifier(NeuralModule):
         activation='relu',
         log_softmax=True,
         dropout=0.0,
-        use_transformer_pretrained=True,
+        use_transformer_init=True,
     ):
         super().__init__()
-        self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self._device, num_layers, activation, log_softmax)
+        # TODO: what happens to device?
+        self.mlp = MultiLayerPerceptron(hidden_size, num_classes, self.device, num_layers, activation, log_softmax)
         self.dropout = torch.nn.Dropout(dropout)
-        if use_transformer_pretrained:
+        if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
 
@@ -62,3 +63,11 @@ class SequenceClassifier(NeuralModule):
         hidden_states = self.dropout(hidden_states)
         logits = self.mlp(hidden_states[:, idx_conditioned_on])
         return logits
+
+    @classmethod
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass

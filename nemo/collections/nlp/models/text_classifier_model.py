@@ -158,3 +158,11 @@ class BERTTextClassifier(pl.LightningModule):
 
     def val_dataloader(self):
         return self.__val_dl
+
+    @classmethod
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
