@@ -17,6 +17,7 @@
 # TODO: WIP
 
 from argparse import ArgumentParser
+import os
 
 import pytorch_lightning as pl
 
@@ -72,32 +73,38 @@ def main():
                         truncated, sequences shorter will be padded.",
     )
     parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
-    parser.add_argument("--num_output_layers", default=2, type=int, help="Number of layers in the Classifier")
     parser.add_argument("--num_epochs", default=10, type=int, help="Total number of training epochs to perform.")
-    parser.add_argument("--num_train_samples", default=-1, type=int, help="Number of samples to use for training")
-    parser.add_argument("--num_eval_samples", default=-1, type=int, help="Number of samples to use for evaluation")
+
+    parser.add_argument("--file_prefix_train", default='train', type=str, help="train file prefix")
+    parser.add_argument("--file_prefix_val", default='dev', type=str, help="eval file prefix")
+    parser.add_argument("--num_samples_train", default=-1, type=int, help="Number of samples to use for training")
+    parser.add_argument("--num_samples_val", default=-1, type=int, help="Number of samples to use for evaluation")
+
+    parser.add_argument(
+        "--amp_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
+    )
     parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
     parser.add_argument("--lr_warmup_proportion", default=0.1, type=float, help="Learning rate warm up proportion")
     parser.add_argument("--lr", default=2e-5, type=float, help="Initial learning rate")
     parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str, help="Learning rate policy")
-    parser.add_argument(
-        "--amp_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
-    )
     parser.add_argument("--weight_decay", default=0.01, type=float, help="Weight decay.")
+
+    parser.add_argument("--num_output_layers", default=2, type=int, help="Number of layers in the Classifier")
     parser.add_argument("--fc_dropout", default=0.1, type=float, help="Dropout rate")
+    parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
     parser.add_argument(
         "--use_cache", action='store_true', help="When specified loads and stores cache preprocessed data."
     )
-    parser.add_argument("--train_file_prefix", default='train', type=str, help="train file prefix")
-    parser.add_argument("--eval_file_prefix", default='dev', type=str, help="eval file prefix")
-    parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
     parser.add_argument(
-        "--no_shuffle_data", action='store_false', dest="shuffle_data", help="Shuffle is enabled by default."
+        "--no_shuffle", action='store_false', dest="shuffle", help="Shuffle is enabled by default."
     )
     parser.add_argument("--save_epoch_freq", default=1, type=int, help="Epoch frequency of saving checkpoints")
     parser.add_argument("--save_step_freq", default=-1, type=int, help="Step frequency of saving checkpoints")
     parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
     parser.add_argument('--eval_step_freq', default=100, type=int, help='Frequency of evaluation')
+
+    parser.add_argument("--num_workers", default=0, type=int, help="The number of workers for the data loaders.")
+    parser.add_argument("--pin_memory", action='store_true', help="Whether to enable the pin_memory feature of the data loaders.")
     parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
 
     args = parser.parse_args()
@@ -110,20 +117,34 @@ def main():
         class_balancing=args.class_balancing,
     )
 
-    dataloader_params = {
+    dataloader_params_train = {
         "max_seq_length": args.max_seq_length,
-        "num_samples": args.num_samples,
+        "num_samples": args.num_samples_train,
         "shuffle": args.shuffle,
         "use_cache": args.use_cache,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
         "pin_memory": args.pin_memory,
     }
-    text_classification_model.setup_dataloaders(
-        data_dir=args.data_dir,
-        train_file_prefix=args.train_file_prefix,
-        val_file_prefix=args.eval_file_prefix,
-        dataloader_params=dataloader_params,
+
+    text_classification_model.setup_training_data(
+        file_path=os.path.join(args.data_dir, f'{args.file_prefix_train}.tsv'),
+        dataloader_params=dataloader_params_train,
+    )
+
+    dataloader_params_val = {
+        "max_seq_length": args.max_seq_length,
+        "num_samples": args.num_samples_val,
+        "shuffle": False,
+        "use_cache": args.use_cache,
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "pin_memory": args.pin_memory,
+    }
+
+    text_classification_model.setup_validation_data(
+        file_path=os.path.join(args.data_dir, f'{args.file_prefix_val}.tsv'),
+        dataloader_params=dataloader_params_val,
     )
 
     optim_params = {

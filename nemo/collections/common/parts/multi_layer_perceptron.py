@@ -27,6 +27,7 @@ class MultiLayerPerceptron(torch.nn.Module):
         log_softmax (bool): whether to add a log_softmax layer before output
     """
 
+    # TODO: device is removed here
     def __init__(
         self, hidden_size, num_classes, num_layers=2, activation='relu', log_softmax=True,
     ):

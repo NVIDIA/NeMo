@@ -86,3 +86,11 @@ class CrossEntropyLoss(NeuralModule):
 
         loss = self._criterion(logits_flatten, labels_flatten)
         return loss
+
+    @classmethod
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass

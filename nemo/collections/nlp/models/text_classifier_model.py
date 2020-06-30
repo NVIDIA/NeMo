@@ -117,14 +117,11 @@ class BERTTextClassifier(pl.LightningModule):
         # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
         return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
 
-    def setup_dataloaders(self, data_dir, train_file_prefix="train", val_file_prefix="dev", dataloader_params={}):
-        input_file_train = os.path.join(data_dir, f'{train_file_prefix}.txt')
-        self.__train_dl = self.__setup_dataloader(input_file=input_file_train, dataloader_params=dataloader_params)
+    def setup_training_data(self, file_path, dataloader_params={}):
+        self.__train_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
 
-        dataloader_params = copy(dataloader_params)
-        dataloader_params["shuffle"] = False
-        input_file_val = os.path.join(data_dir, f'{val_file_prefix}.txt')
-        self.__val_dl = self.__setup_dataloader(input_file=input_file_val, dataloader_params=dataloader_params)
+    def setup_validation_data(self, file_path, dataloader_params={}):
+        self.__val_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
 
     def __setup_dataloader(
         self, input_file, dataloader_params={},
