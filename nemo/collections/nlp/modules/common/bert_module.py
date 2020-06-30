@@ -12,29 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from transformers import AlbertModel
+from typing import Dict, Optional
 
-from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import NeuralModule
+from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['AlbertEncoder']
+__all__ = ['BertModule']
 
 
 @experimental
-class AlbertEncoder(AlbertModel, BertModule):
-    """
-    Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
-    """
+class BertModule(NeuralModule):
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
+        }
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
-    @typecheck()
-    def forward(self, **kwargs):
-        res = super().forward(**kwargs)[0]
-        return res
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
