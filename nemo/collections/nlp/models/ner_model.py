@@ -15,14 +15,12 @@
 import os
 from typing import Dict, Optional
 
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
 # TODO replace with nemo module
-# from transformers import BertModel
-from nemo.collections.nlp.modules.common.huggingface import BertEncoder
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
@@ -30,11 +28,20 @@ from nemo.collections.nlp.data.token_classification_dataset import BertTokenClas
 __all__ = ['NERModel']
 
 from nemo.collections.nlp.modules.common import TokenClassifier
+from nemo.core.classes.modelPT import ModelPT
+from nemo.utils.decorators import experimental
+from nemo.core.neural_types import NeuralType
 
+@ experimental
+class NERModel(ModelPT):
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return None
 
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return None
 
-
-class NERModel(pl.LightningModule):
     def __init__(
         self,
         num_classes,
@@ -136,10 +143,8 @@ class NERModel(pl.LightningModule):
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
         self.__val_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
-    # def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-    #     if 'shuffle' not in test_data_layer_params:
-    #         test_data_layer_params['shuffle'] = False
-    #     self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
+    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+        pass
 
     def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
         if optimizer == 'adam':
@@ -188,5 +193,23 @@ class NERModel(pl.LightningModule):
 
     def val_dataloader(self):
         return self.__val_dl
+
+    @classmethod
+    def list_available_models(cls) -> Optional[Dict[str, str]]:
+        pass
+
+    @classmethod
+    def from_pretrained(cls, name: str):
+        pass
+
+    def export(self, **kwargs):
+        pass
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
 
 

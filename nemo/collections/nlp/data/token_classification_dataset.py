@@ -27,7 +27,8 @@ import os
 import pickle
 
 import numpy as np
-from torch.utils.data import Dataset
+from nemo.core.classes import Dataset
+from nemo.utils.decorators import experimental
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
@@ -155,7 +156,7 @@ def get_features(
             logging.info("labels: %s", " ".join(list(map(str, all_labels[i]))))
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
 
-
+@experimental
 class BertTokenClassificationDataset(Dataset):
     """
     Creates dataset to use during training for token classification
@@ -331,6 +332,7 @@ class BertTokenClassificationDataset(Dataset):
         )
 
 
+@experimental
 class BertTokenClassificationInferDataset(Dataset):
     """
     Creates dataset to use during inference for token classification
