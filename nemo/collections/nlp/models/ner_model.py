@@ -37,15 +37,11 @@ __all__ = ['NERModel']
 class NERModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
-        }
+        return self.bert_model.input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        return self.classifier.output_types
 
     def __init__(
         self,
