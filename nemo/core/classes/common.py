@@ -42,6 +42,33 @@ class Typing(ABC):
         """Define these to enable output neural type checks"""
         return None
 
+    def _validate_input_types(self, **kwargs):
+        # TODO: Properly implement this
+        if self.input_types is not None:
+            if len(kwargs) != len(self.input_types):
+                raise TypeError(
+                    "Number of input arguments provided ({}) is not as expected ({})".format(
+                        len(kwargs), len(self.input_types)
+                    )
+                )
+
+            for key, value in kwargs.items():
+                if (
+                    hasattr(value, 'neural_type')
+                    and self.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
+                ):
+                    raise TypeError(f"{self.input_types[key].compare(value.neural_type)}")
+
+    def _attach_and_validate_output_types(self, out_objects):
+        # TODO: Properly implement this
+        if self.output_types is not None:
+            out_types_list = list(self.output_types.items())
+            if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
+                out_objects.neural_type = out_types_list[0][1]
+            else:
+                for ind, res in enumerate(out_objects):
+                    res.neural_type = out_types_list[ind][1]
+
 
 class Serialization(ABC):
     @staticmethod
@@ -194,14 +221,36 @@ class Model(Typing, Serialization, FileIO):
 
 class typecheck:
     def __init__(self):
-        pass
+        """
+        A decorator which performs input-output neural type checks, and attaches
+        neural types to the output of the function that it wraps.
+
+        Requires that the class inherit from `nemo.core.Typing` in order to perform
+        type checking, and will raise an error if that is not the case.
+
+        # Usage
+        @typecheck()
+        def fn(self, arg1, arg2, ...):
+            ...
+
+        Points to be noted:
+        1) The brackets () in `@typecheck()` are necessary.
+
+            You will encounter a TypeError: __init__() takes 1 positional argument but X
+            were given without those brackets.
+
+        2) The function can take any number of positional arguments during definition.
+
+            When you call this function, all arguments must be passed using kwargs only.
+
+        """
 
     @wrapt.decorator
     def __call__(self, wrapped, instance: Typing, args, kwargs):
         if instance is None:
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
 
-        if not (hasattr(instance, 'input_types') and hasattr(instance, 'output_types')):
+        if not isinstance(instance, Typing):
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
 
         # If types are not defined, skip type checks and just call the
@@ -213,38 +262,11 @@ class typecheck:
             raise TypeError("All arguments must be passed by kwargs only for typed methods")
 
         # Perform rudimentary input checks here
-        self._validate_input_types(instance, kwargs)
+        instance._validate_input_types(**kwargs)
 
         # Call the method - this can be forward, or any other callable method
         outputs = wrapped(*args, **kwargs)
 
-        self._attach_and_validate_output_types(instance, outputs)
+        instance._attach_and_validate_output_types(outputs)
 
         return outputs
-
-    def _validate_input_types(self, instance, kwargs):
-        # TODO: Properly implement this
-        if instance.input_types is not None:
-            if len(kwargs) != len(instance.input_types):
-                raise TypeError(
-                    "Number of input arguments provided ({}) is not as expected ({})".format(
-                        len(kwargs), len(instance.input_types)
-                    )
-                )
-
-            for key, value in kwargs.items():
-                if (
-                    hasattr(value, 'neural_type')
-                    and instance.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
-                ):
-                    raise TypeError(f"{instance.input_types[key].compare(value.neural_type)}")
-
-    def _attach_and_validate_output_types(self, instance, out_objects):
-        # TODO: Properly implement this
-        if instance.output_types is not None:
-            out_types_list = list(instance.output_types.items())
-            if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
-                out_objects.neural_type = out_types_list[0][1]
-            else:
-                for ind, res in enumerate(out_objects):
-                    res.neural_type = out_types_list[ind][1]
