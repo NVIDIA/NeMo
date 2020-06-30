@@ -73,7 +73,7 @@ class NERModel(pl.LightningModule):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        hidden_states = self.bert_model(input_ids, token_type_ids, attention_mask)[0]
+        hidden_states = self.bert_model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]
         logits = self.classifier(hidden_states)
         return logits
 
