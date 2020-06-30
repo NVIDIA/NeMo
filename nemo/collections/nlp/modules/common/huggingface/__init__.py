@@ -15,4 +15,3 @@
 # =============================================================================
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
