@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['AudioToTextDataset', 'seq_collate_fn']
+__all__ = ['AudioToTextDataset']
 
 import torch
 
@@ -69,6 +69,7 @@ class AudioToTextDataset(Dataset):
         load_audio=True,
         parser='en',
         add_misc=False,
+        pad_id=0,
     ):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
@@ -84,6 +85,7 @@ class AudioToTextDataset(Dataset):
         self.trim = trim
         self.eos_id = eos_id
         self.bos_id = bos_id
+        self.pad_id = pad_id
         self.load_audio = load_audio
         self._add_misc = add_misc
 
@@ -124,8 +126,7 @@ class AudioToTextDataset(Dataset):
     def __len__(self):
         return len(self.collection)
 
-    @staticmethod
-    def seq_collate_fn(batch, token_pad_value=0):
+    def collate_fn(self, batch):
         """collate batch of audio sig, audio len, tokens, tokens len
         Args:
             batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
@@ -151,7 +152,7 @@ class AudioToTextDataset(Dataset):
             tokens_i_len = tokens_i_len.item()
             if tokens_i_len < max_tokens_len:
                 pad = (0, max_tokens_len - tokens_i_len)
-                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=token_pad_value)
+                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=self.pad_id)
             tokens.append(tokens_i)
 
         if has_audio:
