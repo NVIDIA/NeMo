@@ -53,7 +53,7 @@ def main():
     trainer = pl.Trainer(
         val_check_interval=35, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
     )
-    #trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
+    # trainer = pl.Trainer(val_check_interval=5, max_epochs=args.num_epochs)
     trainer.fit(asr_model)
 
 
