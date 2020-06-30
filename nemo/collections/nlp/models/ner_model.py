@@ -27,7 +27,7 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
+from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['NERModel']
