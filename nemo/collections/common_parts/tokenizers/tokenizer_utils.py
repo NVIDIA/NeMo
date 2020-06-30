@@ -26,9 +26,8 @@ try:
         get_megatron_vocab_file,
         is_lower_cased_megatron,
     )
-
 except Exception as e:
-    logging.error('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
+    logging.warning('Failed to import Megatron utils: `{}` ({})'.format(str(e), type(e)))
     __megatron_utils_satisfied = False
 
 
