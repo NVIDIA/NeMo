@@ -21,7 +21,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 # TODO replace with nemo module
-from transformers import BertModel
+# from transformers import BertModel
+from nemo.collections.nlp.modules.common.huggingface import BertEncoder
 
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
@@ -45,7 +46,7 @@ class NERModel(pl.LightningModule):
     ):
         # init superclass
         super().__init__()
-        self.bert_model = BertModel.from_pretrained(pretrained_model_name)
+        self.bert_model = BertEncoder.from_pretrained(pretrained_model_name)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.classifier = TokenClassifier(
