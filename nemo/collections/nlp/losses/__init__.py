@@ -14,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.losses.cross_entropy import *
+from nemo.collections.nlp.losses.smoothed_cross_entropy import *

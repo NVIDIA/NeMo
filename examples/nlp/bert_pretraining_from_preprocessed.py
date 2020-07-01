@@ -16,13 +16,14 @@ import random
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
+from transformers import BertConfig
 
 from nemo.collections.nlp.models.lm_model import BERTLMModel
 
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("--data_dir", type=str, required=True, default='', help="Path to data folder")
+    parser.add_argument("--data_dir", type=str, required=True, help="Path to data folder")
     parser.add_argument("--num_classes", type=int, default=30522, help="Number of classes")
     parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
     parser.add_argument("--num_gpus", default=1, type=int, help="Number Gpus")
@@ -104,7 +105,16 @@ def parse_args():
 def main():
 
     args = parse_args()
-    bert_model = BERTLMModel(num_classes=args.num_classes)
+    config = BertConfig.from_json_file(args.config_file).to_dict()
+    args.vocab_size = config['vocab_size']
+    args.hidden_size = config['hidden_size']
+    args.num_hidden_layers = config['num_hidden_layers']
+    args.num_attention_heads = config['num_attention_heads']
+    args.intermediate_size = config['intermediate_size']
+    args.hidden_act = config['hidden_act']
+    args.max_seq_length = config['max_position_embeddings']
+
+    bert_model = BERTLMModel(num_classes=args.vocab_size)
     bert_model.setup_training_data(
         train_data_layer_params={
             'train_data': args.data_dir,

@@ -23,7 +23,7 @@ from nemo.utils.decorators import experimental
 __all__ = ['BertEncoder']
 
 
-# @experimental
+@experimental
 class BertEncoder(BertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
