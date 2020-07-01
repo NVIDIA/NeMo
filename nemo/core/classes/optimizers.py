@@ -45,19 +45,28 @@ def _boolify(s):
 
 
 def _autocast(value):
+    # if value is itself None, dont parse
     if value is None:
         return None
 
+    # If value is comma seperated list of items, recursively parse all items in list.
     if "," in value:
         values = value.split(',')
         values = [_autocast(value) for value in values]
         return values
 
+    # If value is string `none` or `None`, parse as None
+    if value == 'none' or 'None':
+        return None
+
+    # Try type cast and return
     for cast_type in (_boolify, int, float):
         try:
             return cast_type(value)
         except Exception:
             pass
+
+    # All types failed, return str without casting
     return value  # str type
 
 
