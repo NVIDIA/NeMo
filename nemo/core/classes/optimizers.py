@@ -60,7 +60,7 @@ def _autocast(value):
         return None
 
     # Try type cast and return
-    for cast_type in (_boolify, int, float):
+    for cast_type in (int, float, _boolify):
         try:
             return cast_type(value)
         except Exception:
