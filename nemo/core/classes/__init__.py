@@ -18,3 +18,8 @@ from nemo.core.classes.dataset import Dataset, IterableDataset
 from nemo.core.classes.loss import Loss
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.classes.module import NeuralModule
+from nemo.core.classes.optimizers import (Novograd,
+                                          get_optimizer,
+                                          parse_optimizer_args,
+                                          add_optimizer_args,
+                                          register_optimizer)
