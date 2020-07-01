@@ -83,22 +83,17 @@ class EncDecCTCModel(ASRModel):
         optim_params = optim_params or {}  # In case null was passed as optim_params
 
         # Check if caller provided optimizer name, default to Adam otherwise
-        if 'optimizer' in optim_params:
-            optimizer_name = optim_params['optimizer']
-        else:
-            optimizer_name = 'adam'
+        optimizer_name = optim_params.get('optimizer', 'adam')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
-        if 'opt_args' in optim_params:
-            optimizer_args = parse_optimizer_args(optim_params['opt_args'])
-        else:
-            optimizer_args = {}
+        optimizer_args = optim_params.get('opt_args', '')
+        optimizer_args = parse_optimizer_args(optimizer_args)
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        if 'lr' in optim_params:
-            lr = optim_params['lr']
-        else:
+        lr = optim_params.get('lr', None)
+
+        if 'lr' is None:
             raise ValueError('`lr` must be passed when setting up the optimization !')
 
         # Actually instantiate the optimizer
