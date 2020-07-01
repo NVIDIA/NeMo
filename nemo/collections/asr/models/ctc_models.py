@@ -176,7 +176,6 @@ class EncDecCTCModel(ASRModel):
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        logging.info("Performing forward of validation step")
         log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
