@@ -13,11 +13,11 @@
 # limitations under the License.
 
 
-__all__ = ['Dataset']
-
 from torch.utils import data
 
 from nemo.core.classes import Serialization, Typing, typecheck
+
+__all__ = ['Dataset', 'IterableDataset']
 
 
 class Dataset(data.Dataset, Typing, Serialization):

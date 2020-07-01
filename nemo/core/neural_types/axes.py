@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-__all__ = ['AxisKindAbstract', 'AxisKind', 'AxisType']
-
 from enum import Enum
 from typing import Optional
+
+__all__ = ['AxisKindAbstract', 'AxisKind', 'AxisType']
 
 
 class AxisKindAbstract(Enum):

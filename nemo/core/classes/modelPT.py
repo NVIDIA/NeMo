@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-__all__ = ['ModelPT']
-
 from abc import abstractmethod
 from typing import Dict, Optional
 
 from pytorch_lightning import LightningModule
 
 from nemo.core.classes.common import Model
+
+__all__ = ['ModelPT']
 
 
 class ModelPT(LightningModule, Model):

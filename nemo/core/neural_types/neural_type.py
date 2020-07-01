@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional, Tuple
+
+from nemo.core.neural_types.axes import AxisKind, AxisType
+from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
+from nemo.core.neural_types.elements import *
 
 __all__ = [
     'NeuralType',
@@ -19,12 +24,6 @@ __all__ = [
     'NeuralPortNameMismatchError',
     'NeuralPortNmTensorMismatchError',
 ]
-
-from typing import Optional, Tuple
-
-from nemo.core.neural_types.axes import AxisKind, AxisType
-from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
-from nemo.core.neural_types.elements import *
 
 
 class NeuralType(object):

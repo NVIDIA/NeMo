@@ -13,7 +13,8 @@
 # limitations under the License.
 
 
-from nemo.core.classes.common import *
-from nemo.core.classes.dataset import *
-from nemo.core.classes.modelPT import *
-from nemo.core.classes.module import *
+from nemo.core.classes.common import FileIO, Model, Serialization, Typing, typecheck
+from nemo.core.classes.dataset import Dataset, IterableDataset
+from nemo.core.classes.loss import Loss
+from nemo.core.classes.modelPT import ModelPT
+from nemo.core.classes.module import NeuralModule

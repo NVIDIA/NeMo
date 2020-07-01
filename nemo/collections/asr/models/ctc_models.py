@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
-
-from functools import partial
 from typing import Dict, Optional
 
 import torch
@@ -27,7 +23,10 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
+
+__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
 @experimental
@@ -166,7 +165,7 @@ class EncDecCTCModel(ASRModel):
         )
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         wer, prediction, reference = monitor_asr_train_progress(
             tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
@@ -177,11 +176,11 @@ class EncDecCTCModel(ASRModel):
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        print("Performing forward of validation step")
+        logging.info("Performing forward of validation step")
         log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_length=encoded_len, target_length=transcript_len
+            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         tensorboard_logs = {'val_loss': loss_value}
         return {'val_loss': loss_value, 'log': tensorboard_logs}

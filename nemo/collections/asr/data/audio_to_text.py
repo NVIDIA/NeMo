@@ -11,9 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-__all__ = ['AudioToTextDataset']
-
 from typing import Dict, Optional
 
 import torch
@@ -22,6 +19,8 @@ from nemo.collections.asr.parts import collections, parsers
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
+
+__all__ = ['AudioToTextDataset']
 
 
 @experimental
