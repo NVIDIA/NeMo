@@ -30,7 +30,7 @@ from ruamel.yaml import YAML
 
 from nemo.collections.asr.arguments import add_asr_args
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.core.classes.optimizers import add_optimizer_args
+from nemo.core.optim.optimizers import add_optimizer_args
 
 
 def main(args):
