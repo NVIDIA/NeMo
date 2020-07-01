@@ -55,17 +55,21 @@ class Typing(ABC):
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
                 if key not in self.input_types:
-                    raise TypeError(f"Input argument {key} has no corresponding input_type match. "
-                                    f"Existing input_types = {self.input_types.keys()}")
+                    raise TypeError(
+                        f"Input argument {key} has no corresponding input_type match. "
+                        f"Existing input_types = {self.input_types.keys()}"
+                    )
 
                 # Perform neural type check
                 if (
                     hasattr(value, 'neural_type')
                     and self.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
                 ):
-                    raise TypeError(f"{self.input_types[key].compare(value.neural_type)} : \n"
-                                    f"Input type expected = {self.input_types[key]} | \n"
-                                    f"Input type found : {value.neural_type}")
+                    raise TypeError(
+                        f"{self.input_types[key].compare(value.neural_type)} : \n"
+                        f"Input type expected = {self.input_types[key]} | \n"
+                        f"Input type found : {value.neural_type}"
+                    )
 
     def _attach_and_validate_output_types(self, out_objects):
         # TODO: Properly implement this
