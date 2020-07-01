@@ -53,11 +53,23 @@ class Typing(ABC):
                 )
 
             for key, value in kwargs.items():
+                # Check if keys exists in the defined input types
+                if key not in self.input_types:
+                    raise TypeError(
+                        f"Input argument {key} has no corresponding input_type match. "
+                        f"Existing input_types = {self.input_types.keys()}"
+                    )
+
+                # Perform neural type check
                 if (
                     hasattr(value, 'neural_type')
                     and self.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
                 ):
-                    raise TypeError(f"{self.input_types[key].compare(value.neural_type)}")
+                    raise TypeError(
+                        f"{self.input_types[key].compare(value.neural_type)} : \n"
+                        f"Input type expected = {self.input_types[key]} | \n"
+                        f"Input type found : {value.neural_type}"
+                    )
 
     def _attach_and_validate_output_types(self, out_objects):
         # TODO: Properly implement this
@@ -253,12 +265,12 @@ class typecheck:
         if not isinstance(instance, Typing):
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
 
-        # If types are not defined, skip type checks and just call the
+        # If types are not defined, skip type checks and just call the wrapped method
         if instance.input_types is None and instance.output_types is None:
             return wrapped(*args, **kwargs)
 
         # Check that all arguments are kwargs
-        if len(args) > 0:
+        if instance.input_types is not None and len(args) > 0:
             raise TypeError("All arguments must be passed by kwargs only for typed methods")
 
         # Perform rudimentary input checks here

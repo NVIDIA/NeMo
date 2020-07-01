@@ -13,8 +13,14 @@
 # limitations under the License.
 
 # TODO: This is WIP and needs a lot of polishing
-# python examples/asr/spech2text.py --asr_model=examples/asr/bad_asr_config.yaml --train_data=/Users/okuchaiev/Data/an4_dataset/an4_train.json --eval_dataset=/Users/okuchaiev/Data/an4_dataset/an4_val.json
-# python spech2text.py --asr_model=./bad_asr_config.yaml --train_data=./an4/train_manifest.json --eval_dataset=./an4/test_manifest.json
+# python speech_to_text.py \
+#         --asr_model "bad_quartznet15x5.yaml" \
+#         --train_dataset "./an4/train_manifest.json" \
+#         --eval_dataset "./an4/test_manifest.json" \
+#         --gpus 4 \
+#         --distributed_backend "ddp" \
+#         --max_epochs 1 \
+#         --fast_dev_run \
 
 from argparse import ArgumentParser
 

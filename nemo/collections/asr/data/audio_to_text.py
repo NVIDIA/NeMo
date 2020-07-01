@@ -14,10 +14,13 @@
 
 __all__ = ['AudioToTextDataset']
 
+from typing import Dict, Optional
+
 import torch
 
 from nemo.collections.asr.parts import collections, parsers
-from nemo.core.classes import Dataset, typecheck
+from nemo.core.classes import Dataset
+from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
 
@@ -51,6 +54,22 @@ class AudioToTextDataset(Dataset):
         load_audio: Boolean flag indicate whether do or not load audio
         add_misc: True if add additional info dict.
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
 
     def __init__(
         self,
@@ -126,7 +145,7 @@ class AudioToTextDataset(Dataset):
     def __len__(self):
         return len(self.collection)
 
-    def collate_fn(self, batch):
+    def _collate_fn(self, batch):
         """collate batch of audio sig, audio len, tokens, tokens len
         Args:
             batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
