@@ -18,7 +18,7 @@ from functools import partial
 
 import torch
 import torch.optim as optim
-from torch.optim import adadelta, adagrad, adamax, optimizer, rmsprop, rprop
+from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
 __all__ = ['Novograd', 'get_optimizer', 'register_optimizer', 'parse_optimizer_args', 'add_optimizer_args']
@@ -76,6 +76,11 @@ def parse_optimizer_args(optimizer_kwargs):
     if optimizer_kwargs is None:
         return kwargs
 
+    # If it is a pre-defined dictionary, just return its values
+    if hasattr(optimizer_kwargs, 'keys'):
+        return optimizer_kwargs
+
+    # If it is key=value string list, parse all items
     for key_value in optimizer_kwargs:
         key, str_value = key_value.split('=')
 
@@ -116,7 +121,7 @@ def add_optimizer_args(parent_parser: ArgumentParser, optimizer='adam', default_
     return parser
 
 
-def register_optimizer(name, optimizer: optimizer.Optimizer):
+def register_optimizer(name, optimizer: Optimizer):
     if name in AVAILABLE_OPTIMIZERS:
         raise ValueError(f"Cannot override pre-existing optimizers. Conflicting optimizer name = {name}")
 
