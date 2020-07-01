@@ -59,8 +59,8 @@ class Tacotron2PTL(LightningModule):
             stft_conv=True,
         )
         self.text_embedding = nn.Embedding(len(labels) + 3, 512)
-        self.encoder = nemo_tts_jason.tacotron2.Encoder(5, 512, 3)
-        self.decoder = nemo_tts_jason.tacotron2.Decoder(
+        self.encoder = nemo_tts_jason.tacotron2.tacotron2.Encoder(5, 512, 3)
+        self.decoder = nemo_tts_jason.tacotron2.tacotron2.Decoder(
             n_mel_channels=80,
             n_frames_per_step=1,
             encoder_embedding_dim=512,
@@ -77,7 +77,7 @@ class Tacotron2PTL(LightningModule):
             prenet_p_dropout=0.5,
             early_stopping=True,
         )
-        self.postnet = nemo_tts_jason.tacotron2.Postnet(
+        self.postnet = nemo_tts_jason.tacotron2.tacotron2.Postnet(
             n_mel_channels=80,
             postnet_embedding_dim=512,
             postnet_kernel_size=5,
