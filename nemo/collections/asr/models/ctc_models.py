@@ -21,9 +21,9 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes.common import Serialization, logging, typecheck
-from nemo.core.classes.optimizers import get_optimizer, parse_optimizer_args
+from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
+from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 

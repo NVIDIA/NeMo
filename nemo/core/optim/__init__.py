@@ -12,9 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo.core.classes.common import FileIO, Model, Serialization, Typing, typecheck
-from nemo.core.classes.dataset import Dataset, IterableDataset
-from nemo.core.classes.loss import Loss
-from nemo.core.classes.modelPT import ModelPT
-from nemo.core.classes.module import NeuralModule
+from nemo.core.optim.novograd import Novograd
+from nemo.core.optim.optimizers import add_optimizer_args, get_optimizer, parse_optimizer_args, register_optimizer
