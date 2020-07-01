@@ -175,8 +175,8 @@ class NeuralType(object):
         # After these ifs we know that len(axes_a) == len(axes_b)
 
         same = True
-        kinds_a = dict()
-        kinds_b = dict()
+        kinds_a = {}
+        kinds_b = {}
         for axis_a, axis_b in zip(axes_a, axes_b):
             kinds_a[axis_a.kind] = axis_a.size
             kinds_b[axis_b.kind] = axis_b.size

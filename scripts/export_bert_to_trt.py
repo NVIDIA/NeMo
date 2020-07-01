@@ -388,7 +388,7 @@ def load_weights(inputbase, config):
     """
     Load the weights from the tensorflow checkpoint
     """
-    weights_dict = dict()
+    weights_dict = {}
 
     try:
         # reader = pyTF.NewCheckpointReader(inputbase)
@@ -427,7 +427,7 @@ def load_weights(inputbase, config):
         N = config.num_attention_heads
         H = config.head_size
 
-        additional_dict = dict()
+        additional_dict = {}
         for key, value in weights_dict.items():
             pos = key.find(BQ)
             if pos != -1:

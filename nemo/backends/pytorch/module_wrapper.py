@@ -70,7 +70,7 @@ class TrainableNeuralModuleWrapper(NeuralModule, nn.Module):
                 param.requires_grad = True
 
     def get_weights(self):
-        result = dict()
+        result = {}
         for name, parameter in self._pt_module.named_parameters():
             result[name] = (parameter, parameter.requires_grad)
         return result

@@ -83,7 +83,7 @@ def __process_data(data_folder: str, dst_folder: str):
             assert sr == 22050
             duration = len(y) / sr
 
-            entry = dict()
+            entry = {}
             entry['audio_filepath'] = os.path.abspath(wav_file)
             entry['duration'] = float(duration)
             entry['text'] = transcript

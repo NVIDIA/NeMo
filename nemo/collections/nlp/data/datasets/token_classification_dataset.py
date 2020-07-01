@@ -233,7 +233,7 @@ class BertTokenClassificationDataset(Dataset):
                 text_lines = f.readlines()
 
             # Collect all possible labels
-            unique_labels = set([])
+            unique_labels = set()
             labels_lines = []
             with open(label_file, 'r') as f:
                 for line in f:

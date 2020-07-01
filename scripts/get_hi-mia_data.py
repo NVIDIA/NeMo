@@ -165,7 +165,7 @@ def __process_data(data_folder: str, data_set: str):
 
 def main():
     data_root = args.data_root
-    for data_set in URL.keys():
+    for data_set in URL:
 
         # data_set = 'data_aishell'
         logging.info("\n\nWorking on: {0}".format(data_set))

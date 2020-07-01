@@ -132,7 +132,7 @@ class NeuralModule(NeuralInterface):
                     init_params[key] = localvars.locals[key]
 
             # Remove all set keys.
-            for key in init_params.keys():
+            for key in init_params:
                 if key in to_set_params:
                     to_set_params.remove(key)
 
@@ -511,7 +511,7 @@ class NeuralModule(NeuralInterface):
         Returns:
           A (set) of module's input port names that are not exportable
         """
-        return set([])
+        return set()
 
     @property
     def _disabled_deployment_output_ports(self) -> Set[str]:
@@ -520,7 +520,7 @@ class NeuralModule(NeuralInterface):
         Returns:
           A (set) of module's output port names that are not exportable
         """
-        return set([])
+        return set()
 
     def _prepare_for_deployment(self) -> None:
         """Patch the module if required to prepare for deployment

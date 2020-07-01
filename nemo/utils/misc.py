@@ -22,4 +22,4 @@ class Config(UserDict):
 
         for section in self.MAIN_SECTIONS:
             if section not in self.data:
-                self.data[section] = dict()
+                self.data[section] = {}
