@@ -13,3 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.nlp.models.ner_model import NERModel
+from nemo.collections.nlp.models.punctuation_capitalization_model import PunctuationCapitalizationModel

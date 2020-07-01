@@ -17,3 +17,4 @@ from nemo.collections.nlp.data.token_classification_dataset import (
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
 )
+from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset, BertPunctuationCapitalizationInferDataset

@@ -38,13 +38,14 @@ class TokenClassifier(NeuralModule):
 
     def __init__(
         self,
-        hidden_size: object,
-        num_classes: object,
-        activation: object = 'relu',
-        log_softmax: object = True,
-        dropout: object = 0.0,
-        use_transformer_pretrained: object = True,
-    ) -> object:
+        hidden_size: int,
+        num_classes: int,
+        num_layers: int,
+        activation: str = 'relu',
+        log_softmax: bool = True,
+        dropout: float = 0.0,
+        use_transformer_pretrained: bool = True,
+    ) -> None:
         super().__init__()
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
@@ -52,7 +53,7 @@ class TokenClassifier(NeuralModule):
         self.act = ACT2FN[activation]
         self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
         self.mlp = MultiLayerPerceptron(
-            hidden_size, num_classes, num_layers=1, activation=activation, log_softmax=log_softmax
+            hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
         )
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
