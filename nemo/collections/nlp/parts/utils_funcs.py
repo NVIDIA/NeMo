@@ -16,4 +16,8 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.modules.common import *
+__all__ = ['list2str']
+
+
+def list2str(l):
+    return ' '.join([str(x) for x in l])

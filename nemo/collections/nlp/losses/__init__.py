@@ -1,7 +1,5 @@
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.modules.common import *
+from nemo.collections.nlp.losses.crossentropy_loss import CrossEntropyLoss
