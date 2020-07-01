@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytorch_lightning as pl
 import torch
 
 
-class MultiLayerPerceptron(pl.LightningModule):
+class MultiLayerPerceptron(torch.nn.Module):
     """
     A simple MLP that can either be used independently or put on top
     of pretrained models (such as BERT) and act as a classifier.

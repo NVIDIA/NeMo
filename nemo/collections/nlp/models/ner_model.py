@@ -15,26 +15,34 @@
 import os
 from typing import Dict, Optional
 
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-# TODO replace with nemo module
-# from transformers import BertModel
-from nemo.collections.nlp.modules.common.huggingface import BertEncoder
-
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.modules.common import TokenClassifier
+
+# TODO replace with nemo module
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.core.classes import typecheck
+from nemo.core.classes.modelPT import ModelPT
+from nemo.core.neural_types import NeuralType
+from nemo.utils.decorators import experimental
 
 __all__ = ['NERModel']
 
-from nemo.collections.nlp.modules.common import TokenClassifier
 
+@experimental
+class NERModel(ModelPT):
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return self.bert_model.input_types
 
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return self.classifier.output_types
 
-
-class NERModel(pl.LightningModule):
     def __init__(
         self,
         num_classes,
@@ -68,13 +76,16 @@ class NERModel(pl.LightningModule):
         # This will be set by setup_optimization
         self.__optimizer = None
 
+    @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        hidden_states = self.bert_model(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)[0]
-        logits = self.classifier(hidden_states)
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        logits = self.classifier(hidden_states=hidden_states)
         return logits
 
     def training_step(self, batch, batch_idx):
@@ -136,10 +147,8 @@ class NERModel(pl.LightningModule):
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
         self.__val_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
-    # def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-    #     if 'shuffle' not in test_data_layer_params:
-    #         test_data_layer_params['shuffle'] = False
-    #     self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
+    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+        pass
 
     def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
         if optimizer == 'adam':
@@ -189,4 +198,20 @@ class NERModel(pl.LightningModule):
     def val_dataloader(self):
         return self.__val_dl
 
+    @classmethod
+    def list_available_models(cls) -> Optional[Dict[str, str]]:
+        pass
 
+    @classmethod
+    def from_pretrained(cls, name: str):
+        pass
+
+    def export(self, **kwargs):
+        pass
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass

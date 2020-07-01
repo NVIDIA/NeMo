@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from transformers import AlbertModel
+from typing import Dict, Optional
+
+from transformers import RobertaModel
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import typecheck
 from nemo.utils.decorators import experimental
 
-__all__ = ['AlbertEncoder']
+__all__ = ['RobertaEncoder']
 
 
 @experimental
-class AlbertEncoder(AlbertModel, BertModule):
+class RobertaEncoder(RobertaModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
