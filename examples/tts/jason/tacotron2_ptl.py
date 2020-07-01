@@ -24,10 +24,9 @@ from torch import nn
 from pytorch_lightning import Trainer
 from pytorch_lightning import loggers as pl_loggers
 
-from nemo.collections.tts.parts.helpers import tacotron2_log_to_tb_func
-import nemo.collections.tts as nemo_tts
+import nemo.collections.tts.jason as nemo_tts_jason
 import nemo.collections.asr as nemo_asr
-from nemo.collections.tts.parts.layers import get_mask_from_lengths
+from nemo.collections.tts.jason.helpers.helpers import tacotron2_log_to_tb_func, get_mask_from_lengths
 from nemo.utils import logging
 
 class Tacotron2PTL(LightningModule):
@@ -38,16 +37,15 @@ class Tacotron2PTL(LightningModule):
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
         self.pad_value = -11.42
-        self.audio_to_melspec_precessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+        self.featurizer = nemo_asr.parts.features.WaveformFeaturizer(22050)
+        self.audio_to_melspec_precessor = nemo_tts_jason.data.processors.FilterbankFeatures(
             sample_rate=22050,
             n_window_size=1024,
             n_window_stride=256,
-            window_size=None,
-            window_stride=None,
             normalize=None,
             n_fft=1024,
             preemph=None,
-            features=80,
+            nfilt=80,
             lowfreq=0,
             highfreq=None,
             log=True,
@@ -61,8 +59,8 @@ class Tacotron2PTL(LightningModule):
             stft_conv=True,
         )
         self.text_embedding = nn.Embedding(len(labels) + 3, 512)
-        self.encoder = nemo_tts.parts.tacotron2.Encoder(5, 512, 3)
-        self.decoder = nemo_tts.parts.tacotron2.Decoder(
+        self.encoder = nemo_tts_jason.tacotron2.Encoder(5, 512, 3)
+        self.decoder = nemo_tts_jason.tacotron2.Decoder(
             n_mel_channels=80,
             n_frames_per_step=1,
             encoder_embedding_dim=512,
@@ -79,7 +77,7 @@ class Tacotron2PTL(LightningModule):
             prenet_p_dropout=0.5,
             early_stopping=True,
         )
-        self.postnet = nemo_tts.parts.tacotron2.Postnet(
+        self.postnet = nemo_tts_jason.tacotron2.Postnet(
             n_mel_channels=80,
             postnet_embedding_dim=512,
             postnet_kernel_size=5,
@@ -127,7 +125,7 @@ class Tacotron2PTL(LightningModule):
 
     def training_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
-        spec, spec_len = self.audio_to_melspec_precessor.forward(audio, audio_len)
+        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding, token_len)
         spec_dec, gate, alignments = self.decoder(encoder_embedding, spec, memory_lengths=token_len)
@@ -160,22 +158,19 @@ class Tacotron2PTL(LightningModule):
         return output
 
     def train_dataloader(self):
-        data_layer = nemo_asr.AudioToTextDataLayer(
+        dataset = nemo_tts_jason.data.datalayers.AudioToTextDataset(
             manifest_filepath=self.train_dataset,
             labels=self.labels,
-            batch_size=32,
+            featurizer=self.featurizer,
             bos_id=len(self.labels),
             eos_id=len(self.labels) + 1,
             pad_id=len(self.labels) + 2,
-            sample_rate=22050,
-            int_values=False,
             min_duration=0.1,
             max_duration=None,
-            normalize_transcripts=False,
-            trim_silence=False,
-            shuffle=True,
+            normalize=False,
+            trim=False,
         )
-        return data_layer.data_iterator
+        return torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=dataset._collate_fn)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=0.001, weight_decay=1e-6)
@@ -218,22 +213,19 @@ class Tacotron2PTL(LightningModule):
         return {}
 
     def val_dataloader(self):
-        data_layer = nemo_asr.AudioToTextDataLayer(
+        dataset = nemo_tts_jason.data.datalayers.AudioToTextDataset(
             manifest_filepath=self.eval_dataset,
             labels=self.labels,
-            batch_size=32,
+            featurizer=self.featurizer,
             bos_id=len(self.labels),
             eos_id=len(self.labels) + 1,
             pad_id=len(self.labels) + 2,
-            sample_rate=22050,
-            int_values=False,
             min_duration=0.1,
             max_duration=None,
-            normalize_transcripts=False,
-            trim_silence=False,
-            shuffle=True,
+            normalize=False,
+            trim=False,
         )
-        return data_layer.data_iterator
+        return torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False, collate_fn=dataset._collate_fn)
 
 
 def main():
