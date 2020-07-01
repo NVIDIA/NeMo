@@ -180,7 +180,9 @@ def main():
         precision=32 if args.amp_level == "O0" else 16,  # TODO: How to set precision?
         gpus=args.num_gpus,
         max_epochs=args.num_epochs,
-        distributed_backend=None if args.num_gpus == 1 else "ddp", #TODO: How to switch between multi-gpu, single-gpu, multi-node here?
+        distributed_backend=None
+        if args.num_gpus == 1
+        else "ddp",  # TODO: How to switch between multi-gpu, single-gpu, multi-node here?
     )
     trainer.fit(text_classification_model)
 
