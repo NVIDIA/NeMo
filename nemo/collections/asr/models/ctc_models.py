@@ -23,6 +23,8 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
+from nemo.core.optim import CosineAnnealing, prepare_scheduler
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -79,6 +81,27 @@ class EncDecCTCModel(ASRModel):
 
     def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optim_params)
+
+        # hard code the scheduler for now
+        total_steps = optim_params.get('total_steps')
+        warmup_steps = optim_params.get('warmup_steps', None)
+        warmup_ratio = optim_params.get('warmup_ratio', None)
+        min_lr = optim_params.get('min_lr', 0.0)
+        last_epoch = optim_params.get('last_epoch', -1)
+
+        # What parameter to monitor
+        monitor = optim_params.get('monitor', 'val_loss')
+
+        scheduler = CosineAnnealing(self.__optimizer,
+                                    total_steps=total_steps,
+                                    warmup_steps=warmup_steps,
+                                    warmup_ratio=warmup_ratio,
+                                    min_lr=min_lr,
+                                    last_epoch=last_epoch)
+
+        # important step, wrap the scheduler in a config is necessary for PTL
+        scheduler = prepare_scheduler(scheduler, monitor=monitor)
+        self.__scheduler = scheduler
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -142,6 +165,7 @@ class EncDecCTCModel(ASRModel):
         self.__test_dl = None
         # This will be set by setup_optimization
         self.__optimizer = None
+        self.__scheduler = None
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
@@ -188,7 +212,11 @@ class EncDecCTCModel(ASRModel):
         return {'val_loss': val_loss_mean}
 
     def configure_optimizers(self):
-        return self.__optimizer
+        if self.__scheduler is None:
+            return self.__optimizer
+        else:
+            # needs to have 1:1 list size for optimizer : scheduler
+            return [self.__optimizer], [self.__scheduler]
 
     def train_dataloader(self):
         return self.__train_dl

@@ -14,3 +14,16 @@
 
 from nemo.core.optim.novograd import Novograd
 from nemo.core.optim.optimizers import add_optimizer_args, get_optimizer, parse_optimizer_args, register_optimizer
+
+from nemo.core.optim.lr_scheduler import (
+    CosineAnnealing,
+    InverseSquareRootAnnealing,
+    PolynomialDecayAnnealing,
+    PolynomialHoldDecayAnnealing,
+    SquareAnnealing,
+    SquareRootAnnealing,
+    WarmupAnnealing,
+    WarmupHoldPolicy,
+    WarmupPolicy,
+    prepare_scheduler,
+)
