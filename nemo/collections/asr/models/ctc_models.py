@@ -26,7 +26,7 @@ from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
-from nemo.core.neural_types import NeuralType
+from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
 
@@ -102,12 +102,22 @@ class EncDecCTCModel(ASRModel):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.preprocessor.input_types
+        if hasattr(self.preprocessor, '_sample_rate'):
+            audio_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
+        else:
+            audio_eltype = AudioSignal()
+        return {
+            "input_signal": NeuralType(('B', 'T'), audio_eltype),
+            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
+        }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        # TODO: Write me
-        return None
+        return {
+            "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
+        }
 
     def __init__(
         self,
@@ -167,6 +177,7 @@ class EncDecCTCModel(ASRModel):
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
+        print("Performing forward of validation step")
         log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
