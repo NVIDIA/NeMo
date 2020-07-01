@@ -15,6 +15,7 @@
 import math
 import warnings
 
+import torch.optim.lr_scheduler as pt_scheduler
 from torch.optim.lr_scheduler import _LRScheduler
 
 __all__ = [
@@ -315,3 +316,16 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
             for initial_lr in self.base_lrs
         ]
         return new_lrs
+
+
+def prepare_scheduler(scheduler: _LRScheduler, monitor: str = 'val_loss'):
+
+    if isinstance(scheduler, pt_scheduler.ReduceLROnPlateau):
+        reduce_lr_on_plateau = {'reduce_on_plateau': True}
+    else:
+        reduce_lr_on_plateau = {'reduce_on_plateau': False}
+
+    schedule_dict = {'scheduler': scheduler, 'interval': 'step', 'frequency': 1, 'monitor': monitor}
+    schedule_dict.update(reduce_lr_on_plateau)
+
+    return schedule_dict
