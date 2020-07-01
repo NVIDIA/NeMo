@@ -91,10 +91,16 @@ def add_optimizer_args(parent_parser: ArgumentParser) -> ArgumentParser:
 
     parser.add_argument('--optimizer', type=str, default='adam', help='Name of the optimizer. Defaults to Adam.')
     parser.add_argument('--lr', type=float, required=True, help='Learning rate of the optimizer.')
-    parser.add_argument('--opt_args', default=[], nargs='+', type=str, help='Overriding arguments for the optimizer. \n'
-                                                                            'Must follow the pattern : \n'
-                                                                            'name=value seperated by spaces.')
-    
+    parser.add_argument(
+        '--opt_args',
+        default=[],
+        nargs='+',
+        type=str,
+        help='Overriding arguments for the optimizer. \n'
+        'Must follow the pattern : \n'
+        'name=value seperated by spaces.',
+    )
+
     return parser
 
 
@@ -107,8 +113,9 @@ def register_optimizer(name, optimizer: optimizer.Optimizer):
 
 def get_optimizer(name, **kwargs):
     if name not in AVAILABLE_OPTIMIZERS:
-        raise ValueError(f"Cannot resolve optimizer '{name}'. Available optimizers are : "
-                         f"{AVAILABLE_OPTIMIZERS.keys()}")
+        raise ValueError(
+            f"Cannot resolve optimizer '{name}'. Available optimizers are : " f"{AVAILABLE_OPTIMIZERS.keys()}"
+        )
 
     optimizer = AVAILABLE_OPTIMIZERS[name]
     optimizer = partial(optimizer, **kwargs)
