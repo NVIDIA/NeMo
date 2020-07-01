@@ -21,20 +21,18 @@ from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['TokenClassifier']
-
-ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
+__all__ = ['SequenceClassifier']
 
 
 # @experimental
-class TokenClassifier(NeuralModule):
+class SequenceClassifier(NeuralModule):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        return {"logits": NeuralType(('B', 'D'), LogitsType())}
 
     def __init__(
         self,
@@ -43,28 +41,25 @@ class TokenClassifier(NeuralModule):
         activation: object = 'relu',
         log_softmax: object = True,
         dropout: object = 0.0,
+        num_layers: object = 1,
         use_transformer_pretrained: object = True,
     ) -> object:
         super().__init__()
-        if activation not in ACT2FN:
-            raise ValueError(f'activation "{activation}" not found')
-        self.dense = nn.Linear(hidden_size, hidden_size)
-        self.act = ACT2FN[activation]
-        self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
         self.mlp = MultiLayerPerceptron(
-            hidden_size, num_classes, num_layers=1, activation=activation, log_softmax=log_softmax
+            hidden_size=hidden_size,
+            num_classes=num_classes,
+            num_layers=num_layers,
+            activation=activation,
+            log_softmax=log_softmax,
         )
         self.dropout = nn.Dropout(dropout)
         if use_transformer_pretrained:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
 
     @typecheck()
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, idx_conditioned_on=0):
         hidden_states = self.dropout(hidden_states)
-        hidden_states = self.dense(hidden_states)
-        hidden_states = self.act(hidden_states)
-        transform = self.norm(hidden_states)
-        logits = self.mlp(transform)
+        logits = self.mlp(hidden_states[:, idx_conditioned_on])
         return logits
 
     def save_to(self, save_path: str):

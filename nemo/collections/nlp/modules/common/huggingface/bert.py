@@ -1,4 +1,6 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +23,7 @@ from nemo.utils.decorators import experimental
 __all__ = ['BertEncoder']
 
 
-@experimental
+# @experimental
 class BertEncoder(BertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
