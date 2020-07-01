@@ -24,7 +24,7 @@ from nemo.utils.decorators import experimental
 __all__ = ['SequenceClassifier']
 
 
-# @experimental
+@experimental
 class SequenceClassifier(NeuralModule):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
-from nemo.collections.nlp.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
+from nemo.collections.nlp.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
@@ -32,7 +33,12 @@ from nemo.utils.decorators import experimental
 __all__ = ['BERTLMModel']
 
 
+@experimental
 class BERTLMModel(ModelPT):
+    """
+    BERT LM model pretraining.
+    """
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -44,10 +50,12 @@ class BERTLMModel(ModelPT):
             'nsp_logits': self.nsp_classifier.output_types['logits'],
         }
 
-    def __init__(
-        self, num_classes, pretrained_model_name='bert-base-uncased', use_transformer_pretrained=True,
-    ):
-        # init superclass
+    def __init__(self, num_classes: int, pretrained_model_name: Optional[str] = 'bert-base-uncased'):
+        """
+        Args:
+            num_classes: output vocabulary size of language model
+            pretrained_model_name: BERT model name 
+        """
         super().__init__()
         self.bert_model = BertEncoder.from_pretrained(pretrained_model_name)
         self.hidden_size = self.bert_model.config.hidden_size
@@ -57,7 +65,7 @@ class BERTLMModel(ModelPT):
             num_classes=num_classes,
             activation='gelu',
             log_softmax=True,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_pretrained=True,
         )
 
         self.nsp_classifier = SequenceClassifier(
@@ -66,7 +74,7 @@ class BERTLMModel(ModelPT):
             num_layers=2,
             log_softmax=False,
             activation='tanh',
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_pretrained=True,
         )
 
         self.mlm_loss = SmoothedCrossEntropyLoss()
@@ -201,10 +209,10 @@ class BERTLMModel(ModelPT):
         dl = BertPretrainingPreprocessedDataloader(
             data_files=files, max_pred_length=max_pred_length, batch_size=batch_size
         )
-        return dl
         # return torch.utils.data.DataLoader(
         #     dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
         # )
+        return dl
 
     def configure_optimizers(self):
         return self.__optimizer

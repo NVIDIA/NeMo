@@ -17,14 +17,14 @@
 import torch
 from torch import nn
 
-from nemo.core.classes import NeuralModule, Typing, typecheck
+from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LogprobsType, LossType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['AggregatorLoss']
 
 
-class AggregatorLoss(NeuralModule):
+class AggregatorLoss(nn.Module, Typing, Serialization):
     """
     Neural module which combines sums several losses into one.
     Args:
@@ -69,10 +69,3 @@ class AggregatorLoss(NeuralModule):
             else:
                 loss = loss.add(loss_value)
         return loss
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass

@@ -26,7 +26,7 @@ __all__ = ['TokenClassifier']
 ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 
 
-# @experimental
+@experimental
 class TokenClassifier(NeuralModule):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
