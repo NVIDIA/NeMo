@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['AudioToMelSpectrogramPreprocessor', 'SpectrogramAugmentation']
-
 from abc import ABC, abstractmethod
 
 import torch
@@ -23,6 +21,8 @@ from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, MelSpectrogramType, NeuralType, SpectrogramType
 from nemo.utils.decorators import experimental
+
+__all__ = ['AudioToMelSpectrogramPreprocessor', 'SpectrogramAugmentation']
 
 
 class AudioPreprocessor(NeuralModule, ABC):

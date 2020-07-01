@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-__all__ = ['ConvASRDecoder', 'ConvASREncoder']
-
 from collections import OrderedDict
 
 import torch
@@ -29,6 +26,8 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils.decorators import experimental
+
+__all__ = ['ConvASRDecoder', 'ConvASREncoder']
 
 
 @experimental

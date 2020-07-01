@@ -12,22 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
+import torch
 
-from nemo.core.classes import ModelPT
+from nemo.core.classes.common import Serialization, Typing
 
-__all__ = ['ASRModel']
+__all__ = ['Loss']
 
 
-class ASRModel(ModelPT, ABC):
-    @abstractmethod
-    def transcribe(self, path2audio_file: str) -> str:
-        """
-        Takes path to audio file and returns text transcription
-        Args:
-            path2audio_file: path to audio fragment to be transcribed
+class Loss(torch.nn.modules.loss._Loss, Typing, Serialization):
+    """Inherit this class to implement custom loss."""
 
-        Returns:
-            transcription text
-        """
-        pass
+    def __init__(self, **kwargs):
+        super(Loss, self).__init__(**kwargs)

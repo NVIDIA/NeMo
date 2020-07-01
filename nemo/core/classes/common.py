@@ -14,9 +14,6 @@
 
 
 """Interfaces common to all Neural Modules and Models."""
-__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
-
-import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
@@ -25,6 +22,8 @@ from ruamel.yaml import YAML
 
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging
+
+__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
 
 class Typing(ABC):

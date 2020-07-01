@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
+from abc import ABC
+from typing import Dict, Optional, Tuple
+
+from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 
 __all__ = [
     'ElementType',
@@ -44,12 +49,6 @@ __all__ = [
     'TokenIndex',
     'Length',
 ]
-
-import abc
-from abc import ABC
-from typing import Dict, Optional, Tuple
-
-from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
 
 
 class ElementType(ABC):
