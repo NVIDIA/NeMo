@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-__all__ = ['NeuralModule']
-
 from torch.nn import Module
 
 from nemo.core.classes.common import FileIO, Serialization, Typing
+
+__all__ = ['NeuralModule']
 
 
 class NeuralModule(Module, Typing, Serialization, FileIO):

@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.data_utils import *
-from nemo.collections.nlp.data.token_classification_dataset import (
-    BertTokenClassificationDataset,
-    BertTokenClassificationInferDataset,
-)
-from nemo.collections.nlp.data.punctuation_capitalization_dataset import (
-    BertPunctuationCapitalizationDataset,
-    BertPunctuationCapitalizationInferDataset,
-)
+import torch
+
+from nemo.core.classes.common import Serialization, Typing
+
+__all__ = ['Loss']
+
+
+class Loss(torch.nn.modules.loss._Loss, Typing, Serialization):
+    """Inherit this class to implement custom loss."""
+
+    def __init__(self, **kwargs):
+        super(Loss, self).__init__(**kwargs)

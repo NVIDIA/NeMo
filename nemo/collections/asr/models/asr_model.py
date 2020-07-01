@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['ASRModel']
-
 from abc import ABC, abstractmethod
 
 from nemo.core.classes import ModelPT
+
+__all__ = ['ASRModel']
 
 
 class ASRModel(ModelPT, ABC):

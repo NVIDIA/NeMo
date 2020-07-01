@@ -19,46 +19,50 @@ __all__ = ['BertPunctuationCapitalizationDataset', 'BertPunctuationCapitalizatio
 import itertools
 import os
 import pickle
+from typing import List, Optional, dict
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
 from nemo import logging
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
 
 
 def get_features(
-    queries,
-    max_seq_length,
-    tokenizer,
-    punct_label_ids=None,
-    capit_label_ids=None,
-    pad_label='O',
+    queries: List[str],
+    max_seq_length: int,
+    tokenizer: TokenizerSpec,
+    punct_label_ids: Optional[dict] = None,
+    capit_label_ids: Optional[dict] = None,
+    pad_label: Optional[str] = 'O',
     punct_labels_lines=None,
     capit_labels_lines=None,
     ignore_extra_tokens=False,
-    ignore_start_end=False,
+    ignore_start_end: Optional[bool] = False,
 ):
     """
+    Processes the data, tokenizes and returns features.
+
     Args:
-    queries (list of str): text sequences
-    max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-    tokenizer (TokenizerSpec): such as NemoBertTokenizer
-    pad_label (str): pad value use for labels.
-        by default, it's the neutral label.
-    punct_label_ids (dict): dict to map punctuation labels to label ids.
-        Starts with pad_label->0 and then increases in alphabetical order.
-        Required for training and evaluation, not needed for inference.
-    capit_label_ids (dict): dict to map labels to label ids. Starts
-        with pad_label->0 and then increases in alphabetical order.
-        Required for training and evaluation, not needed for inference.
-    punct_labels (list of str): list of labels for every word in a sequence
-    capit_labels (list of str): list of labels for every word in a sequence
-    ignore_extra_tokens (bool): whether to ignore extra tokens in
-        the loss_mask,
-    ignore_start_end (bool): whether to ignore bos and eos tokens in
-        the loss_mask
+        queries (list of str): text sequences
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer (TokenizerSpec): such as NemoBertTokenizer
+        pad_label (str): pad value use for labels.
+            by default, it's the neutral label.
+        punct_label_ids (dict): dict to map punctuation labels to label ids.
+            Starts with pad_label->0 and then increases in alphabetical order.
+            Required for training and evaluation, not needed for inference.
+        capit_label_ids (dict): dict to map labels to label ids. Starts
+            with pad_label->0 and then increases in alphabetical order.
+            Required for training and evaluation, not needed for inference.
+        punct_labels (list of str): list of labels for every word in a sequence
+        capit_labels (list of str): list of labels for every word in a sequence
+        ignore_extra_tokens (bool): whether to ignore extra tokens in
+            the loss_mask,
+        ignore_start_end (bool): whether to ignore bos and eos tokens in
+            the loss_mask
     """
     all_subtokens = []
     all_loss_mask = []

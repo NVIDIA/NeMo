@@ -22,11 +22,10 @@ from torch.utils.data import DataLoader
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.neural_types import NeuralType, LogitsType
+from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['PunctuationCapitalizationModel']
@@ -40,7 +39,10 @@ class PunctuationCapitalizationModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"punct_logits": NeuralType(('B', 'T', 'C'), LogitsType()), "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+        return {
+            "punct_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
+        }
 
     def __init__(
         self,
@@ -54,8 +56,7 @@ class PunctuationCapitalizationModel(ModelPT):
         use_transformer_pretrained=True,
         tokenizer_type='nemobert',
         punct_num_fc_layers=1,
-        capit_num_fc_layers=1
-
+        capit_num_fc_layers=1,
     ):
         # init superclass
         super().__init__()
@@ -118,7 +119,9 @@ class PunctuationCapitalizationModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels = batch
-        punct_logits, capit_logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        punct_logits, capit_logits = self(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+        )
 
         # TODO replace with loss module
         punct_logits_flatten = torch.flatten(punct_logits, start_dim=0, end_dim=-2)
@@ -139,7 +142,9 @@ class PunctuationCapitalizationModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels = batch
-        punct_logits, capit_logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        punct_logits, capit_logits = self(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+        )
 
         # TODO replace with loss module
         punct_logits_flatten = torch.flatten(punct_logits, start_dim=0, end_dim=-2)
@@ -219,7 +224,7 @@ class PunctuationCapitalizationModel(ModelPT):
             ignore_extra_tokens=ignore_extra_tokens,
             ignore_start_end=ignore_start_end,
             overwrite_processed_files=overwrite_processed_files,
-            num_samples=num_samples
+            num_samples=num_samples,
         )
 
         return torch.utils.data.DataLoader(
