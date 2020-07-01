@@ -45,6 +45,9 @@ def _boolify(s):
 
 
 def _autocast(value):
+    if value is None:
+        return None
+
     if "," in value:
         values = value.split(',')
         values = [_autocast(value) for value in values]
@@ -69,6 +72,10 @@ def _check_valid_opt_params(lr, eps, betas):
 
 def parse_optimizer_args(optimizer_kwargs):
     kwargs = {}
+
+    if optimizer_kwargs is None:
+        return kwargs
+
     for key_value in optimizer_kwargs:
         key, str_value = key_value.split('=')
 

@@ -86,7 +86,7 @@ class EncDecCTCModel(ASRModel):
         optimizer_name = optim_params.get('optimizer', 'adam')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
-        optimizer_args = optim_params.get('opt_args', '')
+        optimizer_args = optim_params.get('opt_args', [])
         optimizer_args = parse_optimizer_args(optimizer_args)
 
         # We are guarenteed to have lr since it is required by the argparser
@@ -198,7 +198,6 @@ class EncDecCTCModel(ASRModel):
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        logging.info("Performing forward of validation step")
         log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
