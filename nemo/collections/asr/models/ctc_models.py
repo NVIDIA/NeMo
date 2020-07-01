@@ -21,7 +21,8 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes.common import Serialization, typecheck
+from nemo.core.classes.common import Serialization, typecheck, logging
+from nemo.core.classes.optimizers import get_optimizer, parse_optimizer_args
 from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -79,7 +80,33 @@ class EncDecCTCModel(ASRModel):
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
     def setup_optimization(self, optim_params: Optional[Dict]):
-        self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
+        optim_params = optim_params or {}  # In case null was passed as optim_params
+
+        # Check if caller provided optimizer name, default to Adam otherwise
+        if 'optimizer' in optim_params:
+            optimizer_name = optim_params['optimizer']
+        else:
+            optimizer_name = 'adam'
+
+        # Check if caller has optimizer kwargs, default to empty dictionary
+        if 'opt_args' in optim_params:
+            optimizer_args = parse_optimizer_args(optim_params['opt_args'])
+        else:
+            optimizer_args = {}
+
+        # We are guarenteed to have lr since it is required by the argparser
+        # But maybe user forgot to pass it to this function
+        if 'lr' in optim_params:
+            lr = optim_params['lr']
+        else:
+            raise ValueError('`lr` must be passed when setting up the optimization !')
+
+        # Actually instantiate the optimizer
+        optimizer = get_optimizer(optimizer_name)
+        self.__optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+
+        # TODO: Remove after demonstration
+        logging.info("Optimizer config = %s", str(self.__optimizer))
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
