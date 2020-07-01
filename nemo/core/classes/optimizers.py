@@ -78,22 +78,27 @@ def parse_optimizer_args(optimizer_kwargs):
     return kwargs
 
 
-def add_optimizer_args(parent_parser: ArgumentParser) -> ArgumentParser:
+def add_optimizer_args(parent_parser: ArgumentParser, optimizer='adam', default_opt_args=None) -> ArgumentParser:
     """Extends existing argparse with support for optimizers.
 
     Args:
         parent_parser (ArgumentParser): Custom CLI parser that will be extended.
+        optimizer (str): Default optimizer required.
+        default_opt_args (list(str)): List of overriding arguments for the instantiated optimizer.
 
     Returns:
         ArgumentParser: Parser extended by Optimizers arguments.
     """
+    if default_opt_args is None:
+        default_opt_args = []
+
     parser = ArgumentParser(parents=[parent_parser], add_help=True, conflict_handler='resolve')
 
-    parser.add_argument('--optimizer', type=str, default='adam', help='Name of the optimizer. Defaults to Adam.')
+    parser.add_argument('--optimizer', type=str, default=optimizer, help='Name of the optimizer. Defaults to Adam.')
     parser.add_argument('--lr', type=float, required=True, help='Learning rate of the optimizer.')
     parser.add_argument(
         '--opt_args',
-        default=[],
+        default=default_opt_args,
         nargs='+',
         type=str,
         help='Overriding arguments for the optimizer. \n'
