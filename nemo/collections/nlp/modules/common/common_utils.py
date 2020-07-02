@@ -15,8 +15,13 @@
 # =============================================================================
 
 from typing import List, Optional
+
 from nemo import logging
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_lm_models_list, get_huggingface_lm_model
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
+    get_huggingface_lm_model,
+    get_huggingface_lm_models_list,
+)
+
 try:
     __megatron_utils_satisfied = True
     from nemo.collections.nlp.modules.common import MegatronBERT, get_megatron_lm_models_list
@@ -25,6 +30,7 @@ except Exception as e:
     __megatron_utils_satisfied = False
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
+
 
 def get_pretrained_lm_models_list() -> List[str]:
     '''
@@ -35,24 +41,26 @@ def get_pretrained_lm_models_list() -> List[str]:
     else:
         return get_huggingface_lm_models_list()
 
-def get_pretrained_lm_model(pretrained_model_name, config=None, checkpoint=None):
+
+def get_pretrained_lm_model(
+    pretrained_model_name: str, config_file: Optional[str] = None, checkpoint_file: Optional[str] = None
+):
     '''
     Returns pretrained model
     Args:
         pretrained_model_name (str): pretrained model name, for example, bert-base-uncased.
             See the full list by calling get_pretrained_lm_models_list()
-        config (str): path to the model configuration file
-        vocab (str): path to the vocabulary file used during model training 
-        checkpoint (str): path to the pretrained model checkpoint
+        config_file (str): path to the model configuration file
+        checkpoint_file (str): path to the pretrained model checkpoint
     Returns:
         Pretrained model (NM)
     '''
     if pretrained_model_name in get_huggingface_lm_models_list():
-        model = get_huggingface_lm_model(config_file=config, pretrained_model_name=pretrained_model_name)
+        model = get_huggingface_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
     # elif __megatron_utils_satisfied and pretrained_model_name in get_megatron_lm_models_list():
     #     if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
-    #         if not (config and checkpoint):
-    #             raise ValueError(f'Config file and pretrained checkpoint required for {pretrained_model_name}')
+    #         if not (config and checkpoint_file):
+    #             raise ValueError(f'Config file and pretrained checkpoint_file required for {pretrained_model_name}')
     #     if not config:
     #         config = get_megatron_config_file(pretrained_model_name)
     #     if isinstance(config, str):
@@ -60,8 +68,8 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, checkpoint=None)
     #             config = json.load(f)
     #     if not vocab:
     #         vocab = get_megatron_vocab_file(pretrained_model_name)
-    #     if not checkpoint:
-    #         checkpoint = get_megatron_checkpoint(pretrained_model_name)
+    #     if not checkpoint_file:
+    #         checkpoint_file = get_megatron_checkpoint_file(pretrained_model_name)
     #     model = MegatronBERT(
     #         model_name=pretrained_model_name,
     #         vocab_file=vocab,
@@ -73,7 +81,7 @@ def get_pretrained_lm_model(pretrained_model_name, config=None, checkpoint=None)
     else:
         raise ValueError(f'{pretrained_model_name} is not supported')
 
-    if checkpoint:
-        model.restore_from(checkpoint)
-        logging.info(f"{pretrained_model_name} model restored from {checkpoint}")
+    if checkpoint_file:
+        model.restore_from(checkpoint_file)
+        logging.info(f"{pretrained_model_name} model restored from {checkpoint_file}")
     return model

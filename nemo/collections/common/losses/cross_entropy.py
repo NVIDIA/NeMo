@@ -17,7 +17,7 @@
 import torch
 from torch import nn
 
-from nemo.core.classes import typecheck, Serialization, Typing
+from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LogprobsType, LossType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
 

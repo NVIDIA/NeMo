@@ -19,12 +19,12 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
 from nemo.collections.nlp.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -58,7 +58,7 @@ class BERTLMModel(ModelPT):
             pretrained_model_name: BERT model name 
         """
         super().__init__()
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config=config_file)
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)

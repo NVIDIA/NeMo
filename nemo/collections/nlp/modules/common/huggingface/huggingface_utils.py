@@ -1,4 +1,3 @@
-  
 # =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
@@ -15,11 +14,20 @@
 # limitations under the License.
 # =============================================================================
 
-from typing import Optional, List
+from typing import List, Optional
+
+from transformers import (
+    ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+    AlbertConfig,
+    BertConfig,
+    RobertaConfig,
+)
+
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
-from transformers import BertConfig, AlbertConfig, RobertaConfig, BERT_PRETRAINED_MODEL_ARCHIVE_LIST, ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST, ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST
 
 __all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list']
 
@@ -45,9 +53,24 @@ def get_huggingface_lm_model(pretrained_model_name: str, config_file: Optional[s
 
 
 MODELS = {
-    'bert': {'default': 'bert-base-uncased', 'class': BertEncoder, 'config': BertConfig, 'model_list': BERT_PRETRAINED_MODEL_ARCHIVE_LIST},
-    'roberta': {'default': 'roberta-base', 'class': RobertaEncoder, 'config': RobertaConfig, 'model_list': ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST},
-    'albert': {'default': 'albert-base-v2', 'class': AlbertEncoder, 'config': AlbertConfig, 'model_list': ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST},
+    'bert': {
+        'default': 'bert-base-uncased',
+        'class': BertEncoder,
+        'config': BertConfig,
+        'model_list': BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
+    'roberta': {
+        'default': 'roberta-base',
+        'class': RobertaEncoder,
+        'config': RobertaConfig,
+        'model_list': ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
+    'albert': {
+        'default': 'albert-base-v2',
+        'class': AlbertEncoder,
+        'config': AlbertConfig,
+        'model_list': ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
 }
 
 
