@@ -24,9 +24,9 @@ from torch.utils.data import DataLoader
 # TODO replace with nemo module
 from transformers import BertModel
 
-from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.nlp.data.text_classification import TextClassificationDataset, TextClassificationDataDesc
 from nemo.collections.common.losses import CrossEntropyLoss
+from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
 from nemo.collections.nlp.modules.common import SequenceClassifier
 
 __all__ = ['TextClassificationModel']

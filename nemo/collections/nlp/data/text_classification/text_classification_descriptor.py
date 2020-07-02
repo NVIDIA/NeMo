@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+from typing import List
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
@@ -34,7 +35,7 @@ class TextClassificationDataDesc:
         modes (list(str)): list of the modes to read, it can be from ["train", "test", "dev"] by default. It is going to look for the data files at {data_dir}/{mode}.tsv
     """
 
-    def __init__(self, data_dir: str, modes: list(str) = ['train', 'test', 'dev']):
+    def __init__(self, data_dir: str, modes: List[str] = ['train', 'test', 'dev']):
         self.data_dir = data_dir
 
         class_weights_dict = None
