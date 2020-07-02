@@ -17,24 +17,24 @@
 
 from typing import Dict, Optional
 
-import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
 
 # TODO replace with nemo module
 from transformers import BertModel
-from nemo.core.classes import typecheck
-from nemo.core.neural_types import NeuralType
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
 from nemo.collections.nlp.modules.common import SequenceClassifier
+from nemo.core.classes import typecheck
+from nemo.core.classes.modelPT import ModelPT
+from nemo.core.neural_types import NeuralType
 
 __all__ = ['TextClassificationModel']
 
 
-class TextClassificationModel(pl.LightningModule):
+class TextClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -151,6 +151,9 @@ class TextClassificationModel(pl.LightningModule):
     def setup_validation_data(self, file_path, dataloader_params={}):
         self.__val_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
 
+    def setup_test_data(self, file_path, dataloader_params={}):
+        self.__test_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+
     def __setup_dataloader(
         self, input_file, dataloader_params={},
     ):
@@ -171,9 +174,25 @@ class TextClassificationModel(pl.LightningModule):
             pin_memory=dataloader_params.get("pin_memory", False),
         )
 
-    def set_optimizer(self, optimizer):
-        # TODO: complete here
-        self.__optimizer = optimizer
+    def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
+        if optimizer == 'adam':
+            self.__optimizer = torch.optim.Adam(
+                self.parameters(),
+                lr=optim_params['lr'],
+                weight_decay=optim_params.get('weight_decay', 0),
+                betas=optim_params.get('betas', (0.9, 0.999)),
+                eps=optim_params.get('eps', 1e-08),
+            )
+        elif optimizer == 'adam_w':
+            self.__optimizer = torch.optim.AdamW(
+                self.parameters(),
+                lr=optim_params['lr'],
+                weight_decay=optim_params.get('weight_decay', 0),
+                betas=optim_params.get('betas', (0.9, 0.999)),
+                eps=optim_params.get('eps', 1e-08),
+            )
+        else:
+            raise NotImplementedError()
 
     def configure_optimizers(self):
         return self.__optimizer
@@ -200,4 +219,16 @@ class TextClassificationModel(pl.LightningModule):
         Args:
             :param restore_path: Path to restore the module from.
         """
+        pass
+
+    @classmethod
+    def list_available_models(cls) -> Optional[Dict[str, str]]:
+        pass
+
+    @classmethod
+    def from_pretrained(cls, name: str):
+        pass
+
+    @classmethod
+    def export(self, **kwargs):
         pass
