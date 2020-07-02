@@ -28,7 +28,12 @@ __all__ = ['TextClassificationDataDesc']
 
 
 class TextClassificationDataDesc:
-    def __init__(self, data_dir, modes=['train', 'test', 'dev']):
+    """A descriptor class that reads all the data and calculates some stats of the data and also calculates the class weights to be used for class balancing
+    Args:
+        data_dir (str): the path to the data folder
+        modes (list(str)): list of the modes to read, it can be from ["train", "test", "dev"] by default. It is going to look for the data files at {data_dir}/{mode}.tsv
+    """
+    def __init__(self, data_dir: str, modes: list(str) = ['train', 'test', 'dev']):
         self.data_dir = data_dir
 
         class_weights_dict = None
