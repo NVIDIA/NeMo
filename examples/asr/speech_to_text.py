@@ -50,7 +50,7 @@ def main(args):
     model_config['AudioToTextDataLayer']['manifest_filepath'] = args.train_dataset
     model_config['AudioToTextDataLayer_eval']['manifest_filepath'] = args.eval_dataset
     asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
-    # asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
+    asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
 
     # Setup optimizer and scheduler
     scheduler_args = {
