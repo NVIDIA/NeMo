@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
@@ -50,19 +51,20 @@ class BERTLMModel(ModelPT):
             'nsp_logits': self.nsp_classifier.output_types['logits'],
         }
 
-    def __init__(self, num_classes: int, pretrained_model_name: Optional[str] = 'bert-base-uncased'):
+    def __init__(self, config_file: Optional[str] = None, pretrained_model_name: Optional[str] = 'bert-base-uncased'):
         """
         Args:
-            num_classes: output vocabulary size of language model
+            config_file: model config file
             pretrained_model_name: BERT model name 
         """
         super().__init__()
-        self.bert_model = BertEncoder.from_pretrained(pretrained_model_name)
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
+        self.vocab_size = self.bert_model.config.vocab_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.mlm_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=num_classes,
+            num_classes=self.vocab_size,
             activation='gelu',
             log_softmax=True,
             use_transformer_pretrained=True,

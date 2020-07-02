@@ -105,16 +105,8 @@ def parse_args():
 def main():
 
     args = parse_args()
-    config = BertConfig.from_json_file(args.config_file).to_dict()
-    args.vocab_size = config['vocab_size']
-    args.hidden_size = config['hidden_size']
-    args.num_hidden_layers = config['num_hidden_layers']
-    args.num_attention_heads = config['num_attention_heads']
-    args.intermediate_size = config['intermediate_size']
-    args.hidden_act = config['hidden_act']
-    args.max_seq_length = config['max_position_embeddings']
 
-    bert_model = BERTLMModel(num_classes=args.vocab_size)
+    bert_model = BERTLMModel(pretrained_model_name='bert-base-uncased', config_file=args.config_file)
     bert_model.setup_training_data(
         train_data_layer_params={
             'train_data': args.data_dir,
