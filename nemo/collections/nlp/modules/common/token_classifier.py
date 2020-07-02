@@ -50,7 +50,7 @@ class TokenClassifier(NeuralModule):
         self,
         hidden_size: int,
         num_classes: int,
-        num_layers: int,
+        num_layers: int = 1,
         activation: str = 'relu',
         log_softmax: bool = True,
         dropout: float = 0.0,
