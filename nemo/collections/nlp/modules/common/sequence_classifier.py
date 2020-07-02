@@ -43,6 +43,7 @@ class SequenceClassifier(NeuralModule):
         log_softmax: bool = True,
         dropout: float = 0.0,
         use_transformer_init: bool = True,
+        idx_conditioned_on: int = 0
     ):
         """
         Initializes the SequenceClassifier module.
@@ -54,8 +55,10 @@ class SequenceClassifier(NeuralModule):
             log_softmax (bool): applies the log softmax on the output
             dropout (float): the dropout used for the mlp head
             use_transformer_init (bool): initializes the weights with the same approach used in Transformer
+            idx_conditioned_on (int): index of the token which its outputs are being used for classification, default is the first token
         """
         super().__init__()
+        self._idx_conditioned_on = idx_conditioned_on
         # TODO: what happens to device?
         self.mlp = MultiLayerPerceptron(
             hidden_size=hidden_size,
@@ -71,9 +74,9 @@ class SequenceClassifier(NeuralModule):
         # self.to(self._device) # sometimes this is necessary
 
     @typecheck()
-    def forward(self, hidden_states, idx_conditioned_on=0):
+    def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
-        logits = self.mlp(hidden_states[:, idx_conditioned_on])
+        logits = self.mlp(hidden_states[:, self._idx_conditioned_on])
         return logits
 
     @classmethod
