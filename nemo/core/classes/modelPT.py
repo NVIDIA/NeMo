@@ -88,7 +88,8 @@ class ModelPT(LightningModule, Model):
             raise ValueError('`lr` must be passed to `optim_params` when setting up the optimization !')
 
         # Actually instantiate the optimizer
-        optimizer = get_optimizer(optimizer_name)(self.parameters(), lr=lr, **optimizer_args)
+        optimizer = get_optimizer(optimizer_name)
+        optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
 
         # TODO: Remove after demonstration
         logging.info("Optimizer config = %s", str(optimizer))
