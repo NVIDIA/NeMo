@@ -65,7 +65,7 @@ class BERTLMModel(ModelPT):
             num_classes=num_classes,
             activation='gelu',
             log_softmax=True,
-            use_transformer_pretrained=True,
+            use_transformer_init=True,
         )
 
         self.nsp_classifier = SequenceClassifier(
@@ -74,7 +74,7 @@ class BERTLMModel(ModelPT):
             num_layers=2,
             log_softmax=False,
             activation='tanh',
-            use_transformer_pretrained=True,
+            use_transformer_init=True,
         )
 
         self.mlm_loss = SmoothedCrossEntropyLoss()

@@ -50,7 +50,7 @@ class NERModel(ModelPT):
         activation='relu',
         log_softmax=True,
         dropout=0.0,
-        use_transformer_pretrained=True,
+        use_transformer_init=True,
     ):
         # init superclass
         super().__init__()
@@ -63,7 +63,7 @@ class NERModel(ModelPT):
             activation=activation,
             log_softmax=log_softmax,
             dropout=dropout,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_init=use_transformer_init,
         )
 
         self.loss = nn.CrossEntropyLoss()

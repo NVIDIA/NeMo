@@ -43,7 +43,7 @@ class TokenClassifier(NeuralModule):
         activation: object = 'relu',
         log_softmax: object = True,
         dropout: object = 0.0,
-        use_transformer_pretrained: object = True,
+        use_transformer_init: object = True,
     ) -> object:
         super().__init__()
         if activation not in ACT2FN:
@@ -55,7 +55,7 @@ class TokenClassifier(NeuralModule):
             hidden_size, num_classes, num_layers=1, activation=activation, log_softmax=log_softmax
         )
         self.dropout = nn.Dropout(dropout)
-        if use_transformer_pretrained:
+        if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
 
     @typecheck()
