@@ -23,7 +23,6 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -78,8 +77,8 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(self, optim_params: Optional[Dict]):
-        self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
+    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optim_params)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
