@@ -50,7 +50,7 @@ def main(args):
     model_config['AudioToTextDataLayer']['manifest_filepath'] = args.train_dataset
     model_config['AudioToTextDataLayer_eval']['manifest_filepath'] = args.eval_dataset
     asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
-    asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
+    # asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
 
     # Setup optimizer and scheduler
     scheduler_args = {
@@ -62,8 +62,8 @@ def main(args):
     }
 
     if args.max_steps is None:
-        iters_per_sample = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
-        scheduler_args['iters_per_sample'] = iters_per_sample
+        iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
+        scheduler_args['iters_per_batch'] = iters_per_batch
     else:
         scheduler_args['max_steps'] = args.max_steps
 

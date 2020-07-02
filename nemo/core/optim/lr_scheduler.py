@@ -334,7 +334,7 @@ def prepare_lr_scheduler(
     ...,
     "scheduler": <a class that inherits torch.optim.lr_scheduler._LRScheduler>,
     "scheduler_args": {
-        "max_steps": int, <OR> "iters_per_sample": int,
+        "max_steps": int, <OR> "iters_per_batch": int,
         "monitor": <metric to monitor; say "loss" or "val_loss">,
         <any kwarg to pass onto the optimizer>
       }
@@ -343,7 +343,7 @@ def prepare_lr_scheduler(
     Args:
         optimizer: An instantiated Optimizer.
         scheduler_config: A dictionary which follows the above schema.
-        train_dataloader: Optional requirement, must be passed if "iters_per_sample" is defined
+        train_dataloader: Optional requirement, must be passed if "iters_per_batch" is defined
             instead of "max_steps". Used to compute effective "max_steps".
 
     Returns:
@@ -370,17 +370,21 @@ def prepare_lr_scheduler(
         # default to train loss
         monitor = 'loss'
 
-    # Compute effective max_steps if iters_per_sample is provided
-    if 'iters_per_sample' in scheduler_args:
+    # Compute effective max_steps if iters_per_batch is provided
+    if 'iters_per_batch' in scheduler_args:
         if train_dataloader is None:
             raise ValueError(
                 'As `iters_per_sample` is provided, it is required to pass the train dataloader in order '
                 'to compute effective maximum number of steps'
             )
 
-        iters_per_sample = scheduler_args.pop('iters_per_sample')
+        iters_per_batch = scheduler_args.pop('iters_per_batch')
         num_samples = len(train_dataloader.dataset)
-        max_steps = int(num_samples * iters_per_sample)
+        batch_size = train_dataloader.batch_size
+        max_steps = int(num_samples * iters_per_batch / float(batch_size))
+
+        additional_step = int(num_samples * iters_per_batch // float(batch_size)) % 2
+        max_steps += additional_step
 
         scheduler_args['max_steps'] = max_steps
 
