@@ -381,10 +381,7 @@ def prepare_lr_scheduler(
         iters_per_batch = scheduler_args.pop('iters_per_batch')
         num_samples = len(train_dataloader.dataset)
         batch_size = train_dataloader.batch_size
-        max_steps = int(num_samples * iters_per_batch / float(batch_size))
-
-        additional_step = int(num_samples * iters_per_batch // float(batch_size)) % 2
-        max_steps += additional_step
+        max_steps = round(num_samples * iters_per_batch / float(batch_size))
 
         scheduler_args['max_steps'] = max_steps
 
