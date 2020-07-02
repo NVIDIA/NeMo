@@ -17,7 +17,7 @@
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_models_list
 from nemo.collections.nlp.models.ner_model import NERModel
 
 
@@ -26,6 +26,8 @@ def main():
     parser.add_argument("--data_dir", type=str, required=True, default='', help="Path to data folder")
     parser.add_argument("--num_classes", type=int, default=9, help="Number of classes")
     parser.add_argument("--num_epochs", default=5, type=int, help="Number of epochs to train")
+    parser.add_argument("--pretrained_model_name", default="bert-base-uncased", type=str,
+                        help="Pretrained language model name", choices=get_pretrained_lm_models_list())
 
     args = parser.parse_args()
 
@@ -35,11 +37,11 @@ def main():
     ner_model.setup_optimization(optim_params={'lr': 0.0003})
 
     # multi GPU
-    # trainer = pl.Trainer(
-    #     val_check_interval=35, amp_level='O1', precision=16, gpus=2, max_epochs=123, distributed_backend='ddp'
-    # )
+    trainer = pl.Trainer(
+        val_check_interval=35, amp_level='O1', precision=16, gpus=2, max_epochs=123, distributed_backend='ddp'
+    )
     # single GPU
-    trainer = pl.Trainer(fast_dev_run=True)
+    # trainer = pl.Trainer(fast_dev_run=True)
     trainer.fit(ner_model)
 
 

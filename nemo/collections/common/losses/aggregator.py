@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,15 +14,14 @@
 # =============================================================================
 
 import torch
-from torch import nn
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LogprobsType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import LossType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['AggregatorLoss']
 
-
+@experimental
 class AggregatorLoss(Loss):
     """
     Sums several losses into one.

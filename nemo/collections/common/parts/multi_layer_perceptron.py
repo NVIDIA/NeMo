@@ -52,6 +52,5 @@ class MultiLayerPerceptron(torch.nn.Module):
             output_states = getattr(self, f'layer{i}')(output_states)
 
         if self.log_softmax:
-            output_states = torch.log_softmax(output_states.float(), dim=-1).to(hidden_states.dtype)
-            # TODO: make it work with float16
+            output_states = torch.log_softmax(output_states, dim=-1)
         return output_states
