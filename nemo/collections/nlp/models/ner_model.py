@@ -13,18 +13,16 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-
-# TODO replace with nemo module
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -45,28 +43,42 @@ class NERModel(ModelPT):
 
     def __init__(
         self,
-        num_classes,
-        pretrained_model_name='bert-base-cased',
-        activation='relu',
-        log_softmax=True,
-        dropout=0.0,
-        use_transformer_pretrained=True,
+        num_classes: int,
+        pretrained_model_name: str = 'bert-base-cased',
+        config_file: Optional[str] = None,
+        num_layers: int = 1,
+        activation: str = 'relu',
+        log_softmax: bool = True,
+        dropout: float = 0.0,
+        use_transformer_pretrained: bool = True,
     ):
+        """
+        Args:
+            :param num_classes: number of classes
+            :param pretrained_model_name: pretrained language model name, to see the complete list use
+            :param config_file: model config file
+            :param num_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            :param activation: activation to usee between fully connected layers in the MLP
+            :param log_softmax: whether to apply softmax to the output
+            :param dropout: dropout to apply to the input hidden states
+            :param use_transformer_pretrained: whether to use pre-trained transformer weights for weights initialization
+        """
         # init superclass
         super().__init__()
-        self.bert_model = BertEncoder.from_pretrained(pretrained_model_name)
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=num_classes,
+            num_layers=num_layers,
             activation=activation,
             log_softmax=log_softmax,
             dropout=dropout,
             use_transformer_pretrained=use_transformer_pretrained,
         )
 
-        self.loss = nn.CrossEntropyLoss()
+        self.loss = CrossEntropyLoss()
         # This will be set by setup_training_datai
         self.__train_dl = None
         # This will be set by setup_validation_data
@@ -97,11 +109,7 @@ class NERModel(ModelPT):
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-        # TODO replace with loss module
-        logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
-        labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
-        loss = self.loss(logits_flatten, labels_flatten)
-
+        loss = self.loss(logits=logits, labels=labels)
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
 
@@ -113,14 +121,9 @@ class NERModel(ModelPT):
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-        logits_flatten = torch.flatten(logits, start_dim=0, end_dim=-2)
-        labels_flatten = torch.flatten(labels, start_dim=0, end_dim=-1)
-        val_loss = self.loss(logits_flatten, labels_flatten)
+        val_loss = self.loss(logits=logits, labels=labels)
 
         tensorboard_logs = {'val_loss': val_loss}
-        # TODO - add eval - callback?
-        # labels_hat = torch.argmax(y_hat, dim=1)
-        # n_correct_pred = torch.sum(y == labels_hat).item()
         return {'val_loss': val_loss, 'log': tensorboard_logs}  # , "n_correct_pred": n_correct_pred, "n_pred": len(x)}
 
     def validation_epoch_end(self, outputs):
@@ -129,6 +132,7 @@ class NERModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # TODO - add metrics
         # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
         # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
         return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
