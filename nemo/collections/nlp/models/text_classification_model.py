@@ -23,6 +23,8 @@ from torch.utils.data import DataLoader
 
 # TODO replace with nemo module
 from transformers import BertModel
+from nemo.core.classes import typecheck
+from nemo.core.neural_types import NeuralType
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
@@ -33,6 +35,14 @@ __all__ = ['TextClassificationModel']
 
 
 class TextClassificationModel(pl.LightningModule):
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return self.bert_model.input_types
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return self.classifier.output_types
+
     def __init__(
         self,
         data_dir: str,
@@ -82,6 +92,7 @@ class TextClassificationModel(pl.LightningModule):
         # This will be set by setup_optimization
         self.__optimizer = None
 
+    @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
         No special modification required for Lightning, define it as you normally would
