@@ -23,8 +23,6 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
-from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -79,29 +77,8 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(self, optim_params: Optional[Dict]):
-        optim_params = optim_params or {}  # In case null was passed as optim_params
-
-        # Check if caller provided optimizer name, default to Adam otherwise
-        optimizer_name = optim_params.get('optimizer', 'adam')
-
-        # Check if caller has optimizer kwargs, default to empty dictionary
-        optimizer_args = optim_params.get('opt_args', [])
-        optimizer_args = parse_optimizer_args(optimizer_args)
-
-        # We are guarenteed to have lr since it is required by the argparser
-        # But maybe user forgot to pass it to this function
-        lr = optim_params.get('lr', None)
-
-        if 'lr' is None:
-            raise ValueError('`lr` must be passed when setting up the optimization !')
-
-        # Actually instantiate the optimizer
-        optimizer = get_optimizer(optimizer_name)
-        self.__optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
-
-        # TODO: Remove after demonstration
-        logging.info("Optimizer config = %s", str(self.__optimizer))
+    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optim_params)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
