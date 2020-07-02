@@ -26,7 +26,7 @@ __all__ = ['AggregatorLoss']
 
 class AggregatorLoss(Loss):
     """
-    Neural module which combines sums several losses into one.
+    Sums several losses into one.
     Args:
         num_inputs (int): number of input losses
         weights (list of floats): a list of coefficient for merging losses
@@ -51,7 +51,6 @@ class AggregatorLoss(Loss):
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(self, num_inputs=2, weights=None):
-        # Store number of inputs/losses.
         super().__init__()
         self._num_losses = num_inputs
         if weights is not None and len(weights) != num_inputs:

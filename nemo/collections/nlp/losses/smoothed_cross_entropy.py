@@ -71,7 +71,7 @@ class SmoothedCrossEntropy(torch.nn.Module):
 @experimental
 class SmoothedCrossEntropyLoss(SmoothedCrossEntropy, Loss):
     """
-    Neural module which calculates CrossEntropyLoss and
+    Calculates CrossEntropyLoss and
     1) excludes padding tokens from loss calculation
     2) allows to use label smoothing regularization
     3) allows to calculate loss for the desired number of last tokens
