@@ -28,7 +28,12 @@ class MultiLayerPerceptron(torch.nn.Module):
     """
 
     def __init__(
-        self, hidden_size: int, num_classes: int, num_layers: int = 2, activation: str = 'relu', log_softmax: bool = True,
+        self,
+        hidden_size: int,
+        num_classes: int,
+        num_layers: int = 2,
+        activation: str = 'relu',
+        log_softmax: bool = True,
     ):
         super().__init__()
         self.layers = 0

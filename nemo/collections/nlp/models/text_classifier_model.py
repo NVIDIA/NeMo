@@ -33,7 +33,14 @@ __all__ = ['BERTTextClassifier']
 
 
 class BERTTextClassifier(pl.LightningModule):
-    def __init__(self, data_dir: str, pretrained_model_name: str, num_output_layers: int, fc_dropout: float, class_balancing: bool):
+    def __init__(
+        self,
+        data_dir: str,
+        pretrained_model_name: str,
+        num_output_layers: int,
+        fc_dropout: float,
+        class_balancing: bool,
+    ):
         """
         Initializes the BERTTextClassifier model.
         Args:
