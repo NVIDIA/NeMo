@@ -51,7 +51,7 @@ def main(args):
     model_config['AudioToTextDataLayer_eval']['manifest_filepath'] = args.eval_dataset
     asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
     asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
-    asr_model.setup_optimization(optim_params={'optimizer': args.optimizer, 'lr': args.lr, 'opt_args': args.opt_args})
+    asr_model.setup_optimization(optim_params=vars(args))
     # trainer = pl.Trainer(
     #     val_check_interval=1, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
     # )
