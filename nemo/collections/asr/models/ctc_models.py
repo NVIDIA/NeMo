@@ -83,7 +83,7 @@ class EncDecCTCModel(ASRModel):
         self.__optimizer = super().setup_optimization(optim_params)
 
         # hard code the scheduler for now
-        total_steps = optim_params.get('total_steps')
+        total_steps = optim_params.get('max_steps')
         warmup_steps = optim_params.get('warmup_steps', None)
         warmup_ratio = optim_params.get('warmup_ratio', None)
         min_lr = optim_params.get('min_lr', 0.0)
@@ -215,7 +215,6 @@ class EncDecCTCModel(ASRModel):
         if self.__scheduler is None:
             return self.__optimizer
         else:
-            # needs to have 1:1 list size for optimizer : scheduler
             return [self.__optimizer], [self.__scheduler]
 
     def train_dataloader(self):

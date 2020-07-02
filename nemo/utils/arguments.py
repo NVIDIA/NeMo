@@ -29,3 +29,36 @@ def add_asr_args(parent_parser: ArgumentParser) -> ArgumentParser:
     parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
     parser.add_argument("--eval_dataset", type=str, required=True, help="evaluation dataset path")
     return parser
+
+
+def add_scheduler_args(parent_parser: ArgumentParser) -> ArgumentParser:
+    """Extends existing argparse with default LR scheduler args.
+
+    Args:
+        parent_parser (ArgumentParser): Custom CLI parser that will be extended.
+
+    Returns:
+        ArgumentParser: Parser extended by LR Scheduler arguments.
+    """
+    parser = ArgumentParser(parents=[parent_parser], add_help=False, conflict_handler='resolve')
+    parser.add_argument("--warmup_steps", type=int, required=False, default=None, help="Number of warmup steps")
+    parser.add_argument(
+        "--warmup_ratio",
+        type=float,
+        required=False,
+        default=None,
+        help="Number of warmup steps as a percentage of total training steps",
+    )
+    parser.add_argument("--hold_steps", type=int, required=False, default=None, help="Number of hold LR steps")
+    parser.add_argument(
+        "--hold_ratio",
+        type=float,
+        required=False,
+        default=None,
+        help="Number of hold LR steps as a percentage of total training steps",
+    )
+    parser.add_argument("--min_lr", type=float, required=False, default=0.0, help="Minimum learning rate")
+    parser.add_argument(
+        "--last_epoch", type=int, required=False, default=-1, help="Last epoch id. -1 indicates training from scratch"
+    )
+    return parser

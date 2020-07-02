@@ -28,9 +28,8 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 from ruamel.yaml import YAML
 
-from nemo.collections.asr.arguments import add_asr_args
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.core.optim.optimizers import add_optimizer_args
+from nemo.utils.arguments import add_asr_args, add_optimizer_args, add_scheduler_args
 
 
 def main(args):
@@ -65,6 +64,7 @@ if __name__ == '__main__':
     parser = pl.Trainer.add_argparse_args(parser)
     parser = add_asr_args(parser)
     parser = add_optimizer_args(parser)
+    parser = add_scheduler_args(parser)
 
     args = parser.parse_args()
 

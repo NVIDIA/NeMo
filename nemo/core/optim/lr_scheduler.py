@@ -48,7 +48,7 @@ class WarmupPolicy(_LRScheduler):
         assert warmup_ratio is None or total_steps is not None, "If there is a ratio, there should be a total steps"
 
         # It is necessary to assign all attributes *before* __init__,
-        # as class is wrapped by inner class.
+        # as class is wrapped by an inner class.
         self.total_steps = total_steps
         if warmup_steps is not None:
             self.warmup_steps = warmup_steps
