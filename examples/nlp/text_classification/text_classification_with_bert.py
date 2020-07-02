@@ -123,6 +123,7 @@ def main():
     text_classification_model = TextClassificationModel(
         data_dir=args.data_dir,
         pretrained_model_name=args.pretrained_model_name,
+        bert_config=args.bert_config,
         num_output_layers=args.num_output_layers,
         fc_dropout=args.fc_dropout,
         class_balancing=args.class_balancing,

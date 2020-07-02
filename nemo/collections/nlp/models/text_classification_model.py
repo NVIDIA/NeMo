@@ -20,13 +20,11 @@ from typing import Dict, Optional
 import torch
 from torch.utils.data import DataLoader
 
-# TODO replace with nemo module
-from transformers import BertModel
-
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
 from nemo.collections.nlp.modules.common import SequenceClassifier
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -47,6 +45,7 @@ class TextClassificationModel(ModelPT):
         self,
         data_dir: str,
         pretrained_model_name: str,
+        bert_config: str,
         num_output_layers: int,
         fc_dropout: float,
         class_balancing: bool,
@@ -56,6 +55,7 @@ class TextClassificationModel(ModelPT):
         Args:
             data_dir (str): the path to the folder containing the data
             pretrained_model_name (str): name of the BERT model to be used as the encoder
+            bert_config (str): The path to the config file for the BERT encoder, it should be None to use the default configs
             num_output (int)_layers (int): number of the linear layers of the mlp head on the top of the encoder
             fc_dropout (float): the dropout used for the mlp head
             class_balancing (bool): enables the weighted class balancing of the loss, may be used for handling unbalanced classes
@@ -66,7 +66,7 @@ class TextClassificationModel(ModelPT):
 
         data_desc = TextClassificationDataDesc(data_dir=data_dir, modes=["train", "test", "dev"])
 
-        self.bert_model = BertModel.from_pretrained(pretrained_model_name)
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=bert_config)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.classifier = SequenceClassifier(
@@ -100,8 +100,8 @@ class TextClassificationModel(ModelPT):
         """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )[0]
-        logits = self.classifier(hidden_states)
+        )
+        logits = self.classifier(hidden_states=hidden_states)
         return logits
 
     def training_step(self, batch, batch_idx):
@@ -111,7 +111,7 @@ class TextClassificationModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         # TODO replace with loss module
         train_loss = self.loss(logits=logits, labels=labels)
@@ -125,7 +125,7 @@ class TextClassificationModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         val_loss = self.loss(logits=logits, labels=labels)
 

@@ -76,6 +76,7 @@ class SequenceClassifier(NeuralModule):
     @typecheck()
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
+        print(hidden_states.size())
         logits = self.mlp(hidden_states[:, self._idx_conditioned_on])
         return logits
 

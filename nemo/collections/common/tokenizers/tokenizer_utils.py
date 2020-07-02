@@ -22,7 +22,7 @@ from nemo.utils import logging
 
 try:
     __megatron_utils_satisfied = True
-    from nemo.collections.nlp.nm.trainables.common.megatron.megatron_utils import (
+    from nemo.collections.nlp.modules.megatron.megatron_utils import (
         get_megatron_vocab_file,
         is_lower_cased_megatron,
     )
