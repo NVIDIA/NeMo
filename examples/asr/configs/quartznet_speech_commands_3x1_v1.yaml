@@ -1,5 +1,8 @@
 model: "QuartzNet"
 sample_rate: &sample_rate 16000
+# number of timesteps model is trained on
+timesteps: 128
+preprocessor: "AudioToMFCCPreprocessor"
 dropout: &drop 0.0
 repeat:  &rep  1
 augment: true
