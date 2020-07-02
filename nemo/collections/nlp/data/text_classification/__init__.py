@@ -14,5 +14,5 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.nlp.data.text_classification.text_classification_datasets import BERTTextClassificationDataset
+from nemo.collections.nlp.data.text_classification.text_classification_datasets import TextClassificationDataset
 from nemo.collections.nlp.data.text_classification.text_classification_descriptor import TextClassificationDataDesc

@@ -23,7 +23,7 @@ import pytorch_lightning as pl
 import torch
 
 # import nemo.collections.nlp as nemo_nlp
-from nemo.collections.nlp.models.text_classifier_model import BERTTextClassifier
+from nemo.collections.nlp.models.text_classification_model import TextClassificationModel
 
 
 def main():
@@ -120,7 +120,7 @@ def main():
 
     args = parser.parse_args()
 
-    text_classification_model = BERTTextClassifier(
+    text_classification_model = TextClassificationModel(
         data_dir=args.data_dir,
         pretrained_model_name=args.pretrained_model_name,
         num_output_layers=args.num_output_layers,

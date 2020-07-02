@@ -35,20 +35,22 @@ from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 
-__all__ = ['BERTTextClassificationDataset']
+__all__ = ['TextClassificationDataset']
 
 
-class BERTTextClassificationDataset(Dataset):
+class TextClassificationDataset(Dataset):
     """A dataset class that converts from raw data to
     a dataset that can be used by DataLayerNM.
     Args:
         input_file (str): file to sequence + label.
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
-        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
+        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         num_samples (int): number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
+        shuffle (bool): Shuffles the dataset after loading.
+        use_cache (bool): Enables caching to use HDFS format to store and read data from
     """
 
     def __init__(

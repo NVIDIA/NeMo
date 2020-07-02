@@ -25,14 +25,14 @@ from torch.utils.data import DataLoader
 from transformers import BertModel
 
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.nlp.data.text_classification import BERTTextClassificationDataset, TextClassificationDataDesc
-from nemo.collections.nlp.losses import CrossEntropyLoss
+from nemo.collections.nlp.data.text_classification import TextClassificationDataset, TextClassificationDataDesc
+from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.modules.common import SequenceClassifier
 
-__all__ = ['BERTTextClassifier']
+__all__ = ['TextClassificationModel']
 
 
-class BERTTextClassifier(pl.LightningModule):
+class TextClassificationModel(pl.LightningModule):
     def __init__(
         self,
         data_dir: str,
@@ -143,7 +143,7 @@ class BERTTextClassifier(pl.LightningModule):
     def __setup_dataloader(
         self, input_file, dataloader_params={},
     ):
-        dataset = BERTTextClassificationDataset(
+        dataset = TextClassificationDataset(
             input_file=input_file,
             tokenizer=self.tokenizer,
             max_seq_length=dataloader_params.get("max_seq_length", 512),

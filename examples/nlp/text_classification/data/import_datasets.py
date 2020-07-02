@@ -24,7 +24,7 @@ from os.path import exists
 import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
+from nemo.collections.nlp.data.data_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
 
 
 def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
