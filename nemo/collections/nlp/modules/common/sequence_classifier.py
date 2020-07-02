@@ -1,7 +1,4 @@
-# =============================================================================
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,48 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
-import torch
+from typing import Dict, Optional
 
-from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron
-from nemo.collections.common.parts.transformer_utils import transformer_weights_init
+from torch import nn
+
+from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
+__all__ = ['SequenceClassifier']
+
 
 @experimental
 class SequenceClassifier(NeuralModule):
-    """
-    Neural module which consists of MLP followed by softmax classifier for each
-    sequence in the batch.
-    Args:
-        hidden_size (int): hidden size (d_model) of the Transformer
-        num_classes (int): number of classes in softmax classifier, e.g. number
-            of different sentiments
-        num_layers (int): number of layers in classifier MLP
-        activation (str): activation function applied in classifier MLP layers
-        log_softmax (bool): whether to apply log_softmax to MLP output
-        dropout (float): dropout ratio applied to MLP
-        use_transformer_pretrained (bool):
-            TODO
-    """
-
     @property
-    # @add_port_docs()
-    def input_ports(self):
-        """Returns definitions of module input ports.
-        hidden_states: embedding hidden states
-        """
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
-    # @add_port_docs()
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        logits: logits before loss
-        """
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"logits": NeuralType(('B', 'D'), LogitsType())}
 
     def __init__(
@@ -88,7 +64,7 @@ class SequenceClassifier(NeuralModule):
             activation=activation,
             log_softmax=log_softmax,
         )
-        self.dropout = torch.nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # TODO: what happens to device?
