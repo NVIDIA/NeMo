@@ -43,7 +43,7 @@ class SequenceClassifier(NeuralModule):
         log_softmax: bool = True,
         dropout: float = 0.0,
         use_transformer_init: bool = True,
-        idx_conditioned_on: int = 0
+        idx_conditioned_on: int = 0,
     ):
         """
         Initializes the SequenceClassifier module.
