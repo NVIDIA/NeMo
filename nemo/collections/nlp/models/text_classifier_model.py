@@ -33,7 +33,17 @@ __all__ = ['BERTTextClassifier']
 
 
 class BERTTextClassifier(pl.LightningModule):
-    def __init__(self, data_dir, pretrained_model_name, num_output_layers, fc_dropout, class_balancing):
+    def __init__(self, data_dir: str, pretrained_model_name: str, num_output_layers: int, fc_dropout: float, class_balancing: bool):
+        """
+        Initializes the BERTTextClassifier model.
+        Args:
+            data_dir (str): the path to the folder containing the data
+            pretrained_model_name (str): name of the BERT model to be used as the encoder
+            num_output (int)_layers (int): number of the linear layers of the mlp head on the top of the encoder
+            fc_dropout (float): the dropout used for the mlp head
+            class_balancing (bool): enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+        """
+
         # init superclass
         super().__init__()
 
@@ -56,7 +66,7 @@ class BERTTextClassifier(pl.LightningModule):
         else:
             self.loss = CrossEntropyLoss()
 
-        # This will be set by setup_training_datai
+        # This will be set by setup_training_data
         self.__train_dl = None
         # This will be set by setup_validation_data
         self.__val_dl = None

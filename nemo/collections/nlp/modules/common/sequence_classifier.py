@@ -60,14 +60,25 @@ class SequenceClassifier(NeuralModule):
 
     def __init__(
         self,
-        hidden_size,
-        num_classes,
-        num_layers=2,
-        activation='relu',
-        log_softmax=True,
-        dropout=0.0,
-        use_transformer_init=True,
+        hidden_size: int,
+        num_classes: int,
+        num_layers: int = 2,
+        activation: str = 'relu',
+        log_softmax: bool = True,
+        dropout: float = 0.0,
+        use_transformer_init: bool = True,
     ):
+        """
+        Initializes the SequenceClassifier module.
+        Args:
+            hidden_size (int): the hidden size of the mlp head on the top of the encoder
+            num_classes (int): number of the classes to predict
+            num_layers (int)_layers (int): number of the linear layers of the mlp head on the top of the encoder
+            activation (str): type of activations between layers of the mlp head
+            log_softmax (bool): applies the log softmax on the output
+            dropout (float): the dropout used for the mlp head
+            use_transformer_init (bool): initializes the weights with the same approach used in Transformer
+        """
         super().__init__()
         # TODO: what happens to device?
         self.mlp = MultiLayerPerceptron(
