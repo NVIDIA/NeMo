@@ -13,21 +13,46 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
+from typing import Any, Dict, List, Optional, Union
 
 
-def add_asr_args(parent_parser: ArgumentParser) -> ArgumentParser:
-    """Extends existing argparse with default ASR collection args.
+def add_optimizer_args(
+    parent_parser: ArgumentParser,
+    optimizer: str = 'adam',
+    default_lr: float = None,
+    default_opt_args: Optional[Union[Dict[str, Any], List[str]]] = None,
+) -> ArgumentParser:
+    """Extends existing argparse with support for optimizers.
+
+    # Example of adding optimizer args to command line :
+    python train_script.py ... --optimizer "novograd" --lr 0.01 \
+        --opt_args betas=0.95,0.5 weight_decay=0.001
 
     Args:
         parent_parser (ArgumentParser): Custom CLI parser that will be extended.
+        optimizer (str): Default optimizer required.
+        default_lr (float): Default learning rate that should be overriden during training.
+        default_opt_args (list(str)): List of overriding arguments for the instantiated optimizer.
 
     Returns:
-        ArgumentParser: Parser extended by NeMo ASR Collection arguments.
+        ArgumentParser: Parser extended by Optimizers arguments.
     """
-    parser = ArgumentParser(parents=[parent_parser], add_help=False,)
-    parser.add_argument("--asr_model", type=str, required=True, default="bad_quartznet15x5.yaml", help="")
-    parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
-    parser.add_argument("--eval_dataset", type=str, required=True, help="evaluation dataset path")
+    if default_opt_args is None:
+        default_opt_args = []
+
+    parser = ArgumentParser(parents=[parent_parser], add_help=True, conflict_handler='resolve')
+
+    parser.add_argument('--optimizer', type=str, default=optimizer, help='Name of the optimizer. Defaults to Adam.')
+    parser.add_argument('--lr', type=float, default=default_lr, help='Learning rate of the optimizer.')
+    parser.add_argument(
+        '--opt_args',
+        default=default_opt_args,
+        nargs='+',
+        type=str,
+        help='Overriding arguments for the optimizer. \n Must follow the pattern : \n name=value separated by spaces.'
+        'Example: --opt_args weight_decay=0.001 eps=1e-8 betas=0.9,0.999',
+    )
+
     return parser
 
 
@@ -61,4 +86,20 @@ def add_scheduler_args(parent_parser: ArgumentParser) -> ArgumentParser:
     parser.add_argument(
         "--last_epoch", type=int, required=False, default=-1, help="Last epoch id. -1 indicates training from scratch"
     )
+    return parser
+
+
+def add_asr_args(parent_parser: ArgumentParser) -> ArgumentParser:
+    """Extends existing argparse with default ASR collection args.
+
+    Args:
+        parent_parser (ArgumentParser): Custom CLI parser that will be extended.
+
+    Returns:
+        ArgumentParser: Parser extended by NeMo ASR Collection arguments.
+    """
+    parser = ArgumentParser(parents=[parent_parser], add_help=False, conflict_handler='resolve')
+    parser.add_argument("--asr_model", type=str, required=True, default="bad_quartznet15x5.yaml", help="")
+    parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
+    parser.add_argument("--eval_dataset", type=str, required=True, help="evaluation dataset path")
     return parser

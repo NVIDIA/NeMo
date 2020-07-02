@@ -14,9 +14,13 @@
 
 import math
 import warnings
+from typing import Any, Dict, Optional
 
-import torch.optim.lr_scheduler as pt_scheduler
+import torch.optim as optim
+import torch.utils.data.dataloader as dataloader
 from torch.optim.lr_scheduler import _LRScheduler
+
+from nemo import logging
 
 __all__ = [
     'WarmupPolicy',
@@ -37,23 +41,23 @@ class WarmupPolicy(_LRScheduler):
     Args:
         warmup_steps: Number of training steps in warmup stage
         warmup_ratio: Ratio of warmup steps to total steps
-        total_steps: Total number of steps while training or `None` for
+        max_steps: Total number of steps while training or `None` for
             infinite training
     """
 
-    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, total_steps=None, last_epoch=-1):
+    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, last_epoch=-1):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
-        assert warmup_ratio is None or total_steps is not None, "If there is a ratio, there should be a total steps"
+        assert warmup_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
 
         # It is necessary to assign all attributes *before* __init__,
         # as class is wrapped by an inner class.
-        self.total_steps = total_steps
+        self.max_steps = max_steps
         if warmup_steps is not None:
             self.warmup_steps = warmup_steps
         elif warmup_ratio is not None:
-            self.warmup_steps = int(warmup_ratio * total_steps)
+            self.warmup_steps = int(warmup_ratio * max_steps)
         else:
             self.warmup_steps = 0
 
@@ -71,7 +75,7 @@ class WarmupPolicy(_LRScheduler):
             lr_val = (step + 1) / (self.warmup_steps + 1)
             return [initial_lr * lr_val for initial_lr in self.base_lrs]
 
-        if step > self.total_steps:
+        if step > self.max_steps:
             return [0.0 for _ in self.base_lrs]
 
         return self._get_lr(step)
@@ -89,7 +93,7 @@ class WarmupHoldPolicy(WarmupPolicy):
         warmup_ratio: Ratio of warmup steps to total steps
         hold_steps: Number of training steps to hold the learning rate after warm up
         hold_ratio: Ratio of hold steps to total steps
-        total_steps: Total number of steps while training or `None` for
+        max_steps: Total number of steps while training or `None` for
             infinite training
     """
 
@@ -101,29 +105,29 @@ class WarmupHoldPolicy(WarmupPolicy):
         warmup_ratio=None,
         hold_steps=None,
         hold_ratio=None,
-        total_steps=None,
+        max_steps=None,
         min_lr=0.0,
         last_epoch=-1,
     ):
         assert not (hold_steps is not None and hold_ratio is not None), "Either use particular number of step or ratio"
-        assert hold_ratio is None or total_steps is not None, "If there is a ratio, there should be a total steps"
+        assert hold_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
 
         self._min_lr = min_lr
         self._last_warmup_lr = 0.0
 
         # Necessary to duplicate as class attributes are hidden in inner class
-        self.total_steps = total_steps
+        self.max_steps = max_steps
         if warmup_steps is not None:
             self.warmup_steps = warmup_steps
         elif warmup_ratio is not None:
-            self.warmup_steps = int(warmup_ratio * total_steps)
+            self.warmup_steps = int(warmup_ratio * max_steps)
         else:
             self.warmup_steps = 0
 
         if hold_steps is not None:
             self.hold_steps = hold_steps + self.warmup_steps
         elif hold_ratio is not None:
-            self.hold_steps = int(hold_ratio * total_steps) + self.warmup_steps
+            self.hold_steps = int(hold_ratio * max_steps) + self.warmup_steps
         else:
             self.hold_steps = 0
 
@@ -131,7 +135,7 @@ class WarmupHoldPolicy(WarmupPolicy):
             optimizer,
             warmup_steps=warmup_steps,
             warmup_ratio=warmup_ratio,
-            total_steps=total_steps,
+            max_steps=max_steps,
             last_epoch=last_epoch,
         )
 
@@ -152,28 +156,28 @@ class WarmupHoldPolicy(WarmupPolicy):
         if (step >= self.warmup_steps) and (step < self.hold_steps):
             return self.base_lrs
 
-        if step > self.total_steps:
+        if step > self.max_steps:
             return [0.0 for _ in self.base_lrs]
 
         return self._get_lr(step)
 
 
-def _squareroot_annealing(initial_lr, step, total_steps, min_lr):
-    mult = ((total_steps - step) / total_steps) ** 0.5
+def _squareroot_annealing(initial_lr, step, max_steps, min_lr):
+    mult = ((max_steps - step) / max_steps) ** 0.5
     out_lr = initial_lr * mult
     out_lr = max(out_lr, min_lr)
     return out_lr
 
 
-def _square_annealing(initial_lr, step, total_steps, min_lr):
-    mult = ((total_steps - step) / total_steps) ** 2
+def _square_annealing(initial_lr, step, max_steps, min_lr):
+    mult = ((max_steps - step) / max_steps) ** 2
     out_lr = initial_lr * mult
     out_lr = max(out_lr, min_lr)
     return out_lr
 
 
-def _cosine_annealing(initial_lr, step, total_steps, min_lr):
-    mult = 0.5 * (1 + math.cos(math.pi * step / total_steps))
+def _cosine_annealing(initial_lr, step, max_steps, min_lr):
+    mult = 0.5 * (1 + math.cos(math.pi * step / max_steps))
     out_lr = (initial_lr - min_lr) * mult + min_lr
     return out_lr
 
@@ -191,17 +195,17 @@ def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
 
 
 class SquareAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, total_steps, min_lr=1e-5, last_epoch=-1, **kwargs):
+    def __init__(self, optimizer, *, max_steps, min_lr=1e-5, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
 
-        super().__init__(optimizer=optimizer, total_steps=total_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
             _square_annealing(
                 initial_lr=initial_lr,
                 step=step - self.warmup_steps,
-                total_steps=self.total_steps - self.warmup_steps,
+                max_steps=self.max_steps - self.warmup_steps,
                 min_lr=self.min_lr,
             )
             for initial_lr in self.base_lrs
@@ -210,24 +214,24 @@ class SquareAnnealing(WarmupPolicy):
 
 
 class SquareRootAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, total_steps, min_lr=0, last_epoch=-1, **kwargs):
+    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
 
-        super().__init__(optimizer=optimizer, total_steps=total_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
-            _squareroot_annealing(initial_lr=initial_lr, step=step, total_steps=self.total_steps, min_lr=self.min_lr,)
+            _squareroot_annealing(initial_lr=initial_lr, step=step, max_steps=self.max_steps, min_lr=self.min_lr,)
             for initial_lr in self.base_lrs
         ]
         return new_lrs
 
 
 class CosineAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, total_steps, min_lr=0, last_epoch=-1, **kwargs):
+    def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
 
-        super().__init__(optimizer=optimizer, total_steps=total_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
         for initial_lr in self.base_lrs:
@@ -240,7 +244,7 @@ class CosineAnnealing(WarmupPolicy):
             _cosine_annealing(
                 initial_lr=initial_lr,
                 step=step - self.warmup_steps,
-                total_steps=self.total_steps - self.warmup_steps,
+                max_steps=self.max_steps - self.warmup_steps,
                 min_lr=self.min_lr,
             )
             for initial_lr in self.base_lrs
@@ -249,12 +253,12 @@ class CosineAnnealing(WarmupPolicy):
 
 
 class WarmupAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, total_steps, last_epoch=-1, **kwargs):
-        super().__init__(optimizer=optimizer, total_steps=total_steps, last_epoch=last_epoch, **kwargs)
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
-        progress = float(step / self.total_steps)
-        warmup_ratio = float(self.warmup_steps / self.total_steps)
+        progress = float(step / self.max_steps)
+        warmup_ratio = float(self.warmup_steps / self.max_steps)
 
         mult = max((progress - 1.0) / (warmup_ratio - 1.0), 0.0)
         out_lr = [initial_lr * mult for initial_lr in self.base_lrs]
@@ -263,8 +267,8 @@ class WarmupAnnealing(WarmupPolicy):
 
 
 class InverseSquareRootAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, total_steps, last_epoch=-1, **kwargs):
-        super().__init__(optimizer=optimizer, total_steps=total_steps, **kwargs, last_epoch=last_epoch)
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch)
 
     def _get_lr(self, step):
         denom = ((step + 1) / (self.warmup_steps + 1)) ** 0.5
@@ -273,19 +277,19 @@ class InverseSquareRootAnnealing(WarmupPolicy):
 
 
 class PolynomialDecayAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, total_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
+    def __init__(self, optimizer, *, max_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
         self.power = power
         self.cycle = cycle
 
-        super().__init__(optimizer=optimizer, total_steps=total_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
             _poly_decay(
                 initial_lr,
                 step=step - self.warmup_steps,
-                decay_steps=self.total_steps - self.warmup_steps,
+                decay_steps=self.max_steps - self.warmup_steps,
                 power=self.power,
                 min_lr=self.min_lr,
                 cycle=self.cycle,
@@ -296,19 +300,19 @@ class PolynomialDecayAnnealing(WarmupPolicy):
 
 
 class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
-    def __init__(self, optimizer, *, total_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
+    def __init__(self, optimizer, *, max_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
         self.power = power
         self.cycle = cycle
 
-        super().__init__(optimizer=optimizer, total_steps=total_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
             _poly_decay(
                 initial_lr,
                 step=step - self.hold_steps,
-                decay_steps=self.total_steps - max(self.warmup_steps, self.hold_steps),
+                decay_steps=self.max_steps - max(self.warmup_steps, self.hold_steps),
                 power=self.power,
                 min_lr=self.min_lr,
                 cycle=self.cycle,
@@ -318,14 +322,86 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
         return new_lrs
 
 
-def prepare_scheduler(scheduler: _LRScheduler, monitor: str = 'val_loss'):
+def prepare_lr_scheduler(
+    optimizer: optim.Optimizer,
+    scheduler_config: Dict[str, Any],
+    train_dataloader: Optional[dataloader.DataLoader] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Constructs an LR Scheduler (optionally) for a given optimizer, based on a config with the following schema
 
-    if isinstance(scheduler, pt_scheduler.ReduceLROnPlateau):
+    {
+    ...,
+    "scheduler": <a class that inherits torch.optim.lr_scheduler._LRScheduler>,
+    "scheduler_args": {
+        "max_steps": int, <OR> "iters_per_sample": int,
+        "monitor": <metric to monitor; say "loss" or "val_loss">,
+        <any kwarg to pass onto the optimizer>
+      }
+    }
+
+    Args:
+        optimizer: An instantiated Optimizer.
+        scheduler_config: A dictionary which follows the above schema.
+        train_dataloader: Optional requirement, must be passed if "iters_per_sample" is defined
+            instead of "max_steps". Used to compute effective "max_steps".
+
+    Returns:
+        A dictionary containing the LR Scheduler implementation if the config was successfully parsed
+        along with other parameters required by Pytorch Lightning, otherwise None.
+    """
+    if 'scheduler' in scheduler_config:
+        if 'scheduler_args' in scheduler_config:
+            scheduler_args = scheduler_config['scheduler_args']
+        else:
+            raise ValueError("If `scheduler` is provided, `scheduler_args` must be provided.")
+
+    else:
+        logging.info('Scheduler not initialized as no `scheduler` argument supplied to setup_optimizer()')
+        return None
+
+    # Get the scheduler class from the config
+    scheduler = scheduler_config['scheduler']
+
+    # Extract value to monitor in losses, if provided.
+    if 'monitor' in scheduler_args:
+        monitor = scheduler_args.pop('monitor')
+    else:
+        # default to train loss
+        monitor = 'loss'
+
+    # Compute effective max_steps if iters_per_sample is provided
+    if 'iters_per_sample' in scheduler_args:
+        if train_dataloader is None:
+            raise ValueError(
+                'As `iters_per_sample` is provided, it is required to pass the train dataloader in order '
+                'to compute effective maximum number of steps'
+            )
+
+        iters_per_sample = scheduler_args.pop('iters_per_sample')
+        num_samples = len(train_dataloader.dataset)
+        max_steps = int(num_samples * iters_per_sample)
+
+        scheduler_args['max_steps'] = max_steps
+
+    else:
+        max_steps = scheduler_args['max_steps']
+
+    # Instantiate the LR schedule
+    schedule = scheduler(optimizer, **scheduler_args)
+
+    logging.info(
+        'Scheduler "%s" will be used during training (effective maximum steps = %d)', str(schedule), max_steps
+    )
+
+    # Wrap the schedule in PTL arguments to perform stepwise computation
+    # Rather than epoch level computation
+    if isinstance(schedule, optim.lr_scheduler.ReduceLROnPlateau):
         reduce_lr_on_plateau = {'reduce_on_plateau': True}
     else:
         reduce_lr_on_plateau = {'reduce_on_plateau': False}
 
-    schedule_dict = {'scheduler': scheduler, 'interval': 'step', 'frequency': 1, 'monitor': monitor}
+    schedule_dict = {'scheduler': schedule, 'interval': 'step', 'frequency': 1, 'monitor': monitor}
     schedule_dict.update(reduce_lr_on_plateau)
 
     return schedule_dict
