@@ -12,5 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.core.optim.lr_scheduler import (
+    CosineAnnealing,
+    InverseSquareRootAnnealing,
+    PolynomialDecayAnnealing,
+    PolynomialHoldDecayAnnealing,
+    SquareAnnealing,
+    SquareRootAnnealing,
+    WarmupAnnealing,
+    WarmupHoldPolicy,
+    WarmupPolicy,
+    prepare_lr_scheduler,
+)
 from nemo.core.optim.novograd import Novograd
-from nemo.core.optim.optimizers import add_optimizer_args, get_optimizer, parse_optimizer_args, register_optimizer
+from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args, register_optimizer
+from nemo.utils.arguments import add_optimizer_args

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
@@ -22,7 +21,7 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core.optim.novograd import Novograd
 
-__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args', 'add_optimizer_args']
+__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
 
 AVAILABLE_OPTIMIZERS = {
@@ -131,46 +130,6 @@ def parse_optimizer_args(optimizer_kwargs: Union[Dict[str, Any], List[str]]) -> 
         kwargs[key] = value
 
     return kwargs
-
-
-def add_optimizer_args(
-    parent_parser: ArgumentParser,
-    optimizer: str = 'adam',
-    default_lr: float = None,
-    default_opt_args: Optional[Union[Dict[str, Any], List[str]]] = None,
-) -> ArgumentParser:
-    """Extends existing argparse with support for optimizers.
-
-    # Example of adding optimizer args to command line :
-    python train_script.py ... --optimizer "novograd" --lr 0.01 \
-        --opt_args betas=0.95,0.5 weight_decay=0.001
-
-    Args:
-        parent_parser (ArgumentParser): Custom CLI parser that will be extended.
-        optimizer (str): Default optimizer required.
-        default_lr (float): Default learning rate that should be overriden during training.
-        default_opt_args (list(str)): List of overriding arguments for the instantiated optimizer.
-
-    Returns:
-        ArgumentParser: Parser extended by Optimizers arguments.
-    """
-    if default_opt_args is None:
-        default_opt_args = []
-
-    parser = ArgumentParser(parents=[parent_parser], add_help=True, conflict_handler='resolve')
-
-    parser.add_argument('--optimizer', type=str, default=optimizer, help='Name of the optimizer. Defaults to Adam.')
-    parser.add_argument('--lr', type=float, default=default_lr, help='Learning rate of the optimizer.')
-    parser.add_argument(
-        '--opt_args',
-        default=default_opt_args,
-        nargs='+',
-        type=str,
-        help='Overriding arguments for the optimizer. \n Must follow the pattern : \n name=value separated by spaces.'
-        'Example: --opt_args weight_decay=0.001 eps=1e-8 betas=0.9,0.999',
-    )
-
-    return parser
 
 
 def register_optimizer(name: str, optimizer: Optimizer):
