@@ -23,7 +23,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
-from nemo.utils import logging
+from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -78,8 +78,11 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(self, optim_params: Optional[Dict]):
-        self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
+    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optim_params)
+        self.__scheduler = prepare_lr_scheduler(
+            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
+        )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -143,6 +146,7 @@ class EncDecCTCModel(ASRModel):
         self.__test_dl = None
         # This will be set by setup_optimization
         self.__optimizer = None
+        self.__scheduler = None
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
@@ -170,19 +174,25 @@ class EncDecCTCModel(ASRModel):
         wer, prediction, reference = monitor_asr_train_progress(
             tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
         )
-        tensorboard_logs = {'train_loss': loss_value, 'wer': wer}
+        tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        logging.info("Performing forward of validation step")
-        log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        log_probs, encoded_len, predictions = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        tensorboard_logs = {'val_loss': loss_value}
+
+        # TODO: use metrics here
+        wer, prediction, reference = monitor_asr_train_progress(
+            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
+        )
+        tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
         return {'val_loss': loss_value, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -190,7 +200,10 @@ class EncDecCTCModel(ASRModel):
         return {'val_loss': val_loss_mean}
 
     def configure_optimizers(self):
-        return self.__optimizer
+        if self.__scheduler is None:
+            return self.__optimizer
+        else:
+            return [self.__optimizer], [self.__scheduler]
 
     def train_dataloader(self):
         return self.__train_dl
