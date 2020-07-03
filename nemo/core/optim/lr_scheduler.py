@@ -374,7 +374,7 @@ def prepare_lr_scheduler(
     if 'iters_per_batch' in scheduler_args:
         if train_dataloader is None:
             raise ValueError(
-                'As `iters_per_sample` is provided, it is required to pass the train dataloader in order '
+                'As `iters_per_batch` is provided, it is required to pass the train dataloader in order '
                 'to compute effective maximum number of steps'
             )
 
@@ -398,11 +398,15 @@ def prepare_lr_scheduler(
     # Wrap the schedule in PTL arguments to perform stepwise computation
     # Rather than epoch level computation
     if isinstance(schedule, optim.lr_scheduler.ReduceLROnPlateau):
-        reduce_lr_on_plateau = {'reduce_on_plateau': True}
+        reduce_lr_on_plateau = True
     else:
-        reduce_lr_on_plateau = {'reduce_on_plateau': False}
+        reduce_lr_on_plateau = False
 
-    schedule_dict = {'scheduler': schedule, 'interval': 'step', 'frequency': 1, 'monitor': monitor}
-    schedule_dict.update(reduce_lr_on_plateau)
-
+    schedule_dict = {
+        'scheduler': schedule,
+        'interval': 'step',
+        'frequency': 1,
+        'monitor': monitor,
+        'reduce_on_plateau': reduce_lr_on_plateau,
+    }
     return schedule_dict
