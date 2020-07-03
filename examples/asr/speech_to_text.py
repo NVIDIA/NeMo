@@ -28,9 +28,9 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 from ruamel.yaml import YAML
 
-from nemo.collections.asr.arguments import add_asr_args
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.core.optim.optimizers import add_optimizer_args
+from nemo.core.optim.lr_scheduler import CosineAnnealing
+from nemo.utils.arguments import add_asr_args, add_optimizer_args, add_scheduler_args
 
 
 def main(args):
@@ -51,7 +51,31 @@ def main(args):
     model_config['AudioToTextDataLayer_eval']['manifest_filepath'] = args.eval_dataset
     asr_model.setup_training_data(model_config['AudioToTextDataLayer'])
     asr_model.setup_validation_data(model_config['AudioToTextDataLayer_eval'])
-    asr_model.setup_optimization(optim_params={'optimizer': args.optimizer, 'lr': args.lr, 'opt_args': args.opt_args})
+
+    # Setup optimizer and scheduler
+    scheduler_args = {
+        'monitor': 'val_loss',  # pytorch lightning requires this value
+        'warmup_ratio': args.warmup_ratio,
+        'warmup_steps': args.warmup_steps,
+        'min_lr': args.min_lr,
+        'last_epoch': args.last_epoch,
+    }
+
+    if args.max_steps is None:
+        iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
+        scheduler_args['iters_per_batch'] = iters_per_batch
+    else:
+        scheduler_args['max_steps'] = args.max_steps
+
+    asr_model.setup_optimization(
+        optim_params={
+            'optimizer': args.optimizer,
+            'lr': args.lr,
+            'opt_args': args.opt_args,
+            'scheduler': CosineAnnealing,
+            'scheduler_args': scheduler_args,
+        }
+    )
     # trainer = pl.Trainer(
     #     val_check_interval=1, amp_level='O1', precision=16, gpus=4, max_epochs=123, distributed_backend='ddp'
     # )
@@ -65,6 +89,7 @@ if __name__ == '__main__':
     parser = pl.Trainer.add_argparse_args(parser)
     parser = add_asr_args(parser)
     parser = add_optimizer_args(parser)
+    parser = add_scheduler_args(parser)
 
     args = parser.parse_args()
 

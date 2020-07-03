@@ -23,6 +23,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import *
+from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -79,6 +80,9 @@ class EncDecCTCModel(ASRModel):
 
     def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optim_params)
+        self.__scheduler = prepare_lr_scheduler(
+            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
+        )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -142,6 +146,7 @@ class EncDecCTCModel(ASRModel):
         self.__test_dl = None
         # This will be set by setup_optimization
         self.__optimizer = None
+        self.__scheduler = None
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
@@ -188,7 +193,10 @@ class EncDecCTCModel(ASRModel):
         return {'val_loss': val_loss_mean}
 
     def configure_optimizers(self):
-        return self.__optimizer
+        if self.__scheduler is None:
+            return self.__optimizer
+        else:
+            return [self.__optimizer], [self.__scheduler]
 
     def train_dataloader(self):
         return self.__train_dl
