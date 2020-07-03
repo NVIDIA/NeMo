@@ -174,18 +174,25 @@ class EncDecCTCModel(ASRModel):
         wer, prediction, reference = monitor_asr_train_progress(
             tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
         )
-        tensorboard_logs = {'train_loss': loss_value, 'wer': wer}
+        tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
-        log_probs, encoded_len, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        log_probs, encoded_len, predictions = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
         # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        tensorboard_logs = {'val_loss': loss_value}
+
+        # TODO: use metrics here
+        wer, prediction, reference = monitor_asr_train_progress(
+            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
+        )
+        tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
         return {'val_loss': loss_value, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
