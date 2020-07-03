@@ -7,9 +7,9 @@ python-dateutil
 tensorboardX
 tensorboard
 torch
-torchvision
 wget
 wrapt
 ruamel.yaml
 scikit-learn
 scipy
+hydra-core
