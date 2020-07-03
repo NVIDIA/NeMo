@@ -17,13 +17,14 @@
 import argparse
 import json
 import logging as _logging
+import multiprocessing
 import os
 import tarfile
 import urllib.request
 from glob import glob
 
-import librosa as l
-from sklearn.model_selection import StratifiedShuffleSplit
+import librosa
+from sklearn.model_selection import StratifiedShuffleSplit as SSS
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description='HI-MIA Data download')
@@ -36,8 +37,8 @@ logging.setLevel(args.log_level)
 
 URL = {
     'dev': "http://www.openslr.org/resources/85/dev.tar.gz",
-    'test': "http://www.openslr.org/resources/85/test.tar.gz",
     'train': "http://www.openslr.org/resources/85/train.tar.gz",
+    'test': "http://www.openslr.org/resources/85/test.tar.gz",
 }
 
 
@@ -104,6 +105,23 @@ def write_file(name, lines, idx):
     logging.info("wrote %s", name)
 
 
+def process_single_line(line: str):
+    line = line.strip()
+    y, sr = librosa.load(line, sr=None)
+    if sr != 16000:
+        y, sr = librosa.load(line, sr=16000)
+        librosa.output.write_wav(line, y, sr)
+    dur = librosa.get_duration(y=y, sr=sr)
+    if 'test' in line.split("/"):
+        speaker = line.split('/')[-1].split('.')[0].split('_')[0]
+    else:
+        speaker = line.split('/')[-2]
+    speaker = list(speaker)
+    speaker = ''.join(speaker)
+    meta = {"audio_filepath": line, "duration": float(dur), "label": speaker}
+    return meta
+
+
 def __process_data(data_folder: str, data_set: str):
     """
     To generate manifest
@@ -113,11 +131,10 @@ def __process_data(data_folder: str, data_set: str):
 
     """
     fullpath = os.path.abspath(data_folder)
-    scp = glob(fullpath + '/**/*.wav', recursive=True)
+    scp = [(path, data_set) for path in glob(fullpath + '/**/*.wav', recursive=True)]
     out = os.path.join(fullpath, data_set + '_all.json')
     utt2spk = os.path.join(fullpath, 'utt2spk')
     utt2spk_file = open(utt2spk, 'w')
-    id = -2  # speaker id
 
     if os.path.exists(out):
         logging.warning(
@@ -129,31 +146,23 @@ def __process_data(data_folder: str, data_set: str):
 
     speakers = []
     lines = []
+    num_processes = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(processes=num_processes)
     with open(out, 'w') as outfile:
-        for line in tqdm(scp):
-            line = line.strip()
-            y, sr = l.load(line, sr=None)
-            if sr != 16000:
-                y, sr = l.load(line, sr=16000)
-                l.output.write_wav(line, y, sr)
-            dur = l.get_duration(y=y, sr=sr)
-            if data_set == 'test':
-                speaker = line.split('/')[-1].split('.')[0].split('_')[0]
-            else:
-                speaker = line.split('/')[id]
-            speaker = list(speaker)
-            speaker = ''.join(speaker)
+        for meta in tqdm(pool.imap(process_single_line, scp), total=len(scp)):
+            speaker = meta["label"]
             speakers.append(speaker)
-            meta = {"audio_filepath": line, "duration": float(dur), "label": speaker}
             lines.append(meta)
             json.dump(meta, outfile)
             outfile.write("\n")
+            line = meta["audio_filepath"]
             utt2spk_file.write(line.split('/')[-1] + "\t" + speaker + "\n")
-
     utt2spk_file.close()
+    pool.close()
+    pool.join()
 
     if data_set != 'test':
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=42)
+        sss = SSS(n_splits=1, test_size=0.1, random_state=42)
         for train_idx, test_idx in sss.split(speakers, speakers):
             print(len(train_idx))
 
@@ -165,7 +174,7 @@ def __process_data(data_folder: str, data_set: str):
 
 def main():
     data_root = args.data_root
-    for data_set in URL:
+    for data_set in URL.keys():
 
         # data_set = 'data_aishell'
         logging.info("\n\nWorking on: {0}".format(data_set))
