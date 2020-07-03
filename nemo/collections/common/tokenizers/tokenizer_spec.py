@@ -24,6 +24,7 @@ class TokenizerSpec(ABC):
     """
     Inherit this class to implement a new tokenizer.
     """
+
     @abstractmethod
     def text_to_tokens(self, text):
         pass

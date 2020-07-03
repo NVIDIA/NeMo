@@ -17,10 +17,9 @@ from typing import Dict, Optional
 
 import torch
 
-from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
+from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
-from nemo.collections.nlp.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck

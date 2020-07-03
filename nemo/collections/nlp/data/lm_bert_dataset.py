@@ -34,7 +34,7 @@ def load_h5(input_file):
     return h5py.File(input_file, "r")
 
 
-# @experimental
+@experimental
 class BertPretrainingPreprocessedDataset(Dataset):
     def __init__(self, input_file, max_pred_length):
         self.input_file = input_file
