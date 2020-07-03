@@ -63,8 +63,9 @@ class SmoothedCrossEntropyLoss(Loss):
         pad_id: Optional[int] = None,
         label_smoothing: Optional[float] = 0.0,
         predict_last_k: Optional[int] = 0,
-        eps: float = 0,
+        eps: float = 1e-6,
     ):
+        super().__init__()
         self._pad_id = pad_id
         self._eps = eps
         self._predict_last_k = predict_last_k
@@ -88,7 +89,7 @@ class SmoothedCrossEntropyLoss(Loss):
             output_mask = output_mask.to(logits.dtype)
 
         batch_size, seq_len, vocab_size = logits.size()
-        smoothing = vocab_size * self._smoothing / (vocab_size - 1)
+        smoothing = vocab_size * self._label_smoothing / (vocab_size - 1)
         target_logits = logits.gather(2, labels.unsqueeze(2)).squeeze(2)
         smoothing_logits = logits.mean(dim=-1)
         neg_log_likelihood = (1.0 - smoothing) * target_logits + smoothing * smoothing_logits
