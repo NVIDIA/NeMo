@@ -17,6 +17,7 @@
 import argparse
 import json
 import logging as _logging
+import multiprocessing
 import os
 import tarfile
 import urllib.request
@@ -25,7 +26,6 @@ from glob import glob
 import librosa
 from sklearn.model_selection import StratifiedShuffleSplit as SSS
 from tqdm import tqdm
-import multiprocessing
 
 parser = argparse.ArgumentParser(description='HI-MIA Data download')
 parser.add_argument("--data_root", required=True, default=None, type=str)
@@ -38,7 +38,7 @@ logging.setLevel(args.log_level)
 URL = {
     'dev': "http://www.openslr.org/resources/85/dev.tar.gz",
     'train': "http://www.openslr.org/resources/85/train.tar.gz",
-    'test': "http://www.openslr.org/resources/85/test_v2.tar.gz"
+    'test': "http://www.openslr.org/resources/85/test.tar.gz",
 }
 
 
@@ -54,8 +54,7 @@ def __maybe_download_file(destination: str, source: str):
 
     """
     source = URL[source]
-    if not os.path.exists(destination) and \
-            not os.path.exists(os.path.splitext(destination)[0]):
+    if not os.path.exists(destination) and not os.path.exists(os.path.splitext(destination)[0]):
         logging.info("{0} does not exist. Downloading ...".format(destination))
         urllib.request.urlretrieve(source, filename=destination + '.tmp')
         os.rename(destination + '.tmp', destination)
@@ -64,8 +63,7 @@ def __maybe_download_file(destination: str, source: str):
         logging.info("Destination {0} exists. Skipping.".format(destination))
     elif os.path.exists(os.path.splitext(destination)[0]):
         logging.warning(
-            "Assuming extracted folder %s " +
-            "contains the extracted files from %s. Will not download.",
+            "Assuming extracted folder %s contains the extracted files from %s. Will not download.",
             os.path.basename(destination),
             destination,
         )
@@ -133,16 +131,14 @@ def __process_data(data_folder: str, data_set: str):
 
     """
     fullpath = os.path.abspath(data_folder)
-    scp = [(path, data_set) for path in
-           glob(fullpath + '/**/*.wav', recursive=True)]
+    scp = [(path, data_set) for path in glob(fullpath + '/**/*.wav', recursive=True)]
     out = os.path.join(fullpath, data_set + '_all.json')
     utt2spk = os.path.join(fullpath, 'utt2spk')
     utt2spk_file = open(utt2spk, 'w')
 
     if os.path.exists(out):
         logging.warning(
-            "%s already exists and is assumed to be processed. " +
-            "If not, please delete %s and rerun this script",
+            "%s already exists and is assumed to be processed. If not, please delete %s and rerun this script",
             out,
             out,
         )
