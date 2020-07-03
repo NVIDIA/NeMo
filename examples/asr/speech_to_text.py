@@ -62,7 +62,11 @@ def main(args):
     }
 
     if args.max_steps is None:
-        iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
+        if args.gpus == 0:
+            # training on CPU
+            iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
+        else:
+            iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
         scheduler_args['iters_per_batch'] = iters_per_batch
     else:
         scheduler_args['max_steps'] = args.max_steps
