@@ -89,7 +89,8 @@ def MyJasper(conf: JasperConfig=JasperConfig()):
     print("="*80 + " Config objects " + "="*80)
     print("Model name: ", conf.name)
     print("Model optimizer params: ", conf.opt)
-    print("Model encoder params: ", conf.encoder)
+    print("Model encoder activation: ", conf.encoder.activation)
+    #print("Model encoder params: ", conf.encoder)
     print("Model encoder blocks: ", conf.encoder.blocks)
 
 
@@ -100,8 +101,15 @@ def my_app(cfg : DictConfig) -> None:
     print("="*80 + " Hydra " + "="*80)
     print(cfg.pretty())
 
-    # Jasper "object" with its own config
-    MyJasper()
+    # Jasper "object" with its default config.
+    j1 = MyJasper()
+
+    # Jasper "object" with some params overriden "in the code".
+    conf2 = JasperConfig()
+    conf2.name = "jasper_with_tanh"
+    conf2.opt.name="adam"
+    conf2.encoder.activation = "tanh"
+    j2 = MyJasper(conf=conf2)
 
 
 if __name__ == "__main__":
