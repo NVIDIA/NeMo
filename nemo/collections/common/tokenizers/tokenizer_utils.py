@@ -63,7 +63,7 @@ def get_bert_special_tokens(bert_derivative):
 def get_tokenizer(
     tokenizer_name: str,
     data_file: Optional[str] = None,
-    tokenizer_file: Optional[str] = None,
+    tokenizer_model: Optional[str] = None,
     sample_size: Optional[int] = None,
     pretrained_model_name: Optional[str] = None,
     special_tokens: Optional[List[str]] = None,
@@ -75,13 +75,12 @@ def get_tokenizer(
     Args:
     tokenizer_name: sentencepiece or nemobert
     data_file: data file used to build sentencepiece
-    tokenizer_file: tokenizer model file of sentencepiece
+    tokenizer_model: tokenizer model file of sentencepiece
     sample_size: sample size for building sentencepiece
-    pretrained_model_name: name of the pretrained model from the hugging face list or 'megatron',
+    pretrained_model_name: name of the pretrained model from the hugging face list,
         for example: bert-base-cased
-        To see the list of pretrained models, use: nemo_nlp.nm.trainables.get_bert_models_list()
-    tokenizer_model: only used for sentencepiece tokenizer
-    special_tokens: dict of special tokens (Optional)
+        To see the list of pretrained models, use: nemo_nlp.modules.common.get_pretrained_lm_models_list()
+    special_tokens: dict of special tokens
     vocab_file: path to vocab file
     vocab_size: vocab size for building sentence piece
     do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with sentencepiece
@@ -95,21 +94,22 @@ def get_tokenizer(
             pretrained_model=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
         )
     elif tokenizer_name == 'sentencepiece':
-        if not tokenizer_file and not data_file:
+        if not tokenizer_model and not data_file:
             raise ValueError(f'either tokenizer model or data_file must passed')
-        if not tokenizer_file or not os.path.exists(tokenizer_file):
+        if not tokenizer_model or not os.path.exists(tokenizer_model):
             if not special_tokens and pretrained_model_name:
                 special_tokens = MODEL_SPECIAL_TOKENS[model_type]
                 num_special_tokens = len(set(special_tokens.values()))
-            tokenizer_file, _ = nemo.collections.common.tokenizers.sentencepiece_tokenizer.create_spt_model(
+            tokenizer_model, _ = nemo.collections.common.tokenizers.sentencepiece_tokenizer.create_spt_model(
                 data_file=data_file,
                 vocab_size=vocab_size - num_special_tokens,
                 special_tokens=None,
                 sample_size=sample_size,
                 do_lower_case=do_lower_case,
+                output_dir=os.path.dirname(data_file) + '/spt',
             )
         tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_file, special_tokens=special_tokens
+            model_path=tokenizer_model, special_tokens=special_tokens
         )
     else:
         raise ValueError(f'{tokenizer_name} is not supported')

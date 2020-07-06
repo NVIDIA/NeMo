@@ -37,7 +37,7 @@ class SentencePieceTokenizer(TokenizerSpec):
     def __init__(self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None):
         """
         Args:
-            model_path: name of the pretrained model from the hugging face list
+            model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
             special_tokens: either list of special tokens or dictionary of token name to token value  
         """
         self.tokenizer = sentencepiece.SentencePieceProcessor()
@@ -120,7 +120,9 @@ class SentencePieceTokenizer(TokenizerSpec):
         text += self.tokenizer.decode_ids(ids[last_i:])
         return text.strip()
 
-    def tokens_to_ids(self, tokens):
+    def tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+        if isinstance(tokens, str):
+            tokens = [tokens]
         ids = []
         for token in tokens:
             ids.append(self.token_to_id(token))
@@ -188,6 +190,7 @@ def create_spt_model(
     sample_size: int,
     special_tokens: Union[Dict[str, str], List[str]],
     do_lower_case: bool,
+    output_dir: Optional[str] = None,
 ):
     """
     Creates sentence piece tokenizer model from data file.
@@ -197,7 +200,11 @@ def create_spt_model(
         sample_size: maximum size of sentences the trainer loads
         special_tokens: either list of special tokens or dictionary of token name to token value
         do_lower_case: if text should be lower cased before tokenizer model is created
+        output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
     """
+
+    if not data_file or not os.path.exists(data_file):
+        raise ValueError(f"data_file must be valid file path, but got {data_file}")
     data_dir = os.path.dirname(data_file)
     if special_tokens:
         if isinstance(special_tokens, list):
@@ -207,23 +214,13 @@ def create_spt_model(
         vocab = special_tokens[:]
     else:
         vocab = []
-    output_dir = f'{data_dir}/spt'
+    if not output_dir:
+        output_dir = f'{data_dir}/spt'
     if if_exist(output_dir, ['tokenizer.model']):
         logging.info(f"tokenizer model {output_dir}/tokenizer.model already exists")
         return f'{output_dir}/tokenizer.model', f'{output_dir}/vocab.txt'
-    logging.info(f'Processing WikiText dataset and store at {output_dir}')
+    logging.info(f'Processing {data_file} and store at {output_dir}')
     os.makedirs(output_dir, exist_ok=True)
-
-    if not data_file:
-        files = glob.glob(f'{data_dir}/*.txt')
-        data_file = f'{output_dir}/merged.txt'
-        logging.info(f"Merging {len(files)} txt files into {data_file}")
-
-        with open(data_file, "w") as merged:
-            for file in tqdm(files):
-                with open(file, 'r') as inf:
-                    content = inf.read().strip()
-                merged.write(content + '\n\n\n')
 
     cmd = (
         f"--input={data_file} --model_prefix={output_dir}/tokenizer "

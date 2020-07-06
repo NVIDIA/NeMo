@@ -19,11 +19,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
+from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
-from nemo.collections.nlp.losses import SmoothedCrossEntropyLoss
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
@@ -66,7 +65,7 @@ class BERTLMModel(ModelPT):
         """
         super().__init__()
         self.pretrained_model_name = pretrained_model_name
-        self.__tokenizer = None
+        self.tokenizer = None
         if preprocessing_args:
             self.__setup_tokenizer(preprocessing_args)
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
@@ -174,7 +173,7 @@ class BERTLMModel(ModelPT):
             train_data_layer_params['shuffle'] = True
         self.__train_dl = (
             self.__setup_preprocessed_dataloader(train_data_layer_params)
-            if self.__tokenizer is None
+            if self.tokenizer is None
             else self.__setup_text_dataloader(train_data_layer_params)
         )
 
@@ -183,7 +182,7 @@ class BERTLMModel(ModelPT):
             val_data_layer_params['shuffle'] = False
         self.__val_dl = (
             self.__setup_preprocessed_dataloader(val_data_layer_params)
-            if self.__tokenizer is None
+            if self.tokenizer is None
             else self.__setup_text_dataloader(val_data_layer_params)
         )
 
@@ -230,11 +229,11 @@ class BERTLMModel(ModelPT):
 
     def __setup_tokenizer(self, preprocessing_args):
         tok = get_tokenizer(**preprocessing_args)
-        self.__tokenizer = tok
+        self.tokenizer = tok
 
     def __setup_text_dataloader(self, data_layer_params):
         dataset = BertPretrainingDataset(
-            tokenizer=self.__tokenizer,
+            tokenizer=self.tokenizer,
             dataset=data_layer_params['dataset'],
             max_seq_length=data_layer_params['max_seq_length'],
             mask_probability=data_layer_params['mask_probability'],
