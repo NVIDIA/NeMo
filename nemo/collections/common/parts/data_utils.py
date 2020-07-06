@@ -12,6 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.parts.data_utils import *
-from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron
-from nemo.collections.common.parts.transformer_utils import *
+
+import os
+
+__all__ = ['if_exist']
+
+
+def if_exist(outfold, files):
+    if not os.path.exists(outfold):
+        return False
+    for file in files:
+        if not os.path.exists(f'{outfold}/{file}'):
+            return False
+    return True
