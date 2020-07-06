@@ -27,9 +27,9 @@ pipeline {
       }
     }
 
-    stage('Documentation check') {
+    stage('Installation') {
       steps {
-        sh './reinstall.sh && pytest -m docs'
+        sh './reinstall.sh'
       }
     }
 
