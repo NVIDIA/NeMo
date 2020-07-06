@@ -26,12 +26,11 @@ from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
 def add_nlp_args(parser):
     parser.add_argument("--data_dir", type=str, required=True, help="Path to data folder")
     parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
-    parser.add_argument("--num_gpus", default=1, type=int, help="Number Gpus")
+    parser.add_argument("--gpus", default=1, type=int, help="Number Gpus")
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
         "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
     )
-    parser.add_argument("--max_pred_length", default=128, type=int, help="Number Gpus")
     parser.add_argument(
         "--amp_level",
         default="O0",
@@ -39,30 +38,7 @@ def add_nlp_args(parser):
         choices=["O0", "O1", "O2"],
         help="Automatic Mixed Precision optimization level.",
     )
-    parser.add_argument(
-        "--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss"
-    )
-    parser.add_argument(
-        "--load_dir",
-        default=None,
-        type=str,
-        help="Directory with weights and optimizer checkpoints. Used for resuming training.",
-    )
-    parser.add_argument(
-        "--bert_checkpoint",
-        default=None,
-        type=str,
-        help="Path to BERT encoder weights file. Used for encoder initialization for finetuning.",
-    )
-    parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
-    parser.add_argument("--save_epoch_freq", default=1, type=int, help="Save checkpoints every given epoch.")
-    parser.add_argument("--save_step_freq", default=100, type=int, help="Save checkpoints every given iteration.")
-    parser.add_argument(
-        "--train_step_freq", default=25, type=int, help="Print training metrics every given iteration."
-    )
-    parser.add_argument(
-        "--eval_step_freq", default=25, type=int, help="Print evaluation metrics every given iteration."
-    )
+    parser.add_argument("--gradient_clip_val", type=float, default=0, help="gradient clipping")
     parser.add_argument(
         "--max_predictions_per_seq",
         default=20,
@@ -72,7 +48,31 @@ def add_nlp_args(parser):
     parser.add_argument(
         "--max_steps", default=100, type=int, help="Number of training steps.",
     )
-
+    parser.add_argument("--num_nodes", default=1, type=int, help="Number Nodes")
+    # parser.add_argument(
+    #     "--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss"
+    # )
+    # parser.add_argument(
+    #     "--load_dir",
+    #     default=None,
+    #     type=str,
+    #     help="Directory with weights and optimizer checkpoints. Used for resuming training.",
+    # )
+    # parser.add_argument(
+    #     "--bert_checkpoint",
+    #     default=None,
+    #     type=str,
+    #     help="Path to BERT encoder weights file. Used for encoder initialization for finetuning.",
+    # )
+    # parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
+    # parser.add_argument("--save_epoch_freq", default=1, type=int, help="Save checkpoints every given epoch.")
+    # parser.add_argument("--save_step_freq", default=100, type=int, help="Save checkpoints every given iteration.")
+    # parser.add_argument(
+    #     "--train_step_freq", default=25, type=int, help="Print training metrics every given iteration."
+    # )
+    # parser.add_argument(
+    #     "--eval_step_freq", default=25, type=int, help="Print evaluation metrics every given iteration."
+    # )
     args = parser.parse_args()
     return args
 
@@ -102,7 +102,7 @@ def main():
     }
 
     # if args.max_steps is None:
-    #     if args.num_gpus == 0:
+    #     if args.gpus == 0:
     #         # training on CPU
     #         iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
     #     else:
@@ -125,7 +125,7 @@ def main():
         num_sanity_val_steps=0,
         amp_level=args.amp_level,
         precision=16,
-        gpus=args.num_gpus,
+        gpus=args.gpus,
         max_steps=args.max_steps,
         distributed_backend='ddp',
         replace_sampler_ddp=False,
