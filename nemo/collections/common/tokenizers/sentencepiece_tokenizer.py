@@ -192,11 +192,11 @@ def create_spt_model(
     """
     Creates sentence piece tokenizer model from data file.
     Args:
-        data_file:
-        vocab_size:
-        sample_size:
-        special_tokens:
-        do_lower_case:
+        data_file: data file
+        vocab_size: vocabulary size
+        sample_size: maximum size of sentences the trainer loads
+        special_tokens: either list of special tokens or dictionary of token name to token value
+        do_lower_case: if text should be lower cased before tokenizer model is created
     """
     data_dir = os.path.dirname(data_file)
     if special_tokens:

@@ -12,13 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from typing import List
 import os
 
 __all__ = ['if_exist']
 
 
-def if_exist(outfold, files):
+def if_exist(outfold: str, files: List[str]):
+    """
+    Returns true if all given files exist in the given folder
+    Args:
+        outfold: folder path
+        files: list of file names relative to outfold
+    """
     if not os.path.exists(outfold):
         return False
     for file in files:
