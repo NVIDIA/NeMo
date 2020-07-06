@@ -47,11 +47,7 @@ def parse_args():
     parser.add_argument(
         "--tokenizer_name", default='nemobert', type=str, choices=['sentencepiece', 'nemobert'], help="Tokenizer type"
     )
-<<<<<<< HEAD
     parser.add_argument("--tokenizer_model", default=None, type=str, help="Tokenizer file for sentence piece")
-=======
-    parser.add_argument("--tokenizer_file", default=None, type=str, help="Tokenizer file for sentence piece")
->>>>>>> added bert pretrainin from text
     parser.add_argument("--num_gpus", default=1, type=int, help="Number Gpus")
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
@@ -138,11 +134,7 @@ def main():
         'vocab_size': vocab_size,
         'sample_size': args.sample_size,
         'pretrained_model_name': args.pretrained_model_name,
-<<<<<<< HEAD
         'tokenizer_model': args.tokenizer_model,
-=======
-        'tokenizer_file': args.tokenizer_file,
->>>>>>> added bert pretrainin from text
         'do_lower_case': args.do_lower_case,
     }
     bert_model = BERTLMModel(
