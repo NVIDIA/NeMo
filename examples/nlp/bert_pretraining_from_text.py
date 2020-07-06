@@ -168,9 +168,10 @@ def main():
         precision=16,
         gpus=args.gpus,
         max_epochs=args.max_epochs,
-        # max_steps=args.max_steps,
+        max_steps=args.max_steps,
         distributed_backend='ddp',
         accumulate_grad_batches=args.accumulate_grad_batches,
+        gradient_clip_val=args.gradient_clip_val
     )
     trainer.fit(bert_model)
 
