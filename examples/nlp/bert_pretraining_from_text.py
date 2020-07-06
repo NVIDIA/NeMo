@@ -15,6 +15,7 @@
 import json
 import os
 import random
+import sys
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
@@ -67,6 +68,13 @@ def add_nlp_args(parser):
     parser.add_argument(
         "--max_steps", default=None, type=int, help="Number of training steps.",
     )
+    parser.add_argument(
+        "--scheduler",
+        default='CosineAnnealing',
+        type=str,
+        choices=["SquareRootAnnealing", "CosineAnnealing"],
+        help="Scheduler.",
+    )
     # parser.add_argument(
     #     "--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss"
     # )
@@ -87,9 +95,7 @@ def add_nlp_args(parser):
     # parser.add_argument(
     #     "--train_step_freq", default=25, type=int, help="Print training metrics every given iteration."
     # )
-    # parser.add_argument(
-    #     "--eval_step_freq", default=25, type=int, help="Print evaluation metrics every given iteration."
-    # )
+    parser.add_argument("--val_check_interval", default=1.0, type=int, help="validation after this many steps.")
 
     args = parser.parse_args()
     return args
@@ -157,13 +163,14 @@ def main():
             'optimizer': args.optimizer,
             'lr': args.lr,
             'opt_args': args.opt_args,
-            'scheduler': SquareRootAnnealing,
+            'scheduler': getattr(sys.modules[__name__], args.scheduler),
             'scheduler_args': scheduler_args,
         }
     )
 
     trainer = pl.Trainer(
-        num_sanity_val_steps=10,
+        num_sanity_val_steps=0,
+        val_check_interval=args.val_check_interval,
         amp_level=args.amp_level,
         precision=16,
         gpus=args.gpus,
@@ -171,7 +178,7 @@ def main():
         max_steps=args.max_steps,
         distributed_backend='ddp',
         accumulate_grad_batches=args.accumulate_grad_batches,
-        gradient_clip_val=args.gradient_clip_val
+        gradient_clip_val=args.gradient_clip_val,
     )
     trainer.fit(bert_model)
 

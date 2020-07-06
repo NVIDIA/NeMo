@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import random
+import sys
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
@@ -37,6 +38,13 @@ def add_nlp_args(parser):
         type=str,
         choices=["O0", "O1", "O2"],
         help="Automatic Mixed Precision optimization level.",
+    )
+    parser.add_argument(
+        "--scheduler",
+        default='SquareRootAnnealing',
+        type=str,
+        choices=["SquareRootAnnealing", "CosineAnnealing"],
+        help="Scheduler.",
     )
     parser.add_argument("--gradient_clip_val", type=float, default=0, help="gradient clipping")
     parser.add_argument(
@@ -116,7 +124,7 @@ def main():
             'optimizer': args.optimizer,
             'lr': args.lr,
             'opt_args': args.opt_args,
-            'scheduler': SquareRootAnnealing,
+            'scheduler': getattr(sys.modules[__name__], args.scheduler),
             'scheduler_args': scheduler_args,
         }
     )
