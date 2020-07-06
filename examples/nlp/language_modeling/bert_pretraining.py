@@ -28,7 +28,6 @@ python bert_pretraining.py \
 --optimizer novograd \
 --beta1 0.95 \
 --beta2 0.25 \
---tokenizer sentence-piece \
 --vocab_size 3200 \
 --hidden_size 768 \
 --intermediate_size 3072 \
@@ -38,6 +37,7 @@ python bert_pretraining.py \
 --save_step_freq 200 \
 data_text \
 --dataset_name wikitext-2 \
+--tokenizer sentence-piece \
 --num_epochs 10 \
 --sample_size 10000000 \
 --mask_probability 0.15 \
