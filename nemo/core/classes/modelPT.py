@@ -16,8 +16,11 @@ from abc import abstractmethod
 from typing import Dict, Optional
 
 from pytorch_lightning import LightningModule
+from torch.optim.optimizer import Optimizer
 
 from nemo.core.classes.common import Model
+from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args
+from nemo.utils import logging
 
 __all__ = ['ModelPT']
 
@@ -49,24 +52,46 @@ class ModelPT(LightningModule, Model):
         """
         pass
 
-    @abstractmethod
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+    def setup_optimization(self, optim_params: Optional[Dict] = None) -> Optimizer:
         """
-        (Optionally) Setups data loader to be used in testing
+        Prepares an optimizer from a string name and its optional config parameters.
+
         Args:
-            test_data_layer_params: test data layer parameters.
+            optim_params: a dictionary containing the following keys.
+                - "lr": mandatory key for learning rate. Will raise ValueError
+                if not provided.
+
+                - "optimizer": string name pointing to one of the available
+                optimizers in the registry. If not provided, defaults to "adam".
+
+                - "opt_args": Optional list of strings, in the format "arg_name=arg_value".
+                The list of "arg_value" will be parsed and a dictionary of optimizer
+                kwargs will be built and supplied to instantiate the optimizer.
+
         Returns:
-
+            An instance of a torch.optim.Optimizer
         """
-        pass
+        optim_params = optim_params or {}  # In case null was passed as optim_params
 
-    @abstractmethod
-    def setup_optimization(self, optim_params: Optional[Dict]):
-        """
-        Setups optimization parameters
-        Args:
-            optim_params: dictionary with optimization parameters.
-        Returns:
+        # Check if caller provided optimizer name, default to Adam otherwise
+        optimizer_name = optim_params.get('optimizer', 'adam')
 
-        """
-        pass
+        # Check if caller has optimizer kwargs, default to empty dictionary
+        optimizer_args = optim_params.get('opt_args', [])
+        optimizer_args = parse_optimizer_args(optimizer_args)
+
+        # We are guarenteed to have lr since it is required by the argparser
+        # But maybe user forgot to pass it to this function
+        lr = optim_params.get('lr', None)
+
+        if 'lr' is None:
+            raise ValueError('`lr` must be passed to `optim_params` when setting up the optimization !')
+
+        # Actually instantiate the optimizer
+        optimizer = get_optimizer(optimizer_name)
+        optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+
+        # TODO: Remove after demonstration
+        logging.info("Optimizer config = %s", str(optimizer))
+
+        return optimizer

@@ -22,7 +22,6 @@ from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
