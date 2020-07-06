@@ -13,5 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import *
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.tokenizer_utils import *

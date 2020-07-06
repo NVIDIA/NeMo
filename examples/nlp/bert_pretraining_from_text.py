@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
 import random
 from argparse import ArgumentParser
 
@@ -24,7 +26,28 @@ from nemo.collections.nlp.models.lm_model import BERTLMModel
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--data_dir", type=str, required=True, help="Path to data folder")
+    parser.add_argument("--max_seq_length", default=128, type=int)
+    parser.add_argument("--sample_size", default=1e7, type=int, help="Data sample size.")
+    parser.add_argument("--num_epochs", default=10, type=int, help="Number of training epochs.")
+    parser.add_argument(
+        "--mask_probability",
+        default=0.15,
+        type=float,
+        help="Probability of masking a token in the input text during data processing.",
+    )
+    parser.add_argument(
+        "--short_seq_prob",
+        default=0.1,
+        type=float,
+        help="Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
+    )
     parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
+    parser.add_argument("--pretrained_model_name", default='bert-base-cased', type=str, help="pretrained model name")
+    parser.add_argument("--do_lower_case", action='store_true', help="lower case data")
+    parser.add_argument(
+        "--tokenizer_name", default='nemobert', type=str, choices=['sentencepiece', 'nemobert'], help="Tokenizer type"
+    )
+    parser.add_argument("--tokenizer_model", default=None, type=str, help="Tokenizer file for sentence piece")
     parser.add_argument("--num_gpus", default=1, type=int, help="Number Gpus")
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
@@ -100,13 +123,43 @@ def parse_args():
 def main():
 
     args = parse_args()
-
-    bert_model = BERTLMModel(pretrained_model_name='bert-base-uncased', config_file=args.config_file)
+    train_data_file = os.path.join(args.data_dir, 'train.txt')
+    valid_data_file = os.path.join(args.data_dir, 'valid.txt')
+    vocab_size = None
+    if args.config_file:
+        vocab_size = json.load(open(args.config_file))['vocab_size']
+    preprocessing_args = {
+        'data_file': train_data_file,
+        'tokenizer_name': args.tokenizer_name,
+        'vocab_size': vocab_size,
+        'sample_size': args.sample_size,
+        'pretrained_model_name': args.pretrained_model_name,
+        'tokenizer_model': args.tokenizer_model,
+        'do_lower_case': args.do_lower_case,
+    }
+    bert_model = BERTLMModel(
+        pretrained_model_name=args.pretrained_model_name,
+        config_file=args.config_file,
+        preprocessing_args=preprocessing_args,
+    )
     bert_model.setup_training_data(
         train_data_layer_params={
-            'train_data': args.data_dir,
+            'dataset': train_data_file,
             'max_predictions_per_seq': args.max_predictions_per_seq,
             'batch_size': args.batch_size,
+            'max_seq_length': args.max_seq_length,
+            'mask_probability': args.short_seq_prob,
+            'short_seq_prob': args.short_seq_prob,
+        },
+    )
+    bert_model.setup_validation_data(
+        val_data_layer_params={
+            'dataset': valid_data_file,
+            'max_predictions_per_seq': args.max_predictions_per_seq,
+            'batch_size': args.batch_size,
+            'max_seq_length': args.max_seq_length,
+            'mask_probability': args.short_seq_prob,
+            'short_seq_prob': args.short_seq_prob,
         },
     )
 
@@ -114,15 +167,14 @@ def main():
     bert_model.setup_optimization(optim_params, optimizer=args.optimizer)
 
     trainer = pl.Trainer(
-        num_sanity_val_steps=0,
+        num_sanity_val_steps=10,
         amp_level=args.amp_level,
         precision=16,
         gpus=args.num_gpus,
-        max_steps=args.max_steps,
+        max_epochs=args.num_epochs,
+        # max_steps=args.max_steps,
         distributed_backend='ddp',
-        replace_sampler_ddp=False,
         accumulate_grad_batches=args.accumulate_grad_batches,
-        # progress_bar_refresh_rate=1,
     )
     trainer.fit(bert_model)
 

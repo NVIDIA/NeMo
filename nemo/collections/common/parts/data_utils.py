@@ -12,6 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.parts.data_utils import *
-from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron
-from nemo.collections.common.parts.transformer_utils import *
+import os
+from typing import List
+
+__all__ = ['if_exist']
+
+
+def if_exist(outfold: str, files: List[str]):
+    """
+    Returns true if all given files exist in the given folder
+    Args:
+        outfold: folder path
+        files: list of file names relative to outfold
+    """
+    if not os.path.exists(outfold):
+        return False
+    for file in files:
+        if not os.path.exists(f'{outfold}/{file}'):
+            return False
+    return True
