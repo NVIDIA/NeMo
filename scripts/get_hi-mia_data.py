@@ -105,14 +105,15 @@ def write_file(name, lines, idx):
     logging.info("wrote %s", name)
 
 
-def process_single_line(line: str):
+def process_single_line(inp: tuple):
+    line, dataset = inp
     line = line.strip()
     y, sr = librosa.load(line, sr=None)
     if sr != 16000:
         y, sr = librosa.load(line, sr=16000)
         librosa.output.write_wav(line, y, sr)
     dur = librosa.get_duration(y=y, sr=sr)
-    if 'test' in line.split("/"):
+    if 'test' == dataset:
         speaker = line.split('/')[-1].split('.')[0].split('_')[0]
     else:
         speaker = line.split('/')[-2]
