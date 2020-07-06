@@ -107,7 +107,7 @@ def write_file(name, lines, idx):
     logging.info("wrote %s", name)
 
 
-def process_single_line(inp:tuple):
+def process_single_line(inp: tuple):
     line, dataset = inp
     line = line.strip()
     y, sr = librosa.load(line, sr=None)
