@@ -4,7 +4,6 @@ onnxruntime
 parameterized
 pytest
 pytest-runner
-pytorch-lightning
 ruamel.yaml
 sphinx
 sphinxcontrib-bibtex

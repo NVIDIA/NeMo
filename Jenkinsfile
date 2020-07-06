@@ -27,6 +27,12 @@ pipeline {
       }
     }
 
+    stage('Documentation check') {
+      steps {
+        sh './reinstall.sh && pytest -m docs'
+      }
+    }
+
     stage('L2: Parallel NLP-BERT pretraining') {
       when {
         anyOf{
