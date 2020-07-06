@@ -118,7 +118,7 @@ class StyleCommand(distutils_cmd.Command):
     __ISORT_BASE = (
         'isort '
         # These two lines makes isort compatible with black.
-        'isort --profile black .'
+        '--profile black .'
         # f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
     )
     __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
