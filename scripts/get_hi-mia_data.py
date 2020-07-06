@@ -139,7 +139,7 @@ def __process_data(data_folder: str, data_set: str):
 
     if os.path.exists(out):
         logging.warning(
-            "%s already exists and is assumed to be processed. " + "If not, please delete %s and rerun this script",
+            "%s already exists and is assumed to be processed. If not, please delete %s and rerun this script",
             out,
             out,
         )
