@@ -13,15 +13,19 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
+from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -47,17 +51,26 @@ class BERTLMModel(ModelPT):
             'nsp_logits': self.nsp_classifier.output_types['logits'],
         }
 
-    def __init__(self, config_file: Optional[str] = None, pretrained_model_name: Optional[str] = 'bert-base-uncased'):
+    def __init__(
+        self,
+        config_file: Optional[str] = None,
+        pretrained_model_name: Optional[str] = 'bert-base-uncased',
+        preprocessing_args: Optional[Dict[str, str]] = None,
+    ):
         """
         Args:
             config_file: model config file
             pretrained_model_name: BERT model name 
+            preprocessing_args: preprocessing parameters for on the fly data preprocessing
         """
         super().__init__()
+        self.pretrained_model_name = pretrained_model_name
+        self.tokenizer = None
+        if preprocessing_args:
+            self.__setup_tokenizer(preprocessing_args)
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
-        self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.mlm_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.vocab_size,
@@ -158,19 +171,19 @@ class BERTLMModel(ModelPT):
     def setup_training_data(self, train_data_layer_params: Optional[Dict]):
         if 'shuffle' not in train_data_layer_params:
             train_data_layer_params['shuffle'] = True
-        self.__train_dl = self.__setup_dataloader(
-            train_data_layer_params['train_data'],
-            train_data_layer_params['max_pred_length'],
-            train_data_layer_params['batch_size'],
+        self.__train_dl = (
+            self.__setup_preprocessed_dataloader(train_data_layer_params)
+            if self.tokenizer is None
+            else self.__setup_text_dataloader(train_data_layer_params)
         )
 
     def setup_validation_data(self, val_data_layer_params: Optional[Dict]):
         if 'shuffle' not in val_data_layer_params:
             val_data_layer_params['shuffle'] = False
-        self.__val_dl = self.__setup_dataloader(
-            val_data_layer_params['eval_data'],
-            val_data_layer_params['max_pred_length'],
-            val_data_layer_params['batch_size'],
+        self.__val_dl = (
+            self.__setup_preprocessed_dataloader(val_data_layer_params)
+            if self.tokenizer is None
+            else self.__setup_text_dataloader(val_data_layer_params)
         )
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
@@ -196,20 +209,44 @@ class BERTLMModel(ModelPT):
         else:
             raise NotImplementedError()
 
-    def __setup_dataloader(
-        self, dataset, max_pred_length, batch_size=64,
-    ):
+    def __setup_preprocessed_dataloader(self, data_layer_params):
+        dataset = data_layer_params['train_data']
+        max_predictions_per_seq = data_layer_params['max_predictions_per_seq']
+        batch_size = data_layer_params['batch_size']
+
         if os.path.isdir(dataset):
             files = [os.path.join(dataset, f) for f in os.listdir(dataset) if os.path.isfile(os.path.join(dataset, f))]
         else:
             files = [dataset]
         files.sort()
         dl = BertPretrainingPreprocessedDataloader(
-            data_files=files, max_pred_length=max_pred_length, batch_size=batch_size
+            data_files=files, max_predictions_per_seq=max_predictions_per_seq, batch_size=batch_size
         )
         # return torch.utils.data.DataLoader(
         #     dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
         # )
+        return dl
+
+    def __setup_tokenizer(self, preprocessing_args):
+        tok = get_tokenizer(**preprocessing_args)
+        self.tokenizer = tok
+
+    def __setup_text_dataloader(self, data_layer_params):
+        dataset = BertPretrainingDataset(
+            tokenizer=self.tokenizer,
+            dataset=data_layer_params['dataset'],
+            max_seq_length=data_layer_params['max_seq_length'],
+            mask_probability=data_layer_params['mask_probability'],
+            short_seq_prob=data_layer_params['short_seq_prob'],
+        )
+        dl = torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=data_layer_params['batch_size'],
+            collate_fn=dataset.collate_fn,
+            drop_last=data_layer_params.get('drop_last', False),
+            shuffle=data_layer_params['shuffle'],
+            num_workers=data_layer_params.get('num_workers', 0),
+        )
         return dl
 
     def configure_optimizers(self):
