@@ -1,5 +1,5 @@
 black
-isort[requirements] <= 5.0.3
+isort[requirements] < 5
 onnxruntime
 parameterized
 pytest
