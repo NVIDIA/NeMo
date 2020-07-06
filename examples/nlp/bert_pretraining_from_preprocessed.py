@@ -17,38 +17,19 @@ from argparse import ArgumentParser
 
 import pytorch_lightning as pl
 from transformers import BertConfig
+from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing
+from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
 
 from nemo.collections.nlp.models.lm_model import BERTLMModel
 
 
-def parse_args():
-    parser = ArgumentParser()
+def add_nlp_args(parser):
     parser.add_argument("--data_dir", type=str, required=True, help="Path to data folder")
     parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
     parser.add_argument("--num_gpus", default=1, type=int, help="Number Gpus")
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
         "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
-    )
-    parser.add_argument("--lr", default=0.01, type=float, help="Initial learning rate.")
-    parser.add_argument(
-        "--lr_policy", default=None, type=str, help="Learning rate policy.",
-    )
-    parser.add_argument(
-        "--lr_warmup_proportion", default=0.05, type=float, help="Warm up proportion of total training iterations."
-    )
-    parser.add_argument(
-        "--optimizer",
-        default="adam_w",
-        type=str,
-        choices=["adam", "adam_w"],
-        help="Optimizer algorithm for training.",
-    )
-    parser.add_argument(
-        "--betas",
-        default=(0.9, 0.999),
-        type=tuple,
-        help="coefficients used for computing running averages of gradient and its square",
     )
     parser.add_argument("--max_pred_length", default=128, type=int, help="Number Gpus")
     parser.add_argument(
@@ -58,7 +39,6 @@ def parse_args():
         choices=["O0", "O1", "O2"],
         help="Automatic Mixed Precision optimization level.",
     )
-    parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay parameter of the optimizer.")
     parser.add_argument(
         "--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss"
     )
@@ -98,8 +78,11 @@ def parse_args():
 
 
 def main():
-
-    args = parse_args()
+    parser = ArgumentParser()
+    # parser = pl.Trainer.add_argparse_args(parser)
+    parser = add_optimizer_args(parser)
+    parser = add_scheduler_args(parser)
+    args = add_nlp_args(parser)
 
     bert_model = BERTLMModel(pretrained_model_name='bert-base-uncased', config_file=args.config_file)
     bert_model.setup_training_data(
@@ -110,8 +93,33 @@ def main():
         },
     )
 
-    optim_params = {'lr': args.lr, 'weight_decay': args.weight_decay, 'betas': args.betas}
-    bert_model.setup_optimization(optim_params, optimizer=args.optimizer)
+    scheduler_args = {
+        'monitor': 'val_loss',  # pytorch lightning requires this value
+        'warmup_ratio': args.warmup_ratio,
+        'warmup_steps': args.warmup_steps,
+        'min_lr': args.min_lr,
+        'last_epoch': args.last_epoch,
+    }
+
+    # if args.max_steps is None:
+    #     if args.num_gpus == 0:
+    #         # training on CPU
+    #         iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
+    #     else:
+    #         iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
+    #     scheduler_args['iters_per_batch'] = iters_per_batch
+    # else:
+    scheduler_args['max_steps'] = args.max_steps
+
+    bert_model.setup_optimization(
+        optim_params={
+            'optimizer': args.optimizer,
+            'lr': args.lr,
+            'opt_args': args.opt_args,
+            'scheduler': SquareRootAnnealing,
+            'scheduler_args': scheduler_args,
+        }
+    )
 
     trainer = pl.Trainer(
         num_sanity_val_steps=0,

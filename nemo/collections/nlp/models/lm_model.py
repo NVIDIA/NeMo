@@ -28,6 +28,7 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
+from nemo.core.optim import prepare_lr_scheduler
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
@@ -189,25 +190,11 @@ class BERTLMModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
-        if optimizer == 'adam':
-            self.__optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=optim_params['lr'],
-                weight_decay=optim_params.get('weight_decay', 0),
-                betas=optim_params.get('betas', (0.9, 0.999)),
-                eps=optim_params.get('eps', 1e-08),
-            )
-        elif optimizer == 'adam_w':
-            self.__optimizer = torch.optim.AdamW(
-                self.parameters(),
-                lr=optim_params['lr'],
-                weight_decay=optim_params.get('weight_decay', 0),
-                betas=optim_params.get('betas', (0.9, 0.999)),
-                eps=optim_params.get('eps', 1e-08),
-            )
-        else:
-            raise NotImplementedError()
+    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optim_params)
+        self.__scheduler = prepare_lr_scheduler(
+            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
+        )
 
     def __setup_preprocessed_dataloader(self, data_layer_params):
         dataset = data_layer_params['train_data']
