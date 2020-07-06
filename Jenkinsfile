@@ -48,12 +48,12 @@ pipeline {
             sh 'rm -rf examples/nlp/lightning_logs'
           }
         }
-        stage('BERT offline preprocessing') {
-          steps {
-            sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=1 python bert_pretraining_from_preprocessed.py --amp_level O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 300'
-            sh 'rm -rf examples/nlp/lightning_logs'
-          }
-        }
+        // stage('BERT offline preprocessing') {
+        //   steps {
+        //     sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=1 python bert_pretraining_from_preprocessed.py --amp_level O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 300'
+        //     sh 'rm -rf examples/nlp/lightning_logs'
+        //   }
+        // }
       }
     }
 
