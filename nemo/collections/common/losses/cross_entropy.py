@@ -16,7 +16,7 @@ import torch
 from torch import nn
 
 from nemo.core.classes import Serialization, Typing, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LogprobsType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['CrossEntropyLoss']
@@ -53,6 +53,8 @@ class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
             weight (list): list of rescaling weight given to each class
             reduction (str): type of the reduction over the batch
         """
+        if weight is not None and not torch.is_tensor(weight):
+            weight = torch.FloatTensor(weight).to(self._device)
         super().__init__(weight=weight, reduction=reduction)
         self._logits_dim = logits_ndim
 

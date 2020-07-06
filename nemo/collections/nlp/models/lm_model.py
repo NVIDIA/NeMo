@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 
@@ -22,6 +22,7 @@ from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingPreprocessedDataloader
 from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -63,7 +64,7 @@ class BERTLMModel(ModelPT):
             num_classes=self.vocab_size,
             activation='gelu',
             log_softmax=True,
-            use_transformer_pretrained=True,
+            use_transformer_init=True,
         )
 
         self.nsp_classifier = SequenceClassifier(
@@ -72,7 +73,7 @@ class BERTLMModel(ModelPT):
             num_layers=2,
             log_softmax=False,
             activation='tanh',
-            use_transformer_pretrained=True,
+            use_transformer_init=True,
         )
 
         self.mlm_loss = SmoothedCrossEntropyLoss()
