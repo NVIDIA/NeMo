@@ -21,13 +21,15 @@ from transformers import BertConfig
 
 from nemo.collections.nlp.models.lm_model import BERTLMModel
 from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing
-from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
+from nemo.utils.arguments import add_nlp_args, add_optimizer_args, add_scheduler_args
 
 
-def add_nlp_args(parser):
-    parser.add_argument("--data_dir", type=str, required=True, help="Path to data folder")
-    parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
-    parser.add_argument("--gpus", default=1, help="Number Gpus")
+def add_args(parser):
+    parser.add_argument(
+        "--gpus",
+        default=1,
+        help="Select GPU devices. Could be either int, string or list. See https://pytorch-lightning.readthedocs.io/en/latest/multi_gpu.html#select-gpu-devices",
+    )
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
         "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
@@ -39,6 +41,10 @@ def add_nlp_args(parser):
         choices=["O0", "O1", "O2"],
         help="Automatic Mixed Precision optimization level.",
     )
+    parser.add_argument("--gradient_clip_val", type=float, default=0, help="gradient clipping")
+    parser.add_argument(
+        "--precision", default=32, type=int, choices=[16, 32], help="precision.",
+    )
     parser.add_argument(
         "--scheduler",
         default='SquareRootAnnealing',
@@ -46,7 +52,6 @@ def add_nlp_args(parser):
         choices=["SquareRootAnnealing", "CosineAnnealing"],
         help="Scheduler.",
     )
-    parser.add_argument("--gradient_clip_val", type=float, default=0, help="gradient clipping")
     parser.add_argument(
         "--max_predictions_per_seq",
         default=20,
@@ -56,38 +61,11 @@ def add_nlp_args(parser):
     parser.add_argument(
         "--max_steps", default=100, type=int, help="Number of training steps.",
     )
-    parser.add_argument(
-        "--precision", default=32, type=int, choices=[16, 32], help="precision.",
-    )
     parser.add_argument("--pretrained_model_name", default='bert-base-uncased', type=str, help="pretrained model name")
     parser.add_argument(
         "--progress_bar_refresh_rate", default=1, type=int, help="progress_bar_refresh_rate",
     )
     parser.add_argument("--num_nodes", default=1, type=int, help="Number Nodes")
-    # parser.add_argument(
-    #     "--only_mlm_loss", action="store_true", default=False, help="use only masked language model loss"
-    # )
-    # parser.add_argument(
-    #     "--load_dir",
-    #     default=None,
-    #     type=str,
-    #     help="Directory with weights and optimizer checkpoints. Used for resuming training.",
-    # )
-    # parser.add_argument(
-    #     "--bert_checkpoint",
-    #     default=None,
-    #     type=str,
-    #     help="Path to BERT encoder weights file. Used for encoder initialization for finetuning.",
-    # )
-    # parser.add_argument("--grad_norm_clip", type=float, default=-1, help="gradient clipping")
-    # parser.add_argument("--save_epoch_freq", default=1, type=int, help="Save checkpoints every given epoch.")
-    # parser.add_argument("--save_step_freq", default=100, type=int, help="Save checkpoints every given iteration.")
-    # parser.add_argument(
-    #     "--train_step_freq", default=25, type=int, help="Print training metrics every given iteration."
-    # )
-    # parser.add_argument(
-    #     "--eval_step_freq", default=25, type=int, help="Print evaluation metrics every given iteration."
-    # )
     args = parser.parse_args()
     return args
 
@@ -97,7 +75,8 @@ def main():
     # parser = pl.Trainer.add_argparse_args(parser)
     parser = add_optimizer_args(parser)
     parser = add_scheduler_args(parser)
-    args = add_nlp_args(parser)
+    parser = add_nlp_args(parser)
+    args = add_args(parser)
     bert_model = BERTLMModel(pretrained_model_name=args.pretrained_model_name, config_file=args.config_file)
     bert_model.setup_training_data(
         train_data_layer_params={
@@ -113,17 +92,8 @@ def main():
         'warmup_steps': args.warmup_steps,
         'min_lr': args.min_lr,
         'last_epoch': args.last_epoch,
+        'max_steps': args.max_steps,
     }
-
-    # if args.max_steps is None:
-    #     if args.gpus == 0:
-    #         # training on CPU
-    #         iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
-    #     else:
-    #         iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
-    #     scheduler_args['iters_per_batch'] = iters_per_batch
-    # else:
-    scheduler_args['max_steps'] = args.max_steps
 
     bert_model.setup_optimization(
         optim_params={
