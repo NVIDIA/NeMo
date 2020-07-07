@@ -28,6 +28,12 @@ pipeline {
     }
 
     stage('L2: Parallel NLP Examples 1') {
+      when {
+        anyOf{
+          branch 'master'
+          changeRequest()
+        }
+      }
       failFast true
       parallel {
         stage ('Text Classification with BERT Test') {
