@@ -18,7 +18,7 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
+from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -55,7 +55,7 @@ class EncDecCTCModel(ASRModel):
     @staticmethod
     def __setup_dataloader_from_config(config: Optional[Dict]):
         featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
-        dataset = AudioToTextDataset(
+        dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
             featurizer=featurizer,
