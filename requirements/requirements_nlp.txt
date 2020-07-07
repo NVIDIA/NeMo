@@ -7,7 +7,7 @@ transformers>=2.11.0
 unidecode
 youtokentome
 numpy
-tqdm
+tqdm>=4.41.0
 rapidfuzz
 gdown
 megatron-lm
