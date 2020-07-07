@@ -56,6 +56,7 @@ def add_nlp_args(parser):
     parser.add_argument(
         "--max_steps", default=100, type=int, help="Number of training steps.",
     )
+    parser.add_argument("--pretrained_model_name", default='bert-base-uncased', type=str, help="pretrained model name")
     parser.add_argument(
         "--progress_bar_refresh_rate", default=1, type=int, help="progress_bar_refresh_rate",
     )
@@ -95,7 +96,7 @@ def main():
     parser = add_scheduler_args(parser)
     args = add_nlp_args(parser)
 
-    bert_model = BERTLMModel(pretrained_model_name='bert-base-uncased', config_file=args.config_file)
+    bert_model = BERTLMModel(pretrained_model_name=args.pretrained_model_name, config_file=args.config_file)
     bert_model.setup_training_data(
         train_data_layer_params={
             'train_data': args.data_dir,
