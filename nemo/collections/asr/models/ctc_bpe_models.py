@@ -17,17 +17,15 @@ from typing import Dict, Optional
 import torch
 
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
-from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
+from nemo.collections.asr.metrics.wer_bpe import monitor_asr_train_progress
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.core.classes.common import Serialization, typecheck
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.core.neural_types import *
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncDecCTCModelBPE', 'JasperNet', 'QuartzNet']
+__all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
 
 
 @experimental
@@ -37,8 +35,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
-    @staticmethod
-    def __setup_dataloader_from_config(config: Optional[Dict]):
+    def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
@@ -48,11 +45,14 @@ class EncDecCTCModelBPE(EncDecCTCModel):
                                         augmentor=augmentor)
 
         # TODO: Implement tokenizer instantiation
-        tokenizer = None
+        if self.tokenizer is None:
+            tokenizer = None
+
+            self.tokenizer = tokenizer
 
         dataset = AudioToBPEDataset(
             manifest_filepath=config['manifest_filepath'],
-            tokenizer=tokenizer,
+            tokenizer=self.tokenizer,
             featurizer=featurizer,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
@@ -95,6 +95,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             preprocessor_params: Dict,
             encoder_params: Dict,
             decoder_params: Dict,
+            tokenizer_path: str,
             spec_augment_params: Optional[Dict] = None,
     ):
         super().__init__(
@@ -103,6 +104,9 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             decoder_params=decoder_params,
             spec_augment_params=spec_augment_params
         )
+
+        self.tokenizer = None
+        self.tokenizer_path = tokenizer_path
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
@@ -115,7 +119,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
+            tensors=[predictions, transcript, transcript_len], tokenizer=self.tokenizer
         )
         tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer}
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -133,23 +137,17 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         # TODO: use metrics here
         wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
+            tensors=[predictions, transcript, transcript_len], tokenizer=self.tokenizer
         )
         tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
         return {'val_loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_epoch_end(self, outputs):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'val_loss': val_loss_mean}
 
-    def configure_optimizers(self):
-        if self.__scheduler is None:
-            return self.__optimizer
-        else:
-            return [self.__optimizer], [self.__scheduler]
+@experimental
+class JasperNetBPE(EncDecCTCModelBPE):
+    pass
 
-    def train_dataloader(self):
-        return self.__train_dl
 
-    def val_dataloader(self):
-        return self.__val_dl
+@experimental
+class QuartzNetBPE(EncDecCTCModelBPE):
+    pass

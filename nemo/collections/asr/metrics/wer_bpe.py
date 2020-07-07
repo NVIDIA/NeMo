@@ -17,32 +17,32 @@ from typing import List
 import torch
 
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
-def __ctc_decoder_predictions_tensor(tensor, labels):
+def __ctc_decoder_predictions_tensor(tensor, tokenizer: TokenizerSpec):
     """
     Decodes a sequence of labels to words
     """
-    blank_id = len(labels)
+    blank_id = tokenizer.tokenizer.vocab_size
     hypotheses = []
-    labels_map = dict([(i, labels[i]) for i in range(len(labels))])
     prediction_cpu_tensor = tensor.long().cpu()
     # iterate over batch
     for ind in range(prediction_cpu_tensor.shape[0]):
         prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
         # CTC decoding procedure
         decoded_prediction = []
-        previous = len(labels)  # id of a blank symbol
+        previous = blank_id  # id of a blank symbol
         for p in prediction:
             if (p != previous or previous == blank_id) and p != blank_id:
                 decoded_prediction.append(p)
             previous = p
-        hypothesis = ''.join([labels_map[c] for c in decoded_prediction])
+        hypothesis = tokenizer.ids_to_text(decoded_prediction)
         hypotheses.append(hypothesis)
     return hypotheses
 
 
-def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER'):
+def monitor_asr_train_progress(tensors: list, tokenizer: TokenizerSpec, eval_metric='WER'):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
     remove duplicates and special symbol. Prints sample to screen, computes
@@ -56,7 +56,6 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER'):
     """
     references = []
 
-    labels_map = dict([(i, labels[i]) for i in range(len(labels))])
     with torch.no_grad():
         # prediction_cpu_tensor = tensors[0].long().cpu()
         targets_cpu_tensor = tensors[1].long().cpu()
@@ -66,9 +65,9 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER'):
         for ind in range(targets_cpu_tensor.shape[0]):
             tgt_len = tgt_lenths_cpu_tensor[ind].item()
             target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-            reference = ''.join([labels_map[c] for c in target])
+            reference = tokenizer.ids_to_text(target)
             references.append(reference)
-        hypotheses = __ctc_decoder_predictions_tensor(tensors[0], labels=labels)
+        hypotheses = __ctc_decoder_predictions_tensor(tensors[0], tokenizer=tokenizer)
 
     eval_metric = eval_metric.upper()
     if eval_metric not in {'WER', 'CER'}:
