@@ -1,4 +1,6 @@
 # Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +18,7 @@ from typing import Optional
 
 from transformers import GPT2Tokenizer
 
+from nemo import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 __all__ = ['NemoGPT2Tokenizer']
@@ -46,7 +49,24 @@ class NemoGPT2Tokenizer(TokenizerSpec):
             special_tokens_dict["eos_token"] = eos_token
         if self.tokenizer.pad_token is None:
             special_tokens_dict["pad_token"] = "<|pad|>"
-        self.tokenizer.add_special_tokens(special_tokens_dict)
+        self.add_special_tokens(special_tokens_dict)
+
+    def add_special_tokens(self, special_tokens_dict: dict) -> int:
+        """
+        Adds a dictionary of special tokens (eos, pad, cls...). If special tokens are NOT in the vocabulary, they are added
+        to it (indexed starting from the last index of the current vocabulary).
+        Args:
+            special_tokens_dict: dict of string. Keys should be in the list of predefined special attributes:
+                [``bos_token``, ``eos_token``, ``unk_token``, ``sep_token``, ``pad_token``, ``cls_token``, ``mask_token``,
+                ``additional_special_tokens``].
+            Tokens are only added if they are not already in the vocabulary.
+        Returns:
+            Number of tokens added to the vocabulary.
+        """
+        num_tokens_added = self.tokenizer.add_special_tokens(special_tokens_dict)
+        if num_tokens_added > 0:
+            logging.info(f'{num_tokens_added} special tokens added, resize your model accordingly.')
+        return num_tokens_added
 
     def text_to_tokens(self, text):
         tokens = self.tokenizer.tokenize(text)
