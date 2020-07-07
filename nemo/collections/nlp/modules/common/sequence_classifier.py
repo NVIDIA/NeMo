@@ -59,7 +59,6 @@ class SequenceClassifier(NeuralModule):
         """
         super().__init__()
         self._idx_conditioned_on = idx_conditioned_on
-        # TODO: what happens to device?
         self.mlp = MultiLayerPerceptron(
             hidden_size=hidden_size,
             num_classes=num_classes,
