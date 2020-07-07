@@ -28,27 +28,31 @@ class NemoGPT2Tokenizer(TokenizerSpec):
     def __init__(
         self,
         pretrained_model: str,
-        bos_token: Optional[str] = "<|endoftext|>",
-        eos_token: Optional[str] = "<|endoftext|>",
+        bos_token: str = "<|endoftext|>",
+        eos_token: str = "<|endoftext|>",
+        pad_token: str = "<|pad|>",
+        unk_token: str = "<|unk|>",
     ):
         """
         Args:
             pretrained_model: GPT2 pretrained model name from Hugging Face
             bos_token: the beginning of sequence token
-            eos_token: the end of sequence token.
+            eos_token: the end of sequence token
+            pad_token: token to use for padding
+            unk_token: token to use for unknown tokens
         """
         self.tokenizer = GPT2Tokenizer.from_pretrained(pretrained_model)
         self.vocab_size = self.tokenizer.vocab_size
         special_tokens_dict = {}
         if self.tokenizer.unk_token is None:
-            self.tokenizer.unk_token = "<|unk|>"
-            special_tokens_dict["unk_token"] = "<|unk|>"
+            self.tokenizer.unk_token = unk_token
+            special_tokens_dict["unk_token"] = unk_token
         if self.tokenizer.bos_token is None:
             special_tokens_dict["bos_token"] = bos_token
         if self.tokenizer.eos_token is None:
             special_tokens_dict["eos_token"] = eos_token
         if self.tokenizer.pad_token is None:
-            special_tokens_dict["pad_token"] = "<|pad|>"
+            special_tokens_dict["pad_token"] = pad_token
         self.add_special_tokens(special_tokens_dict)
 
     def add_special_tokens(self, special_tokens_dict: dict) -> int:
