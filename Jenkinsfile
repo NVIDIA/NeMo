@@ -33,7 +33,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel NLP-BERT pretraining BERT on the fly preprocessing') {
+    stage('L2: NLP-BERT pretraining BERT on the fly preprocessing') {
       when {
         anyOf{
           branch 'candidate'
@@ -47,7 +47,7 @@ pipeline {
         }
     }
 
-    stage('L2: Parallel NLP-BERT pretraining BERT offline preprocessing') {
+    stage('L2: NLP-BERT pretraining BERT offline preprocessing') {
       when {
         anyOf{
           branch 'candidate'
