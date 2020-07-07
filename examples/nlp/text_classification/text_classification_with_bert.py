@@ -144,7 +144,7 @@ def main():
     }
 
     text_classification_model.setup_training_data(
-        file_path=os.path.join(args.data_dir, f'{args.train_file_prefix_train}.tsv'),
+        file_path=os.path.join(args.data_dir, f'{args.train_file_prefix}.tsv'),
         dataloader_params=dataloader_params_train,
     )
 
