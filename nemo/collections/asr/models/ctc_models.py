@@ -22,6 +22,7 @@ from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
@@ -54,7 +55,13 @@ class EncDecCTCModel(ASRModel):
 
     @staticmethod
     def __setup_dataloader_from_config(config: Optional[Dict]):
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+
+        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False),
+                                        augmentor=augmentor)
         dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
@@ -68,6 +75,7 @@ class EncDecCTCModel(ASRModel):
             trim=config.get('trim_silence', True),
             load_audio=config.get('load_audio', True),
             parser=config.get('parser', 'en'),
+            add_misc=config.get('add_misc', False),
         )
 
         return torch.utils.data.DataLoader(
