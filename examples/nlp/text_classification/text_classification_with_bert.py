@@ -120,7 +120,7 @@ def main():
     parser.add_argument("--save_epoch_freq", default=1, type=int, help="Epoch frequency of saving checkpoints")
     parser.add_argument("--save_step_freq", default=-1, type=int, help="Step frequency of saving checkpoints")
     parser.add_argument('--loss_step_freq', default=25, type=int, help='Frequency of printing loss')
-    parser.add_argument('--eval_step_freq', default=50, type=int, help='Frequency of evaluation')
+    parser.add_argument('--eval_epoch_freq', default=1, type=int, help='Frequency of evaluation')
 
     args = parser.parse_args()
 
@@ -192,7 +192,7 @@ def main():
     )
 
     trainer = pl.Trainer(
-        val_check_interval=args.eval_step_freq,
+        check_val_every_n_epoch=args.eval_epoch_freq,
         amp_level=args.amp_level,
         precision=32 if args.amp_level == "O0" else 16,  # TODO: How to set precision?
         gpus=args.num_gpus,
