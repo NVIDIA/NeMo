@@ -14,32 +14,30 @@
 import argparse
 import math
 import os
+import time
 from functools import partial
 from typing import Dict, Optional
-import time
 
 import torch
-from torch.nn.functional import pad
-from pytorch_lightning.core.lightning import LightningModule
-from ruamel.yaml import YAML
-from torch import nn
 from pytorch_lightning import Trainer
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateLogger
+from pytorch_lightning.core.lightning import LightningModule
+from ruamel.yaml import YAML
+from torch import nn
+from torch.nn.functional import pad
 
-import nemo.collections.tts.jason as nemo_tts_jason
 import nemo.collections.asr as nemo_asr
-from nemo.collections.tts.jason.helpers.helpers import (
-    tacotron2_log_to_tb_func,
-    get_mask_from_lengths,
-)
+import nemo.collections.tts.jason as nemo_tts_jason
+from nemo.collections.tts.jason.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
+from nemo.core.classes import ModelPT
+from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
 from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
-from nemo.core.optim.lr_scheduler import CosineAnnealing
-from nemo.core.classes import ModelPT
 
 
 class Tacotron2PTL(ModelPT):
+    # TODO: tensorboard for training
     def __init__(self, labels, args):
         super().__init__()
         self.epoch_time = None
@@ -101,9 +99,9 @@ class Tacotron2PTL(ModelPT):
 
         # After defining all torch.modules, create optimizer and scheduler
         optimizer_params = {
-            "optimizer": args.optimizer,
-            "lr": args.lr,
-            "opt_args": args.opt_args,
+            'optimizer': args.optimizer,
+            'lr': args.lr,
+            'opt_args': args.opt_args,
         }
         self.setup_optimization(optimizer_params)
         # iters_per_batch = scheduler_args.pop('iters_per_batch')  # 1 for T2
@@ -111,13 +109,8 @@ class Tacotron2PTL(ModelPT):
         num_gpus = 1  # TODO: undo hardcode
         num_samples = len(self.__train_dl.dataset)
         batch_size = self.__train_dl.batch_size
-        max_steps = (
-            math.ceil(num_samples / float(batch_size * iters_per_batch * num_gpus))
-            * args.num_epochs
-        )
-        self.__scheduler = CosineAnnealing(
-            self.__optimizer, max_steps=max_steps, min_lr=1e-5
-        )
+        max_steps = math.ceil(num_samples / float(batch_size * iters_per_batch * num_gpus)) * args.num_epochs
+        self.__scheduler = CosineAnnealing(self.__optimizer, max_steps=max_steps, min_lr=1e-5)
 
     def loss(
         self, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len,
@@ -138,9 +131,7 @@ class Tacotron2PTL(ModelPT):
             # Need to do padding
             pad_amount = max_len - mel_out.shape[2]
             mel_out = pad(mel_out, (0, pad_amount), value=self.pad_value)
-            mel_out_postnet = pad(
-                mel_out_postnet, (0, pad_amount), value=self.pad_value
-            )
+            mel_out_postnet = pad(mel_out_postnet, (0, pad_amount), value=self.pad_value)
             gate_out = pad(gate_out, (0, pad_amount), value=1e3)
             max_len = mel_out.shape[2]
 
@@ -152,15 +143,11 @@ class Tacotron2PTL(ModelPT):
         gate_out.data.masked_fill_(mask[:, 0, :], 1e3)
 
         gate_out = gate_out.view(-1, 1)
-        mel_loss = nn.MSELoss()(mel_out, mel_target) + nn.MSELoss()(
-            mel_out_postnet, mel_target
-        )
+        mel_loss = nn.MSELoss()(mel_out, mel_target) + nn.MSELoss()(mel_out_postnet, mel_target)
         gate_loss = nn.BCEWithLogitsLoss()(gate_out, gate_target)
         return mel_loss + gate_loss
 
-    def setup_optimization(
-        self, optim_params: Optional[Dict] = None
-    ) -> torch.optim.Optimizer:
+    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optim_params)
 
     def forward(self):
@@ -171,9 +158,7 @@ class Tacotron2PTL(ModelPT):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding, token_len)
-        spec_dec, gate, alignments = self.decoder(
-            encoder_embedding, spec, memory_lengths=token_len
-        )
+        spec_dec, gate, alignments = self.decoder(encoder_embedding, spec, memory_lengths=token_len)
         spec_postnet = self.postnet(spec_dec)
 
         max_len = spec.shape[2]
@@ -195,8 +180,8 @@ class Tacotron2PTL(ModelPT):
         # loss = None
         # logger_logs = {}
         output = {
-            "loss": loss,  # required
-            "progress_bar": {"training_loss": loss},  # optional (MUST ALL BE TENSORS)
+            'loss': loss,  # required
+            'progress_bar': {'training_loss': loss},  # optional (MUST ALL BE TENSORS)
             # 'log': logger_logs
         }
         # return a dict
@@ -218,9 +203,7 @@ class Tacotron2PTL(ModelPT):
             normalize=False,
             trim=False,
         )
-        return torch.utils.data.DataLoader(
-            dataset, batch_size=32, shuffle=True, collate_fn=dataset._collate_fn
-        )
+        return torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=dataset._collate_fn)
 
     def configure_optimizers(self):
         return [self.__optimizer], [self.__scheduler]
@@ -230,9 +213,7 @@ class Tacotron2PTL(ModelPT):
         spec, spec_len = self.audio_to_melspec_precessor.forward(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding, token_len)
-        spec_dec, gate, alignments, mel_len = self.decoder.infer(
-            encoder_embedding, memory_lengths=token_len
-        )
+        spec_dec, gate, alignments, mel_len = self.decoder.infer(encoder_embedding, memory_lengths=token_len)
         # mel_output, gate_output, alignments, mel_len
         spec_postnet = self.postnet(spec_dec)
 
@@ -271,12 +252,7 @@ class Tacotron2PTL(ModelPT):
 
     def validation_epoch_end(self, outputs):
         tacotron2_log_to_tb_func(
-            self.logger.experiment,
-            outputs[0].values(),
-            self.global_step,
-            tag="eval",
-            log_images=True,
-            add_audio=False,
+            self.logger.experiment, outputs[0].values(), self.global_step, tag="eval", log_images=True, add_audio=False
         )
         return {}
 
@@ -296,107 +272,86 @@ class Tacotron2PTL(ModelPT):
             normalize=False,
             trim=False,
         )
-        return torch.utils.data.DataLoader(
-            dataset, batch_size=32, shuffle=False, collate_fn=dataset._collate_fn
-        )
+        return torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False, collate_fn=dataset._collate_fn)
 
 
 def main():
     parser = argparse.ArgumentParser()
     # parser = pl.Trainer.add_argparse_args(parser)
-    parser = add_optimizer_args(
-        parser,
-        optimizer="adam",
-        default_lr=1e-3,
-        default_opt_args={"weight_decay": 1e-6},
-    )
+    parser = add_optimizer_args(parser, optimizer="adam", default_lr=1e-3, default_opt_args={"weight_decay": 1e-6})
     # parser = add_scheduler_args(parser)
-    parser.add_argument(
-        "--num_epochs", type=int, help="working directory for experiment"
-    )
-    parser.add_argument(
-        "--work_dir", default=None, type=str, help="working directory for experiment"
-    )
-    parser.add_argument(
-        "--train_dataset",
-        default=None,
-        type=str,
-        help="working directory for experiment",
-    )
-    parser.add_argument(
-        "--eval_datasets",
-        default=None,
-        type=str,
-        help="working directory for experiment",
-    )
+    parser.add_argument("--num_epochs", type=int, help="working directory for experiment")
+    parser.add_argument("--work_dir", default=None, type=str, help="working directory for experiment")
+    parser.add_argument("--train_dataset", default=None, type=str, help="working directory for experiment")
+    parser.add_argument("--eval_datasets", default=None, type=str, help="working directory for experiment")
     args = parser.parse_args()
     labels = [
-        " ",
-        "!",
+        ' ',
+        '!',
         '"',
         "'",
-        "(",
-        ")",
-        ",",
-        "-",
-        ".",
-        ":",
-        ";",
-        "?",
-        "A",
-        "B",
-        "C",
-        "D",
-        "E",
-        "F",
-        "G",
-        "H",
-        "I",
-        "J",
-        "K",
-        "L",
-        "M",
-        "N",
-        "O",
-        "P",
-        "Q",
-        "R",
-        "S",
-        "T",
-        "U",
-        "V",
-        "W",
-        "X",
-        "Y",
-        "Z",
-        "[",
-        "]",
-        "a",
-        "b",
-        "c",
-        "d",
-        "e",
-        "f",
-        "g",
-        "h",
-        "i",
-        "j",
-        "k",
-        "l",
-        "m",
-        "n",
-        "o",
-        "p",
-        "q",
-        "r",
-        "s",
-        "t",
-        "u",
-        "v",
-        "w",
-        "x",
-        "y",
-        "z",
+        '(',
+        ')',
+        ',',
+        '-',
+        '.',
+        ':',
+        ';',
+        '?',
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+        'K',
+        'L',
+        'M',
+        'N',
+        'O',
+        'P',
+        'Q',
+        'R',
+        'S',
+        'T',
+        'U',
+        'V',
+        'W',
+        'X',
+        'Y',
+        'Z',
+        '[',
+        ']',
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        'i',
+        'j',
+        'k',
+        'l',
+        'm',
+        'n',
+        'o',
+        'p',
+        'q',
+        'r',
+        's',
+        't',
+        'u',
+        'v',
+        'w',
+        'x',
+        'y',
+        'z',
     ]
     tb_logger = pl_loggers.TensorBoardLogger(args.work_dir)
     lr_logger = LearningRateLogger()
@@ -415,5 +370,5 @@ def main():
     trainer.fit(model)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
