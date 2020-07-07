@@ -82,6 +82,7 @@ def create_all_dags(args, neural_factory):
 
     labels = jasper_params['labels']  # Vocab of tokens
     sample_rate = jasper_params['sample_rate']
+    preprocessor = jasper_params['preprocessor']
 
     # Calculate num_workers for dataloader
     total_cpus = os.cpu_count()
@@ -107,16 +108,19 @@ def create_all_dags(args, neural_factory):
         **train_dl_params,
     )
 
-    crop_pad_augmentation = nemo_asr.CropOrPadSpectrogramAugmentation(audio_length=128)
+    crop_pad_augmentation = nemo_asr.CropOrPadSpectrogramAugmentation(audio_length=jasper_params['timesteps'])
 
     N = len(data_layer)
     steps_per_epoch = math.ceil(N / (args.batch_size * args.iter_per_step * args.num_gpus))
     logging.info('Steps per epoch : {0}'.format(steps_per_epoch))
     logging.info('Have {0} examples to train on.'.format(N))
 
-    data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMFCCPreprocessor"],
-    )
+    if preprocessor == "AudioToMFCCPreprocessor":
+        data_preprocessor = nemo_asr.AudioToMFCCPreprocessor(sample_rate=sample_rate, **jasper_params[preprocessor])
+    elif preprocessor == "AudioToMelSpectrogramPreprocessor":
+        data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
+            sample_rate=sample_rate, **jasper_params[preprocessor]
+        )
 
     spectr_augment_config = jasper_params.get('SpectrogramAugmentation', None)
     if spectr_augment_config:
