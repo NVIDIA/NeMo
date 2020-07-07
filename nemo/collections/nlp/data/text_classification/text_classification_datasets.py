@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
 #
@@ -24,35 +24,44 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import random
+from typing import Any
 
 import h5py
 import numpy as np
-from torch.utils.data import Dataset
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
+from nemo.core.classes import Dataset
+from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationDataset']
 
 
+@experimental
 class TextClassificationDataset(Dataset):
     """A dataset class that converts from raw data to
     a dataset that can be used by DataLayerNM.
     Args:
-        input_file (str): file to sequence + label.
+        input_file: file to sequence + label.
             the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
-        tokenizer (Tokenizer): such as NemoBertTokenizer
-        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        num_samples (int): number of samples you want to use for the dataset.
+        tokenizer: tokenizer object such as NemoBertTokenizer
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        shuffle (bool): Shuffles the dataset after loading.
-        use_cache (bool): Enables caching to use HDFS format to store and read data from
+        shuffle: Shuffles the dataset after loading.
+        use_cache: Enables caching to use HDFS format to store and read data from
     """
 
     def __init__(
-        self, input_file, tokenizer, max_seq_length, num_samples=-1, shuffle=False, use_cache=False,
+        self,
+        input_file: str,
+        tokenizer: Any,
+        max_seq_length: int,
+        num_samples: int = -1,
+        shuffle: bool = False,
+        use_cache: bool = False,
     ):
         self.input_file = input_file
         self.tokenizer = tokenizer

@@ -1,6 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,10 +21,12 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     get_label_stats,
     if_exist,
 )
+from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationDataDesc']
 
 
+@experimental
 class TextClassificationDataDesc:
     """A descriptor class that reads all the data and calculates some stats of the data and also calculates the class weights to be used for class balancing
     Args:

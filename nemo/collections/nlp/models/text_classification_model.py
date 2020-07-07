@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 
 from typing import Dict, Optional
 
@@ -26,10 +25,12 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
+from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationModel']
 
 
+@experimental
 class TextClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -51,12 +52,12 @@ class TextClassificationModel(ModelPT):
         """
         Initializes the BERTTextClassifier model.
         Args:
-            data_dir (str): the path to the folder containing the data
-            pretrained_model_name (str): name of the BERT model to be used as the encoder
-            bert_config (str): The path to the config file for the BERT encoder, it should be None to use the default configs
-            num_output (int)_layers (int): number of the linear layers of the mlp head on the top of the encoder
-            fc_dropout (float): the dropout used for the mlp head
-            class_balancing (bool): enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+            data_dir: the path to the folder containing the data
+            pretrained_model_name: name of the BERT model to be used as the encoder
+            bert_config: The path to the config file for the BERT encoder, it should be None to use the default configs
+            num_output: number of the linear layers of the mlp head on the top of the encoder
+            fc_dropout: the dropout used for the mlp head
+            class_balancing: enables the weighted class balancing of the loss, may be used for handling unbalanced classes
         """
 
         # init superclass
@@ -87,8 +88,9 @@ class TextClassificationModel(ModelPT):
         self.__val_dl = None
         # This will be set by setup_test_data
         self.__test_dl = None
-        # This will be set by setup_optimization
+        # These will be set by setup_optimization
         self.__optimizer = None
+        self.__scheduler = None
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -172,28 +174,11 @@ class TextClassificationModel(ModelPT):
             pin_memory=dataloader_params.get("pin_memory", False),
         )
 
-    def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
-        if optimizer == 'adam':
-            self.__optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=optim_params['lr'],
-                weight_decay=optim_params.get('weight_decay', 0),
-                betas=optim_params.get('betas', (0.9, 0.999)),
-                eps=optim_params.get('eps', 1e-08),
-            )
-        elif optimizer == 'adam_w':
-            self.__optimizer = torch.optim.AdamW(
-                self.parameters(),
-                lr=optim_params['lr'],
-                weight_decay=optim_params.get('weight_decay', 0),
-                betas=optim_params.get('betas', (0.9, 0.999)),
-                eps=optim_params.get('eps', 1e-08),
-            )
-        else:
-            raise NotImplementedError()
-
     def configure_optimizers(self):
-        return self.__optimizer
+        if self.__scheduler is None:
+            return self.__optimizer
+        else:
+            return [self.__optimizer], [self.__scheduler]
 
     def train_dataloader(self):
         return self.__train_dl

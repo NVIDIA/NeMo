@@ -48,14 +48,14 @@ class SequenceClassifier(NeuralModule):
         """
         Initializes the SequenceClassifier module.
         Args:
-            hidden_size (int): the hidden size of the mlp head on the top of the encoder
-            num_classes (int): number of the classes to predict
-            num_layers (int)_layers (int): number of the linear layers of the mlp head on the top of the encoder
-            activation (str): type of activations between layers of the mlp head
-            log_softmax (bool): applies the log softmax on the output
-            dropout (float): the dropout used for the mlp head
-            use_transformer_init (bool): initializes the weights with the same approach used in Transformer
-            idx_conditioned_on (int): index of the token which its outputs are being used for classification, default is the first token
+            hidden_size: the hidden size of the mlp head on the top of the encoder
+            num_classes: number of the classes to predict
+            num_layers: number of the linear layers of the mlp head on the top of the encoder
+            activation: type of activations between layers of the mlp head
+            log_softmax: applies the log softmax on the output
+            dropout: the dropout used for the mlp head
+            use_transformer_init: initializes the weights with the same approach used in Transformer
+            idx_conditioned_on: index of the token to use as the sequence representation for the classification task, default is the first token
         """
         super().__init__()
         self._idx_conditioned_on = idx_conditioned_on
@@ -70,8 +70,6 @@ class SequenceClassifier(NeuralModule):
         self.dropout = nn.Dropout(dropout)
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
-        # TODO: what happens to device?
-        # self.to(self._device) # sometimes this is necessary
 
     @typecheck()
     def forward(self, hidden_states):

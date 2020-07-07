@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,14 +18,17 @@ import os
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-import torch
 
-# import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.text_classification_model import TextClassificationModel
+from nemo.core.optim.lr_scheduler import PolynomialDecayAnnealing
+from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
 
 
 def main():
     parser = ArgumentParser(description='Sentence classification with pretrained BERT models')
+
+    parser = add_optimizer_args(parser)
+    parser = add_scheduler_args(parser)
 
     # Data Arguments
     parser.add_argument("--work_dir", default='outputs', type=str)
@@ -95,20 +98,23 @@ def main():
 
     # Training Arguments
     parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
-    parser.add_argument("--num_epochs", default=100, type=int, help="Total number of training epochs to perform.")
+    parser.add_argument("--num_nodes", default=1, type=int, help="Number of nodes")
+    parser.add_argument("--max_epochs", default=100, type=int, help="Total number of training epochs to perform.")
+    parser.add_argument(
+        "--max_steps",
+        default=None,
+        type=int,
+        help="Maximum number of steps to train. If it is set, num_epochs would get ignored.",
+    )
+    parser.add_argument(
+        "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
+    )
     parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
 
     # Optimization Arguments
     parser.add_argument(
         "--amp_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
     )
-    parser.add_argument("--optimizer_kind", default="adam", type=str, help="Optimizer kind")
-    parser.add_argument("--lr_warmup_proportion", default=0.1, type=float, help="Learning rate warm up proportion")
-    parser.add_argument("--lr", default=2e-5, type=float, help="Initial learning rate")
-    parser.add_argument("--lr_policy", default="WarmupAnnealing", type=str, help="Learning rate policy")
-    parser.add_argument("--weight_decay", default=0.01, type=float, help="Weight decay.")
-    parser.add_argument("--beta1", default=0.9, type=float, help="Beta1 parameter of Adam.")
-    parser.add_argument("--beta2", default=0.999, type=float, help="Beta2 parameter of Adam.")
 
     # Validation Arguments
     parser.add_argument("--save_epoch_freq", default=1, type=int, help="Epoch frequency of saving checkpoints")
@@ -156,16 +162,45 @@ def main():
         file_path=os.path.join(args.data_dir, f'{args.file_prefix_val}.tsv'), dataloader_params=dataloader_params_val,
     )
 
-    optim_params = {
-        'optimizer_kind': args.optimizer_kind,
-        'lr': args.lr,
-        'lr_policy': args.lr_policy,
-        'weight_decay': args.weight_decay,
-        'beta1': args.beta1,
-        'beta2': args.beta1,
-        'lr_warmup_proportion': args.lr_warmup_proportion,
+    # Setup optimizer and scheduler
+    scheduler_args = {
+        'monitor': 'val_loss',  # pytorch lightning requires this value
+        'warmup_ratio': args.warmup_ratio,
+        'warmup_steps': args.warmup_steps,
+        'min_lr': args.min_lr,
+        'last_epoch': args.last_epoch,
     }
-    text_classification_model.setup_optimization(optim_params=optim_params)
+
+    if args.max_steps is None:
+        if args.num_gpus == 0:
+            # training on CPU
+            iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
+        else:
+            iters_per_batch = args.max_epochs / float(args.num_gpus * args.num_nodes * args.accumulate_grad_batches)
+        scheduler_args['iters_per_batch'] = iters_per_batch
+    else:
+        scheduler_args['max_steps'] = args.max_steps
+
+    text_classification_model.setup_optimization(
+        optim_params={
+            'optimizer': args.optimizer,
+            'lr': args.lr,
+            'opt_args': args.opt_args,
+            'scheduler': PolynomialDecayAnnealing,
+            'scheduler_args': scheduler_args,
+        }
+    )
+
+    # optim_params = {
+    #     'optimizer_kind': args.optimizer_kind,
+    #     'lr': args.lr,
+    #     'lr_policy': args.lr_policy,
+    #     'weight_decay': args.weight_decay,
+    #     'beta1': args.beta1,
+    #     'beta2': args.beta1,
+    #     'lr_warmup_proportion': args.lr_warmup_proportion,
+    # }
+    # text_classification_model.setup_optimization(optim_params=optim_params)
 
     # optimizer = torch.optim.Adam(
     #     text_classification_model.parameters(),
@@ -180,7 +215,8 @@ def main():
         amp_level=args.amp_level,
         precision=32 if args.amp_level == "O0" else 16,  # TODO: How to set precision?
         gpus=args.num_gpus,
-        max_epochs=args.num_epochs,
+        max_epochs=args.max_epochs,
+        max_steps=args.max_steps,
         distributed_backend=None
         if args.num_gpus == 1
         else "ddp",  # TODO: How to switch between multi-gpu, single-gpu, multi-node here?
