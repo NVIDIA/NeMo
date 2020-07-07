@@ -1,27 +1,48 @@
 model: "QuartzNet15x5"
 sample_rate: &sample_rate 16000
+accumulate_grad_batches: 1
+lr: .01
+
+optimizer: novograd
+
+pl:
+  trainer:
+    gpus: 0 # number of gpus
+    max_epochs: 5
+    max_steps: null # computed at runtime if not set
+    num_nodes: 1
+    distributed_backend: ddp
+    #monitor: val_loss
+
+lr_scheduler:
+  warmup_ratio: .02
+  min_lr: 0.0
+  last_epoch: false
+  iters_per_batch: null # computed at runtime
+  max_steps: null # computed at runtime
+  monitor: val_loss
 
 labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 AudioToTextDataLayer:
-    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
+    manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 64
+    batch_size: 8
     trim_silence: True
     max_duration: 16.7
     shuffle: True
 
 
 AudioToTextDataLayer_eval:
-    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
+    manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 32
+    batch_size: 8
     shuffle: False
 
-preprocessor_params:
+preprocessor:
     header:
         full_spec: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     init_params:
@@ -36,7 +57,7 @@ preprocessor_params:
         dither: 0.00001
         stft_conv: true
 
-spec_augment_params:
+spec_augment:
     header:
         full_spec: nemo.collections.asr.modules.SpectrogramAugmentation
     init_params:
@@ -44,7 +65,7 @@ spec_augment_params:
         rect_masks: 5
         rect_time: 120
 
-encoder_params:
+encoder:
     header:
         full_spec: nemo.collections.asr.modules.ConvASREncoder
     init_params:
@@ -196,7 +217,7 @@ encoder_params:
           residual: false
           stride: [1]
 
-decoder_params:
+decoder:
     header:
         full_spec: nemo.collections.asr.modules.ConvASRDecoder
     init_params:

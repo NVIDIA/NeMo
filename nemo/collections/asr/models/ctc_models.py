@@ -123,18 +123,18 @@ class EncDecCTCModel(ASRModel):
 
     def __init__(
         self,
-        preprocessor_params: Dict,
-        encoder_params: Dict,
-        decoder_params: Dict,
-        spec_augment_params: Optional[Dict] = None,
+        preprocessor_config: Dict,
+        encoder_config: Dict,
+        decoder_config: Dict,
+        spec_augment_config: Optional[Dict] = None,
     ):
         super().__init__()
-        self.preprocessor = Serialization.from_config_dict(preprocessor_params)
-        self.encoder = Serialization.from_config_dict(encoder_params)
-        self.decoder = Serialization.from_config_dict(decoder_params)
+        self.preprocessor = Serialization.from_config_dict(preprocessor_config)
+        self.encoder = Serialization.from_config_dict(encoder_config)
+        self.decoder = Serialization.from_config_dict(decoder_config)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if spec_augment_params is not None:
-            self.spec_augmentation = Serialization.from_config_dict(spec_augment_params)
+        if spec_augment_config is not None:
+            self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
         else:
             self.spec_augmentation = None
 
