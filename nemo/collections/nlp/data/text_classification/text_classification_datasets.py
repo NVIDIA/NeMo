@@ -33,12 +33,10 @@ from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
-from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationDataset']
 
 
-@experimental
 class TextClassificationDataset(Dataset):
     """A dataset class that converts from raw data to
     a dataset that can be used by DataLayerNM.

@@ -21,20 +21,17 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     get_label_stats,
     if_exist,
 )
-from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationDataDesc']
 
 
-@experimental
 class TextClassificationDataDesc:
-    """A descriptor class that reads all the data and calculates some stats of the data and also calculates the class weights to be used for class balancing
-    Args:
-        data_dir (str): the path to the data folder
-        modes (list(str)): list of the modes to read, it can be from ["train", "test", "dev"] by default. It is going to look for the data files at {data_dir}/{mode}.tsv
-    """
-
     def __init__(self, data_dir: str, modes: List[str] = ['train', 'test', 'dev']):
+        """A descriptor class that reads all the data and calculates some stats of the data and also calculates the class weights to be used for class balancing
+        Args:
+            data_dir: the path to the data folder
+            modes: list of the modes to read, it can be from ["train", "test", "dev"] by default. It is going to look for the data files at {data_dir}/{mode}.tsv
+        """
         self.data_dir = data_dir
 
         class_weights_dict = None

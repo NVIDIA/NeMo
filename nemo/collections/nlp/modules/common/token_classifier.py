@@ -61,13 +61,13 @@ class TokenClassifier(NeuralModule):
         Initializes the Token Classifier module.
 
         Args:
-            :param hidden_size: the size of the hidden dimension
-            :param num_classes: number of classes
-            :param num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            :param activation: activation to usee between fully connected layers in the MLP
-            :param log_softmax: whether to apply softmax to the output of the MLP
-            :param dropout: dropout to apply to the input hidden states
-            :param use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
+            hidden_size: the size of the hidden dimension
+            num_classes: number of classes
+            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            activation: activation to usee between fully connected layers in the MLP
+            log_softmax: whether to apply softmax to the output of the MLP
+            dropout: dropout to apply to the input hidden states
+            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__()
         if activation not in ACT2FN:
