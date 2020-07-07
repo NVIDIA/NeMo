@@ -109,12 +109,10 @@ def main():
     parser.add_argument(
         "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
     )
-    parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
-
-    # Optimization Arguments
     parser.add_argument(
         "--amp_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
     )
+    parser.add_argument("--local_rank", default=None, type=int, help="For distributed training: local_rank")
 
     # Validation Arguments
     parser.add_argument("--save_epoch_freq", default=1, type=int, help="Epoch frequency of saving checkpoints")
