@@ -1,14 +1,15 @@
-import hydra
 
-from omegaconf import DictConfig
-from omegaconf import OmegaConf
-from typing import List
+from omegaconf import DictConfig, MISSING
+from typing import List, Any
 
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
+
+from hydra.core.config_store import ConfigStore
+from hydra import main
 
 #@dataclass
-class NeMoConfig(dict):
+class NeMoConfig(object):
     """ Abstract NeMo Configuration class"""
     pass
     def serialize(self):
@@ -41,35 +42,85 @@ class OptimConfig(NeMoConfig):
 @dataclass
 class JasperBlockConfig(NeMoConfig):
     """ Default config of a single Jasper block """
-    dilation: int=1
-    dropout: float=0.0
-    filters: int=256
-    kernel: int=33
-    repeat: int=5
-    residual: bool=True
-    separable: bool=True
-    stride: int=1
-
+    dilation: int=MISSING
+    dropout: float=MISSING
+    filters: int=MISSING
+    kernel: int=MISSING
+    repeat: int=MISSING
+    residual: bool=MISSING
+    separable: bool=MISSING
+    stride: int=MISSING
 
 
 @dataclass
-class JasperEncoderConfig(ModuleConfig):
+class JasperBlock256Config(JasperBlockConfig):
+    """ Default config of a single Jasper block with 256 filters """
+    dilation: int=1
+    dropout: float=0.0
+    filters: int=256
+    repeat: int=5
+    residual: bool=True
+    separable: bool=True
+    stride=int=1
+
+@dataclass
+class JasperBlock512Config(JasperBlockConfig):
+    """ Default config of a single Jasper block with 512 filters """
+    dilation: int=1
+    dropout: float=0.0
+    filters: int=512
+    repeat: int=5
+    residual: bool=True
+    separable: bool=True
+    stride=int=1
+
+@dataclass
+class JasperBlock1024Config(JasperBlockConfig):
+    """ Default config of a single Jasper block with 1024 filters """
+    dilation: int=1
+    dropout: float=0.0
+    filters: int=1024
+    kernel: 1
+    repeat: int=1
+    residual: bool=False
+    separable: bool=True
+    stride=int=1
+
+
+@dataclass
+class JasperEncoderConfig:
     """ Config of Jasper encoder """
     activation: str="relu"
     conv_mask: bool=True
     feat_in: int=64
 
-    def __init__(self, **kwargs):
-        """ Init - adds additional parameters, currently - adds 10 JasperBlocks """
-        super().__init__(self, kwargs)
-        # Add blocks.
-        self.blocks = []
-        # Add first block with some custom params.
-        self.blocks.append(JasperBlockConfig(repeat=1, residual=False, stride=2))
-
-        # Add remaining 9 using default params.
-        for i in range(9):
-            self.blocks.append(JasperBlockConfig())
+    blocks: List[JasperBlockConfig] = field(default_factory=lambda: [
+        # Block 1: override all values.
+        JasperBlockConfig(dilation=1, dropout=0.0, filters=256, kernel=33, repeat= 1, residual=False, separable=True, stride=2),
+        # Block 2-7: block 256 with different kernels.
+        JasperBlockConfig(**asdict(JasperBlock256Config(kernel=33))),
+        #JasperBlock256Config(kernel=33),
+        #JasperBlock256Config(kernel=33),
+        #JasperBlock256Config(kernel=39),
+        #JasperBlock256Config(kernel=39),
+        #JasperBlock256Config(kernel=39),
+        # Block 8-17: block 512 with different kernels.
+        #JasperBlock512Config(kernel=51),
+        #JasperBlock512Config(kernel=51),
+        #JasperBlock512Config(kernel=51),
+        #JasperBlock512Config(kernel=63),
+        #JasperBlock512Config(kernel=63),
+        #JasperBlock512Config(kernel=63),
+        #JasperBlock512Config(kernel=75),
+        #JasperBlock512Config(kernel=75),
+        #JasperBlock512Config(kernel=75),
+        # Block 17: block 512 with different different dilation and no residual connection.
+        #JasperBlock512Config(dilation=2, kernel=87, residual=False),
+        # Last block: 1024.
+        #JasperBlock1024Config()
+        # This one is just to trigger an Error! with MISSING fields.
+        #JasperBlockConfig()
+        ])
 
 
 @dataclass
@@ -80,9 +131,15 @@ class ModelConfig(NeMoConfig):
 @dataclass
 class JasperConfig(ModelConfig):
     # Encoder.
-    encoder: JasperEncoderConfig = field(default_factory=JasperEncoderConfig)
+    encoder: JasperEncoderConfig = JasperEncoderConfig()
     # Optimizer.
-    opt: OptimConfig = field(default_factory=OptimConfig)
+    opt: OptimConfig = OptimConfig()
+
+@dataclass
+class DatasetConfig(NeMoConfig):
+    name: str="imagenet"
+    path: str="/datasets/imagenet"
+
 
 # Jasper "Prototype" ;)
 def MyJasper(conf: JasperConfig=JasperConfig()):
@@ -95,7 +152,17 @@ def MyJasper(conf: JasperConfig=JasperConfig()):
 
 
 
-@hydra.main(config_path="test.yaml")
+@dataclass
+class JasperAppConfig(NeMoConfig):
+    dataset: DatasetConfig = DatasetConfig()
+    jasper: JasperConfig = JasperConfig()
+
+cs = ConfigStore.instance()
+# Registering the JasperAppConfig class with the name 'config'. 
+cs.store(name="config", node=JasperAppConfig)
+
+
+@main(config_name="config")
 def my_app(cfg : DictConfig) -> None:
     # Pure hydra config.
     print("="*80 + " Hydra " + "="*80)
@@ -104,12 +171,15 @@ def my_app(cfg : DictConfig) -> None:
     # Jasper "object" with its default config.
     j1 = MyJasper()
 
+    # Jasper "object" with its config from JasperAppConfig.
+    j2 = MyJasper(cfg.jasper)
+
     # Jasper "object" with some params overriden "in the code".
     conf2 = JasperConfig()
     conf2.name = "jasper_with_tanh"
     conf2.opt.name="adam"
     conf2.encoder.activation = "tanh"
-    j2 = MyJasper(conf=conf2)
+    j3 = MyJasper(conf=conf2)
 
 
 if __name__ == "__main__":
