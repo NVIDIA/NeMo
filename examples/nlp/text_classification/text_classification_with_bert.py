@@ -191,25 +191,6 @@ def main():
         }
     )
 
-    # optim_params = {
-    #     'optimizer_kind': args.optimizer_kind,
-    #     'lr': args.lr,
-    #     'lr_policy': args.lr_policy,
-    #     'weight_decay': args.weight_decay,
-    #     'beta1': args.beta1,
-    #     'beta2': args.beta1,
-    #     'lr_warmup_proportion': args.lr_warmup_proportion,
-    # }
-    # text_classification_model.setup_optimization(optim_params=optim_params)
-
-    # optimizer = torch.optim.Adam(
-    #     text_classification_model.parameters(),
-    #     lr=args.lr,
-    #     weight_decay=args.weight_decay,
-    #     betas=(args.beta1, args.beta2),
-    # )
-    # text_classification_model.set_optimizer(optimizer=optimizer)
-
     trainer = pl.Trainer(
         val_check_interval=args.eval_step_freq,
         amp_level=args.amp_level,
