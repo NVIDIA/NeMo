@@ -29,13 +29,7 @@ pipeline {
 
     stage('Install NeMo requirements') {
       steps {
-        sh 'pip install -r requirements/requirements.txt'
-      }
-    }
-
-    stage('Install NLP requirements') {
-      steps {
-        sh 'pip install -r requirements/requirements_nlp.txt'
+        sh './reinstall.sh'
       }
     }
 
