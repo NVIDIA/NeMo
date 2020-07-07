@@ -118,7 +118,7 @@ def add_nlp_args(parent_parser: ArgumentParser) -> ArgumentParser:
     parser.add_argument(
         "--data_dir", type=str, required=True, help="data directory to training or/and evaluation dataset"
     )
-    parser.add_argument("--config_file", type=str, required=False, help="model configuration file")
+    parser.add_argument("--config_file", type=str, required=False, help="Huggingface model configuration file")
     parser.add_argument(
         "--pretrained_model_name", default='bert-base-uncased', type=str, required=False, help="pretrained model name"
     )
