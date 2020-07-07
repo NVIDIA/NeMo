@@ -20,14 +20,14 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 
 from nemo.collections.nlp.models.text_classification_model import TextClassificationModel
-from nemo.core.optim.lr_scheduler import PolynomialDecayAnnealing
+from nemo.core.optim.lr_scheduler import WarmupAnnealing
 from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
 
 
 def main():
     parser = ArgumentParser(description='Sentence classification with pretrained BERT models')
 
-    parser = add_optimizer_args(parser)
+    parser = add_optimizer_args(parser, optimizer="adam", default_lr="2e-5", default_opt_args={"weight_decay": 0.01})
     parser = add_scheduler_args(parser)
 
     # Data Arguments
@@ -186,7 +186,7 @@ def main():
             'optimizer': args.optimizer,
             'lr': args.lr,
             'opt_args': args.opt_args,
-            'scheduler': PolynomialDecayAnnealing,
+            'scheduler': WarmupAnnealing,
             'scheduler_args': scheduler_args,
         }
     )
