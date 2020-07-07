@@ -140,7 +140,7 @@ def main():
         distributed_backend='ddp',
         replace_sampler_ddp=False,
         accumulate_grad_batches=args.accumulate_grad_batches,
-        gradient_clip_val=args.gradient_clip_val
+        gradient_clip_val=args.gradient_clip_val,
         progress_bar_refresh_rate=args.progress_bar_refresh_rate
     )
     trainer.fit(bert_model)
