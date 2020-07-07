@@ -60,7 +60,7 @@ class WarmupPolicy(_LRScheduler):
             self.warmup_steps = int(warmup_ratio * max_steps)
         else:
             self.warmup_steps = 0
-
+        print(f'optimizer: {optimizer}')
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
