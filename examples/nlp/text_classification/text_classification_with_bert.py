@@ -39,11 +39,11 @@ def main():
         help="The folder containing the checkpoints for the model to continue training",
     )
     parser.add_argument("--data_dir", required=True, type=str)
-    parser.add_argument("--file_prefix_train", default='train', type=str, help="train file prefix")
-    parser.add_argument("--file_prefix_val", default='dev', type=str, help="eval file prefix")
+    parser.add_argument("--train_file_prefix", default='train', type=str, help="train file prefix")
+    parser.add_argument("--val_file_prefix", default='dev', type=str, help="eval file prefix")
     parser.add_argument("--no_shuffle", action='store_false', dest="shuffle", help="Shuffle is enabled by default.")
-    parser.add_argument("--num_samples_train", default=-1, type=int, help="Number of samples to use for training")
-    parser.add_argument("--num_samples_val", default=-1, type=int, help="Number of samples to use for evaluation")
+    parser.add_argument("--num_train_samples", default=-1, type=int, help="Number of samples to use for training")
+    parser.add_argument("--num_val_samples", default=-1, type=int, help="Number of samples to use for evaluation")
     parser.add_argument("--num_workers", default=2, type=int, help="The number of workers for the data loaders.")
     parser.add_argument(
         "--pin_memory", action='store_true', help="Whether to enable the pin_memory feature of the data loaders."
@@ -135,7 +135,7 @@ def main():
 
     dataloader_params_train = {
         "max_seq_length": args.max_seq_length,
-        "num_samples": args.num_samples_train,
+        "num_samples": args.num_train_samples,
         "shuffle": args.shuffle,
         "use_cache": args.use_cache,
         "batch_size": args.batch_size,
@@ -144,13 +144,13 @@ def main():
     }
 
     text_classification_model.setup_training_data(
-        file_path=os.path.join(args.data_dir, f'{args.file_prefix_train}.tsv'),
+        file_path=os.path.join(args.data_dir, f'{args.train_file_prefix_train}.tsv'),
         dataloader_params=dataloader_params_train,
     )
 
     dataloader_params_val = {
         "max_seq_length": args.max_seq_length,
-        "num_samples": args.num_samples_val,
+        "num_samples": args.num_val_samples,
         "shuffle": False,
         "use_cache": args.use_cache,
         "batch_size": args.batch_size,
@@ -159,7 +159,7 @@ def main():
     }
 
     text_classification_model.setup_validation_data(
-        file_path=os.path.join(args.data_dir, f'{args.file_prefix_val}.tsv'), dataloader_params=dataloader_params_val,
+        file_path=os.path.join(args.data_dir, f'{args.val_file_prefix}.tsv'), dataloader_params=dataloader_params_val,
     )
 
     # Setup optimizer and scheduler

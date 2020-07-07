@@ -27,7 +27,7 @@ pipeline {
       }
     }
 
-    stage('Install NeMo requirements') {
+    stage('Re-install NeMo') {
       steps {
         sh './reinstall.sh'
       }
