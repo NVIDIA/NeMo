@@ -25,7 +25,7 @@ from nemo.utils import logging
 __all__ = ['ModelPT']
 
 
-class ModelPT(LightningModule, Model):
+class ModelPT(LightningModule):
     """
     Interface for Pytorch-lightning based NeMo models
     """
