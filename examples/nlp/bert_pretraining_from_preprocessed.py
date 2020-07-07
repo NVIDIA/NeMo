@@ -55,6 +55,9 @@ def add_nlp_args(parser):
     )
     parser.add_argument(
         "--max_steps", default=100, type=int, help="Number of training steps.",
+    )    
+    parser.add_argument(
+        "--precision", default=32, type=int, choices=[16, 32], help="precision.",
     )
     parser.add_argument("--pretrained_model_name", default='bert-base-uncased', type=str, help="pretrained model name")
     parser.add_argument(
@@ -95,7 +98,6 @@ def main():
     parser = add_optimizer_args(parser)
     parser = add_scheduler_args(parser)
     args = add_nlp_args(parser)
-
     bert_model = BERTLMModel(pretrained_model_name=args.pretrained_model_name, config_file=args.config_file)
     bert_model.setup_training_data(
         train_data_layer_params={
@@ -135,7 +137,7 @@ def main():
     trainer = pl.Trainer(
         num_sanity_val_steps=0,
         amp_level=args.amp_level,
-        precision=16,
+        precision=args.precision,
         gpus=args.gpus,
         max_steps=args.max_steps,
         distributed_backend='ddp',
