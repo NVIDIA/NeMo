@@ -29,7 +29,7 @@ pipeline {
 
     stage('Installation') {
       steps {
-        sh './reinstall.sh && pip install -U tqdm'
+        sh './reinstall.sh'
       }
     }
 
