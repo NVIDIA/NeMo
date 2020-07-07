@@ -21,7 +21,7 @@ ruamel.yaml
 sentencepiece
 six
 sox
-tqdm
+tqdm>=4.41.0
 unidecode
 wget
 youtokentome
