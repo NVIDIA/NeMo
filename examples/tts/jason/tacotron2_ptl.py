@@ -364,7 +364,7 @@ def main():
         gradient_clip_val=1.0,
         log_save_interval=1000,
         row_log_interval=200,
-        val_check_interval=25,
+        check_val_every_n_epoch=25,
         callbacks=[lr_logger],
     )
     trainer.fit(model)
