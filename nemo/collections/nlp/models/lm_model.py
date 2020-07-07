@@ -110,6 +110,7 @@ class BERTLMModel(ModelPT):
         self.__test_dl = None
         # This will be set by setup_optimization
         self.__optimizer = None
+        self.__scheduler = None
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -237,7 +238,10 @@ class BERTLMModel(ModelPT):
         return dl
 
     def configure_optimizers(self):
-        return self.__optimizer
+        if self.__scheduler is None:
+            return self.__optimizer
+        else:
+            return [self.__optimizer], [self.__scheduler]
 
     def train_dataloader(self):
         return self.__train_dl

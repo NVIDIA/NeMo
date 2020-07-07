@@ -55,7 +55,7 @@ def add_nlp_args(parser):
     )
     parser.add_argument(
         "--max_steps", default=100, type=int, help="Number of training steps.",
-    )    
+    )
     parser.add_argument(
         "--precision", default=32, type=int, choices=[16, 32], help="precision.",
     )
@@ -144,7 +144,7 @@ def main():
         replace_sampler_ddp=False,
         accumulate_grad_batches=args.accumulate_grad_batches,
         gradient_clip_val=args.gradient_clip_val,
-        progress_bar_refresh_rate=args.progress_bar_refresh_rate
+        progress_bar_refresh_rate=args.progress_bar_refresh_rate,
     )
     trainer.fit(bert_model)
 
