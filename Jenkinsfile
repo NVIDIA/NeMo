@@ -29,7 +29,7 @@ pipeline {
 
     stage('Re-install NeMo') {
       steps {
-        sh './reinstall.sh'
+        sh './reinstall.sh && pip install -U tqdm'
       }
     }
 
