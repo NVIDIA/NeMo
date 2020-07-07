@@ -27,7 +27,7 @@ from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
 def add_nlp_args(parser):
     parser.add_argument("--data_dir", type=str, required=True, help="Path to data folder")
     parser.add_argument("--config_file", default=None, type=str, help="The BERT model config")
-    parser.add_argument("--gpus", default=1, type=int, help="Number Gpus")
+    parser.add_argument("--gpus", default=1, help="Number Gpus")
     parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
         "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
@@ -55,6 +55,9 @@ def add_nlp_args(parser):
     )
     parser.add_argument(
         "--max_steps", default=100, type=int, help="Number of training steps.",
+    )
+    parser.add_argument(
+        "--progress_bar_refresh_rate", default=1, type=int, help="progress_bar_refresh_rate",
     )
     parser.add_argument("--num_nodes", default=1, type=int, help="Number Nodes")
     # parser.add_argument(
@@ -128,7 +131,6 @@ def main():
             'scheduler_args': scheduler_args,
         }
     )
-
     trainer = pl.Trainer(
         num_sanity_val_steps=0,
         amp_level=args.amp_level,
@@ -139,7 +141,7 @@ def main():
         replace_sampler_ddp=False,
         accumulate_grad_batches=args.accumulate_grad_batches,
         gradient_clip_val=args.gradient_clip_val
-        # progress_bar_refresh_rate=1,
+        progress_bar_refresh_rate=args.progress_bar_refresh_rate
     )
     trainer.fit(bert_model)
 
