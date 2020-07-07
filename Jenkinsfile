@@ -29,17 +29,11 @@ pipeline {
 
     stage('Re-install NeMo') {
       steps {
-        sh './reinstall.sh'
+        sh './reinstall.sh && pip install -U tqdm'
       }
     }
 
     stage('L2: Parallel NLP Examples 1') {
-      when {
-        anyOf{
-          branch 'master'
-          changeRequest()
-        }
-      }
       failFast true
       parallel {
         stage ('Text Classification with BERT Test') {
