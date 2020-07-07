@@ -41,7 +41,7 @@ def get_acc(data_root='./myExps/hi-mia/', emb='', emb_labels='', emb_size=512):
     label_files = np.load(emb_labels)
 
     assert len(X_test) == len(label_files)
-    trail_file = root + 'trials_1m'
+    trail_file = os.path.join(data_root, 'trials_1m')
 
     test_list = {}
     speaker_list = {}
