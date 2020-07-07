@@ -94,7 +94,7 @@ class Tacotron2PTL(ModelPT):
         )
 
         # Set up datasets
-        self.__train_dl = self.setup_training_data(args.train_datasets)
+        self.__train_dl = self.setup_training_data(args.train_dataset)
         self.__val_dl = self.setup_validation_data(args.eval_datasets)
 
         # After defining all torch.modules, create optimizer and scheduler
