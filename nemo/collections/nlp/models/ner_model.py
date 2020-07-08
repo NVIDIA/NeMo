@@ -50,20 +50,19 @@ class NERModel(ModelPT):
         activation: str = 'relu',
         log_softmax: bool = True,
         dropout: float = 0.0,
-        use_transformer_pretrained: bool = True,
+        use_transformer_init: bool = True,
     ):
         """
         Args:
-            :param num_classes: number of classes
-            :param pretrained_model_name: pretrained language model name, to see the complete list use
-            :param config_file: model config file
-            :param num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            :param activation: activation to usee between fully connected layers in the MLP
-            :param log_softmax: whether to apply softmax to the output
-            :param dropout: dropout to apply to the input hidden states
-            :param use_transformer_pretrained: whether to use pre-trained transformer weights for weights initialization
+            num_classes: number of classes
+            pretrained_model_name: pretrained language model name, to see the complete list use
+            config_file: model config file
+            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            activation: activation to usee between fully connected layers in the MLP
+            log_softmax: whether to apply softmax to the output
+            dropout: dropout to apply to the input hidden states
+            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
-        # init superclass
         super().__init__()
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
@@ -75,7 +74,7 @@ class NERModel(ModelPT):
             activation=activation,
             log_softmax=log_softmax,
             dropout=dropout,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_init=use_transformer_init,
         )
 
         self.loss = CrossEntropyLoss()
