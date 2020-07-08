@@ -19,6 +19,7 @@ import collections
 import json
 import os
 import pickle
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -146,7 +147,7 @@ class SquadDataset(Dataset):
 
     def get_predictions(
         self,
-        unique_ids: List[int],
+        unique_ids: List[str],
         start_logits: List[List[float]],
         end_logits: List[List[float]],
         n_best_size: int,
@@ -333,7 +334,7 @@ class SquadDataset(Dataset):
 
     def evaluate_predictions(
         self,
-        all_predictions: Dict[str],
+        all_predictions: Dict[str, str],
         no_answer_probs: Optional[float] = None,
         no_answer_probability_threshold: float = 1.0,
     ):
@@ -367,7 +368,7 @@ class SquadDataset(Dataset):
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
-    def get_raw_scores(self, preds: Dict[str]):
+    def get_raw_scores(self, preds: Dict[str, str]):
         """
         Computes the exact and f1 scores from the examples
         and the model predictions
@@ -396,7 +397,7 @@ class SquadDataset(Dataset):
 
     def evaluate(
         self,
-        unique_ids: List[int],
+        unique_ids: List[str],
         start_logits: List[List[float]],
         end_logits: List[List[float]],
         n_best_size: int,
