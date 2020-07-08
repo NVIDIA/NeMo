@@ -12,102 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List
-
-from dataclasses import dataclass, field
 import hydra
-from hydra.core.config_store import ConfigStore
-from omegaconf import DictConfig, MISSING, OmegaConf
+from omegaconf import DictConfig
 
 import pytorch_lightning as pl
 
-from nemo.collections.asr.models.ctc_models import QuartzNet
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.core.optim.lr_scheduler import CosineAnnealing
-from nemo.core.optim.novograd import Novograd
 
-# @dataclass
-# class AudioToTextDataLayer:
-#     manifest_filepath: str = MISSING
-#     sample_rate: int = 16000
-#     labels: list = MISSING
-#     batch_size: int = 64
-#     trim_silence: bool = True
-#     max_duration: float = 16.7
-#     shuffle: bool = True
-
-# @dataclass
-# class NovogradConfig:
-#     lr: float = .01
-
-# @dataclass
-# class PLpl.Trainer:
-#     max_epochs: int = 5
-#     gpus: int = 0
-
-# @dataclass
-# class PreprocessorConfig:
-#     full_spec: str = "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
-#     normalize: str = "per_feature"
-#     window_size: float = 0.02
-#     sample_rate: int = 16000
-#     window_stride: float = 0.01
-#     window: str = "hann"
-#     features: int = 64
-#     n_fft: int = 512
-#     frame_splicing: int = 1
-#     dither: float = 0.00001
-#     stft_conv: bool = True
-
-# @dataclass
-# class SpecAugmentConfig:
-#     full_spec: str = "nemo.collections.asr.modules.SpectrogramAugmentation"
-#     rect_freq: int = 50
-#     rect_masks: int = 5
-#     rect_time: int = 120
-
-# @dataclass
-# class SchedulerConfig:
-#     monitor: str = "val_loss"
-#     warmup_ratio: float = .02
-#     warmup_steps: int = MISSING
-#     min_lr: float = MISSING
-#     last_epoch: bool = False
-#     iters_per_batch: int = MISSING # computed at runtime
-
-
-# defaults = [
-#     {"optimizer": "novograd"}
-# ]
-
-# @dataclass
-# class Config(DictConfig):
-#     defaults: List[Any] = field(default_factory=lambda: defaults)
-#     batch_size: int = 8
-#     optimizer: Any = MISSING
-#     preprocessor: PreprocessorConfig = PreprocessorConfig()
-#     spec_augment: SpecAugmentConfig = SpecAugmentConfig()
-#     scheduler: SchedulerConfig = SchedulerConfig()
-#     PLpl.Trainer: PLpl.Trainer = PLpl.Trainer()
-
-# cs = ConfigStore.instance()
-# cs.store(group="optimizer", name="novograd", node=NovogradConfig)
-# cs.store(name="config", node=Config)
-
-
-#@hydra.main(config_name="config")
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
     print(cfg.pretty())
-    # print(f'cfg.encoder: {cfg.encoder}')
-    # print(f'cfg.decoder: {cfg.decoder}')
-    # print(f'cfg.preprocessor: {cfg.preprocessor}')
 
-    # asr_model = EncDecCTCModel(
-    #     preprocessor_config=OmegaConf.to_container(cfg.preprocessor),
-    #     encoder_config=OmegaConf.to_container(cfg.encoder),
-    #     decoder_config=OmegaConf.to_container(cfg.decoder),
-    # )
     asr_model = EncDecCTCModel(
         preprocessor_config=cfg.preprocessor,
         encoder_config=cfg.encoder,
@@ -129,21 +44,9 @@ def main(cfg):
     else:
         cfg.lr_scheduler.max_steps = cfg.pl.trainer.max_steps
 
-    #optimizer = hydra.utils.instantiate(cfg.optimizer)
-    #print(f'optimizer: {optimizer}')
-    
+    asr_model.setup_optimization(cfg.optimizer)
+    asr_model.setup_lr_scheduler(cfg.lr_scheduler)
 
-    # asr_model.setup_optimization(
-    #     optim_params={
-    #         'optimizer': "adam",
-    #         'lr': cfg.lr,
-    #     }
-    # )
-            #'opt_args': [],
-            # 'scheduler': CosineAnnealing, 
-            # 'scheduler_args': OmegaConf.to_container(cfg.lr_scheduler)
-
-    #trainer = pl.Trainer.from_argparse_args(OmegaConf.to_container(cfg.pl.trainer))
     trainer = pl.Trainer(**cfg.pl.trainer)
     trainer.fit(asr_model)
 

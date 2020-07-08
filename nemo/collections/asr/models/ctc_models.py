@@ -81,10 +81,12 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optim_params)
+    def setup_optimization(self, optimizer_config: Optional[DictConfig] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optimizer_config)
+    
+    def setup_lr_scheduler(self, lr_scheduler_config: Optional[DictConfig]):
         self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
+            optimizer=self.__optimizer, scheduler_config=lr_scheduler_config, train_dataloader=self.__train_dl
         )
 
     @classmethod
