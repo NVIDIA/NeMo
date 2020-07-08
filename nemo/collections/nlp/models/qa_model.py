@@ -57,7 +57,7 @@ class QAModel(ModelPT):
         activation: str = 'relu',
         log_softmax: bool = False,
         dropout: float = 0.0,
-        use_transformer_pretrained: bool = True,
+        use_transformer_init: bool = True,
     ):
         """
         Args:
@@ -68,7 +68,7 @@ class QAModel(ModelPT):
             :param activation: activation to usee between fully connected layers in the MLP
             :param log_softmax: whether to apply softmax to the output
             :param dropout: dropout to apply to the input hidden states
-            :param use_transformer_pretrained: whether to use pre-trained transformer weights for weights initialization
+            :param use_transformer_init: whether to use pre-trained transformer weights for weights initialization
         """
         # init superclass
         super().__init__()
@@ -82,7 +82,7 @@ class QAModel(ModelPT):
             activation=activation,
             log_softmax=log_softmax,
             dropout=dropout,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_init=use_transformer_init,
         )
 
         self.loss = SpanningLoss()
