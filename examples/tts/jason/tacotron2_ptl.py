@@ -276,97 +276,38 @@ class Tacotron2PTL(ModelPT):
 
 
 def main():
+    # fmt: off
+    labels = [
+        ' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+        'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', ']', 'a', 'b', 'c', 'd',
+        'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+    ]
+    # fmt: on
     parser = argparse.ArgumentParser()
-    # parser = pl.Trainer.add_argparse_args(parser)
+    parser = Trainer.add_argparse_args(parser)
     parser = add_optimizer_args(parser, optimizer="adam", default_lr=1e-3, default_opt_args={"weight_decay": 1e-6})
     # parser = add_scheduler_args(parser)
-    parser.add_argument("--num_epochs", type=int, help="working directory for experiment")
     parser.add_argument("--work_dir", default=None, type=str, help="working directory for experiment")
     parser.add_argument("--train_dataset", default=None, type=str, help="working directory for experiment")
     parser.add_argument("--eval_datasets", default=None, type=str, help="working directory for experiment")
-    args = parser.parse_args()
-    labels = [
-        ' ',
-        '!',
-        '"',
-        "'",
-        '(',
-        ')',
-        ',',
-        '-',
-        '.',
-        ':',
-        ';',
-        '?',
-        'A',
-        'B',
-        'C',
-        'D',
-        'E',
-        'F',
-        'G',
-        'H',
-        'I',
-        'J',
-        'K',
-        'L',
-        'M',
-        'N',
-        'O',
-        'P',
-        'Q',
-        'R',
-        'S',
-        'T',
-        'U',
-        'V',
-        'W',
-        'X',
-        'Y',
-        'Z',
-        '[',
-        ']',
-        'a',
-        'b',
-        'c',
-        'd',
-        'e',
-        'f',
-        'g',
-        'h',
-        'i',
-        'j',
-        'k',
-        'l',
-        'm',
-        'n',
-        'o',
-        'p',
-        'q',
-        'r',
-        's',
-        't',
-        'u',
-        'v',
-        'w',
-        'x',
-        'y',
-        'z',
-    ]
-    tb_logger = pl_loggers.TensorBoardLogger(args.work_dir)
-    lr_logger = LearningRateLogger()
-    model = Tacotron2PTL(labels, args)
-    trainer = Trainer(
-        gpus=1,
+    parser.add_argument("--eval_datasets", default=None, type=str, help="working directory for experiment")
+    parser.set_defaults(
+        gpus=-1,
         num_nodes=1,
-        logger=tb_logger,
-        max_epochs=args.num_epochs,
+        max_epochs=None,
         gradient_clip_val=1.0,
         log_save_interval=1000,
         row_log_interval=200,
         check_val_every_n_epoch=25,
-        callbacks=[lr_logger],
+        distributed_backend="ddp"
     )
+    args = parser.parse_args()
+    if args.max_epochs is None:
+        raise ValueError("please use max_epochs")  # TODO: make error message better
+    tb_logger = pl_loggers.TensorBoardLogger(args.work_dir)
+    lr_logger = LearningRateLogger()
+    model = Tacotron2PTL(labels, args)
+    trainer = Trainer.from_argparse_args(args, logger=tb_logger,callbacks=[lr_logger])
     trainer.fit(model)
 
 
