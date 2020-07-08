@@ -48,10 +48,8 @@ class AppConfig(Config):
 
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
-
     # Show configuration - user can modify every parameter from command line!
-    print("=" * 80 + " Hydra says hello! " + "=" * 80)
-    print(cfg.pretty())
+    logging.info("=" * 40 + " Hydra says hello! " + "=" * 40 + "\n" + cfg.pretty())
 
     # The "model".
     lenet5 = LeNet5(cfg.model)
