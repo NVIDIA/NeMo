@@ -45,10 +45,14 @@ class MNISTLeNet5Config(Config):
 
     Args:
         opt: Lets use Novograd optimizer.
+        dataset: MNIST dataset config.
+        dataloader: Dataloader config.
+        module: module config (default one).
     """
     opt: NovogradConfig = NovogradConfig()
     dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
     dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=64, shuffle=True)
+    module: Config = Config()
 
 
 @experimental
@@ -59,7 +63,7 @@ class MNISTLeNet5(ModelPT):
         self._cfg = cfg
 
         # Initialize modules.
-        self.module = LeNet5Module()
+        self.module = LeNet5Module(cfg.module)
         self.loss = NLLLoss()
 
     @property
