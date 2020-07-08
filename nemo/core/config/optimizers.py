@@ -14,8 +14,24 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.core.config.base_config import *
-from nemo.core.config.optimizers import *
-from nemo.core.config.pytorch import *
-from nemo.core.config.pytorch_lightning import *
-from nemo.core.config.set_config import set_config
+from typing import Tuple
+
+from dataclasses import dataclass
+
+__all__ = ['AdamConfig']
+
+@dataclass
+class AdamConfig:
+    """
+    Default configuration for Adam optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
+    """
+    lr: float=0.001
+    betas: Tuple[float, float]=(0.9, 0.999)
+    eps: float=1e-08
+    weight_decay: float=0
+    amsgrad: bool=False

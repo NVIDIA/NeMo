@@ -20,10 +20,10 @@ from typing import Optional
 
 from dataclasses import dataclass
 
-from torch.utils.data import Dataset
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
+from nemo.core.config import Config
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
@@ -34,7 +34,7 @@ __all__ = ['MNISTDataset', 'MNISTDatasetConfig']
 
 
 @dataclass
-class MNISTDatasetConfig:
+class MNISTDatasetConfig(Config):
     """
     Structured config for MNISTDataset class.
 
@@ -50,7 +50,6 @@ class MNISTDatasetConfig:
     data_folder: str = "~/data/mnist"
     train: bool = True
     download: bool = True
-    name: Optional[str] = None
 
 
 class MNISTDataset(Dataset):

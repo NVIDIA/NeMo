@@ -17,23 +17,55 @@
 import pytorch_lightning as ptl
 from torch.utils.data import DataLoader
 
-from nemo.collections.cv.models import LeNet5
-from nemo.collections.cv.datasets import MNISTDataset
+from nemo.core.config import set_config, Config, DataLoaderConfig, TrainerConfig
+from dataclasses import dataclass, asdict
+from omegaconf import DictConfig
+
+from nemo.collections.cv.models import LeNet5, LeNet5Config
+from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
 
 from nemo.utils import logging
 
-if __name__ == "__main__":
+@dataclass
+class AppConfig(Config):
+    """
+    This is structured config for this application.
+    As in the example we hardcode the optimizer, so will just enable the user to play with learning rate (lr).
+
+    Args:
+        name: Description of the application.
+        dataset: contains configuration of dataset.
+        dataloader: contains configuration of dataloader.
+        lr: learning rate passed to the optimizer.
+        freq: display frequency.
+    """
+    name: str="Training of a LeNet-5 Model using a mixed PyTorch - PyTorchLightning approach."
+    dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
+    dataloader: DataLoaderConfig=DataLoaderConfig(batch_size=128, shuffle=True)
+    trainer: TrainerConfig=TrainerConfig()
+    model: LeNet5Config=LeNet5Config()
+
+
+@set_config(config=AppConfig)
+def main(cfg: DictConfig):
+
+    # Show configuration - user can modify every parameter from command line!
+    print("="*80 + " Hydra says hello! " + "="*80)
+    print(cfg.pretty())
 
     # The "model".
-    lenet5 = LeNet5([])
+    lenet5 = LeNet5(cfg.model)
 
-    # Instantiate Dataset.
-    mnist_ds = MNISTDataset(height=32, width=32, train=True)
+    # Instantiate dataset.
+    mnist_ds = MNISTDataset(cfg.dataset)
     # Configure data loader.
-    train_dataloader = DataLoader(dataset=mnist_ds, batch_size=128, shuffle=True)
+    train_dataloader = DataLoader(dataset=mnist_ds, **(cfg.dataloader))
 
     # Create trainer.
-    trainer = ptl.Trainer()
+    trainer = ptl.Trainer(**(cfg.trainer))
 
     # Train.
     trainer.fit(model=lenet5, train_dataloader=train_dataloader)
+
+if __name__ == "__main__":
+    main()

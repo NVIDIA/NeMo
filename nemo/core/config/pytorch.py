@@ -19,14 +19,18 @@ from typing import Optional, Any
 
 from dataclasses import dataclass
 
+__all__ = ['DataLoaderConfig']
+
 @dataclass
 class DataLoaderConfig:
     """
     Configuration of PyTorch DataLoader.
-    Note: it is not derived from NeMoConfig as it is not a NeMo object (and in particular it doesn't need a name).
 
-    For the details on the function/meanings of the arguments, please refer to:
-    https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader
     """
     batch_size: int=MISSING
     shuffle: bool=False

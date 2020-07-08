@@ -15,20 +15,32 @@
 # =============================================================================
 
 from typing import Dict, Optional
-
+from dataclasses import dataclass
 from torch import optim
 
+from nemo.core.config import Config, AdamConfig
 from nemo.core.classes.common import typecheck
 from nemo.core.classes import ModelPT
-from nemo.collections.cv.losses import NLLLoss
 
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
 from nemo.collections.cv.modules import LeNet5 as LeNet5Module
+from nemo.collections.cv.losses import NLLLoss
 
 
-__all__ = ['LeNet5']
+__all__ = ['LeNet5', 'LeNet5Config']
+
+
+@dataclass
+class LeNet5Config(Config):
+    """
+    Structured config for LeNet-5 model class.
+
+    Args:
+        opt: Optimizer.
+    """
+    opt: AdamConfig=AdamConfig(lr=0.001)
 
 
 @experimental
@@ -36,9 +48,14 @@ class LeNet5(ModelPT):
 
     def __init__(
         self,
-        params: Dict,
+        cfg: LeNet5Config=LeNet5Config()
     ):
+        # Call base constructor.
         super().__init__()
+        # Remember config - should be moved to base init.
+        self._cfg = cfg
+
+        # Initialize modules.
         self.module = LeNet5Module()
         self.loss = NLLLoss()
  

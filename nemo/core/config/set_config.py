@@ -22,14 +22,14 @@ from hydra._internal.utils import get_args_parser, run_hydra
 from hydra.types import TaskFunction
 from hydra.core.config_store import ConfigStore
 
-from nemo.core.config import NeMoConfig
+from nemo.core.config import Config
 
-def set_config(config: NeMoConfig) -> Callable[[TaskFunction], Any]:
+def set_config(config: Config) -> Callable[[TaskFunction], Any]:
     """
     Decorator used for passing the Structured Configs to main function.
 
     Args:
-        config: config class derived from NeMoConfig.
+        config: config class derived from Config.
     """
     # Get class name. Not sure how important this is, but coudn't get name by accessing type().__name__.
     class_name = str(config)
