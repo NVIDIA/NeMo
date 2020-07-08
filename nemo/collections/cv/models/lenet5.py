@@ -14,23 +14,21 @@
 # limitations under the License.
 # =============================================================================
 
-from typing import Dict, Optional
 from dataclasses import dataclass
+from typing import Dict, Optional
 
 from torch import optim
-from nemo.core.optim.optimizers import get_optimizer
 
-#from  hydra.utils import instantiate as hydra_instantiate
-
-from nemo.core.config import Config, AdamParams, AdamConfig
-from nemo.core.classes.common import typecheck
+from nemo.collections.cv.losses import NLLLoss
+from nemo.collections.cv.modules import LeNet5 as LeNet5Module
 from nemo.core.classes import ModelPT
-
+from nemo.core.classes.common import typecheck
+from nemo.core.config import AdamConfig, AdamParams, Config
 from nemo.core.neural_types import *
+from nemo.core.optim.optimizers import get_optimizer
 from nemo.utils.decorators import experimental
 
-from nemo.collections.cv.modules import LeNet5 as LeNet5Module
-from nemo.collections.cv.losses import NLLLoss
+# from  hydra.utils import instantiate as hydra_instantiate
 
 
 __all__ = ['LeNet5', 'LeNet5Config']
@@ -44,16 +42,13 @@ class LeNet5Config(Config):
     Args:
         opt: Adam optimizer with overriden lr (just to play with it)
     """
-    opt: AdamConfig=AdamConfig(params=AdamParams(lr=0.001))
+
+    opt: AdamConfig = AdamConfig(params=AdamParams(lr=0.001))
 
 
 @experimental
 class LeNet5(ModelPT):
-
-    def __init__(
-        self,
-        cfg: LeNet5Config=LeNet5Config()
-    ):
+    def __init__(self, cfg: LeNet5Config = LeNet5Config()):
         # Call base constructor.
         super().__init__()
         # Remember config - should be moved to base init.
@@ -62,7 +57,7 @@ class LeNet5(ModelPT):
         # Initialize modules.
         self.module = LeNet5Module()
         self.loss = NLLLoss()
- 
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.module.input_types
@@ -74,7 +69,6 @@ class LeNet5(ModelPT):
     @typecheck()
     def forward(self, images):
         return self.module.forward(images=images)
-
 
     def configure_optimizers(self):
         # Get optimizer class.
@@ -96,7 +90,6 @@ class LeNet5(ModelPT):
         # Return it.
         return {"loss": loss}
         # of course "return loss" doesn't work :]
-
 
     def setup_training_data(self, train_data_layer_params: Optional[Dict]):
         """ Dummy methods """

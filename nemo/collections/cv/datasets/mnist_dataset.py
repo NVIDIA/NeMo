@@ -15,20 +15,17 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import dataclass
 from os.path import expanduser
 from typing import Optional
-
-from dataclasses import dataclass
 
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from nemo.core.config import Config
 from nemo.core.classes import Dataset
+from nemo.core.config import Config
 from nemo.core.neural_types import *
-from nemo.utils.decorators import experimental
-from nemo.utils.decorators import add_port_docs
-
+from nemo.utils.decorators import add_port_docs, experimental
 
 __all__ = ['MNISTDataset', 'MNISTDatasetConfig']
 
@@ -45,6 +42,7 @@ class MNISTDatasetConfig(Config):
         train: use train or test splits (DEFAULT: True)
         name: Name of the module (DEFAULT: None)
     """
+
     height: int = 28
     width: int = 28
     data_folder: str = "~/data/mnist"
@@ -57,10 +55,7 @@ class MNISTDataset(Dataset):
     A "thin wrapper" around the torchvision's MNIST dataset.
     """
 
-    def __init__(
-        self,
-        cfg: MNISTDatasetConfig=MNISTDatasetConfig()
-    ):
+    def __init__(self, cfg: MNISTDatasetConfig = MNISTDatasetConfig()):
         """
         Initializes the MNIST dataset.
 
@@ -69,7 +64,7 @@ class MNISTDataset(Dataset):
 
         """
         # Call the base class constructor of Dataset.
-        Dataset.__init__(self)#, name=name)
+        Dataset.__init__(self)  # , name=name)
 
         # Store height and width.
         self._height = cfg.height

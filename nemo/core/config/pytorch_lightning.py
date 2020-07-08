@@ -14,11 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
-from typing import Dict, Optional, List
-
 from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 __all__ = ['TrainerConfig']
+
 
 @dataclass
 class TrainerConfig:
@@ -34,6 +34,7 @@ class TrainerConfig:
         For the details on the function/meanings of the arguments, please refer to:
         https://pytorch-lightning.readthedocs.io/en/latest/trainer.html#
     """
+
     gradient_clip_val: float = 0
     process_position: int = 0
     num_nodes: int = 1

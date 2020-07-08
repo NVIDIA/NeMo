@@ -24,6 +24,7 @@ from nemo.utils.decorators import experimental
 
 __all__ = ['NLLLoss']
 
+
 @experimental
 class NLLLoss(torch_NLLLoss, Serialization, Typing):
     """ Class representing a simple NLL loss. """
@@ -36,7 +37,7 @@ class NLLLoss(torch_NLLLoss, Serialization, Typing):
             name: Name of the module (DEFAULT: None)
         """
         # Call the base constructors.
-        #Serialization.__init__(self, name=name)
+        # Serialization.__init__(self, name=name)
         torch_NLLLoss.__init__(self)
 
     @property

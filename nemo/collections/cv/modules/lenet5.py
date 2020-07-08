@@ -19,8 +19,8 @@ from typing import Optional
 
 from torch import nn
 
-from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
 from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['LeNet5']
@@ -40,7 +40,7 @@ class LeNet5(NeuralModule):
             name: Name of the module (DEFAULT: None)
         """
         # Call the base class constructor.
-        super().__init__() # name=name)
+        super().__init__()  # name=name)
 
         # Create the LeNet-5 model.
         self.model = nn.Sequential(
@@ -107,4 +107,3 @@ class LeNet5(NeuralModule):
     def restore_from(cls, restore_path: str):
         """ Why do I need that in experimental module? """
         pass
-

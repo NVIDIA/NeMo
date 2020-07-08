@@ -14,15 +14,15 @@
 # limitations under the License.
 # =============================================================================
 
-import pytorch_lightning as ptl
-
-from nemo.core.config import Config, set_config, TrainerConfig
 from dataclasses import dataclass
+
+import pytorch_lightning as ptl
 from omegaconf import DictConfig
 
 from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
-
+from nemo.core.config import Config, TrainerConfig, set_config
 from nemo.utils import logging
+
 
 @dataclass
 class AppConfig(Config):
@@ -34,9 +34,10 @@ class AppConfig(Config):
         trainer: configuration of the trainer.
         model: configuation of the model.
     """
-    name: str="Training of a LeNet-5 Model using a pure PyTorchLightning approach - using DDP on 2 GPUs."
-    trainer: TrainerConfig=TrainerConfig(gpus=2, distributed_backend="ddp")
-    model: MNISTLeNet5Config=MNISTLeNet5Config()
+
+    name: str = "Training of a LeNet-5 Model using a pure PyTorchLightning approach - using DDP on 2 GPUs."
+    trainer: TrainerConfig = TrainerConfig(gpus=2, distributed_backend="ddp")
+    model: MNISTLeNet5Config = MNISTLeNet5Config()
 
 
 @set_config(config=AppConfig)
@@ -50,6 +51,7 @@ def main(cfg: DictConfig):
 
     # Train.
     trainer.fit(model=lenet5)
+
 
 if __name__ == "__main__":
     main()

@@ -14,11 +14,11 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import dataclass
 from typing import Optional
 
-from dataclasses import dataclass
-
 __all__ = ['Config']
+
 
 @dataclass
 class Config:
@@ -28,5 +28,5 @@ class Config:
     Args:
         name: name of the module/dataset/loss/model object (used in serialization, DEFAULT: None)
     """
-    name: Optional[str] = None
 
+    name: Optional[str] = None
