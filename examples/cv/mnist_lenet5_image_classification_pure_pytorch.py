@@ -17,7 +17,7 @@
 from torch import optim
 from torch.utils.data import DataLoader
 
-from nemo.core.config import set_config, NeMoConfig, DataLoaderConfig
+from nemo.core.config import set_config, Config, DataLoaderConfig
 from dataclasses import dataclass, asdict
 from omegaconf import DictConfig
 
@@ -28,7 +28,7 @@ from nemo.utils import logging
 
 
 @dataclass
-class AppConfig(NeMoConfig):
+class AppConfig(Config):
     """
     This is structured config for this application.
     As in the example we hardcode the optimizer, so will just enable the user to play with learning rate (lr).
@@ -50,7 +50,7 @@ class AppConfig(NeMoConfig):
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
 
-    # Show configuration - user can influence every parameter from command line!
+    # Show configuration - user can modify every parameter from command line!
     print("="*80 + " Hydra says hello! " + "="*80)
     print(cfg.pretty())
 
@@ -65,10 +65,10 @@ def main(cfg: DictConfig):
     opt = optim.Adam(lenet5.parameters(), lr=cfg.lr)
 
     # Configure data loader.
-    train_loader = DataLoader(dataset=mnist_ds, **(cfg.dataloader))
+    train_dataloader = DataLoader(dataset=mnist_ds, **(cfg.dataloader))
 
     # Iterate over the whole dataset - in batches.
-    for step, (_, images, targets, _) in enumerate(train_loader):
+    for step, (_, images, targets, _) in enumerate(train_dataloader):
 
         # Reset the gradients.
         opt.zero_grad()
