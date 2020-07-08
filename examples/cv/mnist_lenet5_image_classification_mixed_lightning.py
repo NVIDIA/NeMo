@@ -18,7 +18,7 @@ import pytorch_lightning as ptl
 from torch.utils.data import DataLoader
 
 from nemo.core.config import set_config, Config, DataLoaderConfig, TrainerConfig
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from omegaconf import DictConfig
 
 from nemo.collections.cv.models import LeNet5, LeNet5Config
@@ -30,14 +30,13 @@ from nemo.utils import logging
 class AppConfig(Config):
     """
     This is structured config for this application.
-    As in the example we hardcode the optimizer, so will just enable the user to play with learning rate (lr).
 
     Args:
         name: Description of the application.
         dataset: contains configuration of dataset.
         dataloader: contains configuration of dataloader.
-        lr: learning rate passed to the optimizer.
-        freq: display frequency.
+        trainer: configuration of the trainer.
+        model: configuation of the model.
     """
     name: str="Training of a LeNet-5 Model using a mixed PyTorch - PyTorchLightning approach."
     dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
