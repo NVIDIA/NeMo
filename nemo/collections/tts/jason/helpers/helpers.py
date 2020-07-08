@@ -47,7 +47,7 @@ def tacotron2_log_to_tb_func(
 ):
     loss, spec_target, mel_postnet, gate, gate_target, alignments = tensors
     if loss:
-        swriter.add_scalar("loss", loss, step)
+        swriter.add_scalar("eval_loss", loss, step)
     if log_images and step % log_images_freq == 0:
         swriter.add_image(
             f"{tag}_alignment", plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), step, dataformats="HWC",

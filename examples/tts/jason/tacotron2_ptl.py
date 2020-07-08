@@ -177,12 +177,10 @@ class Tacotron2PTL(ModelPT):
             target_len=spec_len,
         )
 
-        # loss = None
-        # logger_logs = {}
         output = {
             'loss': loss,  # required
             'progress_bar': {'training_loss': loss},  # optional (MUST ALL BE TENSORS)
-            # 'log': logger_logs
+            'log': {'loss': loss}
         }
         # return a dict
         return output
@@ -307,7 +305,7 @@ def main():
     tb_logger = pl_loggers.TensorBoardLogger(args.work_dir)
     lr_logger = LearningRateLogger()
     model = Tacotron2PTL(labels, args)
-    trainer = Trainer.from_argparse_args(args, logger=tb_logger,callbacks=[lr_logger])
+    trainer = Trainer.from_argparse_args(args, logger=tb_logger, callbacks=[lr_logger])
     trainer.fit(model)
 
 
