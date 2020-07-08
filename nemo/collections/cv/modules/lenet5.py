@@ -19,6 +19,7 @@ from typing import Optional
 
 from torch import nn
 
+from nemo.core.config import Config
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
 from nemo.utils.decorators import experimental
