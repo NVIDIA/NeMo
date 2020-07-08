@@ -18,7 +18,8 @@ from typing import Tuple
 
 from dataclasses import dataclass
 
-__all__ = ['AdamConfig']
+__all__ = ['AdamConfig', 'AdamInstanceConfig']
+
 
 @dataclass
 class AdamConfig:
@@ -35,3 +36,12 @@ class AdamConfig:
     eps: float=1e-08
     weight_decay: float=0
     amsgrad: bool=False
+
+
+@dataclass
+class AdamInstanceConfig:
+    """
+    Default configuration used during automagical instantiation of Adam optimizer.
+    """
+    cls: str="adam" # @titu90: I honestly prefer the fullly blown: "torch.optim.Adam", let's discuss that.
+    params: AdamConfig=AdamConfig()
