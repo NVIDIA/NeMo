@@ -18,11 +18,11 @@ from typing import Tuple
 
 from dataclasses import dataclass
 
-__all__ = ['AdamConfig', 'AdamInstanceConfig', 'NovogradConfig', 'NovogradInstanceConfig']
+__all__ = ['AdamParams', 'AdamConfig', 'NovogradParams', 'NovogradConfig']
 
 
 @dataclass
-class AdamConfig:
+class AdamParams:
     """
     Default configuration for Adam optimizer.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
@@ -39,16 +39,16 @@ class AdamConfig:
 
 
 @dataclass
-class AdamInstanceConfig:
+class AdamConfig:
     """
     Default configuration used during automagical instantiation of Adam optimizer.
     """
     cls: str="adam" # @titu90: I honestly prefer the fullly blown: "torch.optim.Adam", let's discuss that.
-    params: AdamConfig=AdamConfig()
+    params: AdamParams=AdamParams()
 
 
 @dataclass
-class NovogradConfig:
+class NovogradParams:
     """
     Configuration of the Novograd optimizer.
 
@@ -78,10 +78,10 @@ class NovogradConfig:
 
 
 @dataclass
-class NovogradInstanceConfig:
+class NovogradConfig:
     """
     Default configuration used during automagical instantiation of Novograd optimizer.
     """
     cls: str="novograd" 
-    params: NovogradConfig=NovogradConfig()
+    params: NovogradParams=NovogradParams()
 

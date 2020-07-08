@@ -22,7 +22,7 @@ from nemo.core.optim.optimizers import get_optimizer
 
 #from  hydra.utils import instantiate as hydra_instantiate
 
-from nemo.core.config import Config, AdamConfig, AdamInstanceConfig
+from nemo.core.config import Config, AdamParams, AdamConfig
 from nemo.core.classes.common import typecheck
 from nemo.core.classes import ModelPT
 
@@ -44,7 +44,7 @@ class LeNet5Config(Config):
     Args:
         opt: Adam optimizer with overriden lr (just to play with it)
     """
-    opt: AdamInstanceConfig=AdamInstanceConfig(params=AdamConfig(lr=0.001))
+    opt: AdamConfig=AdamConfig(params=AdamParams(lr=0.001))
 
 
 @experimental

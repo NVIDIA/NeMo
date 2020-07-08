@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from torch.utils.data import DataLoader
 
-from nemo.core.config import DataLoaderConfig, NovogradInstanceConfig
+from nemo.core.config import DataLoaderConfig, NovogradConfig
 
 from nemo.collections.cv.models import LeNet5, LeNet5Config
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
@@ -36,7 +36,7 @@ class MNISTLeNet5Config(LeNet5Config):
     Args:
         opt: Lets use Novograd optimizer.
     """
-    opt: NovogradInstanceConfig=NovogradInstanceConfig()
+    opt: NovogradConfig=NovogradConfig()
     dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
     dataloader: DataLoaderConfig=DataLoaderConfig(batch_size=64, shuffle=True)
 

@@ -14,7 +14,6 @@
 # limitations under the License.
 # =============================================================================
 
-from omegaconf import MISSING
 from typing import Dict, Optional, List
 
 from dataclasses import dataclass
