@@ -18,6 +18,8 @@
 from os.path import expanduser
 from typing import Optional
 
+from dataclasses import dataclass
+
 from torch.utils.data import Dataset
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
@@ -28,7 +30,27 @@ from nemo.utils.decorators import experimental
 from nemo.utils.decorators import add_port_docs
 
 
-__all__ = ['MNISTDataset']
+__all__ = ['MNISTDataset', 'MNISTDatasetConfig']
+
+
+@dataclass
+class MNISTDatasetConfig:
+    """
+    Structured config for MNISTDataset class.
+
+    Args:
+        height: image height (DEFAULT: 28)
+        width: image width (DEFAULT: 28)
+        data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
+        train: use train or test splits (DEFAULT: True)
+        name: Name of the module (DEFAULT: None)
+    """
+    height: int = 28
+    width: int = 28
+    data_folder: str = "~/data/mnist"
+    train: bool = True
+    download: bool = True
+    name: Optional[str] = None
 
 
 class MNISTDataset(Dataset):
@@ -38,37 +60,30 @@ class MNISTDataset(Dataset):
 
     def __init__(
         self,
-        height: int = 28,
-        width: int = 28,
-        data_folder: str = "~/data/mnist",
-        train: bool = True,
-        name: Optional[str] = None,
+        cfg: MNISTDatasetConfig=MNISTDatasetConfig()
     ):
         """
         Initializes the MNIST dataset.
 
         Args:
-            height: image height (DEFAULT: 28)
-            width: image width (DEFAULT: 28)
-            data_folder: path to the folder with data, can be relative to user (DEFAULT: "~/data/mnist")
-            train: use train or test splits (DEFAULT: True)
-            name: Name of the module (DEFAULT: None)
+            cfg: Configuration object of type MNISTDatasetConfig.
+
         """
         # Call the base class constructor of Dataset.
         Dataset.__init__(self)#, name=name)
 
         # Store height and width.
-        self._height = height
-        self._width = width
+        self._height = cfg.height
+        self._width = cfg.width
 
         # Create transformations: up-scale and transform to tensors.
         mnist_transforms = Compose([Resize((self._height, self._width)), ToTensor()])
 
         # Get absolute path.
-        abs_data_folder = expanduser(data_folder)
+        abs_data_folder = expanduser(cfg.data_folder)
 
         # Create the MNIST dataset object.
-        self._dataset = MNIST(root=abs_data_folder, train=train, download=True, transform=mnist_transforms)
+        self._dataset = MNIST(root=abs_data_folder, train=cfg.train, download=cfg.download, transform=mnist_transforms)
 
         # Class names.
         labels = 'Zero One Two Three Four Five Six Seven Eight Nine'.split(' ')

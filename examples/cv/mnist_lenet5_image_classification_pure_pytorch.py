@@ -14,33 +14,58 @@
 # limitations under the License.
 # =============================================================================
 
-import argparse
-
 from torch import optim
 from torch.utils.data import DataLoader
 
-from nemo.collections.cv.datasets import MNISTDataset
+from nemo.core.config import set_config, NeMoConfig, DataLoaderConfig
+from dataclasses import dataclass, asdict
+from omegaconf import DictConfig
+
+from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
 from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.modules import LeNet5
 from nemo.utils import logging
 
-if __name__ == "__main__":
+
+@dataclass
+class AppConfig(NeMoConfig):
+    """
+    This is structured config for this application.
+    As in the example we hardcode the optimizer, so will just enable the user to play with learning rate (lr).
+
+    Args:
+        name: Description of the application.
+        dataset: contains configuration of dataset.
+        dataloader: contains configuration of dataloader.
+        lr: learning rate passed to the optimizer.
+        freq: display frequency.
+    """
+    name: str="Training of a LeNet-5 Neural Module using a custom training loop written in pure PyTorch."
+    dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
+    dataloader: DataLoaderConfig=DataLoaderConfig(batch_size=128, shuffle=True)
+    lr: float=0.001
+    freq: int=10
+
+
+@set_config(config=AppConfig)
+def main(cfg: DictConfig):
+
+    # Show configuration - user can influence every parameter from command line!
+    print("="*80 + " Hydra says hello! " + "="*80)
+    print(cfg.pretty())
 
     # Dataset.
-    mnist_ds = MNISTDataset(height=32, width=32, train=True)
+    mnist_ds = MNISTDataset(cfg.dataset)
     # The "model".
     lenet5 = LeNet5()
     # Loss.
     nll_loss = NLLLoss()
 
     # Create optimizer.
-    opt = optim.Adam(lenet5.parameters(), lr=0.001)
+    opt = optim.Adam(lenet5.parameters(), lr=cfg.lr)
 
-    # Print frequency.
-    freq = 10
-
-    # Configure data loader
-    train_loader = DataLoader(dataset=mnist_ds, batch_size=128, shuffle=True)
+    # Configure data loader.
+    train_loader = DataLoader(dataset=mnist_ds, **(cfg.dataloader))
 
     # Iterate over the whole dataset - in batches.
     for step, (_, images, targets, _) in enumerate(train_loader):
@@ -55,7 +80,7 @@ if __name__ == "__main__":
         loss = nll_loss(predictions=predictions, targets=targets)
 
         # Print loss.
-        if step % freq == 0:
+        if step % cfg.freq == 0:
             logging.info("Step: {} Training Loss: {}".format(step, loss))
 
         # Backpropagate the gradients.
@@ -64,3 +89,6 @@ if __name__ == "__main__":
         # Update the parameters.
         opt.step()
     # Epoch ended.
+
+if __name__ == "__main__":
+    main()
