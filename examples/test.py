@@ -5,8 +5,8 @@ from typing import List, Any
 from enum import Enum
 from dataclasses import dataclass, field, asdict
 
-from hydra.core.config_store import ConfigStore
 from hydra import main
+from hydra.core.config_store import ConfigStore
 
 #@dataclass
 class NeMoConfig(object):
