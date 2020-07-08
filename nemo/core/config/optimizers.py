@@ -14,9 +14,8 @@
 # limitations under the License.
 # =============================================================================
 
-from typing import Tuple
-
 from dataclasses import dataclass
+from typing import Tuple
 
 __all__ = ['AdamParams', 'AdamConfig', 'NovogradParams', 'NovogradConfig']
 
@@ -31,11 +30,12 @@ class AdamParams:
         For the details on the function/meanings of the arguments, please refer to:
         https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
     """
-    lr: float=0.001
-    betas: Tuple[float, float]=(0.9, 0.999)
-    eps: float=1e-08
-    weight_decay: float=0
-    amsgrad: bool=False
+
+    lr: float = 0.001
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-08
+    weight_decay: float = 0
+    amsgrad: bool = False
 
 
 @dataclass
@@ -43,8 +43,9 @@ class AdamConfig:
     """
     Default configuration used during automagical instantiation of Adam optimizer.
     """
-    cls: str="adam" # @titu90: I honestly prefer the fullly blown: "torch.optim.Adam", let's discuss that.
-    params: AdamParams=AdamParams()
+
+    cls: str = "adam"  # @titu90: I honestly prefer the fullly blown: "torch.optim.Adam", let's discuss that.
+    params: AdamParams = AdamParams()
 
 
 @dataclass
@@ -66,15 +67,16 @@ class NovogradParams:
         amsgrad (boolean, optional): whether to use the AMSGrad variant of this
             algorithm from the paper "On the Convergence of Adam and Beyond"
     """
-    lr: float=1e-3
-    betas: Tuple[float, float]=(0.95, 0.98)
-    eps: float=1e-8
-    weight_decay: float=0
-    grad_averaging: bool=False
-    amsgrad: bool=False
-    luc: bool=False
-    luc_trust: float=1e-3
-    luc_eps: float=1e-8
+
+    lr: float = 1e-3
+    betas: Tuple[float, float] = (0.95, 0.98)
+    eps: float = 1e-8
+    weight_decay: float = 0
+    grad_averaging: bool = False
+    amsgrad: bool = False
+    luc: bool = False
+    luc_trust: float = 1e-3
+    luc_eps: float = 1e-8
 
 
 @dataclass
@@ -82,6 +84,6 @@ class NovogradConfig:
     """
     Default configuration used during automagical instantiation of Novograd optimizer.
     """
-    cls: str="novograd" 
-    params: NovogradParams=NovogradParams()
 
+    cls: str = "novograd"
+    params: NovogradParams = NovogradParams()
