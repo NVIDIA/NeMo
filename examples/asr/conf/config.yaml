@@ -1,4 +1,4 @@
-model: "QuartzNet15x5"
+#model: "QuartzNet15x5"
 sample_rate: &sample_rate 16000
 accumulate_grad_batches: &accumulate_grad_batches 1
 
