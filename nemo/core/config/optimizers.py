@@ -18,7 +18,7 @@ from typing import Tuple
 
 from dataclasses import dataclass
 
-__all__ = ['AdamConfig', 'AdamInstanceConfig']
+__all__ = ['AdamConfig', 'AdamInstanceConfig', 'NovogradConfig', 'NovogradInstanceConfig']
 
 
 @dataclass
@@ -45,3 +45,43 @@ class AdamInstanceConfig:
     """
     cls: str="adam" # @titu90: I honestly prefer the fullly blown: "torch.optim.Adam", let's discuss that.
     params: AdamConfig=AdamConfig()
+
+
+@dataclass
+class NovogradConfig:
+    """
+    Configuration of the Novograd optimizer.
+
+    It has been proposed  in "Stochastic Gradient Methods with Layer-wise
+    Adaptive Moments for Training of Deep Networks"
+    (https://arxiv.org/abs/1905.11286)
+    
+    Args:
+        lr (float, optional): learning rate (default: 1e-3)
+        betas (Tuple[float, float], optional): coefficients used for computing
+            running averages of gradient and its square (default: (0.9, 0.999))
+        eps (float, optional): term added to the denominator to improve
+            numerical stability (default: 1e-8)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        amsgrad (boolean, optional): whether to use the AMSGrad variant of this
+            algorithm from the paper "On the Convergence of Adam and Beyond"
+    """
+    lr: float=1e-3
+    betas: Tuple[float, float]=(0.95, 0.98)
+    eps: float=1e-8
+    weight_decay: float=0
+    grad_averaging: bool=False
+    amsgrad: bool=False
+    luc: bool=False
+    luc_trust: float=1e-3
+    luc_eps: float=1e-8
+
+
+@dataclass
+class NovogradInstanceConfig:
+    """
+    Default configuration used during automagical instantiation of Novograd optimizer.
+    """
+    cls: str="novograd" 
+    params: NovogradConfig=NovogradConfig()
+

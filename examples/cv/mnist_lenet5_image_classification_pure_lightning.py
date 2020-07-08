@@ -15,19 +15,41 @@
 # =============================================================================
 
 import pytorch_lightning as ptl
-from torch.utils.data import DataLoader
 
-from nemo.collections.cv.models import MNISTLeNet5
+from nemo.core.config import Config, set_config, TrainerConfig
+from dataclasses import dataclass
+from omegaconf import DictConfig
+
+from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config
 
 from nemo.utils import logging
 
-if __name__ == "__main__":
+@dataclass
+class AppConfig(Config):
+    """
+    This is structured config for this application.
 
-    # The "model" - with dataset.
-    lenet5 = MNISTLeNet5([])
+    Args:
+        name: Description of the application.
+        trainer: configuration of the trainer.
+        model: configuation of the model.
+    """
+    name: str="Training of a LeNet-5 Model using a pure PyTorchLightning approach - using DDP on 2 GPUs."
+    trainer: TrainerConfig=TrainerConfig(gpus=2, distributed_backend="ddp")
+    model: MNISTLeNet5Config=MNISTLeNet5Config()
+
+
+@set_config(config=AppConfig)
+def main(cfg: DictConfig):
+
+    # The "model" - with dataloader/dataset inside of it.
+    lenet5 = MNISTLeNet5(cfg.model)
 
     # Create trainer.
-    trainer = ptl.Trainer()
+    trainer = ptl.Trainer(**(cfg.trainer))
 
     # Train.
     trainer.fit(model=lenet5)
+
+if __name__ == "__main__":
+    main()
