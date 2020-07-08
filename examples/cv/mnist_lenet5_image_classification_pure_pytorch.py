@@ -50,10 +50,8 @@ class AppConfig(Config):
 
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
-
     # Show configuration - user can modify every parameter from command line!
-    print("=" * 80 + " Hydra says hello! " + "=" * 80)
-    print(cfg.pretty())
+    logging.info("=" * 80 + " Hydra says hello! " + "=" * 80 + "\n" + cfg.pretty())
 
     # Dataset.
     mnist_ds = MNISTDataset(cfg.dataset)

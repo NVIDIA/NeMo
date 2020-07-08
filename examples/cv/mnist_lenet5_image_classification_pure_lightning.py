@@ -42,6 +42,8 @@ class AppConfig(Config):
 
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
+    # Show configuration - user can modify every parameter from command line!
+    logging.info("=" * 40 + " Hydra says hello! " + "=" * 40 + "\n" + cfg.pretty())
 
     # The "model" - with dataloader/dataset inside of it.
     lenet5 = MNISTLeNet5(cfg.model)
