@@ -16,9 +16,13 @@
 
 from typing import Dict, Optional
 from dataclasses import dataclass
-from torch import optim
 
-from nemo.core.config import Config, AdamConfig
+from torch import optim
+from nemo.core.optim.optimizers import get_optimizer
+
+#from  hydra.utils import instantiate as hydra_instantiate
+
+from nemo.core.config import Config, AdamConfig, AdamInstanceConfig
 from nemo.core.classes.common import typecheck
 from nemo.core.classes import ModelPT
 
@@ -40,7 +44,7 @@ class LeNet5Config(Config):
     Args:
         opt: Optimizer.
     """
-    opt: AdamConfig=AdamConfig(lr=0.001)
+    opt: AdamInstanceConfig=AdamInstanceConfig() #AdamConfig(lr=0.001))
 
 
 @experimental
@@ -73,7 +77,11 @@ class LeNet5(ModelPT):
 
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=0.001)
+        # Get optimizer class.
+        optimizer_cls = get_optimizer(self._cfg.opt.cls)
+        # Instantiate the optimizer, set model parameters and pass other kwargs.
+        optimizer = optimizer_cls(params=self.parameters(), **self._cfg.opt.params)
+        return optimizer
 
     def training_step(self, batch, what_is_this_input):
         # "Unpack" the batch.
