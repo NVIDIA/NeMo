@@ -103,17 +103,17 @@ def main(cfg):
     # print(f'cfg.decoder: {cfg.decoder}')
     # print(f'cfg.preprocessor: {cfg.preprocessor}')
 
-    asr_model = EncDecCTCModel(
-        preprocessor_config=OmegaConf.to_container(cfg.preprocessor),
-        encoder_config=OmegaConf.to_container(cfg.encoder),
-        decoder_config=OmegaConf.to_container(cfg.decoder),
-    )
     # asr_model = EncDecCTCModel(
-    #     preprocessor_config=cfg.preprocessor,
-    #     encoder_config=cfg.encoder,
-    #     decoder_config=cfg.decoder,
-    #     spec_augment_config=cfg.spec_augment,
+    #     preprocessor_config=OmegaConf.to_container(cfg.preprocessor),
+    #     encoder_config=OmegaConf.to_container(cfg.encoder),
+    #     decoder_config=OmegaConf.to_container(cfg.decoder),
     # )
+    asr_model = EncDecCTCModel(
+        preprocessor_config=cfg.preprocessor,
+        encoder_config=cfg.encoder,
+        decoder_config=cfg.decoder,
+        spec_augment_config=cfg.spec_augment,
+    )
 
     asr_model.setup_training_data(cfg.AudioToTextDataLayer)
     asr_model.setup_validation_data(cfg.AudioToTextDataLayer_eval)
@@ -129,12 +129,16 @@ def main(cfg):
     else:
         cfg.lr_scheduler.max_steps = cfg.pl.trainer.max_steps
 
-    asr_model.setup_optimization(
-        optim_params={
-            'optimizer': "adam",
-            'lr': cfg.lr,
-        }
-    )
+    #optimizer = hydra.utils.instantiate(cfg.optimizer)
+    #print(f'optimizer: {optimizer}')
+    
+
+    # asr_model.setup_optimization(
+    #     optim_params={
+    #         'optimizer': "adam",
+    #         'lr': cfg.lr,
+    #     }
+    # )
             #'opt_args': [],
             # 'scheduler': CosineAnnealing, 
             # 'scheduler_args': OmegaConf.to_container(cfg.lr_scheduler)
