@@ -14,5 +14,26 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.cv.models.lenet5 import *
-from nemo.collections.cv.models.mnist_lenet5 import *
+import pytorch_lightning as ptl
+from torch.utils.data import DataLoader
+
+from nemo.collections.cv.models import LeNet5
+from nemo.collections.cv.datasets import MNISTDataset
+
+from nemo.utils import logging
+
+if __name__ == "__main__":
+
+    # The "model".
+    lenet5 = LeNet5([])
+
+    # Instantiate Dataset.
+    mnist_ds = MNISTDataset(height=32, width=32, train=True)
+    # Configure data loader.
+    train_dataloader = DataLoader(dataset=mnist_ds, batch_size=128, shuffle=True)
+
+    # Create trainer.
+    trainer = ptl.Trainer()
+
+    # Train.
+    trainer.fit(model=lenet5, train_dataloader=train_dataloader)
