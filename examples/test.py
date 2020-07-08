@@ -9,7 +9,7 @@ from hydra import main
 from hydra.core.config_store import ConfigStore
 
 #@dataclass
-class NeMoConfig(object):
+class Config(object):
     """ Abstract NeMo Configuration class"""
     pass
     def serialize(self):
@@ -26,21 +26,21 @@ class Height(Enum):
     TALL = 1
 
 @dataclass
-class ModuleConfig(NeMoConfig):
+class ModuleConfig(Config):
     """ This is a module config  - just to test the inheritance """
     name: str="my_name"
     val: int=1
     height: Height = Height.SHORT # Enum!
 
 @dataclass
-class OptimConfig(NeMoConfig):
+class OptimConfig(Config):
     """ This is an optimizer config """
     name: str="sgd"
     lr: float=0.99
 
 
 @dataclass
-class JasperBlockConfig(NeMoConfig):
+class JasperBlockConfig(Config):
     """ Default config of a single Jasper block """
     dilation: int=MISSING
     dropout: float=MISSING
@@ -124,7 +124,7 @@ class JasperEncoderConfig:
 
 
 @dataclass
-class ModelConfig(NeMoConfig):
+class ModelConfig(Config):
     """ This is a module config  - just to test the inheritance """
     name: str="my_name"
 
@@ -136,7 +136,7 @@ class JasperConfig(ModelConfig):
     opt: OptimConfig = OptimConfig()
 
 @dataclass
-class DatasetConfig(NeMoConfig):
+class DatasetConfig(Config):
     name: str="imagenet"
     path: str="/datasets/imagenet"
 
@@ -153,7 +153,7 @@ def MyJasper(conf: JasperConfig=JasperConfig()):
 
 
 @dataclass
-class JasperAppConfig(NeMoConfig):
+class JasperAppConfig(Config):
     dataset: DatasetConfig = DatasetConfig()
     jasper: JasperConfig = JasperConfig()
 

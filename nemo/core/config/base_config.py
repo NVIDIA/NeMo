@@ -18,8 +18,10 @@ from typing import Optional
 
 from dataclasses import dataclass
 
+__all__ = ['Config']
+
 @dataclass
-class NeMoConfig:
+class Config:
     """
     Abstract NeMo Configuration class.
 
