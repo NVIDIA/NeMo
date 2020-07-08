@@ -16,6 +16,7 @@ from typing import List
 
 import editdistance
 import torch
+from pytorch_lightning.metrics import TensorMetric
 
 
 def __levenshtein(a: List[str], b: List[str]) -> int:
@@ -82,7 +83,7 @@ def __ctc_decoder_predictions_tensor(tensor, labels):
     return hypotheses
 
 
-def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER'):
+def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', ctc_decode=True):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
     remove duplicates and special symbol. Prints sample to screen, computes
@@ -108,13 +109,30 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER'):
             target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
             reference = ''.join([labels_map[c] for c in target])
             references.append(reference)
-        hypotheses = __ctc_decoder_predictions_tensor(tensors[0], labels=labels)
+        if ctc_decode:
+            hypotheses = __ctc_decoder_predictions_tensor(tensors[0], labels=labels)
+        else:
+            raise NotImplementedError("Currently, we only support WER for CTC models' output")
 
     eval_metric = eval_metric.upper()
     if eval_metric not in {'WER', 'CER'}:
         raise ValueError('eval_metric must be \'WER\' or \'CER\'')
     use_cer = True if eval_metric == 'CER' else False
     wer = word_error_rate(hypotheses, references, use_cer=use_cer)
-    # logging.info(f'Prediction: {hypotheses[0]}')
-    # logging.info(f'Reference: {references[0]}')
     return wer, hypotheses[0], references[0]
+
+
+class WordErrorRate(TensorMetric):
+    def __init__(self, labels: list, ctc_decode=True):
+        super(WordErrorRate, self).__init__(name="WER")
+        self.labels = labels
+        self.ctc_decode = ctc_decode
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
+        wer, _, _ = monitor_asr_train_progress(
+            tensors=[predictions, targets, target_lengths],
+            labels=self.labels,
+            eval_metric='WER',
+            ctc_decode=self.ctc_decode,
+        )
+        return wer

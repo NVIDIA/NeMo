@@ -18,7 +18,7 @@ import torch
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
+from nemo.collections.asr.metrics.wer import WordErrorRate
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
@@ -148,6 +148,8 @@ class EncDecCTCModel(ASRModel):
         self.__optimizer = None
         self.__scheduler = None
 
+        self.__wer = WordErrorRate(labels=self.decoder.vocabulary, ctc_decode=True)
+
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
@@ -171,9 +173,7 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
-        )
+        wer = self.__wer(predictions, transcript, transcript_len)
         tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -189,9 +189,7 @@ class EncDecCTCModel(ASRModel):
         )
 
         # TODO: use metrics here
-        wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
-        )
+        wer = self.__wer(predictions, transcript, transcript_len)
         tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
         return {'val_loss': loss_value, 'log': tensorboard_logs}
 
