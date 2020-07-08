@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from omegaconf import ListConfig, OmegaConf
 
 from collections import OrderedDict
 
@@ -81,6 +82,9 @@ class ConvASREncoder(NeuralModule):
         init_mode='xavier_uniform',
     ):
         super().__init__()
+        if isinstance(jasper, ListConfig):
+            jasper = OmegaConf.to_container(jasper)
+
         activation = jasper_activations[activation]()
         feat_in = feat_in * frame_splicing
 
