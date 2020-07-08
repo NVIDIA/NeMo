@@ -12,17 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script can be used to process and import IMDB, chemprot, sst-2, and thucnews datasets into NeMo's format.
+You may run it as t
+
+python import_datasets.py \
+        --dataset_name thucnews \
+        --source_data_dir "./thucnews_orig_data/" \
+        --target_data_dir "./thucnews/"
+
+It reads the data from "source_data_dir" folder, processes and converts the data into NeMo's format. Then writes the results into "target_data_dir" folder.
+"""
+
 import argparse
 import csv
 import glob
-import json
 import os
 from os.path import exists
 
 import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.data_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
 
 
 def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
@@ -140,65 +150,6 @@ def process_thucnews(infold, outfold):
         outfiles[mode].close()
 
 
-def process_nlu(filename, outfold, uncased, dataset_name, modes=['train', 'test']):
-    """ Dataset has to be of:
-    - ubuntu
-    - chat
-    - web
-    """
-
-    if not os.path.exists(filename):
-        link = 'https://github.com/sebischair/NLU-Evaluation-Corpora'
-        raise ValueError(f'Data not found at {filename}. ' f'Please download IMDB from {link}.')
-
-    if dataset_name == 'nlu-ubuntu':
-        INTENT = {'makeupdate': 1, 'setupprinter': 2, 'shutdowncomputer': 3, 'softwarerecommendation': 4, 'none': 0}
-    elif dataset_name == 'nlu-chat':
-        INTENT = {'departuretime': 0, 'findconnection': 1}
-    elif dataset_name == 'nlu-web':
-        INTENT = {
-            'changepassword': 1,
-            'deleteaccount': 2,
-            'downloadvideo': 3,
-            'exportdata': 4,
-            'filterspam': 5,
-            'findalternative': 6,
-            'syncaccounts': 7,
-            'none': 0,
-        }
-    else:
-        raise ValueError(f'{dataset_name}: Invalid dataset name')
-
-    if if_exist(outfold, [f'{mode}.tsv' for mode in modes]):
-        logging.info(DATABASE_EXISTS_TMP.format(dataset_name.upper(), outfold))
-        return outfold
-    logging.info(f'Processing data and store at {outfold}')
-
-    os.makedirs(outfold, exist_ok=True)
-
-    outfiles = {}
-    for mode in modes:
-        outfiles[mode] = open(os.path.join(outfold, mode + '.tsv'), 'w')
-        outfiles[mode].write('sentence\tlabel\n')
-
-    with open(filename, 'r') as f:
-        data = json.load(f)
-
-    for obj in data['sentences']:
-        sentence = obj['text'].strip()
-        if uncased:
-            sentence = sentence.lower()
-        intent = obj['intent'].lower().replace(' ', '')
-        label = INTENT[intent]
-        txt = f'{sentence}\t{label}\n'
-        if obj['training']:
-            outfiles['train'].write(txt)
-        else:
-            outfiles['test'].write(txt)
-    for mode in modes:
-        outfiles[mode].close()
-
-
 if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo\'s format.")
@@ -213,11 +164,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--target_data_dir", required=True, type=str)
     parser.add_argument("--do_lower_case", action='store_true')
-    parser.add_argument(
-        "--ignore_prev_intent",
-        action='store_true',
-        help='ignores previous intent while importing datasets in jarvis\'s format',
-    )
     args = parser.parse_args()
 
     dataset_name = args.dataset_name
@@ -234,14 +180,6 @@ if __name__ == "__main__":
         process_imdb(source_dir, target_dir, do_lower_case)
     elif dataset_name == 'thucnews':
         process_thucnews(source_dir, target_dir)
-    elif dataset_name.startswith('nlu-'):
-        if dataset_name == 'nlu-chat':
-            infile = f'{source_dir}/ChatbotCorpus.json'
-        elif dataset_name == 'nlu-ubuntu':
-            infile = f'{source_dir}/AskUbuntuCorpus.json'
-        elif dataset_name == 'nlu-web':
-            infile = f'{source_dir}/WebApplicationsCorpus.json'
-        process_nlu(filename=infile, outfold=target_dir, uncased=do_lower_case, dataset_name=dataset_name)
     elif dataset_name == "chemprot":
         process_chemprot(source_dir, target_dir, do_lower_case)
     else:
