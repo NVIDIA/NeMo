@@ -37,8 +37,11 @@ from nemo import logging
 
 def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
     if not os.path.exists(infold):
-        link = 'www.kaggle.com/iarunava/imdb-movie-reviews-dataset'
-        raise ValueError(f'Data not found at {infold}. ' f'Please download IMDB from {link}.')
+        link = 'https://ai.stanford.edu/~amaas/data/sentiment/'
+        raise ValueError(
+            f'Data not found at {infold}. '
+            f'Please download IMDB reviews dataset from {link} and extract it into the folder specified by source_data_dir argument.'
+        )
 
     logging.info(f'Processing IMDB dataset and store at {outfold}')
     os.makedirs(outfold, exist_ok=True)
