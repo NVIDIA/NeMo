@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
 import sys
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-from transformers import BertConfig
 
 from nemo.collections.nlp.models.lm_model import BERTLMModel
 from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing

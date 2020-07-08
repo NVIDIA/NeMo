@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--class_balancing", default="None", type=str, choices=["None", "weighted_loss"])
 
     # Training Arguments
-    parser.add_argument("--num_gpus", default=1, type=int, help="Number of GPUs")
+    parser.add_argument("--gpus", default=1, type=int, help="Number of GPUs")
     parser.add_argument("--num_nodes", default=1, type=int, help="Number of nodes")
     parser.add_argument("--max_epochs", default=100, type=int, help="Total number of training epochs to perform.")
     parser.add_argument(
@@ -170,11 +170,11 @@ def main():
     }
 
     if args.max_steps is None:
-        if args.num_gpus == 0:
+        if args.gpus == 0:
             # training on CPU
             iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
         else:
-            iters_per_batch = args.max_epochs / float(args.num_gpus * args.num_nodes * args.accumulate_grad_batches)
+            iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
         scheduler_args['iters_per_batch'] = iters_per_batch
     else:
         scheduler_args['max_steps'] = args.max_steps
@@ -193,11 +193,11 @@ def main():
         check_val_every_n_epoch=args.eval_epoch_freq,
         amp_level=args.amp_level,
         precision=32 if args.amp_level == "O0" else 16,  # TODO: How to set precision?
-        gpus=args.num_gpus,
+        gpus=args.gpus,
         max_epochs=args.max_epochs,
         max_steps=args.max_steps,
         distributed_backend=None
-        if args.num_gpus == 1
+        if args.gpus == 1
         else "ddp",  # TODO: How to switch between multi-gpu, single-gpu, multi-node here?
     )
     trainer.fit(text_classification_model)
