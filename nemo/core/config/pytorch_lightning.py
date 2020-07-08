@@ -39,6 +39,7 @@ class TrainerConfig:
     process_position: int = 0
     num_nodes: int = 1
     num_processes: int = 1
+    gpus: Optional[int] = None
     auto_select_gpus: bool = False
     log_gpu_memory: Optional[str] = None
     progress_bar_refresh_rate: int = 1
@@ -46,3 +47,4 @@ class TrainerConfig:
     fast_dev_run: bool = False
     max_epochs: int = 1000
     min_epochs: int = 1
+    distributed_backend: Optional[str] = None

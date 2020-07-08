@@ -42,9 +42,9 @@ class LeNet5Config(Config):
     Structured config for LeNet-5 model class.
 
     Args:
-        opt: Optimizer.
+        opt: Adam optimizer with overriden lr (just to play with it)
     """
-    opt: AdamInstanceConfig=AdamInstanceConfig() #AdamConfig(lr=0.001))
+    opt: AdamInstanceConfig=AdamInstanceConfig(params=AdamConfig(lr=0.001))
 
 
 @experimental
