@@ -32,6 +32,7 @@ def if_exist(outfold: str, files: List[str]):
             return False
     return True
 
+
 def _compute_softmax(scores):
     """Compute softmax probability over raw logits."""
     if not scores:

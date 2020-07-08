@@ -22,12 +22,12 @@ import pickle
 
 import numpy as np
 import torch
-from nemo.core.classes import Dataset
 from tqdm import tqdm
 
 from nemo import logging
-from nemo.collections.nlp.data.data_utils import is_whitespace, DataProcessor, normalize_answer
 from nemo.collections.common.parts.utils import _compute_softmax
+from nemo.collections.nlp.data.data_utils import DataProcessor, is_whitespace, normalize_answer
+from nemo.core.classes import Dataset
 
 # WIP add back evaluation metrics
 # from nemo.collections.nlp.metrics.squad_metrics import (
@@ -49,6 +49,7 @@ Utility functions for Question Answering NLP tasks
 Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 """
+
 
 @experimental
 class SquadDataset(Dataset):
@@ -145,14 +146,14 @@ class SquadDataset(Dataset):
 
     def get_predictions(
         self,
-        unique_ids,
-        start_logits,
-        end_logits,
-        n_best_size,
-        max_answer_length,
-        do_lower_case,
-        version_2_with_negative,
-        null_score_diff_threshold,
+        unique_ids: List[int],
+        start_logits: List[List[float]],
+        end_logits: List[List[float]],
+        n_best_size: int,
+        max_answer_length: int,
+        do_lower_case: bool,
+        version_2_with_negative: bool,
+        null_score_diff_threshold: float,
     ):
         example_index_to_features = collections.defaultdict(list)
 
@@ -330,7 +331,12 @@ class SquadDataset(Dataset):
 
         return all_predictions, all_nbest_json, scores_diff_json
 
-    def evaluate_predictions(self, all_predictions, no_answer_probs=None, no_answer_probability_threshold=1.0):
+    def evaluate_predictions(
+        self,
+        all_predictions: Dict[str],
+        no_answer_probs: Optional[float] = None,
+        no_answer_probability_threshold: float = 1.0,
+    ):
         qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in self.examples}
         has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
         no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
@@ -361,7 +367,7 @@ class SquadDataset(Dataset):
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
-    def get_raw_scores(self, preds):
+    def get_raw_scores(self, preds: Dict[str]):
         """
         Computes the exact and f1 scores from the examples
         and the model predictions
@@ -390,14 +396,14 @@ class SquadDataset(Dataset):
 
     def evaluate(
         self,
-        unique_ids,
-        start_logits,
-        end_logits,
-        n_best_size,
-        max_answer_length,
-        do_lower_case,
-        version_2_with_negative,
-        null_score_diff_threshold,
+        unique_ids: List[int],
+        start_logits: List[List[float]],
+        end_logits: List[List[float]],
+        n_best_size: int,
+        max_answer_length: int,
+        do_lower_case: bool,
+        version_2_with_negative: bool,
+        null_score_diff_threshold: float,
     ):
 
         (all_predictions, all_nbest_json, scores_diff_json) = self.get_predictions(
@@ -422,11 +428,7 @@ class SquadProcessor(DataProcessor):
     used by the version 1.1 and version 2.0 of SQuAD, respectively.
     """
 
-    def __init__(self, data_file, mode):
-        self.data_file = data_file
-        self.mode = mode
-
-    def __init__(self, data_file, mode):
+    def __init__(self, data_file: str, mode: str):
         self.data_file = data_file
         self.mode = mode
 
@@ -546,7 +548,6 @@ class SquadExample(object):
             self.end_position = char_to_word_offset[
                 min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
             ]
-
 
 
 def convert_examples_to_features(

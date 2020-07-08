@@ -58,7 +58,6 @@ DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
 MODE_EXISTS_TMP = '{} mode of {} dataset has already been processed and stored at {}'
 
 
-
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""
 
@@ -86,6 +85,7 @@ class DataProcessor(object):
                 lines.append(line)
             return lines
 
+
 def normalize_answer(s):
     """Lower text and remove punctuation, articles and extra whitespace."""
 
@@ -103,6 +103,7 @@ def normalize_answer(s):
         return text.lower()
 
     return white_space_fix(remove_articles(remove_punc(lower(s))))
+
 
 def get_label_stats(labels, outfile='stats.tsv'):
     '''

@@ -108,11 +108,10 @@ class TokenClassifier(NeuralModule):
         pass
 
 
-
 @experimental
 class BertPretrainingTokenClassifier(NeuralModule):
     """
-    A module to perform token level classification tasks such as Named entity recognition.
+    A module to perform token level classification tasks for Bert pretraining.
     """
 
     @property
@@ -197,6 +196,3 @@ class BertPretrainingTokenClassifier(NeuralModule):
             :param restore_path: Path to restore the module from.
         """
         pass
-
-
-

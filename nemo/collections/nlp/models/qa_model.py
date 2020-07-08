@@ -116,9 +116,7 @@ class QAModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
-        logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
         tensorboard_logs = {'train_loss': loss}
@@ -131,10 +129,10 @@ class QAModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
-        logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        loss, start_logits, end_logits = self.loss(
+            logits=logits, start_positions=start_positions, end_positions=end_positions
         )
-        loss, start_logits, end_logits = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
         tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss, 'log': tensorboard_logs}

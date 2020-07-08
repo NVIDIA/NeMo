@@ -152,10 +152,7 @@ def main():
     args = add_args(parser)
 
     model = QAModel(
-        pretrained_model_name=args.pretrained_model_name,
-        config_file=args.config_file,
-        num_classes=2,
-        num_layers=1,
+        pretrained_model_name=args.pretrained_model_name, config_file=args.config_file, num_classes=2, num_layers=1,
     )
     model.setup_training_data(
         train_data_layer_params={
