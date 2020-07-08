@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.common.losses.aggregator import AggregatorLoss
-from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
-from nemo.collections.common.losses.smoothed_cross_entropy import SmoothedCrossEntropyLoss
+
+from nemo.collections.nlp.data.text_classification.text_classification_datasets import TextClassificationDataset
+from nemo.collections.nlp.data.text_classification.text_classification_descriptor import TextClassificationDataDesc

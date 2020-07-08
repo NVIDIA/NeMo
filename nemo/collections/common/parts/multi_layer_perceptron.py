@@ -23,12 +23,17 @@ class MultiLayerPerceptron(torch.nn.Module):
         hidden_size (int): the size of each layer
         num_classes (int): number of output classes
         num_layers (int): number of layers
-        activation: type of activations for layers in between
+        activation (str): type of activations for layers in between
         log_softmax (bool): whether to add a log_softmax layer before output
     """
 
     def __init__(
-        self, hidden_size, num_classes, num_layers=2, activation='relu', log_softmax=True,
+        self,
+        hidden_size: int,
+        num_classes: int,
+        num_layers: int = 2,
+        activation: str = 'relu',
+        log_softmax: bool = True,
     ):
         super().__init__()
         self.layers = 0
