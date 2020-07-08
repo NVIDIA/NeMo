@@ -32,12 +32,12 @@ class LeNet5(NeuralModule):
     Classical LeNet-5 model for MNIST image classification.
     """
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, cfg: Config=Config()):
         """
         Creates the LeNet-5 model.
 
         Args:
-            name: Name of the module (DEFAULT: None)
+            cfg: Default NeMo config containing name.
         """
         # Call the base class constructor.
         super().__init__()  # name=name)
