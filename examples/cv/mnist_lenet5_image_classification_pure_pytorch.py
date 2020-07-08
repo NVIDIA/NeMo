@@ -33,12 +33,6 @@ if __name__ == "__main__":
     # Loss.
     nll_loss = NLLLoss()
 
-    # Create a validation graph, starting from the second data layer.
-    #with NeuralGraph(operation_mode=OperationMode.evaluation) as evaluation_graph:
-    #    _, x, y, _ = dl_e()
-    #    p = lenet5(images=x)
-    #    loss_e = nll_loss(predictions=p, targets=y)
-
     # Create optimizer.
     opt = optim.Adam(lenet5.parameters(), lr=0.001)
 
@@ -46,10 +40,10 @@ if __name__ == "__main__":
     freq = 10
 
     # Configure data loader
-    dl = DataLoader(dataset=mnist_ds, batch_size=128, shuffle=True)
+    train_loader = DataLoader(dataset=mnist_ds, batch_size=128, shuffle=True)
 
     # Iterate over the whole dataset - in batches.
-    for step, (_, images, targets, _) in enumerate(dl):
+    for step, (_, images, targets, _) in enumerate(train_loader):
 
         # Reset the gradients.
         opt.zero_grad()
