@@ -15,6 +15,9 @@
 from abc import abstractmethod
 from typing import Dict, Optional
 
+import hydra
+from omegaconf import DictConfig
+
 from pytorch_lightning import LightningModule
 from torch.optim.optimizer import Optimizer
 
@@ -52,7 +55,7 @@ class ModelPT(LightningModule, Model):
         """
         pass
 
-    def setup_optimization(self, optim_params: Optional[Dict] = None) -> Optimizer:
+    def setup_optimization(self, optimizer_config: Optional[DictConfig] = None) -> Optimizer:
         """
         Prepares an optimizer from a string name and its optional config parameters.
 
@@ -71,27 +74,30 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of a torch.optim.Optimizer
         """
-        optim_params = optim_params or {}  # In case null was passed as optim_params
+        optimizer_config = optimizer_config or {}  # In case null was passed as optim_params
 
         # Check if caller provided optimizer name, default to Adam otherwise
-        optimizer_name = optim_params.get('optimizer', 'adam')
+        optimizer_name = optimizer_config.get('optimizer', 'adam')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
-        optimizer_args = optim_params.get('opt_args', [])
-        optimizer_args = parse_optimizer_args(optimizer_args)
+        # optimizer_args = optimizer_args.get('opt_args', [])
+        # optimizer_args = parse_optimizer_args(optimizer_args)
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        lr = optim_params.get('lr', None)
+        #lr = optim_params.get('lr', None)
+        lr = optimizer_config.get('lr', None)
 
         if 'lr' is None:
-            raise ValueError('`lr` must be passed to `optim_params` when setting up the optimization !')
+            raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
 
         # Actually instantiate the optimizer
         optimizer = get_optimizer(optimizer_name)
-        optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+        #optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+        #optimizer = optimizer(self.parameters(), lr=lr, **optimizer_config.args)
+        optimizer = optimizer(self.parameters(), **optimizer_config.args)
 
         # TODO: Remove after demonstration
-        logging.info("Optimizer config = %s", str(optimizer))
+        #logging.info("Optimizer config = %s", str(optimizer))
 
         return optimizer
