@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import hydra
-from omegaconf import DictConfig
 
 import pytorch_lightning as pl
 
