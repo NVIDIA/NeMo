@@ -180,7 +180,6 @@ def main():
         'monitor': 'val_loss',  # pytorch lightning requires this value
         'warmup_ratio': args.warmup_ratio,
         'warmup_steps': args.warmup_steps,
-        'min_lr': args.min_lr,
         'last_epoch': args.last_epoch,
     }
     if args.max_epochs:
