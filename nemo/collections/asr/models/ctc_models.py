@@ -14,6 +14,9 @@
 
 from typing import Dict, Optional
 
+from omegaconf import DictConfig
+import hydra
+
 import torch
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
@@ -123,18 +126,22 @@ class EncDecCTCModel(ASRModel):
 
     def __init__(
         self,
-        preprocessor_config: Dict,
-        encoder_config: Dict,
-        decoder_config: Dict,
-        spec_augment_config: Optional[Dict] = None,
+        preprocessor_config: DictConfig,
+        encoder_config: DictConfig,
+        decoder_config: DictConfig,
+        spec_augment_config: Optional[DictConfig] = None,
     ):
         super().__init__()
-        self.preprocessor = Serialization.from_config_dict(preprocessor_config)
-        self.encoder = Serialization.from_config_dict(encoder_config)
-        self.decoder = Serialization.from_config_dict(decoder_config)
+        #self.preprocessor = Serialization.from_config_dict(preprocessor_config)
+        self.preprocessor = hydra.utils.instantiate(preprocessor_config)
+        #self.encoder = Serialization.from_config_dict(encoder_config)
+        self.encoder = hydra.utils.instantiate(encoder_config)
+        #self.decoder = Serialization.from_config_dict(decoder_config)
+        self.decoder = hydra.utils.instantiate(decoder_config)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
         if spec_augment_config is not None:
-            self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
+            #self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
+            self.spec_augmentation = hydra.utils.instantiate(spec_augment_config)
         else:
             self.spec_augmentation = None
 
