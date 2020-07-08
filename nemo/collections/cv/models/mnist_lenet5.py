@@ -17,20 +17,17 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from torch.utils.data import DataLoader
 from torch.optim import Optimizer
+from torch.utils.data import DataLoader
 
-from nemo.core.neural_types import *
+from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
+from nemo.collections.cv.losses import NLLLoss
+from nemo.collections.cv.modules import LeNet5 as LeNet5Module
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
-
 from nemo.core.config import Config, DataLoaderConfig, NovogradConfig
+from nemo.core.neural_types import *
 from nemo.core.optim.optimizers import get_optimizer
-
-from nemo.collections.cv.losses import NLLLoss
-from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
-from nemo.collections.cv.modules import LeNet5 as LeNet5Module
-
 from nemo.utils.decorators import experimental
 
 __all__ = ['MNISTLeNet5', 'MNISTLeNet5Config']
@@ -49,6 +46,7 @@ class MNISTLeNet5Config(Config):
         dataloader: Dataloader config.
         module: module config (default one).
     """
+
     opt: NovogradConfig = NovogradConfig()
     dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
     dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=64, shuffle=True)
