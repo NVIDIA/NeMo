@@ -109,7 +109,7 @@ class Tacotron2PTL(ModelPT):
         num_gpus = 1  # TODO: undo hardcode
         num_samples = len(self.__train_dl.dataset)
         batch_size = self.__train_dl.batch_size
-        max_steps = math.ceil(num_samples / float(batch_size * iters_per_batch * num_gpus)) * args.num_epochs
+        max_steps = math.ceil(num_samples / float(batch_size * iters_per_batch * num_gpus)) * args.max_epochs
         self.__scheduler = CosineAnnealing(self.__optimizer, max_steps=max_steps, min_lr=1e-5)
 
     def loss(
