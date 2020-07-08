@@ -21,7 +21,6 @@ from nemo.collections.asr.metrics.wer_bpe import monitor_asr_train_progress
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
