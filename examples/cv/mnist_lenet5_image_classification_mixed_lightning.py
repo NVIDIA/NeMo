@@ -14,17 +14,17 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import dataclass
+
 import pytorch_lightning as ptl
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from nemo.core.config import set_config, Config, DataLoaderConfig, TrainerConfig
-from dataclasses import dataclass
-from omegaconf import DictConfig
-
-from nemo.collections.cv.models import LeNet5, LeNet5Config
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
-
+from nemo.collections.cv.models import LeNet5, LeNet5Config
+from nemo.core.config import Config, DataLoaderConfig, TrainerConfig, set_config
 from nemo.utils import logging
+
 
 @dataclass
 class AppConfig(Config):
@@ -38,18 +38,19 @@ class AppConfig(Config):
         trainer: configuration of the trainer.
         model: configuation of the model.
     """
-    name: str="Training of a LeNet-5 Model using a mixed PyTorch - PyTorchLightning approach."
-    dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
-    dataloader: DataLoaderConfig=DataLoaderConfig(batch_size=128, shuffle=True)
-    trainer: TrainerConfig=TrainerConfig()
-    model: LeNet5Config=LeNet5Config()
+
+    name: str = "Training of a LeNet-5 Model using a mixed PyTorch - PyTorchLightning approach."
+    dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
+    dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=128, shuffle=True)
+    trainer: TrainerConfig = TrainerConfig()
+    model: LeNet5Config = LeNet5Config()
 
 
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
 
     # Show configuration - user can modify every parameter from command line!
-    print("="*80 + " Hydra says hello! " + "="*80)
+    print("=" * 80 + " Hydra says hello! " + "=" * 80)
     print(cfg.pretty())
 
     # The "model".
@@ -65,6 +66,7 @@ def main(cfg: DictConfig):
 
     # Train.
     trainer.fit(model=lenet5, train_dataloader=train_dataloader)
+
 
 if __name__ == "__main__":
     main()

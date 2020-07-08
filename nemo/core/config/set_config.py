@@ -17,12 +17,13 @@
 import functools
 from typing import Any, Callable, Optional
 
-from omegaconf import DictConfig
 from hydra._internal.utils import get_args_parser, run_hydra
-from hydra.types import TaskFunction
 from hydra.core.config_store import ConfigStore
+from hydra.types import TaskFunction
+from omegaconf import DictConfig
 
 from nemo.core.config import Config
+
 
 def set_config(config: Config) -> Callable[[TaskFunction], Any]:
     """
@@ -39,7 +40,6 @@ def set_config(config: Config) -> Callable[[TaskFunction], Any]:
     cs.store(name=class_name, node=config)
 
     def decorator(task_function: TaskFunction) -> Callable[[], None]:
-
         @functools.wraps(task_function)
         def wrapper(cfg_passthrough: Optional[DictConfig] = None) -> Any:
             # Check it config was passed.

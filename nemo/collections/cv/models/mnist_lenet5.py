@@ -16,15 +16,13 @@ from dataclasses import dataclass
 
 from torch.utils.data import DataLoader
 
-from nemo.core.config import DataLoaderConfig, NovogradConfig
-
-from nemo.collections.cv.models import LeNet5, LeNet5Config
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
-
+from nemo.collections.cv.models import LeNet5, LeNet5Config
+from nemo.core.config import DataLoaderConfig, NovogradConfig
 from nemo.utils.decorators import experimental
 
-
 __all__ = ['MNISTLeNet5', 'MNISTLeNet5Config']
+
 
 @dataclass
 class MNISTLeNet5Config(LeNet5Config):
@@ -36,19 +34,17 @@ class MNISTLeNet5Config(LeNet5Config):
     Args:
         opt: Lets use Novograd optimizer.
     """
-    opt: NovogradConfig=NovogradConfig()
-    dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
-    dataloader: DataLoaderConfig=DataLoaderConfig(batch_size=64, shuffle=True)
+
+    opt: NovogradConfig = NovogradConfig()
+    dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
+    dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=64, shuffle=True)
+
 
 @experimental
 class MNISTLeNet5(LeNet5):
-    def __init__(
-        self,
-        cfg: MNISTLeNet5Config=MNISTLeNet5Config()
-    ):
+    def __init__(self, cfg: MNISTLeNet5Config = MNISTLeNet5Config()):
         super().__init__(cfg)
-    
-    
+
     def train_dataloader(self):
         """ Create dataset, wrap it with dataloader and return the latter """
         # Instantiate dataset.

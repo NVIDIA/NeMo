@@ -14,16 +14,16 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import asdict, dataclass
+
+from omegaconf import DictConfig
 from torch import optim
 from torch.utils.data import DataLoader
-
-from nemo.core.config import set_config, Config, DataLoaderConfig
-from dataclasses import dataclass, asdict
-from omegaconf import DictConfig
 
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
 from nemo.collections.cv.losses import NLLLoss
 from nemo.collections.cv.modules import LeNet5
+from nemo.core.config import Config, DataLoaderConfig, set_config
 from nemo.utils import logging
 
 
@@ -40,18 +40,19 @@ class AppConfig(Config):
         lr: learning rate passed to the optimizer.
         freq: display frequency.
     """
-    name: str="Training of a LeNet-5 Neural Module using a custom training loop written in pure PyTorch."
-    dataset: MNISTDatasetConfig=MNISTDatasetConfig(width=32, height=32)
-    dataloader: DataLoaderConfig=DataLoaderConfig(batch_size=128, shuffle=True)
-    lr: float=0.001
-    freq: int=10
+
+    name: str = "Training of a LeNet-5 Neural Module using a custom training loop written in pure PyTorch."
+    dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
+    dataloader: DataLoaderConfig = DataLoaderConfig(batch_size=128, shuffle=True)
+    lr: float = 0.001
+    freq: int = 10
 
 
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
 
     # Show configuration - user can modify every parameter from command line!
-    print("="*80 + " Hydra says hello! " + "="*80)
+    print("=" * 80 + " Hydra says hello! " + "=" * 80)
     print(cfg.pretty())
 
     # Dataset.
@@ -89,6 +90,7 @@ def main(cfg: DictConfig):
         # Update the parameters.
         opt.step()
     # Epoch ended.
+
 
 if __name__ == "__main__":
     main()
