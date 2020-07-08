@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 import pytorch_lightning as pl
 
 from nemo.collections.nlp.models.qa_model import QAModel
-from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing
+from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing, WarmupAnnealing
 from nemo.utils.arguments import add_nlp_args, add_optimizer_args, add_scheduler_args
 
 
@@ -53,7 +53,7 @@ def add_args(parser):
         "--scheduler",
         default='CosineAnnealing',
         type=str,
-        choices=["SquareRootAnnealing", "CosineAnnealing"],
+        choices=["SquareRootAnnealing", "CosineAnnealing", "WarmupAnnealing"],
         help="Scheduler.",
     )
     parser.add_argument("--val_check_interval", default=1.0, type=int, help="validation after this many steps.")

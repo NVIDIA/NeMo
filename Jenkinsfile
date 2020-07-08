@@ -33,6 +33,48 @@ pipeline {
       }
     }
 
+    stage('L2: BERT Squad v1.1') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 5e-5 --max_steps 50 --scheduler WarmupAnnealing'
+          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+        }
+    }
+
+    stage('L2: BERT Squad v2.0') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 1e-5 --max_steps 10 --version_2_with_negative --scheduler WarmupAnnealing'
+          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+        }
+    }
+
+    stage('L2: Roberta Squad v1.1') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 5 --gpus 1 --pretrained_model_name roberta-base --optimizer adamw --lr 1e-5 --max_steps 50 --scheduler WarmupAnnealing'
+          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+        }
+    }
+    
     stage('L2: NLP-BERT pretraining BERT on the fly preprocessing') {
       when {
         anyOf{
