@@ -33,6 +33,18 @@ pipeline {
       }
     }
 
+    stage('L2: Parallel NLP Examples 1') {
+      failFast true
+      parallel {
+        stage ('Text Classification with BERT Test') {
+          steps {
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --max_epochs=1 --max_seq_length=50 --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=dev --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
+            sh 'rm -rf examples/nlp/text_classification/outputs'
+          }
+        }
+      }
+    }
+
     stage('L2: NLP-BERT pretraining BERT on the fly preprocessing') {
       when {
         anyOf{

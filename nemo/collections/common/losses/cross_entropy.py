@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import torch
 from torch import nn
 
 from nemo.core.classes import Serialization, Typing, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LogitsType, LogprobsType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['CrossEntropyLoss']
@@ -53,6 +53,8 @@ class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
             weight (list): list of rescaling weight given to each class
             reduction (str): type of the reduction over the batch
         """
+        if weight is not None and not torch.is_tensor(weight):
+            weight = torch.FloatTensor(weight)
         super().__init__(weight=weight, reduction=reduction)
         self._logits_dim = logits_ndim
 

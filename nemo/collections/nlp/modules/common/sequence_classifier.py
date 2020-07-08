@@ -14,7 +14,7 @@
 
 from typing import Dict, Optional
 
-from torch import nn as nn
+from torch import nn
 
 from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes import NeuralModule, typecheck
@@ -36,15 +36,29 @@ class SequenceClassifier(NeuralModule):
 
     def __init__(
         self,
-        hidden_size: object,
-        num_classes: object,
-        activation: object = 'relu',
-        log_softmax: object = True,
-        dropout: object = 0.0,
-        num_layers: object = 1,
-        use_transformer_pretrained: object = True,
-    ) -> object:
+        hidden_size: int,
+        num_classes: int,
+        num_layers: int = 2,
+        activation: str = 'relu',
+        log_softmax: bool = True,
+        dropout: float = 0.0,
+        use_transformer_init: bool = True,
+        idx_conditioned_on: int = 0,
+    ):
+        """
+        Initializes the SequenceClassifier module.
+        Args:
+            hidden_size: the hidden size of the mlp head on the top of the encoder
+            num_classes: number of the classes to predict
+            num_layers: number of the linear layers of the mlp head on the top of the encoder
+            activation: type of activations between layers of the mlp head
+            log_softmax: applies the log softmax on the output
+            dropout: the dropout used for the mlp head
+            use_transformer_init: initializes the weights with the same approach used in Transformer
+            idx_conditioned_on: index of the token to use as the sequence representation for the classification task, default is the first token
+        """
         super().__init__()
+        self._idx_conditioned_on = idx_conditioned_on
         self.mlp = MultiLayerPerceptron(
             hidden_size=hidden_size,
             num_classes=num_classes,
@@ -53,15 +67,16 @@ class SequenceClassifier(NeuralModule):
             log_softmax=log_softmax,
         )
         self.dropout = nn.Dropout(dropout)
-        if use_transformer_pretrained:
+        if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
 
     @typecheck()
-    def forward(self, hidden_states, idx_conditioned_on=0):
+    def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
-        logits = self.mlp(hidden_states[:, idx_conditioned_on])
+        logits = self.mlp(hidden_states[:, self._idx_conditioned_on])
         return logits
 
+    @classmethod
     def save_to(self, save_path: str):
         pass
 
