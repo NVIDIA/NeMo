@@ -288,6 +288,8 @@ class AudioToBPEDataset(_AudioDataset):
         eos_id = tokenizer.eos_id
         pad_id = tokenizer.pad_id
 
+        print("PAD ID", pad_id)
+
         class TokenizerWrapper:
             def __init__(self, tokenizer):
                 self._tokenizer = tokenizer

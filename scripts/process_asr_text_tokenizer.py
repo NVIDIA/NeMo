@@ -1,6 +1,6 @@
 # Copyright (c) 2019 NVIDIA Corporation
 #
-# USAGE: python process_librispeech_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
+# USAGE: python process_asr_text_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
 #         --data_root="<output directory>" \
 #         --vocab_size=<number of tokens in vocabulary> \
 #         --tokenizer=<"bpe" or "wpe"> \
@@ -41,6 +41,7 @@ def __build_document_from_manifests(data_root: str, manifests: str,):
         logging.info('Corpus already exists at path : %s', document_path)
         return document_path
 
+    num_lines = 0
     with open(document_path, 'w') as out_writer:
         for manifest in manifests:
             with open(manifest, 'r') as in_reader:
@@ -51,9 +52,11 @@ def __build_document_from_manifests(data_root: str, manifests: str,):
                     out_writer.write(text + '\n')
                     out_writer.flush()
 
+                    num_lines += 1
+
             logging.info(f"Finished extracting manifest : {manifest}")
 
-        logging.info("Finished extracting all manifests !")
+        logging.info("Finished extracting all manifests ! Number of sentences : {}".format(num_lines))
     return document_path
 
 

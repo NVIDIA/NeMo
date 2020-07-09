@@ -16,11 +16,13 @@ from typing import Dict, Optional
 
 import torch
 
+from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
 from nemo.collections.asr.metrics.wer_bpe import monitor_asr_train_progress
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.common.tokenizers.gpt2_tokenizer import NemoGPT2Tokenizer
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
@@ -34,20 +36,15 @@ class EncDecCTCModelBPE(EncDecCTCModel):
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
-    def __setup_dataloader_from_config(self, config: Optional[Dict]):
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False),
-                                        augmentor=augmentor)
-
-        # TODO: Implement tokenizer instantiation
-        if self.tokenizer is None:
-            tokenizer = None
-
-            self.tokenizer = tokenizer
+        featurizer = WaveformFeaturizer(
+            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+        )
 
         dataset = AudioToBPEDataset(
             manifest_filepath=config['manifest_filepath'],
@@ -90,22 +87,35 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         }
 
     def __init__(
-            self,
-            preprocessor_params: Dict,
-            encoder_params: Dict,
-            decoder_params: Dict,
-            tokenizer_path: str,
-            spec_augment_params: Optional[Dict] = None,
+        self,
+        preprocessor_params: Dict,
+        encoder_params: Dict,
+        decoder_params: Dict,
+        tokenizer_path: str,
+        spec_augment_params: Optional[Dict] = None,
     ):
+        self.tokenizer_path = tokenizer_path
+        self.tokenizer = NemoGPT2Tokenizer(pretrained_model=tokenizer_path)
+        logging.info("Tokenizer initialized with {} tokens".format(self.tokenizer.vocab_size))
+
+        # Initialize a dummy vocabulary
+        decoder_params['init_params']['vocabulary'] = self.tokenizer.tokenizer.get_vocab()
+
+        # Override number of classes if placeholder provided
+        if decoder_params['init_params']['num_classes'] < 1:
+
+            logging.info("\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                decoder_params['init_params']['num_classes'], self.tokenizer.vocab_size
+            ))
+
+            decoder_params['init_params']['num_classes'] = self.tokenizer.vocab_size
+
         super().__init__(
             preprocessor_params=preprocessor_params,
             encoder_params=encoder_params,
             decoder_params=decoder_params,
-            spec_augment_params=spec_augment_params
+            spec_augment_params=spec_augment_params,
         )
-
-        self.tokenizer = None
-        self.tokenizer_path = tokenizer_path
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
@@ -120,7 +130,13 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         wer, prediction, reference = monitor_asr_train_progress(
             tensors=[predictions, transcript, transcript_len], tokenizer=self.tokenizer
         )
-        tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer}
+        # print("Prediction", prediction)
+        # print("Reference", reference)
+        tensorboard_logs = {
+            'train_loss': loss_value,
+            'training_wer': wer,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+        }
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -138,8 +154,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         wer, prediction, reference = monitor_asr_train_progress(
             tensors=[predictions, transcript, transcript_len], tokenizer=self.tokenizer
         )
-        tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
-        return {'val_loss': loss_value, 'log': tensorboard_logs}
+        return {'val_loss': loss_value, 'val_wer': wer}
 
 
 @experimental

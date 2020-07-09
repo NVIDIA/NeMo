@@ -13,4 +13,5 @@
 # limitations under the License.
 
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel

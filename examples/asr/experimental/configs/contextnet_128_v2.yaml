@@ -1,0 +1,143 @@
+model: "ContextNet"
+sample_rate: 16000
+repeat: &repeat 1
+dropout: &dropout 0.0
+separable: &separable true
+
+
+AudioToBPELayer:
+    sample_rate: 16000
+    max_duration: 16.7
+    trim_silence: true
+    shuffle: true
+    batch_size: 32
+
+AudioToBPELayer_eval:
+    sample_rate: 16000
+    trim_silence: true
+    shuffle: false
+    max_duration: null
+    batch_size: 32
+
+AudioToMelSpectrogramPreprocessor:
+    header:
+        full_spec: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    init_params:
+        window_size: 0.025
+        window_stride: 0.01
+        window: "hann"
+        normalize: "per_feature"
+        n_fft: 512
+        features: &mel_feat_in 80
+        dither: 0.00001
+        pad_to: 16
+        stft_conv: false
+
+
+SpectrogramAugmentation:
+    header:
+        full_spec: nemo.collections.asr.modules.SpectrogramAugmentation
+    init_params:
+        freq_masks: 2
+        time_masks: 2
+        freq_width: 27
+        time_width: 0.05
+
+
+ContextNetEncoder:
+    header:
+        full_spec: nemo.collections.asr.modules.ConvASREncoder
+    init_params:
+        feat_in: *mel_feat_in
+        activation: "relu"
+        conv_mask: true
+
+        jasper:
+            -   filters: 128
+                repeat: 1
+                kernel: [11]
+                stride: [1]
+                dilation: [1]
+                dropout: *dropout
+                residual: true
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+            -   filters: 256
+                repeat: *repeat
+                kernel: [13]
+                stride: [1]
+                dilation: [1]
+                dropout: *dropout
+                residual: true
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+            -   filters: 256
+                repeat: *repeat
+                kernel: [15]
+                stride: [1]
+                dilation: [1]
+                dropout: *dropout
+                residual: true
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+            -   filters: 256
+                repeat: *repeat
+                kernel: [17]
+                stride: [1]
+                dilation: [1]
+                dropout: *dropout
+                residual: true
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+            -   filters: 256
+                repeat: *repeat
+                kernel: [19]
+                stride: [1]
+                dilation: [1]
+                dropout: *dropout
+                residual: true
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+            -   filters: 256
+                repeat: 1
+                kernel: [21]
+                stride: [1]
+                dilation: [1]
+                dropout: 0.0
+                residual: false
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+            -   filters: &enc_feat_out 1024
+                repeat: 1
+                kernel: [1]
+                stride: [1]
+                dilation: [1]
+                dropout: 0.0
+                residual: false
+                separable: *separable
+                se: true
+                se_context_size: -1
+
+
+ContextNetDecoder:
+    header:
+        full_spec: nemo.collections.asr.modules.ConvASRDecoder
+    init_params:
+        feat_in: *enc_feat_out
+        num_classes: 451  # replace with final vocabulary size of tokenizer
+
+# Not required for BPE Models
+labels: [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]

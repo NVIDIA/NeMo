@@ -53,8 +53,7 @@ class EncDecCTCModel(ASRModel):
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
-    @staticmethod
-    def __setup_dataloader_from_config(config: Optional[Dict]):
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:

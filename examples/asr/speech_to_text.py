@@ -13,6 +13,7 @@
 # limitations under the License.
 import hydra
 import pytorch_lightning as pl
+from pytorch_lightning.logging import WandbLogger
 
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils.exp_manager import exp_manager
@@ -67,6 +68,14 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
+
+    trainer = pl.Trainer(**cfg.pl.trainer)
+
+    if 'logger' in cfg:
+        if cfg.logger.experiment_name is not None and cfg.logger.project_name is not None:
+            logger = WandbLogger(name=cfg.logger.experiment_name, project=cfg.logger.project_name)
+            trainer.configure_logger(logger)
+
     trainer.fit(asr_model)
 
 
