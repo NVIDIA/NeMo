@@ -196,6 +196,7 @@ def main():
         row_log_interval=200,
         check_val_every_n_epoch=25,
         distributed_backend="ddp",
+        precision=16,
     )
     args = parser.parse_args()
     if args.max_epochs is None:
