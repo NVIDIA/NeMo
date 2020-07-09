@@ -123,10 +123,11 @@ def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', c
 
 
 class WordErrorRate(TensorMetric):
-    def __init__(self, labels: list, ctc_decode=True):
+    def __init__(self, labels: list, ctc_decode=True, num_workers=1):
         super(WordErrorRate, self).__init__(name="WER")
         self.labels = labels
         self.ctc_decode = ctc_decode
+        self.num_workers = num_workers
 
     def forward(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
         wer, _, _ = monitor_asr_train_progress(
@@ -135,4 +136,4 @@ class WordErrorRate(TensorMetric):
             eval_metric='WER',
             ctc_decode=self.ctc_decode,
         )
-        return torch.tensor(wer).cuda()
+        return torch.tensor(wer / self.num_workers).to(predictions.device)
