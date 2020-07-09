@@ -191,7 +191,7 @@ def main():
         gpus=-1,
         num_nodes=1,
         max_epochs=None,
-        gradient_clip_val=None,
+        gradient_clip_val=0,
         log_save_interval=1000,
         row_log_interval=200,
         check_val_every_n_epoch=25,
