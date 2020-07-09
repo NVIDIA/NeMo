@@ -158,7 +158,6 @@ class ASRConvCTCModel(NeMoModel):
             retrieve pre-trained model's weights (pass it as
             pretrained_model_name argument to the module's constructor)
         """
-        logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5-En",
@@ -258,7 +257,6 @@ class QuartzNet(ASRConvCTCModel):
             retrieve pre-trained model's weights (pass it as
             pretrained_model_name argument to the module's constructor)
         """
-        logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5-En",
@@ -293,7 +291,6 @@ class JasperNet(ASRConvCTCModel):
             retrieve pre-trained model's weights (pass it as
             pretrained_model_name argument to the module's constructor)
         """
-        logging.warning("TODO: CHANGE ME TO GRAB STUFF FROM NGC")
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="JasperNet10x5-En",
