@@ -101,10 +101,20 @@ class LeNet5(NeuralModule):
         return predictions
 
     def save_to(self, save_path: str):
-        """ Why do I need that in experimental module? """
+        """Not implemented yet.
+           Serialize model.
+
+        Args:
+            save_path (str): path to save serialization.
+        """        
         pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
-        """ Why do I need that in experimental module? """
+        """ Not implemented yet.
+            Restore module from serialization.
+
+        Args:
+            restore_path (str): path to serialization
+        """        
         pass
