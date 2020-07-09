@@ -41,12 +41,13 @@ def main(cfg):
             iters_per_batch = cfg.pl.trainer.max_epochs / float(
                 cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.accumulate_grad_batches
             )
-        cfg.lr_scheduler.args.iters_per_batch = iters_per_batch
+        cfg.lr_scheduler.iters_per_batch = iters_per_batch
     else:
         cfg.lr_scheduler.max_steps = cfg.pl.trainer.max_steps
 
     asr_model.setup_optimization(cfg.optimizer)
-    asr_model.setup_lr_scheduler(cfg.lr_scheduler)
+    #TODO: Fix scheduler
+    #asr_model.setup_lr_scheduler(cfg.lr_scheduler)
 
     trainer = pl.Trainer(**cfg.pl.trainer)
     trainer.fit(asr_model)

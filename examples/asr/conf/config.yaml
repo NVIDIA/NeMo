@@ -17,13 +17,13 @@ pl:
     accumulate_grad_batches: *accumulate_grad_batches
 
 lr_scheduler:
-  #name: CosineAnnealing # to be implemented
+  name: CosineAnnealing
   monitor: val_loss
+  iters_per_batch: null # computed at runtime
   args:
-    warmup_ratio: .02
+    #warmup_ratio: .02
     min_lr: 0.0
     last_epoch: false
-    iters_per_batch: null # computed at runtime
     max_steps: null # computed at runtime
 
 labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
