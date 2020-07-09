@@ -39,6 +39,6 @@ class RobertaEncoder(RobertaModel, BertModule):
         pass
 
     @typecheck()
-    def forward(self, **kwargs):
-        res = super().forward(**kwargs)[0]
+    def forward(self, input_ids, token_type_ids, attention_mask):
+        res = super().forward(input_ids=input_ids, attention_mask=attention_mask)[0]
         return res
