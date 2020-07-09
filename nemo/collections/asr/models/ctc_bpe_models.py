@@ -109,9 +109,11 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Override number of classes if placeholder provided
         if decoder_params['init_params']['num_classes'] < 1:
 
-            logging.info("\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                decoder_params['init_params']['num_classes'], self.tokenizer.vocab_size
-            ))
+            logging.info(
+                "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                    decoder_params['init_params']['num_classes'], self.tokenizer.vocab_size
+                )
+            )
 
             decoder_params['init_params']['num_classes'] = self.tokenizer.vocab_size
 

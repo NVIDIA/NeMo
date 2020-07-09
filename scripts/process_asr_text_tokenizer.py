@@ -25,7 +25,9 @@ parser.set_defaults(log=False)
 args = parser.parse_args()
 
 
-def __build_document_from_manifests(data_root: str, manifests: str,):
+def __build_document_from_manifests(
+    data_root: str, manifests: str,
+):
     if ',' in manifests:
         manifests = manifests.split(',')
     else:

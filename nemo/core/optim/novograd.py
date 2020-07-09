@@ -115,7 +115,7 @@ class Novograd(Optimizer):
                 if exp_avg_sq == 0:
                     exp_avg_sq.copy_(norm)
                 else:
-                    exp_avg_sq.mul_(beta2).add_(norm, alpha=1. - beta2)
+                    exp_avg_sq.mul_(beta2).add_(norm, alpha=1.0 - beta2)
 
                 if amsgrad:
                     # Maintains max of all 2nd moment running avg till now

@@ -59,8 +59,9 @@ class EncDecCTCModel(ASRModel):
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False),
-                                        augmentor=augmentor)
+        featurizer = WaveformFeaturizer(
+            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+        )
         dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],

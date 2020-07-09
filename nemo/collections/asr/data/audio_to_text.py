@@ -54,19 +54,19 @@ class _AudioDataset(Dataset):
     """
 
     def __init__(
-            self,
-            manifest_filepath,
-            featurizer,
-            parser,
-            max_duration=None,
-            min_duration=None,
-            max_utts=0,
-            trim=False,
-            bos_id=None,
-            eos_id=None,
-            pad_id=0,
-            load_audio=True,
-            add_misc=False,
+        self,
+        manifest_filepath,
+        featurizer,
+        parser,
+        max_duration=None,
+        min_duration=None,
+        max_utts=0,
+        trim=False,
+        bos_id=None,
+        eos_id=None,
+        pad_id=0,
+        load_audio=True,
+        add_misc=False,
     ):
 
         self.collection = collections.ASRAudioText(
@@ -231,11 +231,7 @@ class AudioToCharDataset(_AudioDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels,
-            name=parser,
-            unk_id=unk_index,
-            blank_id=blank_index,
-            do_normalize=normalize,
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
         )
 
         super().__init__(
@@ -273,16 +269,16 @@ class AudioToBPEDataset(_AudioDataset):
         }
 
     def __init__(
-            self,
-            manifest_filepath,
-            tokenizer,
-            featurizer,
-            max_duration=None,
-            min_duration=None,
-            max_utts=0,
-            trim=False,
-            load_audio=True,
-            add_misc=False,
+        self,
+        manifest_filepath,
+        tokenizer,
+        featurizer,
+        max_duration=None,
+        min_duration=None,
+        max_utts=0,
+        trim=False,
+        load_audio=True,
+        add_misc=False,
     ):
         bos_id = tokenizer.bos_id
         eos_id = tokenizer.eos_id
