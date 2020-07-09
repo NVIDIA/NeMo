@@ -289,7 +289,6 @@ def main():
     parser.add_argument("--work_dir", default=None, type=str, help="working directory for experiment")
     parser.add_argument("--train_dataset", default=None, type=str, help="working directory for experiment")
     parser.add_argument("--eval_datasets", default=None, type=str, help="working directory for experiment")
-    parser.add_argument("--eval_datasets", default=None, type=str, help="working directory for experiment")
     parser.set_defaults(
         gpus=-1,
         num_nodes=1,

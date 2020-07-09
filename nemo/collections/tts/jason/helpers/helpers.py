@@ -149,3 +149,37 @@ def save_figure_to_numpy(fig):
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     return data
+
+def waveglow_log_to_tb_func(
+    swriter,
+    tensors,
+    step,
+    tag="train",
+    n_fft=1024,
+    hop_length=256,
+    window="hann",
+    mel_fb=None,
+):
+    audio_pred, spec_target, mel_length = tensors
+    mel_length = mel_length[0]
+    spec_target = spec_target[0].data.cpu().numpy()[:, :mel_length]
+    swriter.add_image(
+        f"{tag}_mel_target", plot_spectrogram_to_numpy(spec_target), step, dataformats="HWC",
+    )
+    if mel_fb is not None:
+        mag, _ = librosa.core.magphase(
+            librosa.core.stft(
+                np.nan_to_num(audio_pred[0].cpu().detach().numpy()),
+                n_fft=n_fft,
+                hop_length=hop_length,
+                window=window,
+            )
+        )
+        mel_pred = np.matmul(mel_fb.cpu().numpy(), mag).squeeze()
+        log_mel_pred = np.log(np.clip(mel_pred, a_min=1e-5, a_max=None))
+        swriter.add_image(
+            f"{tag}_mel_predicted",
+            plot_spectrogram_to_numpy(log_mel_pred[:, :mel_length]),
+            step,
+            dataformats="HWC",
+        )
