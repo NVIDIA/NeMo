@@ -1,0 +1,195 @@
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#  * Neither the name of NVIDIA CORPORATION nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+name: "jasper-asr-trt-ensemble-vad-streaming"
+platform: "ensemble"
+max_batch_size: 1
+
+input [
+  {
+    name: "AUDIO_SIGNAL"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+  }
+  ,
+  {
+    name: "SAMPLE_RATE"
+    data_type: TYPE_UINT32
+    dims: [ 1 ]
+  }
+  
+  ,
+  {
+    name: "END_FLAG"
+    data_type: TYPE_UINT32
+    dims: [ 1 ]
+  }
+  
+]
+
+output [
+  {
+    name: "FINAL_TRANSCRIPTS"
+    data_type: TYPE_STRING
+    dims: [ -1 ]
+  },
+  {
+    name: "FINAL_TRANSCRIPTS_SCORE"
+    data_type: TYPE_FP32
+    dims: [ -1 ]
+  },
+  {
+    name: "FINAL_WORDS_START_END"
+    data_type: TYPE_INT32
+    dims: [ -1, 2 ]
+  },
+  {
+    name: "PARTIAL_TRANSCRIPT"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "PARTIAL_WORDS_START_END"
+    data_type: TYPE_INT32
+    dims: [ -1, 2 ]
+  }
+
+  ,
+  {
+    name: "AUDIO_PROCESSED"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  }
+
+]
+
+ensemble_scheduling {
+  step [
+
+    {
+      model_name: "feature-extractor-trt-vad-streaming"
+      model_version: -1
+      input_map {
+        key: "AUDIO_SIGNAL"
+        value: "AUDIO_SIGNAL"
+      }
+      input_map {
+        key: "SAMPLE_RATE"
+        value: "SAMPLE_RATE"
+      }
+      output_map {
+        key: "AUDIO_FEATURES"
+        value: "AUDIO_FEATURES"
+      }
+      output_map {
+        key: "AUDIO_PROCESSED"
+        value: "AUDIO_PROCESSED"
+      }
+    },
+
+    {
+      model_name: "jasper-trt-encoder-streaming"
+      model_version: -1
+      input_map {
+        key: "audio_signal"
+        value: "AUDIO_FEATURES"
+      }
+      output_map {
+        key: "outputs"
+        value: "AUDIO_ENCODED"
+      }
+    },
+    {
+      model_name: "jasper-trt-decoder-streaming"
+      model_version: -1
+      input_map {
+        key: "encoder_output"
+        value: "AUDIO_ENCODED"
+      }
+      output_map {
+        key: "output"
+        value: "CHARACTER_PROBABILITIES"
+      }
+    },
+
+    {
+      model_name: "voice-activity-detector-trt-ctc-streaming"
+      model_version: -1
+
+      input_map {
+        key: "CLASS_LOGITS"
+        value: "CHARACTER_PROBABILITIES"
+      }
+
+      output_map {
+        key: "SEGMENTS_START_END"
+        value: "SEGMENTS_START_END"
+      }
+    },
+
+    {
+      model_name: "ctc-decoder-cpu-trt-vad-streaming"
+      model_version: -1
+      input_map {
+        key: "CLASS_LOGITS"
+        value: "CHARACTER_PROBABILITIES"
+      }
+
+      input_map {
+        key: "END_FLAG"
+        value: "END_FLAG"
+      }
+
+
+
+      input_map {
+        key: "SEGMENTS_START_END"
+        value: "SEGMENTS_START_END"
+      }
+
+      output_map {
+        key: "FINAL_TRANSCRIPTS"
+        value: "FINAL_TRANSCRIPTS"
+      }
+      output_map {
+        key: "FINAL_TRANSCRIPTS_SCORE"
+        value: "FINAL_TRANSCRIPTS_SCORE"
+      }
+      output_map {
+        key: "FINAL_WORDS_START_END"
+        value: "FINAL_WORDS_START_END"
+      }
+      output_map {
+        key: "PARTIAL_TRANSCRIPT"
+        value: "PARTIAL_TRANSCRIPT"
+      }
+      output_map {
+        key: "PARTIAL_WORDS_START_END"
+        value: "PARTIAL_WORDS_START_END"
+      }
+    }
+  ]
+}

@@ -1,0 +1,123 @@
+# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#  * Neither the name of NVIDIA CORPORATION nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+name: "voice-activity-detector-trt-ctc-streaming"
+platform: "custom"
+default_model_filename: "libvoice-activity-detector.so"
+max_batch_size: 1
+
+sequence_batching {
+  max_sequence_idle_microseconds: 60000000
+  control_input [
+    {
+      name: "START"
+      control [
+        {
+          kind: CONTROL_SEQUENCE_START
+          int32_false_true: [ 0, 1 ]
+        }
+      ]
+    },
+    {
+      name: "READY"
+      control [
+        {
+          kind: CONTROL_SEQUENCE_READY
+          int32_false_true: [ 0, 1 ]
+        }
+      ]
+    }
+  ]
+}
+
+
+
+
+input [
+  {
+    name: "CLASS_LOGITS"
+    data_type: TYPE_FP32
+    dims: [-1, 29]
+  }
+]
+
+
+output [
+  {
+    name: "SEGMENTS_START_END"
+    data_type: TYPE_INT32
+    dims: [ -1, 2 ]
+  }
+]
+parameters [
+  {
+    key: "vad_type"
+    value: { string_value: "ctc-vad" }
+  },
+
+  {
+    key: "window_size"
+    value: { string_value: "0.02" }
+  },
+  {
+    key: "window_stride"
+    value: { string_value: "0.01" }
+  },
+  {
+    # in milliseconds
+    key: "vad_start_history"
+    value: { string_value: "300"}
+  },
+  {
+    # in milliseconds
+    key: "vad_stop_history"
+    value: { string_value: "500"}
+  },
+  {
+    key: "vad_start_th"
+    value: { string_value: "0.2f"}
+  },
+  {
+    key: "vad_stop_th"
+    value: { string_value: "0.95f"}
+  },
+
+  {
+    key: "residue_blanks_at_end"
+    value: { string_value: "0"}
+  },
+
+
+  {
+    key: "padding_factor"
+    value: { string_value: "2" }
+  },
+
+  {
+    key: "streaming"
+    value: { string_value: "True" }
+  }
+]
