@@ -17,6 +17,24 @@ import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel
 
+"""
+Basic run:
+    python speech_to_text.py \
+        AudioToTextDataLayer.manifest_filepath="/path/to/an4/train_manifest.json" \
+        AudioToTextDataLayer_eval.manifest_filepath="/path/to/an4/test_manifest.json" \
+        hydra.run.dir="." \
+        pl.trainer.gpus=2 \
+        pl.trainer.max_epochs=100
+
+Add PyTorch Lightning Trainer arguments from CLI:
+    python speech_to_text.py \
+        ... \
+        +pl.trainer.fast_dev_run=true
+
+Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
+PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
+"""
+
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
