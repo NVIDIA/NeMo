@@ -82,9 +82,6 @@ class PunctCapitTokenClassifier(TrainableNM):
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
         # self.to(self._device) # sometimes this is necessary
 
-    def __str__(self):
-        return self.name
-
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
         punct_logits = self.punct_mlp(hidden_states)
