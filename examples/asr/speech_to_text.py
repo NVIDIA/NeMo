@@ -16,6 +16,7 @@ import hydra
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.utils import logging
 
 """
 Basic run:
@@ -38,7 +39,7 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    print(cfg.pretty())
+    logging.info(f'Hydra config: {cfg.pretty()}')
 
     asr_model = EncDecCTCModel(
         preprocessor_config=cfg.preprocessor,
