@@ -1,30 +1,53 @@
-model: "QuartzNet15x5"
+#model: "QuartzNet15x5"
 sample_rate: &sample_rate 16000
+accumulate_grad_batches: &accumulate_grad_batches 1
+
+optim_params:
+  name: adam 
+  lr: .01
+  args: {}
+
+pl:
+  trainer:
+    gpus: 0 # number of gpus
+    max_epochs: 5
+    max_steps: null # computed at runtime if not set
+    num_nodes: 1
+    distributed_backend: ddp
+    accumulate_grad_batches: *accumulate_grad_batches
+
+lr_scheduler:
+  name: CosineAnnealing
+  monitor: val_loss
+  iters_per_batch: null # computed at runtime
+  args:
+    #warmup_ratio: .02
+    min_lr: 0.0
+    last_epoch: false
+    max_steps: null # computed at runtime
 
 labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 AudioToTextDataLayer:
-    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
+    manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 64
+    batch_size: 8
     trim_silence: True
     max_duration: 16.7
     shuffle: True
 
-
 AudioToTextDataLayer_eval:
-    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
+    manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 32
+    batch_size: 8
     shuffle: False
 
-preprocessor_params:
-    header:
-        full_spec: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    init_params:
+preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    params:
         normalize: "per_feature"
         window_size: 0.02
         sample_rate: *sample_rate
@@ -36,18 +59,16 @@ preprocessor_params:
         dither: 0.00001
         stft_conv: true
 
-spec_augment_params:
-    header:
-        full_spec: nemo.collections.asr.modules.SpectrogramAugmentation
-    init_params:
+spec_augment:
+    cls: nemo.collections.asr.modules.SpectrogramAugmentation
+    params:
         rect_freq: 50
         rect_masks: 5
         rect_time: 120
 
-encoder_params:
-    header:
-        full_spec: nemo.collections.asr.modules.ConvASREncoder
-    init_params:
+encoder:
+    cls: nemo.collections.asr.modules.ConvASREncoder
+    params:
         activation: relu
         conv_mask: true
         feat_in: *n_mels
@@ -196,10 +217,9 @@ encoder_params:
           residual: false
           stride: [1]
 
-decoder_params:
-    header:
-        full_spec: nemo.collections.asr.modules.ConvASRDecoder
-    init_params:
+decoder:
+    cls: nemo.collections.asr.modules.ConvASRDecoder
+    params:
         feat_in: 1024
         num_classes: 28
         vocabulary: *labels

@@ -14,10 +14,12 @@
 
 import math
 import warnings
-from typing import Any, Dict, Optional
+from functools import partial
+from typing import Any, Dict, Optional, Union
 
 import torch.optim as optim
 import torch.utils.data.dataloader as dataloader
+from omegaconf import DictConfig
 from torch.optim.lr_scheduler import _LRScheduler
 
 from nemo import logging
@@ -60,7 +62,6 @@ class WarmupPolicy(_LRScheduler):
             self.warmup_steps = int(warmup_ratio * max_steps)
         else:
             self.warmup_steps = 0
-
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
@@ -317,6 +318,31 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
             for initial_lr in self.base_lrs
         ]
         return new_lrs
+
+
+# TODO: Can we add something like this to be consistent with Optimizer?
+# AVAILABLE_SCHEDULERS = {'CosineAnnealing': CosineAnnealing}
+
+
+# def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler:
+#     """
+#     Convenience method to obtain an _LRScheduler class and partially instantiate it with optimizer kwargs.
+
+#     Args:
+#         name: Name of the scheduler in the registry.
+#         kwargs: Optional kwargs of the scheduler used during instantiation.
+
+#     Returns:
+#         a partially instantiated _LRScheduler
+#     """
+#     if name not in AVAILABLE_SCHEDULERS:
+#         raise ValueError(
+#             f"Cannot resolve scheduler{name}'. Available optimizers are : " f"{AVAILABLE_SCHEDULERS.keys()}"
+#         )
+
+#     scheduler_cls = AVAILABLE_SCHEDULERS[name]
+#     scheduler = partial(scheduler_cls, **kwargs)
+#     return scheduler
 
 
 def prepare_lr_scheduler(

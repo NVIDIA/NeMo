@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
+import hydra
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -78,7 +80,8 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
+    # TODO: revert setup_optimization to pass candidate CI, add setup_hydra_optimization for new example
+    def setup_optimization(self, optim_params: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optim_params)
         self.__scheduler = prepare_lr_scheduler(
             optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
@@ -123,18 +126,22 @@ class EncDecCTCModel(ASRModel):
 
     def __init__(
         self,
-        preprocessor_params: Dict,
-        encoder_params: Dict,
-        decoder_params: Dict,
-        spec_augment_params: Optional[Dict] = None,
+        preprocessor_config: DictConfig,
+        encoder_config: DictConfig,
+        decoder_config: DictConfig,
+        spec_augment_config: Optional[DictConfig] = None,
     ):
         super().__init__()
-        self.preprocessor = Serialization.from_config_dict(preprocessor_params)
-        self.encoder = Serialization.from_config_dict(encoder_params)
-        self.decoder = Serialization.from_config_dict(decoder_params)
+        # self.preprocessor = Serialization.from_config_dict(preprocessor_config)
+        self.preprocessor = hydra.utils.instantiate(preprocessor_config)
+        # self.encoder = Serialization.from_config_dict(encoder_config)
+        self.encoder = hydra.utils.instantiate(encoder_config)
+        # self.decoder = Serialization.from_config_dict(decoder_config)
+        self.decoder = hydra.utils.instantiate(decoder_config)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if spec_augment_params is not None:
-            self.spec_augmentation = Serialization.from_config_dict(spec_augment_params)
+        if spec_augment_config is not None:
+            # self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
+            self.spec_augmentation = hydra.utils.instantiate(spec_augment_config)
         else:
             self.spec_augmentation = None
 
