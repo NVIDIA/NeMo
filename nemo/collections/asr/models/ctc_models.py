@@ -190,12 +190,13 @@ class EncDecCTCModel(ASRModel):
 
         # TODO: use metrics here
         wer = self.__wer(predictions, transcript, transcript_len)
-        tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
-        return {'val_loss': loss_value, 'log': tensorboard_logs}
+        return {'val_loss': loss_value, 'val_wer': wer}
 
-    #def validation_epoch_end(self, outputs):
-    #    val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-    #    return {'val_loss': val_loss_mean}
+    def validation_epoch_end(self, outputs):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        wer_mean = torch.stack([x['val_wer'] for x in outputs]).mean()
+        tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_mean}
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def configure_optimizers(self):
         if self.__scheduler is None:
