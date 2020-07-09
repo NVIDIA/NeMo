@@ -51,8 +51,6 @@ def init_weights(m, mode='xavier_uniform'):
 
 
 def compute_new_kernel_size(kernel_size, kernel_width):
-    print(f'kernel_size: {kernel_size}')
-    print(f'kernel_width: {kernel_width}')
     new_kernel_size = max(int(kernel_size * kernel_width), 1)
     # If kernel is even shape, round up to make it odd
     if new_kernel_size % 2 == 0:
