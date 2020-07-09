@@ -46,8 +46,8 @@ def main(cfg):
         cfg.lr_scheduler.max_steps = cfg.pl.trainer.max_steps
 
     asr_model.setup_optimization(cfg.optimizer)
-    #TODO: Fix scheduler
-    #asr_model.setup_lr_scheduler(cfg.lr_scheduler)
+    # TODO: Fix scheduler
+    # asr_model.setup_lr_scheduler(cfg.lr_scheduler)
 
     trainer = pl.Trainer(**cfg.pl.trainer)
     trainer.fit(asr_model)
