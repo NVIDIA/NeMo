@@ -2,10 +2,10 @@
 sample_rate: &sample_rate 16000
 accumulate_grad_batches: &accumulate_grad_batches 1
 
-optimizer:
+optim_params:
   name: adam 
-  args:
-    lr: .01
+  lr: .01
+  args: {}
 
 pl:
   trainer:
