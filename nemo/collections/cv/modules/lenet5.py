@@ -24,8 +24,6 @@ from nemo.core.config import Config
 from nemo.core.neural_types import AxisKind, AxisType, ImageValue, LogprobsType, NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['LeNet5']
-
 
 @experimental
 class LeNet5(NeuralModule):

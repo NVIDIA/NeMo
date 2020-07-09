@@ -27,8 +27,6 @@ from nemo.core.config import Config
 from nemo.core.neural_types import *
 from nemo.utils.decorators import add_port_docs, experimental
 
-__all__ = ['MNISTDataset', 'MNISTDatasetConfig']
-
 
 @dataclass
 class MNISTDatasetConfig(Config):

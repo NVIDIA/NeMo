@@ -14,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.cv.datasets.mnist_dataset import *
+from nemo.collections.cv.datasets.mnist_dataset import MNISTDataset, MNISTDatasetConfig
