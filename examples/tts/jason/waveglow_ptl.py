@@ -113,7 +113,7 @@ class WaveglowPTL(ModelPT):
         audio, audio_len, = batch
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
 
-        z, log_s_list, log_det_W_list = self.waveglow(mel_spectrogram=spec, audio=audio)
+        z, log_s_list, log_det_W_list = self.waveglow((spec, audio))
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
 
         output = {
