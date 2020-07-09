@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
-from nemo.collections.nlp.modules.common import SequenceClassifier, TokenClassifier
+from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -69,7 +69,7 @@ class BERTLMModel(ModelPT):
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
-        self.mlm_classifier = TokenClassifier(
+        self.mlm_classifier = BertPretrainingTokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.vocab_size,
             activation='gelu',

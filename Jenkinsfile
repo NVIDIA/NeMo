@@ -33,6 +33,48 @@ pipeline {
       }
     }
 
+    stage('L2: BERT Squad v1.1') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 5e-5 --max_steps 2 --scheduler WarmupAnnealing'
+          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+        }
+    }
+
+    stage('L2: BERT Squad v2.0') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 1e-5 --max_steps 2 --version_2_with_negative --scheduler WarmupAnnealing'
+          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+        }
+    }
+
+    stage('L2: Roberta Squad v1.1') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 5 --gpus 1 --pretrained_model_name roberta-base --optimizer adamw --lr 1e-5 --max_steps 2 --scheduler WarmupAnnealing'
+          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+        }
+    }
+    
     stage('L2: Parallel NLP Examples 1') {
       failFast true
       parallel {
@@ -54,7 +96,7 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_text.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wikitext-2/  --batch_size 64 --config_file /home/TestData/nlp/bert_configs/bert_3200.json --lr 0.01 --warmup_ratio 0.05 --max_steps=300 --tokenizer_name=sentencepiece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1'
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_text.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wikitext-2/  --batch_size 64 --config_file /home/TestData/nlp/bert_configs/bert_3200.json --lr 0.01 --warmup_ratio 0.05 --max_steps=2 --tokenizer_name=sentencepiece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1'
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }
@@ -68,7 +110,7 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 300'
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 2'
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }

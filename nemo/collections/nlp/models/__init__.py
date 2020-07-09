@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.models.lm_model import BERTLMModel
 from nemo.collections.nlp.models.ner_model import NERModel
+from nemo.collections.nlp.models.qa_model import QAModel

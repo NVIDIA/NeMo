@@ -74,7 +74,6 @@ class NemoBertTokenizer(TokenizerSpec):
         if pretrained_model:
             bert_derivative = pretrained_model.split('-')[0]
             logging.info(f'Deriving bert model type from pretrained model name.')
-
         if bert_derivative in TOKENIZERS:
             tokenizer_cls = TOKENIZERS[bert_derivative]
         else:
