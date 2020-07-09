@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import hydra
 import torch
@@ -79,13 +79,11 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-
-    def setup_optimization(self, optimizer_config: Optional[DictConfig] = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optimizer_config)
-
-    def setup_lr_scheduler(self, lr_scheduler_config: Optional[DictConfig]):
+    # TODO: revert setup_optimization to pass candidate CI, add setup_hydra_optimization for new example
+    def setup_optimization(self, optim_params: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optim_params)
         self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=lr_scheduler_config, train_dataloader=self.__train_dl
+            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
         )
 
     @classmethod
