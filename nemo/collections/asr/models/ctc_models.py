@@ -79,6 +79,7 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
+
     # TODO: revert setup_optimization to pass candidate CI, add setup_hydra_optimization for new example
     def setup_optimization(self, optim_params: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optim_params)
