@@ -16,6 +16,8 @@ import math
 import warnings
 from typing import Any, Dict, Optional
 
+from functools import partial
+
 import torch.optim as optim
 import torch.utils.data.dataloader as dataloader
 from omegaconf import DictConfig
@@ -319,6 +321,30 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
         ]
         return new_lrs
 
+AVAILABLE_SCHEDULERS = {
+    'CosineAnnealing': CosineAnnealing
+}
+
+def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler:
+    """
+    Convenience method to obtain an _LRScheduler class and partially instantiate it with optimizer kwargs.
+
+    Args:
+        name: Name of the scheduler in the registry.
+        kwargs: Optional kwargs of the scheduler used during instantiation.
+
+    Returns:
+        a partially instantiated _LRScheduler
+    """
+    if name not in AVAILABLE_SCHEDULERS:
+        raise ValueError(
+            f"Cannot resolve scheduler{name}'. Available optimizers are : " f"{AVAILABLE_SCHEDULERS.keys()}"
+        )
+
+    scheduler_cls = AVAILABLE_SCHEDULERS[name]
+    scheduler = partial(scheduler_cls, **kwargs)
+    return scheduler
+
 
 def prepare_lr_scheduler(
     optimizer: optim.Optimizer, scheduler_config: DictConfig, train_dataloader: Optional[dataloader.DataLoader] = None,
@@ -358,7 +384,7 @@ def prepare_lr_scheduler(
 
     # Get the scheduler class from the config
     # scheduler = scheduler_config['scheduler']
-    scheduler = scheduler_config.name
+    scheduler = get_scheduler(scheduler_config.name)
 
     # Extract value to monitor in losses, if provided.
     if 'monitor' in scheduler_config:

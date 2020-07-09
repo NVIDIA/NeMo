@@ -87,7 +87,6 @@ class EncDecCTCModel(ASRModel):
         self.__scheduler = prepare_lr_scheduler(
             optimizer=self.__optimizer, scheduler_config=lr_scheduler_config, train_dataloader=self.__train_dl
         )
-        print(f'self.__scheduler: {self.__scheduler}')
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
