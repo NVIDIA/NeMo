@@ -388,21 +388,21 @@ def prepare_lr_scheduler(
     scheduler = scheduler_config['scheduler']
 
     # Extract value to monitor in losses, if provided.
-    if 'monitor' in scheduler_config:
-        monitor = scheduler_config.args.pop('monitor')
+    if 'monitor' in scheduler_args:
+        monitor = scheduler_args.pop('monitor')
     else:
         # default to train loss
         monitor = 'loss'
 
     # Compute effective max_steps if iters_per_batch is provided
-    if 'iters_per_batch' in scheduler_config.args:
+    if 'iters_per_batch' in scheduler_args:
         if train_dataloader is None:
             raise ValueError(
                 'As `iters_per_batch` is provided, it is required to pass the train dataloader in order '
                 'to compute effective maximum number of steps'
             )
 
-        iters_per_batch = scheduler_config.args.pop('iters_per_batch')
+        iters_per_batch = scheduler_args.pop('iters_per_batch')
         num_samples = len(train_dataloader.dataset)
         batch_size = train_dataloader.batch_size
         max_steps = round(num_samples * iters_per_batch / float(batch_size))
