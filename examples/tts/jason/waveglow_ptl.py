@@ -43,6 +43,7 @@ class WaveglowPTL(ModelPT):
     def __init__(self, args):
         super().__init__()
         self.pad_value = -11.42
+        self.sigma = 1.0
         self.audio_to_melspec_precessor = nemo_tts_jason.data.processors.FilterbankFeatures(
             sample_rate=22050,
             n_window_size=1024,
