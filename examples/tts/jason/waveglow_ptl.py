@@ -39,7 +39,6 @@ from nemo.utils.arguments import add_optimizer_args, add_scheduler_args
 
 
 class WaveglowPTL(ModelPT):
-    # TODO: Add O1
     def __init__(self, args):
         super().__init__()
         self.pad_value = -11.42
@@ -163,6 +162,7 @@ class WaveglowPTL(ModelPT):
         return self.__val_dl
 
     def setup_validation_data(self, path):
+        # TODO: Should n_segments be 16k? But it seems to help with memory footprint
         dataset = nemo_tts_jason.data.datalayers.AudioDataset(
             manifest_filepath=path, n_segments=16000, min_duration=0.1, max_duration=None, trim=False,
         )
