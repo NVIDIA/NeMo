@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import hydra
-
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel
+
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
@@ -38,8 +38,10 @@ def main(cfg):
             # training on CPU
             iters_per_batch = cfg.pl.trainer.max_epochs / float(cfg.pl.trainer.num_nodes * cfg.accumulate_grad_batches)
         else:
-            iters_per_batch = cfg.pl.trainer.max_epochs / float(cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.accumulate_grad_batches)
-        cfg.lr_scheduler.iters_per_batch = iters_per_batch
+            iters_per_batch = cfg.pl.trainer.max_epochs / float(
+                cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.accumulate_grad_batches
+            )
+        cfg.lr_scheduler.args.iters_per_batch = iters_per_batch
     else:
         cfg.lr_scheduler.max_steps = cfg.pl.trainer.max_steps
 

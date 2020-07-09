@@ -14,10 +14,9 @@
 
 from typing import Dict, Optional
 
-from omegaconf import DictConfig
 import hydra
-
 import torch
+from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -83,11 +82,12 @@ class EncDecCTCModel(ASRModel):
 
     def setup_optimization(self, optimizer_config: Optional[DictConfig] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optimizer_config)
-    
+
     def setup_lr_scheduler(self, lr_scheduler_config: Optional[DictConfig]):
         self.__scheduler = prepare_lr_scheduler(
             optimizer=self.__optimizer, scheduler_config=lr_scheduler_config, train_dataloader=self.__train_dl
         )
+        print(f'self.__scheduler: {self.__scheduler}')
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -134,15 +134,15 @@ class EncDecCTCModel(ASRModel):
         spec_augment_config: Optional[DictConfig] = None,
     ):
         super().__init__()
-        #self.preprocessor = Serialization.from_config_dict(preprocessor_config)
+        # self.preprocessor = Serialization.from_config_dict(preprocessor_config)
         self.preprocessor = hydra.utils.instantiate(preprocessor_config)
-        #self.encoder = Serialization.from_config_dict(encoder_config)
+        # self.encoder = Serialization.from_config_dict(encoder_config)
         self.encoder = hydra.utils.instantiate(encoder_config)
-        #self.decoder = Serialization.from_config_dict(decoder_config)
+        # self.decoder = Serialization.from_config_dict(decoder_config)
         self.decoder = hydra.utils.instantiate(decoder_config)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
         if spec_augment_config is not None:
-            #self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
+            # self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
             self.spec_augmentation = hydra.utils.instantiate(spec_augment_config)
         else:
             self.spec_augmentation = None
