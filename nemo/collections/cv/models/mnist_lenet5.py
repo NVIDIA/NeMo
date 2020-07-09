@@ -30,8 +30,6 @@ from nemo.core.neural_types import *
 from nemo.core.optim.optimizers import get_optimizer
 from nemo.utils.decorators import experimental
 
-__all__ = ['MNISTLeNet5', 'MNISTLeNet5Config']
-
 
 @dataclass
 class MNISTLeNet5Config(Config):

@@ -14,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.cv.models.mnist_lenet5 import *
+from nemo.collections.cv.models.mnist_lenet5 import MNISTLeNet5, MNISTLeNet5Config
