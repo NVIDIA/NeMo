@@ -107,40 +107,31 @@ class MNISTLeNet5(ModelPT):
         return train_dataloader
 
     def setup_training_data(self, train_data_layer_params: Optional[Dict]):
-        """ Dummy methods """
         pass
 
     def setup_validation_data(self, val_data_layer_params: Optional[Dict]):
-        """ Dummy methods """
         pass
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-        """ Dummy methods """
         pass
 
     def setup_optimization(self, optim_params: Optional[Dict] = None) -> Optimizer:
-        """ Dummy methods """
         pass
 
     def save_to(self, save_path: str):
-        """ Why do I need that in experimental module? """
         pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
-        """ Why do I need that in experimental module? """
         pass
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        """ Why do I need that in experimental module? """
         pass
 
     @classmethod
     def from_pretrained(cls, name: str):
-        """ Why do I need that in experimental module? """
         pass
 
     def export(self, **kwargs):
-        """ Why do I need that in experimental module? """
         pass
