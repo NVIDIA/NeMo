@@ -193,9 +193,9 @@ class EncDecCTCModel(ASRModel):
         tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
         return {'val_loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_epoch_end(self, outputs):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'val_loss': val_loss_mean}
+    #def validation_epoch_end(self, outputs):
+    #    val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+    #    return {'val_loss': val_loss_mean}
 
     def configure_optimizers(self):
         if self.__scheduler is None:
