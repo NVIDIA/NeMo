@@ -104,7 +104,7 @@ class LeNet5(NeuralModule):
 
         Args:
             save_path (str): path to save serialization.
-        """        
+        """
         pass
 
     @classmethod
@@ -114,5 +114,5 @@ class LeNet5(NeuralModule):
 
         Args:
             restore_path (str): path to serialization
-        """        
+        """
         pass
