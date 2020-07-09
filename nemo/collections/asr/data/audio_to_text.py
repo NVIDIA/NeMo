@@ -50,7 +50,7 @@ class _AudioDataset(Dataset):
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         load_audio: Boolean flag indicate whether do or not load audio
-        add_misc: True if add adiditional info dict.
+        add_misc: True if add additional info dict.
     """
 
     def __init__(
@@ -287,8 +287,6 @@ class AudioToBPEDataset(_AudioDataset):
         bos_id = tokenizer.bos_id
         eos_id = tokenizer.eos_id
         pad_id = tokenizer.pad_id
-
-        print("PAD ID", pad_id)
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):

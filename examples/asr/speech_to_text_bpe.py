@@ -14,7 +14,7 @@
 
 # TODO: This is WIP and needs a lot of polishing
 # python speech_to_text_bpe.py \
-#         --asr_model "../experimental/configs/contextnet_128_v2.yaml" \
+#         --asr_model "./experimental/configs/contextnet_128_v2.yaml" \
 #         --train_dataset "./an4/train_manifest.json" \
 #         --eval_dataset "./an4/test_manifest.json" \
 #         --tokenizer_path "./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/"
@@ -32,7 +32,7 @@ import pytorch_lightning as pl
 import pytorch_lightning.loggers as pl_loggers
 from ruamel.yaml import YAML
 
-from nemo.collections.asr.models import EncDecCTCModelBPE
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils.arguments import add_asr_args, add_optimizer_args, add_scheduler_args
 
