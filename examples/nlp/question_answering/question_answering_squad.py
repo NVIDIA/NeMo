@@ -31,11 +31,11 @@ python question_answering_squad.py
 --bert_config /path_to/bert-config.json
 --pretrained_model_name bert-base-uncased
 --bert_checkpoint /path_to_bert_checkpoint
---amp_opt_level "O2"
+--amp_opt_level "O1"
 --batch_size 24
 --num_epochs 2
 --lr_policy WarmupAnnealing
---optimizer fused_adam
+--optimizer adam_w
 --lr 3e-5
 --do_lower_case
 --mode train_eval
