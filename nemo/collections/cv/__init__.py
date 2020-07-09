@@ -13,8 +13,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
-
-from nemo.collections.cv.datasets import *
-from nemo.collections.cv.losses import *
-from nemo.collections.cv.models import *
-from nemo.collections.cv.modules import *
