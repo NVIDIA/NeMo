@@ -17,7 +17,6 @@ from typing import Dict, Optional
 
 import hydra
 from omegaconf import DictConfig
-
 from pytorch_lightning import LightningModule
 from torch.optim.optimizer import Optimizer
 
@@ -85,7 +84,7 @@ class ModelPT(LightningModule, Model):
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        #lr = optim_params.get('lr', None)
+        # lr = optim_params.get('lr', None)
         lr = optimizer_config.get('lr', None)
 
         if 'lr' is None:
@@ -93,11 +92,11 @@ class ModelPT(LightningModule, Model):
 
         # Actually instantiate the optimizer
         optimizer = get_optimizer(optimizer_name)
-        #optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
-        #optimizer = optimizer(self.parameters(), lr=lr, **optimizer_config.args)
+        # optimizer = optimizer(self.parameters(), lr=lr, **optimizer_args)
+        # optimizer = optimizer(self.parameters(), lr=lr, **optimizer_config.args)
         optimizer = optimizer(self.parameters(), **optimizer_config.args)
 
         # TODO: Remove after demonstration
-        #logging.info("Optimizer config = %s", str(optimizer))
+        # logging.info("Optimizer config = %s", str(optimizer))
 
         return optimizer

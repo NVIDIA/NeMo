@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 
 import torch.optim as optim
 import torch.utils.data.dataloader as dataloader
+from omegaconf import DictConfig
 from torch.optim.lr_scheduler import _LRScheduler
 
 from nemo import logging
@@ -320,9 +321,7 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
 
 
 def prepare_lr_scheduler(
-    optimizer: optim.Optimizer,
-    scheduler_config: Dict[str, Any],
-    train_dataloader: Optional[dataloader.DataLoader] = None,
+    optimizer: optim.Optimizer, scheduler_config: DictConfig, train_dataloader: Optional[dataloader.DataLoader] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Constructs an LR Scheduler (optionally) for a given optimizer, based on a config with the following schema
@@ -347,46 +346,49 @@ def prepare_lr_scheduler(
         A dictionary containing the LR Scheduler implementation if the config was successfully parsed
         along with other parameters required by Pytorch Lightning, otherwise None.
     """
-    if 'scheduler' in scheduler_config:
-        if 'scheduler_args' in scheduler_config:
-            scheduler_args = scheduler_config['scheduler_args']
-        else:
-            raise ValueError("If `scheduler` is provided, `scheduler_args` must be provided.")
+    # if 'scheduler' in scheduler_config:
+    #     if 'scheduler_args' in scheduler_config:
+    #         scheduler_args = scheduler_config['scheduler_args']
+    #     else:
+    #         raise ValueError("If `scheduler` is provided, `scheduler_args` must be provided.")
 
-    else:
-        logging.info('Scheduler not initialized as no `scheduler` argument supplied to setup_optimizer()')
-        return None
+    # else:
+    #     logging.info('Scheduler not initialized as no `scheduler` argument supplied to setup_optimizer()')
+    #     return None
 
     # Get the scheduler class from the config
-    scheduler = scheduler_config['scheduler']
+    # scheduler = scheduler_config['scheduler']
+    scheduler = scheduler_config.name
 
     # Extract value to monitor in losses, if provided.
-    if 'monitor' in scheduler_args:
-        monitor = scheduler_args.pop('monitor')
+    if 'monitor' in scheduler_config:
+        # monitor = scheduler_config.args.pop('monitor')
+        monitor = scheduler_config.monitor
     else:
         # default to train loss
         monitor = 'loss'
 
     # Compute effective max_steps if iters_per_batch is provided
-    if 'iters_per_batch' in scheduler_args:
+    if 'iters_per_batch' in scheduler_config.args:
         if train_dataloader is None:
             raise ValueError(
                 'As `iters_per_batch` is provided, it is required to pass the train dataloader in order '
                 'to compute effective maximum number of steps'
             )
 
-        iters_per_batch = scheduler_args.pop('iters_per_batch')
+        # iters_per_batch = scheduler_config.args.pop('iters_per_batch')
+        iters_per_batch = scheduler_config.args.iters_per_batch
         num_samples = len(train_dataloader.dataset)
         batch_size = train_dataloader.batch_size
         max_steps = round(num_samples * iters_per_batch / float(batch_size))
 
-        scheduler_args['max_steps'] = max_steps
+        scheduler_config.args.max_steps = max_steps
 
     else:
-        max_steps = scheduler_args['max_steps']
+        max_steps = scheduler_config.args.max_steps
 
     # Instantiate the LR schedule
-    schedule = scheduler(optimizer, **scheduler_args)
+    schedule = scheduler(optimizer, **scheduler_config.args)
 
     logging.info(
         'Scheduler "%s" will be used during training (effective maximum steps = %d)', str(schedule), max_steps

@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from omegaconf import ListConfig, OmegaConf
-
 from collections import OrderedDict
 
 import torch
+from omegaconf import ListConfig, OmegaConf
 
 from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
 from nemo.core.classes import NeuralModule, typecheck
