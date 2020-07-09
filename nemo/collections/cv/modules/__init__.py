@@ -14,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.cv.modules.lenet5 import *
+from nemo.collections.cv.modules.lenet5 import LeNet5
