@@ -131,7 +131,7 @@ class WaveglowPTL(ModelPT):
         dataset = nemo_tts_jason.data.datalayers.AudioDataset(
             manifest_filepath=path, n_segments=16000, min_duration=0.1, max_duration=None, trim=False,
         )
-        return torch.utils.data.DataLoader(dataset, batch_size=12, shuffle=True, collate_fn=dataset._collate_fn)
+        return torch.utils.data.DataLoader(dataset, batch_size=24, shuffle=True, collate_fn=dataset._collate_fn)
 
     def configure_optimizers(self):
         # return [self.__optimizer], [self.__scheduler]
@@ -164,7 +164,7 @@ class WaveglowPTL(ModelPT):
     def setup_validation_data(self, path):
         # TODO: Should n_segments be 16k? But it seems to help with memory footprint
         dataset = nemo_tts_jason.data.datalayers.AudioDataset(
-            manifest_filepath=path, n_segments=16000, min_duration=0.1, max_duration=None, trim=False,
+            manifest_filepath=path, n_segments=30000, min_duration=0.1, max_duration=None, trim=False,
         )
         return torch.utils.data.DataLoader(dataset, batch_size=12, shuffle=False, collate_fn=dataset._collate_fn)
 
