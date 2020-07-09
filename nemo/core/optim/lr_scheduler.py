@@ -320,6 +320,7 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
         ]
         return new_lrs
 
+
 # TODO: Can we add something like this to be consistent with Optimizer?
 # AVAILABLE_SCHEDULERS = {'CosineAnnealing': CosineAnnealing}
 

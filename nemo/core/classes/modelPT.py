@@ -97,11 +97,10 @@ class ModelPT(LightningModule, Model):
             # TODO: Remove after demonstration
             logging.info("Optimizer config = %s", str(optimizer))
         else:
-            #TODO: maybe this was why scheduler was not working for me
+            # TODO: maybe this was why scheduler was not working for me
             optimizer_cls = get_optimizer(optim_params.name)
             lr = optim_params.lr
             optimizer = optimizer_cls(self.parameters(), lr=lr, **optim_params.args)
-            #optimizer = optimizer(self.parameters(), **optimizer_config.args)
-
+            # optimizer = optimizer(self.parameters(), **optimizer_config.args)
 
         return optimizer
