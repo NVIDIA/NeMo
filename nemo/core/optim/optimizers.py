@@ -82,7 +82,7 @@ def _autocast(value):
         return values
 
     # If value is string `none` or `None`, parse as None
-    if value == 'none' or 'None':
+    if value in ('none', 'None'):
         return None
 
     # Try type cast and return

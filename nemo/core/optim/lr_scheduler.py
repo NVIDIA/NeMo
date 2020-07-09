@@ -70,7 +70,6 @@ class WarmupPolicy(_LRScheduler):
             )
 
         step = self.last_epoch
-
         if step <= self.warmup_steps:
             lr_val = (step + 1) / (self.warmup_steps + 1)
             return [initial_lr * lr_val for initial_lr in self.base_lrs]
@@ -216,7 +215,6 @@ class SquareAnnealing(WarmupPolicy):
 class SquareRootAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
-
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
@@ -230,7 +228,6 @@ class SquareRootAnnealing(WarmupPolicy):
 class CosineAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
-
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):

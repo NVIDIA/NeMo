@@ -26,6 +26,53 @@ pipeline {
         sh 'python setup.py style'
       }
     }
+
+    stage('Installation') {
+      steps {
+        sh './reinstall.sh'
+      }
+    }
+
+    stage('L2: Parallel NLP Examples 1') {
+      failFast true
+      parallel {
+        stage ('Text Classification with BERT Test') {
+          steps {
+            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --max_epochs=1 --max_seq_length=50 --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=dev --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
+            sh 'rm -rf examples/nlp/text_classification/outputs'
+          }
+        }
+      }
+    }
+
+    stage('L2: NLP-BERT pretraining BERT on the fly preprocessing') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_text.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wikitext-2/  --batch_size 64 --config_file /home/TestData/nlp/bert_configs/bert_3200.json --lr 0.01 --warmup_ratio 0.05 --max_steps=300 --tokenizer_name=sentencepiece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1'
+          sh 'rm -rf examples/nlp/lightning_logs'
+        }
+    }
+
+    stage('L2: NLP-BERT pretraining BERT offline preprocessing') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 300'
+          sh 'rm -rf examples/nlp/lightning_logs'
+        }
+    }
+
   }
   post {
     always {

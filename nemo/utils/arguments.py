@@ -103,3 +103,28 @@ def add_asr_args(parent_parser: ArgumentParser) -> ArgumentParser:
     parser.add_argument("--train_dataset", type=str, required=True, default=None, help="training dataset path")
     parser.add_argument("--eval_dataset", type=str, required=True, help="evaluation dataset path")
     return parser
+
+
+def add_nlp_args(parent_parser: ArgumentParser) -> ArgumentParser:
+    """Extends existing argparse with default NLP collection args.
+
+    Args:
+        parent_parser (ArgumentParser): Custom CLI parser that will be extended.
+
+    Returns:
+        ArgumentParser: Parser extended by NeMo NLP Collection arguments.
+    """
+    parser = ArgumentParser(parents=[parent_parser], add_help=False, conflict_handler='resolve')
+    parser.add_argument(
+        "--data_dir", type=str, required=True, help="data directory to training or/and evaluation dataset"
+    )
+    parser.add_argument("--config_file", type=str, required=False, help="Huggingface model configuration file")
+    parser.add_argument(
+        "--pretrained_model_name", default='bert-base-uncased', type=str, required=False, help="pretrained model name"
+    )
+    parser.add_argument(
+        "--tokenizer_name", default='nemobert', type=str, choices=['sentencepiece', 'nemobert'], help="Tokenizer type"
+    )
+    parser.add_argument("--tokenizer_model", default=None, type=str, help="Tokenizer file for sentence piece")
+    parser.add_argument("--do_lower_case", action='store_true', required=False, help="lower case data")
+    return parser
