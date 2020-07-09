@@ -14,9 +14,8 @@
 
 import math
 import warnings
-from typing import Any, Dict, Optional
-
 from functools import partial
+from typing import Any, Dict, Optional
 
 import torch.optim as optim
 import torch.utils.data.dataloader as dataloader
@@ -321,9 +320,9 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
         ]
         return new_lrs
 
-AVAILABLE_SCHEDULERS = {
-    'CosineAnnealing': CosineAnnealing
-}
+
+AVAILABLE_SCHEDULERS = {'CosineAnnealing': CosineAnnealing}
+
 
 def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler:
     """
