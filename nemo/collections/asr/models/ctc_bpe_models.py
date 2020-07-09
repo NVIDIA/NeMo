@@ -18,7 +18,7 @@ import torch
 
 from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
-from nemo.collections.asr.metrics.wer_bpe import monitor_asr_train_progress
+from nemo.collections.asr.metrics.wer_bpe import WordErrorRateBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -101,6 +101,11 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Initialize a dummy vocabulary
         decoder_params['init_params']['vocabulary'] = self.tokenizer.tokenizer.get_vocab()
 
+        # Remove special tokens
+        for special_token in self.tokenizer.tokenizer.all_special_tokens:
+            if special_token in decoder_params['init_params']['vocabulary']:
+                decoder_params['init_params']['vocabulary'].pop(special_token)
+
         # Override number of classes if placeholder provided
         if decoder_params['init_params']['num_classes'] < 1:
 
@@ -117,6 +122,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             spec_augment_params=spec_augment_params,
         )
 
+        self._wer = WordErrorRateBPE(tokenizer=self.tokenizer, ctc_decode=True)
+
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         self.train()
@@ -127,11 +134,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], tokenizer=self.tokenizer
-        )
-        # print("Prediction", prediction)
-        # print("Reference", reference)
+        wer = self._wer(predictions, transcript, transcript_len)
         tensorboard_logs = {
             'train_loss': loss_value,
             'training_wer': wer,
@@ -145,15 +148,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
         )
-        # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-
-        # TODO: use metrics here
-        wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], tokenizer=self.tokenizer
-        )
+        wer = self._wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer': wer}
 
 

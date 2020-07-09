@@ -15,6 +15,7 @@
 from typing import List
 
 import torch
+from pytorch_lightning.metrics import TensorMetric
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -42,7 +43,7 @@ def __ctc_decoder_predictions_tensor(tensor, tokenizer: TokenizerSpec):
     return hypotheses
 
 
-def monitor_asr_train_progress(tensors: list, tokenizer: TokenizerSpec, eval_metric='WER'):
+def monitor_asr_train_progress(tensors: list, tokenizer: TokenizerSpec, eval_metric='WER', ctc_decode=True):
     """
     Takes output of greedy ctc decoder and performs ctc decoding algorithm to
     remove duplicates and special symbol. Prints sample to screen, computes
@@ -51,6 +52,8 @@ def monitor_asr_train_progress(tensors: list, tokenizer: TokenizerSpec, eval_met
       tensors: A list of 3 tensors (predictions, targets, target_lengths)
       labels: A list of labels
       eval_metric: An optional string from 'WER', 'CER'. Defaults to 'WER'.
+      ctc_decode: Bool whether CTC or RNNT decoding should be applied.
+        Currently unimplemented.
     Returns:
       batch wer, hypothesis and reference from the first batch element
     """
@@ -67,13 +70,31 @@ def monitor_asr_train_progress(tensors: list, tokenizer: TokenizerSpec, eval_met
             target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
             reference = tokenizer.ids_to_text(target)
             references.append(reference)
-        hypotheses = __ctc_decoder_predictions_tensor(tensors[0], tokenizer=tokenizer)
+        if ctc_decode:
+            hypotheses = __ctc_decoder_predictions_tensor(tensors[0], tokenizer=tokenizer)
+        else:
+            raise NotImplementedError("Currently, we only support WER for CTC models' output")
 
     eval_metric = eval_metric.upper()
     if eval_metric not in {'WER', 'CER'}:
         raise ValueError('eval_metric must be \'WER\' or \'CER\'')
     use_cer = True if eval_metric == 'CER' else False
     wer = word_error_rate(hypotheses, references, use_cer=use_cer)
-    # logging.info(f'Prediction: {hypotheses[0]}')
-    # logging.info(f'Reference: {references[0]}')
     return wer, hypotheses[0], references[0]
+
+
+class WordErrorRateBPE(TensorMetric):
+    def __init__(self, tokenizer: TokenizerSpec, ctc_decode=True):
+        super(WordErrorRateBPE, self).__init__(name="WER-BPE")
+        self.tokenizer = tokenizer
+        self.ctc_decode = ctc_decode
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
+        wer, _, _ = monitor_asr_train_progress(
+            tensors=[predictions, targets, target_lengths],
+            tokenizer=self.tokenizer,
+            eval_metric='WER',
+            ctc_decode=self.ctc_decode,
+        )
+        wer = torch.tensor(wer, dtype=predictions.dtype, device=predictions.device)
+        return wer
