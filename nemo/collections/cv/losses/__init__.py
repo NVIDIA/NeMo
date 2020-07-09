@@ -14,4 +14,4 @@
 # limitations under the License.
 # =============================================================================
 
-from nemo.collections.cv.losses.nll_loss import *
+from nemo.collections.cv.losses.nll_loss import NLLLoss

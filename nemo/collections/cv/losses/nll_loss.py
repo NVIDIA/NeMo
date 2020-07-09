@@ -22,8 +22,6 @@ from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import ClassificationTarget, LogprobsType, LossType, NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['NLLLoss']
-
 
 @experimental
 class NLLLoss(torch_NLLLoss, Serialization, Typing):
