@@ -27,7 +27,7 @@ __all__ = ['SpanningLoss']
 @experimental
 class SpanningLoss(Loss):
     """
-    implements QuestionAnswering loss.
+    implements start and end loss of a span e.g. for Question Answering.
     """
 
     @property
@@ -46,8 +46,8 @@ class SpanningLoss(Loss):
         """
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "start_logits": NeuralType(('B', 'T'), ChannelType()),
-            "end_logits": NeuralType(('B', 'T'), ChannelType()),
+            "start_logits": NeuralType(('B', 'T'), LogitsType()),
+            "end_logits": NeuralType(('B', 'T'), LogitsType()),
         }
 
     def __init__(self,):

@@ -71,6 +71,7 @@ class SquadDataset(Dataset):
             does not exist. Defaults to None.
         mode (str): Use "train", "eval" or "test" to define between
             training and evaluation.
+        use_cache (bool): Caches preprocessed data for future usage
     """
 
     def __init__(

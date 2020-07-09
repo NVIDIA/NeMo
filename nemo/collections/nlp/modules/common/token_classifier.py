@@ -50,7 +50,7 @@ class TokenClassifier(NeuralModule):
         self,
         hidden_size: int,
         num_classes: int,
-        num_layers: int = 1,
+        num_layers: int = 2,
         activation: str = 'relu',
         log_softmax: bool = True,
         dropout: float = 0.0,
@@ -82,9 +82,9 @@ class TokenClassifier(NeuralModule):
         """
         Performs the forward step of the module.
         Args:
-            :param hidden_states: batch of hidden states (for example, from the BERT encoder module)
+            hidden_states: batch of hidden states (for example, from the BERT encoder module)
                 [BATCH_SIZE x SEQ_LENGTH x HIDDEN_SIZE]
-            :return: logits value for each class [BATCH_SIZE x SEQ_LENGTH x NUM_CLASSES]
+        Returns: logits value for each class [BATCH_SIZE x SEQ_LENGTH x NUM_CLASSES]
         """
         hidden_states = self.dropout(hidden_states)
         logits = self.mlp(hidden_states)
@@ -94,7 +94,7 @@ class TokenClassifier(NeuralModule):
         """
         Saves the module to the specified path.
         Args:
-            :param save_path: Path to where to save the module.
+            save_path: Path to where to save the module.
         """
         pass
 
@@ -103,7 +103,7 @@ class TokenClassifier(NeuralModule):
         """
         Restores the module from the specified path.
         Args:
-            :param restore_path: Path to restore the module from.
+            restore_path: Path to restore the module from.
         """
         pass
 
@@ -132,7 +132,7 @@ class BertPretrainingTokenClassifier(NeuralModule):
         self,
         hidden_size: int,
         num_classes: int,
-        num_layers: int = 1,
+        num_layers: int = 2,
         activation: str = 'relu',
         log_softmax: bool = True,
         dropout: float = 0.0,
@@ -143,13 +143,13 @@ class BertPretrainingTokenClassifier(NeuralModule):
         Initializes the Token Classifier module.
 
         Args:
-            :param hidden_size: the size of the hidden dimension
-            :param num_classes: number of classes
-            :param num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            :param activation: activation to usee between fully connected layers in the MLP
-            :param log_softmax: whether to apply softmax to the output of the MLP
-            :param dropout: dropout to apply to the input hidden states
-            :param use_transformer_init: whether to use pre-trained transformer weights for weights initialization
+            hidden_size: the size of the hidden dimension
+            num_classes: number of classes
+            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            activation: activation to usee between fully connected layers in the MLP
+            log_softmax: whether to apply softmax to the output of the MLP
+            dropout: dropout to apply to the input hidden states
+            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__()
         if activation not in ACT2FN:
@@ -169,9 +169,9 @@ class BertPretrainingTokenClassifier(NeuralModule):
         """
         Performs the forward step of the module.
         Args:
-            :param hidden_states: batch of hidden states (for example, from the BERT encoder module)
+            hidden_states: batch of hidden states (for example, from the BERT encoder module)
                 [BATCH_SIZE x SEQ_LENGTH x HIDDEN_SIZE]
-            :return: logits value for each class [BATCH_SIZE x SEQ_LENGTH x NUM_CLASSES]
+        Returns: logits value for each class [BATCH_SIZE x SEQ_LENGTH x NUM_CLASSES]
         """
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.dense(hidden_states)
@@ -184,7 +184,7 @@ class BertPretrainingTokenClassifier(NeuralModule):
         """
         Saves the module to the specified path.
         Args:
-            :param save_path: Path to where to save the module.
+            save_path: Path to where to save the module.
         """
         pass
 
@@ -193,6 +193,6 @@ class BertPretrainingTokenClassifier(NeuralModule):
         """
         Restores the module from the specified path.
         Args:
-            :param restore_path: Path to restore the module from.
+            restore_path: Path to restore the module from.
         """
         pass

@@ -61,14 +61,14 @@ class QAModel(ModelPT):
     ):
         """
         Args:
-            :param num_classes: number of classes
-            :param pretrained_model_name: pretrained language model name, to see the complete list use
-            :param config_file: model config file
-            :param num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            :param activation: activation to usee between fully connected layers in the MLP
-            :param log_softmax: whether to apply softmax to the output
-            :param dropout: dropout to apply to the input hidden states
-            :param use_transformer_init: whether to use pre-trained transformer weights for weights initialization
+            num_classes: number of classes
+            pretrained_model_name: pretrained language model name, to see the complete list use
+            config_file: model config file
+            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            activation: activation to usee between fully connected layers in the MLP
+            log_softmax: whether to apply softmax to the output
+            dropout: dropout to apply to the input hidden states
+            use_transformer_init: whether to use pre-trained transformer weights for weights initialization
         """
         # init superclass
         super().__init__()
@@ -99,10 +99,6 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        """
-        No special modification required for Lightning, define it as you normally would
-        in the `nn.Module` in vanilla PyTorch.
-        """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
@@ -110,11 +106,6 @@ class QAModel(ModelPT):
         return logits
 
     def training_step(self, batch, batch_idx):
-        """
-        Lightning calls this inside the training loop with the data from the training dataloader
-        passed in as `batch`.
-        """
-        # forward pass
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
@@ -123,27 +114,19 @@ class QAModel(ModelPT):
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
-        """
-        Lightning calls this inside the validation loop with the data from the validation dataloader
-        passed in as `batch`.
-        """
-        # forward pass
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, start_logits, end_logits = self.loss(
             logits=logits, start_positions=start_positions, end_positions=end_positions
         )
 
-        tensorboard_logs = {'val_loss': loss}
-        return {'val_loss': loss, 'log': tensorboard_logs}
+        return {'val_loss': loss}
 
     def validation_epoch_end(self, outputs):
-        """
-        Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
-        """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'val_loss': avg_loss}
+
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_layer_params: Optional[Dict]):
         if 'shuffle' not in train_data_layer_params:
