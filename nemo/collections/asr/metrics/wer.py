@@ -135,4 +135,4 @@ class WordErrorRate(TensorMetric):
             eval_metric='WER',
             ctc_decode=self.ctc_decode,
         )
-        return wer
+        return torch.tensor(wer).cuda()
