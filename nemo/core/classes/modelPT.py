@@ -142,7 +142,9 @@ class ModelPT(LightningModule, Model):
 
                 except Exception as e:
                     logging.error(
-                        "Could not instantiate class path - {} with kwargs {}".format(optimizer_cls, str(optimizer_config))
+                        "Could not instantiate class path - {} with kwargs {}".format(
+                            optimizer_cls, str(optimizer_config)
+                        )
                     )
                     raise e
 
