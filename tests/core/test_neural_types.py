@@ -27,7 +27,6 @@ from nemo.core.neural_types import (
     ElementType,
     MelSpectrogramType,
     MFCCSpectrogramType,
-    NeuralPortNmTensorMismatchError,
     NeuralType,
     NeuralTypeComparisonResult,
     SpectrogramType,
