@@ -48,3 +48,5 @@ class TrainerConfig:
     max_epochs: int = 1000
     min_epochs: int = 1
     distributed_backend: Optional[str] = None
+    max_steps: Optional[int] = None
+    accumulate_grad_batches: int = 1
