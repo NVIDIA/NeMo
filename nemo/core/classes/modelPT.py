@@ -119,16 +119,18 @@ class ModelPT(LightningModule, Model):
 
                 logging.info("About to instantiate optimizer")
 
-                optimizer_instance = hydra.utils.instantiate(optimizer_cls, self.parameters(), **optimizer_config)  # type: DictConfig
+                optimizer_instance = hydra.utils.instantiate(
+                    optimizer_cls, self.parameters(), **optimizer_config
+                )  # type: DictConfig
 
                 logging.info("Optimizer config = %s", str(optimizer_instance))
 
                 return optimizer_instance
 
             except Exception as e:
-                logging.error("Could not instantiate class path - {} with kwargs {}".format(
-                    optimizer_cls, str(optimizer_config)
-                ))
+                logging.error(
+                    "Could not instantiate class path - {} with kwargs {}".format(optimizer_cls, str(optimizer_config))
+                )
                 raise e
 
         else:
