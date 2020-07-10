@@ -35,6 +35,30 @@ Add PyTorch Lightning Trainer arguments from CLI:
 
 Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
+
+Override some args of optimizer:
+    python speech_to_text.py \
+    AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" \
+    AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" \
+    hydra.run.dir="." \
+    pl.trainer.gpus=2 \
+    pl.trainer.max_epochs=2 \
+    optim.args.params.betas=[0.8,0.5] \
+    optim.args.params.weight_decay=0.0001
+
+Overide optimizer entirely
+    python speech_to_text.py \
+    AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" \
+    AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" \
+    hydra.run.dir="." \
+    pl.trainer.gpus=2 \
+    pl.trainer.max_epochs=2 \
+    optim.name=adamw \
+    optim.lr=0.001 \
+    ~optim.args \
+    +optim.args.betas=[0.8,0.5]\
+    +optim.args.weight_decay=0.0005
+
 """
 
 
@@ -53,21 +77,22 @@ def main(cfg):
     asr_model.setup_validation_data(cfg.AudioToTextDataLayer_eval)
 
     # Setup optimizer and scheduler
-    if cfg.pl.trainer.max_steps is None:
-        if cfg.pl.trainer.gpus == 0:
-            # training on CPU
-            iters_per_batch = cfg.pl.trainer.max_epochs / float(cfg.pl.trainer.num_nodes * cfg.accumulate_grad_batches)
+    if 'sched' in cfg.optim:
+        if cfg.pl.trainer.max_steps is None:
+            if cfg.pl.trainer.gpus == 0:
+                # training on CPU
+                iters_per_batch = cfg.pl.trainer.max_epochs / float(
+                    cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
+                )
+            else:
+                iters_per_batch = cfg.pl.trainer.max_epochs / float(
+                    cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
+                )
+            cfg.optim.sched.iters_per_batch = iters_per_batch
         else:
-            iters_per_batch = cfg.pl.trainer.max_epochs / float(
-                cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.accumulate_grad_batches
-            )
-        cfg.lr_scheduler.iters_per_batch = iters_per_batch
-    else:
-        cfg.lr_scheduler.max_steps = cfg.pl.trainer.max_steps
+            cfg.optim.sched.max_steps = cfg.pl.trainer.max_steps
 
-    asr_model.setup_optimization(cfg.optim_params)
-    # TODO: Fix scheduler
-    # asr_model.setup_lr_scheduler(cfg.lr_scheduler)
+    asr_model.setup_optimization(cfg.optim)
 
     trainer = pl.Trainer(**cfg.pl.trainer)
     trainer.fit(asr_model)

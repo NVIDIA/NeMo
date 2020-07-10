@@ -12,4 +12,4 @@ wrapt
 ruamel.yaml
 scikit-learn
 scipy
-hydra-core
+hydra-core==1.0.0rc1

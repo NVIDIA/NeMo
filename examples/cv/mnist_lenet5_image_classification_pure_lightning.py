@@ -48,6 +48,28 @@ def main(cfg: DictConfig):
     # The "model" - with dataloader/dataset inside of it.
     lenet5 = MNISTLeNet5(cfg.model)
 
+    # Setup train data loader and optimizer
+    lenet5.setup_training_data()
+
+    # Setup optimizer and scheduler
+    if 'sched' in cfg.model.optim:
+        if cfg.trainer.max_steps is None:
+            if cfg.trainer.gpus == 0:
+                # training on CPU
+                iters_per_batch = cfg.trainer.max_epochs / float(
+                    cfg.trainer.num_nodes * cfg.trainer.accumulate_grad_batches
+                )
+            else:
+                iters_per_batch = cfg.trainer.max_epochs / float(
+                    cfg.trainer.gpus * cfg.trainer.num_nodes * cfg.trainer.accumulate_grad_batches
+                )
+            cfg.model.optim.sched.iters_per_batch = iters_per_batch
+        else:
+            cfg.model.optim.sched.max_steps = cfg.trainer.max_steps
+
+    # Setup optimizer and scheduler
+    lenet5.setup_optimization()
+
     # Create trainer.
     trainer = ptl.Trainer(**(cfg.trainer))
 
