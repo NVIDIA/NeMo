@@ -12,23 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
 import torch
-from omegaconf import DictConfig
+from omegaconf import MISSING, DictConfig
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes.common import Serialization, typecheck
+from nemo.core.classes.common import typecheck
+from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
+
+
+@dataclass
+class EncDecCTCModelConfig(ModelPTConfig):
+    preprocessor: DictConfig = MISSING
+    encoder: DictConfig = MISSING
+    decoder: DictConfig = MISSING
+    spec_augment: Optional[DictConfig] = None
 
 
 @experimental
@@ -80,7 +90,26 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
+    def setup_optimization(
+        self,
+        optim_config: Optional[Union[DictConfig, dict]] = None,
+        trainer_config: Optional[Union[DictConfig, Dict]] = None,
+    ) -> torch.optim.Optimizer:
+        # Setup optimizer and scheduler
+        if 'sched' in optim_config:
+            if trainer_config.max_steps is None:
+                if trainer_config.gpus == 0:
+                    # training on CPU
+                    iters_per_batch = trainer_config.max_epochs / float(
+                        trainer_config.num_nodes * trainer_config.accumulate_grad_batches
+                    )
+                else:
+                    iters_per_batch = trainer_config.max_epochs / float(
+                        trainer_config.gpus * trainer_config.num_nodes * trainer_config.accumulate_grad_batches
+                    )
+                optim_config.sched.iters_per_batch = iters_per_batch
+            else:
+                optim_config.sched.max_steps = trainer_config.max_steps
         self.__optimizer = super().setup_optimization(optim_config)
         self.__scheduler = prepare_lr_scheduler(
             optimizer=self.__optimizer, scheduler_config=optim_config, train_dataloader=self.__train_dl
@@ -123,38 +152,33 @@ class EncDecCTCModel(ASRModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    def __init__(
-        self,
-        preprocessor_config: DictConfig,
-        encoder_config: DictConfig,
-        decoder_config: DictConfig,
-        spec_augment_config: Optional[DictConfig] = None,
-    ):
+    def __init__(self, cfg: EncDecCTCModelConfig, trainer_config: Optional[Union[DictConfig, Dict]] = None):
         super().__init__()
-        # self.preprocessor = Serialization.from_config_dict(preprocessor_config)
-        self.preprocessor = hydra.utils.instantiate(preprocessor_config)
-        # self.encoder = Serialization.from_config_dict(encoder_config)
-        self.encoder = hydra.utils.instantiate(encoder_config)
-        # self.decoder = Serialization.from_config_dict(decoder_config)
-        self.decoder = hydra.utils.instantiate(decoder_config)
+        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
+        self.encoder = hydra.utils.instantiate(cfg.encoder)
+        self.decoder = hydra.utils.instantiate(cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if spec_augment_config is not None:
-            # self.spec_augmentation = Serialization.from_config_dict(spec_augment_config)
-            self.spec_augmentation = hydra.utils.instantiate(spec_augment_config)
+        if cfg.spec_augment is not None:
+            self.spec_augmentation = hydra.utils.instantiate(cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
+        # Setup metric objects
+        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
+        # TODO: SHOULD THIS LOGIC JUST GOT TO MODELPT ?
         # This will be set by setup_training_data
         self.__train_dl = None
         # This will be set by setup_validation_data
         self.__val_dl = None
         # This will be set by setup_test_data
         self.__test_dl = None
+        self.setup_training_data(cfg.train_ds)
+        self.setup_validation_data(cfg.validation_ds)
         # This will be set by setup_optimization
         self.__optimizer = None
         self.__scheduler = None
-
-        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self.setup_optimization(cfg.optim, trainer_config=trainer_config)
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
@@ -175,7 +199,6 @@ class EncDecCTCModel(ASRModel):
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
         )
-        # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )

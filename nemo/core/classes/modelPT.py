@@ -14,6 +14,7 @@
 
 import inspect
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
@@ -23,9 +24,19 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.config.base_config import Config
 from nemo.utils import logging
 
-__all__ = ['ModelPT']
+__all__ = ['ModelPT', 'ModelPTConfig']
+
+
+@dataclass
+class ModelPTConfig(Config):
+    """Inherit from this class when you parametrize NeMo models"""
+
+    optim: Optional[DictConfig] = None
+    train_ds: Optional[DictConfig] = None
+    validation_ds: Optional[DictConfig] = None
 
 
 class ModelPT(LightningModule, Model):
@@ -65,7 +76,11 @@ class ModelPT(LightningModule, Model):
         """
         raise NotImplementedError()
 
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None) -> Optimizer:
+    def setup_optimization(
+        self,
+        optim_config: Optional[Union[DictConfig, Dict]] = None,
+        trainer_config: Optional[Union[DictConfig, Dict]] = None,
+    ) -> Optimizer:
         """
         Prepares an optimizer from a string name and its optional config parameters.
 
