@@ -1,11 +1,40 @@
 #model: "QuartzNet15x5"
 sample_rate: &sample_rate 16000
-accumulate_grad_batches: &accumulate_grad_batches 1
+repeat: &repeat 1
+dropout: &dropout 0.0
+separable: &separable true
 
-optim_params:
-  name: adam 
+optim:
+  name: novograd
   lr: .01
-  args: {}
+  # optimizer arguments
+  args:
+    name: auto
+    # cls: nemo.core.config.optimizers.NovogradParams
+    params:
+      betas: [0.8, 0.5]
+      weight_decay: 0.001
+
+  # scheduler setup
+  sched:
+    name: CosineAnnealing
+
+    # pytorch lightning args
+    monitor: val_loss
+    iters_per_batch: null # computed at runtime
+    max_steps: null # computed at runtime or explicitly set here
+    reduce_on_plateau: false
+
+    # scheduler config override
+    args:
+      name: auto
+      # cls: nemo.core.config.schedulers.CosineAnnealingParams
+      params:
+        warmup_steps: null
+        warmup_ratio: null
+        min_lr: 0.0
+        last_epoch: -1
+
 
 pl:
   trainer:
@@ -14,17 +43,8 @@ pl:
     max_steps: null # computed at runtime if not set
     num_nodes: 1
     distributed_backend: ddp
-    accumulate_grad_batches: *accumulate_grad_batches
+    accumulate_grad_batches: 1
 
-lr_scheduler:
-  name: CosineAnnealing
-  monitor: val_loss
-  iters_per_batch: null # computed at runtime
-  args:
-    #warmup_ratio: .02
-    min_lr: 0.0
-    last_epoch: false
-    max_steps: null # computed at runtime
 
 labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
@@ -33,7 +53,7 @@ AudioToTextDataLayer:
     manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 8
+    batch_size: 32
     trim_silence: True
     max_duration: 16.7
     shuffle: True
@@ -42,7 +62,7 @@ AudioToTextDataLayer_eval:
     manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
     sample_rate: 16000
     labels: *labels
-    batch_size: 8
+    batch_size: 32
     shuffle: False
 
 preprocessor:
@@ -57,7 +77,7 @@ preprocessor:
         n_fft: 512
         frame_splicing: 1
         dither: 0.00001
-        stft_conv: true
+        stft_conv: false
 
 spec_augment:
     cls: nemo.collections.asr.modules.SpectrogramAugmentation
@@ -69,153 +89,87 @@ spec_augment:
 encoder:
     cls: nemo.collections.asr.modules.ConvASREncoder
     params:
+        feat_in: *n_mels
         activation: relu
         conv_mask: true
-        feat_in: *n_mels
+
         jasper:
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [33]
-          repeat: 1
-          residual: false
-          separable: true
-          stride: [2]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [33]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [33]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [33]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [39]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [39]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 256
-          kernel: [39]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [51]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [51]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [51]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [63]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [63]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [63]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [75]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [75]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 512
-          kernel: [75]
-          repeat: 5
-          residual: true
-          separable: true
-          stride: [1]
-        - dilation: [2]
-          dropout: 0.0
-          filters: 512
-          kernel: [87]
-          repeat: 1
-          residual: false
-          separable: true
-          stride: [1]
-        - dilation: [1]
-          dropout: 0.0
-          filters: 1024
-          kernel: [1]
-          repeat: 1
-          residual: false
-          stride: [1]
+          - filters: 128
+            repeat: 1
+            kernel: [11]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+            se: true
+            se_context_size: -1
+
+          - filters: 256
+            repeat: *repeat
+            kernel: [13]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+            se: true
+            se_context_size: -1
+
+          - filters: 256
+            repeat: *repeat
+            kernel: [15]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+            se: true
+            se_context_size: -1
+
+          - filters: 256
+            repeat: *repeat
+            kernel: [17]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+            se: true
+            se_context_size: -1
+
+          - filters: 256
+            repeat: *repeat
+            kernel: [19]
+            stride: [1]
+            dilation: [1]
+            dropout: *dropout
+            residual: true
+            separable: *separable
+            se: true
+            se_context_size: -1
+
+          - filters: 256
+            repeat: 1
+            kernel: [21]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: *separable
+            se: true
+            se_context_size: -1
+
+          - filters: &enc_feat_out 1024
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: *separable
+            se: true
+            se_context_size: -1
 
 decoder:
     cls: nemo.collections.asr.modules.ConvASRDecoder
