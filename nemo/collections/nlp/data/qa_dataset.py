@@ -29,6 +29,7 @@ from nemo import logging
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.data_utils import DataProcessor, is_whitespace, normalize_answer
 from nemo.core.classes import Dataset
+
 # WIP add back evaluation metrics
 # from nemo.collections.nlp.metrics.squad_metrics import (
 #     _get_best_indexes,

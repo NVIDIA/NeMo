@@ -129,6 +129,7 @@ class StepLRParams(SchedulerParams):
     Config for StepLR.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
+
     step_size: float = 0.1
     gamma: float = 0.1
 
@@ -139,6 +140,7 @@ class ExponentialLRParams(SchedulerParams):
     Config for ExponentialLR.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
+
     gamma: float = 0.9
 
 
@@ -148,6 +150,7 @@ class ReduceLROnPlateauParams:
     Config for ReduceLROnPlateau.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
+
     mode: str = 'min'
     factor: float = 0.1
     patience: int = 10
@@ -168,12 +171,13 @@ class CyclicLRParams(SchedulerParams):
 
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
+
     base_lr: float = 0.001
     max_lr: float = 0.1
     step_size_up: int = 2000
     step_size_down: Optional[int] = None
     mode: str = 'triangular'
-    gamma: float = 1.
+    gamma: float = 1.0
     scale_mode: str = 'cycle'
     # scale_fn is not supported
     cycle_momentum: bool = True
