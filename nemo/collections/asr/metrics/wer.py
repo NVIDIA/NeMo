@@ -18,10 +18,7 @@ import editdistance
 import torch
 from pytorch_lightning.metrics import TensorMetric
 
-
-def __levenshtein(a: List[str], b: List[str]) -> int:
-    """Calculates the Levenshtein distance between a and b."""
-    return editdistance.eval(a, b)
+__all__ = ['word_error_rate', 'WER']
 
 
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
@@ -52,7 +49,7 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
             h_list = h.split()
             r_list = r.split()
         words += len(r_list)
-        scores += __levenshtein(h_list, r_list)
+        scores += editdistance.eval(h_list, r_list)
     if words != 0:
         wer = 1.0 * scores / words
     else:
@@ -60,80 +57,97 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     return wer
 
 
-def __ctc_decoder_predictions_tensor(tensor, labels):
+class WER(TensorMetric):
     """
-    Decodes a sequence of labels to words
-    """
-    blank_id = len(labels)
-    hypotheses = []
-    labels_map = dict([(i, labels[i]) for i in range(len(labels))])
-    prediction_cpu_tensor = tensor.long().cpu()
-    # iterate over batch
-    for ind in range(prediction_cpu_tensor.shape[0]):
-        prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
-        # CTC decoding procedure
-        decoded_prediction = []
-        previous = len(labels)  # id of a blank symbol
-        for p in prediction:
-            if (p != previous or previous == blank_id) and p != blank_id:
-                decoded_prediction.append(p)
-            previous = p
-        hypothesis = ''.join([labels_map[c] for c in decoded_prediction])
-        hypotheses.append(hypothesis)
-    return hypotheses
+    This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference texts.
+    When doing distributed training/evaluation the result of res=WER(predictions, targets, target_lengths) calls
+    will be all-reduced between all workers using SUM operations.
+    Here contains two numbers res=[wer_numerator, wer_denominator]. WER=wer_numerator/wer_denominator.
 
+    If used with PytorchLightning LightningModule, include wer_numerator and wer_denominators inside validation_step results.
+    Then aggregate (sum) then at the end of validation epoch to correctly compute validation WER.
 
-def monitor_asr_train_progress(tensors: list, labels: list, eval_metric='WER', ctc_decode=True):
-    """
-    Takes output of greedy ctc decoder and performs ctc decoding algorithm to
-    remove duplicates and special symbol. Prints sample to screen, computes
-    and logs AVG WER to console
+    Example:
+        def validation_step(self, batch, batch_idx):
+            ...
+            wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+
+        def validation_epoch_end(self, outputs):
+            ...
+            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+
     Args:
-      tensors: A list of 3 tensors (predictions, targets, target_lengths)
-      labels: A list of labels
-      eval_metric: An optional string from 'WER', 'CER'. Defaults to 'WER'.
+        vocabulary:
+        batch_dim_index:
+        use_cer:
+        ctc_decode:
+
     Returns:
-      batch wer, hypothesis and reference from the first batch element
+        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominators]. To correctly compute average
+        text word error rate, compute wer=wer_numerator/wer_denominators
     """
-    references = []
 
-    labels_map = dict([(i, labels[i]) for i in range(len(labels))])
-    with torch.no_grad():
-        # prediction_cpu_tensor = tensors[0].long().cpu()
-        targets_cpu_tensor = tensors[1].long().cpu()
-        tgt_lenths_cpu_tensor = tensors[2].long().cpu()
-
-        # iterate over batch
-        for ind in range(targets_cpu_tensor.shape[0]):
-            tgt_len = tgt_lenths_cpu_tensor[ind].item()
-            target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-            reference = ''.join([labels_map[c] for c in target])
-            references.append(reference)
-        if ctc_decode:
-            hypotheses = __ctc_decoder_predictions_tensor(tensors[0], labels=labels)
-        else:
-            raise NotImplementedError("Currently, we only support WER for CTC models' output")
-
-    eval_metric = eval_metric.upper()
-    if eval_metric not in {'WER', 'CER'}:
-        raise ValueError('eval_metric must be \'WER\' or \'CER\'')
-    use_cer = True if eval_metric == 'CER' else False
-    wer = word_error_rate(hypotheses, references, use_cer=use_cer)
-    return wer, hypotheses[0], references[0]
-
-
-class WordErrorRate(TensorMetric):
-    def __init__(self, labels: list, ctc_decode=True, num_workers=1):
-        super(WordErrorRate, self).__init__(name="WER")
-        self.labels = labels
+    def __init__(self, vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True):
+        super(WER, self).__init__(name="WER")
+        self.batch_dim_index = batch_dim_index
+        self.blank_id = len(vocabulary)
+        self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
+        self.use_cer = use_cer
         self.ctc_decode = ctc_decode
-        self.num_workers = num_workers
+
+    def __ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+        """
+        Decodes a sequence of labels to words
+        """
+        hypotheses = []
+        # Drop predictions to CPU
+        prediction_cpu_tensor = predictions.long().cpu()
+        # iterate over batch
+        for ind in range(prediction_cpu_tensor.shape[self.batch_dim_index]):
+            prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
+            # CTC decoding procedure
+            decoded_prediction = []
+            previous = self.blank_id
+            for p in prediction:
+                if (p != previous or previous == self.blank_id) and p != self.blank_id:
+                    decoded_prediction.append(p)
+                previous = p
+            hypothesis = ''.join([self.labels_map[c] for c in decoded_prediction])
+            hypotheses.append(hypothesis)
+        return hypotheses
 
     def forward(self, predictions: torch.Tensor, targets: torch.Tensor, target_lengths: torch.Tensor) -> torch.Tensor:
-        wer, _, _ = monitor_asr_train_progress(
-            tensors=[predictions, targets, target_lengths],
-            labels=self.labels,
-            eval_metric='WER',
-            ctc_decode=self.ctc_decode,
-        )
-        return torch.tensor(wer / self.num_workers).to(predictions.device)
+        words = 0.0
+        scores = 0.0
+        references = []
+        with torch.no_grad():
+            # prediction_cpu_tensor = tensors[0].long().cpu()
+            targets_cpu_tensor = targets.long().cpu()
+            tgt_lenths_cpu_tensor = target_lengths.long().cpu()
+
+            # iterate over batch
+            for ind in range(targets_cpu_tensor.shape[self.batch_dim_index]):
+                tgt_len = tgt_lenths_cpu_tensor[ind].item()
+                target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
+                reference = ''.join([self.labels_map[c] for c in target])
+                references.append(reference)
+            if self.ctc_decode:
+                hypotheses = self.__ctc_decoder_predictions_tensor(predictions)
+            else:
+                raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
+
+        for h, r in zip(hypotheses, references):
+            if self.use_cer:
+                h_list = list(h)
+                r_list = list(r)
+            else:
+                h_list = h.split()
+                r_list = r.split()
+            words += len(r_list)
+            # Compute Levenstein's distance
+            scores += editdistance.eval(h_list, r_list)
+        return torch.tensor([scores, words]).to(predictions.device)
