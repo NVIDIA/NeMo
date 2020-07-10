@@ -193,7 +193,7 @@ def main():
             'warmup_ratio': args.warmup_ratio,
             'warmup_steps': args.warmup_steps,
             'last_epoch': args.last_epoch,
-        }
+        },
     }
 
     model.setup_optimization(
@@ -202,9 +202,9 @@ def main():
             'lr': args.lr,
             'args': {
                 "name": "auto",  # name of the optimizer config
-                "params": {}  # Put args.opt_args here explicitly
+                "params": {},  # Put args.opt_args here explicitly
             },
-            'sched':  scheduler_args
+            'sched': scheduler_args,
         }
     )
 
