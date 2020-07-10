@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Customizing the configuration &mdash; nemo 0.10.1 documentation</title>
+  <title>Customizing the configuration &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -87,7 +87,9 @@
 <li class="toctree-l1"><a class="reference internal" href="intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -168,7 +170,7 @@
 </pre></div>
 </div>
 <p>Now let us define the <code class="xref py py-class docutils literal notranslate"><span class="pre">CustomTaylorNet</span></code> Neural Module class:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomTaylorNet</span><span class="p">(</span><span class="n">nemo</span><span class="o">.</span><span class="n">tutorials</span><span class="o">.</span><span class="n">TaylorNet</span><span class="p">):</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomTaylorNet</span><span class="p">(</span><span class="n">TaylorNet</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Module which learns Taylor&#39;s coefficients. Extends the original module by a custom status enum.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">status</span><span class="p">:</span> <span class="n">Status</span><span class="p">):</span>
@@ -176,39 +178,20 @@
         <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Status: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">status</span><span class="p">))</span>
 </pre></div>
 </div>
-<p>In order to properly handle the export of the <code class="xref py py-class docutils literal notranslate"><span class="pre">Status</span></code> enum we must implement a custom function <code class="xref py py-meth docutils literal notranslate"><span class="pre">export_to_config()</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="k">def</span> <span class="nf">export_to_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_file</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            A custom method exporting configuration to a YAML file.</span>
+<p>In order to properly handle the export of the <code class="xref py py-class docutils literal notranslate"><span class="pre">Status</span></code> enum we must implement a custom function <code class="xref py py-meth docutils literal notranslate"><span class="pre">_serialize_configuration()</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="n">init_to_export</span> <span class="o">=</span> <span class="p">{}</span>
 
-<span class="sd">            Args:</span>
-<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># &quot;Serialize&quot; dim.</span>
+        <span class="n">init_to_export</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span>
 
-        <span class="c1"># Greate an absolute path.</span>
-        <span class="n">abs_path_file</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
-
-        <span class="c1"># Create the dictionary to be exported.</span>
-        <span class="n">to_export</span> <span class="o">=</span> <span class="p">{}</span>
-
-        <span class="c1"># Add &quot;header&quot; with module &quot;specification&quot;.</span>
-        <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_config_header</span><span class="p">()</span>
-
-        <span class="c1"># Add init parameters.</span>
-        <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span>
-
-        <span class="c1"># Custom processing of the status.</span>
-        <span class="k">if</span> <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">Status</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
-            <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># Custom &quot;serialization&quot; of the status.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">Status</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="n">init_to_export</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">init_to_export</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
 
-        <span class="c1"># All parameters are ok, let&#39;s export.</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">abs_path_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
-            <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">to_export</span><span class="p">,</span> <span class="n">outfile</span><span class="p">)</span>
-
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">&quot;Configuration of module </span><span class="si">{}</span><span class="s2"> (</span><span class="si">{}</span><span class="s2">) exported to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">abs_path_file</span><span class="p">)</span>
+        <span class="c1"># Return serialized parameters.</span>
+        <span class="k">return</span> <span class="n">init_to_export</span>
 </pre></div>
 </div>
 <p>Note that the configuration is actually a dictionary consisting of two sections:</p>
@@ -220,60 +203,38 @@
 </div></blockquote>
 <p>Those parameters are stored in the protected <code class="docutils literal notranslate"><span class="pre">self._init_params</span></code>  field of the base <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code> class.
 It is assumed that (aside of this use-case) the user won’t access nor use them directly.</p>
-<p>Analogically, we must overload the <code class="xref py py-meth docutils literal notranslate"><span class="pre">import_from_config()</span></code> method:</p>
+<p>Analogically, we must overload the <code class="xref py py-meth docutils literal notranslate"><span class="pre">_deserialize_configuration()</span></code> method:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">import_from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite_params</span><span class="o">=</span><span class="p">{}):</span>
+    <span class="k">def</span> <span class="nf">_deserialize_configuration</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">init_params</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            A custom method importing the YAML configuration file.</span>
-<span class="sd">            Raises an ImportError exception when config file is invalid or</span>
-<span class="sd">            incompatible (when called from a particular class).</span>
+<span class="sd">            A function that deserializes the module &quot;configuration (i.e. init parameters).</span>
 
 <span class="sd">            Args:</span>
-<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
-
-<span class="sd">                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)</span>
-
-<span class="sd">                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default</span>
-<span class="sd">                parameters loaded from the configuration file</span>
+<span class="sd">                init_params: List of init parameters loaded from the YAML file.</span>
 
 <span class="sd">            Returns:</span>
-<span class="sd">                Instance of the created NeuralModule object.</span>
+<span class="sd">                A &quot;deserialized&quot; list with init parameters.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">deserialized_params</span> <span class="o">=</span> <span class="p">{}</span>
 
-        <span class="c1"># Validate the content of the configuration file (its header).</span>
-        <span class="n">loaded_config</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_validate_config_file</span><span class="p">(</span><span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="p">)</span>
+        <span class="c1"># &quot;Deserialize&quot; dim.</span>
+        <span class="n">deserialized_params</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;dim&quot;</span><span class="p">]</span>
 
-        <span class="c1"># Get init parameters.</span>
-        <span class="n">init_params</span> <span class="o">=</span> <span class="n">loaded_config</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span>
-        <span class="c1"># Update parameters with additional ones.</span>
-        <span class="n">init_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overwrite_params</span><span class="p">)</span>
-
-        <span class="c1"># Custom processing of the status.</span>
+        <span class="c1"># Custom &quot;deserialization&quot; of the status.</span>
         <span class="k">if</span> <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">success</span>
+            <span class="n">deserialized_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">success</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">init_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">error</span>
+            <span class="n">deserialized_params</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Status</span><span class="o">.</span><span class="n">error</span>
 
-        <span class="c1"># Create and return the object.</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">CustomTaylorNet</span><span class="p">(</span><span class="o">**</span><span class="n">init_params</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">&quot;Instantiated a new Neural Module of type `</span><span class="si">{}</span><span class="s2">` using configuration loaded from the `</span><span class="si">{}</span><span class="s2">` file&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                <span class="s2">&quot;CustomTaylorNet&quot;</span><span class="p">,</span> <span class="n">config_file</span>
-            <span class="p">)</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">obj</span>
+        <span class="c1"># Return deserialized parameters.</span>
+        <span class="k">return</span> <span class="n">deserialized_params</span>
 </pre></div>
 </div>
-<p>Please note that the base <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code> class provides several protected methods that we used, with most important being:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">_create_config_header()</span></code> generating the appropriate header, and </p></li>
-<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">_validate_config_file()</span></code> validating the loaded configuration file (checking the header content).</p></li>
-</ul>
-</div></blockquote>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>It is once again worth emphasizing that the <code class="xref py py-meth docutils literal notranslate"><span class="pre">import_from_config()</span></code> is a class method, actually returning a new object instance - in this case of the hardcoded <code class="xref py py-class docutils literal notranslate"><span class="pre">CustomTaylorNet</span></code> type.</p>
+<p>It is worth emphasizing that the <code class="xref py py-meth docutils literal notranslate"><span class="pre">_deserialize_configuration()</span></code> is a class method,
+analogically to public <code class="xref py py-meth docutils literal notranslate"><span class="pre">import_from_config()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">deserialize()</span></code> methods
+that return a new object instance - in this case of the hardcoded <code class="xref py py-class docutils literal notranslate"><span class="pre">CustomTaylorNet</span></code> type.</p>
 </div>
 <p>Now we can simply create an instance and export its configuration by calling:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Instantiate a simple feed-forward, single layer neural network.</span>

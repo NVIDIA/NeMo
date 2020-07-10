@@ -1,7 +1,7 @@
+.. _bert_pretraining:
 
-
-Tutorial
-========
+BERT Pre-training Tutorial
+==========================
 
 In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture :cite:`nlp-bert-devlin2018bert`.
 Make sure you have ``nemo`` and ``nemo_nlp`` installed before starting this tutorial. See the :ref:`installation` section for more details.
@@ -33,6 +33,12 @@ Model results on downstream tasks:
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+
 | BERT-large-uncased                          | 85.79% | 92.28% | 80.17% | 83.32% | 88.72% | 91.96% |
 +---------------------------------------------+--------+--------+--------+--------+--------+--------+
+
+BioBERT Large Cased Model (~330M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:biobertlargecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:biobertlargecasedfornemo>`__
+
+BioBERT Base Cased Model (~110M parameters):
+`https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedfornemo <https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedfornemo>`__
 
 Introduction
 ------------
@@ -127,8 +133,7 @@ This tutorial assumes that you're training on one GPU, without mixed precision. 
 
     .. code-block:: python
 
-        nf = nemo.core.NeuralModuleFactory(backend=nemo.core.Backend.PyTorch,
-                                           local_rank=args.local_rank,
+        nf = nemo.core.NeuralModuleFactory(local_rank=args.local_rank,
                                            optimization_level=args.amp_opt_level,
                                            log_dir=work_dir,
                                            create_tb_writer=True,

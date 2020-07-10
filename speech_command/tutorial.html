@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Datasets" href="datasets.html" />
-    <link rel="prev" title="Speech Commands" href="intro.html" /> 
+    <link rel="prev" title="Installation" href="installation_link.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,7 +89,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Commands</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="installation_link.html">Installation</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Tutorial</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#data-preparation">Data Preparation</a></li>
@@ -108,6 +110,7 @@
 <li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -246,7 +249,7 @@ parameters required to get good model accuracy.</p>
 <p>QuartzNet models generally follow the model definition pattern QuartzNet-[BxR], where B is the number of blocks and R is the number of
 convolutional sub-blocks. Each sub-block contains a 1-D masked convolution, batch normalization, ReLU, and dropout:</p>
 <blockquote>
-<div><img alt="quartznet model" class="align-center" src="../_images/quartz_vertical1.png" />
+<div><img alt="quartznet model" class="align-center" src="../_images/quartz_vertical2.png" />
 </div></blockquote>
 <p>In the tutorial we will be using model QuartzNet [3x1].
 The script below does both training and evaluation (on V1 dataset) on single GPU:</p>
@@ -279,7 +282,7 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
     <span class="n">process_classification_evaluation_epoch</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="n">logging</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">logging</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 
 <span class="c1"># Lets define some hyper parameters</span>
 <span class="n">lr</span> <span class="o">=</span> <span class="mf">0.05</span>
@@ -523,7 +526,6 @@ The script below does both training and evaluation (on V1 dataset) on single GPU
 Make sure it is installed prior to attempting mixed precision training.</p>
 <p>To train with mixed-precision all you need is to set <cite>optimization_level</cite> parameter of <cite>nemo.core.NeuralModuleFactory</cite>  to <cite>nemo.core.Optimization.mxprO1</cite>. For example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-    <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
     <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
     <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">,</span>
     <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
@@ -616,7 +618,7 @@ but they can similarly be used for v2 dataset.</p>
 <span class="kn">import</span> <span class="nn">nemo</span>
 <span class="kn">import</span> <span class="nn">nemo.collections.asr</span> <span class="k">as</span> <span class="nn">nemo_asr</span>
 
-<span class="n">logging</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">logging</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 
 <span class="c1"># We add some</span>
 <span class="n">data_dir</span> <span class="o">=</span> <span class="s1">&#39;&lt;path to the data directory&gt;&#39;</span>
@@ -844,7 +846,7 @@ but they can similarly be used for v2 dataset.</p>
         <a href="datasets.html" class="btn btn-neutral float-right" title="Datasets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="intro.html" class="btn btn-neutral float-left" title="Speech Commands" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="installation_link.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

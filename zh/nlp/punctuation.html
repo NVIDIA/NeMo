@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>教程 &mdash; nemo 0.10.1 documentation</title>
+  <title>教程 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -257,8 +257,7 @@ OU OO OO OO ...
 </div>
 <p>接着，我们需要用支持的后端创建 neural factory。 这个教程假设你在单卡 GPU 上训练，混精度 (<code class="docutils literal notranslate"><span class="pre">optimization_level=&quot;O1&quot;</span></code>)。如果你不想用混精度训练，设置 <code class="docutils literal notranslate"><span class="pre">optimization_level</span></code> 为 <code class="docutils literal notranslate"><span class="pre">O0</span></code>。</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">WORK_DIR</span><span class="p">,</span>
                                    <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">)</span>

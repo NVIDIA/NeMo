@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="joint_intent_slot_filling.html" />
+    <link rel="next" title="Tutorial" href="question_answering.html" />
     <link rel="prev" title="Tutorial" href="ner.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,12 +89,17 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
@@ -108,9 +113,9 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -184,7 +189,7 @@
            <div itemprop="articleBody">
             
   <div class="section" id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<span id="punctuation"></span><h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>An ASR system typically generates text with no punctuation and capitalization of the words. This tutorial explains how to implement a model in NeMo that will predict punctuation and capitalization for each word in a sentence to make ASR output more readable and to boost performance of the downstream tasks such as name entity recognition or machine translation. We’ll show how to train network for this task using a pre-trained BERT model.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -258,8 +263,7 @@ OU OO OO OO ...
 </div>
 <p>Then, we need to create our neural factory with the supported backend. This tutorial assumes that you’re training on a single GPU, with mixed precision (<code class="docutils literal notranslate"><span class="pre">optimization_level=&quot;O1&quot;</span></code>). If you don’t want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">optimization_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O0</span></code>.</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="s2">&quot;O1&quot;</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">WORK_DIR</span><span class="p">,</span>
                                    <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">GPU</span><span class="p">)</span>
@@ -270,10 +274,13 @@ OU OO OO OO ...
 BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from <a class="reference external" href="https://huggingface.co/transformers">transformers</a> . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the <cite>–bert_checkpoint</cite> argument in the training script.
 The pretrained back-bone models can be specified <cite>–pretrained_model_name</cite>.
-See the list of available pre-trained models by calling <cite>nemo.collections.nlp.nm.trainables.get_bert_models_list()</cite>. </p>
+See the list of available pre-trained models by calling <cite>nemo_nlp.nm.trainables.get_pretrained_lm_models_list()</cite>. </p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">=</span><span class="n">PRETRAINED_BERT_MODEL</span><span class="p">)</span>
-<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">get_pretrained_lm_model</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">PRETRAINED_BERT_MODEL</span><span class="p">)</span>
+
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">tokenizers</span><span class="o">.</span><span class="n">get_tokenizer</span><span class="p">(</span>
+    <span class="n">tokenizer_name</span><span class="o">=</span><span class="s2">&quot;nemobert&quot;</span><span class="p">,</span>
     <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">PRETRAINED_BERT_MODEL</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -307,19 +314,15 @@ See the list of available pre-trained models by calling <cite>nemo.collections.n
 </pre></div>
 </div>
 </div></blockquote>
-<p>Now, create punctuation and capitalization classifiers to sit on top of the pretrained BERT model and define the task loss function:</p>
+<p>Now, create punctuation-capitalization classifier to sit on top of the pretrained BERT model and define the task loss function:</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">punct_classifier</span> <span class="o">=</span> <span class="n">TokenClassifier</span><span class="p">(</span>
-                                   <span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
-                                   <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">punct_label_ids</span><span class="p">),</span>
-                                   <span class="n">dropout</span><span class="o">=</span><span class="n">CLASSIFICATION_DROPOUT</span><span class="p">,</span>
-                                   <span class="n">num_layers</span><span class="o">=</span><span class="n">PUNCT_NUM_FC_LAYERS</span><span class="p">,</span>
-                                   <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Punctuation&#39;</span><span class="p">)</span>
-
-<span class="n">capit_classifier</span> <span class="o">=</span> <span class="n">TokenClassifier</span><span class="p">(</span><span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
-                                   <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">capit_label_ids</span><span class="p">),</span>
-                                   <span class="n">dropout</span><span class="o">=</span><span class="n">CLASSIFICATION_DROPOUT</span><span class="p">,</span>
-                                   <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Capitalization&#39;</span><span class="p">)</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">classifier</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">PunctCapitTokenClassifier</span><span class="p">(</span>
+      <span class="n">hidden_size</span><span class="o">=</span><span class="n">hidden_size</span><span class="p">,</span>
+      <span class="n">punct_num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">punct_label_ids</span><span class="p">),</span>
+      <span class="n">capit_num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">capit_label_ids</span><span class="p">),</span>
+      <span class="n">dropout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+      <span class="n">punct_num_layers</span><span class="o">=</span><span class="n">PUNCT_NUM_FC_LAYERS</span>
+  <span class="p">)</span>
 
 
 <span class="c1"># If you don&#39;t want to use weighted loss for Punctuation task, use class_weights=None</span>
@@ -341,8 +344,7 @@ See the list of available pre-trained models by calling <cite>nemo.collections.n
                       <span class="n">token_type_ids</span><span class="o">=</span><span class="n">input_type_ids</span><span class="p">,</span>
                       <span class="n">attention_mask</span><span class="o">=</span><span class="n">input_mask</span><span class="p">)</span>
 
-<span class="n">punct_logits</span> <span class="o">=</span> <span class="n">punct_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
-<span class="n">capit_logits</span> <span class="o">=</span> <span class="n">capit_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">punct_logits</span><span class="p">,</span> <span class="n">capit_logits</span> <span class="o">=</span> <span class="n">classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
 
 <span class="n">punct_loss</span> <span class="o">=</span> <span class="n">punct_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">punct_logits</span><span class="p">,</span>
                         <span class="n">labels</span><span class="o">=</span><span class="n">punct_labels</span><span class="p">,</span>
@@ -360,8 +362,7 @@ See the list of available pre-trained models by calling <cite>nemo.collections.n
                            <span class="n">token_type_ids</span><span class="o">=</span><span class="n">eval_input_type_ids</span><span class="p">,</span>
                            <span class="n">attention_mask</span><span class="o">=</span><span class="n">eval_input_mask</span><span class="p">)</span>
 
-<span class="n">eval_punct_logits</span> <span class="o">=</span> <span class="n">punct_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
-<span class="n">eval_capit_logits</span> <span class="o">=</span> <span class="n">capit_classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
+<span class="n">eval_punct_logits</span><span class="p">,</span> <span class="n">eval_capit_logits</span> <span class="o">=</span> <span class="n">classifier</span><span class="p">(</span><span class="n">hidden_states</span><span class="o">=</span><span class="n">hidden_states</span><span class="p">)</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -532,7 +533,7 @@ python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="question_answering.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="ner.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

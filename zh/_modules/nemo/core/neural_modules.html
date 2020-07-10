@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.core.neural_modules &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.core.neural_modules &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -155,10 +155,7 @@
            <div itemprop="articleBody">
             
   <h1>Source code for nemo.core.neural_modules</h1><div class="highlight"><pre>
-<span></span><span class="c1"># ! /usr/bin/python</span>
-<span class="c1"># -*- coding: utf-8 -*-</span>
-
-<span class="c1"># Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.</span>
+<span></span><span class="c1"># Copyright (c) 2019-, NVIDIA CORPORATION. All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
 <span class="c1"># you may not use this file except in compliance with the License.</span>
@@ -172,34 +169,37 @@
 <span class="c1"># See the License for the specific language governing permissions and</span>
 <span class="c1"># limitations under the License.</span>
 
-<span class="sd">&quot;&quot;&quot;This file contains NeuralModule and NmTensor classes.&quot;&quot;&quot;</span>
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;WeightShareTransform&#39;</span><span class="p">,</span> <span class="s1">&#39;NeuralModule&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;WeightShareTransform&#39;</span><span class="p">,</span> <span class="s1">&#39;NeuralModule&#39;</span><span class="p">,</span> <span class="s1">&#39;PretrainedModelInfo&#39;</span><span class="p">,</span> <span class="s1">&#39;ModuleType&#39;</span><span class="p">,</span> <span class="s1">&#39;OperationMode&#39;</span><span class="p">]</span>
 
-<span class="kn">import</span> <span class="nn">collections</span>
 <span class="kn">import</span> <span class="nn">uuid</span>
-<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">Enum</span>
 <span class="kn">from</span> <span class="nn">inspect</span> <span class="kn">import</span> <span class="n">getargvalues</span><span class="p">,</span> <span class="n">getfullargspec</span><span class="p">,</span> <span class="n">stack</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="kn">import</span> <span class="n">path</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span>
 
 <span class="kn">from</span> <span class="nn">ruamel.yaml</span> <span class="kn">import</span> <span class="n">YAML</span>
 
-<span class="kn">from</span> <span class="nn">.neural_types</span> <span class="kn">import</span> <span class="p">(</span>
-    <span class="n">CanNotInferResultNeuralType</span><span class="p">,</span>
-    <span class="n">NeuralPortNameMismatchError</span><span class="p">,</span>
-    <span class="n">NeuralPortNmTensorMismatchError</span><span class="p">,</span>
-    <span class="n">NeuralType</span><span class="p">,</span>
-    <span class="n">NeuralTypeComparisonResult</span><span class="p">,</span>
-    <span class="n">NmTensor</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span> <span class="nn">nemo</span> <span class="kn">import</span> <span class="n">logging</span>
-<span class="kn">from</span> <span class="nn">nemo.core</span> <span class="kn">import</span> <span class="n">NeuralModuleFactory</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_factory</span> <span class="kn">import</span> <span class="n">NeuralModuleFactory</span><span class="p">,</span> <span class="n">OperationMode</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_interface</span> <span class="kn">import</span> <span class="n">NeuralInterface</span>
+<span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="kn">import</span> <span class="n">NeuralPortNameMismatchError</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">,</span> <span class="n">NmTensor</span>
 <span class="kn">from</span> <span class="nn">nemo.package_info</span> <span class="kn">import</span> <span class="n">__version__</span> <span class="k">as</span> <span class="n">nemo_version</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 <span class="kn">from</span> <span class="nn">nemo.utils.decorators.deprecated</span> <span class="kn">import</span> <span class="n">deprecated</span>
+<span class="kn">from</span> <span class="nn">nemo.utils.neural_graph.connection</span> <span class="kn">import</span> <span class="n">StepModulePort</span>
 
 <span class="n">YAML</span> <span class="o">=</span> <span class="n">YAML</span><span class="p">(</span><span class="n">typ</span><span class="o">=</span><span class="s1">&#39;safe&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ModuleType"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.ModuleType">[docs]</a><span class="k">class</span> <span class="nc">ModuleType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Back-end independent module types &quot;&quot;&quot;</span>
+
+    <span class="n">module</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">datalayer</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">trainable</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">nontrainable</span> <span class="o">=</span> <span class="mi">4</span></div>
 
 
 <div class="viewcode-block" id="WeightShareTransform"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.WeightShareTransform">[docs]</a><span class="k">class</span> <span class="nc">WeightShareTransform</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
@@ -214,14 +214,37 @@
 <span class="p">)</span>
 
 
-<div class="viewcode-block" id="NeuralModule"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule">[docs]</a><span class="k">class</span> <span class="nc">NeuralModule</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Abstract class that every Neural Module must inherit from.</span>
+<div class="viewcode-block" id="NeuralModule"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule">[docs]</a><span class="k">class</span> <span class="nc">NeuralModule</span><span class="p">(</span><span class="n">NeuralInterface</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract class that every Neural Module must inherit from.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># Initialize the inferface.</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="c1"># Retrieve dictionary of parameters (keys, values) passed to init.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__extract_init_params</span><span class="p">()</span>
+
+        <span class="c1"># Get object UUID.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+
+        <span class="c1"># Register module and store the generated name.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">register_module</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># Set &quot;module&quot; type as default.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_type</span> <span class="o">=</span> <span class="n">ModuleType</span><span class="o">.</span><span class="n">module</span>
+
+        <span class="c1"># Set &quot;both&quot; as default operation mode.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_operation_mode</span> <span class="o">=</span> <span class="n">OperationMode</span><span class="o">.</span><span class="n">both</span>
 
         <span class="c1"># Get default factory.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span> <span class="o">=</span> <span class="n">NeuralModuleFactory</span><span class="o">.</span><span class="n">get_default_factory</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span>
+                <span class="s2">&quot;A Neural Module was instantiated without first creating a Neural Factory. Please instantiate the &quot;</span>
+                <span class="s2">&quot;NeuralModuleFactory class first.&quot;</span>
+            <span class="p">)</span>
 
         <span class="c1"># Set module properties from factory else use defaults</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span><span class="o">.</span><span class="n">placement</span>
@@ -230,70 +253,71 @@
         <span class="c1"># Optimization level.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_opt_level</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_factory</span><span class="o">.</span><span class="n">optim_level</span>
 
-        <span class="c1"># Get object UUID.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
-
-        <span class="c1"># Retrieve dictionary of parameters (keys, values) passed to init.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__extract_init_params</span><span class="p">()</span>
-
-        <span class="c1"># Pint the types of the values.</span>
-        <span class="c1"># for key, value in self._init_params.items():</span>
-        <span class="c1">#    print(&quot;{}: {} ({})&quot;.format(key, value, type(value)))</span>
-
-        <span class="c1"># Validate the parameters.</span>
-        <span class="c1"># self._validate_params(self._init_params)</span>
-
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">init_params</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]:</span>
+    <span class="k">def</span> <span class="nf">init_params</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Property returning parameters used to instantiate the module.</span>
+<span class="sd">        Property returning parameters used to instantiate the module.</span>
 
-<span class="sd">            Returns:</span>
-<span class="sd">                Dictionary containing parameters used to instantiate the module.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary containing parameters used to instantiate the module.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span>
 
-    <span class="k">def</span> <span class="nf">__extract_init_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__extract_init_params</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived</span>
-<span class="sd">            (also indirectly) from the Neural Module class.</span>
+<span class="sd">        Retrieves the dictionary of of parameters (keys, values) passed to constructor of a class derived</span>
+<span class="sd">        (also indirectly) from the Neural Module class.</span>
 
-<span class="sd">            Returns:</span>
-<span class="sd">                Dictionary containing parameters passed to init().</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary containing parameters passed to init().</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Get names of arguments of the original module init method.</span>
-        <span class="n">init_keys</span> <span class="o">=</span> <span class="n">getfullargspec</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">to_set_params</span> <span class="o">=</span> <span class="n">getfullargspec</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">to_set_params</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">&quot;self&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Remove self.</span>
-        <span class="k">if</span> <span class="s2">&quot;self&quot;</span> <span class="ow">in</span> <span class="n">init_keys</span><span class="p">:</span>
-            <span class="n">init_keys</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="s2">&quot;self&quot;</span><span class="p">)</span>
+        <span class="c1"># Create empty list of init params.</span>
+        <span class="n">init_params</span> <span class="o">=</span> <span class="p">{}</span>
 
-        <span class="c1"># Create list of params.</span>
-        <span class="n">init_params</span> <span class="o">=</span> <span class="p">{}</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">init_keys</span><span class="p">)</span>
-
-        <span class="c1"># Retrieve values of those params from the call list.</span>
+        <span class="c1"># Get the frame &quot;call context&quot;.</span>
         <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]:</span>
-            <span class="n">localvars</span> <span class="o">=</span> <span class="n">getargvalues</span><span class="p">(</span><span class="n">frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">locals</span>
-            <span class="c1"># print(&quot;localvars: &quot;, localvars)</span>
-            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">init_keys</span><span class="p">:</span>
-                <span class="c1"># Found the variable!</span>
-                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">localvars</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                    <span class="c1"># Save the value.</span>
-                    <span class="n">init_params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">localvars</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="c1"># Get the current call arguments.</span>
+            <span class="n">localvars</span> <span class="o">=</span> <span class="n">getargvalues</span><span class="p">(</span><span class="n">frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="c1"># Fill the parameters with call arguments.</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">to_set_params</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">localvars</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                    <span class="n">init_params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">localvars</span><span class="o">.</span><span class="n">locals</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+            <span class="c1"># Remove all set keys.</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">init_params</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">to_set_params</span><span class="p">:</span>
+                    <span class="n">to_set_params</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+            <span class="c1"># Check if we have set everything.</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">to_set_params</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="c1"># Make sure that we collected ALL (and ONLY) the signature params - if not, then there is a BUG!</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">to_set_params</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Could not collect all the signature params! &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Please file a bug on GitHub with the current stack trace so that it can be reproduced.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># print(&quot;! init_params of {}: {}\n&quot;.format(type(self).__name__, init_params))</span>
 
         <span class="c1"># Return parameters.</span>
         <span class="k">return</span> <span class="n">init_params</span>
 
-    <span class="k">def</span> <span class="nf">__validate_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__validate_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Checks whether dictionary contains parameters being primitive types (string, int, float etc.)</span>
-<span class="sd">            or (lists of)+ primitive types.</span>
+<span class="sd">        Checks whether dictionary contains parameters being primitive types (string, int, float etc.)</span>
+<span class="sd">        or (lists of)+ primitive types.</span>
 
-<span class="sd">            Args:</span>
-<span class="sd">                params: dictionary of parameters.</span>
-
-<span class="sd">            Returns:</span>
-<span class="sd">                True if all parameters were ok, False otherwise.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            params: dictionary of parameters.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            True if all parameters were ok, False otherwise.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ok</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -310,15 +334,14 @@
         <span class="c1"># Return the result.</span>
         <span class="k">return</span> <span class="n">ok</span>
 
-    <span class="k">def</span> <span class="nf">__is_of_allowed_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">var</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__is_of_allowed_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">var</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            A recursive function that checks if a given variable is of allowed type.</span>
+<span class="sd">        A recursive function that checks if a given variable is of allowed type.</span>
 
-<span class="sd">            Args:</span>
-<span class="sd">                pretrained_model_name (str): name of pretrained model to use in order.</span>
-
-<span class="sd">            Returns:</span>
-<span class="sd">                True if all parameters were ok, False otherwise.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pretrained_model_name (str): name of pretrained model to use in order.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            True if all parameters were ok, False otherwise.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Special case: None is also allowed.</span>
         <span class="k">if</span> <span class="n">var</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -344,8 +367,55 @@
         <span class="c1"># Well, seems that everything is ok.</span>
         <span class="k">return</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">_create_config_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; A protected method that create a header stored later in the configuration file. &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="NeuralModule.export_to_config"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.export_to_config">[docs]</a>    <span class="k">def</span> <span class="nf">export_to_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A function that exports module &quot;configuration&quot; (i.e. init parameters) to a YAML file.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config_file: path (absolute or relative) and name of the config file (YML)</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: An error occurred and  parameters coudn&#39;t be exported.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Greate an absolute path.</span>
+        <span class="n">abs_path_file</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+
+        <span class="c1"># Serialize the module.</span>
+        <span class="n">to_export</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize</span><span class="p">()</span>
+
+        <span class="c1"># All parameters are ok, let&#39;s export.</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">abs_path_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
+            <span class="n">YAML</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">to_export</span><span class="p">,</span> <span class="n">outfile</span><span class="p">)</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Configuration of module `</span><span class="si">{}</span><span class="s2">` (</span><span class="si">{}</span><span class="s2">) exported to &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">abs_path_file</span><span class="p">)</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="NeuralModule.serialize"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.serialize">[docs]</a>    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A method serializing the whole Neural module (into a dictionary).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary containing a &quot;serialized&quot; module.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Create a dictionary representing the serialized object.</span>
+        <span class="n">serialized_module</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Add &quot;header&quot; with module &quot;specification&quot;.</span>
+        <span class="n">serialized_module</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__serialize_header</span><span class="p">()</span>
+
+        <span class="c1"># Add init parameters.</span>
+        <span class="n">serialized_module</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_serialize_configuration</span><span class="p">()</span>
+
+        <span class="c1"># Return the dictionary.</span>
+        <span class="k">return</span> <span class="n">serialized_module</span></div>
+
+    <span class="k">def</span> <span class="nf">__serialize_header</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A protected method that creates a header stored later in the configuration file.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Dictionary containing a header with module specification.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># Get module &quot;full specification&quot;.</span>
         <span class="n">module_full_spec</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__module__</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__qualname__</span><span class="p">)</span>
@@ -387,13 +457,17 @@
         <span class="p">}</span>
         <span class="k">return</span> <span class="n">header</span>
 
-<div class="viewcode-block" id="NeuralModule.export_to_config"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.export_to_config">[docs]</a>    <span class="k">def</span> <span class="nf">export_to_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_file</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_serialize_configuration</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            A function that exports module &quot;configuration&quot; (i.e. init parameters) to a YAML file.</span>
-<span class="sd">            Raises a ValueError exception in case then parameters coudn&#39;t be exported.</span>
+<span class="sd">        A function that serializes the module &quot;configuration (i.e. init parameters) to a dictionary.</span>
 
-<span class="sd">            Args:</span>
-<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
+<span class="sd">        ..note:</span>
+<span class="sd">            Thus functions should be overloaded when writing a custom module import/export.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A &quot;serialized&quot; dictionary with module configuration.</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            A ValueError exception in case then parameters coudn&#39;t be exported.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Check if generic export will work.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__validate_params</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span><span class="p">):</span>
@@ -402,42 +476,50 @@
                 <span class="sa">F</span><span class="s2">&quot;or (lists of/dicts of) primitive types. Please implement your own custom `export_to_config()` and &quot;</span>
                 <span class="sa">F</span><span class="s2">&quot;`import_from_config()` methods for your custom Module class.&quot;</span>
             <span class="p">)</span>
+        <span class="c1"># In this case configuration = init parameters.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span>
 
-        <span class="c1"># Greate an absolute path.</span>
-        <span class="n">abs_path_file</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
+<div class="viewcode-block" id="NeuralModule.import_from_config"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.import_from_config">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">import_from_config</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span> <span class="n">config_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">section_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">overwrite_params</span><span class="p">:</span> <span class="n">Dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;NeuralModule&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Class method importing the configuration file.</span>
+<span class="sd">        Raises an ImportError exception when config file is invalid or</span>
+<span class="sd">        incompatible (when called from a particular class).</span>
 
-        <span class="c1"># Create the dictionary to be exported.</span>
-        <span class="n">to_export</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="sd">        Args:</span>
+<span class="sd">            config_file: path (absolute or relative) and name of the config file (YML)</span>
+<span class="sd">            section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)</span>
+<span class="sd">            name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)</span>
+<span class="sd">            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)</span>
+<span class="sd">            the default init parameters loaded from the configuration file (the module &quot;init_params&quot; section).</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            Instance of the created NeuralModule object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Loading configuration of a new Neural Module from the `</span><span class="si">{}</span><span class="s2">` file&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config_file</span><span class="p">))</span>
 
-        <span class="c1"># Add &quot;header&quot; with module &quot;specification&quot;.</span>
-        <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_config_header</span><span class="p">()</span>
+        <span class="c1"># Validate the content of the configuration file (its header).</span>
+        <span class="n">loaded_config</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">__validate_config_file</span><span class="p">(</span><span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="p">)</span>
 
-        <span class="c1"># Add init parameters.</span>
-        <span class="n">to_export</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_init_params</span>
-        <span class="c1"># print(to_export)</span>
+        <span class="c1"># &quot;Deserialize&quot; the module.</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">deserialize</span><span class="p">(</span><span class="n">loaded_config</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">overwrite_params</span><span class="p">)</span>
 
-        <span class="c1"># All parameters are ok, let&#39;s export.</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">abs_path_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
-            <span class="n">YAML</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">to_export</span><span class="p">,</span> <span class="n">outfile</span><span class="p">)</span>
-
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">&quot;Configuration of module </span><span class="si">{}</span><span class="s2"> (</span><span class="si">{}</span><span class="s2">) exported to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_uuid</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">abs_path_file</span><span class="p">)</span>
-        <span class="p">)</span></div>
+        <span class="c1"># Return the new module.</span>
+        <span class="k">return</span> <span class="n">obj</span></div>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_validate_config_file</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__validate_config_file</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">config_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">section_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Class method validating whether the config file has a proper content (sections, specification etc.).</span>
-<span class="sd">            Raises an ImportError exception when config file is invalid or</span>
-<span class="sd">            incompatible (when called from a particular class).</span>
+<span class="sd">        Class method validating whether the config file has a proper content (sections, specification etc.).</span>
+<span class="sd">        Raises an ImportError exception when config file is invalid or</span>
+<span class="sd">        incompatible (when called from a particular class).</span>
 
-<span class="sd">            Args:</span>
-<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
-
-<span class="sd">                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)</span>
-
-<span class="sd">            Returns:</span>
-<span class="sd">                A loaded configuration file (dictionary).</span>
+<span class="sd">        Args:</span>
+<span class="sd">            config_file: path (absolute or relative) and name of the config file (YML)</span>
+<span class="sd">            section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            A loaded configuration file (dictionary).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Greate an absolute path.</span>
         <span class="n">abs_path_file</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
@@ -468,7 +550,7 @@
         <span class="n">spec_list</span> <span class="o">=</span> <span class="n">loaded_config</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">][</span><span class="s2">&quot;full_spec&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
 
         <span class="c1"># Check if config contains data of a compatible class.</span>
-        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">!=</span> <span class="s2">&quot;NeuralModule&quot;</span> <span class="ow">and</span> <span class="n">spec_list</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">__deserialize_header</span><span class="p">(</span><span class="n">loaded_config</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">]),</span> <span class="bp">cls</span><span class="p">):</span>
             <span class="n">txt</span> <span class="o">=</span> <span class="s2">&quot;The loaded file `</span><span class="si">{}</span><span class="s2">` contains configuration of &quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">config_file</span><span class="p">)</span>
             <span class="n">txt</span> <span class="o">=</span> <span class="n">txt</span> <span class="o">+</span> <span class="s2">&quot;`</span><span class="si">{}</span><span class="s2">` thus cannot be used for instantiation of an object of type `</span><span class="si">{}</span><span class="s2">`&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
                 <span class="n">spec_list</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span>
@@ -478,100 +560,147 @@
         <span class="c1"># Success - return configuration.</span>
         <span class="k">return</span> <span class="n">loaded_config</span>
 
-<div class="viewcode-block" id="NeuralModule.import_from_config"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.import_from_config">[docs]</a>    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">import_from_config</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">overwrite_params</span><span class="o">=</span><span class="p">{}):</span>
+<div class="viewcode-block" id="NeuralModule.deserialize"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.deserialize">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">deserialize</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span> <span class="n">configuration</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">overwrite_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;NeuralModule&#39;</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Class method importing the configuration file.</span>
-<span class="sd">            Raises an ImportError exception when config file is invalid or</span>
-<span class="sd">            incompatible (when called from a particular class).</span>
+<span class="sd">        Class method instantiating the neural module object based on the configuration (dictionary).</span>
 
-<span class="sd">            Args:</span>
-<span class="sd">                config_file: path (absolute or relative) and name of the config file (YML)</span>
+<span class="sd">        Args:</span>
+<span class="sd">            configuration: Dictionary containing proper &quot;header&quot; and &quot;init_params&quot; sections.</span>
 
-<span class="sd">                section_name: section in the configuration file storing module configuration (optional, DEFAULT: None)</span>
+<span class="sd">            name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)</span>
 
-<span class="sd">                overwrite_params: Dictionary containing parameters that will be added to or overwrite (!) the default</span>
-<span class="sd">                parameters loaded from the configuration file</span>
+<span class="sd">            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)</span>
+<span class="sd">            the default init parameters loaded from the configuration file (the module &quot;init_params&quot; section).</span>
 
-<span class="sd">            Returns:</span>
-<span class="sd">                Instance of the created NeuralModule object.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            Instance of the created NeuralModule object.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Validate the content of the configuration file (its header).</span>
-        <span class="n">loaded_config</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_validate_config_file</span><span class="p">(</span><span class="n">config_file</span><span class="p">,</span> <span class="n">section_name</span><span class="p">)</span>
+        <span class="c1"># Deserialize header - get object class.</span>
+        <span class="n">module_class</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">__deserialize_header</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">])</span>
 
+        <span class="c1"># Update parameters with additional ones.</span>
+        <span class="n">configuration</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overwrite_params</span><span class="p">)</span>
+
+        <span class="c1"># Override module name in init_params using the logic:</span>
+        <span class="c1">#  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)</span>
+        <span class="c1">#  * name (if None) overrides init_params.name</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">][</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="c1"># Get init parameters.</span>
+        <span class="n">init_params</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_deserialize_configuration</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">])</span>
+
+        <span class="c1"># Create the module instance.</span>
+        <span class="n">new_module</span> <span class="o">=</span> <span class="n">module_class</span><span class="p">(</span><span class="o">**</span><span class="n">init_params</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Instantiated a new Neural Module named `</span><span class="si">{}</span><span class="s2">` of type `</span><span class="si">{}</span><span class="s2">`&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">new_module</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">new_module</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Return the module instance.</span>
+        <span class="k">return</span> <span class="n">new_module</span></div>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__deserialize_header</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">serialized_header</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method deserializes the header and extracts the module class.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            serialized_header: Dictionary containing module header.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            Class of the module to be created.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Parse the &quot;full specification&quot;.</span>
-        <span class="n">spec_list</span> <span class="o">=</span> <span class="n">loaded_config</span><span class="p">[</span><span class="s2">&quot;header&quot;</span><span class="p">][</span><span class="s2">&quot;full_spec&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
+        <span class="n">spec_list</span> <span class="o">=</span> <span class="n">serialized_header</span><span class="p">[</span><span class="s2">&quot;full_spec&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
 
-        <span class="c1"># Get object class from &quot;full specification&quot;.</span>
+        <span class="c1"># Get module class from the &quot;full specification&quot;.</span>
         <span class="n">mod_obj</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">spec_list</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">spec_list</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
             <span class="n">mod_obj</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mod_obj</span><span class="p">,</span> <span class="n">spec</span><span class="p">)</span>
-        <span class="c1"># print(mod_obj)</span>
 
-        <span class="c1"># Get init parameters.</span>
-        <span class="n">init_params</span> <span class="o">=</span> <span class="n">loaded_config</span><span class="p">[</span><span class="s2">&quot;init_params&quot;</span><span class="p">]</span>
-        <span class="c1"># Update parameters with additional ones.</span>
-        <span class="n">init_params</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">overwrite_params</span><span class="p">)</span>
+        <span class="c1"># Return &quot;class&quot;.</span>
+        <span class="k">return</span> <span class="n">mod_obj</span>
 
-        <span class="c1"># Create and return the object.</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">mod_obj</span><span class="p">(</span><span class="o">**</span><span class="n">init_params</span><span class="p">)</span>
-        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">&quot;Instantiated a new Neural Module of type `</span><span class="si">{}</span><span class="s2">` using configuration loaded from the `</span><span class="si">{}</span><span class="s2">` file&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                <span class="n">spec_list</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">config_file</span>
-            <span class="p">)</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">obj</span></div>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_deserialize_configuration</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">serialized_init_params</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A function that deserializes the module &quot;configuration (i.e. init parameters).</span>
 
-<div class="viewcode-block" id="NeuralModule.create_ports"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.create_ports">[docs]</a>    <span class="nd">@deprecated</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="mf">0.11</span><span class="p">)</span>
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">create_ports</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Deprecated method, to be remoted in the next release.&quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
-            <span class="s1">&#39;Deprecated method. Please implement ``inputs`` and ``outputs`` </span><span class="se">\</span>
-<span class="s1">                 properties to define module ports instead&#39;</span>
-        <span class="p">)</span></div>
+<span class="sd">        ..note:</span>
+<span class="sd">            Thus functions should be overloaded when writing a custom module import/export.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            serialized_init_params: List of init parameters loaded from the file.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            A &quot;deserialized&quot; list with init parameters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># In this case configuration = init parameters.</span>
+        <span class="k">return</span> <span class="n">serialized_init_params</span>
 
     <span class="nd">@property</span>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">]]:</span>
-        <span class="sd">&quot;&quot;&quot;Returns definitions of module input ports</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns definitions of module input ports</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">          A (dict) of module&#39;s input ports names to NeuralTypes mapping</span>
+<span class="sd">          A dictionary containing module&#39;s input ports (names, NeuralTypes) mapping.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
     <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">]]:</span>
-        <span class="sd">&quot;&quot;&quot;Returns definitions of module output ports</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns definitions of module output ports</span>
 
 <span class="sd">        Returns:</span>
-<span class="sd">          A (dict) of module&#39;s output ports names to NeuralTypes mapping</span>
+<span class="sd">          A dictionary containing module&#39;s output ports (names, NeuralTypes) mapping.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_disabled_deployment_input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+    <span class="k">def</span> <span class="nf">_disabled_deployment_input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;Returns names of input ports that will not be included in an export</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">          A (set) of module&#39;s input port names that are not exportable</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">set</span><span class="p">([])</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_disabled_deployment_output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+    <span class="k">def</span> <span class="nf">_disabled_deployment_output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
         <span class="sd">&quot;&quot;&quot;Returns names of output ports that will not be included in an export</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">          A (set) of module&#39;s output port names that are not exportable</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="nb">set</span><span class="p">([])</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_prepare_for_deployment</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Patch the module if required to prepare for deployment</span>
 
+<span class="sd">        Returns:</span>
+<span class="sd">            (Optional) input and output example tensors</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">operation_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Returns the operation mode. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_operation_mode</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Returns the type of module. &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_type</span>
+
+    <span class="nd">@operation_mode</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">operation_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">operation_mode</span><span class="p">:</span> <span class="n">OperationMode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Sets the operation mode. &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_operation_mode</span> <span class="o">=</span> <span class="n">operation_mode</span>
 
 <div class="viewcode-block" id="NeuralModule.pretrained_storage"><a class="viewcode-back" href="../../../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule.pretrained_storage">[docs]</a>    <span class="nd">@staticmethod</span>
     <span class="k">def</span> <span class="nf">pretrained_storage</span><span class="p">():</span>
@@ -595,89 +724,113 @@
 <span class="sd">        Returns:</span>
 <span class="sd">          NmTensor object or tuple of NmTensor objects</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Get input and output ports definitions.</span>
-        <span class="n">input_port_defs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_ports</span>
-        <span class="n">output_port_defs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_ports</span>
+        <span class="c1"># print(&quot; Neural Module:__call__&quot;)</span>
 
-        <span class="n">first_input_nmtensor_type</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">input_nmtensors_are_of_same_type</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">for</span> <span class="n">port_name</span><span class="p">,</span> <span class="n">tgv</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="c1"># make sure that passed arguments correspond to input port names</span>
-            <span class="k">if</span> <span class="n">port_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">input_port_defs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-                <span class="k">raise</span> <span class="n">NeuralPortNameMismatchError</span><span class="p">(</span><span class="s2">&quot;Wrong input port name: </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">port_name</span><span class="p">))</span>
+        <span class="c1"># Set the operation mode of the outer graph.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">operation_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">active_graph</span><span class="o">.</span><span class="n">operation_mode</span>
+        <span class="c1"># The input and output ports definitions can potentially depend on the operation mode!</span>
 
-            <span class="n">input_port</span> <span class="o">=</span> <span class="n">input_port_defs</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span>
-            <span class="n">type_comatibility</span> <span class="o">=</span> <span class="n">input_port</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">tgv</span><span class="p">)</span>
-            <span class="k">if</span> <span class="p">(</span>
-                <span class="n">type_comatibility</span> <span class="o">!=</span> <span class="n">NeuralTypeComparisonResult</span><span class="o">.</span><span class="n">SAME</span>
-                <span class="ow">and</span> <span class="n">type_comatibility</span> <span class="o">!=</span> <span class="n">NeuralTypeComparisonResult</span><span class="o">.</span><span class="n">GREATER</span>
-            <span class="p">):</span>
-                <span class="k">raise</span> <span class="n">NeuralPortNmTensorMismatchError</span><span class="p">(</span>
-                    <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">In </span><span class="si">{0}</span><span class="s2">. </span><span class="se">\n</span><span class="s2">&quot;</span>
-                    <span class="s2">&quot;Port: </span><span class="si">{1}</span><span class="s2"> and a NmTensor it was fed are </span><span class="se">\n</span><span class="s2">&quot;</span>
-                    <span class="s2">&quot;of incompatible neural types:</span><span class="se">\n\n</span><span class="si">{2}</span><span class="s2"> </span><span class="se">\n\n</span><span class="s2"> and </span><span class="se">\n\n</span><span class="si">{3}</span><span class="s2">&quot;</span>
-                    <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">Type comparison result: </span><span class="si">{4}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">port_name</span><span class="p">,</span> <span class="n">input_port_defs</span><span class="p">[</span><span class="n">port_name</span><span class="p">],</span> <span class="n">tgv</span><span class="p">,</span> <span class="n">type_comatibility</span><span class="p">,</span>
-                    <span class="p">)</span>
+        <span class="c1"># Record the operation (i.e. add a single module).</span>
+        <span class="n">step_number</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">active_graph</span><span class="o">.</span><span class="n">record_step</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c1">###### PROCESS INPUTS. ######</span>
+        <span class="c1"># Iterate through all passed parameters.</span>
+        <span class="k">for</span> <span class="n">port_name</span><span class="p">,</span> <span class="n">port_content</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># Make sure that passed arguments corresponds to one of the input port names.</span>
+            <span class="k">if</span> <span class="n">port_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_ports</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="n">NeuralPortNameMismatchError</span><span class="p">(</span><span class="n">port_name</span><span class="p">)</span>
+
+            <span class="c1"># At that point the input can be one of three types:</span>
+            <span class="c1"># * NeuralGraph -&gt; bind port using the default name and type.</span>
+            <span class="c1"># * GraphInput -&gt; check definition, if ok bind port.</span>
+            <span class="c1"># * NmTensor -&gt; check definition, add self as a &quot;consumer&quot; of a tensor (produced by other module).</span>
+
+            <span class="c1"># Check what was actually passed.</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">port_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;NeuralGraph&quot;</span><span class="p">:</span>
+                <span class="c1"># Make sure that port_content is the currently active graph!</span>
+                <span class="k">if</span> <span class="n">port_content</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">active_graph</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ConnectionError</span><span class="p">(</span><span class="s2">&quot;Ports can be bound only by passing the active graph object!&quot;</span><span class="p">)</span>
+                <span class="c1"># Create an alias so the logic will be more clear.</span>
+                <span class="n">active_graph</span> <span class="o">=</span> <span class="n">port_content</span>
+
+                <span class="c1"># This case: we are nesting one graph into another and must bind input port of one graph in another!</span>
+                <span class="c1"># So generally we must &quot;copy&quot; the of thus module to graog (the inverted logic!).</span>
+
+                <span class="c1"># Copy the port &quot;definition&quot; (i.e. is NeuralType) using the same port name.</span>
+                <span class="n">active_graph</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_ports</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span>
+
+                <span class="c1"># Bind the neural graph input port, i.e. remember that a given graph port should pass data</span>
+                <span class="c1"># to THIS module-port (when it finally will be connected).</span>
+                <span class="n">active_graph</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">StepModulePort</span><span class="p">(</span><span class="n">step_number</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">port_name</span><span class="p">))</span>
+
+                <span class="c1"># Please note that there are no &quot;consumers&quot; here - this is a &quot;pure binding&quot;.</span>
+
+            <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">port_content</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;GraphInput&quot;</span><span class="p">:</span>
+
+                <span class="c1"># Check if GraphInput belongs to the active graph !</span>
+                <span class="n">own_port</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">gcontent</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">active_graph</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">gcontent</span> <span class="ow">is</span> <span class="n">port_content</span><span class="p">:</span>
+                        <span class="n">own_port</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">own_port</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">NeuralPortNameMismatchError</span><span class="p">(</span><span class="n">port_name</span><span class="p">)</span>
+
+                <span class="c1"># Compare input port definition with the received definition.</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">input_ports</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span><span class="o">.</span><span class="n">compare_and_raise_error</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">port_name</span><span class="p">,</span> <span class="n">port_content</span><span class="o">.</span><span class="n">ntype</span>
                 <span class="p">)</span>
 
-            <span class="c1"># if first_input_nmtensor_type is None:</span>
-            <span class="c1">#     first_input_nmtensor_type = NeuralType(tgv._axis2type)</span>
-            <span class="c1"># else:</span>
-            <span class="c1">#     if first_input_nmtensor_type._axis2type is None:</span>
-            <span class="c1">#         input_nmtensors_are_of_same_type = True</span>
-            <span class="c1">#     else:</span>
-            <span class="c1">#         input_nmtensors_are_of_same_type = first_input_nmtensor_type.compare(</span>
-            <span class="c1">#             tgv</span>
-            <span class="c1">#         ) == NeuralTypeComparisonResult.SAME and len(first_input_nmtensor_type._axis2type)</span>
-            <span class="c1"># if not (</span>
-            <span class="c1">#     type_comatibility == NeuralTypeComparisonResult.SAME</span>
-            <span class="c1">#     or type_comatibility == NeuralTypeComparisonResult.GREATER</span>
-            <span class="c1"># ):</span>
-            <span class="c1">#     raise NeuralPortNmTensorMismatchError(</span>
-            <span class="c1">#         &quot;\n\nIn {0}. \n&quot;</span>
-            <span class="c1">#         &quot;Port: {1} and a NmTensor it was fed are \n&quot;</span>
-            <span class="c1">#         &quot;of incompatible neural types:\n\n{2} \n\n and \n\n{3}&quot;</span>
-            <span class="c1">#         &quot;\n\nType comparison result: {4}&quot;.format(</span>
-            <span class="c1">#             self.__class__.__name__, port_name, input_port_defs[port_name], tgv, type_comatibility,</span>
-            <span class="c1">#         )</span>
-            <span class="c1">#     )</span>
-            <span class="c1"># if type_comatibility == NeuralTypeComparisonResult.LESS:</span>
-            <span class="c1">#     print(&#39;Types were raised&#39;)</span>
+                <span class="c1"># Bind the neural graph input port, i.e. remember that a given graph port should pass data</span>
+                <span class="c1"># to THIS module-port (when it finally will be connected).</span>
+                <span class="n">port_content</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">StepModulePort</span><span class="p">(</span><span class="n">step_number</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">port_name</span><span class="p">))</span>
 
+                <span class="c1"># Please note that there are no &quot;consumers&quot; here - this is a &quot;pure binding&quot;.</span>
+
+            <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">port_content</span><span class="p">)</span> <span class="ow">is</span> <span class="n">NmTensor</span><span class="p">:</span>
+                <span class="c1"># Compare input port definition with the received definition.</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">input_ports</span><span class="p">[</span><span class="n">port_name</span><span class="p">]</span><span class="o">.</span><span class="n">compare_and_raise_error</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">port_name</span><span class="p">,</span> <span class="n">port_content</span><span class="p">)</span>
+
+                <span class="c1"># Ok, the goal here is to actually &quot;connect&quot;: add self (module) as &quot;consumer&quot; to the input tensor.</span>
+                <span class="n">port_content</span><span class="o">.</span><span class="n">add_consumer</span><span class="p">(</span><span class="n">StepModulePort</span><span class="p">(</span><span class="n">step_number</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">port_name</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="s2">&quot;Input &#39;</span><span class="si">{}</span><span class="s2">&#39; must be of one of three types: NeuralGraph, GraphInput or NmTensor&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">port_name</span><span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="c1">###### PRODUCE OUTPUTS. ######</span>
+        <span class="n">output_port_defs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_ports</span>
+        <span class="c1"># Create output tensors.</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">output_port_defs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># Get port name and type.</span>
             <span class="n">out_name</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">output_port_defs</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
             <span class="n">out_type</span> <span class="o">=</span> <span class="n">output_port_defs</span><span class="p">[</span><span class="n">out_name</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">out_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">input_nmtensors_are_of_same_type</span><span class="p">:</span>
-                    <span class="n">out_type</span> <span class="o">=</span> <span class="n">first_input_nmtensor_type</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">(</span>
-                        <span class="s2">&quot;Can&#39;t infer output neural type. Likely your inputs are of different type.&quot;</span>
-                    <span class="p">)</span>
-            <span class="k">return</span> <span class="n">NmTensor</span><span class="p">(</span><span class="n">producer</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">producer_args</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">out_name</span><span class="p">,</span> <span class="n">ntype</span><span class="o">=</span><span class="n">out_type</span><span class="p">,)</span>
+
+            <span class="c1"># Create a single returned tensor.</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="n">NmTensor</span><span class="p">(</span><span class="n">producer</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">producer_args</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">output_port_name</span><span class="o">=</span><span class="n">out_name</span><span class="p">,</span> <span class="n">ntype</span><span class="o">=</span><span class="n">out_type</span><span class="p">,)</span>
+
+            <span class="c1"># Bind the &quot;default&quot; output ports.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">active_graph</span><span class="o">.</span><span class="n">bind_outputs</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">out_port</span><span class="p">,</span> <span class="n">n_type</span> <span class="ow">in</span> <span class="n">output_port_defs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">out_type</span> <span class="o">=</span> <span class="n">n_type</span>
-                <span class="k">if</span> <span class="n">out_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">input_nmtensors_are_of_same_type</span><span class="p">:</span>
-                        <span class="n">out_type</span> <span class="o">=</span> <span class="n">first_input_nmtensor_type</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="k">raise</span> <span class="n">CanNotInferResultNeuralType</span><span class="p">(</span>
-                            <span class="s2">&quot;Can&#39;t infer output neural type. Likely your inputs are of different type.&quot;</span>
-                        <span class="p">)</span>
-                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">NmTensor</span><span class="p">(</span><span class="n">producer</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">producer_args</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">out_port</span><span class="p">,</span> <span class="n">ntype</span><span class="o">=</span><span class="n">out_type</span><span class="p">,))</span>
+            <span class="c1"># Create output tensors.</span>
+            <span class="n">output_tensors</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">out_name</span><span class="p">,</span> <span class="n">out_type</span> <span class="ow">in</span> <span class="n">output_port_defs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">output_tensors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">NmTensor</span><span class="p">(</span><span class="n">producer</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">producer_args</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">output_port_name</span><span class="o">=</span><span class="n">out_name</span><span class="p">,</span> <span class="n">ntype</span><span class="o">=</span><span class="n">out_type</span><span class="p">,)</span>
+                <span class="p">)</span>
 
-            <span class="c1"># Creating ad-hoc class for returning from module&#39;s forward pass.</span>
+            <span class="c1"># Create a named tuple type enabling to access outputs by attributes (e.g. out.x).</span>
             <span class="n">output_class_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{self.__class__.__name__}</span><span class="s1">Output&#39;</span>
-            <span class="n">field_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">output_port_defs</span><span class="p">)</span>
-            <span class="n">result_type</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="n">typename</span><span class="o">=</span><span class="n">output_class_name</span><span class="p">,</span> <span class="n">field_names</span><span class="o">=</span><span class="n">field_names</span><span class="p">,)</span>
+            <span class="n">result_type</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="n">typename</span><span class="o">=</span><span class="n">output_class_name</span><span class="p">,</span> <span class="n">field_names</span><span class="o">=</span><span class="n">output_port_defs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 
-            <span class="c1"># Tie tuple of output tensors with corresponding names.</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="n">result_type</span><span class="p">(</span><span class="o">*</span><span class="n">result</span><span class="p">)</span>
+            <span class="c1"># Create the returned tuple object.</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="n">result_type</span><span class="p">(</span><span class="o">*</span><span class="n">output_tensors</span><span class="p">)</span>
 
-            <span class="k">return</span> <span class="n">result</span>
+            <span class="c1"># Bind the output tensors.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_app_state</span><span class="o">.</span><span class="n">active_graph</span><span class="o">.</span><span class="n">bind_outputs</span><span class="p">(</span><span class="n">output_tensors</span><span class="p">)</span>
+
+        <span class="c1"># Return the results.</span>
+        <span class="k">return</span> <span class="n">results</span>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>

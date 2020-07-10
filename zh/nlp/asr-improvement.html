@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>教程 &mdash; nemo 0.10.1 documentation</title>
+  <title>教程 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -223,7 +223,6 @@ Librispeech 训练数据集包含三个部分: train-clean-100, train-clean-360,
 <p>首先，因为所有的模块都是由NeMo构建的，我们需要初始化 <code class="docutils literal notranslate"><span class="pre">NeuralModuleFactory</span></code> ，我们需要定义 1) 后端(backend) (PyTorch)，2) 混精度优化等级，3) GPU的loca rank以及，4) 一个实验管理器，创建一个时间戳的文件夹来存储 checkpoints 和相关的输出，日志文件以及 TensorBoard 的图。</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-                <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
                 <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
                 <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
                 <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>

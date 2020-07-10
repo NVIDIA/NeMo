@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Speech Recognition &mdash; nemo 0.10.1 documentation</title>
+  <title>Speech Recognition &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="tutorial.html" />
+    <link rel="next" title="Installation" href="installation.html" />
     <link rel="prev" title="Fast Training" href="../training.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,12 +89,16 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Speech Recognition</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
 <li class="toctree-l2"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="8kHz_models.html">8kHz Models</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -168,6 +172,11 @@
 <span id="asr-docs"></span><h1>Speech Recognition<a class="headerlink" href="#speech-recognition" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#torch-audio">Torch Audio</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#numba">Numba</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="tutorial.html">Tutorial</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html#introduction">Introduction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html#get-data">Get data</a></li>
@@ -181,6 +190,10 @@
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html#evaluation">Evaluation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html#evaluation-with-language-model">Evaluation with Language Model</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="tutorial.html#using-kenlm">Using KenLM</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial.html#using-and-converting-to-tarred-datasets">Using and Converting to Tarred Datasets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="tutorial.html#conversion-from-an-existing-dataset-to-tarred-dataset">Conversion from an Existing Dataset to Tarred Dataset</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html#kaldi-compatibility">Kaldi Compatibility</a></li>
@@ -197,12 +210,17 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="models.html">Models</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="jasper.html">Jasper</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quartznet.html">QuartzNet</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quartznet.html#references">References</a></li>
-<li class="toctree-l2"><a class="reference internal" href="models.html#references">References</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jasper.html">Jasper</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="jasper.html#references">References</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="quartznet.html">QuartzNet</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="quartznet.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="8kHz_models.html">8kHz Models</a></li>
 </ul>
 </div>
 </div>
@@ -215,7 +233,7 @@
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="tutorial.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="../training.html" class="btn btn-neutral float-left" title="Fast Training" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

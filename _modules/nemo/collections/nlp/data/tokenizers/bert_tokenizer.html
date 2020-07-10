@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.collections.nlp.data.tokenizers.bert_tokenizer &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.collections.nlp.data.tokenizers.bert_tokenizer &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -87,7 +87,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../collections/modules.html">NeMo Collections API</a></li>
@@ -287,6 +289,13 @@
         <span class="n">tokens_clean</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tokens</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">never_split</span><span class="p">]</span>
         <span class="n">text</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_text</span><span class="p">(</span><span class="n">tokens_clean</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">text</span></div>
+
+<div class="viewcode-block" id="NemoBertTokenizer.add_special_tokens"><a class="viewcode-back" href="../../../../../../collections/nemo_nlp.html#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.add_special_tokens">[docs]</a>    <span class="k">def</span> <span class="nf">add_special_tokens</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">special_tokens_dict</span><span class="p">):</span>
+        <span class="c1"># TODO: check that input&#39;s key is &#39;additional_special_tokens&#39; or name of one of the previous special tokens</span>
+        <span class="c1"># and add them to never split list</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">add_special_tokens</span><span class="p">(</span><span class="n">special_tokens_dict</span><span class="p">)</span>
+        <span class="c1"># self.never_split.append(special_tokens_dict[&quot;additional_special_tokens&quot;])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vocab_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenizer</span><span class="p">)</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">pad_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

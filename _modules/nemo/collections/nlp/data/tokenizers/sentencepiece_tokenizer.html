@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -87,7 +87,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../collections/modules.html">NeMo Collections API</a></li>
@@ -303,23 +305,23 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">pad_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;pad_token&#39;</span><span class="p">)])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">pad_token</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">bos_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;bos_token&#39;</span><span class="p">)])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">bos_token</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">eos_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;eos_token&#39;</span><span class="p">)])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">eos_token</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">sep_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;sep_token&#39;</span><span class="p">)])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">sep_token</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cls_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;cls_token&#39;</span><span class="p">)])[</span><span class="mi">0</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokens_to_ids</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">cls_token</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span></div>
 </pre></div>
 
            </div>

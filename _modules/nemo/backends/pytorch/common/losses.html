@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.backends.pytorch.common.losses &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.backends.pytorch.common.losses &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -87,7 +87,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../collections/modules.html">NeMo Collections API</a></li>
@@ -163,7 +165,7 @@
 <span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="kn">import</span> <span class="n">LabelsType</span><span class="p">,</span> <span class="n">LogitsType</span><span class="p">,</span> <span class="n">LossType</span><span class="p">,</span> <span class="n">MaskType</span><span class="p">,</span> <span class="n">NeuralType</span><span class="p">,</span> <span class="n">RegressionValuesType</span>
 <span class="kn">from</span> <span class="nn">nemo.utils.decorators</span> <span class="kn">import</span> <span class="n">add_port_docs</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SequenceLoss&#39;</span><span class="p">,</span> <span class="s1">&#39;CrossEntropyLossNM&#39;</span><span class="p">,</span> <span class="s1">&#39;MSELoss&#39;</span><span class="p">,</span> <span class="s1">&#39;LossAggregatorNM&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SequenceLoss&#39;</span><span class="p">,</span> <span class="s1">&#39;CrossEntropyLossNM&#39;</span><span class="p">,</span> <span class="s1">&#39;MSELoss&#39;</span><span class="p">,</span> <span class="s1">&#39;LossAggregatorNM&#39;</span><span class="p">,</span> <span class="s1">&#39;BCEWithLogitsLossNM&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="SequenceLoss"><a class="viewcode-back" href="../../../../../collections/core.html#nemo.backends.pytorch.common.losses.SequenceLoss">[docs]</a><span class="k">class</span> <span class="nc">SequenceLoss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
@@ -317,7 +319,7 @@
             <span class="n">labels_flatten</span> <span class="o">=</span> <span class="n">labels_flatten</span><span class="p">[</span><span class="n">loss_mask_flatten</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels_flatten</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="mi">0</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
 
         <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span><span class="p">(</span><span class="n">logits_flatten</span><span class="p">,</span> <span class="n">labels_flatten</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">loss</span></div>
@@ -405,6 +407,68 @@
                 <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">loss_value</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">loss_idx</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">loss_value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loss</span></div>
+
+
+<div class="viewcode-block" id="BCEWithLogitsLossNM"><a class="viewcode-back" href="../../../../../collections/core.html#nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM">[docs]</a><span class="k">class</span> <span class="nc">BCEWithLogitsLossNM</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    CrossEntropyLoss</span>
+<span class="sd">    Args:</span>
+<span class="sd">        logits_ndim (int): number of dimensions (or rank) of the logits tensor</span>
+<span class="sd">        weight (list): list of rescaling weight given to each class</span>
+<span class="sd">        reduction (str): type of the reduction over the batch</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@add_port_docs</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">input_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns definitions of module input ports.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;logits&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">([</span><span class="s1">&#39;B&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;ANY&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_logits_dim</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">LogitsType</span><span class="p">()),</span>
+            <span class="s2">&quot;labels&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">([</span><span class="s1">&#39;B&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;ANY&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_logits_dim</span> <span class="o">-</span> <span class="mi">2</span><span class="p">),</span> <span class="n">LabelsType</span><span class="p">()),</span>
+            <span class="s2">&quot;loss_mask&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">([</span><span class="s1">&#39;B&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;ANY&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_logits_dim</span> <span class="o">-</span> <span class="mi">2</span><span class="p">),</span> <span class="n">MaskType</span><span class="p">(),</span> <span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+        <span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@add_port_docs</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns definitions of module output ports.</span>
+
+<span class="sd">        loss:</span>
+<span class="sd">            NeuralType(None)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;loss&quot;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">elements_type</span><span class="o">=</span><span class="n">LossType</span><span class="p">())}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logits_ndim</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="s1">&#39;mean&#39;</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">weight</span><span class="p">:</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">FloatTensor</span><span class="p">(</span><span class="n">weight</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">BCEWithLogitsLoss</span><span class="p">(</span><span class="n">weight</span><span class="o">=</span><span class="n">weight</span><span class="p">,</span> <span class="n">reduction</span><span class="o">=</span><span class="n">reduction</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_logits_dim</span> <span class="o">=</span> <span class="n">logits_ndim</span>
+
+    <span class="k">def</span> <span class="nf">_loss_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">loss_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            logits (float): output of the classifier</span>
+<span class="sd">            labels (long): ground truth labels</span>
+<span class="sd">            loss_mask (bool/float/int): tensor to specify the masking</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logits_flatten</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">start_dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">end_dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">labels_flatten</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">start_dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">end_dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">loss_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">loss_mask</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">:</span>
+                <span class="n">loss_mask</span> <span class="o">=</span> <span class="n">loss_mask</span> <span class="o">&gt;</span> <span class="mf">0.5</span>
+            <span class="n">loss_mask_flatten</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">loss_mask</span><span class="p">,</span> <span class="n">start_dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">end_dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">logits_flatten</span> <span class="o">=</span> <span class="n">logits_flatten</span><span class="p">[</span><span class="n">loss_mask_flatten</span><span class="p">]</span>
+            <span class="n">labels_flatten</span> <span class="o">=</span> <span class="n">labels_flatten</span><span class="p">[</span><span class="n">loss_mask_flatten</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">labels_flatten</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+
+        <span class="n">loss</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_criterion</span><span class="p">(</span><span class="n">logits_flatten</span><span class="p">,</span> <span class="n">labels_flatten</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">loss</span></div>
 </pre></div>
 

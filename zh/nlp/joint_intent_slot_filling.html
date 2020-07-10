@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>教程 &mdash; nemo 0.10.1 documentation</title>
+  <title>教程 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -215,7 +215,6 @@
 <p>首先，我们初始化 Neural Module Factory，需要定义，1、后端 (PyTorch 或者 Tensorflow)；2、混合精度优化的级别；3、本地 GPU 的序列号；4、一个实验的管理器，用于创建文件夹来保存相应的 checkpoint、输出、日志文件和 TensorBoard 的图。</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-    <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
     <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
     <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
     <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,7 +89,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Synthesis</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Tutorial</a><ul>
@@ -193,12 +195,19 @@ network, called the neural vocoder, converts the audio representation to audio
 files, for us in the form of .wav files. While there has been recent research
 shown to be able to combine these two models into one, we focus on the two
 model approach.</p>
-<p>NeMo supports the following models:</p>
+<p>NeMo supports the following models in full:</p>
 <ol class="arabic simple">
-<li><p><a class="reference external" href="https://arxiv.org/abs/1712.05884">Tacotron 2</a> :a model that converts
+<li><p><a class="reference external" href="https://arxiv.org/abs/1712.05884">Tacotron 2</a>: a model that converts
 text to mel spectrograms</p></li>
 <li><p><a class="reference external" href="https://arxiv.org/abs/1811.00002">Waveglow</a>: a model that converts mel
 spectrograms to audio</p></li>
+</ol>
+<p>NeMo additionally supports the following models as experimental:</p>
+<ol class="arabic simple" start="3">
+<li><p><a class="reference external" href="https://arxiv.org/abs/1905.09263">FastSpeech</a>: a model that converts
+text to mel spectrograms</p></li>
+<li><p><a class="reference external" href="https://arxiv.org/abs/2005.05514">Talknet</a>: a model that converts
+text to mel spectrograms</p></li>
 </ol>
 <p>To train your own models, you can go through the following sections. If you
 want to run inference with our pre-trained models, skip to the
@@ -221,7 +230,7 @@ The script is located at NeMo/scripts and can be run like so:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python scripts/get_databaker_data.py --data_root<span class="o">=</span>&lt;where_you_want_to_save_data&gt;
 </pre></div>
 </div>
-<p>For more details on the Chinese Standard Mandarin Speech Copus, see <a class="reference internal" href="datasets.html#csmsc"><span class="std std-ref">our docs here</span></a>.</p>
+<p>For more details on the Chinese Standard Mandarin Speech Corpus, see <a class="reference internal" href="datasets.html#csmsc"><span class="std std-ref">our docs here</span></a>.</p>
 </div>
 <div class="section" id="training">
 <h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
@@ -229,7 +238,7 @@ The script is located at NeMo/scripts and can be run like so:</p>
 tutorial, we will be focusing on training Tacotron 2 as that determines the
 majority of the characteristics of the trained audio such as the gender, and
 prosody. Furthermore, in our experiments, Waveglow has been shown to work as
-an unverisal vocoder. Our pretrained Waveglow, though trained on read female
+an universal vocoder. Our pretrained Waveglow, though trained on read female
 English speech, can be used as vocoder for male voices as well as other languages
 such as Mandarin.</p>
 <p>Training Tacotron 2 can be done by running the <cite>tacotron2.py</cite> file inside
@@ -270,7 +279,7 @@ Volta and Turing based GPUs</p>
 <div class="section" id="multi-gpu-training">
 <h2>Multi-GPU training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this headline">¶</a></h2>
 <p>Running on multiple GPUs can be enabled but calling running the
-torch.distributed.launch module and sepcifying the num_gpus as the
+torch.distributed.launch module and specifying the num_gpus as the
 –nproc_per_node argument:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/tts/tacotron2.py ...
 </pre></div>
@@ -278,35 +287,9 @@ torch.distributed.launch module and sepcifying the num_gpus as the
 </div>
 <div class="section" id="inference">
 <span id="tts-inference"></span><h2>Inference<a class="headerlink" href="#inference" title="Permalink to this headline">¶</a></h2>
-<p>You can now to inference with either your own trained Tacotron 2, or you can
-use our pre-trained Tacotron 2 model. Please download our models for
-<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:tacotron2_ljspeech">tacotron 2 here</a> and
-<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:waveglow_ljspeech">waveglow here</a>.
-Next create the texts that you want
-to generate and add them to a json like the training dataset. They should
-have lines like so:</p>
-<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Talk to me!&quot;</span><span class="p">}</span>
-<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;Speech Synthensis is cool.&quot;</span><span class="p">}</span>
-</pre></div>
-</div>
-<p>For Mandarin, they should have lines like so:</p>
-<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;jin1 tian1 tian1 qi4 bu2 cuo4.&quot;</span><span class="p">}</span>
-<span class="p">{</span><span class="nt">&quot;audio_filepath&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="nt">&quot;duration&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nt">&quot;text&quot;</span><span class="p">:</span> <span class="s2">&quot;ni3 kan4 bao4 zhi3 ma0&quot;</span><span class="p">}</span>
-</pre></div>
-</div>
-<p>The “text” should contain the <strong>pinyin</strong> sequence in Mandarin. The digit behind each Chinese character’s pinyin is the <strong>tone</strong>. 0 stands for soft tone.</p>
-<p>Inference can be done with the tts_infer.py file under the
-NeMo/examples/tts folder like so:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python tts_infer.py --spec_model<span class="o">=</span>tacotron2 --spec_model_config<span class="o">=</span>configs/tacotron2.yaml --spec_model_load_dir<span class="o">=</span>&lt;directory_with_tacotron2_checkopints&gt; --vocoder<span class="o">=</span>waveglow --vocoder_model_config<span class="o">=</span>configs/waveglow.yaml --vocoder_model_load_dir<span class="o">=</span>&lt;directory_with_waveglow_checkopints&gt; --save_dir<span class="o">=</span>&lt;where_you_want_to_save_wav_files&gt; --eval_dataset &lt;mainfest_to_generate&gt;
-</pre></div>
-</div>
-<p>For Mandarin, remember to replace the config file of Tacotron 2 with tacotron2_mandarin.yaml.</p>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
-<p>The inference via waveglow can be further controlled via the <code class="docutils literal notranslate"><span class="pre">--waveglow_denoiser_strength</span></code> and
-<code class="docutils literal notranslate"><span class="pre">--waveglow_sigma</span></code> arguments. If there is a stuble white noise to the audio, we recommend slowing increasing
-<code class="docutils literal notranslate"><span class="pre">--waveglow_denoiser_strength</span></code> from 0.</p>
-</div>
+<p>For inference in English, please refer to our
+<a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/tts/notebooks/1_Tacotron_inference.ipynb">Tacotron Inference</a>
+notebook.</p>
 </div>
 </div>
 

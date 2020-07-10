@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NVIDIA NeMo Developer Guide &mdash; nemo 0.10.1 documentation</title>
+  <title>NVIDIA NeMo Developer Guide &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -59,7 +59,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -88,7 +88,9 @@
 <li class="toctree-l1"><a class="reference internal" href="tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="collections/modules.html">NeMo Collections API</a></li>
@@ -204,7 +206,8 @@ docker run --gpus all -it --rm -v &lt;nemo_github_folder&gt;:/NeMo --shm-size<sp
 <p>and begin using NeMo immediately.</p>
 <p>If you have all requirements installed (or are using <a class="reference external" href="https://ngc.nvidia.com/catalog/containers/nvidia:pytorch">NGC PyTorch container</a> ),
 then you can simply use pip to install the latest released version (<strong>currently 0.10.1</strong>) of NeMo and its collections:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install nemo_toolkit<span class="o">[</span>all<span class="o">]</span> <span class="c1"># Installs NeMo Core and all collections including nemo_asr, nemo_nlp, nemo_tts</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt-get update <span class="o">&amp;&amp;</span> apt-get install -y libsndfile1 ffmpeg <span class="o">&amp;&amp;</span> pip install Cython
+pip install nemo_toolkit<span class="o">[</span>all<span class="o">]</span> <span class="c1"># Installs NeMo Core and all collections including nemo_asr, nemo_nlp, nemo_tts</span>
 </pre></div>
 </div>
 </div>
@@ -223,19 +226,19 @@ then you can simply use pip to install the latest released version (<strong>curr
 <li><p>Clone the repository <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">clone</span> <span class="pre">https://github.com/NVIDIA/NeMo.git</span></code></p></li>
 <li><p>Go to NeMo folder and install the toolkit and collections:</p></li>
 </ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./reinstall.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt-get update <span class="o">&amp;&amp;</span> apt-get install -y libsndfile1 ffmpeg <span class="o">&amp;&amp;</span> pip install Cython
+./reinstall.sh
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>reinstall.sh install NeMo in development mode.</p>
+<p>reinstall.sh installs NeMo in development mode.</p>
 </div>
 </div>
 <div class="section" id="unittests">
 <h2>Unittests<a class="headerlink" href="#unittests" title="Permalink to this headline">¶</a></h2>
 <p>This command runs unittests:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./reinstall.sh
-python -m unittest tests/*.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m unittest tests/*.py
 </pre></div>
 </div>
 </div>

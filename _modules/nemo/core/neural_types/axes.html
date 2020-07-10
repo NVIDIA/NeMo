@@ -1,0 +1,300 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>nemo.core.neural_types.axes &mdash; nemo 0.11.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../../" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/underscore.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+        <script src="../../../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>nemo.core.neural_types.axes</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for nemo.core.neural_types.axes</h1><div class="highlight"><pre>
+<span></span><span class="c1"># ! /usr/bin/python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="c1"># Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;AxisKindAbstract&#39;</span><span class="p">,</span> <span class="s1">&#39;AxisKind&#39;</span><span class="p">,</span> <span class="s1">&#39;AxisType&#39;</span><span class="p">]</span>
+
+<span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span>
+
+
+<div class="viewcode-block" id="AxisKindAbstract"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.core.neural_types.axes.AxisKindAbstract">[docs]</a><span class="k">class</span> <span class="nc">AxisKindAbstract</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This is an abstract Enum to represents what does varying axis dimension mean.</span>
+<span class="sd">    In practice, you will almost always use AxisKind Enum. This Enum should be inherited by</span>
+<span class="sd">    your OWN Enum if you aren&#39;t satisfied with AxisKind. Then your own Enum can be used</span>
+<span class="sd">    instead of AxisKind.&quot;&quot;&quot;</span>
+
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="AxisKind"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.core.neural_types.axes.AxisKind">[docs]</a><span class="k">class</span> <span class="nc">AxisKind</span><span class="p">(</span><span class="n">AxisKindAbstract</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This Enum represents what does varying axis dimension mean.</span>
+<span class="sd">    For example, does this dimension correspond to width, batch, time, etc.</span>
+<span class="sd">    The &quot;Dimension&quot; and &quot;Channel&quot; kinds are the same and used to represent</span>
+<span class="sd">    a general axis. &quot;Any&quot; axis will accept any axis kind fed to it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Batch</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">Time</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">Dimension</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">Channel</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">Width</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">Height</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">Any</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">Sequence</span> <span class="o">=</span> <span class="mi">6</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__str__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+<div class="viewcode-block" id="AxisKind.from_str"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.core.neural_types.axes.AxisKind.from_str">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">from_str</span><span class="p">(</span><span class="n">label</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns AxisKind instance based on short string representation&quot;&quot;&quot;</span>
+        <span class="n">_label</span> <span class="o">=</span> <span class="n">label</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;b&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;n&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;batch&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span>
+        <span class="k">elif</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;t&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;time&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span>
+        <span class="k">elif</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;d&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;c&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;channel&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span>
+        <span class="k">elif</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;w&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;width&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AxisKind</span><span class="o">.</span><span class="n">Width</span>
+        <span class="k">elif</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;h&quot;</span> <span class="ow">or</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AxisKind</span><span class="o">.</span><span class="n">Height</span>
+        <span class="k">elif</span> <span class="n">_label</span> <span class="o">==</span> <span class="s2">&quot;any&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">AxisKind</span><span class="o">.</span><span class="n">Any</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Can&#39;t create AxisKind from </span><span class="si">{label}</span><span class="s2">&quot;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="AxisType"><a class="viewcode-back" href="../../../../api-docs/nemo.html#nemo.core.neural_types.axes.AxisType">[docs]</a><span class="k">class</span> <span class="nc">AxisType</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This class represents axis semantics and (optionally) it&#39;s dimensionality</span>
+<span class="sd">       Args:</span>
+<span class="sd">           kind (AxisKindAbstract): what kind of axis it is? For example Batch, Height, etc.</span>
+<span class="sd">           size (int, optional): specify if the axis should have a fixed size. By default it is set to None and you</span>
+<span class="sd">           typically do not want to set it for Batch and Time</span>
+<span class="sd">           is_list (bool, default=False): whether this is a list or a tensor axis</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="n">AxisKindAbstract</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">is_list</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The axis can&#39;t be list and have a fixed size&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">=</span> <span class="n">kind</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="n">size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_list</span> <span class="o">=</span> <span class="n">is_list</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">representation</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kind</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">representation</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;{str(self.kind)}:</span><span class="si">{self.size}</span><span class="s2">&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_list</span><span class="p">:</span>
+            <span class="n">representation</span> <span class="o">+=</span> <span class="s2">&quot;_listdim&quot;</span>
+        <span class="k">return</span> <span class="n">representation</span></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

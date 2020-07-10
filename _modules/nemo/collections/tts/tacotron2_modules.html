@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.collections.tts.tacotron2_modules &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.collections.tts.tacotron2_modules &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -87,7 +87,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
@@ -181,7 +183,7 @@
 <span class="p">]</span>
 
 
-<div class="viewcode-block" id="TextEmbedding"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.TextEmbedding">[docs]</a><span class="k">class</span> <span class="nc">TextEmbedding</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">TextEmbedding</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    TextEmbedding embeds the encoded character labels to an embedding space</span>
 
@@ -218,10 +220,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char_phone</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span><span class="p">(</span><span class="n">char_phone</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding</span><span class="p">(</span><span class="n">char_phone</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="Tacotron2Encoder"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Encoder">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Encoder</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Tacotron2Encoder</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tacotron2Encoder is the encoder part of Tacotron 2. It takes embedded text</span>
 <span class="sd">    as input and creates an encoded representation of the text that can be used</span>
@@ -275,10 +277,10 @@
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char_phone_embeddings</span><span class="p">,</span> <span class="n">embedding_length</span><span class="p">):</span>
         <span class="n">char_phone_encoded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span><span class="n">char_phone_embeddings</span><span class="p">,</span> <span class="n">embedding_length</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">char_phone_encoded</span></div>
+        <span class="k">return</span> <span class="n">char_phone_encoded</span>
 
 
-<div class="viewcode-block" id="Tacotron2Decoder"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Decoder">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Decoder</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Tacotron2Decoder</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tacotron2Decoder implements the attention, decoder, and prenet parts of</span>
 <span class="sd">    Tacotron 2. It takes the encoded text and produces mel spectrograms. The</span>
@@ -398,10 +400,10 @@
             <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
                 <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">memory_lengths</span><span class="o">=</span><span class="n">encoded_length</span>
             <span class="p">)</span>
-        <span class="k">return</span> <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span></div>
+        <span class="k">return</span> <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span>
 
 
-<div class="viewcode-block" id="Tacotron2DecoderInfer"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2DecoderInfer">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2DecoderInfer</span><span class="p">(</span><span class="n">Tacotron2Decoder</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Tacotron2DecoderInfer</span><span class="p">(</span><span class="n">Tacotron2Decoder</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tacotron2DecoderInfer is an inference Neural Module used in place</span>
 <span class="sd">    of the Tacotron2Decoder NM.</span>
@@ -436,6 +438,42 @@
 <span class="sd">            convolution for the location part of the attention mechanism.</span>
 <span class="sd">            Defaults to 31.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">n_mel_channels</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">n_frames_per_step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">encoder_embedding_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span><span class="p">,</span>
+        <span class="n">gate_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">prenet_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
+        <span class="n">max_decoder_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="n">decoder_rnn_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">,</span>
+        <span class="n">p_decoder_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">p_attention_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">attention_rnn_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">,</span>
+        <span class="n">attention_dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>
+        <span class="n">attention_location_n_filters</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32</span><span class="p">,</span>
+        <span class="n">attention_location_kernel_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">31</span><span class="p">,</span>
+        <span class="n">prenet_p_dropout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">force</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">n_mel_channels</span><span class="o">=</span><span class="n">n_mel_channels</span><span class="p">,</span>
+            <span class="n">n_frames_per_step</span><span class="o">=</span><span class="n">n_frames_per_step</span><span class="p">,</span>
+            <span class="n">encoder_embedding_dim</span><span class="o">=</span><span class="n">encoder_embedding_dim</span><span class="p">,</span>
+            <span class="n">gate_threshold</span><span class="o">=</span><span class="n">gate_threshold</span><span class="p">,</span>
+            <span class="n">prenet_dim</span><span class="o">=</span><span class="n">prenet_dim</span><span class="p">,</span>
+            <span class="n">max_decoder_steps</span><span class="o">=</span><span class="n">max_decoder_steps</span><span class="p">,</span>
+            <span class="n">decoder_rnn_dim</span><span class="o">=</span><span class="n">decoder_rnn_dim</span><span class="p">,</span>
+            <span class="n">p_decoder_dropout</span><span class="o">=</span><span class="n">p_decoder_dropout</span><span class="p">,</span>
+            <span class="n">p_attention_dropout</span><span class="o">=</span><span class="n">p_attention_dropout</span><span class="p">,</span>
+            <span class="n">attention_rnn_dim</span><span class="o">=</span><span class="n">attention_rnn_dim</span><span class="p">,</span>
+            <span class="n">attention_dim</span><span class="o">=</span><span class="n">attention_dim</span><span class="p">,</span>
+            <span class="n">attention_location_n_filters</span><span class="o">=</span><span class="n">attention_location_n_filters</span><span class="p">,</span>
+            <span class="n">attention_location_kernel_size</span><span class="o">=</span><span class="n">attention_location_kernel_size</span><span class="p">,</span>
+            <span class="n">prenet_p_dropout</span><span class="o">=</span><span class="n">prenet_p_dropout</span><span class="p">,</span>
+            <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">,</span>
+        <span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="nd">@add_port_docs</span><span class="p">()</span>
@@ -479,10 +517,10 @@
             <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">mel_len</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
                 <span class="n">char_phone_encoded</span><span class="p">,</span> <span class="n">memory_lengths</span><span class="o">=</span><span class="n">encoded_length</span>
             <span class="p">)</span>
-        <span class="k">return</span> <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">mel_len</span></div>
+        <span class="k">return</span> <span class="n">mel_output</span><span class="p">,</span> <span class="n">gate_output</span><span class="p">,</span> <span class="n">alignments</span><span class="p">,</span> <span class="n">mel_len</span>
 
 
-<div class="viewcode-block" id="Tacotron2Postnet"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Postnet">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Postnet</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Tacotron2Postnet</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tacotron2Postnet implements the postnet part of Tacotron 2. It takes a mel</span>
 <span class="sd">    spectrogram as generated by the decoder and corrects errors within the</span>
@@ -541,7 +579,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_input</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">postnet</span><span class="p">(</span><span class="n">mel_input</span><span class="p">)</span> <span class="o">+</span> <span class="n">mel_input</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">postnet</span><span class="p">(</span><span class="n">mel_input</span><span class="p">)</span> <span class="o">+</span> <span class="n">mel_input</span>
 
 
 <div class="viewcode-block" id="Tacotron2Loss"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.Tacotron2Loss">[docs]</a><span class="k">class</span> <span class="nc">Tacotron2Loss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>
@@ -640,6 +678,9 @@
 <div class="viewcode-block" id="MakeGate"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.tacotron2_modules.MakeGate">[docs]</a><span class="k">class</span> <span class="nc">MakeGate</span><span class="p">(</span><span class="n">NonTrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;MakeGate is a helper Neural Module that makes the target stop value.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
     <span class="nd">@property</span>
     <span class="nd">@add_port_docs</span><span class="p">()</span>

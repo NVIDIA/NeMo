@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -36,7 +36,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Tutorial" href="punctuation.html" />
-    <link rel="prev" title="Tutorial" href="dialogue_state_tracking_trade.html" /> 
+    <link rel="prev" title="Tutorial" href="text_classification.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,27 +89,33 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#download-dataset">Download Dataset</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#training-and-inference-scripts">Training and inference scripts</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bioner">BioNER</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#using-other-bert-models">Using Other BERT Models</a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -183,7 +189,7 @@
            <div itemprop="articleBody">
             
   <div class="section" id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<span id="ner"></span><h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this
 tutorial. See the <a class="reference internal" href="../index.html#installation"><span class="std std-ref">Getting started</span></a> section for more details.</p>
 <div class="admonition tip">
@@ -222,8 +228,7 @@ All code used in this tutorial is based on <a class="reference internal" href="#
 <p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training. This tutorial assumes that you’re training on one GPU, without mixed precision (<code class="docutils literal notranslate"><span class="pre">optimization_level=&quot;O0&quot;</span></code>). If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">optimization_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">WORK_DIR</span> <span class="o">=</span> <span class="s2">&quot;path_to_output_dir&quot;</span>
-<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="s2">&quot;O0&quot;</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">WORK_DIR</span><span class="p">,</span>
                                    <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -231,10 +236,13 @@ All code used in this tutorial is based on <a class="reference internal" href="#
 </div>
 </div></blockquote>
 <p>Next, we’ll need to define our tokenizer and our BERT model. There are a couple of different ways you can do this. Keep in mind that NER benefits from casing (“New York City” is easier to identify than “new york city”), so we recommend you use cased models.</p>
-<p>If you’re using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out <code class="docutils literal notranslate"><span class="pre">nemo.collections.nlp.nm.trainables.get_bert_models_list()</span></code></p>
+<p>If you’re using a standard BERT model, you should do it as follows. To see the full list of BERT model names, check out <code class="docutils literal notranslate"><span class="pre">nemo_nlp.nm.trainables.get_pretrained_lm_models_list()</span></code></p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">NemoBertTokenizer</span><span class="p">(</span><span class="n">pretrained_model</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
-<span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">huggingface</span><span class="o">.</span><span class="n">BERT</span><span class="p">(</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">get_pretrained_lm_model</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
+
+<span class="n">tokenizer</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">collections</span><span class="o">.</span><span class="n">nlp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">tokenizers</span><span class="o">.</span><span class="n">get_tokenizer</span><span class="p">(</span>
+    <span class="n">tokenizer_name</span><span class="o">=</span><span class="s2">&quot;nemobert&quot;</span><span class="p">,</span>
     <span class="n">pretrained_model_name</span><span class="o">=</span><span class="s2">&quot;bert-base-cased&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -364,6 +372,11 @@ Now, create the train and evaluation data layers:</p>
 </div>
 <p>Note, label_ids.csv file will be generated during training and stored in the data_dir folder.</p>
 </div>
+<div class="section" id="bioner">
+<h2>BioNER<a class="headerlink" href="#bioner" title="Permalink to this headline">¶</a></h2>
+<p>To use BioBERT/BioMegatron for biomedical named entity recognition please visit:</p>
+<p><a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_ner.ipynb">https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_ner.ipynb</a></p>
+</div>
 <div class="section" id="using-other-bert-models">
 <h2>Using Other BERT Models<a class="headerlink" href="#using-other-bert-models" title="Permalink to this headline">¶</a></h2>
 <p>In addition to using pre-trained BERT models from Google and BERT models that you’ve trained yourself, in NeMo it’s possible to use other third-party BERT models as well, as long as the weights were exported with PyTorch. For example, if you want to fine-tune an NER task with <a class="reference external" href="https://github.com/allenai/scibert">SciBERT</a>.</p>
@@ -395,7 +408,7 @@ mv bert_config.json config.json
         <a href="punctuation.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="dialogue_state_tracking_trade.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="text_classification.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo Common Collection &mdash; nemo 0.10.1 documentation</title>
+  <title>NeMo Common Collection &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,12 +89,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">NeMo Collections API</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">NeMo Common Collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_asr.html">NeMo ASR collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_cv.html">NeMo CV collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_tts.html">NeMo TTS collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo NLP collection</a></li>
 </ul>
@@ -170,9 +173,9 @@
   <div class="section" id="nemo-common-collection">
 <h1>NeMo Common Collection<a class="headerlink" href="#nemo-common-collection" title="Permalink to this headline">¶</a></h1>
 <p>NeMo core package comes with “common” collection for pytorch built-in:</p>
-<span class="target" id="module-nemo.backends.pytorch.common.losses"></span><dl class="class">
+<span class="target" id="module-nemo.backends.pytorch.common.losses"></span><dl class="py class">
 <dt id="nemo.backends.pytorch.common.losses.SequenceLoss">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">SequenceLoss</code><span class="sig-paren">(</span><em class="sig-param">pad_id=0</em>, <em class="sig-param">smoothing_coef=0.0</em>, <em class="sig-param">sample_wise=False</em>, <em class="sig-param">aux_ctc=False</em>, <em class="sig-param">ctc_initial_coef=0.1</em>, <em class="sig-param">ctc_blank_id=None</em>, <em class="sig-param">eps=1e-05</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#SequenceLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">SequenceLoss</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">pad_id</span><span class="o">=</span><span class="default_value">0</span></em>, <em class="sig-param"><span class="n">smoothing_coef</span><span class="o">=</span><span class="default_value">0.0</span></em>, <em class="sig-param"><span class="n">sample_wise</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">aux_ctc</span><span class="o">=</span><span class="default_value">False</span></em>, <em class="sig-param"><span class="n">ctc_initial_coef</span><span class="o">=</span><span class="default_value">0.1</span></em>, <em class="sig-param"><span class="n">ctc_blank_id</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">eps</span><span class="o">=</span><span class="default_value">1e-05</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#SequenceLoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
 <p>Loss for seq2seq tasks</p>
 <dl class="field-list simple">
@@ -198,30 +201,30 @@ Defaults to 1e-5.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.SequenceLoss.input_ports">
 <em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss.input_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module input ports.</p>
 <ul class="simple">
-<li><p><em>log_probs</em> : axes: (batch, time, dimension);  elements_type: VoidType</p></li>
-<li><p><em>targets</em> : axes: (batch, time);  elements_type: VoidType</p></li>
+<li><p><em>log_probs</em> : axes: (batch, time, dimension); elements_type: VoidType</p></li>
+<li><p><em>targets</em> : axes: (batch, time); elements_type: VoidType</p></li>
 </ul>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.SequenceLoss.output_ports">
 <em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.SequenceLoss.output_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module output ports.</p>
 <ul class="simple">
-<li><p><em>loss</em> : axes: None;  elements_type: LossType</p></li>
+<li><p><em>loss</em> : axes: None; elements_type: LossType</p></li>
 </ul>
 </dd></dl>
 
 </dd></dl>
 
-<dl class="class">
+<dl class="py class">
 <dt id="nemo.backends.pytorch.common.losses.CrossEntropyLossNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLossNM</code><span class="sig-paren">(</span><em class="sig-param">logits_ndim=2</em>, <em class="sig-param">weight=None</em>, <em class="sig-param">reduction='mean'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLossNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLossNM" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">CrossEntropyLossNM</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">logits_ndim</span><span class="o">=</span><span class="default_value">2</span></em>, <em class="sig-param"><span class="n">weight</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">reduction</span><span class="o">=</span><span class="default_value">'mean'</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#CrossEntropyLossNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLossNM" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
 <p>CrossEntropyLoss
 :param logits_ndim: number of dimensions (or rank) of the logits tensor
@@ -230,13 +233,13 @@ Defaults to 1e-5.</p></li>
 :type weight: list
 :param reduction: type of the reduction over the batch
 :type reduction: str</p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.CrossEntropyLossNM.input_ports">
 <em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLossNM.input_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module input ports.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.CrossEntropyLossNM.output_ports">
 <em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.CrossEntropyLossNM.output_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module output ports.</p>
@@ -245,17 +248,17 @@ Defaults to 1e-5.</p></li>
 </dd>
 </dl>
 <ul class="simple">
-<li><p><em>loss</em> : axes: None;  elements_type: LossType</p></li>
+<li><p><em>loss</em> : axes: None; elements_type: LossType</p></li>
 </ul>
 </dd></dl>
 
 </dd></dl>
 
-<dl class="class">
+<dl class="py class">
 <dt id="nemo.backends.pytorch.common.losses.MSELoss">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">MSELoss</code><span class="sig-paren">(</span><em class="sig-param">reduction='mean'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#MSELoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.MSELoss" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">MSELoss</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">reduction</span><span class="o">=</span><span class="default_value">'mean'</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#MSELoss"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.MSELoss" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.MSELoss.input_ports">
 <em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.MSELoss.input_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module input ports.</p>
@@ -266,12 +269,12 @@ Defaults to 1e-5.</p></li>
 </dd>
 </dl>
 <ul class="simple">
-<li><p><em>preds</em> : axes: (batch,);  elements_type: RegressionValuesType</p></li>
-<li><p><em>labels</em> : axes: (batch,);  elements_type: LabelsType</p></li>
+<li><p><em>preds</em> : axes: (batch,); elements_type: RegressionValuesType</p></li>
+<li><p><em>labels</em> : axes: (batch,); elements_type: LabelsType</p></li>
 </ul>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.MSELoss.output_ports">
 <em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.MSELoss.output_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module output ports.</p>
@@ -280,15 +283,15 @@ Defaults to 1e-5.</p></li>
 </dd>
 </dl>
 <ul class="simple">
-<li><p><em>loss</em> : axes: None;  elements_type: LossType</p></li>
+<li><p><em>loss</em> : axes: None; elements_type: LossType</p></li>
 </ul>
 </dd></dl>
 
 </dd></dl>
 
-<dl class="class">
+<dl class="py class">
 <dt id="nemo.backends.pytorch.common.losses.LossAggregatorNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">LossAggregatorNM</code><span class="sig-paren">(</span><em class="sig-param">num_inputs=2</em>, <em class="sig-param">weights=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#LossAggregatorNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.LossAggregatorNM" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">LossAggregatorNM</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">num_inputs</span><span class="o">=</span><span class="default_value">2</span></em>, <em class="sig-param"><span class="n">weights</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#LossAggregatorNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.LossAggregatorNM" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
 <p>Neural module which combines sums several losses into one.</p>
 <dl class="field-list simple">
@@ -299,13 +302,13 @@ Defaults to 1e-5.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.LossAggregatorNM.input_ports">
 <em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.LossAggregatorNM.input_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module input ports.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.losses.LossAggregatorNM.output_ports">
 <em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.LossAggregatorNM.output_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module output ports.</p>
@@ -317,110 +320,41 @@ Defaults to 1e-5.</p></li>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.backends.pytorch.common.rnn"></span><dl class="class">
-<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.rnn.</code><code class="sig-name descname">DecoderRNN</code><span class="sig-paren">(</span><em class="sig-param">voc_size</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">hidden_size</em>, <em class="sig-param">attention_method='general'</em>, <em class="sig-param">attention_type='post'</em>, <em class="sig-param">in_dropout=0.2</em>, <em class="sig-param">gru_dropout=0.2</em>, <em class="sig-param">attn_dropout=0.0</em>, <em class="sig-param">teacher_forcing=1.0</em>, <em class="sig-param">curriculum_learning=0.5</em>, <em class="sig-param">rnn_type='gru'</em>, <em class="sig-param">n_layers=2</em>, <em class="sig-param">tie_emb_out_weights=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#DecoderRNN"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Simple RNN-based decoder with attention.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>voc_size</strong> (<em>int</em>) – Total number of symbols to use</p></li>
-<li><p><strong>bos_id</strong> (<em>int</em>) – Label position of start of string symbol</p></li>
-<li><p><strong>hidden_size</strong> (<em>int</em>) – Size of hidden vector to use in RNN</p></li>
-<li><p><strong>attention_method</strong> (<em>str</em>) – Method of using attention to pass in
-<cite>Attention</cite> constructor.
-Defaults to ‘general’.</p></li>
-<li><p><strong>attention_type</strong> (<em>str</em>) – String type of attention describing time to apply
-attention. Could be on of [‘post’, ‘none’].
-Defaults to ‘post’.</p></li>
-<li><p><strong>in_dropout</strong> (<em>float</em>) – Float value of embedding dropout.
-Defaults to 0.2.</p></li>
-<li><p><strong>gru_dropout</strong> (<em>float</em>) – Float value of RNN interlayers dropout
-Defaults to 0.2.</p></li>
-<li><p><strong>attn_dropout</strong> (<em>float</em>) – Float value of attention dropout to pass to
-<cite>Attention</cite> constructor
-Defaults to 0.0.</p></li>
-<li><p><strong>teacher_forcing</strong> (<em>float</em>) – Probability of applying full teacher forcing
-method at each step.
-Defaults to 1.0.</p></li>
-<li><p><strong>curriculum_learning</strong> (<em>float</em>) – If teacher forcing is not applying, this
-value indicates probability of using target token from next step.
-Defaults to 0.5.</p></li>
-<li><p><strong>rnn_type</strong> (<em>str</em>) – Type of RNN to use. Could be one of [‘gru’, ‘lstm’].
-Defaults to ‘gru’.</p></li>
-<li><p><strong>n_layers</strong> (<em>int</em>) – Number of layers to use in RNN.
-Defaults to 2.</p></li>
-<li><p><strong>tie_emb_out_weights</strong> (<em>bool</em>) – Whether to tie embedding and output
-weights.
-Defaults to True.</p></li>
-</ul>
+<dl class="py class">
+<dt id="nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM">
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.losses.</code><code class="sig-name descname">BCEWithLogitsLossNM</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">logits_ndim</span><span class="o">=</span><span class="default_value">2</span></em>, <em class="sig-param"><span class="n">weight</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">reduction</span><span class="o">=</span><span class="default_value">'mean'</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/losses.html#BCEWithLogitsLossNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.LossNM" title="nemo.backends.pytorch.nm.LossNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.LossNM</span></code></a></p>
+<p>CrossEntropyLoss
+:param logits_ndim: number of dimensions (or rank) of the logits tensor
+:type logits_ndim: int
+:param weight: list of rescaling weight given to each class
+:type weight: list
+:param reduction: type of the reduction over the batch
+:type reduction: str</p>
+<dl class="py method">
+<dt id="nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM.input_ports">
+<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM.input_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module input ports.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM.output_ports">
+<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.losses.BCEWithLogitsLossNM.output_ports" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns definitions of module output ports.</p>
+<dl class="simple">
+<dt>loss:</dt><dd><p>NeuralType(None)</p>
 </dd>
 </dl>
-<dl class="method">
-<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN.forward_cl">
-<code class="sig-name descname">forward_cl</code><span class="sig-paren">(</span><em class="sig-param">targets</em>, <em class="sig-param">encoder_outputs=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#DecoderRNN.forward_cl"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN.forward_cl" title="Permalink to this definition">¶</a></dt>
-<dd><p>(BT, BTC&#64;?) -&gt; (BTC, BTT&#64;?)</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN.forward_step">
-<code class="sig-name descname">forward_step</code><span class="sig-paren">(</span><em class="sig-param">decoder_inputs</em>, <em class="sig-param">encoder_outputs=None</em>, <em class="sig-param">decoder_hidden=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#DecoderRNN.forward_step"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN.forward_step" title="Permalink to this definition">¶</a></dt>
-<dd><p>(BT, BTC&#64;?, hBC&#64;?) -&gt; (BTC, hBC, BTT&#64;?)</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.</p>
 <ul class="simple">
-<li><p><em>targets</em> : axes: (batch, time);  elements_type: LabelsType</p></li>
-<li><p><em>encoder_outputs</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.backends.pytorch.common.rnn.DecoderRNN.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.DecoderRNN.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.</p>
-<ul class="simple">
-<li><p><em>log_probs</em> : axes: (batch, time, dimension);  elements_type: LogprobsType</p></li>
-<li><p><em>attention_weights</em> : axes: (batch, time, time);  elements_type: ChannelType</p></li>
+<li><p><em>loss</em> : axes: None; elements_type: LossType</p></li>
 </ul>
 </dd></dl>
 
 </dd></dl>
 
-<dl class="class">
-<dt id="nemo.backends.pytorch.common.rnn.EncoderRNN">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.rnn.</code><code class="sig-name descname">EncoderRNN</code><span class="sig-paren">(</span><em class="sig-param">input_dim</em>, <em class="sig-param">emb_dim</em>, <em class="sig-param">hid_dim</em>, <em class="sig-param">dropout</em>, <em class="sig-param">n_layers=1</em>, <em class="sig-param">pad_idx=1</em>, <em class="sig-param">embedding_to_load=None</em>, <em class="sig-param">sum_hidden=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/rnn.html#EncoderRNN"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.EncoderRNN" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Simple RNN-based encoder using GRU cells</p>
-<dl class="method">
-<dt id="nemo.backends.pytorch.common.rnn.EncoderRNN.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.EncoderRNN.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.</p>
-<ul class="simple">
-<li><p><em>inputs</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>input_lens</em> : axes: (batch,);  elements_type: LengthsType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.backends.pytorch.common.rnn.EncoderRNN.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.rnn.EncoderRNN.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.</p>
-<ul class="simple">
-<li><p><em>outputs</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-<li><p><em>hidden</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.backends.pytorch.common.search"></span><dl class="class">
+<span class="target" id="module-nemo.backends.pytorch.common.rnn"></span><span class="target" id="module-nemo.backends.pytorch.common.search"></span><dl class="py class">
 <dt id="nemo.backends.pytorch.common.search.GreedySearch">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">GreedySearch</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">max_len</em>, <em class="sig-param">batch_size=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#GreedySearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.GreedySearch" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">GreedySearch</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">decoder</span></em>, <em class="sig-param"><span class="n">pad_id</span></em>, <em class="sig-param"><span class="n">bos_id</span></em>, <em class="sig-param"><span class="n">eos_id</span></em>, <em class="sig-param"><span class="n">max_len</span></em>, <em class="sig-param"><span class="n">batch_size</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#GreedySearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.GreedySearch" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.NonTrainableNM" title="nemo.backends.pytorch.nm.NonTrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.NonTrainableNM</span></code></a></p>
 <p>Greedy translation search.</p>
 <p>For encoder-decoder based models.</p>
@@ -438,30 +372,30 @@ Defaults to None.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.search.GreedySearch.input_ports">
 <em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.search.GreedySearch.input_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module input ports.</p>
 <ul class="simple">
-<li><p><em>encoder_outputs</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
+<li><p><em>encoder_outputs</em> : axes: (batch, time, dimension); elements_type: ChannelType</p></li>
 </ul>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.search.GreedySearch.output_ports">
 <em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.search.GreedySearch.output_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module output ports.</p>
 <ul class="simple">
-<li><p><em>predictions</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>attention_weights</em> : axes: (batch, time, time);  elements_type: ChannelType</p></li>
+<li><p><em>predictions</em> : axes: (batch, time); elements_type: ChannelType</p></li>
+<li><p><em>attention_weights</em> : axes: (batch, time, time); elements_type: ChannelType</p></li>
 </ul>
 </dd></dl>
 
 </dd></dl>
 
-<dl class="class">
+<dl class="py class">
 <dt id="nemo.backends.pytorch.common.search.BeamSearch">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">BeamSearch</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">pad_id</em>, <em class="sig-param">bos_id</em>, <em class="sig-param">eos_id</em>, <em class="sig-param">max_len</em>, <em class="sig-param">batch_size=None</em>, <em class="sig-param">beam_size=8</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#BeamSearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.BeamSearch" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.search.</code><code class="sig-name descname">BeamSearch</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">decoder</span></em>, <em class="sig-param"><span class="n">pad_id</span></em>, <em class="sig-param"><span class="n">bos_id</span></em>, <em class="sig-param"><span class="n">eos_id</span></em>, <em class="sig-param"><span class="n">max_len</span></em>, <em class="sig-param"><span class="n">batch_size</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">beam_size</span><span class="o">=</span><span class="default_value">8</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#BeamSearch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.BeamSearch" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.backends.pytorch.common.search.GreedySearch" title="nemo.backends.pytorch.common.search.GreedySearch"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.common.search.GreedySearch</span></code></a></p>
 <p>Beam translation search.</p>
 <p>For encoder-decoder based models.</p>
@@ -482,17 +416,17 @@ Defaults to 8.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.search.BeamSearch.choose">
-<em class="property">static </em><code class="sig-name descname">choose</code><span class="sig-paren">(</span><em class="sig-param">tensor</em>, <em class="sig-param">indices</em>, <em class="sig-param">dim</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#BeamSearch.choose"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.BeamSearch.choose" title="Permalink to this definition">¶</a></dt>
+<em class="property">static </em><code class="sig-name descname">choose</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tensor</span></em>, <em class="sig-param"><span class="n">indices</span></em>, <em class="sig-param"><span class="n">dim</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/search.html#BeamSearch.choose"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.search.BeamSearch.choose" title="Permalink to this definition">¶</a></dt>
 <dd><p>(<em>[BK]</em>, BK, int) -&gt; <em>[BK]</em></p>
 </dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.backends.pytorch.common.zero_data"></span><dl class="class">
+<span class="target" id="module-nemo.backends.pytorch.common.zero_data"></span><dl class="py class">
 <dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.zero_data.</code><code class="sig-name descname">ZerosDataLayer</code><span class="sig-paren">(</span><em class="sig-param">size</em>, <em class="sig-param">output_ports</em>, <em class="sig-param">dtype</em>, <em class="sig-param">batch_size</em>, <em class="sig-param">shapes=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/zero_data.html#ZerosDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.backends.pytorch.common.zero_data.</code><code class="sig-name descname">ZerosDataLayer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">size</span></em>, <em class="sig-param"><span class="n">output_ports</span></em>, <em class="sig-param"><span class="n">dtype</span></em>, <em class="sig-param"><span class="n">batch_size</span></em>, <em class="sig-param"><span class="n">shapes</span><span class="o">=</span><span class="default_value">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/backends/pytorch/common/zero_data.html#ZerosDataLayer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.DataLayerNM</span></code></a></p>
 <p>DataLayer Neural Module which emits zeros.
 This module should be used for debugging/benchmarking purposes.</p>
@@ -509,7 +443,7 @@ Defaults to None.</p></li>
 </ul>
 </dd>
 </dl>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.data_iterator">
 <em class="property">property </em><code class="sig-name descname">data_iterator</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.data_iterator" title="Permalink to this definition">¶</a></dt>
 <dd><p>“Iterator over the dataset. It is a good idea to return
@@ -518,7 +452,7 @@ torch.utils.data.DataLoader here. Should implement either this or
 If this is implemented, <cite>dataset</cite> property should return None.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.dataset">
 <em class="property">property </em><code class="sig-name descname">dataset</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.dataset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Should return an instance of torch.utils.data.Dataset. Should
@@ -527,7 +461,7 @@ either this or <cite>data_iterator</cite>. If this is implemented, <cite>data_it
 should return None.</p>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.input_ports">
 <em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.input_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>DataLayer by definition does not have any input ports.</p>
@@ -538,13 +472,13 @@ should return None.</p>
 </dl>
 </dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.backends.pytorch.common.zero_data.ZerosDataLayer.output_ports">
 <em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.backends.pytorch.common.zero_data.ZerosDataLayer.output_ports" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns definitions of module output ports</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>A (dict) of module’s output ports names to NeuralTypes mapping</p>
+<dd class="field-odd"><p>A dictionary containing module’s output ports (names, NeuralTypes) mapping.</p>
 </dd>
 </dl>
 </dd></dl>

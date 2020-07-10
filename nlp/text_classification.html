@@ -1,0 +1,331 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorial" href="ner.html" />
+    <link rel="prev" title="Tutorial" href="joint_intent_slot_filling.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#text-classification">Text Classification</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#task-description">Task Description</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#data-format">Data Format</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#model-training">Model training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#evaluating-checkpoints">Evaluating Checkpoints</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#sentiment-analysis-with-bert">Sentiment Analysis with BERT</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Natural Language Processing</a> &raquo;</li>
+        
+      <li>Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/text_classification.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="tutorial">
+<span id="text-classification"></span><h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<p>In this tutorial, we are going to describe how to finetune a BERT-like model based on <a class="reference external" href="https://arxiv.org/abs/1810.04805">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</a> <a class="bibtex reference internal" href="#nlp-tc-devlin2018bert" id="id1">[NLP-TC1]</a> on a text classification task.</p>
+<div class="section" id="task-description">
+<h2>Task Description<a class="headerlink" href="#task-description" title="Permalink to this headline">¶</a></h2>
+<p>Text classification is the task of assigning a predefined label to a given text based on its content.
+The text classification task applies to a broad range of problems: sentiment analysis, spam detection, intent detection, and many others.</p>
+</div>
+<div class="section" id="data-format">
+<h2>Data Format<a class="headerlink" href="#data-format" title="Permalink to this headline">¶</a></h2>
+<p>For the text classification task, NeMo requires the following format:</p>
+<ul class="simple">
+<li><p>the first line of each data file should contain a header with columns <code class="docutils literal notranslate"><span class="pre">sentence</span></code> and <code class="docutils literal notranslate"><span class="pre">label</span></code></p></li>
+<li><p>all subsequent lines in the file should contain some text in the first column and numerical label in the second column</p></li>
+<li><p>the columns are separated with tab</p></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sentence</span> <span class="p">[</span><span class="n">TAB</span><span class="p">]</span> <span class="n">label</span>
+<span class="n">text</span> <span class="p">[</span><span class="n">TAB</span><span class="p">]</span>  <span class="n">label_id</span>
+<span class="n">text</span> <span class="p">[</span><span class="n">TAB</span><span class="p">]</span>  <span class="n">label_id</span>
+<span class="n">text</span> <span class="p">[</span><span class="n">TAB</span><span class="p">]</span>  <span class="n">label_id</span>
+</pre></div>
+</div>
+<p>For example, that final data file could look like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sentence</span> <span class="n">label</span>
+<span class="n">the</span> <span class="n">first</span> <span class="n">sentence</span>  <span class="mi">0</span>
+<span class="n">the</span> <span class="n">second</span> <span class="n">sentence</span> <span class="mi">1</span>
+<span class="n">the</span> <span class="n">third</span> <span class="n">sentence</span>  <span class="mi">2</span>
+</pre></div>
+</div>
+<p>By default, the training script assumes that the training data is locating under the specified <code class="docutils literal notranslate"><span class="pre">--data_dir</span> <span class="pre">PATH_TO_DATA</span></code> in <code class="docutils literal notranslate"><span class="pre">train.tsv</span></code> file, and evaluation file in <code class="docutils literal notranslate"><span class="pre">dev.tsv</span></code> file.
+Use <code class="docutils literal notranslate"><span class="pre">--train_file_prefix</span></code> and <code class="docutils literal notranslate"><span class="pre">--eval_file_prefix</span></code> to change the default names.</p>
+<p>NeMo provides a conversion script from the original data format to the NeMo format for some of the well-known datasets including SST-2 and IMDB, see
+<a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/text_classification/data/import_datasets.py">examples/nlp/text_classification/data/import_datasets.py</a> for details.</p>
+</div>
+<div class="section" id="model-training">
+<h2>Model training<a class="headerlink" href="#model-training" title="Permalink to this headline">¶</a></h2>
+<p>The code used in this tutorial is based on <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/text_classification/text_classification_with_bert.py">examples/nlp/text_classification/text_classification_with_bert.py</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The script supports multi-class tasks</p>
+</div>
+<p>To run the script on a single GPU, run:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python text_classification_with_bert.py  <span class="se">\</span>
+    --data_dir /path_to_data_dir <span class="se">\</span>
+    --work_dir /path_to_output_folder
+</pre></div>
+</div>
+</div></blockquote>
+<p>To use multi-gpu training on this task, run:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">NUM_GPUS</span><span class="o">=</span><span class="m">4</span>
+python -m torch.distributed.launch --nproc_per_node<span class="o">=</span><span class="nv">$NUM_GPUS</span> text_classification_with_bert.py <span class="se">\</span>
+    --data_dir<span class="o">=</span>/path_to_data_dir <span class="se">\</span>
+    --work_dir /path_to_output_folder <span class="se">\</span>
+    --num_gpus<span class="o">=</span><span class="nv">$NUM_GPUS</span>
+</pre></div>
+</div>
+</div></blockquote>
+<p>More details about multi-gpu training could be found in the <a class="reference external" href="https://nvidia.github.io/NeMo/training.html">Fast Training</a> section.</p>
+<p>For additional model training parameters, please see <code class="docutils literal notranslate"><span class="pre">examples/nlp/text_classification_with_bert.py</span></code>.</p>
+</div>
+<div class="section" id="evaluating-checkpoints">
+<h2>Evaluating Checkpoints<a class="headerlink" href="#evaluating-checkpoints" title="Permalink to this headline">¶</a></h2>
+<p>During training, the model is evaluated after every epoch and by default a folder named <code class="docutils literal notranslate"><span class="pre">checkpoints</span></code> would be created under the working folder specified by <cite>–work_dir</cite> and checkpoints would be stored there. To evaluate a pre-trained checkpoint on a dev set, run the same training script by passing <code class="docutils literal notranslate"><span class="pre">--checkpoint_dir</span></code> and setting <code class="docutils literal notranslate"><span class="pre">--num_epochs</span></code> as zero to avoid the training.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python text_classification_with_bert.py  <span class="se">\</span>
+    --data_dir /path_to_data_dir/ <span class="se">\</span>
+    --work_dir /path_to_output_folder <span class="se">\</span>
+    --checkpoint_dir /path_to_output_folder/checkpoints <span class="se">\</span>
+    --num_epochs <span class="m">0</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="sentiment-analysis-with-bert">
+<span id="sentiment-analysis"></span><h1>Sentiment Analysis with BERT<a class="headerlink" href="#sentiment-analysis-with-bert" title="Permalink to this headline">¶</a></h1>
+<p>Tutorial on how to finetune a BERT model on Sentiment Analysis task, could be found at
+<a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/text_classification/sentiment_analysis_with_bert.ipynb">examples/nlp/text_classification/sentiment_analysis_with_bert.ipynb</a></p>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/text_classification-0"><dl class="citation">
+<dt class="bibtex label" id="nlp-tc-devlin2018bert"><span class="brackets"><a class="fn-backref" href="#id1">NLP-TC1</a></span></dt>
+<dd><p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: pre-training of deep bidirectional transformers for language understanding. <em>arXiv preprint arXiv:1810.04805</em>, 2018.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="ner.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

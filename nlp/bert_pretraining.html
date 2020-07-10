@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>BERT Pre-training Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="transformer_language_model.html" />
+    <link rel="next" title="Transformer Language Model Tutorial" href="transformer_language_model.html" />
     <link rel="prev" title="Tutorial" href="neural_machine_translation.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,11 +89,13 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">BERT Pre-training Tutorial</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#download-corpus">Download Corpus</a></li>
@@ -107,12 +109,15 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -166,7 +171,7 @@
         
           <li><a href="intro.html">Natural Language Processing</a> &raquo;</li>
         
-      <li>Tutorial</li>
+      <li>BERT Pre-training Tutorial</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -185,8 +190,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="bert-pre-training-tutorial">
+<span id="bert-pretraining"></span><h1>BERT Pre-training Tutorial<a class="headerlink" href="#bert-pre-training-tutorial" title="Permalink to this headline">¶</a></h1>
 <p>In this tutorial, we will build and train a masked language model, either from scratch or from a pretrained BERT model, using the BERT architecture <a class="bibtex reference internal" href="#nlp-bert-devlin2018bert" id="id1">[NLP-BERT-PRETRAINING2]</a>.
 Make sure you have <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and <code class="docutils literal notranslate"><span class="pre">nemo_nlp</span></code> installed before starting this tutorial. See the <a class="reference internal" href="../index.html#installation"><span class="std std-ref">Getting started</span></a> section for more details.</p>
 <p>The code used in this tutorial can be found at <code class="docutils literal notranslate"><span class="pre">examples/nlp/language_modeling/bert_pretraining.py</span></code>.</p>
@@ -242,6 +247,10 @@ Make sure you have <code class="docutils literal notranslate"><span class="pre">
 </tr>
 </tbody>
 </table>
+<p>BioBERT Large Cased Model (~330M parameters):
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:biobertlargecasedfornemo">https://ngc.nvidia.com/catalog/models/nvidia:biobertlargecasedfornemo</a></p>
+<p>BioBERT Base Cased Model (~110M parameters):
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedfornemo">https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedfornemo</a></p>
 </div>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
@@ -321,8 +330,7 @@ Otherwise, if you’ll be using a vocabulary file from another pre-trained BERT 
 <p>First, we need to create our neural factory with the supported backend. How you should define it depends on whether you’d like to multi-GPU or mixed-precision training.
 This tutorial assumes that you’re training on one GPU, without mixed precision. If you want to use mixed precision, set <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> to <code class="docutils literal notranslate"><span class="pre">O1</span></code> or <code class="docutils literal notranslate"><span class="pre">O2</span></code>.</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
                                    <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -604,7 +612,7 @@ python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>x ber
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="transformer_language_model.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="transformer_language_model.html" class="btn btn-neutral float-right" title="Transformer Language Model Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="neural_machine_translation.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.collections.asr.data_layer &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.collections.asr.data_layer &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -172,29 +172,41 @@
 <span class="sd">&quot;&quot;&quot;This package contains Neural Modules responsible for ASR data layers.&quot;&quot;&quot;</span>
 
 <span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
 
+<span class="kn">import</span> <span class="nn">braceexpand</span>
 <span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">webdataset</span> <span class="k">as</span> <span class="nn">wd</span>
 
-<span class="kn">import</span> <span class="nn">nemo</span>
-<span class="kn">from</span> <span class="nn">.parts.dataset</span> <span class="kn">import</span> <span class="n">AudioDataset</span><span class="p">,</span> <span class="n">AudioLabelDataset</span><span class="p">,</span> <span class="n">KaldiFeatureDataset</span><span class="p">,</span> <span class="n">TranscriptDataset</span><span class="p">,</span> <span class="n">seq_collate_fn</span>
+<span class="kn">from</span> <span class="nn">.parts.collections</span> <span class="kn">import</span> <span class="n">ASRAudioText</span>
+<span class="kn">from</span> <span class="nn">.parts.dataset</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AudioDataset</span><span class="p">,</span>
+    <span class="n">AudioLabelDataset</span><span class="p">,</span>
+    <span class="n">KaldiFeatureDataset</span><span class="p">,</span>
+    <span class="n">TranscriptDataset</span><span class="p">,</span>
+    <span class="n">fixed_seq_collate_fn</span><span class="p">,</span>
+    <span class="n">seq_collate_fn</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span> <span class="nn">.parts.features</span> <span class="kn">import</span> <span class="n">WaveformFeaturizer</span>
+<span class="kn">from</span> <span class="nn">.parts.parsers</span> <span class="kn">import</span> <span class="n">make_parser</span>
 <span class="kn">from</span> <span class="nn">.parts.perturb</span> <span class="kn">import</span> <span class="n">AudioAugmentor</span><span class="p">,</span> <span class="n">perturbation_types</span>
 <span class="kn">from</span> <span class="nn">nemo.backends.pytorch</span> <span class="kn">import</span> <span class="n">DataLayerNM</span>
 <span class="kn">from</span> <span class="nn">nemo.core</span> <span class="kn">import</span> <span class="n">DeviceType</span>
 <span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 <span class="kn">from</span> <span class="nn">nemo.utils.decorators</span> <span class="kn">import</span> <span class="n">add_port_docs</span>
 <span class="kn">from</span> <span class="nn">nemo.utils.misc</span> <span class="kn">import</span> <span class="n">pad_to</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s1">&#39;AudioToTextDataLayer&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;TarredAudioToTextDataLayer&#39;</span><span class="p">,</span>
     <span class="s1">&#39;KaldiFeatureDataLayer&#39;</span><span class="p">,</span>
     <span class="s1">&#39;TranscriptDataLayer&#39;</span><span class="p">,</span>
     <span class="s1">&#39;AudioToSpeechLabelDataLayer&#39;</span><span class="p">,</span>
 <span class="p">]</span>
-
-<span class="n">logging</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">logging</span>
 
 
 <span class="k">def</span> <span class="nf">_process_augmentations</span><span class="p">(</span><span class="n">augmenter</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AudioAugmentor</span><span class="p">:</span>
@@ -358,8 +370,14 @@
 <span class="sd">        int_values (bool): Bool indicating whether the audio file is saved as</span>
 <span class="sd">            int data or float data.</span>
 <span class="sd">            Defaults to False.</span>
+<span class="sd">        bos_id (id): Dataset parameter.</span>
+<span class="sd">            Beginning of string symbol id used for seq2seq models.</span>
+<span class="sd">            Defaults to None.</span>
 <span class="sd">        eos_id (id): Dataset parameter.</span>
 <span class="sd">            End of string symbol id used for seq2seq models.</span>
+<span class="sd">            Defaults to None.</span>
+<span class="sd">        pad_id (id): Token used to pad when collating samples in batches.</span>
+<span class="sd">            If this is None, pads using 0s.</span>
 <span class="sd">            Defaults to None.</span>
 <span class="sd">        min_duration (float): Dataset parameter.</span>
 <span class="sd">            All training files which have a duration less than min_duration</span>
@@ -497,6 +515,240 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataloader</span></div>
 
 
+<div class="viewcode-block" id="TarredAudioToTextDataLayer"><a class="viewcode-back" href="../../../../collections/nemo_asr.html#nemo.collections.asr.data_layer.TarredAudioToTextDataLayer">[docs]</a><span class="k">class</span> <span class="nc">TarredAudioToTextDataLayer</span><span class="p">(</span><span class="n">DataLayerNM</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Data Layer for general ASR tasks, where the audio files are tarred.</span>
+
+<span class="sd">    Module which reads ASR labeled data. It accepts a single comma-separated JSON manifest file, as well as the</span>
+<span class="sd">    path(s) to the tarball(s) with the wav files. Each line of the manifest should contain the information for one</span>
+<span class="sd">    audio file, including at least the transcript and name of the audio file (doesn&#39;t have to be exact, only the</span>
+<span class="sd">    basename must be the same).</span>
+
+<span class="sd">    Valid formats for the audio_tar_filepaths argument include (1) a single string that can be brace-expanded,</span>
+<span class="sd">    e.g. &#39;path/to/audio.tar&#39; or &#39;path/to/audio_{1..100}.tar.gz&#39;, or (2) a list of file paths that will not be</span>
+<span class="sd">    brace-expanded, e.g. [&#39;audio_1.tar&#39;, &#39;audio_2.tar&#39;, ...]. See the WebDataset documentation for more information</span>
+<span class="sd">    about accepted data and input formats.</span>
+
+<span class="sd">    If using torch.distributed, the number of shards should be divisible by the number of workers to ensure an</span>
+<span class="sd">    even split among workers. If it is not divisible, logging will give a warning but we will continue.</span>
+
+<span class="sd">    Notice that a few arguments are different from the AudioToTextDataLayer; for example, shuffle (bool) has been</span>
+<span class="sd">    replaced by shuffle_n (int).</span>
+
+<span class="sd">    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest. Be aware</span>
+<span class="sd">    of this especially if the tarred audio is a subset of the samples represented in the manifest.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        audio_tar_filepaths: Either a list of audio tarball filepaths, or a</span>
+<span class="sd">            string (can be brace-expandable).</span>
+<span class="sd">        manifest_filepath (str): Path to the manifest.</span>
+<span class="sd">        labels (list): List of characters that can be output by the ASR model.</span>
+<span class="sd">            For Jasper, this is the 28 character set {a-z &#39;}. The CTC blank</span>
+<span class="sd">            symbol is automatically added later for models using ctc.</span>
+<span class="sd">        batch_size (int): batch size</span>
+<span class="sd">        sample_rate (int): Target sampling rate for data. Audio files will be</span>
+<span class="sd">            resampled to sample_rate if it is not already.</span>
+<span class="sd">            Defaults to 16000.</span>
+<span class="sd">        int_values (bool): Bool indicating whether the audio file is saved as</span>
+<span class="sd">            int data or float data.</span>
+<span class="sd">            Defaults to False.</span>
+<span class="sd">        bos_id (id): Dataset parameter.</span>
+<span class="sd">            Beginning of string symbol id used for seq2seq models.</span>
+<span class="sd">            Defaults to None.</span>
+<span class="sd">        eos_id (id): Dataset parameter.</span>
+<span class="sd">            End of string symbol id used for seq2seq models.</span>
+<span class="sd">            Defaults to None.</span>
+<span class="sd">        pad_id (id): Token used to pad when collating samples in batches.</span>
+<span class="sd">            If this is None, pads using 0s.</span>
+<span class="sd">            Defaults to None.</span>
+<span class="sd">        min_duration (float): Dataset parameter.</span>
+<span class="sd">            All training files which have a duration less than min_duration</span>
+<span class="sd">            are dropped. Note: Duration is read from the manifest JSON.</span>
+<span class="sd">            Defaults to 0.1.</span>
+<span class="sd">        max_duration (float): Dataset parameter.</span>
+<span class="sd">            All training files which have a duration more than max_duration</span>
+<span class="sd">            are dropped. Note: Duration is read from the manifest JSON.</span>
+<span class="sd">            Defaults to None.</span>
+<span class="sd">        normalize_transcripts (bool): Dataset parameter.</span>
+<span class="sd">            Whether to use automatic text cleaning.</span>
+<span class="sd">            It is highly recommended to manually clean text for best results.</span>
+<span class="sd">            Defaults to True.</span>
+<span class="sd">        trim_silence (bool): Whether to use trim silence from beginning and end</span>
+<span class="sd">            of audio signal using librosa.effects.trim().</span>
+<span class="sd">            Defaults to False.</span>
+<span class="sd">        shuffle_n (int): How many samples to look ahead and load to be shuffled.</span>
+<span class="sd">            See WebDataset documentation for more details.</span>
+<span class="sd">            Defaults to 0.</span>
+<span class="sd">        num_workers (int): See PyTorch DataLoader. Defaults to 0.</span>
+<span class="sd">        augmentor (AudioAugmentor or dict): Optional AudioAugmentor or</span>
+<span class="sd">            dictionary of str -&gt; kwargs (dict) which is parsed and used</span>
+<span class="sd">            to initialize an AudioAugmentor.</span>
+<span class="sd">            Note: It is crucial that each individual augmentation has</span>
+<span class="sd">            a keyword `prob`, that defines a float probability in the</span>
+<span class="sd">            the range [0, 1] of this augmentation being applied.</span>
+<span class="sd">            If this keyword is not present, then the augmentation is</span>
+<span class="sd">            disabled and a warning is logged.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@add_port_docs</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">output_ports</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns definitions of module output ports.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;audio_signal&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span>
+                <span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span>
+                <span class="n">AudioSignal</span><span class="p">(</span><span class="n">freq</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="n">AudioSignal</span><span class="p">(),</span>
+            <span class="p">),</span>
+            <span class="s1">&#39;a_sig_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+            <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">LabelsType</span><span class="p">()),</span>
+            <span class="s1">&#39;transcript_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">audio_tar_filepaths</span><span class="p">,</span>
+        <span class="n">manifest_filepath</span><span class="p">,</span>
+        <span class="n">labels</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="p">,</span>
+        <span class="n">sample_rate</span><span class="o">=</span><span class="mi">16000</span><span class="p">,</span>
+        <span class="n">int_values</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">bos_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">eos_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">pad_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">min_duration</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">max_duration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">normalize_transcripts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">trim_silence</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">shuffle_n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">num_workers</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">augmentor</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">AudioAugmentor</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span> <span class="o">=</span> <span class="n">sample_rate</span>
+
+        <span class="k">if</span> <span class="n">augmentor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">augmentor</span> <span class="o">=</span> <span class="n">_process_augmentations</span><span class="p">(</span><span class="n">augmentor</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">collection</span> <span class="o">=</span> <span class="n">ASRAudioText</span><span class="p">(</span>
+            <span class="n">manifests_files</span><span class="o">=</span><span class="n">manifest_filepath</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">),</span>
+            <span class="n">parser</span><span class="o">=</span><span class="n">make_parser</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;en&#39;</span><span class="p">,</span> <span class="n">do_normalize</span><span class="o">=</span><span class="n">normalize_transcripts</span><span class="p">),</span>
+            <span class="n">min_duration</span><span class="o">=</span><span class="n">min_duration</span><span class="p">,</span>
+            <span class="n">max_duration</span><span class="o">=</span><span class="n">max_duration</span><span class="p">,</span>
+            <span class="n">index_by_file_id</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Must set this so the manifest lines can be indexed by file ID</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">featurizer</span> <span class="o">=</span> <span class="n">WaveformFeaturizer</span><span class="p">(</span><span class="n">sample_rate</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">,</span> <span class="n">int_values</span><span class="o">=</span><span class="n">int_values</span><span class="p">,</span> <span class="n">augmentor</span><span class="o">=</span><span class="n">augmentor</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">trim</span> <span class="o">=</span> <span class="n">trim_silence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eos_id</span> <span class="o">=</span> <span class="n">eos_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bos_id</span> <span class="o">=</span> <span class="n">bos_id</span>
+
+        <span class="c1"># Used in creating a sampler (in Actions).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_batch_size</span> <span class="o">=</span> <span class="n">batch_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_num_workers</span> <span class="o">=</span> <span class="n">num_workers</span>
+        <span class="n">pad_id</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">pad_id</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">pad_id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">collate_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">seq_collate_fn</span><span class="p">,</span> <span class="n">token_pad_value</span><span class="o">=</span><span class="n">pad_id</span><span class="p">)</span>
+
+        <span class="c1"># Check for distributed and partition shards accordingly</span>
+        <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="ow">and</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">is_initialized</span><span class="p">():</span>
+            <span class="n">global_rank</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_rank</span><span class="p">()</span>
+            <span class="n">world_size</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributed</span><span class="o">.</span><span class="n">get_world_size</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">audio_tar_filepaths</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">audio_tar_filepaths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">braceexpand</span><span class="o">.</span><span class="n">braceexpand</span><span class="p">(</span><span class="n">audio_tar_filepaths</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">audio_tar_filepaths</span><span class="p">)</span> <span class="o">%</span> <span class="n">world_size</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;by number of distributed workers (</span><span class="si">{world_size}</span><span class="s2">).&quot;</span>
+                <span class="p">)</span>
+
+            <span class="n">begin_idx</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">audio_tar_filepaths</span><span class="p">)</span> <span class="o">//</span> <span class="n">world_size</span><span class="p">)</span> <span class="o">*</span> <span class="n">global_rank</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">begin_idx</span> <span class="o">+</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">audio_tar_filepaths</span><span class="p">)</span> <span class="o">//</span> <span class="n">world_size</span><span class="p">)</span>
+            <span class="n">audio_tar_filepaths</span> <span class="o">=</span> <span class="n">audio_tar_filepaths</span><span class="p">[</span><span class="n">begin_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span>
+
+        <span class="c1"># Put together WebDataset</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">wd</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span><span class="n">audio_tar_filepaths</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">shuffle_n</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">audio</span><span class="o">=</span><span class="s1">&#39;wav&#39;</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="s1">&#39;__key__&#39;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">to_tuple</span><span class="p">(</span><span class="s1">&#39;audio&#39;</span><span class="p">,</span> <span class="s1">&#39;key&#39;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">pipe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filter</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">f</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_sample</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">iterator</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Used to remove samples that have been filtered out by ASRAudioText already.</span>
+<span class="sd">        Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample</span>
+<span class="sd">        that was filtered out (e.g. for duration).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">class</span> <span class="nc">TarredAudioFilter</span><span class="p">:</span>
+            <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">collection</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">iterator</span> <span class="o">=</span> <span class="n">iterator</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">collection</span> <span class="o">=</span> <span class="n">collection</span>
+
+            <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">return</span> <span class="bp">self</span>
+
+            <span class="k">def</span> <span class="fm">__next__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="n">audio_bytes</span><span class="p">,</span> <span class="n">audio_filename</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iterator</span><span class="p">)</span>
+                    <span class="n">file_id</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">audio_filename</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">file_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="o">.</span><span class="n">mapping</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">audio_bytes</span><span class="p">,</span> <span class="n">audio_filename</span>
+
+        <span class="k">return</span> <span class="n">TarredAudioFilter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_build_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tup</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Builds the training sample by combining the data from the WebDataset with the manifest info.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">audio_bytes</span><span class="p">,</span> <span class="n">audio_filename</span> <span class="o">=</span> <span class="n">tup</span>
+
+        <span class="c1"># Grab manifest entry from self.collection</span>
+        <span class="n">file_id</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">audio_filename</span><span class="p">))</span>
+        <span class="n">manifest_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="o">.</span><span class="n">mapping</span><span class="p">[</span><span class="n">file_id</span><span class="p">]</span>
+        <span class="n">manifest_entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">[</span><span class="n">manifest_idx</span><span class="p">]</span>
+
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">manifest_entry</span><span class="o">.</span><span class="n">offset</span>
+        <span class="k">if</span> <span class="n">offset</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Convert audio bytes to IO stream for processing (for SoundFile to read)</span>
+        <span class="n">audio_filestream</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">audio_bytes</span><span class="p">)</span>
+        <span class="n">features</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">featurizer</span><span class="o">.</span><span class="n">process</span><span class="p">(</span>
+            <span class="n">audio_filestream</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span> <span class="n">duration</span><span class="o">=</span><span class="n">manifest_entry</span><span class="o">.</span><span class="n">duration</span><span class="p">,</span> <span class="n">trim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">trim</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">audio_filestream</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="c1"># Audio features</span>
+        <span class="n">f</span><span class="p">,</span> <span class="n">fl</span> <span class="o">=</span> <span class="n">features</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
+
+        <span class="c1"># Text features</span>
+        <span class="n">t</span><span class="p">,</span> <span class="n">tl</span> <span class="o">=</span> <span class="n">manifest_entry</span><span class="o">.</span><span class="n">text_tokens</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">manifest_entry</span><span class="o">.</span><span class="n">text_tokens</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bos_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">bos_id</span><span class="p">]</span> <span class="o">+</span> <span class="n">t</span>
+            <span class="n">tl</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">eos_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">t</span> <span class="o">+</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">eos_id</span><span class="p">]</span>
+            <span class="n">tl</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">fl</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">long</span><span class="p">(),</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">tl</span><span class="p">)</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">collection</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data_iterator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
 <div class="viewcode-block" id="KaldiFeatureDataLayer"><a class="viewcode-back" href="../../../../collections/nemo_asr.html#nemo.collections.asr.data_layer.KaldiFeatureDataLayer">[docs]</a><span class="k">class</span> <span class="nc">KaldiFeatureDataLayer</span><span class="p">(</span><span class="n">DataLayerNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Data layer for reading generic Kaldi-formatted data.</span>
 
@@ -546,7 +798,8 @@
             <span class="c1"># &#39;transcripts&#39;: NeuralType({0: AxisType(BatchTag), 1: AxisType(TimeTag)}),</span>
             <span class="c1"># &#39;transcript_length&#39;: NeuralType({0: AxisType(BatchTag)}),</span>
             <span class="s1">&#39;processed_signal&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">SpectrogramType</span><span class="p">()),</span>
-            <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">ChannelType</span><span class="p">()),</span>
+            <span class="s1">&#39;processed_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+            <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">LabelsType</span><span class="p">()),</span>
             <span class="s1">&#39;transcript_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
         <span class="p">}</span>
 
@@ -807,6 +1060,7 @@
 <span class="sd">            the range [0, 1] of this augmentation being applied.</span>
 <span class="sd">            If this keyword is not present, then the augmentation is</span>
 <span class="sd">            disabled and a warning is logged.</span>
+<span class="sd">        time_length (int): max seconds to consider in a batch # Pass this only for speaker recognition task</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@property</span>
@@ -836,6 +1090,7 @@
         <span class="n">drop_last</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">load_audio</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
         <span class="n">augmentor</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">AudioAugmentor</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">time_length</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">AudioToSpeechLabelDataLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
 
@@ -859,6 +1114,9 @@
         <span class="p">}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span> <span class="o">=</span> <span class="n">AudioLabelDataset</span><span class="p">(</span><span class="o">**</span><span class="n">dataset_params</span><span class="p">)</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_classes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span><span class="o">.</span><span class="n">num_commands</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;# of classes :</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_classes</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span><span class="o">.</span><span class="n">labels</span>
         <span class="c1"># Set up data loader</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_placement</span> <span class="o">==</span> <span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">:</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Parallelizing Datalayer.&quot;</span><span class="p">)</span>
@@ -866,10 +1124,15 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">sampler</span> <span class="o">=</span> <span class="kc">None</span>
 
+        <span class="k">if</span> <span class="n">time_length</span><span class="p">:</span>
+            <span class="n">collate_func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">fixed_seq_collate_fn</span><span class="p">,</span> <span class="n">fixed_length</span><span class="o">=</span><span class="n">time_length</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">collate_func</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">seq_collate_fn</span><span class="p">,</span> <span class="n">token_pad_value</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_dataloader</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">DataLoader</span><span class="p">(</span>
             <span class="n">dataset</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_dataset</span><span class="p">,</span>
             <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
-            <span class="n">collate_fn</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">seq_collate_fn</span><span class="p">,</span> <span class="n">token_pad_value</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="n">collate_fn</span><span class="o">=</span><span class="n">collate_func</span><span class="p">,</span>
             <span class="n">drop_last</span><span class="o">=</span><span class="n">drop_last</span><span class="p">,</span>
             <span class="n">shuffle</span><span class="o">=</span><span class="n">shuffle</span> <span class="k">if</span> <span class="n">sampler</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">False</span><span class="p">,</span>
             <span class="n">sampler</span><span class="o">=</span><span class="n">sampler</span><span class="p">,</span>

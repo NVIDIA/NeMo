@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="bert_pretraining.html" />
+    <link rel="next" title="BERT Pre-training Tutorial" href="bert_pretraining.html" />
     <link rel="prev" title="Natural Language Processing" href="intro.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,7 +89,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
@@ -98,19 +100,21 @@
 <li class="toctree-l4"><a class="reference internal" href="#model-training">Model training</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#translation-with-pretrained-model">Translation with pretrained model</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#id7">References</a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -184,7 +188,7 @@
            <div itemprop="articleBody">
             
   <div class="section" id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<span id="nmt"></span><h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>In this tutorial we are going to implement Neural Machine Translation (NMT) system based on
 <a class="reference external" href="https://arxiv.org/abs/1706.03762">Transformer encoder-decoder architecture</a> <a class="bibtex reference internal" href="#nlp-nmt-vaswani2017attention" id="id1">[NLP-NMT6]</a>.
 All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/neural_machine_translation/machine_translation_tutorial.py</span></code>.</p>
@@ -216,8 +220,7 @@ and training / validation losses will go to &lt;1.5 pretty fast.</p>
 <h2>Code overview<a class="headerlink" href="#code-overview" title="Permalink to this headline">¶</a></h2>
 <p>First of all, we instantiate Neural Module Factory which defines 1) backend, 2) mixed precision optimization level, and 3) local rank of the GPU.</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">work_dir</span><span class="p">,</span>
                                    <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -392,24 +395,23 @@ To train with bigger batches which do not fit into the memory, increase the <str
 <div class="section" id="translation-with-pretrained-model">
 <h2>Translation with pretrained model<a class="headerlink" href="#translation-with-pretrained-model" title="Permalink to this headline">¶</a></h2>
 <p>1. Put your saved checkpoint (or download good checkpoint which obtains 28.5 SacreBLEU on newstest2014 from
-<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k">here</a>) into <strong>&lt;path_to_ckpt&gt;</strong>.
-2. Run <code class="docutils literal notranslate"><span class="pre">machine_translation_tutorial.py</span></code> in an interactive mode:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span> <span class="n">python</span> <span class="n">machine_translation_tutorial</span><span class="o">.</span><span class="n">py</span> <span class="o">--</span><span class="n">src_tokenizer_model</span> <span class="n">bpe8k_yttm</span><span class="o">.</span><span class="n">model</span> \
-      <span class="o">--</span><span class="n">eval_datasets</span> <span class="n">test</span> <span class="o">--</span><span class="n">optimizer</span> <span class="n">novograd</span> <span class="o">--</span><span class="n">d_model</span> <span class="mi">1024</span> \
-      <span class="o">--</span><span class="n">d_inner</span> <span class="mi">4096</span> <span class="o">--</span><span class="n">num_layers</span> <span class="mi">6</span> <span class="o">--</span><span class="n">num_attn_heads</span> <span class="mi">16</span> \
-      <span class="o">--</span><span class="n">restore_checkpoint_from</span> <span class="o">&lt;</span><span class="n">path_to_ckpt</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">interactive</span>
-
-
-<span class="o">..</span> <span class="n">image</span><span class="p">::</span> <span class="n">interactive_translation</span><span class="o">.</span><span class="n">png</span>
-    <span class="p">:</span><span class="n">align</span><span class="p">:</span> <span class="n">center</span>
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:transformer_big_en_de_8k">here</a>) into <strong>&lt;path_to_ckpt&gt;</strong>.</p>
+<ol class="arabic" start="2">
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">machine_translation_tutorial.py</span></code> in an interactive mode:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python machine_translation_tutorial.py --src_tokenizer_model bpe8k_yttm.model <span class="se">\</span>
+    --eval_datasets <span class="nb">test</span> --optimizer novograd --d_model <span class="m">1024</span> <span class="se">\</span>
+    --d_inner <span class="m">4096</span> --num_layers <span class="m">6</span> --num_attn_heads <span class="m">16</span> <span class="se">\</span>
+    --restore_checkpoint_from &lt;path_to_ckpt&gt; --interactive
 </pre></div>
 </div>
+<img alt="../_images/interactive_translation.png" src="../_images/interactive_translation.png" />
+</div></blockquote>
+</li>
+</ol>
 </div>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="id7">
-<h2>References<a class="headerlink" href="#id7" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/neural_machine_translation-0"><dl class="citation">
 <dt class="bibtex label" id="nlp-nmt-ott2018analyzing"><span class="brackets"><a class="fn-backref" href="#id2">NLP-NMT1</a></span></dt>
 <dd><p>Myle Ott, Michael Auli, David Grangier, and Marc’Aurelio Ranzato. Analyzing uncertainty in neural machine translation. <em>arXiv preprint arXiv:1803.00047</em>, 2018.</p>
@@ -442,7 +444,7 @@ To train with bigger batches which do not fit into the memory, increase the <str
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="bert_pretraining.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="bert_pretraining.html" class="btn btn-neutral float-right" title="BERT Pre-training Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="intro.html" class="btn btn-neutral float-left" title="Natural Language Processing" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

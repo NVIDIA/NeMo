@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>TRADE Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,8 +35,8 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="ner.html" />
-    <link rel="prev" title="Tutorial" href="transformer_language_model.html" /> 
+    <link rel="next" title="Schema Guided Dialogues Tutorial" href="dialogue_state_tracking_sgd.html" />
+    <link rel="prev" title="Tutorial" href="question_answering.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,13 +89,22 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">TRADE Tutorial</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#the-multiwoz-dataset">The MultiWOZ Dataset</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#trade-model">TRADE Model</a></li>
@@ -104,16 +113,14 @@
 <li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#evaluating-checkpoints">Evaluating Checkpoints</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#metrics-and-results">Metrics and Results</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#complete-dialogue-pipeline-with-trade-for-multiwoz">Complete dialogue Pipeline with TRADE for MultiWOZ</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="dialogue_state_tracking_sgd.html">Schema Guided Dialogues Tutorial</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -167,7 +174,7 @@
         
           <li><a href="intro.html">Natural Language Processing</a> &raquo;</li>
         
-      <li>Tutorial</li>
+      <li>TRADE Tutorial</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -186,22 +193,22 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="trade-tutorial">
+<span id="id1"></span><h1>TRADE Tutorial<a class="headerlink" href="#trade-tutorial" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="introduction">
 <h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
-<p>The goal of <strong>Dialog State Tracking (DST)</strong> <a class="bibtex reference internal" href="#nlp-dst-henderson2015machine" id="id1">[NLP-DST3]</a> is to build a representation of the status of the ongoing conversation being a sequence of utterances exchanged between dialog participants. In another words, the goal of DST system is to capture user goals and intentions and encode them as a set of <strong>slots</strong> along with the corresponding <strong>values</strong>. DST is considered an important module for most of the goal-oriented dialogue systems.</p>
-<div class="figure align-default" id="id12">
+<p>The goal of <strong>Dialog State Tracking (DST)</strong> <a class="bibtex reference internal" href="#nlp-dst-henderson2015machine" id="id2">[NLP-DST3]</a> is to build a representation of the status of the ongoing conversation being a sequence of utterances exchanged between dialog participants. In other words, the goal of DST system is to capture user goals and intentions and encode them as a set of <strong>slots</strong> along with the corresponding <strong>values</strong>. DST is considered an important module for most of the goal-oriented dialogue systems.</p>
+<div class="figure align-default" id="id13">
 <img alt="../_images/dst_multiwoz_example.png" src="../_images/dst_multiwoz_example.png" />
-<p class="caption"><span class="caption-text">Fig. 1: An exemplary, multi-domain dialog along with the associated state tracking (source: <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id2">[NLP-DST4]</a>)</span><a class="headerlink" href="#id12" title="Permalink to this image">¶</a></p>
+<p class="caption"><span class="caption-text">Fig. 1: An exemplary, multi-domain dialog along with the associated state tracking (source: <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id3">[NLP-DST4]</a>)</span><a class="headerlink" href="#id13" title="Permalink to this image">¶</a></p>
 </div>
-<p>In this tutorial we will focus on a multi-domain dialogue MultiWOZ dataset <a class="bibtex reference internal" href="#nlp-dst-budzianowski2018multiwoz" id="id3">[NLP-DST1]</a> and show how one can train a TRADE model <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id4">[NLP-DST4]</a>, being one of the recent, state of the art models. <strong>Multi-domain</strong> setting introduces several challanges, with the most important coming from the need for <strong>multi-turn mapping</strong>. In a <strong>single-turn mapping</strong> scenario the (<strong>domain</strong>, <strong>slot</strong>, <strong>value</strong>) triplet can be inferred from a single turn. In multi-turn this assumption does not hold and the DST system must infer those from multiple turns, possibly spanning over several different domains.</p>
+<p>In this tutorial we will focus on a multi-domain dialogue MultiWOZ dataset <a class="bibtex reference internal" href="#nlp-dst-budzianowski2018multiwoz" id="id4">[NLP-DST1]</a> and show how one can train a TRADE model <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id5">[NLP-DST4]</a>, being one of the recent, state of the art models. <strong>Multi-domain</strong> setting introduces several challenges, with the most important coming from the need for <strong>multi-turn mapping</strong>. In a <strong>single-turn mapping</strong> scenario the (<strong>domain</strong>, <strong>slot</strong>, <strong>value</strong>) triplet can be inferred from a single turn. In multi-turn this assumption does not hold and the DST system must infer those from multiple turns, possibly spanning over several different domains.</p>
 </div>
 <div class="section" id="the-multiwoz-dataset">
 <h2>The MultiWOZ Dataset<a class="headerlink" href="#the-multiwoz-dataset" title="Permalink to this headline">¶</a></h2>
 <p>The Multi-Domain Wizard-of-Oz dataset (<a class="reference external" href="https://www.repository.cam.ac.uk/handle/1810/294507">MultiWOZ</a>) is a collection of human-to-human conversations spanning over 7 distinct domains and containing over 10,000 dialogues.
-The original MultiWOZ 2.0 dataset was introduced in <a class="bibtex reference internal" href="#nlp-dst-budzianowski2018multiwoz" id="id5">[NLP-DST1]</a>.
-However, in this tutorial we will utilize MultiWOZ 2.1  <a class="bibtex reference internal" href="#nlp-dst-eric2019multiwoz" id="id6">[NLP-DST2]</a>, which is an updated version of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value canonicalization etc.). Our model can also get trained on MultiWOZ 2.0.</p>
+The original MultiWOZ 2.0 dataset was introduced in <a class="bibtex reference internal" href="#nlp-dst-budzianowski2018multiwoz" id="id6">[NLP-DST1]</a>.
+However, in this tutorial we will utilize MultiWOZ 2.1  <a class="bibtex reference internal" href="#nlp-dst-eric2019multiwoz" id="id7">[NLP-DST2]</a>, which is an updated version of MultiWOZ 2.0. They have fixed several issues with the original dataset including errors in states, utterances, value canonicalization, etc.). Our model can also get trained on MultiWOZ 2.0.</p>
 <dl class="simple">
 <dt>The MultiWOZ dataset covers the following domains:</dt><dd><ol class="arabic simple">
 <li><p>restaurant</p></li>
@@ -242,43 +249,43 @@ However, in this tutorial we will utilize MultiWOZ 2.1  <a class="bibtex referen
 </ul>
 </dd>
 </dl>
-<p>Please note that some of the actions and slots are associated with particular domain(s), whereas some are universal, i.e. domain independent. The latter ones are denoted with (∗).</p>
-<p>MultiWOZ offers 10,438 dialogues, with 115,434 turns in total. Dialogues are generally classified into single and multi-domain dialogues. Dialogue length distribution is varying from 1 to 31, with around 70% of dialogues have more than 10 turns. The average number of turns are 8.93 and 15.39 for single and multi-domain dialogues. </p>
-<p>Each dialogue consists of a goal, multiple user and system utterances as well as a belief state and set of dialogue acts with slots per turn. Additionally, each dialog is supported with a task description. Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).</p>
+<p>Please note that some of the actions and slots are associated with a particular domain(s), whereas some are universal, i.e. domain independent. The latter ones are denoted with (∗).</p>
+<p>MultiWOZ offers 10,438 dialogues, with 115,434 turns in total. Dialogues are generally classified into single and multi-domain dialogues. Dialogue length distribution is varying from 1 to 31, with around 70% of dialogues have more than 10 turns. The average number of turns is 8.93 and 15.39 for single and multi-domain dialogues. </p>
+<p>Each dialogue consists of a goal, multiple user and system utterances as well as a belief state and set of dialogue acts with slots per turn. Additionally, each dialog is supported with task description. Moreover, it contains both system and user dialogue act annotations (the latter introduced in MultiWOZ 2.1).</p>
 </div>
 <div class="section" id="trade-model">
 <h2>TRADE Model<a class="headerlink" href="#trade-model" title="Permalink to this headline">¶</a></h2>
-<p>The <strong>TRA</strong>nsferable <strong>D</strong>ialogue stat<strong>E</strong> generator (TRADE) <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id7">[NLP-DST4]</a>  is a model designed specially for the multi-domain task-oriented dialogue state tracking problem. The model generates dialogue states from utterances and history. It learns embeddings for domains and slots, and also benefits from copy mechanism to facilitate knowledge transfer between domains. It enables the model to predict
+<p>The <strong>TRA</strong>nsferable <strong>D</strong>ialogue stat<strong>E</strong> generator (TRADE) <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id8">[NLP-DST4]</a>  is a model designed specially for the multi-domain task-oriented dialogue state tracking problem. The model generates dialogue states from utterances and history. It learns embeddings for domains and slots, and also benefits from copy mechanism to facilitate knowledge transfer between domains. It enables the model to predict
 (<strong>domain</strong>, <strong>slot</strong>, <strong>value</strong>) triplets not encountered during training in a given domain.</p>
-<div class="figure align-default" id="id13">
+<div class="figure align-default" id="id14">
 <img alt="../_images/dst_trade_architecture.png" src="../_images/dst_trade_architecture.png" />
-<p class="caption"><span class="caption-text">Fig. 2: Architecture of the TRADE model (source: <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id8">[NLP-DST4]</a>)</span><a class="headerlink" href="#id13" title="Permalink to this image">¶</a></p>
+<p class="caption"><span class="caption-text">Fig. 2: Architecture of the TRADE model (source: <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id9">[NLP-DST4]</a>)</span><a class="headerlink" href="#id14" title="Permalink to this image">¶</a></p>
 </div>
 <p>The model is composed of three main components:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><strong>Utterance Encoder</strong>,</p></li>
-<li><p><strong>Slot Gate</strong>, and</p></li>
-<li><p><strong>State Generator</strong>.</p></li>
+<li><p><strong>Utterance Encoder</strong></p></li>
+<li><p><strong>Slot Gate</strong></p></li>
+<li><p><strong>State Generator</strong></p></li>
 </ul>
 </div></blockquote>
-<p>The <strong>utterance encoder</strong> is a bi-directional Gated Recurrent Unit (GRU), returning both context words and and an aggregated context vector encoding the whole dialogue history.</p>
-<p>The <strong>state generator</strong> also uses GRU to predict the value for each(domain, slot) pair. Generator employ a soft-gated pointer-generator copying to combine a <strong>distribution over the vocabulary</strong> and a <strong>distribution over the dialogue history</strong> into a single output distribution.</p>
-<p>Finally, the <strong>slot gate</strong> is a simple classifier that maps a context  vector taken from the encoder hidden states to a probability  distribution  over three classes: <em>ptr</em>, <em>none</em>,  and <em>dontcare</em>.</p>
+<p>The <strong>utterance encoder</strong> is a bi-directional Gated Recurrent Unit (GRU), returning both context words and an aggregated context vector encoding the whole dialogue history.</p>
+<p>The <strong>state generator</strong> also uses GRU to predict the value for each(domain, slot) pair. Generator employs a soft-gated pointer-generator copying to combine a <strong>distribution over the vocabulary</strong> and a <strong>distribution over the dialogue history</strong> into a single output distribution.</p>
+<p>Finally, the <strong>slot gate</strong> is a simple classifier that maps a context vector taken from the encoder hidden states to a probability distribution over three classes: <em>ptr</em>, <em>none</em>,  and <em>dontcare</em>.</p>
 </div>
 <div class="section" id="data-pre-processing">
 <h2>Data Pre-processing<a class="headerlink" href="#data-pre-processing" title="Permalink to this headline">¶</a></h2>
 <p>First, you need to download <cite>MULTIWOZ2.1.zip</cite> from the <a class="reference external" href="https://www.repository.cam.ac.uk/handle/1810/294507">MultiWOZ2.1</a> project website. It contains the data for MultiWOZ 2.1 dataset. Alternatively, you can download <cite>MULTIWOZ2.zip</cite> compressed file from <a class="reference external" href="https://www.repository.cam.ac.uk/handle/1810/280608">MultiWOZ2.0</a> which contain the older version of this dataset.</p>
-<p>Next, we need to preprocess and reformat the dataset, what will result in division of data into three splits:</p>
+<p>Next, we need to preprocess and reformat the dataset. The dataset will be divided into three splits:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p>traininig split (8242 dialogs in the <code class="docutils literal notranslate"><span class="pre">train_dials.json</span></code> file)</p></li>
+<li><p>training split (8242 dialogs in the <code class="docutils literal notranslate"><span class="pre">train_dials.json</span></code> file)</p></li>
 <li><p>development/validation split (1000 dialogs in the <code class="docutils literal notranslate"><span class="pre">dev_dials.json</span></code> file)</p></li>
 <li><p>test split (999 dialogs in the <code class="docutils literal notranslate"><span class="pre">test_dials.json</span></code> file)</p></li>
 </ul>
 </div></blockquote>
-<p>In order to preprocess the MultiWOZ dataset you can use the provided <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/process_multiwoz.py">process_multiwoz.py</a> script:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/nlp/dialogue_state_tracking/data/
+<p>To preprocess the MultiWOZ dataset, you can use the provided <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/multiwoz/process_multiwoz.py">process_multiwoz.py</a> script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/nlp/dialogue_state_tracking/data/multiwoz
 python process_multiwoz.py <span class="se">\</span>
     --source_data_dir &lt;path to MultoWOZ dataset&gt; <span class="se">\</span>
     --target_data_dir &lt;path to store the processed data&gt;
@@ -313,11 +320,11 @@ python dialogue_state_tracking_trade.py <span class="se">\</span>
     --eval_file_prefix &lt;<span class="nb">test</span> or dev&gt;
 </pre></div>
 </div>
-<p>You may find the list of parameters in the example file and update them as see fits. By default the script would train the model for 10 epochs on 1 single gpu. The police and hospital domains are excluded from the training by default as they do not exist in the development set. The list of the domains can get updated in the example.</p>
+<p>You may find the list of parameters in the example file and update them as see fits. By default, the script would train the model for 10 epochs on 1 single gpu. The police and hospital domains are excluded from the training by default as they do not exist in the development set. The list of the domains can get updated in the example.</p>
 </div>
 <div class="section" id="evaluating-checkpoints">
 <h2>Evaluating Checkpoints<a class="headerlink" href="#evaluating-checkpoints" title="Permalink to this headline">¶</a></h2>
-<p>By default a folder named “checkpoints” would get created under the working folder specified by <cite>–work_dir</cite> and checkpoints are stored under it. To do evaluation a checkpoint on test or dev set, you may run the same script by passing <cite>–checkpoint_dir</cite> and setting <cite>–num_epochs</cite> as zero to avoid the training:</p>
+<p>By default, a folder named “checkpoints” would get created under the working folder specified by <cite>–work_dir</cite> and checkpoints are stored under it. To do evaluation a checkpoint on test or dev set, you may run the same script by passing <cite>–checkpoint_dir</cite> and setting <cite>–num_epochs</cite> as zero to avoid the training:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/nlp/dialogue_state_tracking
 python dialogue_state_tracking_trade.py <span class="se">\</span>
     --data_dir &lt;path to the data&gt; <span class="se">\</span>
@@ -330,10 +337,10 @@ python dialogue_state_tracking_trade.py <span class="se">\</span>
 </div>
 <div class="section" id="metrics-and-results">
 <h2>Metrics and Results<a class="headerlink" href="#metrics-and-results" title="Permalink to this headline">¶</a></h2>
-<p>In the following table we compare the results achieved by our TRADE model implementation with the results reported in the original paper <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id9">[NLP-DST4]</a>. We trained our models for 10 epochs on a single GPU with 16GB memory. As the authors reported results on just MultiWOZ 2.0 dataset, we ran the original implementation on MultiWOZ 2.1 dataset and reported those too.</p>
-<p>We used the same parameters as the original implementation. There are some differences between our implementation and the original one. The main difference is that our model does not use pre-trained embeddings which seems not to affect the performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the original one is to create vocabulary from all the data including test and development sets. The main reason behind the improvement of our model in terms of accuracy is utilizing better learning rate policy. When we used fixed learning rate in our implementation, we got similar results as the original one.</p>
-<p>We also did some improvements to the implementation of the model to have faster training. It makes our implementation significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster training time. It should be noted that learning rate needs to get increased if you want to use multi-GPU training because of having larger batch size.</p>
-<p>Following <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id10">[NLP-DST4]</a>, we used two main metrics to evaluate the model performance:</p>
+<p>In the following table, we compare the results achieved by our TRADE model implementation with the results reported in the original paper <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id10">[NLP-DST4]</a>. We trained our models for 10 epochs on a single GPU with 16GB memory. As the authors reported results on just MultiWOZ 2.0 dataset, we ran the original implementation on MultiWOZ 2.1 dataset and reported those too.</p>
+<p>We used the same parameters as the original implementation. There are some differences between our implementation and the original one. The main difference is that our model does not use pre-trained embeddings which seems not to affect the performance of the model. The other difference is that we used SquareAnnealing for the learning policy instead of fixed learning rate. Additionally, we create the vocabulary just based on the training data while the default for the original one is to create vocabulary from all the data including test and development sets. The main reason behind the improvement of our model in terms of accuracy is utilizing a better learning rate policy. When we used fixed learning rate in our implementation, we got similar results as the original one.</p>
+<p>We also did some improvements to the implementation of the model to have faster training. It makes our implementation significantly faster than the original one. Additionally, NeMo supports multi-GPU training which enables even faster training time. It should be noted that the learning rate needs to get increased if you want to use multi-GPU training because of having a larger batch size.</p>
+<p>Following <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id11">[NLP-DST4]</a>, we used two main metrics to evaluate the model performance:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p><strong>Joint Goal Accuracy</strong> compares the predicted dialogue states to the ground truth at each dialogue turn, and the
@@ -374,7 +381,7 @@ output is considered correct if and only if <strong>all the predicted values exa
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Original <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id11">[NLP-DST4]</a></p></td>
+<tr class="row-even"><td><p>Original <a class="bibtex reference internal" href="#nlp-dst-wu2019transferable" id="id12">[NLP-DST4]</a></p></td>
 <td><p>48.62%</p></td>
 <td><p>96.92%</p></td>
 <td><p>48.76%</p></td>
@@ -403,22 +410,40 @@ output is considered correct if and only if <strong>all the predicted values exa
 </div></blockquote>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly predict special values for like <strong>don’t care</strong> or <strong>none</strong> for the slots. The <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/process_multiwoz.py">process_multiwoz.py</a> script extracts the additional labels from the dataset and <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py">dialogue_state_tracking_trade.py</a> script reports the <strong>Gating Accuracy</strong> as well.</p>
+<p>During training, TRADE model uses an additional supervisory signal, enforcing the Slot Gate to properly predict special values for like <strong>don’t care</strong> or <strong>none</strong> for the slots. The <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/data/multiwoz/process_multiwoz.py">process_multiwoz.py</a> script extracts the additional labels from the dataset and <a class="reference external" href="https://github.com/NVIDIA/NeMo/tree/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_trade.py">dialogue_state_tracking_trade.py</a> script reports the <strong>Gating Accuracy</strong> as well.</p>
 </div>
+</div>
+<div class="section" id="complete-dialogue-pipeline-with-trade-for-multiwoz">
+<h2>Complete dialogue Pipeline with TRADE for MultiWOZ<a class="headerlink" href="#complete-dialogue-pipeline-with-trade-for-multiwoz" title="Permalink to this headline">¶</a></h2>
+<p>The pre-trained TRADE model, as was mentioned above, is a Dialogue State Tracker (DST) responsible for extracting correct slot-slot_value pairs from the dialogue history. Once the system has this information, the next module called Dialogue Policy Manager (DPM) comes into play.
+This module determines what actions the system should take, given the dialogue state passed from the DST module. For example, the DPM can request additional information from the user or inform the user about possible ways/options to fill out the user’s original intent.
+With the output of the DPM, the final dialogue module called Natural Language Generation (NLG) generates the system’s response to the user’s utterance.</p>
+<p>NeMo provides Rule-based DPM and Rule-based NLG modules (source: <a class="reference external" href="https://github.com/thu-coai/ConvLab-2">ConvLab-2: An Open-Source Toolkit for Building, Evaluating, and Diagnosing Dialogue Systems</a>) to complete the dialogue pipeline based on the TRADE model and MultiWOZ dataset.</p>
+<p>To evaluate TRADE’s model output and its role in the complete dialogue pipeline, use <code class="docutils literal notranslate"><span class="pre">examples/nlp/dialogue_state_tracking\rule_based_policy_multiwoz.py</span></code>.
+Before running this script, make sure to download the pre-trained TRADE model checkpoint following the steps above.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/nlp/dialogue_state_tracking
+python rule_based_policy_multiwoz.py <span class="se">\</span>
+    --data_dir &lt;path to the data&gt; <span class="se">\</span>
+    --encoder_ckpt &lt;path to checkpoint folder&gt;<span class="se">\E</span>ncoderRNN.pt <span class="se">\</span>
+    --decoder_ckpt &lt;path to checkpoint folder&gt;<span class="se">\T</span>RADEGenerator.pt <span class="se">\</span>
+    --mode example <span class="se">\</span>
+</pre></div>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">interactive</span></code> to chat with the system and <code class="docutils literal notranslate"><span class="pre">--hide_output</span></code> - to hide the intermediate output of the dialogue modules</p>
 </div>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/dialogue_state_tracking_trade-0"><dl class="citation">
-<dt class="bibtex label" id="nlp-dst-budzianowski2018multiwoz"><span class="brackets">NLP-DST1</span><span class="fn-backref">(<a href="#id3">1</a>,<a href="#id5">2</a>)</span></dt>
+<dt class="bibtex label" id="nlp-dst-budzianowski2018multiwoz"><span class="brackets">NLP-DST1</span><span class="fn-backref">(<a href="#id4">1</a>,<a href="#id6">2</a>)</span></dt>
 <dd><p>Paweł Budzianowski, Tsung-Hsien Wen, Bo-Hsiang Tseng, Inigo Casanueva, Stefan Ultes, Osman Ramadan, and Milica Gašić. Multiwoz-a large-scale multi-domain wizard-of-oz dataset for task-oriented dialogue modelling. <em>arXiv preprint arXiv:1810.00278</em>, 2018.</p>
 </dd>
-<dt class="bibtex label" id="nlp-dst-eric2019multiwoz"><span class="brackets"><a class="fn-backref" href="#id6">NLP-DST2</a></span></dt>
+<dt class="bibtex label" id="nlp-dst-eric2019multiwoz"><span class="brackets"><a class="fn-backref" href="#id7">NLP-DST2</a></span></dt>
 <dd><p>Mihail Eric, Rahul Goel, Shachi Paul, Abhishek Sethi, Sanchit Agarwal, Shuyag Gao, and Dilek Hakkani-Tur. Multiwoz 2.1: multi-domain dialogue state corrections and state tracking baselines. <em>arXiv preprint arXiv:1907.01669</em>, 2019.</p>
 </dd>
-<dt class="bibtex label" id="nlp-dst-henderson2015machine"><span class="brackets"><a class="fn-backref" href="#id1">NLP-DST3</a></span></dt>
+<dt class="bibtex label" id="nlp-dst-henderson2015machine"><span class="brackets"><a class="fn-backref" href="#id2">NLP-DST3</a></span></dt>
 <dd><p>Matthew Henderson. Machine learning for dialog state tracking: a review. <em>research.google</em>, 2015.</p>
 </dd>
-<dt class="bibtex label" id="nlp-dst-wu2019transferable"><span class="brackets">NLP-DST4</span><span class="fn-backref">(<a href="#id2">1</a>,<a href="#id4">2</a>,<a href="#id7">3</a>,<a href="#id8">4</a>,<a href="#id9">5</a>,<a href="#id10">6</a>,<a href="#id11">7</a>)</span></dt>
+<dt class="bibtex label" id="nlp-dst-wu2019transferable"><span class="brackets">NLP-DST4</span><span class="fn-backref">(<a href="#id3">1</a>,<a href="#id5">2</a>,<a href="#id8">3</a>,<a href="#id9">4</a>,<a href="#id10">5</a>,<a href="#id11">6</a>,<a href="#id12">7</a>)</span></dt>
 <dd><p>Chien-Sheng Wu, Andrea Madotto, Ehsan Hosseini-Asl, Caiming Xiong, Richard Socher, and Pascale Fung. Transferable multi-domain state generator for task-oriented dialogue systems. <em>arXiv preprint arXiv:1905.08743</em>, 2019.</p>
 </dd>
 </dl>
@@ -434,10 +459,10 @@ output is considered correct if and only if <strong>all the predicted values exa
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="ner.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="dialogue_state_tracking_sgd.html" class="btn btn-neutral float-right" title="Schema Guided Dialogues Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="transformer_language_model.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="question_answering.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

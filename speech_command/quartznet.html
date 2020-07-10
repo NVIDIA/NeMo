@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>QuartzNet &mdash; nemo 0.10.1 documentation</title>
+  <title>QuartzNet &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Natural Language Processing" href="../nlp/intro.html" />
+    <link rel="next" title="Voice Activity Detection" href="../voice_activity_detection/intro.html" />
     <link rel="prev" title="Models" href="models.html" /> 
 </head>
 
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,17 +89,21 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Speech Commands</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="installation_link.html">Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial.html">Tutorial</a></li>
 <li class="toctree-l2"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="models.html">Models</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">QuartzNet</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
-<li class="toctree-l3"><a class="reference internal" href="models.html#references">References</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">QuartzNet</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
 </ul>
 </li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -175,16 +179,12 @@
             
   <div class="section" id="quartznet">
 <h1>QuartzNet<a class="headerlink" href="#quartznet" title="Permalink to this headline">¶</a></h1>
-<p>QuartzNet is a version of Jasper <a class="bibtex reference internal" href="../asr/models.html#asr-models-li2019jasper" id="id1">[ASR-MODELS1]</a> model with separable convolutions and larger filters. It can achieve performance
+<p>QuartzNet is a version of Jasper <a class="bibtex reference internal" href="#speech-recognition-models-li2019jasper" id="id1">[SPEECH-RECOGNITION-MODELS1]</a> model with separable convolutions and larger filters. It can achieve performance
 similar to Jasper but with an order of magnitude less parameters.
 Similarly to Jasper, QuartzNet family of models are denoted as QuartzNet_[BxR] where B is the number of blocks, and R - the number of convolutional sub-blocks within a block. Each sub-block contains a 1-D <em>separable</em> convolution, batch normalization, ReLU, and dropout:</p>
 <p>These models are trained on Google Speech Commands dataset (V1 - all 30 classes).</p>
 <blockquote>
-<div><img alt="quartznet model" class="align-center" src="../_images/quartz_vertical1.png" />
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>This checkpoint was trained on LibriSpeech <a class="bibtex reference internal" href="../asr/quartznet.html#panayotov2015librispeech" id="id2">[2]</a> and full “validated” part of En Mozilla Common Voice <a class="bibtex reference internal" href="../asr/quartznet.html#ardila2019common" id="id3">[1]</a></p>
-</div>
+<div><img alt="quartznet model" class="align-center" src="../_images/quartz_vertical2.png" />
 </div></blockquote>
 <p><a class="reference external" href="https://arxiv.org/abs/1910.10261">QuartzNet paper</a>.</p>
 <p>These QuartzNet models were trained for 200 epochs using mixed precision on 2 GPUs with a batch size of 128 over 200 epochs.
@@ -220,10 +220,15 @@ On 2 Quadro GV100 GPUs, training time is approximately 1 hour.</p>
 </tr>
 </tbody>
 </table>
-</div>
 <div class="section" id="references">
-<h1>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h1>
-<p id="bibtex-bibliography-speech_command/quartznet-0"></p>
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-speech_command/quartznet-0"><dl class="citation">
+<dt class="bibtex label" id="speech-recognition-models-li2019jasper"><span class="brackets"><a class="fn-backref" href="#id1">SPEECH-RECOGNITION-MODELS1</a></span></dt>
+<dd><p>Jason Li, Vitaly Lavrukhin, Boris Ginsburg, Ryan Leary, Oleksii Kuchaiev, Jonathan M Cohen, Huyen Nguyen, and Ravi Teja Gadde. Jasper: an end-to-end convolutional neural acoustic model. <em>arXiv preprint arXiv:1904.03288</em>, 2019.</p>
+</dd>
+</dl>
+</p>
+</div>
 </div>
 
 
@@ -234,7 +239,7 @@ On 2 Quadro GV100 GPUs, training time is approximately 1 hour.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../nlp/intro.html" class="btn btn-neutral float-right" title="Natural Language Processing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../voice_activity_detection/intro.html" class="btn btn-neutral float-right" title="Voice Activity Detection" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="models.html" class="btn btn-neutral float-left" title="Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>教程 &mdash; nemo 0.10.1 documentation</title>
+  <title>教程 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -258,7 +258,7 @@ python process_speech_commands_data.py --data_root<span class="o">=</span>data -
     <span class="n">process_classification_evaluation_epoch</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="n">logging</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">logging</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 
 <span class="c1"># Lets define some hyper parameters</span>
 <span class="n">lr</span> <span class="o">=</span> <span class="mf">0.05</span>
@@ -501,7 +501,6 @@ python process_speech_commands_data.py --data_root<span class="o">=</span>data -
 <p>可以借助英伟达的 <a class="reference external" href="https://github.com/NVIDIA/apex">APEX 工具包</a> 进行混合精度训练和分布式训练。
 要进行混合精度训练，你只需要设置 <cite>optimization_level</cite> 选项为 <cite>nemo.core.Optimization.mxprO1</cite> 。例如：</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-    <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
     <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
     <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">,</span>
     <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
@@ -587,7 +586,7 @@ python process_speech_commands_data.py --data_root<span class="o">=</span>data -
 <span class="kn">import</span> <span class="nn">nemo</span>
 <span class="kn">import</span> <span class="nn">nemo.collections.asr</span> <span class="k">as</span> <span class="nn">nemo_asr</span>
 
-<span class="n">logging</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">logging</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 
 <span class="c1"># We add some</span>
 <span class="n">data_dir</span> <span class="o">=</span> <span class="s1">&#39;&lt;path to the data directory&gt;&#39;</span>

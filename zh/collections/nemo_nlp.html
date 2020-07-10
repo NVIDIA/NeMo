@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo NLP collection &mdash; nemo 0.10.1 documentation</title>
+  <title>NeMo NLP collection &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -179,384 +179,389 @@
 </div>
 <div class="section" id="module-nemo.collections.nlp.data.tokenizers.bert_tokenizer">
 <span id="id1"></span><h2>NLP 分词器<a class="headerlink" href="#module-nemo.collections.nlp.data.tokenizers.bert_tokenizer" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
+<dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.bert_tokenizer.</code><code class="sig-name descname">NemoBertTokenizer</code><span class="sig-paren">(</span><em class="sig-param">pretrained_model=None</em>, <em class="sig-param">vocab_file=None</em>, <em class="sig-param">bert_derivative='bert'</em>, <em class="sig-param">do_lower_case=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.bert_tokenizer.</code><code class="sig-name descname">NemoBertTokenizer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">pretrained_model</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">vocab_file</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">bert_derivative</span><span class="o">=</span><span class="default_value">'bert'</span></em>, <em class="sig-param"><span class="n">do_lower_case</span><span class="o">=</span><span class="default_value">False</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec</span></code></a></p>
-<dl class="method">
+<dl class="py method">
+<dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.add_special_tokens">
+<code class="sig-name descname">add_special_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">special_tokens_dict</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.add_special_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.add_special_tokens" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.bos_id">
 <em class="property">property </em><code class="sig-name descname">bos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.bos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.cls_id">
 <em class="property">property </em><code class="sig-name descname">cls_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.cls_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.eos_id">
 <em class="property">property </em><code class="sig-name descname">eos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.eos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_text">
-<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_tokens">
-<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.pad_id">
 <em class="property">property </em><code class="sig-name descname">pad_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.pad_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.sep_id">
 <em class="property">property </em><code class="sig-name descname">sep_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.sep_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_ids">
-<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_tokens">
-<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.token_to_id">
-<code class="sig-name descname">token_to_id</code><span class="sig-paren">(</span><em class="sig-param">token</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.token_to_id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.token_to_id" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">token_to_id</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">token</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.token_to_id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.token_to_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_ids">
-<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_text">
-<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/bert_tokenizer.html#NemoBertTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.bert_tokenizer.NemoBertTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.collections.nlp.data.tokenizers.char_tokenizer"></span><dl class="class">
+<span class="target" id="module-nemo.collections.nlp.data.tokenizers.char_tokenizer"></span><dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.char_tokenizer.</code><code class="sig-name descname">CharTokenizer</code><span class="sig-paren">(</span><em class="sig-param">vocab_path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.char_tokenizer.</code><code class="sig-name descname">CharTokenizer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">vocab_path</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec</span></code></a></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.bos_id">
 <em class="property">property </em><code class="sig-name descname">bos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.bos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.eos_id">
 <em class="property">property </em><code class="sig-name descname">eos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.eos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_text">
-<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_tokens">
-<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.pad_id">
 <em class="property">property </em><code class="sig-name descname">pad_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.pad_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_ids">
-<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_tokens">
-<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_ids">
-<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_text">
-<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/char_tokenizer.html#CharTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.char_tokenizer.CharTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.collections.nlp.data.tokenizers.gpt2_tokenizer"></span><dl class="class">
+<span class="target" id="module-nemo.collections.nlp.data.tokenizers.gpt2_tokenizer"></span><dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.</code><code class="sig-name descname">NemoGPT2Tokenizer</code><span class="sig-paren">(</span><em class="sig-param">pretrained_model=None</em>, <em class="sig-param">vocab_file=None</em>, <em class="sig-param">merges_file=None</em>, <em class="sig-param">errors='replace'</em>, <em class="sig-param">bos_token='&lt;|endoftext|&gt;'</em>, <em class="sig-param">eos_token='&lt;|endoftext|&gt;'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.</code><code class="sig-name descname">NemoGPT2Tokenizer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">pretrained_model</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">vocab_file</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">merges_file</span><span class="o">=</span><span class="default_value">None</span></em>, <em class="sig-param"><span class="n">errors</span><span class="o">=</span><span class="default_value">'replace'</span></em>, <em class="sig-param"><span class="n">bos_token</span><span class="o">=</span><span class="default_value">'&lt;|endoftext|&gt;'</span></em>, <em class="sig-param"><span class="n">eos_token</span><span class="o">=</span><span class="default_value">'&lt;|endoftext|&gt;'</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec</span></code></a></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.bos_id">
 <em class="property">property </em><code class="sig-name descname">bos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.bos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.eos_id">
 <em class="property">property </em><code class="sig-name descname">eos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.eos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_text">
-<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_tokens">
-<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.pad_id">
 <em class="property">property </em><code class="sig-name descname">pad_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.pad_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_ids">
-<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_tokens">
-<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_ids">
-<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_text">
-<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/gpt2_tokenizer.html#NemoGPT2Tokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.gpt2_tokenizer.NemoGPT2Tokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer"></span><dl class="class">
+<span class="target" id="module-nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer"></span><dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.</code><code class="sig-name descname">SentencePieceTokenizer</code><span class="sig-paren">(</span><em class="sig-param">model_path</em>, <em class="sig-param">special_tokens={}</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.</code><code class="sig-name descname">SentencePieceTokenizer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">model_path</span></em>, <em class="sig-param"><span class="n">special_tokens</span><span class="o">=</span><span class="default_value">{}</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec</span></code></a></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.add_special_tokens">
-<code class="sig-name descname">add_special_tokens</code><span class="sig-paren">(</span><em class="sig-param">special_tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.add_special_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.add_special_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">add_special_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">special_tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.add_special_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.add_special_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.bos_id">
 <em class="property">property </em><code class="sig-name descname">bos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.bos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.cls_id">
 <em class="property">property </em><code class="sig-name descname">cls_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.cls_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.eos_id">
 <em class="property">property </em><code class="sig-name descname">eos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.eos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_text">
-<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_tokens">
-<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.pad_id">
 <em class="property">property </em><code class="sig-name descname">pad_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.pad_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.sep_id">
 <em class="property">property </em><code class="sig-name descname">sep_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.sep_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_ids">
-<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_tokens">
-<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.token_to_id">
-<code class="sig-name descname">token_to_id</code><span class="sig-paren">(</span><em class="sig-param">token</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.token_to_id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.token_to_id" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">token_to_id</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">token</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.token_to_id"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.token_to_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_ids">
-<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_text">
-<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/sentencepiece_tokenizer.html#SentencePieceTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.collections.nlp.data.tokenizers.tokenizer_spec"></span><dl class="class">
+<span class="target" id="module-nemo.collections.nlp.data.tokenizers.tokenizer_spec"></span><dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec">
 <em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.tokenizer_spec.</code><code class="sig-name descname">TokenizerSpec</code><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">abc.ABC</span></code></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.add_special_tokens">
-<code class="sig-name descname">add_special_tokens</code><span class="sig-paren">(</span><em class="sig-param">special_tokens: List[str]</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.add_special_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.add_special_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">add_special_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">special_tokens</span><span class="p">:</span> <span class="n">List<span class="p">[</span>str<span class="p">]</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.add_special_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.add_special_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_text">
-<em class="property">abstract </em><code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_tokens">
-<em class="property">abstract </em><code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_ids">
-<em class="property">abstract </em><code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_tokens">
-<em class="property">abstract </em><code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_ids">
-<em class="property">abstract </em><code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_text">
-<em class="property">abstract </em><code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<em class="property">abstract </em><code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/tokenizer_spec.html#TokenizerSpec.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.collections.nlp.data.tokenizers.word_tokenizer"></span><dl class="class">
+<span class="target" id="module-nemo.collections.nlp.data.tokenizers.word_tokenizer"></span><dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.word_tokenizer.</code><code class="sig-name descname">WordTokenizer</code><span class="sig-paren">(</span><em class="sig-param">vocab_path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.word_tokenizer.</code><code class="sig-name descname">WordTokenizer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">vocab_path</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec</span></code></a></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.bos_id">
 <em class="property">property </em><code class="sig-name descname">bos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.bos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.eos_id">
 <em class="property">property </em><code class="sig-name descname">eos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.eos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_text">
-<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_tokens">
-<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.pad_id">
 <em class="property">property </em><code class="sig-name descname">pad_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.pad_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_ids">
-<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_tokens">
-<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_ids">
-<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_text">
-<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/word_tokenizer.html#WordTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.word_tokenizer.WordTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
 
-<span class="target" id="module-nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer"></span><dl class="class">
+<span class="target" id="module-nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer"></span><dl class="py class">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.</code><code class="sig-name descname">YouTokenToMeTokenizer</code><span class="sig-paren">(</span><em class="sig-param">model_path</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.</code><code class="sig-name descname">YouTokenToMeTokenizer</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">model_path</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec" title="nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.collections.nlp.data.tokenizers.tokenizer_spec.TokenizerSpec</span></code></a></p>
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.bos_id">
 <em class="property">property </em><code class="sig-name descname">bos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.bos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.eos_id">
 <em class="property">property </em><code class="sig-name descname">eos_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.eos_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_text">
-<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.ids_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_tokens">
-<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">ids</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">ids_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">ids</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.ids_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.ids_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.pad_id">
 <em class="property">property </em><code class="sig-name descname">pad_id</code><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.pad_id" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_ids">
-<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.text_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_tokens">
-<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param">text</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">text_to_tokens</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">text</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.text_to_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.text_to_tokens" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_ids">
-<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_ids</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.tokens_to_ids"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_ids" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="method">
+<dl class="py method">
 <dt id="nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_text">
-<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param">tokens</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">tokens_to_text</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">tokens</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/data/tokenizers/youtokentome_tokenizer.html#YouTokenToMeTokenizer.tokens_to_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.data.tokenizers.youtokentome_tokenizer.YouTokenToMeTokenizer.tokens_to_text" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -564,709 +569,10 @@
 </div>
 <div class="section" id="module-nemo.collections.nlp.nm.data_layers">
 <span id="id2"></span><h2>NLP 神经模块<a class="headerlink" href="#module-nemo.collections.nlp.nm.data_layers" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-nemo.collections.nlp.nm.losses"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.common.sequence_classification_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.</code><code class="sig-name descname">SequenceClassifier</code><span class="sig-paren">(</span><em class="sig-param">hidden_size</em>, <em class="sig-param">num_classes</em>, <em class="sig-param">num_layers=2</em>, <em class="sig-param">activation='relu'</em>, <em class="sig-param">log_softmax=True</em>, <em class="sig-param">dropout=0.0</em>, <em class="sig-param">use_transformer_pretrained=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/sequence_classification_nm.html#SequenceClassifier"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module which consists of MLP followed by softmax classifier for each
-sequence in the batch.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>hidden_size</strong> (<em>int</em>) – hidden size (d_model) of the Transformer</p></li>
-<li><p><strong>num_classes</strong> (<em>int</em>) – number of classes in softmax classifier, e.g. number
-of different sentiments</p></li>
-<li><p><strong>num_layers</strong> (<em>int</em>) – number of layers in classifier MLP</p></li>
-<li><p><strong>activation</strong> (<em>str</em>) – activation function applied in classifier MLP layers</p></li>
-<li><p><strong>log_softmax</strong> (<em>bool</em>) – whether to apply log_softmax to MLP output</p></li>
-<li><p><strong>dropout</strong> (<em>float</em>) – dropout ratio applied to MLP</p></li>
-<li><p><strong>use_transformer_pretrained</strong> (<em>bool</em>) – TODO</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-hidden_states: embedding hidden states</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.sequence_classification_nm.SequenceClassifier.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-logits: logits before loss</p>
-<ul class="simple">
-<li><p><em>logits</em> : axes: (batch, dimension);  elements_type: LogitsType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.common.sequence_regression_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.</code><code class="sig-name descname">SequenceRegression</code><span class="sig-paren">(</span><em class="sig-param">hidden_size</em>, <em class="sig-param">num_layers=2</em>, <em class="sig-param">activation='relu'</em>, <em class="sig-param">dropout=0.0</em>, <em class="sig-param">use_transformer_pretrained=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/sequence_regression_nm.html#SequenceRegression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module which consists of MLP, generates a single number prediction
-that could be used for a regression task. An example of this task would be
-semantic textual similatity task, for example, STS-B (from GLUE tasks).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>hidden_size</strong> (<em>int</em>) – the size of the hidden state for the dense layer</p></li>
-<li><p><strong>num_layers</strong> (<em>int</em>) – number of layers in classifier MLP</p></li>
-<li><p><strong>activation</strong> (<em>str</em>) – activation function applied in classifier MLP layers</p></li>
-<li><p><strong>dropout</strong> (<em>float</em>) – dropout ratio applied to MLP</p></li>
-<li><p><strong>use_transformer_pretrained</strong> (<em>bool</em>) – TODO</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-hidden_states: embedding hidden states</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.sequence_regression_nm.SequenceRegression.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-preds: predictions before loss</p>
-<ul class="simple">
-<li><p><em>preds</em> : axes: (batch,);  elements_type: RegressionValuesType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.common.token_classification_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.token_classification_nm.</code><code class="sig-name descname">BertTokenClassifier</code><span class="sig-paren">(</span><em class="sig-param">hidden_size</em>, <em class="sig-param">num_classes</em>, <em class="sig-param">activation='relu'</em>, <em class="sig-param">log_softmax=True</em>, <em class="sig-param">dropout=0.0</em>, <em class="sig-param">use_transformer_pretrained=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/token_classification_nm.html#BertTokenClassifier"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module which consists of MLP followed by softmax classifier for each
-token in the sequence.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>hidden_size</strong> (<em>int</em>) – hidden size (d_model) of the Transformer</p></li>
-<li><p><strong>num_classes</strong> (<em>int</em>) – number of classes in softmax classifier, e.g. size
-of the vocabulary in language modeling objective</p></li>
-<li><p><strong>activation</strong> (<em>str</em>) – activation function applied in classifier MLP layers</p></li>
-<li><p><strong>log_softmax</strong> (<em>bool</em>) – whether to apply log_softmax to MLP output</p></li>
-<li><p><strong>dropout</strong> (<em>float</em>) – dropout ratio applied to MLP</p></li>
-<li><p><strong>use_transformer_pretrained</strong> (<em>bool</em>) – TODO</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-hidden_states: embedding hidden states</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.token_classification_nm.BertTokenClassifier.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-logits: logits before loss</p>
-<ul class="simple">
-<li><p><em>logits</em> : axes: (batch, time, dimension);  elements_type: LogitsType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.token_classification_nm.</code><code class="sig-name descname">TokenClassifier</code><span class="sig-paren">(</span><em class="sig-param">hidden_size</em>, <em class="sig-param">num_classes</em>, <em class="sig-param">name=None</em>, <em class="sig-param">num_layers=2</em>, <em class="sig-param">activation='relu'</em>, <em class="sig-param">log_softmax=True</em>, <em class="sig-param">dropout=0.0</em>, <em class="sig-param">use_transformer_pretrained=True</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/token_classification_nm.html#TokenClassifier"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module which consists of MLP followed by softmax classifier for each
-token in the sequence.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>hidden_size</strong> (<em>int</em>) – hidden size (d_model) of the Transformer</p></li>
-<li><p><strong>num_classes</strong> (<em>int</em>) – number of classes in softmax classifier, e.g. size
-of the vocabulary in language modeling objective</p></li>
-<li><p><strong>num_layers</strong> (<em>int</em>) – number of layers in classifier MLP</p></li>
-<li><p><strong>activation</strong> (<em>str</em>) – activation function applied in classifier MLP layers</p></li>
-<li><p><strong>log_softmax</strong> (<em>bool</em>) – whether to apply log_softmax to MLP output</p></li>
-<li><p><strong>dropout</strong> (<em>float</em>) – dropout ratio applied to MLP</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.token_classification_nm.TokenClassifier.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.</p>
-<ul class="simple">
-<li><p><em>logits</em> : axes: (batch, time, dimension);  elements_type: LogitsType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.</code><code class="sig-name descname">TransformerEncoderNM</code><span class="sig-paren">(</span><em class="sig-param">vocab_size</em>, <em class="sig-param">d_model</em>, <em class="sig-param">d_inner</em>, <em class="sig-param">max_seq_length</em>, <em class="sig-param">num_layers</em>, <em class="sig-param">num_attn_heads</em>, <em class="sig-param">ffn_dropout=0.0</em>, <em class="sig-param">embedding_dropout=0.0</em>, <em class="sig-param">attn_score_dropout=0.0</em>, <em class="sig-param">attn_layer_dropout=0.0</em>, <em class="sig-param">learn_positional_encodings=False</em>, <em class="sig-param">hidden_act='relu'</em>, <em class="sig-param">mask_future=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/transformer/transformer_nm.html#TransformerEncoderNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module which consists of embedding layer followed by Transformer
-encoder.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>vocab_size</strong> – size of the vocabulary (number of tokens)</p></li>
-<li><p><strong>d_model</strong> – hidden size (d_model) of the Transformer</p></li>
-<li><p><strong>max_seq_length</strong> – maximum allowed length of input sequences, feeding
-longer sequences will cause an error</p></li>
-<li><p><strong>embedding_dropout</strong> – dropout ratio applied to embeddings</p></li>
-<li><p><strong>learn_positional_encodings</strong> – bool, whether to learn positional encoding
-or use fixed sinusoidal encodings</p></li>
-<li><p><strong>num_layers</strong> – number of layers in Transformer encoder</p></li>
-<li><p><strong>mask_future</strong> – bool, whether to apply triangular future masking to the
-sequence of hidden states (which allows to use it for LM)</p></li>
-<li><p><strong>num_attn_heads</strong> – number of attention heads</p></li>
-<li><p><strong>d_inner</strong> – number of neurons in the intermediate part of feed-forward
-network (FFN)</p></li>
-<li><p><strong>ffn_dropout</strong> – dropout ratio applied to FFN</p></li>
-<li><p><strong>attn_score_dropout</strong> – dropout ratio applied to attention scores</p></li>
-<li><p><strong>attn_layer_dropout</strong> – dropout ratio applied to the output of attn layer</p></li>
-<li><p><strong>hidden_act</strong> – activation function applied in intermediate FFN module</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-input_ids: ids of input tokens
-input_mask_src: input mask</p>
-<ul class="simple">
-<li><p><em>input_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>input_mask_src</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerEncoderNM.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-hidden_states: outputs hidden states</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.</code><code class="sig-name descname">TransformerDecoderNM</code><span class="sig-paren">(</span><em class="sig-param">vocab_size</em>, <em class="sig-param">d_model</em>, <em class="sig-param">d_inner</em>, <em class="sig-param">num_layers</em>, <em class="sig-param">max_seq_length</em>, <em class="sig-param">num_attn_heads</em>, <em class="sig-param">ffn_dropout=0.0</em>, <em class="sig-param">embedding_dropout=0.0</em>, <em class="sig-param">attn_score_dropout=0.0</em>, <em class="sig-param">attn_layer_dropout=0.0</em>, <em class="sig-param">learn_positional_encodings=False</em>, <em class="sig-param">hidden_act='relu'</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/transformer/transformer_nm.html#TransformerDecoderNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module which consists of embedding layer followed by Transformer
-decoder.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>vocab_size</strong> – size of the vocabulary (number of tokens)</p></li>
-<li><p><strong>d_model</strong> – hidden size (d_model) of the Transformer</p></li>
-<li><p><strong>max_seq_length</strong> – maximum allowed length of input sequences, feeding
-longer sequences will cause an error</p></li>
-<li><p><strong>embedding_dropout</strong> – dropout ratio applied to embeddings</p></li>
-<li><p><strong>learn_positional_encodings</strong> – bool, whether to learn positional encoding
-or use fixed sinusoidal encodings</p></li>
-<li><p><strong>num_layers</strong> – number of layers in Transformer decoder</p></li>
-<li><p><strong>num_attn_heads</strong> – number of attention heads</p></li>
-<li><p><strong>d_inner</strong> – number of neurons in the intermediate part of feed-forward
-network (FFN)</p></li>
-<li><p><strong>ffn_dropout</strong> – dropout ratio applied to FFN</p></li>
-<li><p><strong>attn_score_dropout</strong> – dropout ratio applied to attention scores</p></li>
-<li><p><strong>attn_layer_dropout</strong> – dropout ratio applied to the output of attn layer</p></li>
-<li><p><strong>hidden_act</strong> – activation function applied in intermediate FFN module</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-input_ids_tgt: ids of target sequence
-hidden_states_src: input hidden states
-input_mask_src: input token mask
-input_mask_tgt: target token mask</p>
-<ul class="simple">
-<li><p><em>input_ids_tgt</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>hidden_states_src</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-<li><p><em>input_mask_src</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>input_mask_tgt</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.TransformerDecoderNM.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-hidden_states: output hidden states</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.</code><code class="sig-name descname">GreedyLanguageGeneratorNM</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">log_softmax</em>, <em class="sig-param">max_seq_length</em>, <em class="sig-param">pad_token</em>, <em class="sig-param">bos_token</em>, <em class="sig-param">eos_token</em>, <em class="sig-param">batch_size=1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/transformer/transformer_nm.html#GreedyLanguageGeneratorNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module for greedy text generation with language model</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>decoder</strong> – module which maps input_ids into hidden_states</p></li>
-<li><p><strong>log_softmax</strong> – module which maps hidden_states into log_probs</p></li>
-<li><p><strong>max_seq_length</strong> – maximum allowed length of generated sequences</p></li>
-<li><p><strong>pad_token</strong> – index of padding token in the vocabulary</p></li>
-<li><p><strong>bos_token</strong> – index of beginning of sequence token in the vocabulary</p></li>
-<li><p><strong>eos_token</strong> – index of end of sequence token in the vocabulary</p></li>
-<li><p><strong>batch_size</strong> – size of the batch of generated sequences if no starting
-tokens are provided</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-input_ids:  input ids</p>
-<ul class="simple">
-<li><p><em>input_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.num_weights">
-<em class="property">property </em><code class="sig-name descname">num_weights</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.num_weights" title="Permalink to this definition">¶</a></dt>
-<dd><p>Number of module’s weights</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.GreedyLanguageGeneratorNM.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-output ids: output ids</p>
-<ul class="simple">
-<li><p><em>output_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.</code><code class="sig-name descname">BeamSearchTranslatorNM</code><span class="sig-paren">(</span><em class="sig-param">decoder</em>, <em class="sig-param">log_softmax</em>, <em class="sig-param">max_seq_length</em>, <em class="sig-param">pad_token</em>, <em class="sig-param">bos_token</em>, <em class="sig-param">eos_token</em>, <em class="sig-param">batch_size=1</em>, <em class="sig-param">beam_size=4</em>, <em class="sig-param">max_delta_length=50</em>, <em class="sig-param">length_penalty=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/transformer/transformer_nm.html#BeamSearchTranslatorNM"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>Neural module for beam search translation generation</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>decoder</strong> – module which maps input_ids into hidden_states</p></li>
-<li><p><strong>log_softmax</strong> – module which maps hidden_states into log_probs</p></li>
-<li><p><strong>max_seq_length</strong> – maximum allowed length of generated sequences</p></li>
-<li><p><strong>pad_token</strong> – index of padding token in the vocabulary</p></li>
-<li><p><strong>bos_token</strong> – index of beginning of sequence token in the vocabulary</p></li>
-<li><p><strong>eos_token</strong> – index of end of sequence token in the vocabulary</p></li>
-<li><p><strong>batch_size</strong> – size of the batch of generated sequences if no starting
-tokens are provided</p></li>
-<li><p><strong>beam_size</strong> – size of the beam</p></li>
-<li><p><strong>max_delta_length</strong> – maximum allowed difference between generated output
-and input sequence in case of conditional decoding</p></li>
-<li><p><strong>length_penalty</strong> – parameter which penalizes shorter sequences</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-hidden_states_src: input hidden states
-input_mask_src: input mask</p>
-<ul class="simple">
-<li><p><em>hidden_states_src</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-<li><p><em>input_mask_src</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.num_weights">
-<em class="property">property </em><code class="sig-name descname">num_weights</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.num_weights" title="Permalink to this definition">¶</a></dt>
-<dd><p>Number of module’s weights</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm.BeamSearchTranslatorNM.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-output_ids: output ids</p>
-<ul class="simple">
-<li><p><em>output_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.</code><code class="sig-name descname">TRADEGenerator</code><span class="sig-paren">(</span><em class="sig-param">vocab</em>, <em class="sig-param">embeddings</em>, <em class="sig-param">hid_size</em>, <em class="sig-param">dropout</em>, <em class="sig-param">slots</em>, <em class="sig-param">nb_gate</em>, <em class="sig-param">teacher_forcing=0.5</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/dialogue_state_tracking/trade_generator_nm.html#TRADEGenerator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>The generator module for state tracking model TRADE
-:param vocab: an instance of Vocab containing the vocabularey
-:type vocab: Vocab
-:param embeddings: word embedding matrix
-:type embeddings: Tensor
-:param hid_size: hidden size of the GRU decoder
-:type hid_size: int
-:param dropout: dropout of the GRU
-:type dropout: float
-:param slots: list of slots
-:type slots: list
-:param nb_gate: number of gates
-:type nb_gate: int
-:param teacher_forcing: 0.5
-:type teacher_forcing: float</p>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.attend">
-<em class="property">static </em><code class="sig-name descname">attend</code><span class="sig-paren">(</span><em class="sig-param">seq</em>, <em class="sig-param">cond</em>, <em class="sig-param">padding_mask</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/dialogue_state_tracking/trade_generator_nm.html#TRADEGenerator.attend"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.attend" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.attend_vocab">
-<em class="property">static </em><code class="sig-name descname">attend_vocab</code><span class="sig-paren">(</span><em class="sig-param">seq</em>, <em class="sig-param">cond</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/dialogue_state_tracking/trade_generator_nm.html#TRADEGenerator.attend_vocab"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.attend_vocab" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.</p>
-<ul class="simple">
-<li><p><em>encoder_hidden</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-<li><p><em>encoder_outputs</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-<li><p><em>input_lens</em> : axes: (batch,);  elements_type: LengthsType</p></li>
-<li><p><em>src_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>targets</em> : axes: (batch, dimension, time);  elements_type: LabelsType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm.TRADEGenerator.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.</p>
-<p>point_outputs: outputs of the generator
-gate_outputs: outputs of gating heads</p>
-<ul class="simple">
-<li><p><em>point_outputs</em> : axes: (batch, time, dimension, dimension);  elements_type: LogitsType</p></li>
-<li><p><em>gate_outputs</em> : axes: (batch, dimension, dimension);  elements_type: LogitsType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.</code><code class="sig-name descname">JointIntentSlotClassifier</code><span class="sig-paren">(</span><em class="sig-param">hidden_size</em>, <em class="sig-param">num_intents</em>, <em class="sig-param">num_slots</em>, <em class="sig-param">dropout=0.0</em>, <em class="sig-param">use_transformer_pretrained=True</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/joint_intent_slot/joint_intent_slot_classifier_nm.html#JointIntentSlotClassifier"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>The softmax classifier for the joint intent classification and slot
-filling task which  consists of a dense layer + relu + softmax for
-predicting the slots and similar for predicting the intents.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>hidden_size</strong> (<em>int</em>) – the size of the hidden state for the dense layer</p></li>
-<li><p><strong>num_intents</strong> (<em>int</em>) – number of intents</p></li>
-<li><p><strong>num_slots</strong> (<em>int</em>) – number of slots</p></li>
-<li><p><strong>dropout</strong> (<em>float</em>) – dropout to be applied to the layer</p></li>
-<li><p><strong>use_transformer_pretrained</strong> (<em>bool</em>) – TODO</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.</p>
-<dl class="simple">
-<dt>hidden_states:</dt><dd><p>TODO</p>
-</dd>
-</dl>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm.JointIntentSlotClassifier.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.</p>
-<dl class="simple">
-<dt>intent_logits:</dt><dd><p>TODO</p>
-</dd>
-<dt>slot_logits:</dt><dd><p>TODO</p>
-</dd>
-</dl>
-<ul class="simple">
-<li><p><em>intent_logits</em> : axes: (batch, dimension);  elements_type: LogitsType</p></li>
-<li><p><em>slot_logits</em> : axes: (batch, time, dimension);  elements_type: LogitsType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-</div>
+<span class="target" id="module-nemo.collections.nlp.nm.losses"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.common.sequence_classification_nm"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.common.sequence_regression_nm"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.common.token_classification_nm"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.common.transformer.transformer_nm"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.dialogue_state_tracking.trade_generator_nm"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.joint_intent_slot.joint_intent_slot_classifier_nm"></span></div>
 <div class="section" id="module-nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm">
 <span id="nlp-hugging-face"></span><h2>NLP Hugging Face 神经模块<a class="headerlink" href="#module-nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.</code><code class="sig-name descname">BERT</code><span class="sig-paren">(</span><em class="sig-param">pretrained_model_name=None</em>, <em class="sig-param">config_filename=None</em>, <em class="sig-param">vocab_size=None</em>, <em class="sig-param">hidden_size=768</em>, <em class="sig-param">num_hidden_layers=12</em>, <em class="sig-param">num_attention_heads=12</em>, <em class="sig-param">intermediate_size=3072</em>, <em class="sig-param">hidden_act='gelu'</em>, <em class="sig-param">max_position_embeddings=512</em>, <em class="sig-param">hidden_dropout_prob=0.1</em>, <em class="sig-param">attention_probs_dropout_prob=0.1</em>, <em class="sig-param">type_vocab_size=2</em>, <em class="sig-param">initializer_range=0.02</em>, <em class="sig-param">layer_norm_eps=1e-12</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/huggingface/bert_nm.html#BERT"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>BERT wraps around the Huggingface implementation of BERT from their
-transformers repository for easy use within NeMo.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>pretrained_model_name</strong> (<em>str</em>) – If using a pretrained model, this should
-be the model’s name. Otherwise, should be left as None.</p></li>
-<li><p><strong>config_filename</strong> (<em>str</em>) – path to model configuration file. Optional.</p></li>
-<li><p><strong>vocab_size</strong> (<em>int</em>) – Size of the vocabulary file, if not using a
-pretrained model.</p></li>
-<li><p><strong>hidden_size</strong> (<em>int</em>) – Size of the encoder and pooler layers.</p></li>
-<li><p><strong>num_hidden_layers</strong> (<em>int</em>) – Number of hidden layers in the encoder.</p></li>
-<li><p><strong>num_attention_heads</strong> (<em>int</em>) – Number of attention heads for each layer.</p></li>
-<li><p><strong>intermediate_size</strong> (<em>int</em>) – Size of intermediate layers in the encoder.</p></li>
-<li><p><strong>hidden_act</strong> (<em>str</em>) – Activation function for encoder and pooler layers;
-“gelu”, “relu”, and “swish” are supported.</p></li>
-<li><p><strong>max_position_embeddings</strong> (<em>int</em>) – The maximum number of tokens in a</p></li>
-<li><p><strong>sequence.</strong> – </p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.hidden_size">
-<em class="property">property </em><code class="sig-name descname">hidden_size</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.hidden_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>Property returning hidden size.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>Hidden size.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-input_ids: input token ids
-token_type_ids: segment type ids
-attention_mask: attention mask</p>
-<ul class="simple">
-<li><p><em>input_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>token_type_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>attention_mask</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.list_pretrained_models">
-<em class="property">static </em><code class="sig-name descname">list_pretrained_models</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Optional[List[nemo.core.neural_modules.PretrainedModleInfo]]<a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/huggingface/bert_nm.html#BERT.list_pretrained_models"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.list_pretrained_models" title="Permalink to this definition">¶</a></dt>
-<dd><p>List all available pre-trained models (e.g. weights) for this NM.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>A list of PretrainedModelInfo tuples.
-The pretrained_model_name field of the tuple can be used to
-retrieve pre-trained model’s weights (pass it as
-pretrained_model_name argument to the module’s constructor)</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm.BERT.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-hidden_states: output embedding</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.</code><code class="sig-name descname">Albert</code><span class="sig-paren">(</span><em class="sig-param">pretrained_model_name=None</em>, <em class="sig-param">config_filename=None</em>, <em class="sig-param">vocab_size=None</em>, <em class="sig-param">hidden_size=768</em>, <em class="sig-param">num_hidden_layers=12</em>, <em class="sig-param">num_attention_heads=12</em>, <em class="sig-param">intermediate_size=3072</em>, <em class="sig-param">hidden_act='gelu'</em>, <em class="sig-param">max_position_embeddings=512</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/huggingface/albert_nm.html#Albert"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>ALBERT wraps around the Huggingface implementation of ALBERT from their
-transformers repository for easy use within NeMo.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>pretrained_model_name</strong> (<em>str</em>) – If using a pretrained model, this should
-be the model’s name. Otherwise, should be left as None.</p></li>
-<li><p><strong>config_filename</strong> (<em>str</em>) – path to model configuration file. Optional.</p></li>
-<li><p><strong>vocab_size</strong> (<em>int</em>) – Size of the vocabulary file, if not using a
-pretrained model.</p></li>
-<li><p><strong>hidden_size</strong> (<em>int</em>) – Size of the encoder and pooler layers.</p></li>
-<li><p><strong>num_hidden_layers</strong> (<em>int</em>) – Number of hidden layers in the encoder.</p></li>
-<li><p><strong>num_attention_heads</strong> (<em>int</em>) – Number of attention heads for each layer.</p></li>
-<li><p><strong>intermediate_size</strong> (<em>int</em>) – Size of intermediate layers in the encoder.</p></li>
-<li><p><strong>hidden_act</strong> (<em>str</em>) – Activation function for encoder and pooler layers;
-“gelu”, “relu”, and “swish” are supported.</p></li>
-<li><p><strong>max_position_embeddings</strong> (<em>int</em>) – The maximum number of tokens in a</p></li>
-<li><p><strong>sequence.</strong> – </p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.hidden_size">
-<em class="property">property </em><code class="sig-name descname">hidden_size</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.hidden_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>Property returning hidden size.
-:returns: Hidden size.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-input_ids: input token ids
-token_type_ids: segment type ids
-attention_mask: attention mask</p>
-<ul class="simple">
-<li><p><em>input_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>token_type_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>attention_mask</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.list_pretrained_models">
-<em class="property">static </em><code class="sig-name descname">list_pretrained_models</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Optional[List[nemo.core.neural_modules.PretrainedModleInfo]]<a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/huggingface/albert_nm.html#Albert.list_pretrained_models"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.list_pretrained_models" title="Permalink to this definition">¶</a></dt>
-<dd><p>List all available pre-trained models (e.g. weights) for this NM.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>A list of PretrainedModelInfo tuples.
-The pretrained_model_name field of the tuple can be used to
-retrieve pre-trained model’s weights (pass it as
-pretrained_model_name argument to the module’s constructor)</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm.Albert.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-hidden_states: output embedding</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-<span class="target" id="module-nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm"></span><dl class="class">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta">
-<em class="property">class </em><code class="sig-prename descclassname">nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.</code><code class="sig-name descname">Roberta</code><span class="sig-paren">(</span><em class="sig-param">pretrained_model_name=None</em>, <em class="sig-param">config_filename=None</em>, <em class="sig-param">vocab_size=None</em>, <em class="sig-param">hidden_size=768</em>, <em class="sig-param">num_hidden_layers=12</em>, <em class="sig-param">num_attention_heads=12</em>, <em class="sig-param">intermediate_size=3072</em>, <em class="sig-param">hidden_act='gelu'</em>, <em class="sig-param">max_position_embeddings=512</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/huggingface/roberta_nm.html#Roberta"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.backends.pytorch.nm.TrainableNM</span></code></a></p>
-<p>ROBERTA wraps around the Huggingface implementation of ROBERTA from their
-transformers repository for easy use within NeMo.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>pretrained_model_name</strong> (<em>str</em>) – If using a pretrained model, this should
-be the model’s name. Otherwise, should be left as None.</p></li>
-<li><p><strong>config_filename</strong> (<em>str</em>) – path to model configuration file. Optional.</p></li>
-<li><p><strong>vocab_size</strong> (<em>int</em>) – Size of the vocabulary file, if not using a
-pretrained model.</p></li>
-<li><p><strong>hidden_size</strong> (<em>int</em>) – Size of the encoder and pooler layers.</p></li>
-<li><p><strong>num_hidden_layers</strong> (<em>int</em>) – Number of hidden layers in the encoder.</p></li>
-<li><p><strong>num_attention_heads</strong> (<em>int</em>) – Number of attention heads for each layer.</p></li>
-<li><p><strong>intermediate_size</strong> (<em>int</em>) – Size of intermediate layers in the encoder.</p></li>
-<li><p><strong>hidden_act</strong> (<em>str</em>) – Activation function for encoder and pooler layers;
-“gelu”, “relu”, and “swish” are supported.</p></li>
-<li><p><strong>max_position_embeddings</strong> (<em>int</em>) – The maximum number of tokens in a</p></li>
-<li><p><strong>sequence.</strong> – </p></li>
-</ul>
-</dd>
-</dl>
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.hidden_size">
-<em class="property">property </em><code class="sig-name descname">hidden_size</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.hidden_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>Property returning hidden size.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>Hidden size.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.input_ports">
-<em class="property">property </em><code class="sig-name descname">input_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.input_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module input ports.
-input_ids: input token ids
-token_type_ids: segment type ids
-attention_mask: attention mask</p>
-<ul class="simple">
-<li><p><em>input_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>token_type_ids</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-<li><p><em>attention_mask</em> : axes: (batch, time);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.list_pretrained_models">
-<em class="property">static </em><code class="sig-name descname">list_pretrained_models</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Optional[List[nemo.core.neural_modules.PretrainedModleInfo]]<a class="reference internal" href="../_modules/nemo/collections/nlp/nm/trainables/common/huggingface/roberta_nm.html#Roberta.list_pretrained_models"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.list_pretrained_models" title="Permalink to this definition">¶</a></dt>
-<dd><p>List all available pre-trained models (e.g. weights) for this NM.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>A list of PretrainedModelInfo tuples.
-The pretrained_model_name field of the tuple can be used to
-retrieve pre-trained model’s weights (pass it as
-pretrained_model_name argument to the module’s constructor)</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="method">
-<dt id="nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.output_ports">
-<em class="property">property </em><code class="sig-name descname">output_ports</code><a class="headerlink" href="#nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm.Roberta.output_ports" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns definitions of module output ports.
-hidden_states: output embedding</p>
-<ul class="simple">
-<li><p><em>hidden_states</em> : axes: (batch, time, dimension);  elements_type: ChannelType</p></li>
-</ul>
-</dd></dl>
-
-</dd></dl>
-
-</div>
+<span class="target" id="module-nemo.collections.nlp.nm.trainables.common.huggingface.albert_nm"></span><span class="target" id="module-nemo.collections.nlp.nm.trainables.common.huggingface.roberta_nm"></span></div>
 </div>
 
 

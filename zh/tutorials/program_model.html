@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>编程模型 &mdash; nemo 0.10.1 documentation</title>
+  <title>编程模型 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -176,7 +176,7 @@
 <ol class="arabic simple">
 <li><p>创建 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_factory.NeuralModuleFactory" title="nemo.core.neural_factory.NeuralModuleFactory"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModuleFactory</span></code></a> 类和必要的 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 类</p></li>
 <li><p>定义 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 类的有向无环图（DAG）</p></li>
-<li><p>调用像是 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_factory.Actions.train" title="nemo.core.neural_factory.Actions.train"><code class="xref py py-class docutils literal notranslate"><span class="pre">train</span></code></a> 类的操作</p></li>
+<li><p>调用像是 <code class="xref py py-class docutils literal notranslate"><span class="pre">train</span></code> 类的操作</p></li>
 </ol>
 <p>NeMo 遵循 <em>lazy execution</em> 模型 - 实际的计算只会在训练和推理的操作被调用后才会执行。</p>
 <p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 是层和神经网络的一个抽象，比如：编码器，解码器，语言模型，声学模型等。每个 <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 从一系列的输入计算一系列的输出。

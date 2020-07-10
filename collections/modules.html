@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>NeMo Collections API &mdash; nemo 0.10.1 documentation</title>
+  <title>NeMo Collections API &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,12 +89,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">NeMo Collections API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="core.html">NeMo Common Collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_asr.html">NeMo ASR collection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_cv.html">NeMo CV collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_tts.html">NeMo TTS collection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html">NeMo NLP collection</a></li>
 </ul>
@@ -175,6 +178,13 @@
 <li class="toctree-l2"><a class="reference internal" href="nemo_asr.html#module-nemo.collections.asr.jasper">Automatic Speech Recognition modules</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="nemo_cv.html">NeMo CV collection</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="nemo_cv.html#module-nemo.collections.cv.modules.data_layers.cifar10_datalayer">DataLayers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_cv.html#module-nemo.collections.cv.modules.trainables.convnet_encoder">Trainable Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_cv.html#module-nemo.collections.cv.modules.non_trainables.non_linearity">NonTrainable Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_cv.html#module-nemo.collections.cv.modules.losses.nll_loss">Losses</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="nemo_tts.html">NeMo TTS collection</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="nemo_tts.html#module-nemo.collections.tts.data_layers">Speech data processing modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_tts.html#module-nemo.collections.tts.tacotron2_modules">Tacotron 2 modules</a></li>
@@ -182,7 +192,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="nemo_nlp.html">NeMo NLP collection</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo.collections.nlp.data.datasets">NLP data processing modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo.collections.nlp.data.datasets.glue_benchmark_dataset.glue_benchmark_dataset">NLP Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo.collections.nlp.data.tokenizers.bert_tokenizer">NLP Tokenizers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo.collections.nlp.nm.data_layers">NLP Neural Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="nemo_nlp.html#module-nemo.collections.nlp.nm.trainables.common.huggingface.bert_nm">NLP Hugging Face Neural Modules</a></li>

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>如何构建神经模块 &mdash; nemo 0.10.1 documentation</title>
+  <title>如何构建神经模块 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -195,7 +195,7 @@
 <p>神经模块根据概念可以分成4个有重叠的类目:</p>
 <ul class="simple">
 <li><p><strong>Trainable Modules</strong> - 包含了有可训练权重的模块。继承自
-<a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> 类。</p></li>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> 类。</p></li>
 <li><p><strong>Data Layers</strong> - 对数据做(extraction抽取, transform转换, load加载, feed接入) ETLF 操作的模块。继承自
 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataLayerNM</span></code></a> 类。</p></li>
 <li><p><strong>Loss Modules</strong> - 计算损失函数的模块。继承自
@@ -212,13 +212,13 @@
 <h2>可训练模块<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>注意 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> 类
+<p>注意 <code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> 类
 有两个基础类：<a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> 类 和 <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code>.</p>
 </div>
 <div class="section" id="id3">
 <h3>从头定义模块<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
-<li><p>首先继承 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> 类。</p></li>
+<li><p>首先继承 <code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> 类。</p></li>
 <li><p>实现 <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> 和 <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> 属性，定义输入输出端口。</p></li>
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@property</span>
@@ -288,7 +288,7 @@
 <h3>转换 PyTorch 的 nn.Module<a class="headerlink" href="#pytorch-nn-module" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
 <li><p>如果你已经有 PyTorch 的类继承自 <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code> ，把那个继承改成继承
-<a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> 类。</p></li>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> 类。</p></li>
 <li><p>实现 <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> 和 <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> 属性</p></li>
 <li><p>修改构造函数，首先调用基类构造函数</p></li>
 </ol>

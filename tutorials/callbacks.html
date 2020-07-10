@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Callbacks &mdash; nemo 0.10.1 documentation</title>
+  <title>Callbacks &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -94,18 +94,19 @@
 <li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Callbacks</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#simplelossloggercallback">SimpleLossLoggerCallback</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#checkpointcallback">CheckpointCallback</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#evaluatorcallback">EvaluatorCallback</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#wandbcallback">WandbCallback</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#built-in-callbacks">Built-in Callbacks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-your-own-callback">Creating Your Own Callback</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_graphs.html">Neural Graphs</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -179,157 +180,189 @@
             
   <div class="section" id="callbacks">
 <h1>Callbacks<a class="headerlink" href="#callbacks" title="Permalink to this headline">¶</a></h1>
-<p>NeMo uses callbacks to do a variety of helper functions during training.
-NeMo comes with three useful callbacks: SimpleLossLoggerCallback,
-CheckpointCallback, and EvaluatorCallback. Callbacks are defined prior to
-calling the train() function, and are passed to the train() function.
-For example, a common training script will look like:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">loggercallback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
-<span class="n">savercallback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
-<span class="n">evalcallback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<p>NeMo has a callback system that can be used to inject user code and logic inside its training loop. NeMo’s callbacks
+defines the following events that users can inject into:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span> <span class="n">on_action_start</span>
+<span class="o">----</span> <span class="n">on_epoch_start</span>
+<span class="o">------</span> <span class="n">on_step_start</span>
+<span class="o">--------</span> <span class="n">on_batch_start</span>
+<span class="o">--------</span> <span class="n">on_batch_end</span>
+<span class="o">------</span> <span class="n">on_step_end</span>
+<span class="o">----</span> <span class="n">on_epoch_end</span>
+<span class="o">--</span> <span class="n">on_action_end</span>
+</pre></div>
+</div>
+<p>At a high level, the NeMo training loop looks like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">train</span><span class="p">():</span>
+    <span class="o">...</span>  <span class="c1"># Do initialization of optimizers, amp, ddp, etc</span>
+    <span class="c1"># Initialize the state passed to callbacks and the tensor state object to be empty</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">TrainingState</span><span class="p">({})</span>
+
+    <span class="n">callbacks</span><span class="o">.</span><span class="n">on_action_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># For all callbacks, trigger the on_action_start event</span>
+    <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_epochs</span><span class="p">):</span>  <span class="c1"># Or until max_steps</span>
+        <span class="n">callbacks</span><span class="o">.</span><span class="n">on_epoch_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_epoch_start event</span>
+        <span class="n">batch_counter</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">dataloader</span><span class="p">:</span>  <span class="c1"># Fetch batches of data</span>
+            <span class="k">if</span> <span class="n">batch_counter</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">callbacks</span><span class="o">.</span><span class="n">on_step_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_step_start event</span>
+            <span class="n">callbacks</span><span class="o">.</span><span class="n">on_batch_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_batch_start event</span>
+
+            <span class="o">...</span>  <span class="c1"># Forward pass</span>
+            <span class="n">final_loss</span><span class="o">.</span><span class="n">backwards</span><span class="p">()</span>
+            <span class="c1"># Set the `loss` key inside the tensor state object to be the loss that we call backwards() on</span>
+            <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">][</span><span class="s2">&quot;loss&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">final_loss</span>
+
+            <span class="n">callbacks</span><span class="o">.</span><span class="n">on_batch_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_batch_end event</span>
+            <span class="n">batch_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">batch_counter</span> <span class="o">==</span> <span class="n">gradient_accumulation_steps</span><span class="p">:</span>
+                <span class="n">batch_counter</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Reset batch counter</span>
+                <span class="c1"># By default, gradient_accumulation_steps = 1. Note this is passed to train() as batches_per_step</span>
+                <span class="c1"># and sometimes exposed as args.iter_per_step</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+                <span class="n">callbacks</span><span class="o">.</span><span class="n">on_step_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_step_end event</span>
+
+            <span class="c1"># Clear the tensor state object</span>
+            <span class="n">clear</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span>
+        <span class="n">callbacks</span><span class="o">.</span><span class="n">on_epoch_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_epoch_end event</span>
+    <span class="n">callbacks</span><span class="o">.</span><span class="n">on_action_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_action_end event</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>NeMo’s callbacks were updated in version 0.11. For documentation on the old callbacks, please see
+<a class="reference internal" href="old_callbacks.html#callbacks0-10"><span class="std std-ref">Callbacks V0.10</span></a>. For an update guide from version 0.10 to version 0.11, please see
+<a class="reference internal" href="old_callbacks.html#callbacks0-10update"><span class="std std-ref">Updating to Callbacks to NeMo V0.11</span></a>.</p>
+</div>
+<div class="section" id="built-in-callbacks">
+<h2>Built-in Callbacks<a class="headerlink" href="#built-in-callbacks" title="Permalink to this headline">¶</a></h2>
+<p>NeMo offers the following built-in callbacks that users can use:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.SimpleLogger" title="nemo.core.callbacks.SimpleLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.SimpleLogger</span></code></a> is a simple callback that prints information to screen. By default,
+it logs the training loss every 100 steps.</p></li>
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.TensorboardLogger" title="nemo.core.callbacks.TensorboardLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.TensorboardLogger</span></code></a> is a callback that logs information to tensorboard. Note that the
+<code class="docutils literal notranslate"><span class="pre">TensorboardSummaryWriter</span></code> class needs to be passed to this callback. Be default, it logs the training loss and
+learning rate every 100 steps, the number of epochs completed, and the epoch training time.</p></li>
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.WandBLogger" title="nemo.core.callbacks.WandBLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.WandBLogger</span></code></a> is a callback that logs information to
+<a class="reference external" href="https://docs.wandb.com/">Weights &amp; Biases</a>. Make sure wandb is installed and you did <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>. It is
+recommended to pass the <code class="docutils literal notranslate"><span class="pre">wandb_name</span></code> and <code class="docutils literal notranslate"><span class="pre">wandb_project</span></code> arguments to the constructor. By default, it logs
+the training loss and learning rate every 100 steps, the number of epochs completed, and the epoch training time.</p></li>
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.CheckpointCallback" title="nemo.core.callbacks.CheckpointCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.CheckpointCallback</span></code></a> is a callback that saves trainer and module checkpoints every
+<code class="docutils literal notranslate"><span class="pre">step_freq</span></code> or <code class="docutils literal notranslate"><span class="pre">epoch_freq</span></code>. The directory that the callback will save to must be passed as <code class="docutils literal notranslate"><span class="pre">folder</span></code>.</p></li>
+</ul>
+</div></blockquote>
+<p>In order to log additional tensors to screen, and additional tensor scalars to tensorboard and Weights and Biases, one
+can simply add these tensors to the <code class="docutils literal notranslate"><span class="pre">tensors_to_log</span></code> parameters of the relevant callbacks. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
+<span class="c1"># Assuming that you have a network defined above that produces a predictions tensor and instantiated</span>
+<span class="c1"># a MyLossModule and a MyMetricModule.</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">MyLossModule</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">predictions</span><span class="o">=</span><span class="n">predictions</span><span class="p">)</span>
+<span class="n">precision</span><span class="p">,</span> <span class="n">recall</span><span class="p">,</span> <span class="n">F1</span> <span class="o">=</span> <span class="n">MyMetricModule</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">predictions</span><span class="o">=</span><span class="n">predictions</span><span class="p">)</span>
+
+<span class="c1"># If desired, users can assign a string name to tensors for easy reference in callbacks</span>
+<span class="n">precision</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">)</span>
+<span class="c1"># Note that the name &quot;loss&quot; is reserved for the training loss</span>
+
+<span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># Create a callback that prints the loss to screen every 10 steps</span>
+    <span class="c1"># By default tensors_to_log is [&quot;loss&quot;], so there is no need to pass that</span>
+    <span class="n">SimpleLogger</span><span class="p">(</span><span class="n">step_freq</span><span class="o">=</span><span class="mi">10</span><span class="p">),</span>
+    <span class="c1"># Create the tensorboard callback by passing the Tensorboard SummaryWriter object, and telling it to log</span>
+    <span class="c1"># loss and precision.</span>
+    <span class="n">TensorboardLogger</span><span class="p">(</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span> <span class="n">tensors_to_log</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">]),</span>
+    <span class="c1"># Create the Weights and Biases callback by giving it a name and project, and tell it to log the loss, F1</span>
+    <span class="c1"># and recall scores. Note that tensors_to_log also accepts the NmTensors themselves or their unique_names</span>
+    <span class="c1"># in addition to any renaming that users do</span>
+    <span class="n">WandBLogger</span><span class="p">(</span><span class="n">wandb_name</span><span class="o">=</span><span class="s2">&quot;my_exp&quot;</span><span class="p">,</span> <span class="n">wandb_project</span><span class="o">=</span><span class="s2">&quot;my_proj&quot;</span><span class="p">,</span> <span class="n">tensors_to_log</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">,</span> <span class="n">F1</span><span class="p">,</span> <span class="n">recall</span><span class="o">.</span><span class="n">unique_name</span><span class="p">])</span>
+<span class="p">]</span>
 
 <span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
-    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">loggercallback</span><span class="p">,</span> <span class="n">savercallback</span><span class="p">,</span> <span class="n">evalcallback</span><span class="p">],</span>
-    <span class="o">...</span><span class="p">)</span>
-</pre></div>
-</div>
-<div class="section" id="simplelossloggercallback">
-<h2>SimpleLossLoggerCallback<a class="headerlink" href="#simplelossloggercallback" title="Permalink to this headline">¶</a></h2>
-<p>SimpleLossLoggerCallback is used to
-log training metrics such as loss and time per step to screen and to
-tensorboard. SimpleLossLoggerCallback has one required arguments, and two
-arguments that we recommend to overwrite. It requires tensors which is a list
-of NMTensors that print_func(), get_tb_values(), and log_to_tb_func will
-receive as input during
-training. The two reccomended arguments to override are print_func(), and
-either get_tb_values() or log_to_tb_func().</p>
-<p>print_func() should be used to log values to screen. We recommend using
-logging.info() in place
-of print(). For example, it can be used to print the loss value:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">nemo</span> <span class="kn">import</span> <span class="n">logging</span>
-<span class="k">def</span> <span class="nf">my_print_func</span><span class="p">(</span><span class="n">tensors</span><span class="p">):</span>
-    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Loss </span><span class="si">{tensors[0]}</span><span class="s2">&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>We provide two methods to log to tensorboard: get_tb_values() and
-log_to_tb_func(). For simple use case of logging scalars, we recommend
-get_tb_values(). For advanced use cases such as pictures or audio, we
-recommend log_to_tb_func().</p>
-<p>get_tb_values() is used to return values to be logged to tensorboard. It should
-return a list of 2-element tuples, where the first element is a string
-representing the tensorboard tag, and the second element is the scalar value to
-log. Note we currently only support scalar values. Note to use get_tb_values(),
-tb_writer should also be defined.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_get_tb_values</span><span class="p">(</span><span class="n">tensors</span><span class="p">):</span>
-    <span class="k">return</span> <span class="p">[(</span><span class="s2">&quot;Train_Loss&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
-</pre></div>
-</div>
-<p>log_to_tb_func() takes three arguments: the
-<a class="reference external" href="https://tensorboardx.readthedocs.io/en/latest/tensorboard.html">tensorboardX.SummaryWriter</a>
-, a list of evaluated tensors, and the current step. The user can then use the
-SummaryWriter class to add images, audio, and more. For example:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">log_to_tb_func</span><span class="p">(</span><span class="n">swriter</span><span class="p">,</span> <span class="n">tensors</span><span class="p">,</span> <span class="n">step</span><span class="p">):</span>
-    <span class="n">swriter</span><span class="o">.</span><span class="n">add_scalar</span><span class="p">(</span><span class="s2">&quot;Train_Loss&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">step</span><span class="p">)</span>
-    <span class="n">swriter</span><span class="o">.</span><span class="n">add_audio</span><span class="p">(</span><span class="s2">&quot;Train_Sample&quot;</span><span class="p">,</span> <span class="n">tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">step</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>SimpleLossLoggerCallback can be constructed as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
-
-<span class="n">loggercallback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
-    <span class="c1"># Define tensors that we want to pass to print_func, and get_tb_values</span>
-    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
-    <span class="c1"># Pass the print function that we want to use</span>
-    <span class="n">print_func</span><span class="o">=</span><span class="n">my_print_func</span><span class="p">,</span>
-    <span class="c1"># Pass the function that returns tensorboard tags and scalars</span>
-    <span class="n">get_tb_values</span><span class="o">=</span><span class="n">my_get_tb_values</span><span class="p">,</span>
-    <span class="c1"># How often we want to call this callback</span>
-    <span class="n">step_freq</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>
-    <span class="c1"># The tensorboard writer object we want to use, it should be</span>
-    <span class="c1"># automatically created by neural_factory if create_tb_writer was</span>
-    <span class="c1"># set to True during neural_factory construction</span>
-    <span class="n">tb_writer</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">)</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">],</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+    <span class="o">...</span>  <span class="c1"># Other train() parameters</span>
 <span class="p">)</span>
 </pre></div>
 </div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>For more advanced logging of non-scalars such as images and audio to tensorboard, please take a look at the
+documentation and code for <a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.TensorboardLogger" title="nemo.core.callbacks.TensorboardLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.TensorboardLogger</span></code></a></p>
 </div>
-<div class="section" id="checkpointcallback">
-<h2>CheckpointCallback<a class="headerlink" href="#checkpointcallback" title="Permalink to this headline">¶</a></h2>
-<p>CheckpointCallback is used to checkpoint models during training so that
-they can be reloaded later for inference or finetuning. CheckpointCallback
-is simple to use:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+</div>
+<div class="section" id="creating-your-own-callback">
+<span id="callback-creation"></span><h2>Creating Your Own Callback<a class="headerlink" href="#creating-your-own-callback" title="Permalink to this headline">¶</a></h2>
+<p>For more advanced user-cases where users want to inject their own logic not offered by NeMo’s built-in callbacks, NeMo
+allows users to defined their own callbacks via two methods. The first method is to create a child of the
+<a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.NeMoCallback" title="nemo.core.callbacks.NeMoCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.NeMoCallback</span></code></a> and define any of the methods
+(<code class="docutils literal notranslate"><span class="pre">on_action_start,</span> <span class="pre">on_epoch_start,</span> <span class="pre">...,</span> <span class="pre">on_action_end</span></code>) inside the child class. The second method is to use our
+function decorators for each of those events such as <a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.on_step_start" title="nemo.core.callbacks.on_step_start"><code class="xref py py-meth docutils literal notranslate"><span class="pre">nemo.core.callbacks.on_step_start()</span></code></a>. Regardless of the method
+chosen, both interact with the NeMo trainer through the <code class="docutils literal notranslate"><span class="pre">state</span></code> dictionary. We will first detail the <code class="docutils literal notranslate"><span class="pre">state</span></code>
+dictionary and then provide examples for creating a callback through the decorator method and through the child
+class method.</p>
+<p>NeMo provides callbacks with access to the <code class="docutils literal notranslate"><span class="pre">state</span></code> dictionary as defined in the StateWrapper class inside of
+nemo.backends.pytorch.actions.py. The dictionary contains the following key-value pairs:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>“step” (int): the current step number</p></li>
+<li><p>“epoch” (int): the current epoch</p></li>
+<li><p>“local_rank” (int): the local_rank of the current process. Defaults to None for single-gpu or cpu runs</p></li>
+<li><p>“global_rank” (int): the global_rank of the current process. Defaults to None for single-gpu or cpu runs</p></li>
+<li><p>“optimizers” (list of pytorch.optimizers): a list of the current pytorch optimizers used in the train action.
+In most cases, it is a list of 1 optimizer. Note that the current learning rate can be extracted from the
+optimizer. See the tensorboard callback to see how this is done.</p></li>
+<li><p>“tensors”: a <code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.actions.TrainingState</span></code> instance. This class has the
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">nemo.core.actions.TrainingState.get_tensor()</span></code> function that takes <code class="docutils literal notranslate"><span class="pre">name</span></code>: either the user-renamed string,
+a NmTensor’s unique_name, or a NmTensor and returns the associated pytorch tensor.</p></li>
+</ul>
+</div></blockquote>
+<p>Users can use NeMo’s callback function decorators to easily inject logic inside the training process that doesn’t need
+to keep state. For example, let’s say we want to compute the confusion_matrix every 150 steps using
+<code class="docutils literal notranslate"><span class="pre">sklearn.metrics.confusion_matrix</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Assume &#39;labels&#39; is defined before this</span>
+<span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span> <span class="o">=</span> <span class="n">MyDataLayerNM</span><span class="p">()</span>
+<span class="n">predictions</span> <span class="o">=</span> <span class="n">MyNeuralNetworkNM</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">MyLossNM</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)</span>
 
-<span class="n">loggercallback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
-    <span class="c1"># The folder to save checkpoints</span>
-    <span class="c1"># Note: Neural Factory automatically creates a checkpoint folder</span>
-    <span class="n">folder</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span>
-    <span class="c1"># If None, CheckpointCallback will attempt to load from folder</span>
-    <span class="c1"># at the beginning of training.</span>
-    <span class="c1"># Else, CheckpointCallback will attempt to load from load_from_folder</span>
-    <span class="n">load_from_folder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-    <span class="c1"># Checkpointing frequency in steps</span>
-    <span class="n">step_freq</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
-    <span class="c1"># Checkpointing frequency in epochs</span>
-    <span class="n">epoch_freq</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
-    <span class="c1"># Number of checkpoints to keep</span>
-    <span class="n">checkpoints_to_keep</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-    <span class="c1"># If True, CheckpointCallback will raise an Error if restoring fails</span>
-    <span class="n">force_load</span><span class="o">=</span><span class="kc">False</span>
-<span class="p">)</span>
+<span class="c1"># Use the callback function decorator</span>
+<span class="nd">@nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">callbacks</span><span class="o">.</span><span class="n">on_step_end</span>
+<span class="c1"># Define your function that accepts the input argument &#39;state&#39;</span>
+<span class="k">def</span> <span class="nf">print_confusion_matrix</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span> <span class="o">%</span> <span class="mi">150</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># Log once every 150 steps</span>
+        <span class="c1"># Use the get_tensor method of state[&quot;tensors&quot;] to get the pytorch tensor associated with the</span>
+        <span class="c1"># `target` NmTensor</span>
+        <span class="n">targets_value</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get_tensor</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+        <span class="n">predictions_value</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get_tensor</span><span class="p">(</span><span class="n">predictions</span><span class="p">)</span>
+        <span class="n">confusion_matrix</span> <span class="o">=</span> <span class="n">sklearn</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">confusion_matrix</span><span class="p">(</span><span class="n">targets_value</span><span class="p">,</span> <span class="n">predictions_value</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">confusion_matrix</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">print_confusion_matrix</span><span class="p">],</span> <span class="o">...</span><span class="p">)</span>  <span class="c1"># Pass the function to the callbacks arg of train()</span>
 </pre></div>
 </div>
+<p>Users can also create a child class of <a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.NeMoCallback" title="nemo.core.callbacks.NeMoCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.NeMoCallback</span></code></a>. This method is useful when users want
+to store state inside a class variable that they can access from multiple callback hooks. For example, here is a
+callback that keeps the exponential moving average of the step time:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">StepTimeTracker</span><span class="p">(</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">callbacks</span><span class="o">.</span><span class="n">NeMoCallback</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decay</span><span class="o">=</span><span class="mf">0.99</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span> <span class="o">=</span> <span class="n">decay</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ema_step_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_start_time</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Note that even you do not use state, your functions must accept 1 positional argument</span>
+    <span class="k">def</span> <span class="nf">on_step_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Store current starting time in `self._step_start_time`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">on_step_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Calculate step duration</span>
+        <span class="n">step_duration</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_start_time</span>
+
+        <span class="c1"># Apply exponential moving average</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ema_step_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ema_step_time</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span><span class="p">)</span> <span class="o">*</span> <span class="n">step_duration</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">StepTimeTracker</span><span class="p">()],</span> <span class="o">...</span><span class="p">)</span>  <span class="c1"># Pass your callback class to train()</span>
+</pre></div>
 </div>
-<div class="section" id="evaluatorcallback">
-<h2>EvaluatorCallback<a class="headerlink" href="#evaluatorcallback" title="Permalink to this headline">¶</a></h2>
-<p>EvaluatorCallback is used during evaluation to log evaluation
-metrics to screen and tensorboard. EvaluatorCallback requires three arguments:
-eval_tensors, user_iter_callback, user_epochs_done_callback. Similar to
-SimpleLossLoggerCallback, eval_tensors is a list of NMTensors whose values
-we want to obtain during evaluation.</p>
-<p>user_iter_callback is a function that is called after each batch during
-evaluation. It is always passed two arguments: values_dict, and global_var_dict.
-values_dict is a dictionary containing NMTensor names as keys, and the evaluated
-tensor as values for that batch. It’s main job is to copy the relevant evaluated
-tensors from values_dict to global_var_dict as global_var_dict is saved
-between batches and passed to the final user_epochs_done_callback function.</p>
-<p>user_epochs_done_callback is a function that accepts global_var_dict. It’s job
-is to log relevant information to the screen such as the evaluation loss.</p>
-<p>For simple logging of scalar values to tensorboard, user_epochs_done_callback
-should return a dictionary with strings as keys and scalar tensors as values.
-This tag -&gt; value dictionary will be parsed and each element will be logged
-to tensorboard if a tensorboard writter object is declared.</p>
-<p>To enable more complex tensorboard logging such as images or audio,
-EvaluatorCallback must be passed tb_writer_func at initialization. This
-function must accept a
-<a class="reference external" href="https://tensorboardx.readthedocs.io/en/latest/tensorboard.html">tensorboardX.SummaryWriter</a>
-, whatever is returned from user_epochs_done_callback, and the current step.
-We recommend for user_epochs_done_callback to simply return the global_var_dict
-for tb_writer_func to consume. The user must log all data of interest inside
-tb_writer_func including scalars that would otherwise be logged if
-tb_writer_func was not passed to EvaluatorCallback.</p>
-<p>You can also log your evaluation metrics into Weights &amp; Biases experiment trackers.
-To do so, please setup these parameters. Also make sure wandb is installed and you did <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>.</p>
-<ul class="simple">
-<li><p>wandb_name: W&amp;B experiment name</p></li>
-<li><p>wandb_project: W&amp;B project name</p></li>
-</ul>
-<p>For an example, please see the scripts inside &lt;nemo_dir&gt;/examples.</p>
-</div>
-<div class="section" id="wandbcallback">
-<h2>WandbCallback<a class="headerlink" href="#wandbcallback" title="Permalink to this headline">¶</a></h2>
-<p>WandbCallback logs losses and metrics to <a class="reference external" href="https://docs.wandb.com/">Weights &amp; Biases</a>.
-Make sure wandb is installed and you did <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>.</p>
-<p>This is a light-weight callback to log <strong>training</strong> metrics into Weights &amp; Biases.
-To log evaluation metrics, see Evaluator Callback above.</p>
-<p>It requires following arguments:</p>
-<ul class="simple">
-<li><p>train_tensors: list of tensors to evaluate and log based on training batches</p></li>
-<li><p>wandb_name: W&amp;B experiment name</p></li>
-<li><p>wandb_project: W&amp;B project name</p></li>
-<li><p>args: argparse flags - will be logged as hyper parameters for your run</p></li>
-<li><p>update_freq: frequency with which to log updates</p></li>
-</ul>
 </div>
 </div>
 

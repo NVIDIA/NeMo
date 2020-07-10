@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Transformer语言模型 &mdash; nemo 0.10.1 documentation</title>
+  <title>Transformer语言模型 &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -230,8 +230,7 @@ valid.txt
 <p>首先我们需要用支持的后端来创建 <code class="docutils literal notranslate"><span class="pre">neural</span> <span class="pre">factory</span></code> 。你如何定义它取决于你想做多 GPU 训练或者是混合精度训练。
 这个教程假设你不用混合精度，在一块 GPU 上做训练。如果你想做混合精度训练，设置 <code class="docutils literal notranslate"><span class="pre">amp_opt_level</span></code> 为 <code class="docutils literal notranslate"><span class="pre">O1</span></code> 或者 <code class="docutils literal notranslate"><span class="pre">O2</span></code> 。</p>
 <blockquote>
-<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                   <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
                                    <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
                                    <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
                                    <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>

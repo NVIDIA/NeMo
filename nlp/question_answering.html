@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,8 +35,8 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="asr-improvement.html" />
-    <link rel="prev" title="Tutorial" href="joint_intent_slot_filling.html" /> 
+    <link rel="next" title="TRADE Tutorial" href="dialogue_state_tracking_trade.html" />
+    <link rel="prev" title="Tutorial" href="punctuation.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,27 +89,33 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#question-answering">Question Answering</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#preliminaries">Preliminaries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#code-structure">Code structure</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#model-training">Model training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bioqa">BioQA</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -187,8 +193,8 @@
 <p>In this tutorial, we are going to implement a Question Answering system using the SQuAD dataset with pretrained BERT-like models based on
 <a class="reference external" href="https://arxiv.org/abs/1810.04805">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</a> <a class="bibtex reference internal" href="#nlp-qa-devlin2018bert" id="id1">[NLP-QA1]</a>.
 All code used in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/question_answering/question_answering_squad.py</span></code>.</p>
-<p>Currently, there are 3 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
-BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from <a class="reference external" href="https://huggingface.co/transformers">transformers</a> . Apart from these, the user can also do fine-tuning
+<p>Currently, there are 4 pretrained back-bone models supported, on which the question answering task SQuAD can be fine-tuned:
+Megatron-LM BERT, BERT, ALBERT and RoBERTa. These are pretrained model checkpoints from <a class="reference external" href="https://huggingface.co/transformers">transformers</a> . Apart from these, the user can also do fine-tuning
 on a custom BERT checkpoint, specified by the <cite>–bert_checkpoint</cite> argument.
 The pretrained back-bone models can be specified <cite>–pretrained_model_name</cite>.
 See the list of available pre-trained models
@@ -202,6 +208,10 @@ See the list of available pre-trained models
 <p>BERT Large uncased models (~110M parameters) finetuned on SQuADv1.1 or SQuADv2.0 dataset:
 <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1">https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv1</a>
 <a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2">https://ngc.nvidia.com/catalog/models/nvidia:bertlargeuncasedsquadv2</a></p>
+<p>BioBERT Base cased model (~110M parameters) finetuned on SQuADv1.1 dataset:
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedsquadv1">https://ngc.nvidia.com/catalog/models/nvidia:biobertbasecasedsquadv1</a></p>
+<p>BioMegatron-LM BERT 345M uncased model (~345M parameters) finetuned on SQuADv1.1 dataset:
+<a class="reference external" href="https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345muncasedsquadv1">https://ngc.nvidia.com/catalog/models/nvidia:biomegatron345muncasedsquadv1</a></p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>For pretraining BERT in NeMo and pretrained model checkpoints go to <a class="reference external" href="https://nvidia.github.io/NeMo/nlp/bert_pretraining.html">BERT pretraining</a>.</p>
@@ -279,8 +289,7 @@ You can find the pre-processing script in <code class="docutils literal notransl
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">nemo</span>
 <span class="kn">import</span> <span class="nn">nemo.collections.nlp</span> <span class="k">as</span> <span class="nn">nemo_nlp</span>
-<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
-                                       <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+<span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span><span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
                                        <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
                                        <span class="n">log_dir</span><span class="o">=</span><span class="n">work_dir</span><span class="p">,</span>
                                        <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -486,6 +495,11 @@ DataLayer is an extra layer to do the semantic checking for your dataset and con
 </div>
 </div></blockquote>
 </div>
+<div class="section" id="bioqa">
+<h2>BioQA<a class="headerlink" href="#bioqa" title="Permalink to this headline">¶</a></h2>
+<p>To use BioBERT/BioMegatron for biomedical question answering dataset BioASQ please visit:</p>
+<p><a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_qa.ipynb">https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/biobert_notebooks/biobert_qa.ipynb</a></p>
+</div>
 <div class="section" id="references">
 <h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
 <p id="bibtex-bibliography-nlp/question_answering-0"><dl class="citation">
@@ -505,10 +519,10 @@ DataLayer is an extra layer to do the semantic checking for your dataset and con
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="asr-improvement.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="dialogue_state_tracking_trade.html" class="btn btn-neutral float-right" title="TRADE Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="joint_intent_slot_filling.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="punctuation.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

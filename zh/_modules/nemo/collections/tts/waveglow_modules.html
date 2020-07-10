@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.collections.tts.waveglow_modules &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.collections.tts.waveglow_modules &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -162,14 +162,14 @@
 
 <span class="kn">from</span> <span class="nn">nemo</span> <span class="kn">import</span> <span class="n">logging</span>
 <span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="kn">import</span> <span class="n">LossNM</span><span class="p">,</span> <span class="n">TrainableNM</span>
-<span class="kn">from</span> <span class="nn">nemo.collections.tts.parts.waveglow</span> <span class="kn">import</span> <span class="n">WaveGlow</span>
+<span class="kn">from</span> <span class="nn">nemo.collections.tts.parts.waveglow</span> <span class="kn">import</span> <span class="n">WaveGlow</span><span class="p">,</span> <span class="n">remove_weightnorm</span>
 <span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="kn">import</span> <span class="o">*</span>
 <span class="kn">from</span> <span class="nn">nemo.utils.decorators</span> <span class="kn">import</span> <span class="n">add_port_docs</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;WaveGlowNM&quot;</span><span class="p">,</span> <span class="s2">&quot;WaveGlowInferNM&quot;</span><span class="p">,</span> <span class="s2">&quot;WaveGlowLoss&quot;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="WaveGlowNM"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowNM">[docs]</a><span class="k">class</span> <span class="nc">WaveGlowNM</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">WaveGlowNM</span><span class="p">(</span><span class="n">TrainableNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    WaveGlowNM implements the Waveglow model in whole. This NM is meant to</span>
 <span class="sd">    be used during training</span>
@@ -263,10 +263,10 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">mel_spectrogram</span><span class="p">)</span>
             <span class="n">log_s_list</span> <span class="o">=</span> <span class="n">log_det_W_list</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">return</span> <span class="n">audio</span><span class="p">,</span> <span class="n">log_s_list</span><span class="p">,</span> <span class="n">log_det_W_list</span></div>
+        <span class="k">return</span> <span class="n">audio</span><span class="p">,</span> <span class="n">log_s_list</span><span class="p">,</span> <span class="n">log_det_W_list</span>
 
 
-<div class="viewcode-block" id="WaveGlowInferNM"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM">[docs]</a><span class="k">class</span> <span class="nc">WaveGlowInferNM</span><span class="p">(</span><span class="n">WaveGlowNM</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">WaveGlowInferNM</span><span class="p">(</span><span class="n">WaveGlowNM</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    WaveGlowInferNM is the inference Neural Module for WaveGlowNM. This NM is</span>
 <span class="sd">    meant to be used during inference. Keep in mind, the inference module</span>
@@ -349,31 +349,31 @@
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_removed_weight_norm</span> <span class="o">=</span> <span class="kc">False</span>
 
-<div class="viewcode-block" id="WaveGlowInferNM.setup_denoiser"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM.setup_denoiser">[docs]</a>    <span class="k">def</span> <span class="nf">setup_denoiser</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">setup_denoiser</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
             <span class="n">mel_input</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">88</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
             <span class="n">bias_audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">mel_input</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span>
             <span class="n">bias_audio</span> <span class="o">=</span> <span class="n">bias_audio</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
             <span class="n">bias_spec</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">magphase</span><span class="p">(</span><span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">stft</span><span class="p">(</span><span class="n">bias_audio</span><span class="p">,</span> <span class="n">n_fft</span><span class="o">=</span><span class="mi">1024</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">bias_spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">bias_spec</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bias_spec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">bias_spec</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
 
-<div class="viewcode-block" id="WaveGlowInferNM.denoise"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowInferNM.denoise">[docs]</a>    <span class="k">def</span> <span class="nf">denoise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">audio</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">denoise</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">audio</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
         <span class="n">audio_spec</span><span class="p">,</span> <span class="n">audio_angles</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">magphase</span><span class="p">(</span><span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">stft</span><span class="p">(</span><span class="n">audio</span><span class="p">,</span> <span class="n">n_fft</span><span class="o">=</span><span class="mi">1024</span><span class="p">))</span>
         <span class="n">audio_spec_denoised</span> <span class="o">=</span> <span class="n">audio_spec</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias_spec</span> <span class="o">*</span> <span class="n">strength</span>
         <span class="n">audio_spec_denoised</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">audio_spec_denoised</span><span class="p">,</span> <span class="n">a_min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">a_max</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
         <span class="n">audio_denoised</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">istft</span><span class="p">(</span><span class="n">audio_spec_denoised</span> <span class="o">*</span> <span class="n">audio_angles</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">audio_denoised</span><span class="p">,</span> <span class="n">audio_spec_denoised</span></div>
+        <span class="k">return</span> <span class="n">audio_denoised</span><span class="p">,</span> <span class="n">audio_spec_denoised</span>
 
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mel_spectrogram</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_removed_weight_norm</span><span class="p">:</span>
             <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;remove WN&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">remove_weightnorm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span> <span class="o">=</span> <span class="n">remove_weightnorm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_removed_weight_norm</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;You are using the WaveGlow Infer Neural Module in training mode.&quot;</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
             <span class="n">audio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">waveglow</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span><span class="n">mel_spectrogram</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sigma</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">audio</span></div>
+        <span class="k">return</span> <span class="n">audio</span>
 
 
 <div class="viewcode-block" id="WaveGlowLoss"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.waveglow_modules.WaveGlowLoss">[docs]</a><span class="k">class</span> <span class="nc">WaveGlowLoss</span><span class="p">(</span><span class="n">LossNM</span><span class="p">):</span>

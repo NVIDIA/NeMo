@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Neural Graphs &mdash; nemo 0.11.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Fast Training" href="../training.html" />
+    <link rel="prev" title="Complex Training Pipelines (GAN Example)" href="complex_training.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Neural Graphs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tutorial-i-the-basic-functionality">Tutorial I: The basic functionality</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tutorial-ii-the-advanced-functionality">Tutorial II: The advanced functionality</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tutorial-iii-custom-training">Tutorial III: Custom Training</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Getting started</a> &raquo;</li>
+        
+      <li>Neural Graphs</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tutorials/neural_graphs.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="neural-graphs">
+<h1>Neural Graphs<a class="headerlink" href="#neural-graphs" title="Permalink to this headline">¶</a></h1>
+<p>The Neural Graph is a high-level abstract concept empowering the user to build graphs consisting of many,
+interconnected Neural Modules.
+Once the user defines a graph, its topology is “frozen”, i.e. connections between modules cannot change.
+If a user wants to change the topology - he/she can build another graph, potentially spanned over the same modules.
+At the same time, he can reuse and nest one graph into another.</p>
+<div class="figure align-default">
+<img alt="../_images/neural_graphs_general.png" src="../_images/neural_graphs_general.png" />
+</div>
+<p>The import/export/save/restore options combined with the lightweight API make Neural Graphs
+a perfect tool for rapid prototyping and experimentation.</p>
+<p>There are three Jupyter Notebook tutorials focusing on different aspects of the Neural Graphs functionality.</p>
+<div class="section" id="tutorial-i-the-basic-functionality">
+<h2>Tutorial I: The basic functionality<a class="headerlink" href="#tutorial-i-the-basic-functionality" title="Permalink to this headline">¶</a></h2>
+<p>In this first part of the Neural Graphs (NGs) tutorial we will focus on a simple example:
+training TaylorNet module to approximate a sine wave function.
+We will build a simple “model graph” and show how we can nest it into another graphs.</p>
+<div class="figure align-default">
+<img alt="../_images/neural_graphs_nesting.png" src="../_images/neural_graphs_nesting.png" />
+</div>
+<dl class="simple">
+<dt>This part covers the following:</dt><dd><ul class="simple">
+<li><p>how to create a Neural Graph object</p></li>
+<li><p>how to activate/deactivate graph context (in various ways)</p></li>
+<li><p>how to bind NG inputs and outpus (in various ways)</p></li>
+<li><p>how to nest one graph (representing the our “trainable model”) into training and validation graphs</p></li>
+</ul>
+</dd>
+</dl>
+</div>
+<div class="section" id="tutorial-ii-the-advanced-functionality">
+<h2>Tutorial II: The advanced functionality<a class="headerlink" href="#tutorial-ii-the-advanced-functionality" title="Permalink to this headline">¶</a></h2>
+<p>In this second part of the Neural Graphs (NGs) tutorial we will focus on a more complex example:
+training of an End-to-End Convolutional Neural Acoustic Model called JASPER.
+We will build a “model graph” and show how we can nest it into another graphs, how we can freeze/unfreeze modules,
+use graph configuration and save/load graph checkpoints.</p>
+<dl class="simple">
+<dt>This part covers the following:</dt><dd><ul class="simple">
+<li><p>how to create a Neural Graph object</p></li>
+<li><p>how to nest one graph into another</p></li>
+<li><p>how to serialize and deserialize a graph</p></li>
+<li><p>how to export and import serialized graph configuration to/from YAML files</p></li>
+<li><p>how to save and load graph checkpoints (containing weights of the Trainable NMs)</p></li>
+<li><p>how to freeze/unfreeze modules in a graph</p></li>
+</ul>
+</dd>
+</dl>
+<p>Additionally, we will show how use <code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.utils.app_state.AppState</span></code> to list all the modules and graphs we have
+created in the scope of our application.</p>
+</div>
+<div class="section" id="tutorial-iii-custom-training">
+<h2>Tutorial III: Custom Training<a class="headerlink" href="#tutorial-iii-custom-training" title="Permalink to this headline">¶</a></h2>
+<p>In this third part of the Neural Graphs (NGs) tutorial we will focus on a different example: training of
+an image classification model with a ResNet-50 backbone on the STL-10 dataset using a custom training loop.</p>
+<dl class="simple">
+<dt>This part covers the following:</dt><dd><ul class="simple">
+<li><p>how to create separate graphs for training and evaluation</p></li>
+<li><p>how to move graph between CPU/GPU devices</p></li>
+<li><p>how to parametrize data loaders</p></li>
+<li><p>how to write a custom training loop using relying on graph actions</p></li>
+</ul>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All three tutorial notebooks can be found in the <cite>nemo/examples/neural_graphs</cite> folder.</p>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../training.html" class="btn btn-neutral float-right" title="Fast Training" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="complex_training.html" class="btn btn-neutral float-left" title="Complex Training Pipelines (GAN Example)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

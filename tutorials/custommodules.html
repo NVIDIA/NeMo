@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>How to build Neural Module &mdash; nemo 0.10.1 documentation</title>
+  <title>How to build Neural Module &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -111,11 +111,14 @@
 <li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_graphs.html">Neural Graphs</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
@@ -196,7 +199,7 @@
 <p>Neural Modules can be conceptually classified into 4 potentially overlapping categories:</p>
 <ul class="simple">
 <li><p><strong>Trainable Modules</strong> - modules that contain trainable weights. Inherit from
-<a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class.</p></li>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> class.</p></li>
 <li><p><strong>Data Layers</strong> - modules that perform (extract, transform, load, feed) ETLF of the data. Inherit from
 <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.DataLayerNM" title="nemo.backends.pytorch.nm.DataLayerNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataLayerNM</span></code></a> class.</p></li>
 <li><p><strong>Loss Modules</strong> - modules that compute loss functions. Inherit from
@@ -213,13 +216,13 @@
 <h2>Trainable Module<a class="headerlink" href="#trainable-module" title="Permalink to this headline">¶</a></h2>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Notice that <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class
+<p>Notice that <code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> class
 has two base classes: <a class="reference internal" href="../api-docs/nemo.html#nemo.core.neural_modules.NeuralModule" title="nemo.core.neural_modules.NeuralModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralModule</span></code></a> class and <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code>.</p>
 </div>
 <div class="section" id="defining-a-module-from-scratch">
 <h3>Defining a module from scratch<a class="headerlink" href="#defining-a-module-from-scratch" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
-<li><p>Inherit from <a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class.</p></li>
+<li><p>Inherit from <code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> class.</p></li>
 <li><p>Create the <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> and <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> properties that define your input and output ports.</p></li>
 </ol>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@property</span>
@@ -289,7 +292,7 @@ has two base classes: <a class="reference internal" href="../api-docs/nemo.html#
 <h3>Converting from PyTorch’s nn.Module<a class="headerlink" href="#converting-from-pytorch-s-nn-module" title="Permalink to this headline">¶</a></h3>
 <ol class="arabic simple">
 <li><p>If you already have a PyTorch class which inherits from <code class="docutils literal notranslate"><span class="pre">torch.nn.Module</span></code>, replace that inheritance with inheritance from
-<a class="reference internal" href="../api-docs/nemo.html#nemo.backends.pytorch.nm.TrainableNM" title="nemo.backends.pytorch.nm.TrainableNM"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code></a> class.</p></li>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">TrainableNM</span></code> class.</p></li>
 <li><p>Implement the <code class="docutils literal notranslate"><span class="pre">input_ports</span></code> and <code class="docutils literal notranslate"><span class="pre">output_ports</span></code> properties</p></li>
 <li><p>Modify your constructor to call the base class constructor first.</p></li>
 </ol>

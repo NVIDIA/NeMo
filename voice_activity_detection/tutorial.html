@@ -1,0 +1,967 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Datasets" href="datasets.html" />
+    <link rel="prev" title="Installation" href="installation_link.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Voice Activity Detection</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="installation_link.html">Installation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Tutorial</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#data-preparation">Data Preparation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#freesound-dataset">Freesound Dataset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#google-speech-commands-dataset">Google Speech Commands Dataset</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mixed-precision-training">Mixed Precision training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multi-gpu-training">Multi-GPU training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#large-training-example">Large Training Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fine-tuning">Fine-tuning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#evaluation">Evaluation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="models.html">Models</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Voice Activity Detection</a> &raquo;</li>
+        
+      <li>Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/voice_activity_detection/tutorial.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="tutorial">
+<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<p>Make sure you have installed <code class="docutils literal notranslate"><span class="pre">nemo</span></code> and the <code class="docutils literal notranslate"><span class="pre">nemo_asr</span></code> collection.
+See the <a class="reference internal" href="../index.html#installation"><span class="std std-ref">Getting started</span></a> section.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>It is also necessary to install <cite>torchaudio</cite> in order to use MFCC preprocessing.</p>
+</div>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>Voice Activity Detection (VAD) also known as speech activity detection or speech detection, is the task of predicting which parts of input audio contains speech versus background noise.</p>
+<p>It is an essential first step for a variety of speech-based applications including Automatic Speech Recognition. It serves to determine which samples to be send to the model and when to close the microphone.</p>
+<blockquote>
+<div><img alt="vad example" class="align-center" src="../_images/vad_example.png" />
+</div></blockquote>
+<p>There is a necessity for very small models with high accuracy and superior robustness to environmental noise that can efficiently perform streaming inference on such edge devices.</p>
+<p>This VAD tutorial is based on the MatchboxNet <a class="bibtex reference internal" href="#vad-tut-majumdar2020" id="id1">[VAD-ALL-TUT2]</a> model with a modified decoder head to perform binary classification for VAD task.</p>
+<ol class="arabic simple">
+<li><p>Audio preprocessing (feature extraction): signal normalization, windowing, (log) spectrogram (or mel scale spectrogram, or MFCC)</p></li>
+<li><p>Data augmentation using SpecAugment <a class="bibtex reference internal" href="#vad-tut-park2019" id="id2">[VAD-ALL-TUT3]</a> to increase number of data samples.</p></li>
+<li><p>Develop a small Neural classification model which can be trained efficiently.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A Jupyter Notebook containing most of the steps to emulate VAD training and evaluation is available at: <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb">VAD_using_NeMo.ipynb</a></p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A Jupyter Notebook demonstrating voice activity detection from a microphone’s stream (online) and a given wav file (offline) using pretrained model in NeMo is available at : <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/7_VAD_Offline_Online_Microphone_Demo.ipyn">VAD_Offline_Online_Microphone_Demo.ipynb</a></p>
+</div>
+</div>
+<div class="section" id="data-preparation">
+<span id="data-preparaion"></span><h2>Data Preparation<a class="headerlink" href="#data-preparation" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="freesound-dataset">
+<h3>Freesound Dataset<a class="headerlink" href="#freesound-dataset" title="Permalink to this headline">¶</a></h3>
+<p>We will use the freesound dataset (background categories) as our non-speech/background data. We provide scripts and you can customize in order to construct the required dataset. Note that downloading this dataset may takes hours. Then we will resample the audio files to 16kHZ and transform the to mono-channel.</p>
+<ol class="arabic simple">
+<li><p>We will need some requirements including freesound, requests, requests_oauthlib, joblib, librosa and sox. If they are not installed, please run <cite>pip install -r freesound_requirements.txt</cite></p></li>
+<li><p>Create an API key for freesound.org at <a class="reference external" href="https://freesound.org/help/developers/">https://freesound.org/help/developers/</a></p></li>
+<li><p>Create a python file called <cite>freesound_private_apikey.py</cite> and add lined <cite>api_key = &lt;your Freesound api key&gt; and client_id = &lt;your Freesound client id&gt;</cite></p></li>
+<li><p>Authorize by run <cite>python freesound_download.py –authorize</cite> and visit website and paste response code</p></li>
+<li><p>Feel free to change any arguments in <cite>download_resample_freesound.sh</cite> such as max_samples and max_filesize</p></li>
+<li><p>Run <cite>bash download_resample_freesound.sh &lt;numbers of files you want&gt; &lt;download data directory&gt; &lt;resampled data directory&gt;</cite> . For example:</p></li>
+</ol>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash download_resample_freesound.sh <span class="m">4000</span> ./freesound ./freesound_resampled_background
+</pre></div>
+</div>
+</div>
+<div class="section" id="google-speech-commands-dataset">
+<h3>Google Speech Commands Dataset<a class="headerlink" href="#google-speech-commands-dataset" title="Permalink to this headline">¶</a></h3>
+<p>We will use the open source Google Speech Commands Dataset (we will use V2 of the dataset for the tutorial, but require very minor changes to support V1 dataset) as our speech data. Google Speech Commands Dataset V2 will take roughly 6GB disk space. These scripts below will download the Google Speech Commands v2 dataset and convert speech and background data to a format suitable for use with nemo_asr.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You may additionally pass <cite>--test_size</cite> or <cite>--val_size</cite> flag for spliting train val and test data.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You may additionally pass a <cite>--rebalance_method=’fixed|over|under’</cite> at the end of the script to rebalance the class samples in the manifest.</p>
+</div>
+<ul class="simple">
+<li><p><cite>‘fixed’</cite>: Fixed number of sample for each class. Train 5000, val 1000, and test 1000. (Change number in script if you want)</p></li>
+<li><p><cite>‘over’</cite>: Oversampling rebalance method</p></li>
+<li><p><cite>‘under’</cite>: Undersampling rebalance method</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In tutorial <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/asr/notebooks/6_VAD_using_NeMo.ipynb">VAD_using_NeMo.ipynb</a> , we avoid using freesound dataset, and use <cite>_background_noise_</cite> category in Google Speech Commands Dataset as non-speech/background data for demonstration. The <cite>_background_noise_</cite> category only has 6 audio files. So we would like to generate more based on the audio files to enlarge our background training data. If you want to use your own background noise data, just change the <cite>background_data_root</cite> and ignore <cite>--generate</cite></p>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir <span class="s1">&#39;./google_dataset_v2&#39;</span>
+python process_vad_data.py --out_dir<span class="o">=</span><span class="s1">&#39;./manifest/&#39;</span> --speech_data_root<span class="o">=</span><span class="s1">&#39;./google_dataset_v2&#39;</span>--background_data_root<span class="o">=</span>&lt;resampled freesound data directory&gt; --log --rebalance_method<span class="o">=</span><span class="s1">&#39;fixed&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You should have at least 4GB of disk space available if you’ve used V1; and at least 6GB if you used V2. Also, it will take some time to download and process, so go grab a coffee.</p>
+</div>
+<p>After download and conversion, your <cite>manifest</cite> folder should contain a few json manifest files:</p>
+<ul class="simple">
+<li><p><cite>(balanced_)background_testing_manifest.json</cite></p></li>
+<li><p><cite>(balanced_)background_training_manifest.json</cite></p></li>
+<li><p><cite>(balanced_)background_validation_manifest.json</cite></p></li>
+<li><p><cite>(balanced_)speech_testing_manifest.json</cite></p></li>
+<li><p><cite>(balanced_)speech_training_manifest.json</cite></p></li>
+<li><p><cite>(balanced_)speech_validation_manifest.json</cite></p></li>
+</ul>
+<p>Each line in json file describes a training sample:</p>
+<ul class="simple">
+<li><p>audio_filepath: Refers to the path to the raw audio file</p></li>
+<li><p>label: The class label (speech or background) of this sample</p></li>
+<li><p>duration: The length of the audio file, in seconds.</p></li>
+<li><p>offset: The start of the segment, in seconds.</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span><span class="s2">&quot;audio_filepath&quot;</span>: <span class="s2">&quot;&lt;absolute path to dataset&gt;/two/8aa35b0c_nohash_0.wav&quot;</span>, <span class="s2">&quot;duration&quot;</span>: <span class="m">1</span>.0, <span class="s2">&quot;label&quot;</span>: <span class="s2">&quot;speech&quot;</span>, <span class="s2">&quot;offset&quot;</span>: <span class="m">0</span>.0<span class="o">}</span>
+<span class="o">{</span><span class="s2">&quot;audio_filepath&quot;</span>: <span class="s2">&quot;&lt;absolute path to dataset&gt;/Emergency_vehicle/id_58368 simambulance.wav&quot;</span>, <span class="s2">&quot;duration&quot;</span>: <span class="m">1</span>.0, <span class="s2">&quot;label&quot;</span>: <span class="s2">&quot;background&quot;</span>, <span class="s2">&quot;offset&quot;</span>: <span class="m">4</span>.0<span class="o">}</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
+<p>We will be training a MatchboxNet model <a class="bibtex reference internal" href="#vad-tut-majumdar2020" id="id4">[VAD-ALL-TUT2]</a> which is based on QuartzNet model <a class="bibtex reference internal" href="#vad-tut-kriman2019quartznet" id="id5">[VAD-ALL-TUT1]</a>.
+The benefit of QuartzNet over JASPER models is that they use Separable Convolutions, which greatly reduce the number of
+parameters required to get good model accuracy.</p>
+<p>QuartzNet models generally follow the model definition pattern QuartzNet-[BxR], where B is the number of blocks and R is the number of
+convolutional sub-blocks. Each sub-block contains a 1-D masked convolution, batch normalization, ReLU, and dropout:</p>
+<blockquote>
+<div><img alt="quartznet model" class="align-center" src="../_images/quartz_vertical3.png" />
+</div></blockquote>
+<p>In the tutorial we will be using model MatchboxNet [3x1].
+The script below does both training and evaluation on single GPU:</p>
+<blockquote>
+<div><div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Run Jupyter notebook and walk through this script step-by-step</p>
+</div>
+</div></blockquote>
+<p><strong>Training script</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">ruamel.yaml</span> <span class="kn">import</span> <span class="n">YAML</span>
+<span class="c1"># NeMo&#39;s &quot;core&quot; package</span>
+<span class="kn">import</span> <span class="nn">nemo</span>
+<span class="c1"># NeMo&#39;s ASR collection</span>
+<span class="kn">import</span> <span class="nn">nemo.collections.asr</span> <span class="k">as</span> <span class="nn">nemo_asr</span>
+<span class="c1"># NeMo&#39;s learning rate policy</span>
+<span class="kn">from</span> <span class="nn">nemo.utils.lr_policies</span> <span class="kn">import</span> <span class="n">CosineAnnealing</span><span class="p">,</span> <span class="n">PolynomialDecayAnnealing</span><span class="p">,</span> <span class="n">PolynomialHoldDecayAnnealing</span>
+<span class="kn">import</span> <span class="nn">nemo.utils.argparse</span> <span class="k">as</span> <span class="nn">nm_argparse</span>
+<span class="kn">from</span> <span class="nn">nemo.collections.asr.helpers</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">monitor_classification_training_progress</span><span class="p">,</span>
+    <span class="n">process_classification_evaluation_batch</span><span class="p">,</span>
+    <span class="n">process_classification_evaluation_epoch</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
+
+<span class="c1"># Path to our manifests</span>
+<span class="n">train_dataset</span> <span class="o">=</span> <span class="s1">&#39;&lt;path_to_manifest&gt;/balanced_background_training_manifest.json,&lt;path_to_manifest&gt;/balanced_speech_training_manifest.json&#39;</span>
+<span class="n">val_dataset</span> <span class="o">=</span> <span class="s1">&#39;&lt;path_to_manifest&gt;/background_validation_manifest.json,&lt;path_to_manifest&gt;/speech_validation_manifest.json&#39;</span>
+<span class="n">test_dataset</span> <span class="o">=</span> <span class="s1">&#39;&lt;path_to_manifest&gt;/background_testing_manifest.json,&lt;path_to_manifest&gt;/speech_testing_manifest.json&#39;</span>
+
+<span class="c1"># Here we will be using separable convolutions</span>
+<span class="c1"># with 3 blocks (k=3 repeated once r=1 from the picture above)</span>
+<span class="n">yaml</span> <span class="o">=</span> <span class="n">YAML</span><span class="p">(</span><span class="n">typ</span><span class="o">=</span><span class="s2">&quot;safe&quot;</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet_vad_3x1.yaml&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">jasper_params</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+<span class="c1"># Pre-define a set of labels that this model must learn to predict</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="n">jasper_params</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>
+
+<span class="c1"># Get the sampling rate of the data</span>
+<span class="n">sample_rate</span> <span class="o">=</span> <span class="n">jasper_params</span><span class="p">[</span><span class="s1">&#39;sample_rate&#39;</span><span class="p">]</span>
+
+<span class="c1"># Lets define some hyper parameters</span>
+<span class="n">lr</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="n">num_epochs</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="n">weight_decay</span> <span class="o">=</span> <span class="mf">0.001</span>
+
+<span class="n">result_dir</span> <span class="o">=</span> <span class="s1">&#39;results&#39;</span>
+<span class="c1"># Create a Neural Factory</span>
+<span class="c1"># It creates log files and tensorboard writers for us among other functions</span>
+<span class="n">neural_factory</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+    <span class="n">log_dir</span><span class="o">=</span><span class="s1">&#39;./</span><span class="si">{0}</span><span class="s1">/quartznet-3x1&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">result_dir</span><span class="p">),</span>
+    <span class="n">create_tb_writer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">tb_writer</span> <span class="o">=</span> <span class="n">neural_factory</span><span class="o">.</span><span class="n">tb_writer</span>
+
+<span class="c1"># Check if data augmentation such as white noise and time shift augmentation should be used</span>
+<span class="n">audio_augmentor</span> <span class="o">=</span> <span class="n">jasper_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;AudioAugmentor&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+<span class="c1"># Build the input data layer and the preprocessing layers for the train set</span>
+<span class="n">train_data_layer</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToSpeechLabelDataLayer</span><span class="p">(</span>
+    <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
+    <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="n">num_workers</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(),</span>
+    <span class="n">augmentor</span><span class="o">=</span><span class="n">audio_augmentor</span><span class="p">,</span>
+    <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="c1"># Build the input data layer and the preprocessing layers for the test set</span>
+<span class="n">eval_data_layer</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToSpeechLabelDataLayer</span><span class="p">(</span>
+    <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">test_datasets</span><span class="p">,</span>
+    <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">eval_batch_size</span><span class="p">,</span>
+    <span class="n">num_workers</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(),</span>
+    <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># We will convert the raw audio data into MFCC Features to feed as input to our model</span>
+<span class="n">data_preprocessor</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToMFCCPreprocessor</span><span class="p">(</span>
+    <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">,</span> <span class="o">**</span><span class="n">jasper_params</span><span class="p">[</span><span class="s2">&quot;AudioToMFCCPreprocessor&quot;</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="c1"># Compute the total number of samples and the number of training steps per epoch</span>
+<span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">train_data_layer</span><span class="p">)</span>
+<span class="n">steps_per_epoch</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">N</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">batch_size</span><span class="p">))</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Steps per epoch : </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">steps_per_epoch</span><span class="p">))</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Have </span><span class="si">{0}</span><span class="s1"> examples to train on.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">N</span><span class="p">))</span>
+
+<span class="c1"># Here we begin defining all of the augmentations we want</span>
+<span class="c1"># We will pad the preprocessed spectrogram image to have a certain number of timesteps</span>
+<span class="c1"># This centers the generated spectrogram and adds black boundaries to either side</span>
+<span class="c1"># of the padded image.</span>
+<span class="n">crop_pad_augmentation</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">CropOrPadSpectrogramAugmentation</span><span class="p">(</span><span class="n">audio_length</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>
+
+<span class="c1"># We also optionally add `SpecAugment` augmentations based on the config file</span>
+<span class="c1"># SpecAugment has various possible augmentations to the generated spectrogram</span>
+<span class="c1"># 1) Frequency band masking</span>
+<span class="c1"># 2) Time band masking</span>
+<span class="c1"># 3) Rectangular cutout</span>
+<span class="n">spectr_augment_config</span> <span class="o">=</span> <span class="n">jasper_params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;SpectrogramAugmentation&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">spectr_augment_config</span><span class="p">:</span>
+    <span class="n">data_spectr_augmentation</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">SpectrogramAugmentation</span><span class="p">(</span><span class="o">**</span><span class="n">spectr_augment_config</span><span class="p">)</span>
+
+<span class="c1"># Build the QuartzNet Encoder model</span>
+<span class="c1"># The config defines the layers as a list of dictionaries</span>
+<span class="c1"># The first and last two blocks are not considered when we say QuartzNet-[BxR]</span>
+<span class="c1"># B is counted as the number of blocks after the first layer and before the penultimate layer.</span>
+<span class="c1"># R is defined as the number of repetitions of each block in B.</span>
+<span class="c1"># Note: We can scale the convolution kernels size by the float parameter `kernel_size_factor`</span>
+<span class="n">jasper_encoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperEncoder</span><span class="p">(</span><span class="o">**</span><span class="n">jasper_params</span><span class="p">[</span><span class="s2">&quot;JasperEncoder&quot;</span><span class="p">])</span>
+
+<span class="c1"># We then define the QuartzNet decoder.</span>
+<span class="c1"># This decoder head is specialized for the task for classification, such that it</span>
+<span class="c1"># accepts a set of `N-feat` per timestep of the model, and averages these features</span>
+<span class="c1"># over all the timesteps, before passing a Linear classification layer on those features.</span>
+<span class="n">jasper_decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperDecoderForClassification</span><span class="p">(</span>
+    <span class="n">feat_in</span><span class="o">=</span><span class="n">jasper_params</span><span class="p">[</span><span class="s2">&quot;JasperEncoder&quot;</span><span class="p">][</span><span class="s2">&quot;jasper&quot;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;filters&quot;</span><span class="p">],</span>
+    <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">),</span>
+    <span class="o">**</span><span class="n">jasper_params</span><span class="p">[</span><span class="s1">&#39;JasperDecoderForClassification&#39;</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="c1"># We can easily apply cross entropy loss to train this model</span>
+<span class="n">ce_loss</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">CrossEntropyLossNM</span><span class="p">()</span>
+
+<span class="c1"># Lets print out the number of parameters of this model</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;================================&#39;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of parameters in encoder: </span><span class="si">{jasper_encoder.num_weights}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of parameters in decoder: </span><span class="si">{jasper_decoder.num_weights}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Total number of parameters in model: &quot;</span> <span class="sa">f</span><span class="s2">&quot;{jasper_decoder.num_weights + jasper_encoder.num_weights}&quot;</span>
+<span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;================================&#39;</span><span class="p">)</span>
+
+<span class="c1"># Now we have all of the components that are required to build the NeMo execution graph!</span>
+<span class="c1">## Build the training data loaders and preprocessors first</span>
+<span class="n">audio_signal</span><span class="p">,</span> <span class="n">audio_signal_len</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">label_len</span> <span class="o">=</span> <span class="n">train_data_layer</span><span class="p">()</span>
+<span class="n">processed_signal</span><span class="p">,</span> <span class="n">processed_signal_len</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span><span class="n">input_signal</span><span class="o">=</span><span class="n">audio_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">audio_signal_len</span><span class="p">)</span>
+<span class="n">processed_signal</span><span class="p">,</span> <span class="n">processed_signal_len</span> <span class="o">=</span> <span class="n">crop_pad_augmentation</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">processed_signal</span><span class="p">,</span>
+    <span class="n">length</span><span class="o">=</span><span class="n">audio_signal_len</span>
+<span class="p">)</span>
+
+<span class="c1">## Augment the dataset for training</span>
+<span class="k">if</span> <span class="n">spectr_augment_config</span><span class="p">:</span>
+    <span class="n">processed_signal</span> <span class="o">=</span> <span class="n">data_spectr_augmentation</span><span class="p">(</span><span class="n">input_spec</span><span class="o">=</span><span class="n">processed_signal</span><span class="p">)</span>
+
+<span class="c1">## Define the model</span>
+<span class="n">encoded</span><span class="p">,</span> <span class="n">encoded_len</span> <span class="o">=</span> <span class="n">jasper_encoder</span><span class="p">(</span><span class="n">audio_signal</span><span class="o">=</span><span class="n">processed_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">processed_signal_len</span><span class="p">)</span>
+<span class="n">decoded</span> <span class="o">=</span> <span class="n">jasper_decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">encoded</span><span class="p">)</span>
+
+<span class="c1">## Obtain the train loss</span>
+<span class="n">train_loss</span> <span class="o">=</span> <span class="n">ce_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">decoded</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+
+<span class="c1"># Now we build the test graph in a similar way, reusing the above components</span>
+<span class="c1">## Build the test data loader and preprocess same way as train graph</span>
+<span class="c1">## But note, we do not add the spectrogram augmentation to the test graph !</span>
+<span class="n">test_audio_signal</span><span class="p">,</span> <span class="n">test_audio_signal_len</span><span class="p">,</span> <span class="n">test_labels</span><span class="p">,</span> <span class="n">test_label_len</span> <span class="o">=</span> <span class="n">eval_data_layer</span><span class="p">()</span>
+<span class="n">test_processed_signal</span><span class="p">,</span> <span class="n">test_processed_signal_len</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">test_audio_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">test_audio_signal_len</span>
+<span class="p">)</span>
+<span class="n">test_processed_signal</span><span class="p">,</span> <span class="n">test_processed_signal_len</span> <span class="o">=</span> <span class="n">crop_pad_augmentation</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">test_processed_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">test_processed_signal_len</span>
+<span class="p">)</span>
+
+<span class="c1"># Pass the test data through the model encoder and decoder</span>
+<span class="n">test_encoded</span><span class="p">,</span> <span class="n">test_encoded_len</span> <span class="o">=</span> <span class="n">jasper_encoder</span><span class="p">(</span>
+    <span class="n">audio_signal</span><span class="o">=</span><span class="n">test_processed_signal</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">test_processed_signal_len</span>
+<span class="p">)</span>
+<span class="n">test_decoded</span> <span class="o">=</span> <span class="n">jasper_decoder</span><span class="p">(</span><span class="n">encoder_output</span><span class="o">=</span><span class="n">test_encoded</span><span class="p">)</span>
+
+<span class="c1"># Compute test loss for visualization</span>
+<span class="n">test_loss</span> <span class="o">=</span> <span class="n">ce_loss</span><span class="p">(</span><span class="n">logits</span><span class="o">=</span><span class="n">test_decoded</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="n">test_labels</span><span class="p">)</span>
+
+<span class="c1"># Now that we have our training and evaluation graphs built,</span>
+<span class="c1"># we can focus on a few callbacks to help us save the model checkpoints</span>
+<span class="c1"># during training, as well as display train and test metrics</span>
+
+<span class="c1"># Callbacks needed to print train info to console and Tensorboard</span>
+<span class="n">train_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">SimpleLossLoggerCallback</span><span class="p">(</span>
+    <span class="c1"># Notice that we pass in loss, predictions, and the labels.</span>
+    <span class="c1"># Of course we would like to see our training loss, but we need the</span>
+    <span class="c1"># other arguments to calculate the accuracy.</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">,</span> <span class="n">decoded</span><span class="p">,</span> <span class="n">labels</span><span class="p">],</span>
+    <span class="c1"># The print_func defines what gets printed.</span>
+    <span class="n">print_func</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">monitor_classification_training_progress</span><span class="p">,</span> <span class="n">eval_metric</span><span class="o">=</span><span class="kc">None</span><span class="p">),</span>
+    <span class="n">get_tb_values</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[(</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])],</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Callbacks needed to print test info to console and Tensorboard</span>
+<span class="n">tagname</span> <span class="o">=</span> <span class="s1">&#39;TestSet&#39;</span>
+<span class="n">eval_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">EvaluatorCallback</span><span class="p">(</span>
+    <span class="n">eval_tensors</span><span class="o">=</span><span class="p">[</span><span class="n">test_loss</span><span class="p">,</span> <span class="n">test_decoded</span><span class="p">,</span> <span class="n">test_labels</span><span class="p">],</span>
+    <span class="n">user_iter_callback</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">process_classification_evaluation_batch</span><span class="p">,</span> <span class="n">top_k</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">user_epochs_done_callback</span><span class="o">=</span><span class="n">partial</span><span class="p">(</span><span class="n">process_classification_evaluation_epoch</span><span class="p">,</span> <span class="n">eval_metric</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="n">tagname</span><span class="p">),</span>
+    <span class="n">eval_step</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>  <span class="c1"># How often we evaluate the model on the test set</span>
+    <span class="n">tb_writer</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Callback to save model checkpoints</span>
+<span class="n">chpt_callback</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">CheckpointCallback</span><span class="p">(</span>
+    <span class="n">folder</span><span class="o">=</span><span class="n">neural_factory</span><span class="o">.</span><span class="n">checkpoint_dir</span><span class="p">,</span>
+    <span class="n">step_freq</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Prepare a list of checkpoints to pass to the engine</span>
+<span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span><span class="n">train_callback</span><span class="p">,</span> <span class="n">eval_callback</span><span class="p">,</span> <span class="n">chpt_callback</span><span class="p">]</span>
+
+<span class="c1"># Now we have all the components required to train the model</span>
+<span class="c1"># Lets define a learning rate schedule</span>
+<span class="n">lr_policy</span> <span class="o">=</span> <span class="n">CosineAnnealing</span><span class="p">(</span>
+    <span class="n">total_steps</span><span class="o">=</span><span class="n">num_epochs</span> <span class="o">*</span> <span class="n">steps_per_epoch</span><span class="p">,</span>
+    <span class="n">warmup_ratio</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+    <span class="n">min_lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Using `</span><span class="si">{lr_policy}</span><span class="s2">` Learning Rate Scheduler&quot;</span><span class="p">)</span>
+
+<span class="c1"># Finally, lets train this model !</span>
+<span class="n">neural_factory</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">train_loss</span><span class="p">],</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+    <span class="n">lr_policy</span><span class="o">=</span><span class="n">lr_policy</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="s2">&quot;novograd&quot;</span><span class="p">,</span>
+    <span class="n">optimization_params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="n">num_epochs</span><span class="p">,</span>
+        <span class="s2">&quot;max_steps&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">&quot;lr&quot;</span><span class="p">:</span> <span class="n">lr</span><span class="p">,</span>
+        <span class="s2">&quot;momentum&quot;</span><span class="p">:</span> <span class="mf">0.95</span><span class="p">,</span>
+        <span class="s2">&quot;betas&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.98</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+        <span class="s2">&quot;weight_decay&quot;</span><span class="p">:</span> <span class="n">weight_decay</span><span class="p">,</span>
+        <span class="s2">&quot;grad_norm_clip&quot;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="n">batches_per_step</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<dl class="simple">
+<dt>To improve your accuracy:</dt><dd><ol class="arabic simple">
+<li><p>Train longer (200-300 epochs)</p></li>
+<li><p>Train on more data (try increasing the augmentation parameters for SpectrogramAugmentation)</p></li>
+<li><p>Use larger model</p></li>
+<li><p>Train on several GPUs and use mixed precision (on NVIDIA Volta and Turing GPUs)</p></li>
+<li><p>Start with pre-trained checkpoints</p></li>
+</ol>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="mixed-precision-training">
+<h2>Mixed Precision training<a class="headerlink" href="#mixed-precision-training" title="Permalink to this headline">¶</a></h2>
+<p>Mixed precision and distributed training in NeMo is based on <a class="reference external" href="https://github.com/NVIDIA/apex">NVIDIA’s APEX library</a>.
+Make sure it is installed prior to attempting mixed precision training.</p>
+<p>To train with mixed-precision all you need is to set <cite>optimization_level</cite> parameter of <cite>nemo.core.NeuralModuleFactory</cite>  to <cite>nemo.core.Optimization.mxprO1</cite>. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+    <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
+    <span class="n">optimization_level</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Optimization</span><span class="o">.</span><span class="n">mxprO1</span><span class="p">,</span>
+    <span class="n">placement</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">DeviceType</span><span class="o">.</span><span class="n">AllGpu</span><span class="p">,</span>
+    <span class="n">cudnn_benchmark</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="multi-gpu-training">
+<h2>Multi-GPU training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this headline">¶</a></h2>
+<p>Enabling multi-GPU training with NeMo is easy:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>First set <cite>placement</cite> to <cite>nemo.core.DeviceType.AllGpu</cite> in NeuralModuleFactory and in your Neural Modules</p></li>
+<li><p>Have your script accept ‘local_rank’ argument and do not set it yourself: <cite>parser.add_argument(“–local_rank”, default=None, type=int)</cite></p></li>
+<li><p>Use <cite>torch.distributed.launch</cite> package to run your script like this (replace &lt;num_gpus&gt; with number of gpus):</p></li>
+</ol>
+</div></blockquote>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/quartznet_vad.py ...
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Because mixed precision requires Tensor Cores it only works on NVIDIA Volta and Turing based GPUs</p>
+</div>
+</div>
+<div class="section" id="large-training-example">
+<h2>Large Training Example<a class="headerlink" href="#large-training-example" title="Permalink to this headline">¶</a></h2>
+<p>Please refer to the <cite>&lt;nemo_git_repo_root&gt;/examples/asr/quartznet_vad.py</cite> for comprehensive example.
+It builds one train DAG, one validation DAG and a test DAG to evaluate on different datasets.</p>
+<p>Assuming, you are working with Volta-based DGX, you can run training like this:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m torch.distributed.launch --nproc_per_node<span class="o">=</span>&lt;num_gpus&gt; &lt;nemo_git_repo_root&gt;/examples/asr/quartznet_vad.py --model_config <span class="s2">&quot;&lt;nemo_git_repo_root&gt;/examples/asr/configs/quartznet_vad_3x1.yaml&quot;</span> <span class="se">\</span>
+--train_dataset<span class="o">=</span><span class="s1">&#39;&lt;absolute path to manifest&gt;/balanced_background_training_manifest.json,&lt;absolute path to manifest&gt;/balanced_speech_training_manifest.json&#39;</span>
+--eval_datasets<span class="o">=</span><span class="s1">&#39;.&lt;absolute path to manifest&gt;/background_validation_manifest.json,&lt;absolute path to manifest&gt;/speech_validation_manifest.json&#39;</span>
+--num_epochs<span class="o">=</span><span class="m">200</span> --batch_size<span class="o">=</span><span class="m">128</span> --eval_batch_size<span class="o">=</span><span class="m">128</span> --eval_freq<span class="o">=</span><span class="m">200</span> --lr<span class="o">=</span><span class="m">0</span>.05 --min_lr<span class="o">=</span><span class="m">0</span>.001 <span class="se">\</span>
+--optimizer<span class="o">=</span><span class="s2">&quot;novograd&quot;</span> --weight_decay<span class="o">=</span><span class="m">0</span>.001 --amp_opt_level<span class="o">=</span><span class="s2">&quot;O1&quot;</span> --warmup_ratio<span class="o">=</span><span class="m">0</span>.05 --hold_ratio<span class="o">=</span><span class="m">0</span>.45 <span class="se">\</span>
+--checkpoint_dir<span class="o">=</span><span class="s2">&quot;./checkpoints/quartznet_vad_checkpoints_3x1/&quot;</span><span class="se">\</span>
+--exp_name<span class="o">=</span><span class="s2">&quot;./results/quartznet_vad_checkpoints_3x1/&quot;</span>
+</pre></div>
+</div>
+<p>The command above should trigger multi-GPU training with mixed precision.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>You can pass several manifests (comma-separated) to train on a combined dataset like this: <cite>–train_manifest=/manifests/&lt;first dataset&gt;.json,/manifests/&lt;second dataset&gt;.json</cite></p>
+</div>
+</div>
+<div class="section" id="fine-tuning">
+<h2>Fine-tuning<a class="headerlink" href="#fine-tuning" title="Permalink to this headline">¶</a></h2>
+<p>Training time can be dramatically reduced if starting from a good pre-trained model:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Obtain pre-trained model (jasper_encoder, jasper_decoder and configuration files).</p></li>
+<li><p>load pre-trained weights right after you’ve instantiated your jasper_encoder and jasper_decoder, like this:</p></li>
+</ol>
+</div></blockquote>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">jasper_encoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/JasperEncoder-STEP-90800.pt&quot;</span><span class="p">)</span>
+<span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/JasperDecoderForClassification-STEP-90800.pt&quot;</span><span class="p">)</span>
+<span class="c1"># in case of distributed training add args.local_rank</span>
+<span class="n">jasper_decoder</span><span class="o">.</span><span class="n">restore_from</span><span class="p">(</span><span class="s2">&quot;&lt;path_to_checkpoints&gt;/JasperDecoderForClassification-STEP-90800.pt&quot;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When fine-tuning, use smaller learning rate.</p>
+</div>
+</div>
+<div class="section" id="evaluation">
+<h2>Evaluation<a class="headerlink" href="#evaluation" title="Permalink to this headline">¶</a></h2>
+<p>First download pre-trained model (jasper_encoder, jasper_decoder and configuration files) into <cite>&lt;path_to_checkpoints&gt;</cite>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To listen to the samples that were incorrectly labeled by the model, please run the following code in a notebook.</p>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Lets add some generic imports.</span>
+<span class="c1"># Please note that you will need to install `librosa` for this code</span>
+<span class="c1"># To install librosa : Run `!pip install librosa` from the notebook itself.</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">librosa</span>
+<span class="kn">import</span> <span class="nn">librosa.display</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">IPython.display</span> <span class="k">as</span> <span class="nn">ipd</span>
+<span class="kn">from</span> <span class="nn">ruamel.yaml</span> <span class="kn">import</span> <span class="n">YAML</span>
+
+<span class="c1"># Import nemo and asr collections</span>
+<span class="kn">import</span> <span class="nn">nemo</span>
+<span class="kn">import</span> <span class="nn">nemo.collections.asr</span> <span class="k">as</span> <span class="nn">nemo_asr</span>
+
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
+
+<span class="c1"># We add some</span>
+<span class="n">config_path</span> <span class="o">=</span> <span class="s1">&#39;&lt;path to the config file for this model&gt;&#39;</span>
+<span class="n">model_path</span> <span class="o">=</span> <span class="s1">&#39;&lt;path to the checkpoint directory for this model&gt;&#39;</span>
+<span class="n">test_manifest</span> <span class="o">=</span> <span class="s1">&#39;&lt;path to the data directory&gt;/background_testing_manifest.json,&lt;path to the data directory&gt;/speech_testing_manifest.json&#39;</span>
+<span class="c1"># Parse the config file provided to us</span>
+<span class="c1"># Parse config and pass to model building function</span>
+<span class="n">yaml</span> <span class="o">=</span> <span class="n">YAML</span><span class="p">(</span><span class="n">typ</span><span class="o">=</span><span class="s1">&#39;safe&#39;</span><span class="p">)</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;******</span><span class="se">\n</span><span class="s2">Loaded config file.</span><span class="se">\n</span><span class="s2">******&quot;</span><span class="p">)</span>
+
+<span class="n">labels</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]</span>  <span class="c1"># Vocab of tokens</span>
+<span class="n">sample_rate</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s1">&#39;sample_rate&#39;</span><span class="p">]</span>
+<span class="n">batch_size</span> <span class="o">=</span> <span class="mi">128</span>
+
+<span class="c1"># Build the evaluation graph</span>
+<span class="c1"># Create our NeuralModuleFactory, which will oversee the neural modules.</span>
+<span class="n">neural_factory</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
+    <span class="n">log_dir</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;./eval_results/&#39;</span><span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">neural_factory</span><span class="o">.</span><span class="n">logger</span>
+
+<span class="n">test_data_layer</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToSpeechLabelDataLayer</span><span class="p">(</span>
+    <span class="n">manifest_filepath</span><span class="o">=</span><span class="n">test_manifest</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
+    <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">,</span>
+    <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">crop_pad_augmentation</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">CropOrPadSpectrogramAugmentation</span><span class="p">(</span>
+    <span class="n">audio_length</span><span class="o">=</span><span class="mi">128</span>
+<span class="p">)</span>
+<span class="n">data_preprocessor</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToMFCCPreprocessor</span><span class="p">(</span>
+    <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;AudioToMFCCPreprocessor&#39;</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="c1"># Create the Jasper_3x1 encoder as specified, and a classification decoder</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperEncoder</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;JasperEncoder&#39;</span><span class="p">])</span>
+<span class="n">decoder</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">JasperDecoderForClassification</span><span class="p">(</span>
+    <span class="n">feat_in</span><span class="o">=</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;JasperEncoder&#39;</span><span class="p">][</span><span class="s1">&#39;jasper&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;filters&#39;</span><span class="p">],</span>
+    <span class="n">num_classes</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">labels</span><span class="p">),</span>
+    <span class="o">**</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;JasperDecoderForClassification&#39;</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">ce_loss</span> <span class="o">=</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">CrossEntropyLossNM</span><span class="p">()</span>
+
+<span class="c1"># Assemble the DAG components</span>
+<span class="n">test_audio_signal</span><span class="p">,</span> <span class="n">test_audio_signal_len</span><span class="p">,</span> <span class="n">test_commands</span><span class="p">,</span> <span class="n">test_command_len</span> <span class="o">=</span> <span class="n">test_data_layer</span><span class="p">()</span>
+
+<span class="n">test_processed_signal</span><span class="p">,</span> <span class="n">test_processed_signal_len</span> <span class="o">=</span> <span class="n">data_preprocessor</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">test_audio_signal</span><span class="p">,</span>
+    <span class="n">length</span><span class="o">=</span><span class="n">test_audio_signal_len</span>
+<span class="p">)</span>
+
+<span class="c1"># --- Crop And Pad Augment --- #</span>
+<span class="n">test_processed_signal</span><span class="p">,</span> <span class="n">test_processed_signal_len</span> <span class="o">=</span> <span class="n">crop_pad_augmentation</span><span class="p">(</span>
+    <span class="n">input_signal</span><span class="o">=</span><span class="n">test_processed_signal</span><span class="p">,</span>
+    <span class="n">length</span><span class="o">=</span><span class="n">test_processed_signal_len</span>
+<span class="p">)</span>
+
+<span class="n">test_encoded</span><span class="p">,</span> <span class="n">test_encoded_len</span> <span class="o">=</span> <span class="n">encoder</span><span class="p">(</span>
+    <span class="n">audio_signal</span><span class="o">=</span><span class="n">test_processed_signal</span><span class="p">,</span>
+    <span class="n">length</span><span class="o">=</span><span class="n">test_processed_signal_len</span>
+<span class="p">)</span>
+
+<span class="n">test_decoded</span> <span class="o">=</span> <span class="n">decoder</span><span class="p">(</span>
+    <span class="n">encoder_output</span><span class="o">=</span><span class="n">test_encoded</span>
+<span class="p">)</span>
+
+<span class="n">test_loss</span> <span class="o">=</span> <span class="n">ce_loss</span><span class="p">(</span>
+    <span class="n">logits</span><span class="o">=</span><span class="n">test_decoded</span><span class="p">,</span>
+    <span class="n">labels</span><span class="o">=</span><span class="n">test_commands</span>
+<span class="p">)</span>
+
+<span class="c1"># We import the classification accuracy metric to compute Top-1 accuracy</span>
+<span class="kn">from</span> <span class="nn">nemo.collections.asr.metrics</span> <span class="kn">import</span> <span class="n">classification_accuracy</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+
+<span class="c1"># --- Inference Only --- #</span>
+<span class="c1"># We&#39;ve already built the inference DAG above, so all we need is to call infer().</span>
+<span class="n">evaluated_tensors</span> <span class="o">=</span> <span class="n">neural_factory</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
+    <span class="c1"># These are the tensors we want to get from the model.</span>
+    <span class="n">tensors</span><span class="o">=</span><span class="p">[</span><span class="n">test_loss</span><span class="p">,</span> <span class="n">test_decoded</span><span class="p">,</span> <span class="n">test_commands</span><span class="p">],</span>
+    <span class="c1"># checkpoint_dir specifies where the model params are loaded from.</span>
+    <span class="n">checkpoint_dir</span><span class="o">=</span><span class="n">model_path</span>
+    <span class="p">)</span>
+
+<span class="c1"># Let us count the total number of incorrect classifications by this model</span>
+<span class="n">correct_count</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">total_count</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="k">for</span> <span class="n">batch_idx</span><span class="p">,</span> <span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">evaluated_tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">evaluated_tensors</span><span class="p">[</span><span class="mi">2</span><span class="p">])):</span>
+    <span class="n">acc</span> <span class="o">=</span> <span class="n">classification_accuracy</span><span class="p">(</span>
+        <span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span>
+        <span class="n">targets</span><span class="o">=</span><span class="n">labels</span><span class="p">,</span>
+        <span class="n">top_k</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Select top 1 accuracy only</span>
+    <span class="n">acc</span> <span class="o">=</span> <span class="n">acc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Since accuracy here is &quot;per batch&quot;, we simply denormalize it by multiplying</span>
+    <span class="c1"># by batch size to recover the count of correct samples.</span>
+    <span class="n">correct_count</span> <span class="o">+=</span> <span class="nb">int</span><span class="p">(</span><span class="n">acc</span> <span class="o">*</span> <span class="n">logits</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+    <span class="n">total_count</span> <span class="o">+=</span> <span class="n">logits</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total correct / Total count : </span><span class="si">{correct_count}</span><span class="s2"> / </span><span class="si">{total_count}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final accuracy : {correct_count / float(total_count)}&quot;</span><span class="p">)</span>
+
+<span class="c1"># Let us calculate accuracy, precision, recall and f1 score</span>
+    <span class="n">total_true_negative</span><span class="p">,</span> <span class="n">total_false_negative</span> <span class="p">,</span> <span class="n">total_false_positive</span><span class="p">,</span> <span class="n">total_true_positive</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+
+<span class="k">for</span> <span class="n">batch_idx</span><span class="p">,</span> <span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">evaluated_tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">evaluated_tensors</span><span class="p">[</span><span class="mi">2</span><span class="p">])):</span>
+
+
+    <span class="c1"># check if it&#39;s a 2 classes confusion matrix.</span>
+    <span class="n">confusion_matrix</span> <span class="o">=</span> <span class="n">classification_confusion_matrix</span><span class="p">(</span>
+            <span class="n">logits</span><span class="o">=</span><span class="n">logits</span><span class="p">,</span>
+            <span class="n">targets</span><span class="o">=</span><span class="n">labels</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">confusion_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">tn</span><span class="p">,</span> <span class="n">fp</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">tp</span> <span class="o">=</span> <span class="n">confusion_matrix</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+    <span class="n">total_true_negative</span> <span class="o">+=</span> <span class="n">tn</span>
+    <span class="n">total_false_negative</span> <span class="o">+=</span> <span class="n">fn</span>
+    <span class="n">total_false_positive</span> <span class="o">+=</span> <span class="n">fp</span>
+    <span class="n">total_true_positive</span> <span class="o">+=</span> <span class="n">tp</span>
+
+
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; True Positive: </span><span class="si">{total_true_positive}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; False Positive : </span><span class="si">{total_false_positive}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; False Negative : </span><span class="si">{total_false_negative}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot; True Negative : </span><span class="si">{total_true_negative}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">accuracy</span> <span class="o">=</span> <span class="p">(</span><span class="n">total_true_positive</span> <span class="o">+</span> <span class="n">total_true_negative</span><span class="p">)</span> \
+                <span class="o">/</span> <span class="p">(</span><span class="n">total_true_positive</span> <span class="o">+</span> <span class="n">total_true_negative</span> <span class="o">+</span> <span class="n">total_false_negative</span> <span class="o">+</span> <span class="n">total_false_positive</span><span class="p">)</span>
+<span class="n">precision</span> <span class="o">=</span> <span class="n">total_true_positive</span> <span class="o">/</span> <span class="p">(</span><span class="n">total_true_positive</span> <span class="o">+</span> <span class="n">total_false_positive</span><span class="p">)</span>
+<span class="n">recall</span> <span class="o">=</span> <span class="n">total_true_positive</span> <span class="o">/</span> <span class="p">(</span><span class="n">total_true_positive</span> <span class="o">+</span> <span class="n">total_false_negative</span><span class="p">)</span>
+<span class="n">f1_score</span> <span class="o">=</span>  <span class="mi">2</span> <span class="o">*</span> <span class="n">precision</span> <span class="o">*</span> <span class="n">recall</span> <span class="o">/</span> <span class="p">(</span><span class="n">precision</span> <span class="o">+</span> <span class="n">recall</span><span class="p">)</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final Accuracy: </span><span class="si">{accuracy}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final Precision: </span><span class="si">{precision}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final Recall : </span><span class="si">{recall}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Final F1 score : </span><span class="si">{f1_score}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Let us now filter out the incorrectly labeled samples from the total set of samples in the test set</span>
+
+<span class="c1"># First lets create a utility class to remap the integer class labels to actual string label</span>
+<span class="k">class</span> <span class="nc">ReverseMapLabel</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_layer</span><span class="p">:</span> <span class="n">nemo_asr</span><span class="o">.</span><span class="n">AudioToSpeechLabelDataLayer</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label2id</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">data_layer</span><span class="o">.</span><span class="n">_dataset</span><span class="o">.</span><span class="n">label2id</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id2label</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">data_layer</span><span class="o">.</span><span class="n">_dataset</span><span class="o">.</span><span class="n">id2label</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pred_idx</span><span class="p">,</span> <span class="n">label_idx</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">id2label</span><span class="p">[</span><span class="n">pred_idx</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">id2label</span><span class="p">[</span><span class="n">label_idx</span><span class="p">]</span>
+
+<span class="c1"># Next, lets get the indices of all the incorrectly labeled samples</span>
+<span class="n">sample_idx</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">incorrect_preds</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">rev_map</span> <span class="o">=</span> <span class="n">ReverseMapLabel</span><span class="p">(</span><span class="n">test_data_layer</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">batch_idx</span><span class="p">,</span> <span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">evaluated_tensors</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">evaluated_tensors</span><span class="p">[</span><span class="mi">2</span><span class="p">])):</span>
+    <span class="n">probs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">probas</span><span class="p">,</span> <span class="n">preds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">probs</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">incorrect_ids</span> <span class="o">=</span> <span class="p">(</span><span class="n">preds</span> <span class="o">!=</span> <span class="n">labels</span><span class="p">)</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">incorrect_ids</span><span class="p">:</span>
+        <span class="n">proba</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">probas</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">pred</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">preds</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">labels</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">sample_idx</span>
+
+        <span class="n">incorrect_preds</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">idx</span><span class="p">,</span> <span class="o">*</span><span class="n">rev_map</span><span class="p">(</span><span class="n">pred</span><span class="p">,</span> <span class="n">label</span><span class="p">),</span> <span class="n">proba</span><span class="p">))</span>
+
+    <span class="n">sample_idx</span> <span class="o">+=</span> <span class="n">labels</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Num test samples : </span><span class="si">{total_count}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Num errors : {len(incorrect_preds)}&quot;</span><span class="p">)</span>
+
+<span class="c1"># First lets sort by confidence of prediction</span>
+<span class="n">incorrect_preds</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">incorrect_preds</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="c1"># Lets print out the (test id, predicted label, ground truth label, confidence)</span>
+<span class="c1"># tuple of first 20 incorrectly labeled samples</span>
+<span class="k">for</span> <span class="n">incorrect_sample</span> <span class="ow">in</span> <span class="n">incorrect_preds</span><span class="p">[:</span><span class="mi">20</span><span class="p">]:</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">incorrect_sample</span><span class="p">))</span>
+
+<span class="c1"># Lets define a threshold below which we designate a model&#39;s prediction as &quot;low confidence&quot;</span>
+<span class="c1"># and then filter out how many such samples exist</span>
+<span class="n">low_confidence_threshold</span> <span class="o">=</span> <span class="mf">0.25</span>
+<span class="n">count_low_confidence</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">low_confidence_threshold</span><span class="p">,</span> <span class="n">incorrect_preds</span><span class="p">)))</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of low confidence predictions : </span><span class="si">{count_low_confidence}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># One interesting observation is to actually listen to these samples whose predicted labels were incorrect</span>
+<span class="c1"># Note: The following requires the use of a Notebook environment</span>
+
+<span class="c1"># First lets create a helper function to parse the manifest files</span>
+<span class="k">def</span> <span class="nf">parse_manifest</span><span class="p">(</span><span class="n">manifest</span><span class="p">):</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">manifest</span><span class="p">:</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">data</span>
+
+<span class="c1"># Now lets load the test manifest into memory</span>
+<span class="n">test_samples</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">test_manifest</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">test_f</span><span class="p">:</span>
+    <span class="n">test_samples</span> <span class="o">=</span> <span class="n">test_f</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+
+<span class="n">test_samples</span> <span class="o">=</span> <span class="n">parse_manifest</span><span class="p">(</span><span class="n">test_samples</span><span class="p">)</span>
+
+<span class="c1"># Next, lets create a helper function to actually listen to certain samples</span>
+<span class="k">def</span> <span class="nf">listen_to_file</span><span class="p">(</span><span class="n">sample_id</span><span class="p">,</span> <span class="n">pred</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">proba</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="c1"># Load the audio waveform using librosa</span>
+    <span class="n">filepath</span> <span class="o">=</span> <span class="n">test_samples</span><span class="p">[</span><span class="n">sample_id</span><span class="p">][</span><span class="s1">&#39;audio_filepath&#39;</span><span class="p">]</span>
+    <span class="n">audio</span><span class="p">,</span> <span class="n">sample_rate</span> <span class="o">=</span> <span class="n">librosa</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pred</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">proba</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sample : </span><span class="si">{sample_id}</span><span class="s2"> Prediction : </span><span class="si">{pred}</span><span class="s2"> Label : </span><span class="si">{label}</span><span class="s2"> Confidence = </span><span class="si">{proba: 0.4f}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Sample : </span><span class="si">{sample_id}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ipd</span><span class="o">.</span><span class="n">Audio</span><span class="p">(</span><span class="n">audio</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">)</span>
+
+
+<span class="c1"># Now lets load the test manifest into memory</span>
+<span class="n">all_test_samples</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">test_dataset</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">_</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">test_f</span><span class="p">:</span>
+        <span class="n">test_samples</span> <span class="o">=</span> <span class="n">test_f</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+
+        <span class="n">all_test_samples</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">test_samples</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">all_test_samples</span><span class="p">))</span>
+<span class="n">test_samples</span> <span class="o">=</span> <span class="n">parse_manifest</span><span class="p">(</span><span class="n">all_test_samples</span><span class="p">)</span>
+<span class="c1"># Finally, lets listen to all the audio samples where the model made a mistake</span>
+<span class="c1"># Note: This list of incorrect samples may be quite large, so you may choose to subsample `incorrect_preds`</span>
+<span class="k">for</span> <span class="n">sample_id</span><span class="p">,</span> <span class="n">pred</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">proba</span> <span class="ow">in</span> <span class="n">incorrect_preds</span><span class="p">:</span>
+    <span class="n">ipd</span><span class="o">.</span><span class="n">display</span><span class="p">(</span><span class="n">listen_to_file</span><span class="p">(</span><span class="n">sample_id</span><span class="p">,</span> <span class="n">pred</span><span class="o">=</span><span class="n">pred</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">proba</span><span class="o">=</span><span class="n">proba</span><span class="p">))</span>  <span class="c1"># Needs to be run in a notebook environment</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-voice_activity_detection/tutorial-0"><dl class="citation">
+<dt class="bibtex label" id="vad-tut-kriman2019quartznet"><span class="brackets"><a class="fn-backref" href="#id5">VAD-ALL-TUT1</a></span></dt>
+<dd><p>Samuel Kriman, Stanislav Beliaev, Boris Ginsburg, Jocelyn Huang, Oleksii Kuchaiev, Vitaly Lavrukhin, Ryan Leary, Jason Li, and Yang Zhang. Quartznet: deep automatic speech recognition with 1d time-channel separable convolutions. <em>arXiv preprint arXiv:1910.10261</em>, 2019.</p>
+</dd>
+<dt class="bibtex label" id="vad-tut-majumdar2020"><span class="brackets">VAD-ALL-TUT2</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id4">2</a>)</span></dt>
+<dd><p>Somshubra Majumdar and Boris Ginsburg. Matchboxnet–1d time-channel separable convolutional neural network architecture for speech commands recognition. <em>arXiv preprint arXiv:2004.08531</em>, 2020.</p>
+</dd>
+<dt class="bibtex label" id="vad-tut-park2019"><span class="brackets"><a class="fn-backref" href="#id2">VAD-ALL-TUT3</a></span></dt>
+<dd><p>Daniel S. Park, William Chan, Yu Zhang, Chung-Cheng Chiu, Barret Zoph, Ekin D. Cubuk, and Quoc V. Le. SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition. <em>arXiv e-prints</em>, 2019. <a class="reference external" href="https://arxiv.org/abs/1904.08779">arXiv:1904.08779</a>.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="datasets.html" class="btn btn-neutral float-right" title="Datasets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="installation_link.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

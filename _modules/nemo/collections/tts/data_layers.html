@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>nemo.collections.tts.data_layers &mdash; nemo 0.10.1 documentation</title>
+  <title>nemo.collections.tts.data_layers &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -58,7 +58,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -87,7 +87,9 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../nlp/intro.html">Natural Language Processing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tts/intro.html">Speech Synthesis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../collections/modules.html">NeMo Collections API</a></li>
@@ -159,14 +161,12 @@
 <span></span><span class="c1"># Copyright (c) 2019 NVIDIA Corporation</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 
-<span class="kn">import</span> <span class="nn">nemo</span>
 <span class="kn">from</span> <span class="nn">.parts.datasets</span> <span class="kn">import</span> <span class="n">AudioOnlyDataset</span>
 <span class="kn">from</span> <span class="nn">nemo.backends.pytorch.nm</span> <span class="kn">import</span> <span class="n">DataLayerNM</span>
 <span class="kn">from</span> <span class="nn">nemo.core</span> <span class="kn">import</span> <span class="n">DeviceType</span>
 <span class="kn">from</span> <span class="nn">nemo.core.neural_types</span> <span class="kn">import</span> <span class="n">AudioSignal</span><span class="p">,</span> <span class="n">LengthsType</span><span class="p">,</span> <span class="n">NeuralType</span>
+<span class="kn">from</span> <span class="nn">nemo.utils</span> <span class="kn">import</span> <span class="n">logging</span>
 <span class="kn">from</span> <span class="nn">nemo.utils.decorators</span> <span class="kn">import</span> <span class="n">add_port_docs</span>
-
-<span class="n">logging</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">logging</span>
 
 
 <div class="viewcode-block" id="AudioDataLayer"><a class="viewcode-back" href="../../../../collections/nemo_tts.html#nemo.collections.tts.data_layers.AudioDataLayer">[docs]</a><span class="k">class</span> <span class="nc">AudioDataLayer</span><span class="p">(</span><span class="n">DataLayerNM</span><span class="p">):</span>

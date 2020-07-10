@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Tutorial &mdash; nemo 0.10.1 documentation</title>
+  <title>Tutorial &mdash; nemo 0.11.0 documentation</title>
   
 
   
@@ -35,8 +35,8 @@
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Tutorial" href="question_answering.html" />
-    <link rel="prev" title="Tutorial" href="punctuation.html" /> 
+    <link rel="next" title="Tutorial" href="text_classification.html" />
+    <link rel="prev" title="Tutorial" href="glue.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -60,7 +60,7 @@
             
             
               <div class="version">
-                0.10.1
+                0.11.0
               </div>
             
           
@@ -89,14 +89,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">Tutorial</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#preliminaries">Preliminaries</a></li>
@@ -107,8 +108,12 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="intro.html#improving-speech-recognition-with-bertx2-post-processing-model">Improving Speech Recognition with BERTx2 Post-processing Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
@@ -182,11 +187,11 @@
            <div itemprop="articleBody">
             
   <div class="section" id="tutorial">
-<h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
+<span id="joint-intent-slot-filling"></span><h1>Tutorial<a class="headerlink" href="#tutorial" title="Permalink to this headline">¶</a></h1>
 <p>In this tutorial, we are going to show the structure of our example on training and evaluating an intent detection and slot filling model with pretrained BERT model. This model is based on a model proposed in <a class="reference external" href="https://arxiv.org/abs/1902.10909">BERT for Joint Intent Classification and Slot Filling</a> <a class="bibtex reference internal" href="#nlp-slot-chen2019bert" id="id1">[NLP-SLOT1]</a>.
 All the code introduced in this tutorial is based on <code class="docutils literal notranslate"><span class="pre">examples/nlp/intent_detection_slot_tagging/joint_intent_slot_with_bert.py</span></code>.</p>
 <p>There are a variety pre-trained BERT models that we can select as the base encoder for our model. We’re currently
-using the script for loading pre-trained models from <cite>transformers</cite>. See the list of available pre-trained models by calling <cite>nemo.collections.nlp.nm.trainables.get_bert_models_list()</cite>. The type of the encoder can get defined by the argument <cite>–pretrained_model_name</cite>.</p>
+using the script for loading pre-trained models from <cite>transformers</cite>. See the list of available pre-trained models by calling <cite>nemo_nlp.nm.trainables.get_pretrained_lm_models_list()</cite>. The type of the encoder can get defined by the argument <cite>–pretrained_model_name</cite>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>For pretraining BERT model in NeMo and also downloading pretrained model checkpoints go to <a class="reference external" href="https://nvidia.github.io/NeMo/nlp/bert_pretraining.html">BERT pretraining</a>.</p>
@@ -228,11 +233,10 @@ requested from <a class="reference external" href="https://github.com/snipsco/sp
 </div>
 <div class="section" id="code-structure">
 <h2>Code Structure<a class="headerlink" href="#code-structure" title="Permalink to this headline">¶</a></h2>
-<p>First, we instantiate Neural Module Factory which defines 1) backend (PyTorch or TensorFlow), 2) mixed precision optimization level,
+<p>First, we instantiate Neural Module Factory which defines 1) backend (just PyTorch is currently supported), 2) mixed precision optimization level,
 3) local rank of the GPU, and 4) an experiment manager that creates a timestamped folder to store checkpoints, relevant outputs, log files, and TensorBoard graphs.</p>
 <blockquote>
 <div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nf</span> <span class="o">=</span> <span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">NeuralModuleFactory</span><span class="p">(</span>
-    <span class="n">backend</span><span class="o">=</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Backend</span><span class="o">.</span><span class="n">PyTorch</span><span class="p">,</span>
     <span class="n">local_rank</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">local_rank</span><span class="p">,</span>
     <span class="n">optimization_level</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">amp_opt_level</span><span class="p">,</span>
     <span class="n">log_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">work_dir</span><span class="p">,</span>
@@ -264,9 +268,8 @@ requested from <a class="reference external" href="https://github.com/snipsco/sp
 <ul class="simple">
 <li><p>Load the pre-trained BERT model to encode the corresponding inputs.</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pretrained_bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">get_huggingface_model</span><span class="p">(</span>
-    <span class="n">bert_config</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">bert_config</span><span class="p">,</span> <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_model_name</span>
-<span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">bert_model</span> <span class="o">=</span> <span class="n">nemo_nlp</span><span class="o">.</span><span class="n">nm</span><span class="o">.</span><span class="n">trainables</span><span class="o">.</span><span class="n">get_pretrained_lm_model</span><span class="p">(</span>
+    <span class="n">pretrained_model_name</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">pretrained_model_name</span><span class="p">)</span>
 </pre></div>
 </div>
 <ul class="simple">
@@ -466,10 +469,10 @@ To do inference with a checkpoint on test set, you may run:</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="question_answering.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="text_classification.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="punctuation.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="glue.html" class="btn btn-neutral float-left" title="Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
