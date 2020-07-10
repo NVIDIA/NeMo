@@ -45,6 +45,21 @@ class EncDecCTCModelConfig(ModelPTConfig):
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
+    def __init__(self, cfg: EncDecCTCModelConfig):
+        super().__init__(cfg=cfg)
+        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
+        self.encoder = hydra.utils.instantiate(cfg.encoder)
+        self.decoder = hydra.utils.instantiate(cfg.decoder)
+        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
+        if cfg.spec_augment is not None:
+            self.spec_augmentation = hydra.utils.instantiate(cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
+        # Optimizer setup needs to happen after all model weights are ready
+        self.setup_optimization(cfg.optim)
+        # Setup metric objects
+        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
@@ -78,17 +93,17 @@ class EncDecCTCModel(ASRModel):
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
-        self.__train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
+        self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
-        self.__val_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
+        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
-        self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
+        self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
     def setup_optimization(self, optim_config: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
         # Setup optimizer and scheduler
@@ -108,9 +123,9 @@ class EncDecCTCModel(ASRModel):
                 optim_config.sched.iters_per_batch = iters_per_batch
             else:
                 optim_config.sched.max_steps = optim_config.trainer.max_steps
-        self.__optimizer = super().setup_optimization(optim_config)
-        self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=optim_config, train_dataloader=self.__train_dl
+        self._optimizer = super().setup_optimization(optim_config)
+        self._scheduler = prepare_lr_scheduler(
+            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
         )
 
     @classmethod
@@ -150,34 +165,6 @@ class EncDecCTCModel(ASRModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    def __init__(self, cfg: EncDecCTCModelConfig):
-        super().__init__()
-        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
-        self.encoder = hydra.utils.instantiate(cfg.encoder)
-        self.decoder = hydra.utils.instantiate(cfg.decoder)
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if cfg.spec_augment is not None:
-            self.spec_augmentation = hydra.utils.instantiate(cfg.spec_augment)
-        else:
-            self.spec_augmentation = None
-
-        # Setup metric objects
-        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
-
-        # TODO: SHOULD THIS LOGIC JUST GOT TO MODELPT ?
-        # This will be set by setup_training_data
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        self.setup_training_data(cfg.train_ds)
-        self.setup_validation_data(cfg.validation_ds)
-        # This will be set by setup_optimization
-        self.__optimizer = None
-        self.__scheduler = None
-        self.setup_optimization(cfg.optim)
-
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
@@ -215,25 +202,6 @@ class EncDecCTCModel(ASRModel):
         )
         wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
-
-    def validation_epoch_end(self, outputs):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_wer': wer_num / wer_denom}
-        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
-
-    def configure_optimizers(self):
-        if self.__scheduler is None:
-            return self.__optimizer
-        else:
-            return [self.__optimizer], [self.__scheduler]
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
 
 @experimental

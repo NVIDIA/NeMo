@@ -37,12 +37,25 @@ class ModelPTConfig(Config):
     optim: Optional[DictConfig] = None
     train_ds: Optional[DictConfig] = None
     validation_ds: Optional[DictConfig] = None
+    test_ds: Optional[DictConfig] = None
 
 
 class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
     """
+
+    def __init__(self, cfg: ModelPTConfig = None):
+        super().__init__()
+        self._train_dl = None
+        self._validation_dl = None
+        self._test_dl = None
+        self._optimizer = None
+        self._scheduler = None
+
+        if cfg is not None:
+            self.setup_training_data(cfg.train_ds)
+            self.setup_validation_data(cfg.validation_ds)
 
     @abstractmethod
     def setup_training_data(self, train_data_layer_config: Union[DictConfig, Dict]):
@@ -166,3 +179,15 @@ class ModelPT(LightningModule, Model):
             logging.info("Optimizer config = %s", str(optimizer))
 
             return optimizer
+
+    def configure_optimizers(self):
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
+
+    def train_dataloader(self):
+        return self._train_dl
+
+    def val_dataloader(self):
+        return self._validation_dl
