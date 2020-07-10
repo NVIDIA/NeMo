@@ -6,7 +6,9 @@ separable: &separable true
 
 optim:
   name: novograd
+  # cls: nemo.core.optim.optimizers.Novograd
   lr: .01
+
   # optimizer arguments
   args:
     name: auto

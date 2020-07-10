@@ -36,20 +36,35 @@ Add PyTorch Lightning Trainer arguments from CLI:
 Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
 
- python speech_to_text.py AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" hydra.run.dir="." pl.trainer.gpus=2 pl.trainer.max_epochs=100
-
-Override some args of optimizer
- python speech_to_text.py AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" hydra.run.dir="." pl.trainer.gpus=2 pl.trainer.max_epochs=2 optim.args.params.betas=[0.9,0.22] optim.args.params.weight_decay=0.0000005
+Override some args of optimizer:
+    python speech_to_text.py \
+    AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" \
+    AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" \
+    hydra.run.dir="." \
+    pl.trainer.gpus=2 \
+    pl.trainer.max_epochs=2 \
+    optim.args.params.betas=[0.8,0.5] \
+    optim.args.params.weight_decay=0.0001
 
 Overide optimizer entirely
- python speech_to_text.py AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" hydra.run.dir="." pl.trainer.gpus=2 pl.trainer.max_epochs=2 optim.name=adamw optim.lr=0.001 ~optim.args +optim.args.betas=[0.9,0.22] +optim.args.weight_decay=0.0000005
+    python speech_to_text.py \
+    AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" \
+    AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" \
+    hydra.run.dir="." \
+    pl.trainer.gpus=2 \
+    pl.trainer.max_epochs=2 \
+    optim.name=adamw \
+    optim.lr=0.001 \
+    ~optim.args \
+    +optim.args.betas=[0.8,0.5]\
+    +optim.args.weight_decay=0.0005
 
 """
 
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    print(cfg.pretty())
+    logging.info(f'Hydra config: {cfg.pretty()}')
 
     asr_model = EncDecCTCModel(
         preprocessor_config=cfg.preprocessor,

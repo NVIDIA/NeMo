@@ -22,10 +22,12 @@ from nemo.core.config.optimizers import (
     AdamParams,
     AdamWParams,
     NovogradParams,
+    OptimizerParams,
     RMSpropParams,
     RpropParams,
     SGDParams,
     get_optimizer_config,
+    register_optimizer_params,
 )
 from nemo.core.config.pytorch import DataLoaderConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
@@ -41,5 +43,6 @@ from nemo.core.config.schedulers import (
     WarmupHoldSchedulerParams,
     WarmupSchedulerParams,
     get_scheduler_config,
+    register_scheduler_params,
 )
 from nemo.core.config.set_config import set_config

@@ -77,7 +77,7 @@ def main():
     args = add_args(parser)
     bert_model = BERTLMModel(pretrained_model_name=args.pretrained_model_name, config_file=args.config_file)
     bert_model.setup_training_data(
-        train_data_layer_params={
+        train_data_layer_config={
             'train_data': args.data_dir,
             'max_predictions_per_seq': args.max_predictions_per_seq,
             'batch_size': args.batch_size,
@@ -102,7 +102,7 @@ def main():
     }
 
     bert_model.setup_optimization(
-        optim_params={
+        optim_config={
             'name': args.optimizer,  # name of the optimizer
             'lr': args.lr,
             'args': {

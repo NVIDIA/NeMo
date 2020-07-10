@@ -104,7 +104,7 @@ def main():
         preprocessing_args=preprocessing_args,
     )
     bert_model.setup_training_data(
-        train_data_layer_params={
+        train_data_layer_config={
             'dataset': train_data_file,
             'batch_size': args.batch_size,
             'max_seq_length': args.max_seq_length,
@@ -113,7 +113,7 @@ def main():
         },
     )
     bert_model.setup_validation_data(
-        val_data_layer_params={
+        val_data_layer_config={
             'dataset': valid_data_file,
             'batch_size': args.batch_size,
             'max_seq_length': args.max_seq_length,
@@ -150,7 +150,7 @@ def main():
         scheduler_args['iters_per_batch'] = None
 
     bert_model.setup_optimization(
-        optim_params={
+        optim_config={
             'name': args.optimizer,  # name of the optimizer
             'lr': args.lr,
             'args': {

@@ -20,24 +20,13 @@ from typing import Any, Dict, Optional, Union
 
 import hydra
 import torch.optim as optim
+import torch.optim.lr_scheduler as pt_scheduler
 import torch.utils.data.dataloader as dataloader
 from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import _LRScheduler
 
 from nemo import logging
-from nemo.core.config import get_scheduler_config
-
-__all__ = [
-    'WarmupPolicy',
-    'WarmupHoldPolicy',
-    'SquareAnnealing',
-    'CosineAnnealing',
-    'WarmupAnnealing',
-    'InverseSquareRootAnnealing',
-    'SquareRootAnnealing',
-    'PolynomialDecayAnnealing',
-    'PolynomialHoldDecayAnnealing',
-]
+from nemo.core.config import SchedulerParams, get_scheduler_config, register_scheduler_params
 
 
 class WarmupPolicy(_LRScheduler):
@@ -326,6 +315,26 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
         return new_lrs
 
 
+def register_scheduler(name: str, scheduler: _LRScheduler, scheduler_params: SchedulerParams):
+    """
+    Checks if the scheduler name exists in the registry, and if it doesnt, adds it.
+
+    This allows custom schedulers to be added and called by name during instantiation.
+
+    Args:
+        name: Name of the optimizer. Will be used as key to retrieve the optimizer.
+        scheduler: Scheduler class (inherits from _LRScheduler)
+        scheduler_params: The parameters as a dataclass of the scheduler
+    """
+    if name in AVAILABLE_SCHEDULERS:
+        raise ValueError(f"Cannot override pre-existing schedulers. Conflicting scheduler name = {name}")
+
+    AVAILABLE_SCHEDULERS[name] = scheduler
+
+    sched_name = "{}_params".format(scheduler.__name__)
+    register_scheduler_params(name=sched_name, scheduler_params=scheduler_params)
+
+
 def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler:
     """
     Convenience method to obtain an _LRScheduler class and partially instantiate it with optimizer kwargs.
@@ -536,4 +545,8 @@ AVAILABLE_SCHEDULERS = {
     'SquareRootAnnealing': SquareRootAnnealing,
     'PolynomialDecayAnnealing': PolynomialDecayAnnealing,
     'PolynomialHoldDecayAnnealing': PolynomialHoldDecayAnnealing,
+    'StepLR': pt_scheduler.StepLR,
+    'ExponentialLR': pt_scheduler.ExponentialLR,
+    'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
+    'CyclicLR': pt_scheduler.CyclicLR,
 }

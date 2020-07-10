@@ -203,6 +203,22 @@ class NovogradParams(OptimizerParams):
     luc_eps: float = 1e-8
 
 
+def register_optimizer_params(name: str, optimizer_params: OptimizerParams):
+    """
+    Checks if the optimizer param name exists in the registry, and if it doesnt, adds it.
+
+    This allows custom optimizer params to be added and called by name during instantiation.
+
+    Args:
+        name: Name of the optimizer. Will be used as key to retrieve the optimizer.
+        optimizer_params: Optimizer class
+    """
+    if name in AVAILABLE_OPTIMIZER_PARAMS:
+        raise ValueError(f"Cannot override pre-existing optimizers. Conflicting optimizer name = {name}")
+
+    AVAILABLE_OPTIMIZER_PARAMS[name] = optimizer_params
+
+
 def get_optimizer_config(name: str, **kwargs: Optional[Dict[str, Any]]) -> OptimizerParams:
     """
     Convenience method to obtain a OptimizerParams class and partially instantiate it with optimizer kwargs.
@@ -217,18 +233,18 @@ def get_optimizer_config(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optim
     if name is None:
         return kwargs
 
-    if name not in AVAILABLE_OPTIMIZER_CONFIGS:
+    if name not in AVAILABLE_OPTIMIZER_PARAMS:
         raise ValueError(
             f"Cannot resolve optimizer parameters '{name}'. Available optimizer parameters are : "
-            f"{AVAILABLE_OPTIMIZER_CONFIGS.keys()}"
+            f"{AVAILABLE_OPTIMIZER_PARAMS.keys()}"
         )
 
-    scheduler_params = AVAILABLE_OPTIMIZER_CONFIGS[name]
+    scheduler_params = AVAILABLE_OPTIMIZER_PARAMS[name]
     scheduler_params = partial(scheduler_params, **kwargs)
     return scheduler_params
 
 
-AVAILABLE_OPTIMIZER_CONFIGS = {
+AVAILABLE_OPTIMIZER_PARAMS = {
     'optim_params': OptimizerParams,
     'adam_params': AdamParams,
     'novograd_params': NovogradParams,

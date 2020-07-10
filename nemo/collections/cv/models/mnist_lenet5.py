@@ -125,14 +125,14 @@ class MNISTLeNet5(ModelPT):
     #     )
     #     return [optimizer], [scheduler]
 
-    def setup_optimization(self, optim_params=None) -> Optimizer:
-        optim_params = optim_params or self._cfg.optim
-        self._optimizer = super().setup_optimization(optim_params)
+    def setup_optimization(self, optim_config=None) -> Optimizer:
+        optim_config = optim_config or self._cfg.optim
+        self._optimizer = super().setup_optimization(optim_config)
         self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=optim_params, train_dataloader=self._train_dl
+            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
         )
 
-    def setup_training_data(self, train_data_layer_params: Optional[Dict] = None):
+    def setup_training_data(self, train_data_layer_config: Optional[Dict] = None):
         """ Create dataset, wrap it with dataloader and return the latter """
         # Instantiate dataset.
         mnist_ds = MNISTDataset(self._cfg.dataset)
@@ -140,7 +140,7 @@ class MNISTLeNet5(ModelPT):
         train_dataloader = DataLoader(dataset=mnist_ds, **(self._cfg.dataloader))
         self._train_dl = train_dataloader
 
-    def setup_validation_data(self, val_data_layer_params: Optional[Dict] = None):
+    def setup_validation_data(self, val_data_layer_config: Optional[Dict] = None):
         self._val_dl = None
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict] = None):
