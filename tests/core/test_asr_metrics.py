@@ -20,7 +20,7 @@ from unittest import TestCase
 import pytest
 import torch
 
-from nemo.collections.asr.metrics.wer import AverageTextWER, word_error_rate
+from nemo.collections.asr.metrics.wer import WER, word_error_rate
 
 
 class WordErrorRateTests(TestCase):
@@ -74,7 +74,7 @@ class WordErrorRateTests(TestCase):
 
     @pytest.mark.unit
     def test_wer_metric_simple(self):
-        wer = AverageTextWER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         def get_wer(prediction: str, reference: str):
             res = (
@@ -98,7 +98,7 @@ class WordErrorRateTests(TestCase):
     @pytest.mark.unit
     def test_wer_metric_randomized(self):
         """This test relies on correctness of word_error_rate function"""
-        wer = AverageTextWER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         def get_wer(prediction: str, reference: str):
             res = (
