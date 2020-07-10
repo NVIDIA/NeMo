@@ -128,7 +128,7 @@ def main():
         'max_steps': args.max_steps,
     }
 
-    scheduler_args["name"] = 'WarmupAnnealing'  # name of the scheduler
+    scheduler_args["name"] = args.scheduler  # name of the scheduler
     scheduler_args["args"] = {
         "name": "auto",  # name of the scheduler config
         "params": {
