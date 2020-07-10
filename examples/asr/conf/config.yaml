@@ -137,6 +137,15 @@ model:
       vocabulary: *labels
 
   optim:
+    trainer:
+      gpus: 0 # number of gpus
+      max_epochs: 5
+      max_steps: null # computed at runtime if not set
+      num_nodes: 1
+      distributed_backend: ddp
+      accumulate_grad_batches: 1
+
+
     name: novograd
     # cls: nemo.core.optim.optimizers.Novograd
     lr: .01
@@ -168,12 +177,3 @@ model:
           warmup_ratio: null
           min_lr: 0.0
           last_epoch: -1
-
-pl:
-  trainer:
-    gpus: 0 # number of gpus
-    max_epochs: 5
-    max_steps: null # computed at runtime if not set
-    num_nodes: 1
-    distributed_backend: ddp
-    accumulate_grad_batches: 1

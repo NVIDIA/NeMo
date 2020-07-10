@@ -25,8 +25,8 @@ Basic run:
         model.train_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_train.json" \
         model.validation_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_val.json" \
         hydra.run.dir="." \
-        pl.trainer.gpus=0 \
-        pl.trainer.max_epochs=50
+        model.optim.trainer.gpus=0 \
+        model.optim.trainer.max_epochs=50
 
 
 Add PyTorch Lightning Trainer arguments from CLI:
@@ -66,8 +66,8 @@ Overide optimizer entirely
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
     logging.info(f'Hydra config: {cfg.pretty()}')
-    asr_model = EncDecCTCModel(cfg=cfg.model, trainer_config=cfg.pl.trainer)
-    trainer = pl.Trainer(**cfg.pl.trainer)
+    asr_model = EncDecCTCModel(cfg=cfg.model)
+    trainer = pl.Trainer(**cfg.model.optim.trainer)
     trainer.fit(asr_model)
 
 

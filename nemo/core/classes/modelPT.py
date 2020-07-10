@@ -76,11 +76,7 @@ class ModelPT(LightningModule, Model):
         """
         raise NotImplementedError()
 
-    def setup_optimization(
-        self,
-        optim_config: Optional[Union[DictConfig, Dict]] = None,
-        trainer_config: Optional[Union[DictConfig, Dict]] = None,
-    ) -> Optimizer:
+    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None) -> Optimizer:
         """
         Prepares an optimizer from a string name and its optional config parameters.
 

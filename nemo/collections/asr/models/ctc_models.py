@@ -90,26 +90,24 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    def setup_optimization(
-        self,
-        optim_config: Optional[Union[DictConfig, dict]] = None,
-        trainer_config: Optional[Union[DictConfig, Dict]] = None,
-    ) -> torch.optim.Optimizer:
+    def setup_optimization(self, optim_config: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
         # Setup optimizer and scheduler
-        if 'sched' in optim_config:
-            if trainer_config.max_steps is None:
-                if trainer_config.gpus == 0:
+        if 'sched' in optim_config and 'trainer' in optim_config:
+            if optim_config.trainer.max_steps is None:
+                if optim_config.trainer.gpus == 0:
                     # training on CPU
-                    iters_per_batch = trainer_config.max_epochs / float(
-                        trainer_config.num_nodes * trainer_config.accumulate_grad_batches
+                    iters_per_batch = optim_config.trainer.max_epochs / float(
+                        optim_config.trainer.num_nodes * optim_config.trainer.accumulate_grad_batches
                     )
                 else:
-                    iters_per_batch = trainer_config.max_epochs / float(
-                        trainer_config.gpus * trainer_config.num_nodes * trainer_config.accumulate_grad_batches
+                    iters_per_batch = optim_config.trainer.max_epochs / float(
+                        optim_config.trainer.gpus
+                        * optim_config.trainer.num_nodes
+                        * optim_config.trainer.accumulate_grad_batches
                     )
                 optim_config.sched.iters_per_batch = iters_per_batch
             else:
-                optim_config.sched.max_steps = trainer_config.max_steps
+                optim_config.sched.max_steps = optim_config.trainer.max_steps
         self.__optimizer = super().setup_optimization(optim_config)
         self.__scheduler = prepare_lr_scheduler(
             optimizer=self.__optimizer, scheduler_config=optim_config, train_dataloader=self.__train_dl
@@ -152,7 +150,7 @@ class EncDecCTCModel(ASRModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    def __init__(self, cfg: EncDecCTCModelConfig, trainer_config: Optional[Union[DictConfig, Dict]] = None):
+    def __init__(self, cfg: EncDecCTCModelConfig):
         super().__init__()
         self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
         self.encoder = hydra.utils.instantiate(cfg.encoder)
@@ -178,7 +176,7 @@ class EncDecCTCModel(ASRModel):
         # This will be set by setup_optimization
         self.__optimizer = None
         self.__scheduler = None
-        self.setup_optimization(cfg.optim, trainer_config=trainer_config)
+        self.setup_optimization(cfg.optim)
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
