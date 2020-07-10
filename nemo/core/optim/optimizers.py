@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
-from nemo.core.config import get_optimizer_config
+from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.novograd import Novograd
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
@@ -115,7 +115,7 @@ def parse_optimizer_args(
     return kwargs
 
 
-def register_optimizer(name: str, optimizer: Optimizer):
+def register_optimizer(name: str, optimizer: Optimizer, optimizer_params: OptimizerParams):
     """
     Checks if the optimizer name exists in the registry, and if it doesnt, adds it.
 
@@ -124,11 +124,15 @@ def register_optimizer(name: str, optimizer: Optimizer):
     Args:
         name: Name of the optimizer. Will be used as key to retrieve the optimizer.
         optimizer: Optimizer class
+        optimizer_params: The parameters as a dataclass of the optimizer
     """
     if name in AVAILABLE_OPTIMIZERS:
         raise ValueError(f"Cannot override pre-existing optimizers. Conflicting optimizer name = {name}")
 
     AVAILABLE_OPTIMIZERS[name] = optimizer
+
+    optim_name = "{}_params".format(optimizer.__name__)
+    register_optimizer_params(name=optim_name, optimizer_params=optimizer_params)
 
 
 def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:

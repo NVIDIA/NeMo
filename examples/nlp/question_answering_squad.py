@@ -155,7 +155,7 @@ def main():
         pretrained_model_name=args.pretrained_model_name, config_file=args.config_file, num_classes=2, num_layers=1,
     )
     model.setup_training_data(
-        train_data_layer_params={
+        train_data_layer_config={
             'data_file': args.train_file,
             'doc_stride': args.doc_stride,
             'max_query_length': args.max_query_length,
@@ -166,7 +166,7 @@ def main():
         },
     )
     model.setup_validation_data(
-        val_data_layer_params={
+        val_data_layer_config={
             'data_file': args.eval_file,
             'doc_stride': args.doc_stride,
             'max_query_length': args.max_query_length,
@@ -197,7 +197,7 @@ def main():
     }
 
     model.setup_optimization(
-        optim_params={
+        optim_config={
             'name': args.optimizer,  # name of the optimizer
             'lr': args.lr,
             'args': {

@@ -167,31 +167,31 @@ class BERTLMModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         return {'val_loss': avg_loss}
 
-    def setup_training_data(self, train_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_params:
-            train_data_layer_params['shuffle'] = True
+    def setup_training_data(self, train_data_layer_config: Optional[Dict]):
+        if 'shuffle' not in train_data_layer_config:
+            train_data_layer_config['shuffle'] = True
         self.__train_dl = (
-            self.__setup_preprocessed_dataloader(train_data_layer_params)
+            self.__setup_preprocessed_dataloader(train_data_layer_config)
             if self.tokenizer is None
-            else self.__setup_text_dataloader(train_data_layer_params)
+            else self.__setup_text_dataloader(train_data_layer_config)
         )
 
-    def setup_validation_data(self, val_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_params:
-            val_data_layer_params['shuffle'] = False
+    def setup_validation_data(self, val_data_layer_config: Optional[Dict]):
+        if 'shuffle' not in val_data_layer_config:
+            val_data_layer_config['shuffle'] = False
         self.__val_dl = (
-            self.__setup_preprocessed_dataloader(val_data_layer_params)
+            self.__setup_preprocessed_dataloader(val_data_layer_config)
             if self.tokenizer is None
-            else self.__setup_text_dataloader(val_data_layer_params)
+            else self.__setup_text_dataloader(val_data_layer_config)
         )
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optim_params)
+    def setup_optimization(self, optim_config: Optional[Dict] = None) -> torch.optim.Optimizer:
+        self.__optimizer = super().setup_optimization(optim_config)
         self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
+            optimizer=self.__optimizer, scheduler_config=optim_config, train_dataloader=self.__train_dl
         )
 
     def __setup_preprocessed_dataloader(self, data_layer_params):

@@ -136,16 +136,16 @@ class NERModel(ModelPT):
         # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
         return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
 
-    def setup_training_data(self, data_dir, train_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_params:
-            train_data_layer_params['shuffle'] = True
+    def setup_training_data(self, data_dir, train_data_layer_config: Optional[Dict]):
+        if 'shuffle' not in train_data_layer_config:
+            train_data_layer_config['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
         self.__train_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
-    def setup_validation_data(self, data_dir, val_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_params:
-            val_data_layer_params['shuffle'] = False
+    def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
+        if 'shuffle' not in val_data_layer_config:
+            val_data_layer_config['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
         self.__val_dl = self.__setup_dataloader_ner(text_file, labels_file)
@@ -153,9 +153,9 @@ class NERModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
+    def setup_optimization(self, optim_config: Optional[Dict], optimizer='adam'):
         if optimizer == 'adam':
-            self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
+            self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_config['lr'])
         else:
             raise NotImplementedError()
 

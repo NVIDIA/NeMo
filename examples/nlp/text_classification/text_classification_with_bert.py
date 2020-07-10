@@ -187,7 +187,7 @@ def main():
         scheduler_args['iters_per_batch'] = None
 
     text_classification_model.setup_optimization(
-        optim_params={
+        optim_config={
             'name': args.optimizer,  # name of the optimizer
             'lr': args.lr,
             'args': {
