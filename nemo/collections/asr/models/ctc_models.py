@@ -18,7 +18,7 @@ import torch
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import AverageTextWER
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import Serialization, typecheck
@@ -148,9 +148,7 @@ class EncDecCTCModel(ASRModel):
         self.__optimizer = None
         self.__scheduler = None
 
-        self.__wer = AverageTextWER(
-            vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True
-        )
+        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
@@ -175,8 +173,8 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denum = self.__wer(predictions, transcript, transcript_len)
-        tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer_num / wer_denum}
+        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        tensorboard_logs = {'train_loss': loss_value, 'training_batch_wer': wer_num / wer_denom}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -190,14 +188,14 @@ class EncDecCTCModel(ASRModel):
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
-        wer_num, wer_denum = self.__wer(predictions, transcript, transcript_len)
-        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denum': wer_denum}
+        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-        wer_denum = torch.stack([x['val_wer_denum'] for x in outputs]).sum()
-        tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denum}
+        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+        tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_wer': wer_num / wer_denom}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def configure_optimizers(self):
