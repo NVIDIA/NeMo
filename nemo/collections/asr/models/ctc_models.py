@@ -18,6 +18,7 @@ import hydra
 import torch
 from omegaconf import DictConfig
 
+from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
@@ -80,7 +81,6 @@ class EncDecCTCModel(ASRModel):
             test_data_layer_params['shuffle'] = False
         self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
-    # TODO: revert setup_optimization to pass candidate CI, add setup_hydra_optimization for new example
     def setup_optimization(self, optim_params: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
         self.__optimizer = super().setup_optimization(optim_params)
         self.__scheduler = prepare_lr_scheduler(
@@ -190,7 +190,6 @@ class EncDecCTCModel(ASRModel):
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
         )
-        # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )

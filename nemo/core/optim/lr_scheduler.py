@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import math
 import warnings
 from functools import partial
 from typing import Any, Dict, Optional, Union
 
+import hydra
 import torch.optim as optim
 import torch.utils.data.dataloader as dataloader
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from torch.optim.lr_scheduler import _LRScheduler
 
 from nemo import logging
+from nemo.core.config import get_scheduler_config
 
 __all__ = [
     'WarmupPolicy',
@@ -71,6 +74,7 @@ class WarmupPolicy(_LRScheduler):
             )
 
         step = self.last_epoch
+
         if step <= self.warmup_steps:
             lr_val = (step + 1) / (self.warmup_steps + 1)
             return [initial_lr * lr_val for initial_lr in self.base_lrs]
@@ -216,6 +220,7 @@ class SquareAnnealing(WarmupPolicy):
 class SquareRootAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
+
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
@@ -229,6 +234,7 @@ class SquareRootAnnealing(WarmupPolicy):
 class CosineAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
         self.min_lr = min_lr
+
         super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
 
     def _get_lr(self, step):
@@ -320,52 +326,70 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
         return new_lrs
 
 
-# TODO: Can we add something like this to be consistent with Optimizer?
-# AVAILABLE_SCHEDULERS = {'CosineAnnealing': CosineAnnealing}
+def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler:
+    """
+    Convenience method to obtain an _LRScheduler class and partially instantiate it with optimizer kwargs.
 
+    Args:
+        name: Name of the scheduler in the registry.
+        kwargs: Optional kwargs of the scheduler used during instantiation.
 
-# def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler:
-#     """
-#     Convenience method to obtain an _LRScheduler class and partially instantiate it with optimizer kwargs.
+    Returns:
+        a partially instantiated _LRScheduler
+    """
+    if name not in AVAILABLE_SCHEDULERS:
+        raise ValueError(
+            f"Cannot resolve scheduler{name}'. Available optimizers are : " f"{AVAILABLE_SCHEDULERS.keys()}"
+        )
 
-#     Args:
-#         name: Name of the scheduler in the registry.
-#         kwargs: Optional kwargs of the scheduler used during instantiation.
-
-#     Returns:
-#         a partially instantiated _LRScheduler
-#     """
-#     if name not in AVAILABLE_SCHEDULERS:
-#         raise ValueError(
-#             f"Cannot resolve scheduler{name}'. Available optimizers are : " f"{AVAILABLE_SCHEDULERS.keys()}"
-#         )
-
-#     scheduler_cls = AVAILABLE_SCHEDULERS[name]
-#     scheduler = partial(scheduler_cls, **kwargs)
-#     return scheduler
+    scheduler_cls = AVAILABLE_SCHEDULERS[name]
+    scheduler = partial(scheduler_cls, **kwargs)
+    return scheduler
 
 
 def prepare_lr_scheduler(
     optimizer: optim.Optimizer,
-    scheduler_config: Dict[str, Any],
+    scheduler_config: Union[Dict[str, Any], DictConfig],
     train_dataloader: Optional[dataloader.DataLoader] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Constructs an LR Scheduler (optionally) for a given optimizer, based on a config with the following schema
 
-    {
-    ...,
-    "scheduler": <a class that inherits torch.optim.lr_scheduler._LRScheduler>,
-    "scheduler_args": {
-        "max_steps": int, <OR> "iters_per_batch": int,
-        "monitor": <metric to monitor; say "loss" or "val_loss">,
-        <any kwarg to pass onto the optimizer>
-      }
-    }
+    optim:
+      name: <name of optimizer>
+      lr: <maximal learning rate>
+
+      # <additional optimizer arguments>
+      args:
+        name: auto  # special keyword, resolves to correct optimizer config for given optimizer name
+        # cls: nemo.core.config.optimizers.NovogradParams  # explicit instantiation by class path
+        params:  # optional override parameters for the optimizer config
+          betas: [0.8, 0.5]
+          weight_decay: 0.001
+
+      # scheduler setup
+      sched:
+        name: <name of scheduler>
+        iters_per_batch: null # computed at runtime; mandatory to have
+        max_steps: null # computed at runtime or explicitly set here; mandatory to have
+
+        # pytorch lightning args <mandatory>
+        monitor: val_loss
+        reduce_on_plateau: false
+
+        # <scheduler config override>
+        args:
+          name: auto  # special keyword, resolves to correct optimizer config for given optimizer name
+          # cls: nemo.core.config.schedulers.CosineAnnealingParams  # explicit instantiation by class path
+          params:  # optional override parameters for the optimizer config
+            warmup_steps: null
+            warmup_ratio: null
+            min_lr: 0.0
+            last_epoch: -1
 
     Args:
         optimizer: An instantiated Optimizer.
-        scheduler_config: A dictionary which follows the above schema.
+        scheduler_config: A dictionary / config dict which follows the above schema.
         train_dataloader: Optional requirement, must be passed if "iters_per_batch" is defined
             instead of "max_steps". Used to compute effective "max_steps".
 
@@ -373,49 +397,116 @@ def prepare_lr_scheduler(
         A dictionary containing the LR Scheduler implementation if the config was successfully parsed
         along with other parameters required by Pytorch Lightning, otherwise None.
     """
-    if 'scheduler' in scheduler_config:
-        if 'scheduler_args' in scheduler_config:
-            scheduler_args = scheduler_config['scheduler_args']
+    # Build nested dictionary for convenience out of structured objects
+    if isinstance(scheduler_config, DictConfig):
+        scheduler_config = OmegaConf.to_container(scheduler_config, resolve=True)
+
+    elif dataclasses.is_dataclass(scheduler_config):
+        # Recursively transform data classes to basic dictionaries
+        scheduler_config = OmegaConf.create(scheduler_config)
+        scheduler_config = OmegaConf.to_container(scheduler_config, resolve=True)
+
+    # Test to see if config follows above schema
+    if 'sched' in scheduler_config:
+        scheduler_config = scheduler_config['sched']
+
+        if 'args' in scheduler_config:
+            scheduler_args = scheduler_config['args']
         else:
-            raise ValueError("If `scheduler` is provided, `scheduler_args` must be provided.")
+            raise ValueError("If `sched` is provided, `args` must be provided in it.")
 
     else:
+        # Return gracefully in case `sched` was not supplied; inform user
         logging.info('Scheduler not initialized as no `scheduler` argument supplied to setup_optimizer()')
         return None
 
-    # Get the scheduler class from the config
-    scheduler = scheduler_config['scheduler']
+    # Get name of the scheduler
+    scheduler_name = scheduler_config['name']
+
+    # Try instantiation of scheduler params from config class path
+    try:
+        scheduler_conf = hydra.utils.instantiate(scheduler_args)
+        scheduler_args = vars(scheduler_conf)
+
+    except Exception:
+        # Class path instantiation failed; try resolving "name" component
+
+        # If class path was not provided, perhaps `name` is provided for resolution
+        if 'name' in scheduler_args:
+            # If `auto` is passed as name for resolution of optimizer name,
+            # then lookup optimizer name and resolve its parameter config
+            if scheduler_args['name'] == 'auto':
+                scheduler_params_name = "{}Params".format(scheduler_name)
+            else:
+                scheduler_params_name = scheduler_args['name']
+
+            # Get override arguments provided in the config yaml file / Dict Config
+            scheduler_params_override = scheduler_args.get('params', {})
+
+            # If params is itself a dict config object provided explicitly in Dict Config
+            # Resolve to dictionary for convenience
+            if isinstance(scheduler_params_override, DictConfig):
+                scheduler_params_override = OmegaConf.to_container(scheduler_params_override, resolve=True)
+
+            # Get and instantiate the Config dataclass for this scheduler
+            optimizer_params_cls = get_scheduler_config(scheduler_params_name, **scheduler_params_override)
+            scheduler_args = optimizer_params_cls()  # instantiate the parameters object
+            scheduler_args = vars(scheduler_args)  # extract just the dictionary from the Config object
+
+        else:
+            # assume the input dictionary is schedular args (from dataclasses / omegaconf)
+            pass
 
     # Extract value to monitor in losses, if provided.
-    if 'monitor' in scheduler_args:
-        monitor = scheduler_args.pop('monitor')
+    if 'monitor' in scheduler_config:
+        monitor = scheduler_config.get('monitor')
     else:
-        # default to train loss
+        # Default to train loss
         monitor = 'loss'
 
-    # Compute effective max_steps if iters_per_batch is provided
-    if 'iters_per_batch' in scheduler_args:
+    # Store exact max_steps if it is provided
+    if 'max_steps' in scheduler_config and scheduler_config['max_steps'] is not None:
+        max_steps = scheduler_config['max_steps']
+
+    elif 'iters_per_batch' in scheduler_config:
+        # Compute effective max_steps if iters_per_batch is provided
         if train_dataloader is None:
             raise ValueError(
                 'As `iters_per_batch` is provided, it is required to pass the train dataloader in order '
                 'to compute effective maximum number of steps'
             )
 
-        iters_per_batch = scheduler_args.pop('iters_per_batch')
+        # Raise exception if neither `max_steps` nor `iters_per_batch` is provided
+        if scheduler_config.get('iters_per_batch', None) is None:
+            raise ValueError("`iters_per_batch` cannot be None when `max_steps` is not not provided.")
+
+        # Get iters_per_batch
+        iters_per_batch = scheduler_config.get('iters_per_batch')
+
+        # Compute effective num max_steps
         num_samples = len(train_dataloader.dataset)
         batch_size = train_dataloader.batch_size
         max_steps = round(num_samples * iters_per_batch / float(batch_size))
 
-        scheduler_args['max_steps'] = max_steps
-
     else:
-        max_steps = scheduler_args['max_steps']
+        raise ValueError(
+            "Neither `max_steps` nor `iters_per_batch` were provided, cannot compute " "effective `max_steps` !"
+        )
+
+    # Inject max_steps (effective or provided) into the scheduler config
+    scheduler_args['max_steps'] = max_steps
+
+    # Get the scheduler class from the config
+    scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
 
     # Instantiate the LR schedule
-    schedule = scheduler(optimizer, **scheduler_args)
+    schedule = scheduler_cls(optimizer, **scheduler_args)
 
     logging.info(
-        'Scheduler "%s" will be used during training (effective maximum steps = %d)', str(schedule), max_steps
+        'Scheduler "%s" will be used during training (effective maximum steps = %d) - Parameters : (%s)',
+        str(schedule),
+        max_steps,
+        str(scheduler_args),
     )
 
     # Wrap the schedule in PTL arguments to perform stepwise computation
@@ -433,3 +524,16 @@ def prepare_lr_scheduler(
         'reduce_on_plateau': reduce_lr_on_plateau,
     }
     return schedule_dict
+
+
+AVAILABLE_SCHEDULERS = {
+    'WarmupPolicy': WarmupPolicy,
+    'WarmupHoldPolicy': WarmupHoldPolicy,
+    'SquareAnnealing': SquareAnnealing,
+    'CosineAnnealing': CosineAnnealing,
+    'WarmupAnnealing': WarmupAnnealing,
+    'InverseSquareRootAnnealing': InverseSquareRootAnnealing,
+    'SquareRootAnnealing': SquareRootAnnealing,
+    'PolynomialDecayAnnealing': PolynomialDecayAnnealing,
+    'PolynomialHoldDecayAnnealing': PolynomialHoldDecayAnnealing,
+}

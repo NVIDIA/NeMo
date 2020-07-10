@@ -15,13 +15,50 @@
 # =============================================================================
 
 from dataclasses import dataclass
-from typing import Tuple
+from functools import partial
+from typing import Any, Dict, Optional, Tuple
 
-__all__ = ['AdamParams', 'AdamConfig', 'NovogradParams', 'NovogradConfig']
+__all__ = [
+    'OptimizerParams',
+    'AdamParams',
+    'NovogradParams',
+    'SGDParams',
+    'AdadeltaParams',
+    'AdamaxParams',
+    'AdagradParams',
+    'AdamWParams',
+    'RMSpropParams',
+    'RpropParams',
+]
 
 
 @dataclass
-class AdamParams:
+class OptimizerParams:
+    """
+    Base Optimizer params with no values. User can chose it to explicitly override via
+    command line arguments
+    """
+
+
+@dataclass
+class SGDParams(OptimizerParams):
+    """
+    Default configuration for Adam optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html?highlight=sgd#torch.optim.SGD
+    """
+
+    momentum: float = 0
+    dampening: float = 0
+    weight_decay: float = 0
+    nesterov: bool = False
+
+
+@dataclass
+class AdamParams(OptimizerParams):
     """
     Default configuration for Adam optimizer.
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
@@ -31,7 +68,6 @@ class AdamParams:
         https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
     """
 
-    lr: float = 0.001
     betas: Tuple[float, float] = (0.9, 0.999)
     eps: float = 1e-08
     weight_decay: float = 0
@@ -39,17 +75,106 @@ class AdamParams:
 
 
 @dataclass
-class AdamConfig:
+class AdamWParams(OptimizerParams):
     """
-    Default configuration used during automagical instantiation of Adam optimizer.
+    Default configuration for AdamW optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html#torch.optim.AdamW
     """
 
-    cls: str = "adam"  # @titu90: I honestly prefer the fullly blown: "torch.optim.Adam", let's discuss that.
-    params: AdamParams = AdamParams()
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-08
+    weight_decay: float = 0
+    amsgrad: bool = False
 
 
 @dataclass
-class NovogradParams:
+class AdadeltaParams(OptimizerParams):
+    """
+    Default configuration for Adadelta optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html#torch.optim.Adadelta
+    """
+
+    rho: float = 0.9
+    eps: float = 1e-6
+    weight_decay: float = 0
+
+
+@dataclass
+class AdamaxParams(OptimizerParams):
+    """
+    Default configuration for Adamax optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html#torch.optim.Adamax
+    """
+
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0
+
+
+@dataclass
+class AdagradParams(OptimizerParams):
+    """
+    Default configuration for Adagrad optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html#torch.optim.Adagrad
+    """
+
+    lr_decay: float = 0
+    weight_decay: float = 0
+    initial_accumulator_value: float = 0
+    eps: float = 1e-10
+
+
+@dataclass
+class RMSpropParams(OptimizerParams):
+    """
+    Default configuration for RMSprop optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html#torch.optim.RMSprop
+    """
+
+    alpha: float = 0.99
+    eps: float = 1e-8
+    weight_decay: float = 0
+    momentum: float = 0
+    centered: bool = False
+
+
+@dataclass
+class RpropParams(OptimizerParams):
+    """
+    Default configuration for RpropParams optimizer.
+    It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
+
+    ..note:
+        For the details on the function/meanings of the arguments, please refer to:
+        https://pytorch.org/docs/stable/optim.html#torch.optim.Rprop
+    """
+
+    etas: Tuple[float, float] = (0.5, 1.2)
+    step_sizes: Tuple[float, float] = (1e-6, 50)
+
+
+@dataclass
+class NovogradParams(OptimizerParams):
     """
     Configuration of the Novograd optimizer.
 
@@ -68,7 +193,6 @@ class NovogradParams:
             algorithm from the paper "On the Convergence of Adam and Beyond"
     """
 
-    lr: float = 1e-3
     betas: Tuple[float, float] = (0.95, 0.98)
     eps: float = 1e-8
     weight_decay: float = 0
@@ -79,11 +203,40 @@ class NovogradParams:
     luc_eps: float = 1e-8
 
 
-@dataclass
-class NovogradConfig:
+def get_optimizer_config(name: str, **kwargs: Optional[Dict[str, Any]]) -> OptimizerParams:
     """
-    Default configuration used during automagical instantiation of Novograd optimizer.
-    """
+    Convenience method to obtain a OptimizerParams class and partially instantiate it with optimizer kwargs.
 
-    cls: str = "novograd"
-    params: NovogradParams = NovogradParams()
+    Args:
+        name: Name of the OptimizerParams in the registry.
+        kwargs: Optional kwargs of the optimizer used during instantiation.
+
+    Returns:
+        a partially instantiated OptimizerParams
+    """
+    if name is None:
+        return kwargs
+
+    if name not in AVAILABLE_OPTIMIZER_CONFIGS:
+        raise ValueError(
+            f"Cannot resolve optimizer parameters '{name}'. Available optimizer parameters are : "
+            f"{AVAILABLE_OPTIMIZER_CONFIGS.keys()}"
+        )
+
+    scheduler_params = AVAILABLE_OPTIMIZER_CONFIGS[name]
+    scheduler_params = partial(scheduler_params, **kwargs)
+    return scheduler_params
+
+
+AVAILABLE_OPTIMIZER_CONFIGS = {
+    'optim_params': OptimizerParams,
+    'adam_params': AdamParams,
+    'novograd_params': NovogradParams,
+    'sgd_params': SGDParams,
+    'adadelta_params': AdadeltaParams,
+    'adamax_params': AdamaxParams,
+    'adagrad_params': AdagradParams,
+    'adamw_params': AdamWParams,
+    'rmsprop_params': RMSpropParams,
+    'rprop_params': RpropParams,
+}

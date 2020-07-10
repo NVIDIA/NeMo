@@ -15,10 +15,13 @@
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
+import hydra
 import torch.optim as optim
+from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
+from nemo.core.config import get_optimizer_config
 from nemo.core.optim.novograd import Novograd
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
@@ -37,66 +40,9 @@ AVAILABLE_OPTIMIZERS = {
 }
 
 
-def _boolify(s):
-    """
-    Checks string for boolean value, and returns python bool.
-
-    Args:
-        s: string
-
-    Returns:
-        Python bool if correctly parsed, otherwise raises ValueError.
-    """
-    if s == 'True' or s == 'true':
-        return True
-    if s == 'False' or s == 'false':
-        return False
-    raise ValueError('Not Boolean Value!')
-
-
-def _autocast(value):
-    """
-    Recursively cast the value - can be a string or a comma-seperated
-    list of strings into python core datatypes.
-
-    Parses "none" or "None" as None type.
-    Attempts casting to int prior to float to avoid upcasting by mistake.
-    Recursively casts all elements in comma-separated list of strings.
-
-    If all casts fail, assumes value is basic str type.
-
-    Args:
-        value: str or comma-separated list of str
-
-    Returns:
-        value casted into appropriate type
-    """
-    # if value is itself None, dont parse
-    if value is None:
-        return None
-
-    # If value is comma seperated list of items, recursively parse all items in list.
-    if "," in value:
-        values = value.split(',')
-        values = [_autocast(value) for value in values]
-        return values
-
-    # If value is string `none` or `None`, parse as None
-    if value in ('none', 'None'):
-        return None
-
-    # Try type cast and return
-    for cast_type in (int, float, _boolify):
-        try:
-            return cast_type(value)
-        except Exception:
-            pass
-
-    # All types failed, return str without casting
-    return value  # str type
-
-
-def parse_optimizer_args(optimizer_kwargs: Union[Dict[str, Any], List[str]]) -> Dict[str, Any]:
+def parse_optimizer_args(
+    optimizer_name: str, optimizer_kwargs: Union[DictConfig, Dict[str, Any]]
+) -> Union[Dict[str, Any], DictConfig]:
     """
     Parses a list of strings, of the format "key=value" or "key2=val1,val2,..."
     into a dictionary of type {key=value, key2=[val1, val2], ...}
@@ -104,6 +50,7 @@ def parse_optimizer_args(optimizer_kwargs: Union[Dict[str, Any], List[str]]) -> 
     This dictionary is then used to instantiate the chosen Optimizer.
 
     Args:
+        optimizer_name: string name of the optimizer, used for auto resolution of params
         optimizer_kwargs: Either a list of strings in a specified format,
             or a dictionary. If a dictionary is provided, it is assumed the dictionary
             is the final parsed value, and simply returned.
@@ -118,16 +65,52 @@ def parse_optimizer_args(optimizer_kwargs: Union[Dict[str, Any], List[str]]) -> 
     if optimizer_kwargs is None:
         return kwargs
 
-    # If it is a pre-defined dictionary, just return its values
+    # If it is a dictionary, perform stepwise resolution
     if hasattr(optimizer_kwargs, 'keys'):
+        # Attempt class path resolution
+        try:
+            optimizer_instance = hydra.utils.instantiate(optimizer_kwargs)  # type: DictConfig
+            optimizer_instance = vars(optimizer_instance)
+            return optimizer_instance
+        except Exception:
+            pass
+
+        # If class path was not provided, perhaps `name` is provided for resolution
+        if 'name' in optimizer_kwargs:
+            # If `auto` is passed as name for resolution of optimizer name,
+            # then lookup optimizer name and resolve its parameter config
+            if optimizer_kwargs['name'] == 'auto':
+                optimizer_params_name = "{}_params".format(optimizer_name)
+            else:
+                optimizer_params_name = optimizer_kwargs['name']
+
+            # Override arguments provided in the config yaml file
+            if 'params' in optimizer_kwargs:
+                # If optimizer kwarg overrides are wrapped in yaml `params`
+                optimizer_params_override = optimizer_kwargs.get('params')
+            else:
+                # If the kwargs themselves are a DictConfig
+                optimizer_params_override = optimizer_kwargs
+
+            if isinstance(optimizer_params_override, DictConfig):
+                optimizer_params_override = OmegaConf.to_container(optimizer_params_override, resolve=True)
+
+            optimizer_params_cls = get_optimizer_config(optimizer_params_name, **optimizer_params_override)
+
+            # If we are provided just a Config object, simply return the dictionary of that object
+            if optimizer_params_name is None:
+                optimizer_params = vars(optimizer_params_cls)
+                return optimizer_params
+
+            else:
+                # If we are provided a partial class instantiation of a Config,
+                # Instantiate it and retrieve its vars as a dictionary
+                optimizer_params = optimizer_params_cls()  # instantiate the parameters object
+                optimizer_params = vars(optimizer_params)
+                return optimizer_params
+
+        # simply return the dictionary that was provided
         return optimizer_kwargs
-
-    # If it is key=value string list, parse all items
-    for key_value in optimizer_kwargs:
-        key, str_value = key_value.split('=')
-
-        value = _autocast(str_value)
-        kwargs[key] = value
 
     return kwargs
 

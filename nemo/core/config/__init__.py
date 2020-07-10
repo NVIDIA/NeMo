@@ -15,7 +15,31 @@
 # =============================================================================
 
 from nemo.core.config.base_config import Config
-from nemo.core.config.optimizers import AdamConfig, AdamParams, NovogradConfig, NovogradParams
+from nemo.core.config.optimizers import (
+    AdadeltaParams,
+    AdagradParams,
+    AdamaxParams,
+    AdamParams,
+    AdamWParams,
+    NovogradParams,
+    RMSpropParams,
+    RpropParams,
+    SGDParams,
+    get_optimizer_config,
+)
 from nemo.core.config.pytorch import DataLoaderConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
+from nemo.core.config.schedulers import (
+    CosineAnnealingParams,
+    InverseSquareRootAnnealingParams,
+    PolynomialDecayAnnealingParams,
+    PolynomialHoldDecayAnnealingParams,
+    SchedulerParams,
+    SquareAnnealingParams,
+    SquareRootAnnealingParams,
+    WarmupAnnealingParams,
+    WarmupHoldSchedulerParams,
+    WarmupSchedulerParams,
+    get_scheduler_config,
+)
 from nemo.core.config.set_config import set_config
