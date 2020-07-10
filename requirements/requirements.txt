@@ -12,4 +12,4 @@ wrapt
 ruamel.yaml
 scikit-learn
 scipy
- --pre hydra-core
+hydra-core --pre
