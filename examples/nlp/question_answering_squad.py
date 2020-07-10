@@ -178,23 +178,33 @@ def main():
     )
     scheduler_args = {
         'monitor': 'val_loss',  # pytorch lightning requires this value
-        'warmup_ratio': args.warmup_ratio,
-        'warmup_steps': args.warmup_steps,
-        'last_epoch': args.last_epoch,
+        'max_steps': args.max_steps,
     }
     if args.max_epochs:
         iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
         scheduler_args['iters_per_batch'] = iters_per_batch
-    if args.max_steps:
-        scheduler_args['max_steps'] = args.max_steps
+    else:
+        scheduler_args['iters_per_batch'] = None
+
+    scheduler_args["name"] = args.scheduler  # name of the scheduler
+    scheduler_args["args"] = {
+        "name": "auto",  # name of the scheduler config
+        "params": {
+            'warmup_ratio': args.warmup_ratio,
+            'warmup_steps': args.warmup_steps,
+            'last_epoch': args.last_epoch,
+        }
+    }
 
     model.setup_optimization(
         optim_params={
-            'optimizer': args.optimizer,
+            'name': args.optimizer,  # name of the optimizer
             'lr': args.lr,
-            'opt_args': args.opt_args,
-            'scheduler': getattr(sys.modules[__name__], args.scheduler),
-            'scheduler_args': scheduler_args,
+            'args': {
+                "name": "auto",  # name of the optimizer config
+                "params": {}  # Put args.opt_args here explicitly
+            },
+            'sched':  scheduler_args
         }
     )
 
