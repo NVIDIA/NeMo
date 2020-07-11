@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from abc import ABC, abstractmethod
+
+import torch
 
 from nemo.core.classes import ModelPT
 
@@ -31,3 +32,10 @@ class ASRModel(ModelPT, ABC):
             transcription text
         """
         pass
+
+    def validation_epoch_end(self, outputs):
+        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+        tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_wer': wer_num / wer_denom}
+        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}

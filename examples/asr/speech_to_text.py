@@ -20,13 +20,14 @@ from nemo.utils import logging
 
 
 """
-Basic run:
-    python speech_to_text.py \
-        AudioToTextDataLayer.manifest_filepath="/path/to/an4/train_manifest.json" \
-        AudioToTextDataLayer_eval.manifest_filepath="/path/to/an4/test_manifest.json" \
+Basic run (on CPU for 50 epochs):
+    python examples/asr/speech_to_text.py \
+        model.train_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_train.json" \
+        model.validation_ds.manifest_filepath="/Users/okuchaiev/Data/an4_dataset/an4_val.json" \
         hydra.run.dir="." \
-        pl.trainer.gpus=2 \
-        pl.trainer.max_epochs=100
+        pl.trainer.gpus=0 \
+        pl.trainer.max_epochs=50
+
 
 Add PyTorch Lightning Trainer arguments from CLI:
     python speech_to_text.py \
@@ -38,62 +39,36 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 
 Override some args of optimizer:
     python speech_to_text.py \
-    AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" \
-    AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" \
+    model.train_ds.manifest_filepath="./an4/train_manifest.json" \
+    model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
     pl.trainer.gpus=2 \
     pl.trainer.max_epochs=2 \
-    optim.args.params.betas=[0.8,0.5] \
-    optim.args.params.weight_decay=0.0001
+    model.optim.args.params.betas=[0.8,0.5] \
+    model.optim.args.params.weight_decay=0.0001
 
 Overide optimizer entirely
     python speech_to_text.py \
-    AudioToTextDataLayer.manifest_filepath="./an4/train_manifest.json" \
-    AudioToTextDataLayer_eval.manifest_filepath="./an4/test_manifest.json" \
+    model.train_ds.manifest_filepath="./an4/train_manifest.json" \
+    model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     hydra.run.dir="." \
     pl.trainer.gpus=2 \
     pl.trainer.max_epochs=2 \
-    optim.name=adamw \
-    optim.lr=0.001 \
-    ~optim.args \
-    +optim.args.betas=[0.8,0.5]\
-    +optim.args.weight_decay=0.0005
+    model.optim.name=adamw \
+    model.optim.lr=0.001 \
+    ~model.optim.args \
+    +model.optim.args.betas=[0.8,0.5]\
+    +model.optim.args.weight_decay=0.0005
 
 """
 
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
+    # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
+    cfg.model.pl = cfg.pl
     logging.info(f'Hydra config: {cfg.pretty()}')
-
-    asr_model = EncDecCTCModel(
-        preprocessor_config=cfg.preprocessor,
-        encoder_config=cfg.encoder,
-        decoder_config=cfg.decoder,
-        spec_augment_config=cfg.spec_augment,
-    )
-
-    asr_model.setup_training_data(cfg.AudioToTextDataLayer)
-    asr_model.setup_validation_data(cfg.AudioToTextDataLayer_eval)
-
-    # Setup optimizer and scheduler
-    if 'sched' in cfg.optim:
-        if cfg.pl.trainer.max_steps is None:
-            if cfg.pl.trainer.gpus == 0:
-                # training on CPU
-                iters_per_batch = cfg.pl.trainer.max_epochs / float(
-                    cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
-                )
-            else:
-                iters_per_batch = cfg.pl.trainer.max_epochs / float(
-                    cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
-                )
-            cfg.optim.sched.iters_per_batch = iters_per_batch
-        else:
-            cfg.optim.sched.max_steps = cfg.pl.trainer.max_steps
-
-    asr_model.setup_optimization(cfg.optim)
-
+    asr_model = EncDecCTCModel(cfg=cfg.model)
     trainer = pl.Trainer(**cfg.pl.trainer)
     trainer.fit(asr_model)
 

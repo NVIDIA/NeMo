@@ -86,16 +86,6 @@ class QAModel(ModelPT):
         )
 
         self.loss = SpanningLoss()
-        # This will be set by setup_training_datai
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # This will be set by setup_optimization
-        self.__optimizer = None
-        # This will be set by setup_optimization
-        self.__scheduler = None
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -132,22 +122,16 @@ class QAModel(ModelPT):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
             train_data_layer_config['mode'] = 'train'
-        self.__train_dl = self.__setup_dataloader(train_data_layer_config)
+        self._train_dl = self.__setup_dataloader(train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Dict]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
             val_data_layer_config['mode'] = 'eval'
-        self.__val_dl = self.__setup_dataloader(val_data_layer_config)
+        self._validation_dl = self.__setup_dataloader(val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
-
-    def setup_optimization(self, optim_config: Optional[Dict] = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optim_config)
-        self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=optim_config, train_dataloader=self.__train_dl
-        )
 
     def __setup_dataloader(self, data_layer_params):
         dataset = SquadDataset(
@@ -169,18 +153,6 @@ class QAModel(ModelPT):
             num_workers=data_layer_params.get('num_workers', 0),
         )
         return dl
-
-    def configure_optimizers(self):
-        if self.__scheduler is None:
-            return self.__optimizer
-        else:
-            return [self.__optimizer], [self.__scheduler]
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
     @classmethod
     def from_pretrained(cls, name: str):

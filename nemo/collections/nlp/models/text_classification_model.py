@@ -82,16 +82,6 @@ class TextClassificationModel(ModelPT):
         else:
             self.loss = CrossEntropyLoss()
 
-        # This will be set by setup_training_data
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # These will be set by setup_optimization
-        self.__optimizer = None
-        self.__scheduler = None
-
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
@@ -146,13 +136,13 @@ class TextClassificationModel(ModelPT):
         return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
 
     def setup_training_data(self, file_path, dataloader_params={}):
-        self.__train_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+        self._train_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
 
     def setup_validation_data(self, file_path, dataloader_params={}):
-        self.__val_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+        self._validation_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
 
     def setup_test_data(self, file_path, dataloader_params={}):
-        self.__test_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+        self._test_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
 
     def __setup_dataloader(
         self, input_file, dataloader_params={},
@@ -173,18 +163,6 @@ class TextClassificationModel(ModelPT):
             num_workers=dataloader_params.get("num_workers", 0),
             pin_memory=dataloader_params.get("pin_memory", False),
         )
-
-    def configure_optimizers(self):
-        if self.__scheduler is None:
-            return self.__optimizer
-        else:
-            return [self.__optimizer], [self.__scheduler]
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
     @classmethod
     def save_to(self, save_path: str):
