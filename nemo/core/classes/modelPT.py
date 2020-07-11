@@ -112,7 +112,7 @@ class ModelPT(LightningModule, Model):
                 kwargs will be built and supplied to instantiate the optimizer.
         """
         # Setup optimizer and scheduler
-        if 'sched' in optim_config and 'trainer' in self._cfg.pl:
+        if 'sched' in optim_config and self._cfg is not None and 'trainer' in self._cfg.pl:
             if self._cfg.pl.trainer.max_steps is None:
                 if self._cfg.pl.trainer.gpus == 0:
                     # training on CPU
