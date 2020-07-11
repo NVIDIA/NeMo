@@ -27,7 +27,6 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -104,29 +103,6 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, dict]] = None) -> torch.optim.Optimizer:
-        # Setup optimizer and scheduler
-        if 'sched' in optim_config and 'trainer' in optim_config:
-            if optim_config.trainer.max_steps is None:
-                if optim_config.trainer.gpus == 0:
-                    # training on CPU
-                    iters_per_batch = optim_config.trainer.max_epochs / float(
-                        optim_config.trainer.num_nodes * optim_config.trainer.accumulate_grad_batches
-                    )
-                else:
-                    iters_per_batch = optim_config.trainer.max_epochs / float(
-                        optim_config.trainer.gpus
-                        * optim_config.trainer.num_nodes
-                        * optim_config.trainer.accumulate_grad_batches
-                    )
-                optim_config.sched.iters_per_batch = iters_per_batch
-            else:
-                optim_config.sched.max_steps = optim_config.trainer.max_steps
-        self._optimizer = super().setup_optimization(optim_config)
-        self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
-        )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

@@ -7,6 +7,7 @@ labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 model:
+  pl: null
   train_ds:
     manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
     sample_rate: 16000
@@ -140,7 +141,6 @@ model:
     name: novograd
     # cls: nemo.core.optim.optimizers.Novograd
     lr: .01
-    trainer: null
     # optimizer arguments
     args:
       name: auto
