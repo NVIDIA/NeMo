@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
+import hydra
 import torch
+from omegaconf import DictConfig
 
 from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
-from nemo.collections.asr.metrics.wer_bpe import WordErrorRateBPE
+from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
@@ -88,43 +90,43 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
     def __init__(
         self,
-        preprocessor_params: Dict,
-        encoder_params: Dict,
-        decoder_params: Dict,
-        tokenizer_path: str,
-        spec_augment_params: Optional[Dict] = None,
+        preprocessor_config: DictConfig,
+        encoder_config: DictConfig,
+        decoder_config: DictConfig,
+        tokenizer_config: DictConfig,
+        spec_augment_config: DictConfig[Dict] = None,
     ):
-        self.tokenizer_path = tokenizer_path
-        self.tokenizer = NemoGPT2Tokenizer(pretrained_model=tokenizer_path)
+        self.tokenizer_cfg = tokenizer_config
+        self.tokenizer = NemoGPT2Tokenizer(**tokenizer_config)
+
         logging.info("Tokenizer initialized with {} tokens".format(self.tokenizer.vocab_size))
 
         # Initialize a dummy vocabulary
-        decoder_params['init_params']['vocabulary'] = self.tokenizer.tokenizer.get_vocab()
+        decoder_config['init_params']['vocabulary'] = self.tokenizer.tokenizer.get_vocab()
 
         # Remove special tokens
         for special_token in self.tokenizer.tokenizer.all_special_tokens:
-            if special_token in decoder_params['init_params']['vocabulary']:
-                decoder_params['init_params']['vocabulary'].pop(special_token)
+            if special_token in decoder_config['init_params']['vocabulary']:
+                decoder_config['init_params']['vocabulary'].pop(special_token)
 
         # Override number of classes if placeholder provided
-        if decoder_params['init_params']['num_classes'] < 1:
+        if decoder_config['init_params']['num_classes'] < 1:
 
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    decoder_params['init_params']['num_classes'], self.tokenizer.vocab_size
+                    decoder_config['init_params']['num_classes'], self.tokenizer.vocab_size
                 )
             )
-
-            decoder_params['init_params']['num_classes'] = self.tokenizer.vocab_size
+            decoder_config['init_params']['num_classes'] = self.tokenizer.vocab_size
 
         super().__init__(
-            preprocessor_params=preprocessor_params,
-            encoder_params=encoder_params,
-            decoder_params=decoder_params,
-            spec_augment_params=spec_augment_params,
+            preprocessor_config=preprocessor_config,
+            encoder_config=encoder_config,
+            decoder_config=decoder_config,
+            spec_augment_config=spec_augment_config,
         )
 
-        self._wer = WordErrorRateBPE(tokenizer=self.tokenizer, ctc_decode=True)
+        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
@@ -136,10 +138,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer = self._wer(predictions, transcript, transcript_len)
+        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         tensorboard_logs = {
             'train_loss': loss_value,
-            'training_wer': wer,
+            'training_batch_wer': wer_num / wer_denom,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
         }
         return {'loss': loss_value, 'log': tensorboard_logs}
@@ -153,8 +155,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer = self._wer(predictions, transcript, transcript_len)
-        return {'val_loss': loss_value, 'val_wer': wer}
+        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
+        return {'val_loss': loss_value,  'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
 
 @experimental

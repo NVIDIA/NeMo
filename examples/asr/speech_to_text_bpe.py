@@ -28,85 +28,56 @@
 
 from argparse import ArgumentParser
 
+import hydra
 import pytorch_lightning as pl
-import pytorch_lightning.loggers as pl_loggers
-from ruamel.yaml import YAML
+from pytorch_lightning.logging import WandbLogger
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.core.optim.lr_scheduler import CosineAnnealing
-from nemo.utils.arguments import add_asr_args, add_optimizer_args, add_scheduler_args
+from nemo.utils import logging
 
 
-def main(args):
-
-    yaml = YAML(typ="safe")
-    with open(args.asr_model) as f:
-        model_config = yaml.load(f)
+@hydra.main(config_path="conf", config_name="config")
+def main(cfg):
+    logging.info(f'Hydra config: {cfg.pretty()}')
 
     asr_model = EncDecCTCModelBPE(
-        preprocessor_params=model_config['AudioToMelSpectrogramPreprocessor'],
-        encoder_params=model_config['ContextNetEncoder'],
-        decoder_params=model_config['ContextNetDecoder'],
-        tokenizer_path=args.tokenizer_path,
-        spec_augment_params=model_config.get('SpectrogramAugmentation', None),
+        preprocessor_config=cfg.preprocessor,
+        encoder_config=cfg.encoder,
+        decoder_config=cfg.decoder,
+        tokenizer_path=cfg.tokenizer_path,
+        spec_augment_config=cfg.spec_augment,
     )
 
-    # Setup where your training data is
-    model_config['AudioToBPELayer']['manifest_filepath'] = args.train_dataset
-    model_config['AudioToBPELayer_eval']['manifest_filepath'] = args.eval_dataset
-    asr_model.setup_training_data(model_config['AudioToBPELayer'])
-    asr_model.setup_validation_data(model_config['AudioToBPELayer_eval'])
+    asr_model.setup_training_data(cfg.AudioToTextDataLayer)
+    asr_model.setup_validation_data(cfg.AudioToTextDataLayer_eval)
 
     # Setup optimizer and scheduler
-    scheduler_args = {
-        'monitor': 'val_loss',  # pytorch lightning requires this value
-        'warmup_ratio': args.warmup_ratio,
-        'warmup_steps': args.warmup_steps,
-        'min_lr': args.min_lr,
-        'last_epoch': args.last_epoch,
-    }
-
-    if args.max_steps is None:
-        if args.gpus == 0:
-            # training on CPU
-            iters_per_batch = args.max_epochs / float(args.num_nodes * args.accumulate_grad_batches)
+    if 'sched' in cfg.optim:
+        if cfg.pl.trainer.max_steps is None:
+            if cfg.pl.trainer.gpus == 0:
+                # training on CPU
+                iters_per_batch = cfg.pl.trainer.max_epochs / float(
+                    cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
+                )
+            else:
+                iters_per_batch = cfg.pl.trainer.max_epochs / float(
+                    cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
+                )
+            cfg.optim.sched.iters_per_batch = iters_per_batch
         else:
-            iters_per_batch = args.max_epochs / float(args.gpus * args.num_nodes * args.accumulate_grad_batches)
-        scheduler_args['iters_per_batch'] = iters_per_batch
-    else:
-        scheduler_args['max_steps'] = args.max_steps
+            cfg.optim.sched.max_steps = cfg.pl.trainer.max_steps
 
-    asr_model.setup_optimization(
-        optim_params={
-            'optimizer': args.optimizer,
-            'lr': args.lr,
-            'opt_args': args.opt_args,
-            'scheduler': CosineAnnealing,
-            'scheduler_args': scheduler_args,
-        }
-    )
+    asr_model.setup_optimization(cfg.optim)
 
-    trainer = pl.Trainer.from_argparse_args(args)
+    trainer = pl.Trainer(**cfg.pl.trainer)
 
-    if args.experiment_name is not None and args.project_name is not None:
-        logger = pl_loggers.WandbLogger(name=args.experiment_name, project=args.project_name)
-        trainer.configure_logger(logger)
+    if 'logger' in cfg:
+        if cfg.logger.experiment_name is not None and cfg.logger.project_name is not None:
+            logger = WandbLogger(name=cfg.logger.experiment_name, project=cfg.logger.project_name)
+            trainer.configure_logger(logger)
 
     trainer.fit(asr_model)
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser = pl.Trainer.add_argparse_args(parser)
-    parser = add_asr_args(parser)
-    parser = add_optimizer_args(parser, optimizer='novograd', default_lr=0.01, default_opt_args={'betas': (0.95, 0.5)})
-    parser = add_scheduler_args(parser)
-
-    # Additional arguments
-    parser.add_argument("--tokenizer_path", type=str, required=True, help="Path to the tokenizer directory")
-    parser.add_argument('--experiment_name', default=None, help='Name of experiment for WandB logger.')
-    parser.add_argument('--project_name', default=None, help='Name of project for WandB logger.')
-
-    args = parser.parse_args()
-
-    main(args)
+    main()

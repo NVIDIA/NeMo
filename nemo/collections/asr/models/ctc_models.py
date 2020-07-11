@@ -155,7 +155,7 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         tensorboard_logs = {'train_loss': loss_value, 'training_batch_wer': wer_num / wer_denom}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -168,7 +168,7 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
 
