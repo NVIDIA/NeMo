@@ -3,40 +3,171 @@ sample_rate: &sample_rate 16000
 repeat: &repeat 1
 dropout: &dropout 0.0
 separable: &separable true
+labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
-optim:
-  name: novograd
-  # cls: nemo.core.optim.optimizers.Novograd
-  lr: .01
+model:
+  pl: null
+  train_ds:
+    manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    trim_silence: True
+    max_duration: 16.7
+    shuffle: True
 
-  # optimizer arguments
-  args:
-    name: auto
-    # cls: nemo.core.config.optimizers.NovogradParams
+  validation_ds:
+    manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
+    sample_rate: 16000
+    labels: *labels
+    batch_size: 32
+    shuffle: False
+
+  preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     params:
-      betas: [0.8, 0.5]
-      weight_decay: 0.001
+      normalize: "per_feature"
+      window_size: 0.02
+      sample_rate: *sample_rate
+      window_stride: 0.01
+      window: "hann"
+      features: &n_mels 64
+      n_fft: 512
+      frame_splicing: 1
+      dither: 0.00001
+      stft_conv: false
 
-  # scheduler setup
-  sched:
-    name: CosineAnnealing
-    iters_per_batch: null # computed at runtime
-    max_steps: null # computed at runtime or explicitly set here
+  spec_augment:
+    cls: nemo.collections.asr.modules.SpectrogramAugmentation
+    params:
+      rect_freq: 50
+      rect_masks: 5
+      rect_time: 120
 
-    # pytorch lightning args
-    monitor: val_loss
-    reduce_on_plateau: false
+  encoder:
+    cls: nemo.collections.asr.modules.ConvASREncoder
+    params:
+      feat_in: *n_mels
+      activation: relu
+      conv_mask: true
 
-    # scheduler config override
+      jasper:
+        - filters: 128
+          repeat: 1
+          kernel: [11]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+        - filters: 256
+          repeat: *repeat
+          kernel: [13]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+        - filters: 256
+          repeat: *repeat
+          kernel: [15]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+        - filters: 256
+          repeat: *repeat
+          kernel: [17]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+        - filters: 256
+          repeat: *repeat
+          kernel: [19]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+        - filters: 256
+          repeat: 1
+          kernel: [21]
+          stride: [1]
+          dilation: [1]
+          dropout: 0.0
+          residual: false
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+        - filters: &enc_feat_out 1024
+          repeat: 1
+          kernel: [1]
+          stride: [1]
+          dilation: [1]
+          dropout: 0.0
+          residual: false
+          separable: *separable
+          se: true
+          se_context_size: -1
+
+  decoder:
+    cls: nemo.collections.asr.modules.ConvASRDecoder
+    params:
+      feat_in: 1024
+      num_classes: 28
+      vocabulary: *labels
+
+  optim:
+    name: novograd
+    # cls: nemo.core.optim.optimizers.Novograd
+    lr: .01
+    # optimizer arguments
     args:
       name: auto
-      # cls: nemo.core.config.schedulers.CosineAnnealingParams
+      # cls: nemo.core.config.optimizers.NovogradParams
       params:
-        warmup_steps: null
-        warmup_ratio: null
-        min_lr: 0.0
-        last_epoch: -1
+        betas: [0.8, 0.5]
+        weight_decay: 0.001
 
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+      iters_per_batch: null # computed at runtime
+      max_steps: null # computed at runtime or explicitly set here
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
+
+      # scheduler config override
+      args:
+        name: auto
+        # cls: nemo.core.config.schedulers.CosineAnnealingParams
+        params:
+          warmup_steps: null
+          warmup_ratio: null
+          min_lr: 0.0
+          last_epoch: -1
 
 pl:
   trainer:
@@ -46,136 +177,3 @@ pl:
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
-
-
-labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
-
-AudioToTextDataLayer:
-    manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
-    sample_rate: 16000
-    labels: *labels
-    batch_size: 32
-    trim_silence: True
-    max_duration: 16.7
-    shuffle: True
-
-AudioToTextDataLayer_eval:
-    manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
-    sample_rate: 16000
-    labels: *labels
-    batch_size: 32
-    shuffle: False
-
-preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    params:
-        normalize: "per_feature"
-        window_size: 0.02
-        sample_rate: *sample_rate
-        window_stride: 0.01
-        window: "hann"
-        features: &n_mels 64
-        n_fft: 512
-        frame_splicing: 1
-        dither: 0.00001
-        stft_conv: false
-
-spec_augment:
-    cls: nemo.collections.asr.modules.SpectrogramAugmentation
-    params:
-        rect_freq: 50
-        rect_masks: 5
-        rect_time: 120
-
-encoder:
-    cls: nemo.collections.asr.modules.ConvASREncoder
-    params:
-        feat_in: *n_mels
-        activation: relu
-        conv_mask: true
-
-        jasper:
-          - filters: 128
-            repeat: 1
-            kernel: [11]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-          - filters: 256
-            repeat: *repeat
-            kernel: [13]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-          - filters: 256
-            repeat: *repeat
-            kernel: [15]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-          - filters: 256
-            repeat: *repeat
-            kernel: [17]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-          - filters: 256
-            repeat: *repeat
-            kernel: [19]
-            stride: [1]
-            dilation: [1]
-            dropout: *dropout
-            residual: true
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-          - filters: 256
-            repeat: 1
-            kernel: [21]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: false
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-          - filters: &enc_feat_out 1024
-            repeat: 1
-            kernel: [1]
-            stride: [1]
-            dilation: [1]
-            dropout: 0.0
-            residual: false
-            separable: *separable
-            se: true
-            se_context_size: -1
-
-decoder:
-    cls: nemo.collections.asr.modules.ConvASRDecoder
-    params:
-        feat_in: 1024
-        num_classes: 28
-        vocabulary: *labels

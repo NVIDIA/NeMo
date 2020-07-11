@@ -99,16 +99,6 @@ class BERTLMModel(ModelPT):
         self.mlm_classifier.mlp.last_linear_layer.weight = self.bert_model.embeddings.word_embeddings.weight
         # create extra bias
 
-        # This will be set by setup_training_datai
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # This will be set by setup_optimization
-        self.__optimizer = None
-        self.__scheduler = None
-
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
@@ -170,7 +160,7 @@ class BERTLMModel(ModelPT):
     def setup_training_data(self, train_data_layer_config: Optional[Dict]):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
-        self.__train_dl = (
+        self._train_dl = (
             self.__setup_preprocessed_dataloader(train_data_layer_config)
             if self.tokenizer is None
             else self.__setup_text_dataloader(train_data_layer_config)
@@ -179,7 +169,7 @@ class BERTLMModel(ModelPT):
     def setup_validation_data(self, val_data_layer_config: Optional[Dict]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
-        self.__val_dl = (
+        self._validation_dl = (
             self.__setup_preprocessed_dataloader(val_data_layer_config)
             if self.tokenizer is None
             else self.__setup_text_dataloader(val_data_layer_config)
@@ -187,12 +177,6 @@ class BERTLMModel(ModelPT):
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
-
-    def setup_optimization(self, optim_config: Optional[Dict] = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optim_config)
-        self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=optim_config, train_dataloader=self.__train_dl
-        )
 
     def __setup_preprocessed_dataloader(self, data_layer_params):
         dataset = data_layer_params['train_data']
@@ -207,9 +191,6 @@ class BERTLMModel(ModelPT):
         dl = BertPretrainingPreprocessedDataloader(
             data_files=files, max_predictions_per_seq=max_predictions_per_seq, batch_size=batch_size
         )
-        # return torch.utils.data.DataLoader(
-        #     dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-        # )
         return dl
 
     def __setup_tokenizer(self, preprocessing_args):
@@ -233,18 +214,6 @@ class BERTLMModel(ModelPT):
             num_workers=data_layer_params.get('num_workers', 0),
         )
         return dl
-
-    def configure_optimizers(self):
-        if self.__scheduler is None:
-            return self.__optimizer
-        else:
-            return [self.__optimizer], [self.__scheduler]
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
     @classmethod
     def from_pretrained(cls, name: str):

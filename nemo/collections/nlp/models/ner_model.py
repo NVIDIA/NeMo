@@ -78,14 +78,6 @@ class NERModel(ModelPT):
         )
 
         self.loss = CrossEntropyLoss()
-        # This will be set by setup_training_datai
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # This will be set by setup_optimization
-        self.__optimizer = None
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -141,23 +133,17 @@ class NERModel(ModelPT):
             train_data_layer_config['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self.__train_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self.__val_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
-
-    def setup_optimization(self, optim_config: Optional[Dict], optimizer='adam'):
-        if optimizer == 'adam':
-            self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_config['lr'])
-        else:
-            raise NotImplementedError()
 
     def __setup_dataloader_ner(
         self,
@@ -191,15 +177,6 @@ class NERModel(ModelPT):
         return torch.utils.data.DataLoader(
             dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
         )
-
-    def configure_optimizers(self):
-        return self.__optimizer
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

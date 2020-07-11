@@ -14,6 +14,7 @@
 
 import inspect
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
@@ -23,15 +24,44 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
+from nemo.core.config.base_config import Config
+from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging
 
-__all__ = ['ModelPT']
+__all__ = ['ModelPT', 'ModelPTConfig']
+
+
+@dataclass
+class ModelPTConfig(Config):
+    """Inherit from this class when you parametrize NeMo models"""
+
+    optim: Optional[DictConfig] = None
+    train_ds: Optional[DictConfig] = None
+    validation_ds: Optional[DictConfig] = None
+    test_ds: Optional[DictConfig] = None
 
 
 class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
     """
+
+    def __init__(self, cfg: ModelPTConfig = None):
+        super().__init__()
+        self._cfg = cfg
+        self._train_dl = None
+        self._validation_dl = None
+        self._test_dl = None
+        self._optimizer = None
+        self._scheduler = None
+
+        if cfg is not None:
+            if 'train_ds' in cfg and cfg.train_ds is not None:
+                self.setup_training_data(cfg.train_ds)
+            if 'validation_ds' in cfg and cfg.validation_ds is not None:
+                self.setup_validation_data(cfg.validation_ds)
+            if 'test_ds' in cfg and cfg.test_ds is not None:
+                self.setup_test_data(cfg.test_ds)
 
     @abstractmethod
     def setup_training_data(self, train_data_layer_config: Union[DictConfig, Dict]):
@@ -65,7 +95,7 @@ class ModelPT(LightningModule, Model):
         """
         raise NotImplementedError()
 
-    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None) -> Optimizer:
+    def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
         """
         Prepares an optimizer from a string name and its optional config parameters.
 
@@ -80,10 +110,25 @@ class ModelPT(LightningModule, Model):
                 - "opt_args": Optional list of strings, in the format "arg_name=arg_value".
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
-
-        Returns:
-            An instance of a torch.optim.Optimizer
         """
+        # Setup optimizer and scheduler
+        if 'sched' in optim_config and self._cfg is not None and 'trainer' in self._cfg.pl:
+            if self._cfg.pl.trainer.max_steps is None:
+                if self._cfg.pl.trainer.gpus == 0:
+                    # training on CPU
+                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
+                        self._cfg.pl.trainer.num_nodes * self._cfg.pl.trainer.accumulate_grad_batches
+                    )
+                else:
+                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
+                        self._cfg.pl.trainer.gpus
+                        * self._cfg.pl.trainer.num_nodes
+                        * self._cfg.pl.trainer.accumulate_grad_batches
+                    )
+                optim_config.sched.iters_per_batch = iters_per_batch
+            else:
+                optim_config.sched.max_steps = self._cfg.pl.trainer.max_steps
+
         optim_config = optim_config or {}  # In case null was passed as optim_params
 
         # Force into DictConfig from nested structure
@@ -121,7 +166,7 @@ class ModelPT(LightningModule, Model):
                 optimizer = optimizer_cls(self.parameters(), lr=lr, **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
-                return optimizer
+                self._optimizer = optimizer
 
             else:
                 # Attempt class path resolution
@@ -138,7 +183,7 @@ class ModelPT(LightningModule, Model):
 
                     logging.info("Optimizer config = %s", str(optimizer_instance))
 
-                    return optimizer_instance
+                    self._optimizer = optimizer_instance
 
                 except Exception as e:
                     logging.error(
@@ -154,4 +199,26 @@ class ModelPT(LightningModule, Model):
 
             logging.info("Optimizer config = %s", str(optimizer))
 
-            return optimizer
+            self._optimizer = optimizer
+
+        self._scheduler = prepare_lr_scheduler(
+            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
+        )
+
+    def configure_optimizers(self):
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
+
+    def train_dataloader(self):
+        if self._train_dl is not None:
+            return self._train_dl
+
+    def val_dataloader(self):
+        if self._validation_dl is not None:
+            return self._validation_dl
+
+    # def test_dataloader(self):
+    #     if self._test_dl is not None:
+    #         return self._test_dl
