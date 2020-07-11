@@ -110,9 +110,6 @@ class ModelPT(LightningModule, Model):
                 - "opt_args": Optional list of strings, in the format "arg_name=arg_value".
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
-
-        Returns:
-            An instance of a torch.optim.Optimizer
         """
         # Setup optimizer and scheduler
         if 'sched' in optim_config and 'trainer' in self._cfg.pl:
@@ -169,7 +166,7 @@ class ModelPT(LightningModule, Model):
                 optimizer = optimizer_cls(self.parameters(), lr=lr, **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
-                return optimizer
+                self._optimizer = optimizer
 
             else:
                 # Attempt class path resolution
@@ -186,7 +183,7 @@ class ModelPT(LightningModule, Model):
 
                     logging.info("Optimizer config = %s", str(optimizer_instance))
 
-                    return optimizer_instance
+                    self._optimizer = optimizer_instance
 
                 except Exception as e:
                     logging.error(
@@ -203,7 +200,6 @@ class ModelPT(LightningModule, Model):
             logging.info("Optimizer config = %s", str(optimizer))
 
             self._optimizer = optimizer
-            # return optimizer
 
         self._scheduler = prepare_lr_scheduler(
             optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
