@@ -24,7 +24,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.utils import logging
 
-
+# TODO: Typehints and docstring
 def exp_manager(
     trainer,
     root_dir=None,

@@ -106,6 +106,8 @@ class Logger(metaclass=Singleton):
 
             finally:
                 level = Logger.INFO
+                if get_envbool(NEMO_ENV_VARNAME_TESTING, False):
+                    level = Logger.DEBUG
                 self.set_verbosity(verbosity_level=level)
 
         self._logger.propagate = False
