@@ -46,7 +46,7 @@ class ModelPT(LightningModule, Model):
     Interface for Pytorch-lightning based NeMo models
     """
 
-    def __init__(self, cfg: ModelPTConfig = None):
+    def __init__(self, cfg: ModelPTConfig = None, trainer=None):
         super().__init__()
         self._cfg = cfg
         self._train_dl = None
@@ -54,6 +54,7 @@ class ModelPT(LightningModule, Model):
         self._test_dl = None
         self._optimizer = None
         self._scheduler = None
+        self._trainer = trainer
 
         if cfg is not None:
             if 'train_ds' in cfg and cfg.train_ds is not None:
@@ -112,22 +113,22 @@ class ModelPT(LightningModule, Model):
                 kwargs will be built and supplied to instantiate the optimizer.
         """
         # Setup optimizer and scheduler
-        if 'sched' in optim_config and self._cfg is not None and 'trainer' in self._cfg.pl:
-            if self._cfg.pl.trainer.max_steps is None:
-                if self._cfg.pl.trainer.gpus == 0:
+        if 'sched' in optim_config and self._trainer is not None:
+            if not isinstance(self._trainer.accumulate_grad_batches, int):
+                raise ValueError("We do not currently support gradient acculumation that is not an integer.")
+            if self._trainer.max_steps is None:
+                if self._trainer.gpus == 0:
                     # training on CPU
-                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
-                        self._cfg.pl.trainer.num_nodes * self._cfg.pl.trainer.accumulate_grad_batches
+                    iters_per_batch = self._trainer.max_epochs / float(
+                        self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
                 else:
-                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
-                        self._cfg.pl.trainer.gpus
-                        * self._cfg.pl.trainer.num_nodes
-                        * self._cfg.pl.trainer.accumulate_grad_batches
+                    iters_per_batch = self._trainer.max_epochs / float(
+                        self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
                 optim_config.sched.iters_per_batch = iters_per_batch
             else:
-                optim_config.sched.max_steps = self._cfg.pl.trainer.max_steps
+                optim_config.sched.max_steps = self._trainer.max_steps
 
         optim_config = optim_config or {}  # In case null was passed as optim_params
 
