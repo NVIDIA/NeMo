@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import torch
 from torch.utils.data import DataLoader
@@ -53,15 +53,16 @@ class NERModel(ModelPT):
         use_transformer_pretrained: bool = True,
     ):
         """
+        Initializes BERT Named Entity Recognition model.
         Args:
-            :param num_classes: number of classes
-            :param pretrained_model_name: pretrained language model name, to see the complete list use
-            :param config_file: model config file
-            :param num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            :param activation: activation to usee between fully connected layers in the MLP
-            :param log_softmax: whether to apply softmax to the output
-            :param dropout: dropout to apply to the input hidden states
-            :param use_transformer_pretrained: whether to use pre-trained transformer weights for weights initialization
+            num_classes: number of classes
+            pretrained_model_name: pretrained language model name, to see the complete list use
+            config_file: model config file
+            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            activation: activation to usee between fully connected layers in the MLP
+            log_softmax: whether to apply softmax to the output
+            dropout: dropout to apply to the input hidden states
+            use_transformer_pretrained: whether to use pre-trained transformer weights for weights initialization
         """
         # init superclass
         super().__init__()

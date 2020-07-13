@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.ner_model import NERModel
-from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import PunctuationCapitalizationModel
+from nemo.collections.nlp.models.token_classification import PunctuationCapitalizationModel, NERModel
+from nemo.collections.nlp.models.lm_model import BERTLMModel

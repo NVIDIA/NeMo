@@ -35,11 +35,11 @@ def main():
     model.setup_optimization(optim_params={'lr': 0.0003})
 
     # multi GPU
-    # trainer = pl.Trainer(
-    #     val_check_interval=35, amp_level='O1', precision=16, gpus=2, max_epochs=123, distributed_backend='ddp'
-    # )
+    trainer = pl.Trainer(
+        val_check_interval=35, amp_level='O1', precision=16, gpus=2, max_epochs=123, distributed_backend='ddp', fast_dev_run=True
+    )
     # single GPU
-    trainer = pl.Trainer(fast_dev_run=True)
+    # trainer = pl.Trainer(fast_dev_run=True)
     trainer.fit(model)
 
 
