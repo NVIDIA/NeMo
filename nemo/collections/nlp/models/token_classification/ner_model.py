@@ -16,16 +16,21 @@ import os
 from typing import Dict, Optional
 
 import torch
+from pytorch_lightning.metrics.functional import f1_score as f1_pl
+from pytorch_lightning.metrics.sklearns import F1 as f1_pl_sklearn
+from sklearn.metrics import f1_score as f1_sklearn
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.metrics.metrics_utils import get_classification_report
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['NERModel']
@@ -79,13 +84,24 @@ class NERModel(ModelPT):
         )
 
         self.loss = CrossEntropyLoss()
+        self.labels_ids = None
+        self.label_frequencies = None
+
+        self.max_seq_length = 128
+        self.pad_label = 'O'
+        self.num_samples = -1
+        self.ignore_extra_tokens = False
+        self.ignore_start_end = False
+        self.use_cache = False
+        self.shuffle = False
+        self.batch_size = 64
+        self.num_workers = 0
+        self.shuffle = False
+        self.num_workers = 0
+        self.batch_size = 8
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        """
-        No special modification required for Lightning, define it as you normally would
-        in the `nn.Module` in vanilla PyTorch.
-        """
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
@@ -112,11 +128,13 @@ class NERModel(ModelPT):
         """
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
-        tensorboard_logs = {'val_loss': val_loss}
-        return {'val_loss': val_loss, 'log': tensorboard_logs}  # , "n_correct_pred": n_correct_pred, "n_pred": len(x)}
+        subtokens_mask = subtokens_mask > 0.5
+        preds = torch.argmax(logits, axis=-1)[subtokens_mask]
+        labels = labels[subtokens_mask]
+        tensorboard_logs = {'val_loss': val_loss, 'preds': preds, 'labels': labels}
+        return {'val_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
@@ -124,59 +142,65 @@ class NERModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        # TODO - add metrics
+        preds = torch.stack([x['log']['preds'] for x in outputs]).flatten()
+        labels = torch.stack([x['log']['labels'] for x in outputs]).flatten()
+
+        val_f1_pl = f1_pl(pred=preds, target=labels) * 100  # , 2)
+        logging.info(f'F1 pl: {val_f1_pl}')
+
+        f1_pl_sklearn_metric = f1_pl_sklearn(average='macro')
+        val_f1_pl_sklearn = f1_pl_sklearn_metric(preds, labels)[0] * 100
+        logging.info(f'F1 pl sklearn: {val_f1_pl_sklearn}')
+
+        val_f1_sklearn = round(f1_sklearn(labels, preds, average='macro') * 100, 2)
+        logging.info(f'F1 sklearn: {val_f1_sklearn}')
+
+        # class_report = get_classification_report(labels=labels, preds=preds)
+        # TO DO remove .numpy()
+        class_report = get_classification_report(labels=labels.numpy(), preds=preds.numpy(), label_ids=self.labels_ids)
+        logging.info(class_report)
         # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
-        # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
-        return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
+        tensorboard_logs = {'val_loss': avg_loss, 'val_f1': val_f1_pl}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, data_dir, train_data_layer_config: Optional[Dict]):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self.labels_ids, self.label_frequencies, self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        _, _, self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def __setup_dataloader_ner(
-        self,
-        text_file,
-        label_file,
-        max_seq_length=128,
-        pad_label='O',
-        label_ids=None,
-        num_samples=-1,
-        ignore_extra_tokens=False,
-        ignore_start_end=False,
-        use_cache=False,
-        shuffle=False,
-        batch_size=64,
-        num_workers=0,
-    ):
+    def __setup_dataloader_ner(self, text_file, label_file):
 
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=max_seq_length,
+            max_seq_length=self.max_seq_length,
             tokenizer=self.tokenizer,
-            num_samples=num_samples,
-            pad_label=pad_label,
-            label_ids=label_ids,
-            ignore_extra_tokens=ignore_extra_tokens,
-            ignore_start_end=ignore_start_end,
-            use_cache=use_cache,
+            num_samples=self.num_samples,
+            pad_label=self.pad_label,
+            label_ids=self.labels_ids,
+            ignore_extra_tokens=self.ignore_extra_tokens,
+            ignore_start_end=self.ignore_start_end,
+            use_cache=self.use_cache,
         )
 
-        return torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
+        return (
+            dataset.label_ids,
+            dataset.label_frequencies,
+            torch.utils.data.DataLoader(
+                dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers,
+            ),
         )
 
     @classmethod

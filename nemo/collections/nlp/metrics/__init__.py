@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp import data, metrics, models, modules
+from nemo.collections.nlp.metrics.metrics_utils import get_classification_report, plot_confusion_matrix
