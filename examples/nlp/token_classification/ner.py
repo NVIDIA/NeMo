@@ -36,9 +36,9 @@ def main():
     args = parser.parse_args()
 
     ner_model = nemo_nlp.models.NERModel(num_classes=args.num_classes)
-    ner_model.setup_training_data(args.data_dir, train_data_layer_params={'shuffle': True})
-    ner_model.setup_validation_data(data_dir=args.data_dir, val_data_layer_params={'shuffle': False})
-    ner_model.setup_optimization(optim_params={'lr': 0.0003})
+    ner_model.setup_training_data(args.data_dir, train_data_layer_config={'shuffle': True})
+    ner_model.setup_validation_data(data_dir=args.data_dir, val_data_layer_config={'shuffle': False})
+    ner_model.setup_optimization(optim_config={'lr': 0.0003})
 
     trainer = pl.Trainer(
         fast_dev_run=True

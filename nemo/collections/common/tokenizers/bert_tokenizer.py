@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,7 +74,6 @@ class NemoBertTokenizer(TokenizerSpec):
         if pretrained_model:
             bert_derivative = pretrained_model.split('-')[0]
             logging.info(f'Deriving bert model type from pretrained model name.')
-
         if bert_derivative in TOKENIZERS:
             tokenizer_cls = TOKENIZERS[bert_derivative]
         else:

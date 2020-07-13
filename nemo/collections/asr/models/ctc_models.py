@@ -12,26 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from dataclasses import dataclass
+from typing import Dict, Optional, Union
 
+import hydra
 import torch
+from omegaconf import MISSING, DictConfig
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import monitor_asr_train_progress
+from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes.common import Serialization, typecheck
+from nemo.core.classes.common import typecheck
+from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
+@dataclass
+class EncDecCTCModelConfig(ModelPTConfig):
+    preprocessor: DictConfig = MISSING
+    encoder: DictConfig = MISSING
+    decoder: DictConfig = MISSING
+    spec_augment: Optional[DictConfig] = None
+
+
 @experimental
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
+
+    def __init__(self, cfg: EncDecCTCModelConfig):
+        super().__init__(cfg=cfg)
+        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
+        self.encoder = hydra.utils.instantiate(cfg.encoder)
+        self.decoder = hydra.utils.instantiate(cfg.decoder)
+        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
+        if cfg.spec_augment is not None:
+            self.spec_augmentation = hydra.utils.instantiate(cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
+        # Optimizer setup needs to happen after all model weights are ready
+        self.setup_optimization(cfg.optim)
+        # Setup metric objects
+        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     def transcribe(self, path2audio_file: str) -> str:
         pass
@@ -63,26 +89,20 @@ class EncDecCTCModel(ASRModel):
             num_workers=config.get('num_workers', 0),
         )
 
-    def setup_training_data(self, train_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_params:
-            train_data_layer_params['shuffle'] = True
-        self.__train_dl = self.__setup_dataloader_from_config(config=train_data_layer_params)
+    def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        if 'shuffle' not in train_data_layer_config:
+            train_data_layer_config['shuffle'] = True
+        self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
-    def setup_validation_data(self, val_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_params:
-            val_data_layer_params['shuffle'] = False
-        self.__val_dl = self.__setup_dataloader_from_config(config=val_data_layer_params)
+    def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
+        if 'shuffle' not in val_data_layer_config:
+            val_data_layer_config['shuffle'] = False
+        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+    def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
-        self.__test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-
-    def setup_optimization(self, optim_params: Optional[Dict] = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optim_params)
-        self.__scheduler = prepare_lr_scheduler(
-            optimizer=self.__optimizer, scheduler_config=optim_params, train_dataloader=self.__train_dl
-        )
+        self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -121,33 +141,6 @@ class EncDecCTCModel(ASRModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    def __init__(
-        self,
-        preprocessor_params: Dict,
-        encoder_params: Dict,
-        decoder_params: Dict,
-        spec_augment_params: Optional[Dict] = None,
-    ):
-        super().__init__()
-        self.preprocessor = Serialization.from_config_dict(preprocessor_params)
-        self.encoder = Serialization.from_config_dict(encoder_params)
-        self.decoder = Serialization.from_config_dict(decoder_params)
-        self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if spec_augment_params is not None:
-            self.spec_augmentation = Serialization.from_config_dict(spec_augment_params)
-        else:
-            self.spec_augmentation = None
-
-        # This will be set by setup_training_data
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # This will be set by setup_optimization
-        self.__optimizer = None
-        self.__scheduler = None
-
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
@@ -167,14 +160,11 @@ class EncDecCTCModel(ASRModel):
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
         )
-        # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
-        )
-        tensorboard_logs = {'train_loss': loss_value, 'training_wer': wer}
+        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        tensorboard_logs = {'train_loss': loss_value, 'training_batch_wer': wer_num / wer_denom}
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -183,33 +173,11 @@ class EncDecCTCModel(ASRModel):
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
         )
-        # loss_value = self.loss.loss_function(
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-
-        # TODO: use metrics here
-        wer, prediction, reference = monitor_asr_train_progress(
-            tensors=[predictions, transcript, transcript_len], labels=self.decoder.vocabulary
-        )
-        tensorboard_logs = {'val_loss': loss_value, 'val_wer': wer}
-        return {'val_loss': loss_value, 'log': tensorboard_logs}
-
-    def validation_epoch_end(self, outputs):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'val_loss': val_loss_mean}
-
-    def configure_optimizers(self):
-        if self.__scheduler is None:
-            return self.__optimizer
-        else:
-            return [self.__optimizer], [self.__scheduler]
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
+        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
 
 @experimental

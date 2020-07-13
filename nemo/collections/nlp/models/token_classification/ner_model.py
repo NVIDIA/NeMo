@@ -50,7 +50,7 @@ class NERModel(ModelPT):
         activation: str = 'relu',
         log_softmax: bool = True,
         dropout: float = 0.0,
-        use_transformer_pretrained: bool = True,
+        use_transformer_init: bool = True,
     ):
         """
         Initializes BERT Named Entity Recognition model.
@@ -62,9 +62,8 @@ class NERModel(ModelPT):
             activation: activation to usee between fully connected layers in the MLP
             log_softmax: whether to apply softmax to the output
             dropout: dropout to apply to the input hidden states
-            use_transformer_pretrained: whether to use pre-trained transformer weights for weights initialization
+            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
-        # init superclass
         super().__init__()
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
@@ -76,18 +75,10 @@ class NERModel(ModelPT):
             activation=activation,
             log_softmax=log_softmax,
             dropout=dropout,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_init=use_transformer_init,
         )
 
         self.loss = CrossEntropyLoss()
-        # This will be set by setup_training_datai
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # This will be set by setup_optimization
-        self.__optimizer = None
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -138,28 +129,22 @@ class NERModel(ModelPT):
         # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
         return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
 
-    def setup_training_data(self, data_dir, train_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_params:
-            train_data_layer_params['shuffle'] = True
+    def setup_training_data(self, data_dir, train_data_layer_config: Optional[Dict]):
+        if 'shuffle' not in train_data_layer_config:
+            train_data_layer_config['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self.__train_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
-    def setup_validation_data(self, data_dir, val_data_layer_params: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_params:
-            val_data_layer_params['shuffle'] = False
+    def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
+        if 'shuffle' not in val_data_layer_config:
+            val_data_layer_config['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self.__val_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
-
-    def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
-        if optimizer == 'adam':
-            self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
-        else:
-            raise NotImplementedError()
 
     def __setup_dataloader_ner(
         self,
@@ -193,15 +178,6 @@ class NERModel(ModelPT):
         return torch.utils.data.DataLoader(
             dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
         )
-
-    def configure_optimizers(self):
-        return self.__optimizer
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
