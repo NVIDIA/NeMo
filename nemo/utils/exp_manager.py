@@ -26,6 +26,8 @@ from nemo.utils import logging
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 
 # TODO: Typehints and docstring
+# TODO: Why does checkpoint folder not match tensorboard
+# TODO: Why is PTL's global_rank != local_rank for single node
 def exp_manager(
     trainer,
     root_dir=None,
@@ -39,6 +41,11 @@ def exp_manager(
     root_dir/model_or_experiment_name/version. It optionally creates TensorBoardLogger, and ModelCheckpoint objects
     from pytorch lightning.
     """
+    print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+    print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+    print(trainer.is_global_zero)
+    print(trainer.global_rank)
+    print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
     # TODO: Print a warning message if user is not running ddp / slurm since we test on those
     # Default root_dir to ~/NeMo_experiments if None was passed
     _root_dir = root_dir
@@ -73,7 +80,7 @@ def exp_manager(
         version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
         if trainer.is_slurm_managing_tasks:
             logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
-        elif trainer.is_global_zero():
+        elif trainer.is_global_zero:
             version = time.strftime('%Y-%m-%d_%H-%M-%S')
             os.environ[NEMO_ENV_VARNAME_DATETIME] = version
 
@@ -98,19 +105,20 @@ def exp_manager(
                 )
         checkpoint_callback = ModelCheckpoint(save_top_k=3, save_last=True)
         trainer.callbacks.append(checkpoint_callback)
+        trainer.default_root_dir = _root_dir
 
     # Create the logging directory if it does not exist
     log_dir = Path(_root_dir, name, version)
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
 
     # Move files_to_copy to folder and add git information if present
-    if trainer.is_global_zero():
+    if trainer.is_global_zero:
         if files_to_copy:
             for _file in files_to_copy:
                 basename = os.path.basename(_file)
                 basename, ending = os.path.splitext(basename)
                 basename = basename + f"_{version}" + ending
-                copyfile(_file, log_dir / basename)
+                copyfile(Path(_file), log_dir / basename)
 
         # Create files for cmd args and git info
         with open(log_dir / 'cmd-args.log', 'w') as _file:
@@ -124,6 +132,11 @@ def exp_manager(
                 _file.write(get_git_diff())
 
     # Handle Loggers by creating file and handle DEBUG statements
+    print("YYYYYYYYYYYYYYYYYYYYYY")
+    print(trainer.is_global_zero)
+    print(trainer.global_rank)
+    print(trainer.local_rank)
+    print("YYYYYYYYYYYYYYYYYYYYYY")
     log_file = log_dir / f'log_globalrank-{trainer.global_rank}_localrank-{trainer.local_rank}.txt'
     logging.add_file_handler(log_file)
     logging.rank = trainer.global_rank

@@ -177,3 +177,9 @@ pl:
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
+    checkpoint_callback: False  # Provided by exp_manager
+    logger: False  # Provided by exp_manager
+
+hydra:
+  run:
+    dir: .
