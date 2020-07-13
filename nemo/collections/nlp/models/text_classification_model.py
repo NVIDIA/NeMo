@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from dataclasses import dataclass
+from typing import Dict, Optional, Union
 
+import hydra
 import torch
+from omegaconf import MISSING, DictConfig
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -22,12 +25,71 @@ from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
-from nemo.core.classes import typecheck
-from nemo.core.classes.modelPT import ModelPT
+from nemo.core.classes.common import typecheck
+from nemo.core.classes.modelPT import ModelPT, ModelPTConfig
+from nemo.core.config.optimizers import AdamParams, OptimizerArgs
+from nemo.core.config.schedulers import SchedulerArgs, WarmupAnnealingParams
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationModel']
+
+
+@dataclass
+class TextClassificationOptimizationConfig:
+    name: str = "adam"
+    lr: float = 2e-5
+    args: OptimizerArgs = OptimizerArgs(params=AdamParams(weight_decay=0.01))
+    sched: SchedulerArgs = SchedulerArgs(params=WarmupAnnealingParams(warmup_ratio=0.1))
+
+
+@dataclass
+class TextClassificationDataConfig:
+    prefix: str = None
+    batch_size: int = 32
+    shuffle: bool = False
+    num_samples: int = -1
+    num_workers: int = 2
+    pin_memory: bool = False
+    use_cache: bool = True
+    drop_last: bool = False
+
+
+@dataclass
+class SentencePieceTokenizerConfig:
+    name: str = 'sentencepiece'
+    model: str = MISSING
+
+
+@dataclass
+class NemoBertTokenizerConfig:
+    name: str = 'nemobert'
+
+
+@dataclass
+class LanguageModelConfig:
+    pretrained_model_name: Optional[str] = 'roberta-base'
+    bert_config: Optional[DictConfig] = None
+    max_seq_length: int = 36
+    tokenizer: Optional[Union[SentencePieceTokenizerConfig, NemoBertTokenizerConfig]] = NemoBertTokenizerConfig()
+
+
+@dataclass
+class TextClassificationHeadConfig:
+    num_output_layers: int = 2
+    fc_dropout: float = 0.1
+
+
+@dataclass
+class TextClassificationModelConfig(ModelPTConfig):
+    language_model: LanguageModelConfig = MISSING
+    head: TextClassificationHeadConfig = MISSING
+    class_balancing: Optional[str] = None
+    data_dir: str = MISSING
+    train_ds: TextClassificationDataConfig = MISSING
+    validation_ds: TextClassificationDataConfig = MISSING
+    test_ds: Optional[TextClassificationDataConfig] = None
+    optim: TextClassificationOptimizationConfig = TextClassificationOptimizationConfig()
 
 
 @experimental
@@ -40,15 +102,7 @@ class TextClassificationModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    def __init__(
-        self,
-        data_dir: str,
-        pretrained_model_name: str,
-        bert_config: str,
-        num_output_layers: int,
-        fc_dropout: float,
-        class_balancing: bool,
-    ):
+    def __init__(self, cfg: TextClassificationModelConfig):
         """
         Initializes the BERTTextClassifier model.
         Args:
@@ -60,27 +114,34 @@ class TextClassificationModel(ModelPT):
             class_balancing: enables the weighted class balancing of the loss, may be used for handling unbalanced classes
         """
 
+        self.max_seq_length = cfg.language_model.max_seq_length
+        self.data_dir = cfg.data_dir
+        self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
         # init superclass
-        super().__init__()
+        super().__init__(cfg=cfg)
 
-        data_desc = TextClassificationDataDesc(data_dir=data_dir, modes=["train", "test", "dev"])
+        data_desc = TextClassificationDataDesc(data_dir=self.data_dir, modes=["train", "test", "dev"])
 
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=bert_config)
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
+        )
         self.hidden_size = self.bert_model.config.hidden_size
-        self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.classifier = SequenceClassifier(
             hidden_size=self.hidden_size,
             num_classes=data_desc.num_labels,
-            dropout=fc_dropout,
-            num_layers=num_output_layers,
+            dropout=cfg.head.fc_dropout,
+            num_layers=cfg.head.num_output_layers,
             log_softmax=False,
         )
 
-        if class_balancing == 'weighted_loss':
+        if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(weight=data_desc.class_weights)
         else:
             self.loss = CrossEntropyLoss()
+
+        # Optimizer setup needs to happen after all model weights are ready
+        self.setup_optimization(cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -106,7 +167,7 @@ class TextClassificationModel(ModelPT):
         # TODO replace with loss module
         train_loss = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {'train_loss': train_loss}
+        tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -119,53 +180,53 @@ class TextClassificationModel(ModelPT):
 
         val_loss = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {'val_loss': val_loss}
         # TODO - add eval - callback?
         # labels_hat = torch.argmax(y_hat, dim=1)
         # n_correct_pred = torch.sum(y == labels_hat).item()
-        return {'val_loss': val_loss, 'log': tensorboard_logs}  # , "n_correct_pred": n_correct_pred, "n_pred": len(x)}
+        return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
-        # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
-        return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
+        if outputs:
+            avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+            tensorboard_logs = {'val_loss': avg_loss}  # , 'val_acc': val_acc}
+            return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, file_path, dataloader_params={}):
-        self._train_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-    def setup_validation_data(self, file_path, dataloader_params={}):
-        self._validation_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, file_path, dataloader_params={}):
-        self._test_dl = self.__setup_dataloader(input_file=file_path, dataloader_params=dataloader_params)
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
 
-    def __setup_dataloader(
-        self, input_file, dataloader_params={},
-    ):
+    def _setup_dataloader_from_config(self, cfg: TextClassificationDataConfig):
+        input_file = f'{self.data_dir}/{cfg.prefix}.tsv'
+        # TODO: check that file exists
         dataset = TextClassificationDataset(
             input_file=input_file,
             tokenizer=self.tokenizer,
-            max_seq_length=dataloader_params.get("max_seq_length", 512),
-            num_samples=dataloader_params.get("num_samples", -1),
-            shuffle=dataloader_params.get("shuffle", False),
-            use_cache=dataloader_params.get("use_cache", False),
+            max_seq_length=self.max_seq_length,
+            num_samples=cfg.num_samples,
+            shuffle=cfg.shuffle,
+            use_cache=cfg.use_cache,
         )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=dataloader_params.get("batch_size", 64),
-            shuffle=dataloader_params.get("shuffle", False),
-            num_workers=dataloader_params.get("num_workers", 0),
-            pin_memory=dataloader_params.get("pin_memory", False),
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
         )
 
     @classmethod
-    def save_to(self, save_path: str):
+    def save_to(cls, save_path: str):
         """
         Saves the module to the specified path.
         Args:
@@ -191,5 +252,5 @@ class TextClassificationModel(ModelPT):
         pass
 
     @classmethod
-    def export(self, **kwargs):
+    def export(cls, **kwargs):
         pass

@@ -39,6 +39,7 @@ class ModelPTConfig(Config):
     train_ds: Optional[DictConfig] = None
     validation_ds: Optional[DictConfig] = None
     test_ds: Optional[DictConfig] = None
+    pl: Optional[DictConfig] = None
 
 
 class ModelPT(LightningModule, Model):
@@ -66,7 +67,7 @@ class ModelPT(LightningModule, Model):
                 self.setup_test_data(cfg.test_ds)
 
     @abstractmethod
-    def setup_training_data(self, train_data_layer_config: Union[DictConfig, Dict]):
+    def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """
         Setups data loader to be used in training
         Args:
@@ -77,7 +78,7 @@ class ModelPT(LightningModule, Model):
         pass
 
     @abstractmethod
-    def setup_validation_data(self, val_data_layer_config: Union[DictConfig, Dict]):
+    def setup_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in validation
         Args:
@@ -87,7 +88,7 @@ class ModelPT(LightningModule, Model):
         """
         pass
 
-    def setup_test_data(self, test_data_layer_config: Union[DictConfig, Dict]):
+    def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in test
         Args:
