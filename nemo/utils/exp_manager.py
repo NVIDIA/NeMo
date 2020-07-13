@@ -23,6 +23,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.utils import logging
+from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 
 # TODO: Typehints and docstring
 def exp_manager(
@@ -69,13 +70,12 @@ def exp_manager(
         name = trainer.logger.name
         version = trainer.logger.version
     else:
-        version = None
+        version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
         if trainer.is_slurm_managing_tasks:
             logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
         elif trainer.is_global_zero():
             version = time.strftime('%Y-%m-%d_%H-%M-%S')
-        else:
-            pass  # TODO: grab tm_suffix from sys.argv
+            os.environ[NEMO_ENV_VARNAME_DATETIME] = version
 
         if name is None:
             name = "default"
