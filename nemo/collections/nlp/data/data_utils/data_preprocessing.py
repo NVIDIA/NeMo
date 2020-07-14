@@ -115,6 +115,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
     Returns:
         total (int): total number of labels
         label_frequencies (list of tuples): each tuple represent (label, label frequency)
+        max id of the labels
     '''
     labels = Counter(labels)
     total = sum(labels.values())

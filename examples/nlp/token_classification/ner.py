@@ -43,7 +43,7 @@ def main():
             "https://github.com/kyzhouhzau/BERT-NER/tree/master/data."
         )
 
-    ner_model = nemo_nlp.models.NERModel(num_classes=args.num_classes)
+    ner_model = nemo_nlp.models.NERModel(data_dir=args.data_dir, num_classes=args.num_classes)
     ner_model.setup_training_data(args.data_dir, train_data_layer_config={'shuffle': True})
     ner_model.setup_validation_data(data_dir=args.data_dir, val_data_layer_config={'shuffle': False})
     ner_model.setup_optimization(optim_config={'lr': 0.0003})

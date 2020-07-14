@@ -195,9 +195,9 @@ class BertTokenClassificationDataset(Dataset):
         label_file,
         max_seq_length,
         tokenizer,
+        label_ids,
         num_samples=-1,
         pad_label='O',
-        label_ids=None,
         ignore_extra_tokens=False,
         ignore_start_end=False,
         use_cache=False,
@@ -216,15 +216,11 @@ class BertTokenClassificationDataset(Dataset):
             features_pkl = os.path.join(
                 data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
             )
-            label_ids_pkl = os.path.join(data_dir, "label_ids.pkl")
 
-        if use_cache and os.path.exists(features_pkl) and os.path.exists(label_ids_pkl):
+        if use_cache and os.path.exists(features_pkl):
             # If text_file was already processed, load from pickle
             features = pickle.load(open(features_pkl, 'rb'))
             logging.info(f'features restored from {features_pkl}')
-
-            label_ids = pickle.load(open(label_ids_pkl, 'rb'))
-            logging.info(f'Labels to ids dict restored from {label_ids_pkl}')
         else:
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
@@ -232,14 +228,11 @@ class BertTokenClassificationDataset(Dataset):
             with open(text_file, 'r') as f:
                 text_lines = f.readlines()
 
-            # Collect all possible labels
-            unique_labels = set([])
             labels_lines = []
             with open(label_file, 'r') as f:
                 for line in f:
                     line = line.strip().split()
                     labels_lines.append(line)
-                    unique_labels.update(line)
 
             if len(labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
@@ -251,33 +244,6 @@ class BertTokenClassificationDataset(Dataset):
                 dataset = list(zip(*dataset))
                 text_lines = dataset[0]
                 labels_lines = dataset[1]
-
-            # for dev/test sets use label mapping from training set
-            if label_ids:
-                if len(label_ids) != len(unique_labels):
-                    logging.warning(
-                        f'Not all labels from the specified'
-                        + ' label_ids dictionary are present in the'
-                        + ' current dataset. Using the provided'
-                        + ' label_ids dictionary.'
-                    )
-                else:
-                    logging.info(f'Using the provided label_ids dictionary.')
-            else:
-                logging.info(
-                    f'Creating a new label to label_id dictionary.'
-                    + ' It\'s recommended to use label_ids generated'
-                    + ' during training for dev/test sets to avoid'
-                    + ' errors if some labels are not'
-                    + ' present in the dev/test sets.'
-                    + ' For training set label_ids should be None.'
-                )
-
-                label_ids = {pad_label: 0}
-                if pad_label in unique_labels:
-                    unique_labels.remove(pad_label)
-                for label in sorted(unique_labels):
-                    label_ids[label] = len(label_ids)
 
             features = get_features(
                 text_lines,
@@ -294,9 +260,6 @@ class BertTokenClassificationDataset(Dataset):
                 pickle.dump(features, open(features_pkl, "wb"))
                 logging.info(f'features saved to {features_pkl}')
 
-                pickle.dump(label_ids, open(label_ids_pkl, "wb"))
-                logging.info(f'labels to ids dict saved to {label_ids_pkl}')
-
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
@@ -304,18 +267,6 @@ class BertTokenClassificationDataset(Dataset):
         self.all_subtokens_mask = features[4]
         self.all_labels = features[5]
         self.label_ids = label_ids
-
-        infold = text_file[: text_file.rfind('/')]
-        merged_labels = itertools.chain.from_iterable(self.all_labels)
-        logging.info('Three most popular labels')
-        _, self.label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_stats.tsv')
-
-        # save label_ids
-        out = open(infold + '/label_ids.csv', 'w')
-        labels, _ = zip(*sorted(self.label_ids.items(), key=lambda x: x[1]))
-        out.write('\n'.join(labels))
-        logging.info(f'Labels: {self.label_ids}')
-        logging.info(f'Labels mapping saved to : {out.name}')
 
     def __len__(self):
         return len(self.all_input_ids)

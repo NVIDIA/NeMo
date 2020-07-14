@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.nlp.data.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.data.token_classification.token_classification_dataset import BertTokenClassificationDataset
 from nemo.collections.nlp.metrics.metrics_utils import get_classification_report
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
@@ -32,6 +32,7 @@ from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 
 __all__ = ['NERModel']
 
@@ -48,6 +49,7 @@ class NERModel(ModelPT):
 
     def __init__(
         self,
+        data_dir: str,
         num_classes: int,
         pretrained_model_name: str = 'bert-base-cased',
         config_file: Optional[str] = None,
@@ -55,11 +57,13 @@ class NERModel(ModelPT):
         activation: str = 'relu',
         log_softmax: bool = True,
         dropout: float = 0.0,
+        class_balancing: bool = False,
         use_transformer_init: bool = True,
     ):
         """
         Initializes BERT Named Entity Recognition model.
         Args:
+            data_dir: the path to the folder containing the data
             num_classes: number of classes
             pretrained_model_name: pretrained language model name, to see the complete list use
             config_file: model config file
@@ -67,15 +71,18 @@ class NERModel(ModelPT):
             activation: activation to usee between fully connected layers in the MLP
             log_softmax: whether to apply softmax to the output
             dropout: dropout to apply to the input hidden states
+            class_balancing: enables the weighted class balancing of the loss, may be used for handling unbalanced classes
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__()
+
+        self.data_desc = TokenClassificationDataDesc(data_dir=data_dir, modes=["train", "test", "dev"], pad_label='O')
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=num_classes,
+            num_classes=self.data_desc.num_classes,
             num_layers=num_layers,
             activation=activation,
             log_softmax=log_softmax,
@@ -83,12 +90,14 @@ class NERModel(ModelPT):
             use_transformer_init=use_transformer_init,
         )
 
-        self.loss = CrossEntropyLoss()
-        self.labels_ids = None
-        self.label_frequencies = None
+        if class_balancing == 'weighted_loss':
+            # You may need to increase the number of epochs for convergence when using weighted_loss
+            self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
+        else:
+            self.loss = CrossEntropyLoss()
+
 
         self.max_seq_length = 128
-        self.pad_label = 'O'
         self.num_samples = -1
         self.ignore_extra_tokens = False
         self.ignore_start_end = False
@@ -157,7 +166,7 @@ class NERModel(ModelPT):
 
         # class_report = get_classification_report(labels=labels, preds=preds)
         # TO DO remove .numpy()
-        class_report = get_classification_report(labels=labels.numpy(), preds=preds.numpy(), label_ids=self.labels_ids)
+        class_report = get_classification_report(labels=labels.numpy(), preds=preds.numpy(), label_ids=self.data_desc.label_ids)
         logging.info(class_report)
         # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
         tensorboard_logs = {'val_loss': avg_loss, 'val_f1': val_f1_pl}
@@ -168,14 +177,14 @@ class NERModel(ModelPT):
             train_data_layer_config['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self.labels_ids, self.label_frequencies, self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        _, _, self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
@@ -188,19 +197,15 @@ class NERModel(ModelPT):
             max_seq_length=self.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=self.num_samples,
-            pad_label=self.pad_label,
-            label_ids=self.labels_ids,
+            pad_label=self.data_desc.pad_label,
+            label_ids=self.data_desc.label_ids,
             ignore_extra_tokens=self.ignore_extra_tokens,
             ignore_start_end=self.ignore_start_end,
             use_cache=self.use_cache,
         )
 
-        return (
-            dataset.label_ids,
-            dataset.label_frequencies,
-            torch.utils.data.DataLoader(
-                dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers,
-            ),
+        return torch.utils.data.DataLoader(
+                dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers
         )
 
     @classmethod
