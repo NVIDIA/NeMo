@@ -154,19 +154,19 @@ class NERModel(ModelPT):
             train_data_layer_config['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self._train_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._train_dl = self.__setup_dataloader(text_file, labels_file)
 
     def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self._validation_dl = self.__setup_dataloader_ner(text_file, labels_file)
+        self._validation_dl = self.__setup_dataloader(text_file, labels_file)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def __setup_dataloader_ner(self, text_file, label_file):
+    def __setup_dataloader(self, text_file, label_file):
 
         dataset = BertTokenClassificationDataset(
             text_file=text_file,

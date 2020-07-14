@@ -29,12 +29,17 @@ def main():
 
     parser.add_argument("--data_dir", type=str, required=True, default='', help="Path to data folder")
     parser.add_argument("--punct_num_classes", type=int, default=4, help="Number of classes")
-    parser.add_argument("--num_epochs", default=5, type=int, help="Number of epochs to train")
+    parser.add_argument("--num_epochs", default=3, type=int, help="Number of epochs to train")
 
     # Training Arguments
-    parser.add_argument("--gpus", default=1, type=int, help="Number of GPUs")
+    parser.add_argument(
+        "--gpus",
+        default=2,
+        type=int,
+        help="Number of GPUs",
+    )
     parser.add_argument("--num_nodes", default=1, type=int, help="Number of nodes")
-    parser.add_argument("--max_epochs", default=100, type=int, help="Total number of training epochs to perform.")
+    parser.add_argument("--max_epochs", default=3, type=int, help="Total number of training epochs to perform.")
     parser.add_argument(
         "--max_steps",
         default=None,
@@ -94,7 +99,7 @@ def main():
             'sched': scheduler_args,
         }
     )
-
+    print (args)
     # multi GPU
     trainer = pl.Trainer(
         val_check_interval=1.0,
