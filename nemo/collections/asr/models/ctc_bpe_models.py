@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
-import hydra
 import torch
-from omegaconf import MISSING, DictConfig, ListConfig
+from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 
 from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
@@ -25,7 +25,7 @@ from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel, EncDecCTCModelConfig
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.common.tokenizers.gpt2_tokenizer import NemoGPT2Tokenizer
+from nemo.collections.common import tokenizers
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
@@ -42,10 +42,21 @@ class EncDecCTCModelBPE(EncDecCTCModel):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
 
     def __init__(self, cfg: EncDecCTCModelBPEConfig):
-        self.tokenizer_cfg = cfg.tokenizer
-        self.tokenizer = NemoGPT2Tokenizer(**self.tokenizer_cfg)
+        self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
+        self.tokenizer_path = self.tokenizer_cfg.pop('path')  # Remove path and resolve based on tokenizer type
 
-        logging.info("Tokenizer initialized with {} tokens".format(self.tokenizer.vocab_size))
+        if os.path.exists(os.path.join(self.tokenizer_path, 'merges.txt')):
+            # This is a BPE Tokenizer
+            self.tokenizer = tokenizers.NemoGPT2Tokenizer(pretrained_model=self.tokenizer_path,
+                                                          **self.tokenizer_cfg)
+        else:
+            # This is a WPE Tokenizer
+            self.tokenizer_path = os.path.join(self.tokenizer_path, 'vocab.txt')
+            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_path,
+                                                          **self.tokenizer_cfg)
+
+        logging.info("Tokenizer {} initialized with {} tokens".format(self.tokenizer.__class__.__name__,
+                                                                      self.tokenizer.vocab_size))
 
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()

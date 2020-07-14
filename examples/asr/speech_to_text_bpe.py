@@ -17,7 +17,7 @@
 python speech_to_text_bpe.py \
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
-    model.tokenizer.pretrained_model="./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/" \
+    model.tokenizer.path="./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/" \
     pl.trainer.gpus=2 \
     pl.trainer.distributed_backend="ddp" \
     pl.trainer.max_epochs=100 \
@@ -41,7 +41,7 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.utils import logging
 
 
-@hydra.main(config_path="experimental/configs/conf", config_name="config_bpe")
+@hydra.main(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
     # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
     cfg.model.pl = cfg.pl

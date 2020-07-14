@@ -34,7 +34,7 @@ model:
     shuffle: False
 
   tokenizer:
-    pretrained_model: ???
+    path: ???
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
