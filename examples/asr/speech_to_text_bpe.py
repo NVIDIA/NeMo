@@ -41,7 +41,7 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.utils import logging
 
 
-@hydra.main(config_path="conf", config_name="config_bpe")
+@hydra.main(config_path="experimental/configs/conf", config_name="config_bpe")
 def main(cfg):
     # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
     cfg.model.pl = cfg.pl
