@@ -153,7 +153,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
         wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-        return {'val_loss': loss_value,  'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
 
 @experimental

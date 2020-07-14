@@ -292,8 +292,7 @@ class ModelPT(LightningModule, Model):
             self._optimizer = optimizer
 
         # Log optimizer name and parameters
-        self._update_hyperparameters(optimizer_name=optimizer_name, lr=lr,
-                                     **optimizer_args)
+        self._update_hyperparameters(optimizer_name=optimizer_name, lr=lr, **optimizer_args)
 
         # Try to instantiate scheduler for optimizer
         self._scheduler = prepare_lr_scheduler(
@@ -313,8 +312,7 @@ class ModelPT(LightningModule, Model):
             if hasattr(self._scheduler['scheduler'], 'max_steps'):
                 sched_params['max_steps'] = self._scheduler['scheduler'].max_steps
 
-            self._update_hyperparameters(scheduler=scheduler_name,
-                                         **sched_params)
+            self._update_hyperparameters(scheduler=scheduler_name, **sched_params)
 
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created
