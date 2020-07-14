@@ -17,7 +17,7 @@ __all__ = ['BertPunctuationCapitalizationDataset', 'BertPunctuationCapitalizatio
 import itertools
 import os
 import pickle
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -26,7 +26,7 @@ from torch.utils.data import Dataset
 from nemo import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
-from nemo.core.neural_types import LabelsType, MaskType, NeuralType, ChannelType
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 
 
 def get_features(
@@ -226,7 +226,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
             'punct_labels': NeuralType(('B', 'T'), LabelsType()),
-            'capit_labels': NeuralType(('B', 'T'), LabelsType())}
+            'capit_labels': NeuralType(('B', 'T'), LabelsType()),
+        }
 
     def __init__(
         self,
@@ -419,7 +420,8 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), ChannelType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType())}
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+        }
 
     def __init__(self, queries, max_seq_length, tokenizer):
         features = get_features(queries, max_seq_length, tokenizer)

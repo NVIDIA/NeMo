@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
 import itertools
 import os
+from typing import List
+
 from nemo import logging
-from nemo.collections.nlp.data.data_utils.data_preprocessing import fill_class_weights, get_freq_weights, get_label_stats
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
+    fill_class_weights,
+    get_freq_weights,
+    get_label_stats,
+)
 
 __all__ = ['TokenClassificationDataDesc']
 
@@ -63,8 +68,9 @@ class TokenClassificationDataDesc:
 
             all_labels = [self.label_ids[label] for label in all_labels]
             logging.info(f'Three most popular labels in {mode} dataset:')
-            total_labels, label_frequencies, max_id = get_label_stats(all_labels, os.path.join(data_dir,
-                                                                                                      mode + '_label_stats.tsv'))
+            total_labels, label_frequencies, max_id = get_label_stats(
+                all_labels, os.path.join(data_dir, mode + '_label_stats.tsv')
+            )
 
             logging.info(f'Total labels: {total_labels}')
             logging.info(f'Label frequencies - {label_frequencies}')
@@ -74,5 +80,3 @@ class TokenClassificationDataDesc:
                 logging.info(f'Class Weights: {class_weights_dict}')
                 self.class_weights = fill_class_weights(class_weights_dict, max_id)
                 self.num_classes = max_id + 1
-
-

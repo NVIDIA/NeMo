@@ -21,13 +21,13 @@ from torch.utils.data import DataLoader
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
-from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 
 __all__ = ['NERModel']
 
@@ -166,7 +166,7 @@ class NERModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def __setup_dataloader(self, text_file, label_file):
+    def __setup_dataloader(self, text_file: str, label_file: str):
 
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
@@ -182,7 +182,7 @@ class NERModel(ModelPT):
         )
 
         return torch.utils.data.DataLoader(
-                dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers, drop_last=False
+            dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers,
         )
 
     @classmethod

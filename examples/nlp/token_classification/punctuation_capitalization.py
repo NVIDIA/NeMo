@@ -33,10 +33,7 @@ def main():
 
     # Training Arguments
     parser.add_argument(
-        "--gpus",
-        default=2,
-        type=int,
-        help="Number of GPUs",
+        "--gpus", default=2, type=int, help="Number of GPUs",
     )
     parser.add_argument("--num_nodes", default=1, type=int, help="Number of nodes")
     parser.add_argument("--max_epochs", default=3, type=int, help="Total number of training epochs to perform.")
@@ -99,7 +96,7 @@ def main():
             'sched': scheduler_args,
         }
     )
-    print (args)
+    print(args)
     # multi GPU
     trainer = pl.Trainer(
         val_check_interval=1.0,
@@ -107,7 +104,7 @@ def main():
         precision=32 if args.amp_level == "O0" else 16,
         gpus=args.gpus,
         max_epochs=args.max_epochs,
-        distributed_backend=None if args.gpus == 1 else 'ddp'
+        distributed_backend=None if args.gpus == 1 else 'ddp',
     )
     trainer.fit(model)
 

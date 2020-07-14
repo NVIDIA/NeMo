@@ -22,16 +22,16 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import pickle
+from typing import Dict, Optional
 
 import numpy as np
+import torch
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.core.classes import Dataset
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
-from nemo.core.neural_types import LabelsType, MaskType, NeuralType, ChannelType
-import torch
-from typing import Optional, Dict
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
@@ -202,7 +202,8 @@ class BertTokenClassificationDataset(Dataset):
             'input_mask': NeuralType(('B', 'T'), ChannelType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'labels': NeuralType(('B', 'T'), LabelsType())}
+            'labels': NeuralType(('B', 'T'), LabelsType()),
+        }
 
     def __init__(
         self,
@@ -324,7 +325,7 @@ class BertTokenClassificationInferDataset(Dataset):
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), ChannelType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType())
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
         }
 
     def __init__(self, queries, max_seq_length, tokenizer):

@@ -18,6 +18,7 @@ from typing import Dict, Optional
 import torch
 from torch.utils.data import DataLoader
 
+from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -26,7 +27,6 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils.decorators import experimental
-from nemo.collections.common.losses import CrossEntropyLoss, AggregatorLoss
 
 __all__ = ['PunctuationCapitalizationModel']
 
@@ -109,6 +109,19 @@ class PunctuationCapitalizationModel(ModelPT):
         self.loss = CrossEntropyLoss()
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
+        # TODO fix with config
+        self.max_seq_length = 128
+        self.pad_label = 'O'
+        self.punct_label_ids = None
+        self.capit_label_ids = None
+        self.num_samples = -1
+        self.ignore_extra_tokens = False
+        self.ignore_start_end = False
+        self.overwrite_processed_files = False
+        self.shuffle = False
+        self.batch_size = 64
+        self.num_workers = 0
+
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
@@ -134,7 +147,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         punct_loss = self.loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
         capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
-        loss = self.agg_loss(loss_1 = punct_loss, loss_2 = capit_loss)
+        loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
 
@@ -180,39 +193,24 @@ class PunctuationCapitalizationModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
 
-    def __setup_dataloader(
-        self,
-        text_file,
-        label_file,
-        max_seq_length=128,
-        pad_label='O',
-        punct_label_ids=None,
-        capit_label_ids=None,
-        num_samples=-1,
-        ignore_extra_tokens=False,
-        ignore_start_end=False,
-        overwrite_processed_files=False,
-        shuffle=False,
-        batch_size=64,
-        num_workers=0,
-    ):
+    def __setup_dataloader(self, text_file: str, label_file: str):
 
         dataset = BertPunctuationCapitalizationDataset(
             tokenizer=self.tokenizer,
             text_file=text_file,
             label_file=label_file,
-            pad_label=pad_label,
-            punct_label_ids=punct_label_ids,
-            capit_label_ids=capit_label_ids,
-            max_seq_length=max_seq_length,
-            ignore_extra_tokens=ignore_extra_tokens,
-            ignore_start_end=ignore_start_end,
-            overwrite_processed_files=overwrite_processed_files,
-            num_samples=num_samples,
+            pad_label=self.pad_label,
+            punct_label_ids=self.punct_label_ids,
+            capit_label_ids=self.capit_label_ids,
+            max_seq_length=self.max_seq_length,
+            ignore_extra_tokens=self.ignore_extra_tokens,
+            ignore_start_end=self.ignore_start_end,
+            overwrite_processed_files=self.overwrite_processed_files,
+            num_samples=self.num_samples,
         )
 
         return torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
+            dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers,
         )
 
     @classmethod
