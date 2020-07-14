@@ -25,7 +25,6 @@ import nemo.collections.nlp as nemo_nlp
 def main():
     parser = ArgumentParser()
     parser.add_argument("--data_dir", type=str, required=True, default='', help="Path to data folder")
-    parser.add_argument("--num_classes", type=int, default=9, help="Number of classes")
     parser.add_argument("--num_epochs", default=5, type=int, help="Number of epochs to train")
     parser.add_argument(
         "--pretrained_model_name",
@@ -48,9 +47,10 @@ def main():
     ner_model.setup_validation_data(data_dir=args.data_dir, val_data_layer_config={'shuffle': False})
     ner_model.setup_optimization(optim_config={'lr': 0.0003})
 
-    trainer = pl.Trainer(fast_dev_run=True)
-    # trainer = pl.Trainer(
-    #     val_check_interval=5, amp_level='O1', precision=16, gpus=2, max_epochs=1, distributed_backend='ddp')
+    # trainer = pl.Trainer(fast_dev_run=False)
+    trainer = pl.Trainer(
+        val_check_interval=1.0, amp_level='O1', precision=16, gpus=2, max_epochs=1, distributed_backend='ddp',
+        fast_dev_run=False)
     trainer.fit(ner_model)
 
 
