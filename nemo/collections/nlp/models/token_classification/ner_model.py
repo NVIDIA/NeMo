@@ -50,7 +50,6 @@ class NERModel(ModelPT):
     def __init__(
         self,
         data_dir: str,
-        num_classes: int,
         pretrained_model_name: str = 'bert-base-cased',
         config_file: Optional[str] = None,
         num_layers: int = 1,
@@ -96,7 +95,7 @@ class NERModel(ModelPT):
         else:
             self.loss = CrossEntropyLoss()
 
-
+        self.overwrite_processed_files = False
         self.max_seq_length = 128
         self.num_samples = -1
         self.ignore_extra_tokens = False
@@ -140,9 +139,9 @@ class NERModel(ModelPT):
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
         subtokens_mask = subtokens_mask > 0.5
-        preds = torch.argmax(logits, axis=-1)[subtokens_mask]
-        labels = labels[subtokens_mask]
-        tensorboard_logs = {'val_loss': val_loss, 'preds': preds, 'labels': labels}
+        preds = torch.argmax(logits, axis=-1)
+        labels = labels
+        tensorboard_logs = {'val_loss': val_loss, 'preds': preds, 'labels': labels, 'subtokens_mask': subtokens_mask}
         return {'val_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -151,23 +150,25 @@ class NERModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        preds = torch.stack([x['log']['preds'] for x in outputs]).flatten()
-        labels = torch.stack([x['log']['labels'] for x in outputs]).flatten()
+
+        subtokens_mask = torch.stack([x['log']['subtokens_mask'] for x in outputs])
+        preds = torch.stack([x['log']['preds'] for x in outputs])[subtokens_mask]
+        labels = torch.stack([x['log']['labels'] for x in outputs])[subtokens_mask]
 
         val_f1_pl = f1_pl(pred=preds, target=labels) * 100  # , 2)
         logging.info(f'F1 pl: {val_f1_pl}')
 
         f1_pl_sklearn_metric = f1_pl_sklearn(average='macro')
-        val_f1_pl_sklearn = f1_pl_sklearn_metric(preds, labels)[0] * 100
-        logging.info(f'F1 pl sklearn: {val_f1_pl_sklearn}')
+        # val_f1_pl_sklearn = f1_pl_sklearn_metric(preds, labels)[0] * 100
+        # logging.info(f'F1 pl sklearn: {val_f1_pl_sklearn}')
 
-        val_f1_sklearn = round(f1_sklearn(labels, preds, average='macro') * 100, 2)
-        logging.info(f'F1 sklearn: {val_f1_sklearn}')
+        # val_f1_sklearn = round(f1_sklearn(labels, preds, average='macro') * 100, 2)
+        # logging.info(f'F1 sklearn: {val_f1_sklearn}')
 
         # class_report = get_classification_report(labels=labels, preds=preds)
         # TO DO remove .numpy()
-        class_report = get_classification_report(labels=labels.numpy(), preds=preds.numpy(), label_ids=self.data_desc.label_ids)
-        logging.info(class_report)
+        # class_report = get_classification_report(labels=labels.numpy(), preds=preds.numpy(), label_ids=self.data_desc.label_ids)
+        # logging.info(class_report)
         # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
         tensorboard_logs = {'val_loss': avg_loss, 'val_f1': val_f1_pl}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
@@ -201,7 +202,7 @@ class NERModel(ModelPT):
             label_ids=self.data_desc.label_ids,
             ignore_extra_tokens=self.ignore_extra_tokens,
             ignore_start_end=self.ignore_start_end,
-            use_cache=self.use_cache,
+            overwrite_processed_files=self.overwrite_processed_files,
         )
 
         return torch.utils.data.DataLoader(

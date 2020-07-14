@@ -20,16 +20,18 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import itertools
 import os
 import pickle
 
 import numpy as np
 
 from nemo import logging
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
+from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.core.classes import Dataset
 from nemo.utils.decorators import experimental
+from nemo.core.neural_types import LabelsType, MaskType, NeuralType, ChannelType
+import torch
+from typing import Optional, Dict
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
@@ -187,7 +189,20 @@ class BertTokenClassificationDataset(Dataset):
             the loss_mask,
         ignore_start_end (bool): whether to ignore bos and eos tokens in
             the loss_mask
+        overwrite_processed_files (bool): whether to overwrite the preprocessed files
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'labels': NeuralType(('B', 'T'), LabelsType())}
 
     def __init__(
         self,
@@ -200,28 +215,23 @@ class BertTokenClassificationDataset(Dataset):
         pad_label='O',
         ignore_extra_tokens=False,
         ignore_start_end=False,
-        use_cache=False,
+        overwrite_processed_files=False,
     ):
 
-        if use_cache:
-            # Cache features
-            data_dir = os.path.dirname(text_file)
-            filename = os.path.basename(text_file)
+        data_dir = os.path.dirname(text_file)
+        filename = os.path.basename(text_file)
 
-            if not filename.endswith('.txt'):
-                raise ValueError("{text_file} should have extension .txt")
+        if not filename.endswith('.txt'):
+            raise ValueError("{text_file} should have extension .txt")
 
-            tokenizer_type = type(tokenizer.tokenizer).__name__
-            vocab_size = getattr(tokenizer, "vocab_size", 0)
-            features_pkl = os.path.join(
-                data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
-            )
+        tokenizer_type = type(tokenizer.tokenizer).__name__
+        vocab_size = getattr(tokenizer, "vocab_size", 0)
+        features_pkl = os.path.join(
+            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+        )
 
-        if use_cache and os.path.exists(features_pkl):
-            # If text_file was already processed, load from pickle
-            features = pickle.load(open(features_pkl, 'rb'))
-            logging.info(f'features restored from {features_pkl}')
-        else:
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if master_device and (overwrite_processed_files or not os.path.exists(features_pkl)):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
 
@@ -256,9 +266,15 @@ class BertTokenClassificationDataset(Dataset):
                 ignore_start_end=ignore_start_end,
             )
 
-            if use_cache:
-                pickle.dump(features, open(features_pkl, "wb"))
-                logging.info(f'features saved to {features_pkl}')
+            pickle.dump(features, open(features_pkl, "wb"))
+            logging.info(f'features saved to {features_pkl}')
+
+        # wait until the master process writes to the processed data files
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        features = pickle.load(open(features_pkl, 'rb'))
+        logging.info(f'features restored from {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -266,7 +282,6 @@ class BertTokenClassificationDataset(Dataset):
         self.all_loss_mask = features[3]
         self.all_subtokens_mask = features[4]
         self.all_labels = features[5]
-        self.label_ids = label_ids
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -299,6 +314,18 @@ class BertTokenClassificationInferDataset(Dataset):
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType())
+        }
 
     def __init__(self, queries, max_seq_length, tokenizer):
         features = get_features(queries, max_seq_length, tokenizer)
