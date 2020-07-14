@@ -16,7 +16,6 @@ import os
 from typing import Dict, Optional
 
 import torch
-from pytorch_lightning.metrics.functional import f1_score as f1_pl
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -27,7 +26,6 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 

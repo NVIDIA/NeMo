@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 __all__ = ['BertPunctuationCapitalizationDataset', 'BertPunctuationCapitalizationInferDataset']
 
 import itertools
 import os
 import pickle
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import numpy as np
 import torch
@@ -28,6 +26,7 @@ from torch.utils.data import Dataset
 from nemo import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
+from nemo.core.neural_types import LabelsType, MaskType, NeuralType, ChannelType
 
 
 def get_features(
@@ -216,6 +215,19 @@ class BertPunctuationCapitalizationDataset(Dataset):
         overwrite_processed_files (bool): whether to overwrite processed data cache or not
     """
 
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'punct_labels': NeuralType(('B', 'T'), LabelsType()),
+            'capit_labels': NeuralType(('B', 'T'), LabelsType())}
+
     def __init__(
         self,
         text_file,
@@ -397,6 +409,17 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType())}
 
     def __init__(self, queries, max_seq_length, tokenizer):
         features = get_features(queries, max_seq_length, tokenizer)

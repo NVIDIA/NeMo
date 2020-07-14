@@ -16,17 +16,17 @@ import os
 from typing import Dict, Optional
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils.decorators import experimental
+from nemo.collections.common.losses import CrossEntropyLoss, AggregatorLoss
 
 __all__ = ['PunctuationCapitalizationModel']
 
@@ -46,22 +46,38 @@ class PunctuationCapitalizationModel(ModelPT):
 
     def __init__(
         self,
-        punct_num_classes=4,
-        capit_num_classes=2,
-        none_label='O',
-        pretrained_model_name='bert-base-cased',
-        activation='relu',
-        log_softmax=True,
-        dropout=0.0,
-        use_transformer_pretrained=True,
-        tokenizer_type='nemobert',
-        punct_num_fc_layers=1,
-        capit_num_fc_layers=1,
+        punct_num_classes: int = 4,
+        capit_num_classes: int = 2,
+        none_label: str = 'O',
+        pretrained_model_name: str = 'bert-base-cased',
+        config_file: str = None,
+        activation: str = 'relu',
+        log_softmax: bool = True,
+        dropout: float = 0.0,
+        use_transformer_init: bool = True,
+        tokenizer_type: str = 'nemobert',
+        punct_num_fc_layers: int = 1,
+        capit_num_fc_layers: int = 1,
     ):
-        # init superclass
+        """
+        Initializes BERT Punctuation and Capitalization model.
+        Args:
+            punct_num_classes: number of classes for pucntuation task
+            capit_num_classes: number of classes for capitalization task
+            none_label: none label used for padding
+            pretrained_model_name: pretrained language model name, to see the complete list use
+            config_file: model config file
+            activation: activation to usee between fully connected layers in the MLP
+            log_softmax: whether to apply softmax to the output
+            dropout: dropout to apply to the input hidden states
+            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
+            tokenizer_type: tokenizer type: nemobert or sentencepiece
+            punct_num_fc_layers: number of fully connected layers in the multilayer perceptron (MLP)
+            capit_num_fc_layers: number of fully connected layers in the multilayer perceptron (MLP)
+        """
         super().__init__()
         self.none_label = none_label
-        self.bert_model = BertEncoder.from_pretrained(pretrained_model_name)
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
 
         # TODO add support for sentence_piece tokenizer
@@ -77,7 +93,7 @@ class PunctuationCapitalizationModel(ModelPT):
             log_softmax=log_softmax,
             dropout=dropout,
             num_layers=punct_num_fc_layers,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_init=use_transformer_init,
         )
 
         self.capit_classifier = TokenClassifier(
@@ -87,18 +103,11 @@ class PunctuationCapitalizationModel(ModelPT):
             log_softmax=log_softmax,
             dropout=dropout,
             num_layers=capit_num_fc_layers,
-            use_transformer_pretrained=use_transformer_pretrained,
+            use_transformer_init=use_transformer_init,
         )
 
-        self.loss = nn.CrossEntropyLoss()
-        # This will be set by setup_training_datai
-        self.__train_dl = None
-        # This will be set by setup_validation_data
-        self.__val_dl = None
-        # This will be set by setup_test_data
-        self.__test_dl = None
-        # This will be set by setup_optimization
-        self.__optimizer = None
+        self.loss = CrossEntropyLoss()
+        self.agg_loss = AggregatorLoss(num_inputs=2)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -123,16 +132,9 @@ class PunctuationCapitalizationModel(ModelPT):
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
         )
 
-        # TODO replace with loss module
-        punct_logits_flatten = torch.flatten(punct_logits, start_dim=0, end_dim=-2)
-        punct_labels_flatten = torch.flatten(punct_labels, start_dim=0, end_dim=-1)
-        punct_loss = self.loss(punct_logits_flatten, punct_labels_flatten)
-
-        capit_logits_flatten = torch.flatten(capit_logits, start_dim=0, end_dim=-2)
-        capit_labels_flatten = torch.flatten(capit_labels, start_dim=0, end_dim=-1)
-        capit_loss = self.loss(capit_logits_flatten, capit_labels_flatten)
-
-        loss = punct_loss + capit_loss
+        punct_loss = self.loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
+        capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
+        loss = self.agg_loss(loss_1 = punct_loss, loss_2 = capit_loss)
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
 
@@ -146,55 +148,37 @@ class PunctuationCapitalizationModel(ModelPT):
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
         )
 
-        # TODO replace with loss module
-        punct_logits_flatten = torch.flatten(punct_logits, start_dim=0, end_dim=-2)
-        punct_labels_flatten = torch.flatten(punct_labels, start_dim=0, end_dim=-1)
-        punct_loss = self.loss(punct_logits_flatten, punct_labels_flatten)
-
-        capit_logits_flatten = torch.flatten(capit_logits, start_dim=0, end_dim=-2)
-        capit_labels_flatten = torch.flatten(capit_labels, start_dim=0, end_dim=-1)
-        capit_loss = self.loss(capit_logits_flatten, capit_labels_flatten)
-
-        val_loss = punct_loss + capit_loss
+        punct_loss = self.loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
+        capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
+        val_loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
 
         tensorboard_logs = {'val_loss': val_loss}
-        # TODO - add eval - callback?
-        # labels_hat = torch.argmax(y_hat, dim=1)
-        # n_correct_pred = torch.sum(y == labels_hat).item()
-        return {'val_loss': val_loss, 'log': tensorboard_logs}  # , "n_correct_pred": n_correct_pred, "n_pred": len(x)}
+        return {'val_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
+        outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
-        # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
-        return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
+        return {'val_loss': avg_loss}
 
     def setup_training_data(self, data_dir, train_data_layer_params: Optional[Dict]):
         if 'shuffle' not in train_data_layer_params:
             train_data_layer_params['shuffle'] = True
         text_file = os.path.join(data_dir, 'text_train.txt')
         labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self.__train_dl = self.__setup_dataloader(text_file, labels_file)
+        self._train_dl = self.__setup_dataloader(text_file, labels_file)
 
     def setup_validation_data(self, data_dir, val_data_layer_params: Optional[Dict]):
         if 'shuffle' not in val_data_layer_params:
             val_data_layer_params['shuffle'] = False
         text_file = os.path.join(data_dir, 'text_dev.txt')
         labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self.__val_dl = self.__setup_dataloader(text_file, labels_file)
+        self._validation_dl = self.__setup_dataloader(text_file, labels_file)
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict]):
         pass
-
-    def setup_optimization(self, optim_params: Optional[Dict], optimizer='adam'):
-        if optimizer == 'adam':
-            self.__optimizer = torch.optim.Adam(self.parameters(), lr=optim_params['lr'])
-        else:
-            raise NotImplementedError()
 
     def __setup_dataloader(
         self,
@@ -230,15 +214,6 @@ class PunctuationCapitalizationModel(ModelPT):
         return torch.utils.data.DataLoader(
             dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
         )
-
-    def configure_optimizers(self):
-        return self.__optimizer
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def val_dataloader(self):
-        return self.__val_dl
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
