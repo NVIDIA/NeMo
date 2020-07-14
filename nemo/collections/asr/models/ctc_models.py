@@ -18,7 +18,6 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER

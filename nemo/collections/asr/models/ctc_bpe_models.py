@@ -14,7 +14,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
@@ -47,16 +47,17 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         if os.path.exists(os.path.join(self.tokenizer_path, 'merges.txt')):
             # This is a BPE Tokenizer
-            self.tokenizer = tokenizers.NemoGPT2Tokenizer(pretrained_model=self.tokenizer_path,
-                                                          **self.tokenizer_cfg)
+            self.tokenizer = tokenizers.NemoGPT2Tokenizer(pretrained_model=self.tokenizer_path, **self.tokenizer_cfg)
         else:
             # This is a WPE Tokenizer
             self.tokenizer_path = os.path.join(self.tokenizer_path, 'vocab.txt')
-            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_path,
-                                                          **self.tokenizer_cfg)
+            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_path, **self.tokenizer_cfg)
 
-        logging.info("Tokenizer {} initialized with {} tokens".format(self.tokenizer.__class__.__name__,
-                                                                      self.tokenizer.vocab_size))
+        logging.info(
+            "Tokenizer {} initialized with {} tokens".format(
+                self.tokenizer.__class__.__name__, self.tokenizer.vocab_size
+            )
+        )
 
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: This is WIP and needs a lot of polishing
 """
 python speech_to_text_bpe.py \
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
@@ -30,8 +29,6 @@ python speech_to_text_bpe.py \
     model.logger.project_name="AN4_BPE_1024_candidate" \
     hydra.run.dir=.
 """
-
-from argparse import ArgumentParser
 
 import hydra
 import pytorch_lightning as pl
