@@ -49,6 +49,7 @@ class ModelPT(LightningModule, Model):
     def __init__(self, cfg: ModelPTConfig = None):
         super().__init__()
         self._cfg = cfg
+        self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
