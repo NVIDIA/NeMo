@@ -71,10 +71,12 @@ def main(cfg):
 
     trainer = pl.Trainer(**cfg.pl.trainer)
 
-    if 'logger' in cfg:
-        if cfg.logger.experiment_name is not None and cfg.logger.project_name is not None:
-            logger = WandbLogger(name=cfg.logger.experiment_name, project=cfg.logger.project_name)
+    if 'logger' in cfg.model:
+        if cfg.model.logger.experiment_name is not None and cfg.model.logger.project_name is not None:
+            logger = WandbLogger(name=cfg.model.logger.experiment_name, project=cfg.model.logger.project_name)
             trainer.configure_logger(logger)
+
+            logging.info("WandB Logger has been setup")
 
     trainer.fit(asr_model)
 

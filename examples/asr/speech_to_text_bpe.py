@@ -13,18 +13,23 @@
 # limitations under the License.
 
 # TODO: This is WIP and needs a lot of polishing
-# python speech_to_text_bpe.py \
-#         --asr_model "./experimental/configs/contextnet_128_v2.yaml" \
-#         --train_dataset "./an4/train_manifest.json" \
-#         --eval_dataset "./an4/test_manifest.json" \
-#         --tokenizer_path "./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/"
-#         --gpus 2 \
-#         --distributed_backend "ddp" \
-#         --max_epochs 100 \
-#         --optimizer adamw \
-#         --lr 0.1 \
-#         --opt_args weight_decay=1e-4 betas=0.9,0.999 \
-#         ---warmup_ratio=0.05 --min_lr 1e-6
+"""
+python speech_to_text_bpe.py \
+    model.train_ds.manifest_filepath="./an4/train_manifest.json" \
+    model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
+    model.tokenizer.pretrained_model="./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/" \
+    pl.trainer.gpus=2 \
+    pl.trainer.distributed_backend="ddp" \
+    pl.trainer.max_epochs=100 \
+    model.optim.name="adamw" \
+    model.optim.lr=0.1 \
+    model.optim.args.params.betas=[0.9,0.999] \
+    model.optim.args.params.weight_decay=0.0001 \
+    model.optim.sched.args.params.warmup_ratio=0.05 \
+    model.logger.experiment_name="AN4-BPE-1024" \
+    model.logger.project_name="AN4_BPE_1024_candidate" \
+    hydra.run.dir=.
+"""
 
 from argparse import ArgumentParser
 
@@ -36,45 +41,20 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.utils import logging
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="config_bpe")
 def main(cfg):
+    # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
+    cfg.model.pl = cfg.pl
     logging.info(f'Hydra config: {cfg.pretty()}')
-
-    asr_model = EncDecCTCModelBPE(
-        preprocessor_config=cfg.preprocessor,
-        encoder_config=cfg.encoder,
-        decoder_config=cfg.decoder,
-        tokenizer_path=cfg.tokenizer_path,
-        spec_augment_config=cfg.spec_augment,
-    )
-
-    asr_model.setup_training_data(cfg.AudioToTextDataLayer)
-    asr_model.setup_validation_data(cfg.AudioToTextDataLayer_eval)
-
-    # Setup optimizer and scheduler
-    if 'sched' in cfg.optim:
-        if cfg.pl.trainer.max_steps is None:
-            if cfg.pl.trainer.gpus == 0:
-                # training on CPU
-                iters_per_batch = cfg.pl.trainer.max_epochs / float(
-                    cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
-                )
-            else:
-                iters_per_batch = cfg.pl.trainer.max_epochs / float(
-                    cfg.pl.trainer.gpus * cfg.pl.trainer.num_nodes * cfg.pl.trainer.accumulate_grad_batches
-                )
-            cfg.optim.sched.iters_per_batch = iters_per_batch
-        else:
-            cfg.optim.sched.max_steps = cfg.pl.trainer.max_steps
-
-    asr_model.setup_optimization(cfg.optim)
-
+    asr_model = EncDecCTCModelBPE(cfg=cfg.model)
     trainer = pl.Trainer(**cfg.pl.trainer)
 
-    if 'logger' in cfg:
-        if cfg.logger.experiment_name is not None and cfg.logger.project_name is not None:
-            logger = WandbLogger(name=cfg.logger.experiment_name, project=cfg.logger.project_name)
+    if 'logger' in cfg.model:
+        if cfg.model.logger.experiment_name is not None and cfg.model.logger.project_name is not None:
+            logger = WandbLogger(name=cfg.model.logger.experiment_name, project=cfg.model.logger.project_name)
             trainer.configure_logger(logger)
+
+            logging.info("WandB Logger has been setup")
 
     trainer.fit(asr_model)
 

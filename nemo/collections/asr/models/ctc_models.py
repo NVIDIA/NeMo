@@ -18,6 +18,7 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
+from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
@@ -48,7 +49,7 @@ class EncDecCTCModel(ASRModel):
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization()
         # Setup metric objects
-        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     def transcribe(self, path2audio_file: str) -> str:
         pass

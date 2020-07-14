@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
 import torch
-from omegaconf import DictConfig
+from omegaconf import MISSING, DictConfig, ListConfig
 
 from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel, EncDecCTCModelConfig
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.tokenizers.gpt2_tokenizer import NemoGPT2Tokenizer
@@ -31,9 +32,45 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
 
 
+@dataclass
+class EncDecCTCModelBPEConfig(EncDecCTCModelConfig):
+    tokenizer: DictConfig = MISSING
+
+
 @experimental
 class EncDecCTCModelBPE(EncDecCTCModel):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
+
+    def __init__(self, cfg: EncDecCTCModelBPEConfig):
+        self.tokenizer_cfg = cfg.tokenizer
+        self.tokenizer = NemoGPT2Tokenizer(**self.tokenizer_cfg)
+
+        logging.info("Tokenizer initialized with {} tokens".format(self.tokenizer.vocab_size))
+
+        # Initialize a dummy vocabulary
+        vocabulary = self.tokenizer.tokenizer.get_vocab()
+
+        # Remove special tokens
+        for special_token in self.tokenizer.tokenizer.all_special_tokens:
+            if special_token in vocabulary:
+                vocabulary.pop(special_token)
+
+        # Set the new vocabulary
+        cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
+
+        # Override number of classes if placeholder provided
+        if cfg.decoder.params['num_classes'] < 1:
+            logging.info(
+                "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                    cfg.decoder.params['num_classes'], self.tokenizer.vocab_size
+                )
+            )
+            cfg.decoder.params['num_classes'] = self.tokenizer.vocab_size
+
+        super().__init__(cfg=cfg)
+
+        # Setup metric objects
+        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     def transcribe(self, path2audio_file: str) -> str:
         pass
@@ -87,46 +124,6 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
-
-    def __init__(
-        self,
-        preprocessor_config: DictConfig,
-        encoder_config: DictConfig,
-        decoder_config: DictConfig,
-        tokenizer_config: DictConfig,
-        spec_augment_config: DictConfig[Dict] = None,
-    ):
-        self.tokenizer_cfg = tokenizer_config
-        self.tokenizer = NemoGPT2Tokenizer(**tokenizer_config)
-
-        logging.info("Tokenizer initialized with {} tokens".format(self.tokenizer.vocab_size))
-
-        # Initialize a dummy vocabulary
-        decoder_config['init_params']['vocabulary'] = self.tokenizer.tokenizer.get_vocab()
-
-        # Remove special tokens
-        for special_token in self.tokenizer.tokenizer.all_special_tokens:
-            if special_token in decoder_config['init_params']['vocabulary']:
-                decoder_config['init_params']['vocabulary'].pop(special_token)
-
-        # Override number of classes if placeholder provided
-        if decoder_config['init_params']['num_classes'] < 1:
-
-            logging.info(
-                "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    decoder_config['init_params']['num_classes'], self.tokenizer.vocab_size
-                )
-            )
-            decoder_config['init_params']['num_classes'] = self.tokenizer.vocab_size
-
-        super().__init__(
-            preprocessor_config=preprocessor_config,
-            encoder_config=encoder_config,
-            decoder_config=decoder_config,
-            spec_augment_config=spec_augment_config,
-        )
-
-        self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
