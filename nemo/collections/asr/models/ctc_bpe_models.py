@@ -45,9 +45,33 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
         self.tokenizer_path = self.tokenizer_cfg.pop('path')  # Remove path and resolve based on tokenizer type
 
-        if os.path.exists(os.path.join(self.tokenizer_path, 'merges.txt')):
+        if os.path.exists(os.path.join(self.tokenizer_path, 'tokenizer.model')):
             # This is a BPE Tokenizer
-            self.tokenizer = tokenizers.NemoGPT2Tokenizer(pretrained_model=self.tokenizer_path, **self.tokenizer_cfg)
+            model_path = os.path.join(self.tokenizer_path, 'tokenizer.model')
+
+            if 'special_tokens' in self.tokenizer_cfg:
+                special_tokens = self.tokenizer_cfg['special_tokens']
+            else:
+                special_tokens = None
+
+            # Update special tokens
+            self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path, special_tokens=special_tokens)
+
+            vocabulary = {0: '<unk>'}
+            with open(os.path.join(self.tokenizer_path, 'vocab.txt')) as f:
+                for i, piece in enumerate(f):
+                    piece = piece.replace('\n', '')
+                    vocabulary[i + 1] = piece
+
+            # wrapper method to get vocabulary conveniently
+            def get_vocab():
+                return vocabulary
+
+            # attach utility values to the tokenizer wrapper
+            self.tokenizer.tokenizer.vocab_size = len(vocabulary)
+            self.tokenizer.tokenizer.get_vocab = get_vocab
+            self.tokenizer.tokenizer.all_special_tokens = self.tokenizer.special_token_to_id
+
         else:
             # This is a WPE Tokenizer
             self.tokenizer_path = os.path.join(self.tokenizer_path, 'vocab.txt')

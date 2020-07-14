@@ -280,15 +280,24 @@ class AudioToBPEDataset(_AudioDataset):
         load_audio=True,
         add_misc=False,
     ):
-        bos_id = tokenizer.bos_id
-        eos_id = tokenizer.eos_id
-        pad_id = tokenizer.pad_id
+        if hasattr(tokenizer, 'bos_token'):
+            bos_id = tokenizer.bos_id
+        else:
+            bos_id = None
+
+        if hasattr(tokenizer, 'eos_token'):
+            eos_id = tokenizer.eos_id
+        else:
+            eos_id = None
+
+        if hasattr(tokenizer, 'pad_token'):
+            pad_id = tokenizer.pad_id
+        else:
+            pad_id = 0
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
                 self._tokenizer = tokenizer
-                self.bos_id = self._tokenizer.bos_id
-                self.eos_id = self._tokenizer.eos_id
 
             def __call__(self, text):
                 t = self._tokenizer.text_to_ids(text)

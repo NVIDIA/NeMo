@@ -242,7 +242,12 @@ def create_spt_model(
         for line in f:
             piece = line.split("\t")[0]
             token = piece[1:] if piece.startswith("▁") else f"##{piece}"
-            tokens.append(token)
+
+            if len(token) > 0:
+                tokens.append(token)
+            else:
+                # Assume token is just "_" and insert
+                tokens.append("_")
 
     vocab.extend(tokens)
 
