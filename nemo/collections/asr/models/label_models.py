@@ -169,7 +169,7 @@ class EncDecSpeechLabelModel(ModelPT):
         counts = torch.stack([x['counts'] for x in outputs]).sum()
 
         val_acc = (counts / num_samples) * 100
-        logging.info("validation accuracy {}".format(val_acc.item()))
+        logging.info("validation accuracy {:.3f}".format(val_acc.item()))
 
         tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_acc': val_acc}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
@@ -179,6 +179,6 @@ class EncDecSpeechLabelModel(ModelPT):
         counts = torch.stack([x['counts'] for x in outputs]).sum()
 
         train_acc = (counts / num_samples) * 100
-        logging.info("training accuracy {}".format(train_acc))
+        logging.info("training accuracy {:.3f}".format(train_acc))
 
         return {}

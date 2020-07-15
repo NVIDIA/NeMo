@@ -12,14 +12,14 @@ model:
     manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
     sample_rate: 16000
     labels: None
-    batch_size: 10
+    batch_size: 64 
     shuffle: True
 
   validation_ds:
     manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
     sample_rate: 16000
     labels: None
-    batch_size: 2
+    batch_size: 128
     shuffle: False
 
   preprocessor:
@@ -137,3 +137,4 @@ pl:
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
+    amp_level: 01
