@@ -30,7 +30,7 @@ class SchedulerParams:
 @dataclass
 class SchedulerArgs:
     name: str = "auto"
-    params: SchedulerParams = SchedulerParams()
+    params: Optional[Any] = None
 
 
 @dataclass

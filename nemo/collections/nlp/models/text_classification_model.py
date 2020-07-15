@@ -28,7 +28,7 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT, ModelPTConfig
 from nemo.core.config.optimizers import AdamParams, OptimizerArgs
-from nemo.core.config.schedulers import SchedulerArgs, WarmupAnnealingParams
+from nemo.core.config.schedulers import SchedulerArgs, WarmupAnnealingParams, WarmupSchedulerParams
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
@@ -36,12 +36,29 @@ __all__ = ['TextClassificationModel']
 
 
 @dataclass
+class TextClassificationSchedulerConfig:
+    name: str =  "WarmupAnnealing"
+    iters_per_batch: Optional[float] = None
+    max_steps: Optional[int] = None
+    monitor: Optional[str]= "val_loss"
+    reduce_on_plateau: Optional[bool] = False
+    args: SchedulerArgs = SchedulerArgs(
+        params=WarmupSchedulerParams(warmup_ratio=0.1)
+    )
+    # args: SchedulerArgs = SchedulerArgs(
+    #     name="auto",
+    #     params=WarmupAnnealingParams()
+    #     #params=WarmupAnnealingParams(warmup_ratio=0.1)
+    # )
+
+@dataclass
 class TextClassificationOptimizationConfig:
     name: str = "adam"
     lr: float = 2e-5
-    args: OptimizerArgs = OptimizerArgs(params=AdamParams(weight_decay=0.01))
-    sched: SchedulerArgs = SchedulerArgs(params=WarmupAnnealingParams(warmup_ratio=0.1))
-
+    args: OptimizerArgs = OptimizerArgs(
+        params=AdamParams(weight_decay=0.01)
+    )
+    sched: Optional[TextClassificationSchedulerConfig] = TextClassificationSchedulerConfig()
 
 @dataclass
 class TextClassificationDataConfig:
@@ -68,10 +85,12 @@ class NemoBertTokenizerConfig:
 
 @dataclass
 class LanguageModelConfig:
-    pretrained_model_name: Optional[str] = 'roberta-base'
-    bert_config: Optional[DictConfig] = None
+    pretrained_model_name: Optional[str] = 'bert-base-uncased'
+    bert_checkpoint: Optional[str] = None
+    bert_config: Optional[Dict] = None
     max_seq_length: int = 36
-    tokenizer: Optional[Union[SentencePieceTokenizerConfig, NemoBertTokenizerConfig]] = NemoBertTokenizerConfig()
+    tokenizer: Optional[NemoBertTokenizerConfig] = NemoBertTokenizerConfig()
+    do_lower_case: bool = True
 
 
 @dataclass
@@ -82,15 +101,14 @@ class TextClassificationHeadConfig:
 
 @dataclass
 class TextClassificationModelConfig(ModelPTConfig):
-    language_model: LanguageModelConfig = MISSING
-    head: TextClassificationHeadConfig = MISSING
+    language_model: LanguageModelConfig = LanguageModelConfig()
+    head: TextClassificationHeadConfig = TextClassificationHeadConfig()
     class_balancing: Optional[str] = None
     data_dir: str = MISSING
-    train_ds: TextClassificationDataConfig = MISSING
-    validation_ds: TextClassificationDataConfig = MISSING
+    train_ds: TextClassificationDataConfig = TextClassificationDataConfig(prefix='train')
+    validation_ds: TextClassificationDataConfig = TextClassificationDataConfig(prefix='dev')
     test_ds: Optional[TextClassificationDataConfig] = None
     optim: TextClassificationOptimizationConfig = TextClassificationOptimizationConfig()
-
 
 @experimental
 class TextClassificationModel(ModelPT):
