@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 import inspect
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -65,7 +66,10 @@ class ModelPT(LightningModule, Model):
         if isinstance(cfg, DictConfig):
             self._cfg = cfg
         else:
-            self._cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
+            if dataclasses.is_dataclass(cfg):
+                cfg = dataclasses.asdict(cfg)
+
+            self._cfg = OmegaConf.create(cfg)
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
@@ -130,6 +134,16 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
         """
+        if optim_config is None:
+            # see if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
+
+        # If config is still None, or internal config has no Optim, return without instantiation
+        if optim_config is None:
+            logging.info('No optimizer information provided, therefore no optimizer was created')
+            return
+
         # Setup optimizer and scheduler
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
