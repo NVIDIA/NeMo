@@ -20,7 +20,6 @@ from typing import Dict, Optional, Union
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule
-from torch.optim.optimizer import Optimizer
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
@@ -46,10 +45,18 @@ class ModelPT(LightningModule, Model):
     Interface for Pytorch-lightning based NeMo models
     """
 
+    def save_to(self, save_path: str):
+        oconf = OmegaConf.create(self._cfg)
+        OmegaConf.save(config=oconf, f='AAAAAA.yaml')
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
     def __init__(self, cfg: ModelPTConfig = None):
         super().__init__()
         self._cfg = cfg
-        self.save_hyperparameters(self._cfg)
+        # self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -57,11 +64,14 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
 
         if cfg is not None:
-            if 'train_ds' in cfg and cfg.train_ds is not None:
+            if hasattr(cfg, 'train_ds') and cfg.train_ds is not None:
+            #if 'train_ds' in cfg and cfg.train_ds is not None:
                 self.setup_training_data(cfg.train_ds)
-            if 'validation_ds' in cfg and cfg.validation_ds is not None:
+            if hasattr(cfg, 'vaidation_ds') and cfg.validation_ds is not None:
+            #if 'validation_ds' in cfg and cfg.validation_ds is not None:
                 self.setup_validation_data(cfg.validation_ds)
-            if 'test_ds' in cfg and cfg.test_ds is not None:
+            if hasattr(cfg, 'test_ds') and cfg.test_ds is not None:
+            #if 'test_ds' in cfg and cfg.test_ds is not None:
                 self.setup_test_data(cfg.test_ds)
 
     @abstractmethod
@@ -113,7 +123,7 @@ class ModelPT(LightningModule, Model):
                 kwargs will be built and supplied to instantiate the optimizer.
         """
         # Setup optimizer and scheduler
-        if 'sched' in optim_config and self._cfg is not None and 'trainer' in self._cfg.pl:
+        if hasattr(optim_config, 'sched') and self._cfg is not None and hasattr(self._cfg.pl, 'trainer'):
             if self._cfg.pl.trainer.max_steps is None:
                 if self._cfg.pl.trainer.gpus == 0:
                     # training on CPU
@@ -152,7 +162,8 @@ class ModelPT(LightningModule, Model):
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        lr = optim_config.get('lr', None)
+        # lr = optim_config.get('lr', None)
+        lr = optim_config.get('lr', 0.0001)
 
         if 'lr' is None:
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
