@@ -44,8 +44,8 @@ class EncDecCTCModelConfig(ModelPTConfig):
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
-    def __init__(self, cfg: EncDecCTCModelConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: EncDecCTCModelConfig, trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
         self.encoder = hydra.utils.instantiate(cfg.encoder)
         self.decoder = hydra.utils.instantiate(cfg.decoder)
@@ -146,7 +146,8 @@ class EncDecCTCModel(ASRModel):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
-        if self.spec_augmentation is not None:
+        # Spec augment is not applied during evaluation/testing
+        if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal)
         encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         log_probs = self.decoder(encoder_output=encoded)
