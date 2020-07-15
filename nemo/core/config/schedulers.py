@@ -28,6 +28,12 @@ class SchedulerParams:
 
 
 @dataclass
+class SchedulerArgs:
+    name: str = "auto"
+    params: SchedulerParams = SchedulerParams()
+
+
+@dataclass
 class WarmupSchedulerParams(SchedulerParams):
     """
     Base configuration for all schedulers.
@@ -86,6 +92,8 @@ class WarmupAnnealingParams(WarmupSchedulerParams):
     Warmup Annealing parameter config
     It is not derived from Config as it is not a NeMo object (and in particular it doesn't need a name).
     """
+
+    warmup_ratio: 0.1
 
 
 @dataclass

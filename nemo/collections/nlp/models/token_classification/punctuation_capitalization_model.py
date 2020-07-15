@@ -144,18 +144,19 @@ class PunctuationCapitalizationModel(ModelPT):
             punct_num_fc_layers: number of fully connected layers in the multilayer perceptron (MLP)
             capit_num_fc_layers: number of fully connected layers in the multilayer perceptron (MLP)
         """
-        super().__init__()
-
-        self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.config_file
-        )
-        self.hidden_size = self.bert_model.config.hidden_size
-
+        self.data_dir = cfg.data_dir
         # TODO add support for sentence_piece tokenizer
         if PunctuationCapitalizationModelConfig.tokenizer_type == 'nemobert':
             self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
         else:
             raise NotImplementedError()
+
+        super().__init__(cfg=cfg)
+
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
+        )
+        self.hidden_size = self.bert_model.config.hidden_size
 
         # TODO refactor with data_desc
         self.punct_classifier = TokenClassifier(
@@ -163,7 +164,7 @@ class PunctuationCapitalizationModel(ModelPT):
             num_classes=PunctuationHeadConfig.punct_num_classes,
             activation=PunctuationHeadConfig.activation,
             log_softmax=PunctuationHeadConfig.log_softmax,
-            dropout=PunctuationHeadConfig.dropout,
+            dropout=PunctuationHeadConfig.fc_dropout,
             num_layers=PunctuationHeadConfig.punct_num_fc_layers,
             use_transformer_init=PunctuationHeadConfig.use_transformer_init,
         )
@@ -173,7 +174,7 @@ class PunctuationCapitalizationModel(ModelPT):
             num_classes=CapitalizationHeadConfig.capit_num_classes,
             activation=CapitalizationHeadConfig.activation,
             log_softmax=CapitalizationHeadConfig.log_softmax,
-            dropout=CapitalizationHeadConfig.dropout,
+            dropout=CapitalizationHeadConfig.fc_dropout,
             num_layers=CapitalizationHeadConfig.capit_num_fc_layers,
             use_transformer_init=CapitalizationHeadConfig.use_transformer_init,
         )
@@ -181,20 +182,8 @@ class PunctuationCapitalizationModel(ModelPT):
         self.loss = CrossEntropyLoss()
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
-        # TODO fix with config
-        self.data_config = {
-            'max_seq_length': 128,
-            'pad_label': 'O',
-            'punct_label_ids': None,
-            'capit_label_ids': None,
-            'num_samples': -1,
-            'ignore_extra_tokens': False,
-            'ignore_start_end': False,
-            'overwrite_processed_files': False,
-            'shuffle': False,
-            'batch_size': 64,
-            'num_workers': 0,
-        }
+        # Optimizer setup needs to happen after all model weights are ready
+        self.setup_optimization(cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -222,7 +211,7 @@ class PunctuationCapitalizationModel(ModelPT):
         punct_loss = self.loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
         capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
         loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
-        tensorboard_logs = {'train_loss': loss}
+        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -250,41 +239,49 @@ class PunctuationCapitalizationModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         return {'val_loss': avg_loss}
 
-    def setup_training_data(self, train_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_config:
-            train_data_layer_config['shuffle'] = True
-        text_file = os.path.join(data_dir, 'text_train.txt')
-        labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self._train_dl = self.__setup_dataloader(text_file, labels_file)
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-    def setup_validation_data(self, val_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_params['shuffle'] = False
-        text_file = os.path.join(data_dir, 'text_dev.txt')
-        labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self._validation_dl = self.__setup_dataloader(text_file, labels_file)
+    def setup_validation_data(self, val_data_config: Optional[Dict]):
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-        pass
+    def setup_test_data(self, test_data_config: Optional[Dict]):
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def __setup_dataloader(self, text_file: str, label_file: str):
+    def _setup_dataloader_from_config(self, cfg: PunctuationCapitalizationDataConfig):
+        text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
+        label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
 
+        if not (os.path.exists(text_file) and os.path.exists(label_file)):
+            raise FileNotFoundError(
+                f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
+                labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
+                spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
+                separated with spaces. Each line of the files should follow the format:  \
+                   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
+                   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+            )
         dataset = BertPunctuationCapitalizationDataset(
             tokenizer=self.tokenizer,
             text_file=text_file,
             label_file=label_file,
-            pad_label=self.pad_label,
-            punct_label_ids=self.punct_label_ids,
-            capit_label_ids=self.capit_label_ids,
-            max_seq_length=self.max_seq_length,
-            ignore_extra_tokens=self.ignore_extra_tokens,
-            ignore_start_end=self.ignore_start_end,
-            overwrite_processed_files=self.overwrite_processed_files,
-            num_samples=self.num_samples,
+            pad_label=cfg.pad_label,
+            punct_label_ids=cfg.punct_label_ids,
+            capit_label_ids=cfg.capit_label_ids,
+            max_seq_length=cfg.max_seq_length,
+            ignore_extra_tokens=cfg.ignore_extra_tokens,
+            ignore_start_end=cfg.ignore_start_end,
+            overwrite_processed_files=cfg.overwrite_processed_files,
+            num_samples=cfg.num_samples,
         )
 
         return torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers,
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
         )
 
     @classmethod

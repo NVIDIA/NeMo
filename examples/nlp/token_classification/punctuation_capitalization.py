@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+HYDRA_FULL_ERROR = 1
 import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
