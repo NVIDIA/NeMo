@@ -9,17 +9,17 @@ n_filters: &n_filters 512
 model:
   pl: null
   train_ds:
-    manifest_filepath: '/data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_recognition/myExps/datasets/voxceleb1/train/train_manifest.json'
+    manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
     sample_rate: 16000
     labels: None
-    batch_size: 32
+    batch_size: 10
     shuffle: True
 
   validation_ds:
-    manifest_filepath: '/data/samsungSSD/NVIDIA/repos/NeMo/examples/speaker_recognition/myExps/datasets/voxceleb1/train/dev_manifest.json'
+    manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
     sample_rate: 16000
     labels: None
-    batch_size: 32
+    batch_size: 2
     shuffle: False
 
   preprocessor:
@@ -131,8 +131,8 @@ model:
 
 pl:
   trainer:
-    gpus: 1 # number of gpus
-    max_epochs: 5
+    gpus: 2 # number of gpus
+    max_epochs: 10
     max_steps: null # computed at runtime if not set
     num_nodes: 1
     distributed_backend: ddp

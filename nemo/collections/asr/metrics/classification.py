@@ -42,20 +42,17 @@ class ClassificationAccuracy(TensorMetric):
 
     def __init__(self):
         super(ClassificationAccuracy, self).__init__(name="accuracy")
-        self.num_samples = 0
-        self.correct_counts = 0
-        self.metric = Accuracy()
+        # self.metric = Accuracy(num_classes=num_classes)
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> List[Any]:
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
 
-        batch_size = logits.shape[0]
-        self.num_samples += batch_size
+        bs = logits.shape[0]
 
         with torch.no_grad():
             predictions = torch.argmax(logits, dim=1)
             targets = targets
 
-            acc = self.metric(predictions, targets)
-            self.correct_counts += acc * batch_size
+            correct_counts = (predictions == targets).float().sum()
+            acc = correct_counts / bs
 
-        return (acc).to(predictions.device)
+        return torch.tensor([acc * 100, bs, correct_counts]).to(predictions.device)

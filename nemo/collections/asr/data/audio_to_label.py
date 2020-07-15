@@ -98,7 +98,7 @@ target_label_n, "offset": offset_in_sec_n}
         self.time_length = time_length
 
         self.labels = labels if labels else self.collection.uniq_labels
-        self.num_commands = len(self.labels)
+        self.num_classes = len(self.labels)
 
         self.label2id, self.id2label = {}, {}
         for label_id, label in enumerate(self.labels):
