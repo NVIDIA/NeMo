@@ -83,7 +83,7 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/token_classification && python ner.py --data_dir /home/TestData/nlp/token_classification_punctuation/'
+          sh 'cd examples/nlp/token_classification && python ner.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --fast_dev_run'
           sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
         }
     }
@@ -96,7 +96,7 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/token_classification && python punctuation_capitalization.py --data_dir /home/TestData/nlp/token_classification_punctuation/'
+          sh 'cd examples/nlp/token_classification && python punctuation_capitalization.py --data_dir /home/TestData/nlp/token_classification_punctuation/ --fast_dev_run'
           sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
         }
     }

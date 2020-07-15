@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: WIP
-
 import os
 from argparse import ArgumentParser
 
