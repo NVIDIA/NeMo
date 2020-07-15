@@ -28,12 +28,6 @@ class SchedulerParams:
 
 
 @dataclass
-class SchedulerArgs:
-    name: str = "auto"
-    params: Optional[Any] = None
-
-
-@dataclass
 class WarmupSchedulerParams(SchedulerParams):
     """
     Base configuration for all schedulers.

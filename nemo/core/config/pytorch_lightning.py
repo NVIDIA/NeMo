@@ -15,7 +15,7 @@
 # =============================================================================
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 __all__ = ['TrainerConfig']
 

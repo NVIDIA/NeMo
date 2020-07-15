@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
-import hydra
 import torch
-from omegaconf import MISSING, DictConfig
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -26,89 +24,13 @@ from nemo.collections.nlp.data.text_classification import TextClassificationData
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPT, ModelPTConfig
-from nemo.core.config.optimizers import AdamParams, OptimizerArgs
-from nemo.core.config.schedulers import SchedulerArgs, WarmupAnnealingParams, WarmupSchedulerParams
+from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
+
 __all__ = ['TextClassificationModel']
 
-
-@dataclass
-class TextClassificationSchedulerConfig:
-    name: str =  "WarmupAnnealing"
-    iters_per_batch: Optional[float] = None
-    max_steps: Optional[int] = None
-    monitor: Optional[str]= "val_loss"
-    reduce_on_plateau: Optional[bool] = False
-    args: SchedulerArgs = SchedulerArgs(
-        params=WarmupSchedulerParams(warmup_ratio=0.1)
-    )
-    # args: SchedulerArgs = SchedulerArgs(
-    #     name="auto",
-    #     params=WarmupAnnealingParams()
-    #     #params=WarmupAnnealingParams(warmup_ratio=0.1)
-    # )
-
-@dataclass
-class TextClassificationOptimizationConfig:
-    name: str = "adam"
-    lr: float = 2e-5
-    args: OptimizerArgs = OptimizerArgs(
-        params=AdamParams(weight_decay=0.01)
-    )
-    sched: Optional[TextClassificationSchedulerConfig] = TextClassificationSchedulerConfig()
-
-@dataclass
-class TextClassificationDataConfig:
-    prefix: str = None
-    batch_size: int = 32
-    shuffle: bool = False
-    num_samples: int = -1
-    num_workers: int = 2
-    pin_memory: bool = False
-    use_cache: bool = True
-    drop_last: bool = False
-
-
-@dataclass
-class SentencePieceTokenizerConfig:
-    name: str = 'sentencepiece'
-    model: str = MISSING
-
-
-@dataclass
-class NemoBertTokenizerConfig:
-    name: str = 'nemobert'
-
-
-@dataclass
-class LanguageModelConfig:
-    pretrained_model_name: Optional[str] = 'bert-base-uncased'
-    bert_checkpoint: Optional[str] = None
-    bert_config: Optional[Dict] = None
-    max_seq_length: int = 36
-    tokenizer: Optional[NemoBertTokenizerConfig] = NemoBertTokenizerConfig()
-    do_lower_case: bool = True
-
-
-@dataclass
-class TextClassificationHeadConfig:
-    num_output_layers: int = 2
-    fc_dropout: float = 0.1
-
-
-@dataclass
-class TextClassificationModelConfig(ModelPTConfig):
-    language_model: LanguageModelConfig = LanguageModelConfig()
-    head: TextClassificationHeadConfig = TextClassificationHeadConfig()
-    class_balancing: Optional[str] = None
-    data_dir: str = MISSING
-    train_ds: TextClassificationDataConfig = TextClassificationDataConfig(prefix='train')
-    validation_ds: TextClassificationDataConfig = TextClassificationDataConfig(prefix='dev')
-    test_ds: Optional[TextClassificationDataConfig] = None
-    optim: TextClassificationOptimizationConfig = TextClassificationOptimizationConfig()
 
 @experimental
 class TextClassificationModel(ModelPT):
@@ -120,23 +42,15 @@ class TextClassificationModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    def __init__(self, cfg: TextClassificationModelConfig):
-        """
-        Initializes the BERTTextClassifier model.
-        Args:
-            data_dir: the path to the folder containing the data
-            pretrained_model_name: name of the BERT model to be used as the encoder
-            bert_config: The path to the config file for the BERT encoder, it should be None to use the default configs
-            num_output: number of the linear layers of the mlp head on the top of the encoder
-            fc_dropout: the dropout used for the mlp head
-            class_balancing: enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+    def __init__(self, cfg: DictConfig, trainer=None):
+        """Initializes the BERTTextClassifier model.
         """
 
         self.max_seq_length = cfg.language_model.max_seq_length
         self.data_dir = cfg.data_dir
         self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
         # init superclass
-        super().__init__(cfg=cfg)
+        super().__init__(cfg=cfg, trainer=trainer)
 
         data_desc = TextClassificationDataDesc(data_dir=self.data_dir, modes=["train", "test", "dev"])
 
@@ -222,7 +136,7 @@ class TextClassificationModel(ModelPT):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self.__setup_dataloader(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: TextClassificationDataConfig):
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
         input_file = f'{self.data_dir}/{cfg.prefix}.tsv'
         # TODO: check that file exists
         dataset = TextClassificationDataset(
