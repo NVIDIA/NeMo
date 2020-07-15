@@ -50,3 +50,4 @@ class TrainerConfig:
     distributed_backend: Optional[str] = None
     max_steps: Optional[int] = None
     accumulate_grad_batches: int = 1
+    amp_level: str = "O0"

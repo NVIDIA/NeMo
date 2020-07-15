@@ -15,7 +15,7 @@
 import inspect
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Any
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -31,15 +31,25 @@ from nemo.utils import logging
 __all__ = ['ModelPT', 'ModelPTConfig']
 
 
+# @dataclass
+# class ModelPTConfig(Config):
+#     """Inherit from this class when you parametrize NeMo models"""
+
+#     optim: Optional[DictConfig] = None
+#     train_ds: Optional[DictConfig] = None
+#     validation_ds: Optional[DictConfig] = None
+#     test_ds: Optional[DictConfig] = None
+#     pl: Optional[DictConfig] = None
+
 @dataclass
 class ModelPTConfig(Config):
     """Inherit from this class when you parametrize NeMo models"""
 
-    optim: Optional[DictConfig] = None
-    train_ds: Optional[DictConfig] = None
-    validation_ds: Optional[DictConfig] = None
-    test_ds: Optional[DictConfig] = None
-    pl: Optional[DictConfig] = None
+    optim: Any = None
+    train_ds: Any = None
+    validation_ds: Any = None
+    test_ds: Any = None
+    trainer: Any = None
 
 
 class ModelPT(LightningModule, Model):
@@ -115,6 +125,7 @@ class ModelPT(LightningModule, Model):
                 kwargs will be built and supplied to instantiate the optimizer.
         """
         # Setup optimizer and scheduler
+<<<<<<< HEAD
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
@@ -131,6 +142,24 @@ class ModelPT(LightningModule, Model):
                 optim_config.sched.iters_per_batch = iters_per_batch
             else:
                 optim_config.sched.max_steps = self._trainer.max_steps
+=======
+        if 'sched' in optim_config and self._cfg is not None and 'trainer' in self._cfg:
+            if self._cfg.trainer.max_steps is None:
+                if self._cfg.trainer.gpus == 0:
+                    # training on CPU
+                    iters_per_batch = self._cfg.trainer.max_epochs / float(
+                        self._cfg.trainer.num_nodes * self._cfg.trainer.accumulate_grad_batches
+                    )
+                else:
+                    iters_per_batch = self._cfg.trainer.max_epochs / float(
+                        self._cfg.trainer.gpus
+                        * self._cfg.trainer.num_nodes
+                        * self._cfg.trainer.accumulate_grad_batches
+                    )
+                optim_config.sched.iters_per_batch = iters_per_batch
+            else:
+                optim_config.sched.max_steps = self._cfg.trainer.max_steps
+>>>>>>> phase 3, config groups and structured configs
 
         optim_config = optim_config or {}  # In case null was passed as optim_params
 

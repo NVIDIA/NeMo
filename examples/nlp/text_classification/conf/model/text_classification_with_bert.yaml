@@ -1,0 +1,38 @@
+# @package _group_
+data_dir: ??? # /path/to/data
+class_balancing: null # or weighted_loss
+
+train_ds:
+  prefix: train
+  batch_size: 32
+  shuffle: true
+  num_samples: -1
+  num_workers: 2
+  use_cache: true
+
+validation_ds:
+  prefix: dev
+  batch_size: 32
+  shuffle: false
+  num_samples: -1
+  num_workers: 2
+  use_cache: true
+
+language_model:
+  pretrained_model_name: bert-base-uncased
+  max_seq_length: 36
+
+head:
+  num_output_layers: 2
+  fc_dropout: 0.1
+
+optim:
+  name: adam
+  lr: 2e-5
+  args:
+    name: auto
+    params:
+      weight_decay: 0.01
+
+  sched:
+    name: WarmupAnnealing
