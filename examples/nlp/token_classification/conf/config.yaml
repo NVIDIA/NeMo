@@ -11,7 +11,7 @@ pl:
     distributed_backend: ddp
 
 model:
-  data_dir: '/home/ebakhturina/data/tatoeba/sample' # /path/to/data
+  data_dir: ??? # /path/to/data
   class_balancing: null # or weighted_loss
 
   train_ds:
