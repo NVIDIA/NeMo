@@ -40,11 +40,9 @@ from nemo.utils import logging
 
 @hydra.main(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
-    # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
-    cfg.model.pl = cfg.pl
     logging.info(f'Hydra config: {cfg.pretty()}')
-    asr_model = EncDecCTCModelBPE(cfg=cfg.model)
     trainer = pl.Trainer(**cfg.pl.trainer)
+    asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
     if 'logger' in cfg.model:
         if cfg.model.logger.experiment_name is not None and cfg.model.logger.project_name is not None:

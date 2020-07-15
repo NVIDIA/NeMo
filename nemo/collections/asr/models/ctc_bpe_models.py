@@ -41,7 +41,7 @@ class EncDecCTCModelBPEConfig(EncDecCTCModelConfig):
 class EncDecCTCModelBPE(EncDecCTCModel):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
 
-    def __init__(self, cfg: EncDecCTCModelBPEConfig):
+    def __init__(self, cfg: EncDecCTCModelBPEConfig, trainer=None):
         self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
         self.tokenizer_path = self.tokenizer_cfg.pop('path')  # Remove path and resolve based on tokenizer type
 
@@ -103,7 +103,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             )
             cfg.decoder.params['num_classes'] = self.tokenizer.vocab_size
 
-        super().__init__(cfg=cfg)
+        super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup metric objects
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)

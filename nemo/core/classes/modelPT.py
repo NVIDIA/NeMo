@@ -265,8 +265,6 @@ class ModelPT(LightningModule, Model):
                     optimizer_config = {'lr': lr}
                     optimizer_config.update(optimizer_args)
 
-                    logging.info("About to instantiate optimizer")
-
                     optimizer_instance = hydra.utils.instantiate(
                         optimizer_cls, self.parameters(), **optimizer_config
                     )  # type: DictConfig
@@ -291,28 +289,10 @@ class ModelPT(LightningModule, Model):
 
             self._optimizer = optimizer
 
-        # Log optimizer name and parameters
-        self._update_hyperparameters(optimizer_name=optimizer_name, lr=lr, **optimizer_args)
-
         # Try to instantiate scheduler for optimizer
         self._scheduler = prepare_lr_scheduler(
             optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
         )
-
-        # If schduler is available, log scheduler and its args
-        if self._scheduler is not None:
-            scheduler_name = self._scheduler['scheduler'].__class__.__name__
-
-            args = optim_config['sched'].get('args', None)
-            if args is not None:
-                sched_params = args.get('params', {})
-            else:
-                sched_params = {}
-
-            if hasattr(self._scheduler['scheduler'], 'max_steps'):
-                sched_params['max_steps'] = self._scheduler['scheduler'].max_steps
-
-            self._update_hyperparameters(scheduler=scheduler_name, **sched_params)
 
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created

@@ -69,8 +69,6 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
 
-    trainer = pl.Trainer(**cfg.pl.trainer)
-
     if 'logger' in cfg.model:
         if cfg.model.logger.experiment_name is not None and cfg.model.logger.project_name is not None:
             logger = WandbLogger(name=cfg.model.logger.experiment_name, project=cfg.model.logger.project_name)
