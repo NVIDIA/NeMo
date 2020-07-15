@@ -39,12 +39,13 @@ class EncDecCTCModelConfig(ModelPTConfig):
     decoder: DictConfig = MISSING
     spec_augment: Optional[DictConfig] = None
 
+
 @experimental
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
-    def __init__(self, cfg: EncDecCTCModelConfig):
-        super().__init__(cfg=cfg)
+    def __init__(self, cfg: EncDecCTCModelConfig, trainer=None):
+        super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
         self.encoder = hydra.utils.instantiate(cfg.encoder)
         self.decoder = hydra.utils.instantiate(cfg.decoder)

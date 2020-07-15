@@ -46,14 +46,13 @@ class ModelPT(LightningModule, Model):
     """
 
     def save_to(self, save_path: str):
-        oconf = OmegaConf.create(self._cfg)
-        OmegaConf.save(config=oconf, f='AAAAAA.yaml')
+        pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
         pass
 
-    def __init__(self, cfg: ModelPTConfig = None):
+    def __init__(self, cfg: ModelPTConfig = None, trainer=None):
         super().__init__()
         self._cfg = cfg
         # self.save_hyperparameters(self._cfg)
@@ -62,16 +61,14 @@ class ModelPT(LightningModule, Model):
         self._test_dl = None
         self._optimizer = None
         self._scheduler = None
+        self._trainer = trainer
 
         if cfg is not None:
             if hasattr(cfg, 'train_ds') and cfg.train_ds is not None:
-            #if 'train_ds' in cfg and cfg.train_ds is not None:
                 self.setup_training_data(cfg.train_ds)
-            if hasattr(cfg, 'vaidation_ds') and cfg.validation_ds is not None:
-            #if 'validation_ds' in cfg and cfg.validation_ds is not None:
+            if hasattr(cfg, 'validation_ds') and cfg.validation_ds is not None:
                 self.setup_validation_data(cfg.validation_ds)
             if hasattr(cfg, 'test_ds') and cfg.test_ds is not None:
-            #if 'test_ds' in cfg and cfg.test_ds is not None:
                 self.setup_test_data(cfg.test_ds)
 
     @abstractmethod
@@ -123,22 +120,22 @@ class ModelPT(LightningModule, Model):
                 kwargs will be built and supplied to instantiate the optimizer.
         """
         # Setup optimizer and scheduler
-        if hasattr(optim_config, 'sched') and self._cfg is not None and hasattr(self._cfg.pl, 'trainer'):
-            if self._cfg.pl.trainer.max_steps is None:
-                if self._cfg.pl.trainer.gpus == 0:
+        if 'sched' in optim_config and self._trainer is not None:
+            if not isinstance(self._trainer.accumulate_grad_batches, int):
+                raise ValueError("We do not currently support gradient acculumation that is not an integer.")
+            if self._trainer.max_steps is None:
+                if self._trainer.num_gpus == 0:
                     # training on CPU
-                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
-                        self._cfg.pl.trainer.num_nodes * self._cfg.pl.trainer.accumulate_grad_batches
+                    iters_per_batch = self._trainer.max_epochs / float(
+                        self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
                 else:
-                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
-                        self._cfg.pl.trainer.gpus
-                        * self._cfg.pl.trainer.num_nodes
-                        * self._cfg.pl.trainer.accumulate_grad_batches
+                    iters_per_batch = self._trainer.max_epochs / float(
+                        self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
                 optim_config.sched.iters_per_batch = iters_per_batch
             else:
-                optim_config.sched.max_steps = self._cfg.pl.trainer.max_steps
+                optim_config.sched.max_steps = self._trainer.max_steps
 
         optim_config = optim_config or {}  # In case null was passed as optim_params
 
@@ -162,8 +159,7 @@ class ModelPT(LightningModule, Model):
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        # lr = optim_config.get('lr', None)
-        lr = optim_config.get('lr', 0.0001)
+        lr = optim_config.get('lr', None)
 
         if 'lr' is None:
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
