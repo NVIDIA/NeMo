@@ -86,6 +86,7 @@ class PunctuationCapitalizationModel(ModelPT):
         else:
             raise NotImplementedError()
 
+        # TODO refactor with data_desc
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=punct_num_classes,
