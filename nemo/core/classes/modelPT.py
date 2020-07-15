@@ -15,11 +15,9 @@
 import dataclasses
 import inspect
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
-import omegaconf
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule
 
@@ -32,7 +30,7 @@ from nemo.utils import logging
 __all__ = ['ModelPT', 'ModelPTConfig']
 
 
-@dataclass
+@dataclasses.dataclass
 class ModelPTConfig(Config):
     """Inherit from this class when you parametrize NeMo models"""
 
