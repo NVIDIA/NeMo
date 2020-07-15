@@ -29,7 +29,7 @@ from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
+__all__ = ['EncDecCTCModel', 'EncDecCTCModelConfig', 'JasperNet', 'QuartzNet']
 
 
 @dataclass
@@ -38,7 +38,6 @@ class EncDecCTCModelConfig(ModelPTConfig):
     encoder: DictConfig = MISSING
     decoder: DictConfig = MISSING
     spec_augment: Optional[DictConfig] = None
-
 
 @experimental
 class EncDecCTCModel(ASRModel):
@@ -113,13 +112,6 @@ class EncDecCTCModel(ASRModel):
         pass
 
     def export(self, **kwargs):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass
 
     @property
