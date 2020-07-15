@@ -17,7 +17,7 @@
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
-from nemo.core.config.schedulers import SchedulerArgs
+
 
 __all__ = [
     'OptimizerParams',
@@ -39,15 +39,6 @@ class OptimizerParams:
     Base Optimizer params with no values. User can chose it to explicitly override via
     command line arguments
     """
-
-
-@dataclass
-class OptimizerArgs:
-    """Base class to configure optimizers.
-    """
-
-    name: str = "auto"
-    params: Optional[OptimizerParams] = OptimizerParams()
 
 
 @dataclass
@@ -78,7 +69,7 @@ class AdamParams(OptimizerParams):
         https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
     """
 
-    #betas: Tuple[float, float] = (0.9, 0.999)
+    # betas: Tuple[float, float] = (0.9, 0.999)
     eps: float = 1e-08
     weight_decay: float = 0
     amsgrad: bool = False

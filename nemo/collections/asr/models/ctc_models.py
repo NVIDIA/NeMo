@@ -97,7 +97,7 @@ class EncDecCTCModel(ASRModel):
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
             val_data_layer_config['shuffle'] = False
-        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
+        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_config:
