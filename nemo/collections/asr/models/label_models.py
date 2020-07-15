@@ -27,6 +27,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecSpeechLabelModel']
@@ -148,30 +149,36 @@ class EncDecSpeechLabelModel(ModelPT):
         audio_signal, audio_signal_len, label, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits, label)
-        accuracies = self.metric(logits, label)
+        accuracies, bs, counts = self.metric(logits, label)
 
         tensorboard_logs = {'train_loss': loss_value, 'training_batch_acc': accuracies}
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        return {'loss': loss_value, 'log': tensorboard_logs, 'bs': bs, 'counts': counts}
 
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, label, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits, label)
-        accuracies = self.metric(logits, label)
+        accuracies, bs, counts = self.metric(logits, label)
 
-        return {'val_loss': loss_value, 'val_batch_acc': accuracies}
+        return {'val_loss': loss_value, 'val_batch_acc': accuracies, 'bs': bs, 'counts': counts}
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        counts = self.metric.correct_counts
-        num_samples = self.metric.num_samples
-        val_acc = counts / num_samples
-        self.metric.num_samples = 0
-        self.metric.correct_counts = 0
+        num_samples = torch.stack([x['bs'] for x in outputs]).sum()
+        counts = torch.stack([x['counts'] for x in outputs]).sum()
+
+        val_acc = (counts / num_samples) * 100
+        logging.info("validation accuracy {}".format(val_acc.item()))
+
         tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_acc': val_acc}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def training_epoch_end(self, outputs):
-        self.metric.num_samples = 0
-        self.metric.correct_counts = 0
+        num_samples = torch.stack([x['bs'] for x in outputs]).sum()
+        counts = torch.stack([x['counts'] for x in outputs]).sum()
+
+        train_acc = (counts / num_samples) * 100
+        logging.info("training accuracy {}".format(train_acc))
+
+        return {}
