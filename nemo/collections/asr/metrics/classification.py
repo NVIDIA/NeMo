@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List, Optional, Tuple
-
 import torch
 from pytorch_lightning.metrics import TensorMetric
-from pytorch_lightning.metrics.classification import Accuracy
 
 __all__ = ['ClassificationAccuracy']
 
@@ -50,7 +47,6 @@ class ClassificationAccuracy(TensorMetric):
 
         with torch.no_grad():
             predictions = torch.argmax(logits, dim=1)
-            targets = targets
 
             correct_counts = (predictions == targets).float().sum()
             acc = correct_counts / bs

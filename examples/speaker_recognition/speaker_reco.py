@@ -17,7 +17,8 @@ import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecSpeechLabelModel
 from nemo.utils import logging
-
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 """
 Basic run (on CPU for 50 epochs):
