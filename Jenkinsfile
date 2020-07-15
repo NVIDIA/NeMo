@@ -74,7 +74,32 @@ pipeline {
           sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
         }
     }
-    
+    stage('L3: NER') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp/token_classification && python ner.py --data_dir /home/TestData/nlp/token_classification_punctuation/'
+          sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
+        }
+    }
+    stage('L4: Punctuation and capitalization') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest()
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp/token_classification && python punctuation_capitalization.py --data_dir /home/TestData/nlp/token_classification_punctuation/'
+          sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
+        }
+    }
     stage('L2: Parallel NLP Examples 1') {
       failFast true
       parallel {

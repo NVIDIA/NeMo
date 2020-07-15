@@ -56,6 +56,7 @@ def main():
     parser.add_argument(
         "--amp_level", default="O0", type=str, choices=["O0", "O1", "O2"], help="01/02 to enable mixed precision"
     )
+    parser.add_argument("--fast_dev_run", action="store_true")
 
     args = parser.parse_args()
 
@@ -105,6 +106,7 @@ def main():
         gpus=args.gpus,
         max_epochs=args.max_epochs,
         distributed_backend=None if args.gpus == 1 else 'ddp',
+        fast_dev_run=args.fast_dev_run,
     )
     trainer.fit(model)
 
