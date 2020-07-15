@@ -117,7 +117,7 @@ class ModelPT(LightningModule, Model):
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
             if self._trainer.max_steps is None:
-                if self._trainer.gpus == 0:
+                if self._trainer.num_gpus == 0:
                     # training on CPU
                     iters_per_batch = self._trainer.max_epochs / float(
                         self._trainer.num_nodes * self._trainer.accumulate_grad_batches
