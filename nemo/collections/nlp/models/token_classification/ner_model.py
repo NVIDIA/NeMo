@@ -134,7 +134,6 @@ class NERModel(ModelPT):
 
         subtokens_mask = subtokens_mask > 0.5
         preds = torch.argmax(logits, axis=-1)
-        labels = labels
         tensorboard_logs = {'val_loss': val_loss, 'preds': preds, 'labels': labels, 'subtokens_mask': subtokens_mask}
 
         return {'val_loss': val_loss, 'log': tensorboard_logs}
