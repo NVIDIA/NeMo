@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
+import omegaconf
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule
 
@@ -46,16 +47,26 @@ class ModelPT(LightningModule, Model):
     """
 
     def save_to(self, save_path: str):
+        """Saves model into .nemo format - includes both weights and configuration."""
         pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
+        """Fully (weights and structure) instantiates model from .nemo format"""
         pass
 
-    def __init__(self, cfg: ModelPTConfig = None, trainer=None):
+    def __init__(self, cfg: Union[ModelPTConfig, DictConfig, Dict] = None, trainer=None):
         super().__init__()
-        self._cfg = cfg
-        # self.save_hyperparameters(self._cfg)
+        # First step is to make sure that self._cfg is DictConfig
+        if not (isinstance(cfg, ModelPTConfig) or isinstance(cfg, DictConfig) or isinstance(cfg, Dict)):
+            raise ValueError(
+                f"cfg argument must be of type ModelPTconfig, DictConfig or Dict. But got {type(cfg)} instead."
+            )
+        if isinstance(cfg, DictConfig):
+            self._cfg = cfg
+        else:
+            self._cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
+        self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -63,7 +74,7 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self._trainer = trainer
 
-        if cfg is not None:
+        if self._cfg is not None:
             if hasattr(cfg, 'train_ds') and cfg.train_ds is not None:
                 self.setup_training_data(cfg.train_ds)
             if hasattr(cfg, 'validation_ds') and cfg.validation_ds is not None:

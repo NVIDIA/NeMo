@@ -44,18 +44,18 @@ class EncDecCTCModelConfig(ModelPTConfig):
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
-    def __init__(self, cfg: EncDecCTCModelConfig, trainer=None):
+    def __init__(self, cfg: Union[EncDecCTCModelConfig, DictConfig, Dict], trainer=None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
-        self.encoder = hydra.utils.instantiate(cfg.encoder)
-        self.decoder = hydra.utils.instantiate(cfg.decoder)
+        self.preprocessor = hydra.utils.instantiate(self._cfg.preprocessor)
+        self.encoder = hydra.utils.instantiate(self._cfg.encoder)
+        self.decoder = hydra.utils.instantiate(self._cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if cfg.spec_augment is not None:
-            self.spec_augmentation = hydra.utils.instantiate(cfg.spec_augment)
+        if self._cfg.spec_augment is not None:
+            self.spec_augmentation = hydra.utils.instantiate(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+        self.setup_optimization(self._cfg.optim)
         # Setup metric objects
         self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
