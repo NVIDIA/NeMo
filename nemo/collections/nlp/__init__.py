@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp import data, metrics, models, modules
+from nemo.collections.nlp import data, models, modules
