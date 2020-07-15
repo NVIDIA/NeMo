@@ -20,7 +20,6 @@ import torch
 from omegaconf import MISSING, DictConfig
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
-from nemo.collections.asr.metrics.classification import ClassificationAccuracy
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.core.classes import ModelPT
@@ -53,8 +52,6 @@ class EncDecSpeechLabelModel(ModelPT):
         self.loss = CELoss()
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
-        # Setup metric objects
-        self.metric = ClassificationAccuracy()
 
     # @staticmethod
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -76,7 +73,7 @@ class EncDecSpeechLabelModel(ModelPT):
             collate_fn=self.dataset.fixed_seq_collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=config['shuffle'],
-            num_workers=config.get('num_workers', 0),
+            num_workers=config.get('num_workers', 2),
         )
 
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
@@ -89,6 +86,7 @@ class EncDecSpeechLabelModel(ModelPT):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         val_data_layer_config['labels'] = self.dataset.labels
+        num_classes = self.dataset.num_classes
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
@@ -149,36 +147,32 @@ class EncDecSpeechLabelModel(ModelPT):
         audio_signal, audio_signal_len, label, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits, label)
-        accuracies, bs, counts = self.metric(logits, label)
+        labels_hat = torch.argmax(logits, dim=1)
+        n_correct_pred = torch.sum(label == labels_hat, dim=0).item()
+        tensorboard_logs = {'train_loss': loss_value, 'training_batch_acc': (n_correct_pred / len(label)) * 100}
 
-        tensorboard_logs = {'train_loss': loss_value, 'training_batch_acc': accuracies}
-        return {'loss': loss_value, 'log': tensorboard_logs, 'bs': bs, 'counts': counts}
+        return {'loss': loss_value, 'log': tensorboard_logs, "n_correct_pred": n_correct_pred, "n_pred": len(label)}
 
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, label, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits, label)
-        accuracies, bs, counts = self.metric(logits, label)
+        labels_hat = torch.argmax(logits, dim=1)
+        n_correct_pred = torch.sum(label == labels_hat, dim=0).item()
 
-        return {'val_loss': loss_value, 'val_batch_acc': accuracies, 'bs': bs, 'counts': counts}
+        return {'val_loss': loss_value, "n_correct_pred": n_correct_pred, "n_pred": len(label)}
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        num_samples = torch.stack([x['bs'] for x in outputs]).sum()
-        counts = torch.stack([x['counts'] for x in outputs]).sum()
-
-        val_acc = (counts / num_samples) * 100
-        logging.info("validation accuracy {:.3f}".format(val_acc.item()))
-
+        val_acc = (sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)) * 100
+        logging.info("validation accuracy {:.3f}".format(val_acc))
         tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_acc': val_acc}
+
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def training_epoch_end(self, outputs):
-        num_samples = torch.stack([x['bs'] for x in outputs]).sum()
-        counts = torch.stack([x['counts'] for x in outputs]).sum()
-
-        train_acc = (counts / num_samples) * 100
+        train_acc = (sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)) * 100
         logging.info("training accuracy {:.3f}".format(train_acc))
 
         return {}

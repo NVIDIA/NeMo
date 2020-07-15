@@ -1,9 +1,8 @@
-#model: "QuartzNet15x5"
+#model: "QuartzNet3x2"
 sample_rate: &sample_rate 16000
 repeat: &rep 1
 dropout: &drop 0.5
 separable: &separable False
-time_length: 8
 n_filters: &n_filters 512
 
 model:
@@ -14,6 +13,7 @@ model:
     labels: None
     batch_size: 64 
     shuffle: True
+    time_length: 8
 
   validation_ds:
     manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
@@ -21,6 +21,7 @@ model:
     labels: None
     batch_size: 128
     shuffle: False
+    time_length: 8
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -132,9 +133,9 @@ model:
 pl:
   trainer:
     gpus: 2 # number of gpus
-    max_epochs: 10
+    max_epochs: 100
     max_steps: null # computed at runtime if not set
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
-    amp_level: 01
+    amp_level: O1
