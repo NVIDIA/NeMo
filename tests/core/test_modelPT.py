@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import omegaconf
 from unittest import TestCase
 from omegaconf import DictConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelConfig
 import pytest
-
+import hydra
 
 class ModelPTSaveRestore(TestCase):
     @pytest.mark.unit
@@ -52,7 +53,7 @@ class ModelPTSaveRestore(TestCase):
         modelConfig = EncDecCTCModelConfig(preprocessor=DictConfig(preprocessor),
                                            encoder=DictConfig(encoder),
                                            decoder=DictConfig(decoder))
-        modelConfig.pl = None
+
         asr_model = EncDecCTCModel(cfg=modelConfig)
         asr_model.train()
         print(modelConfig)
