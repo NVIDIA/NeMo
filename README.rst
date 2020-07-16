@@ -30,7 +30,7 @@ Create State of the Art Models
 Installation
 ~~~~~~~~~~~~
 
-* pip install nemo_toolkit[all]
+* ``pip install nemo_toolkit[all]``
 
 * Docker container installation from NGC: https://ngc.nvidia.com/catalog/containers/nvidia:nemo
 
