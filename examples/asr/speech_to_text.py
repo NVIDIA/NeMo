@@ -66,12 +66,10 @@ Overide optimizer entirely
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
     # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
-    logging.set_verbosity(50)
     trainer = pl.Trainer(**cfg.pl.trainer)
-    exp_manager(trainer, root_dir="test", name=cfg.get("name", None), files_to_copy=[__file__])
-    # logging.info(f'Hydra config: {cfg.pretty()}')
+    exp_manager(trainer, name=cfg.get("name", "ASR"), files_to_copy=[__file__])
+    logging.info(f'Hydra config: {cfg.pretty()}')
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
-    print("before fit")  # TODO: remove debug statement
     trainer.fit(asr_model)
 
 
