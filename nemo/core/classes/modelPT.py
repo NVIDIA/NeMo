@@ -114,13 +114,18 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
         """
-        optim_config = optim_config or {}  # In case null was passed as optim_params
+        # If config was not explicitly passed to us
+        if optim_config is None:
+            # See if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
 
-        # Force into DictConfig from nested structure
-        optim_config = OmegaConf.create(optim_config)
+        # If config is still None, or internal config has no Optim, return without instantiation
+        if optim_config is None:
+            logging.info('No optimizer config provided, therefore no optimizer was created')
+            return
 
         # Setup optimizer and scheduler
-
         if optim_config is not None and isinstance(optim_config, DictConfig):
             optim_config = OmegaConf.to_container(optim_config)
 
