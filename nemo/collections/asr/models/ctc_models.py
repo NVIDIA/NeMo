@@ -17,7 +17,8 @@ from typing import Dict, Optional, Union
 
 import hydra
 import torch
-from omegaconf import MISSING, DictConfig
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -25,37 +26,28 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
-@dataclass
-class EncDecCTCModelConfig(ModelPTConfig):
-    preprocessor: DictConfig = MISSING
-    encoder: DictConfig = MISSING
-    decoder: DictConfig = MISSING
-    spec_augment: Optional[DictConfig] = None
-
-
 @experimental
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
-    def __init__(self, cfg: EncDecCTCModelConfig, trainer=None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
-        self.encoder = hydra.utils.instantiate(cfg.encoder)
-        self.decoder = hydra.utils.instantiate(cfg.decoder)
+        self.preprocessor = hydra.utils.instantiate(self._cfg.preprocessor)
+        self.encoder = hydra.utils.instantiate(self._cfg.encoder)
+        self.decoder = hydra.utils.instantiate(self._cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if cfg.spec_augment is not None:
-            self.spec_augmentation = hydra.utils.instantiate(cfg.spec_augment)
+        if self._cfg.spec_augment is not None:
+            self.spec_augmentation = hydra.utils.instantiate(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+        self.setup_optimization(self._cfg.optim)
         # Setup metric objects
         self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
@@ -91,12 +83,12 @@ class EncDecCTCModel(ASRModel):
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_config:
-            train_data_layer_config['shuffle'] = True
+            train_data_config['shuffle'] = True
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
-            val_data_layer_config['shuffle'] = False
+            val_data_config['shuffle'] = False
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
@@ -113,13 +105,6 @@ class EncDecCTCModel(ASRModel):
         pass
 
     def export(self, **kwargs):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass
 
     @property

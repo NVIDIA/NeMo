@@ -16,7 +16,6 @@ import hydra
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.utils import logging
 
 
 """
@@ -65,9 +64,7 @@ Overide optimizer entirely
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
     trainer = pl.Trainer(**cfg.pl.trainer)
-    logging.info(f'Hydra config: {cfg.pretty()}')
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(asr_model)
 
