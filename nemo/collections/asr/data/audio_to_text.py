@@ -11,11 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts import collections, features, parsers
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
@@ -55,18 +55,18 @@ class _AudioDataset(Dataset):
 
     def __init__(
         self,
-        manifest_filepath,
-        featurizer,
-        parser,
-        max_duration=None,
-        min_duration=None,
-        max_utts=0,
-        trim=False,
-        bos_id=None,
-        eos_id=None,
-        pad_id=0,
-        load_audio=True,
-        add_misc=False,
+        manifest_filepath: str,
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        parser: Union[str, Callable],
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+        load_audio: bool = True,
+        add_misc: bool = False,
     ):
 
         self.collection = collections.ASRAudioText(
@@ -211,22 +211,22 @@ class AudioToCharDataset(_AudioDataset):
 
     def __init__(
         self,
-        manifest_filepath,
-        labels,
-        featurizer,
-        max_duration=None,
-        min_duration=None,
-        max_utts=0,
-        blank_index=-1,
-        unk_index=-1,
-        normalize=True,
-        trim=False,
-        bos_id=None,
-        eos_id=None,
-        pad_id=0,
-        load_audio=True,
-        parser='en',
-        add_misc=False,
+        manifest_filepath: str,
+        labels: List[str],
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        max_utts: int = 0,
+        blank_index: int = -1,
+        unk_index: int = -1,
+        normalize: bool = True,
+        trim: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+        load_audio: bool = True,
+        parser: Union[str, Callable] = 'en',
+        add_misc: bool = False,
     ):
         self.labels = labels
 
@@ -270,15 +270,15 @@ class AudioToBPEDataset(_AudioDataset):
 
     def __init__(
         self,
-        manifest_filepath,
+        manifest_filepath: str,
         tokenizer,
-        featurizer,
-        max_duration=None,
-        min_duration=None,
-        max_utts=0,
-        trim=False,
-        load_audio=True,
-        add_misc=False,
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        load_audio: bool = True,
+        add_misc: bool = False,
     ):
         if hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id

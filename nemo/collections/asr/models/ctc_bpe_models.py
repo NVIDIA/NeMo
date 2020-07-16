@@ -161,36 +161,6 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
-    # PTL-specific methods
-    def training_step(self, batch, batch_nb):
-        self.train()
-        audio_signal, audio_signal_len, transcript, transcript_len = batch
-        log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal, input_signal_length=audio_signal_len
-        )
-        loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
-        )
-        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-        tensorboard_logs = {
-            'train_loss': loss_value,
-            'training_batch_wer': wer_num / wer_denom,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-        }
-        return {'loss': loss_value, 'log': tensorboard_logs}
-
-    def validation_step(self, batch, batch_idx):
-        self.eval()
-        audio_signal, audio_signal_len, transcript, transcript_len = batch
-        log_probs, encoded_len, predictions = self.forward(
-            input_signal=audio_signal, input_signal_length=audio_signal_len
-        )
-        loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
-        )
-        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
-        return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
-
 
 @experimental
 class JasperNetBPE(EncDecCTCModelBPE):
