@@ -17,7 +17,7 @@ import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models import PunctuationCapitalizationModel, PunctuationCapitalizationModelConfig
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.utils import logging
 
 

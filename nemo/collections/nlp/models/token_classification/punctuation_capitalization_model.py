@@ -16,14 +16,13 @@ import os
 from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
-import hydra
 import torch
 from omegaconf import MISSING, DictConfig
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
@@ -55,7 +54,7 @@ class PunctuationCapitalizationDataConfig:
     ignore_start_end: bool = False
     overwrite_processed_files: bool = False
     shuffle: bool = True
-    batch_size: int = 64
+    batch_size: int = 2
     num_workers: int = 2
     pin_memory: bool = True
     drop_last: bool = False
@@ -181,6 +180,12 @@ class PunctuationCapitalizationModel(ModelPT):
 
         self.loss = CrossEntropyLoss()
         self.agg_loss = AggregatorLoss(num_inputs=2)
+        self.punct_class_report = ClassificationReport(
+            PunctuationHeadConfig.punct_num_classes, label_ids=self.punct_label_ids
+        )
+        self.capit_class_report = ClassificationReport(
+            CapitalizationHeadConfig.capit_num_classes, label_ids=self.capit_label_ids
+        )
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -228,8 +233,27 @@ class PunctuationCapitalizationModel(ModelPT):
         capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
         val_loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
 
+        subtokens_mask = subtokens_mask > 0.5
+
+        punct_preds = torch.argmax(punct_logits, axis=-1)[subtokens_mask]
+        punct_labels = punct_labels[subtokens_mask]
+        punct_tp, punct_fp, punct_fn = self.punct_class_report(punct_preds, punct_labels)
+
+        capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
+        capit_labels = capit_labels[subtokens_mask]
+        capit_tp, capit_fp, capit_fn = self.capit_class_report(capit_preds, capit_labels)
         tensorboard_logs = {'val_loss': val_loss}
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+
+        return {
+            'val_loss': val_loss,
+            'log': tensorboard_logs,
+            'punct_tp': punct_tp,
+            'punct_fn': punct_fn,
+            'punct_fp': punct_fp,
+            'capit_tp': capit_tp,
+            'capit_fn': capit_fn,
+            'capit_fp': capit_fp,
+        }
 
     def validation_epoch_end(self, outputs):
         """
@@ -237,7 +261,31 @@ class PunctuationCapitalizationModel(ModelPT):
         outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'val_loss': avg_loss}
+
+        # calculate metrics and log classification report for Punctuaion task
+        punct_tp = sum(torch.stack([x['punct_tp'] for x in outputs]))
+        punct_fn = sum(torch.stack([x['punct_fn'] for x in outputs]))
+        punct_fp = sum(torch.stack([x['punct_fp'] for x in outputs]))
+        punct_precision, punct_recall, punct_f1 = self.punct_class_report.get_precision_recall_f1(
+            punct_tp, punct_fn, punct_fp, mode='macro'
+        )
+        # calculate metrics and log classification report for Capitalization task
+        capit_tp = sum(torch.stack([x['capit_tp'] for x in outputs]))
+        capit_fn = sum(torch.stack([x['capit_fn'] for x in outputs]))
+        capit_fp = sum(torch.stack([x['capit_fp'] for x in outputs]))
+        capit_precision, capit_recall, capit_f1 = self.capit_class_report.get_precision_recall_f1(
+            capit_tp, capit_fn, capit_fp, mode='macro'
+        )
+        tensorboard_logs = {
+            'validation_loss': avg_loss,
+            'punct_precision': punct_precision,
+            'punct_f1': punct_f1,
+            'punct_recall': punct_recall,
+            'capit_precision': capit_precision,
+            'capit_f1': capit_f1,
+            'capit_recall': capit_recall,
+        }
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
@@ -261,19 +309,38 @@ class PunctuationCapitalizationModel(ModelPT):
                    [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
                    [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
             )
-        dataset = BertPunctuationCapitalizationDataset(
-            tokenizer=self.tokenizer,
-            text_file=text_file,
-            label_file=label_file,
-            pad_label=cfg.pad_label,
-            punct_label_ids=cfg.punct_label_ids,
-            capit_label_ids=cfg.capit_label_ids,
-            max_seq_length=cfg.max_seq_length,
-            ignore_extra_tokens=cfg.ignore_extra_tokens,
-            ignore_start_end=cfg.ignore_start_end,
-            overwrite_processed_files=cfg.overwrite_processed_files,
-            num_samples=cfg.num_samples,
-        )
+        if cfg.prefix == 'train':
+            dataset = BertPunctuationCapitalizationDataset(
+                tokenizer=self.tokenizer,
+                text_file=text_file,
+                label_file=label_file,
+                pad_label=cfg.pad_label,
+                punct_label_ids=cfg.punct_label_ids,
+                capit_label_ids=cfg.capit_label_ids,
+                max_seq_length=cfg.max_seq_length,
+                ignore_extra_tokens=cfg.ignore_extra_tokens,
+                ignore_start_end=cfg.ignore_start_end,
+                overwrite_processed_files=cfg.overwrite_processed_files,
+                num_samples=cfg.num_samples,
+            )
+            self.punct_label_ids = dataset.punct_label_ids
+            self.capit_label_ids = dataset.capit_label_ids
+        else:
+            # reuse label_ids established during training file processing
+            # TODO fix with data descriptor
+            dataset = BertPunctuationCapitalizationDataset(
+                tokenizer=self.tokenizer,
+                text_file=text_file,
+                label_file=label_file,
+                pad_label=cfg.pad_label,
+                punct_label_ids=self.punct_label_ids,
+                capit_label_ids=self.capit_label_ids,
+                max_seq_length=cfg.max_seq_length,
+                ignore_extra_tokens=cfg.ignore_extra_tokens,
+                ignore_start_end=cfg.ignore_start_end,
+                overwrite_processed_files=cfg.overwrite_processed_files,
+                num_samples=cfg.num_samples,
+            )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
