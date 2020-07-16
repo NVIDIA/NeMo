@@ -185,5 +185,4 @@ hydra:
     dir: .
   job_logging:
     root:
-      level: INFO
       handlers: null
