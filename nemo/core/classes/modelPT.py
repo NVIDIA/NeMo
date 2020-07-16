@@ -120,6 +120,10 @@ class ModelPT(LightningModule, Model):
         optim_config = OmegaConf.create(optim_config)
 
         # Setup optimizer and scheduler
+
+        if optim_config is not None:
+            optim_config = OmegaConf.to_container(optim_config)
+
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
@@ -133,9 +137,9 @@ class ModelPT(LightningModule, Model):
                     iters_per_batch = self._trainer.max_epochs / float(
                         self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
-                optim_config.sched.iters_per_batch = iters_per_batch
+                optim_config['sched']['iters_per_batch'] = iters_per_batch
             else:
-                optim_config.sched.max_steps = self._trainer.max_steps
+                optim_config['sched']['max_steps'] = self._trainer.max_steps
 
         # Force into DictConfig from nested structure
         optim_config = OmegaConf.create(optim_config)

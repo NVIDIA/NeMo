@@ -505,7 +505,8 @@ def prepare_lr_scheduler(
 
     else:
         raise ValueError(
-            "Neither `max_steps` nor `iters_per_batch` were provided, cannot compute " "effective `max_steps` !"
+            "Neither `max_steps` nor `iters_per_batch` were provided to `optim.sched`, "
+            "cannot compute effective `max_steps` !"
         )
 
     # Inject max_steps (effective or provided) into the scheduler config
