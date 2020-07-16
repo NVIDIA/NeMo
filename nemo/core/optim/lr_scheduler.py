@@ -458,9 +458,9 @@ def prepare_lr_scheduler(
                 scheduler_params_override = OmegaConf.to_container(scheduler_params_override, resolve=True)
 
             # Get and instantiate the Config dataclass for this scheduler
-            optimizer_params_cls = get_scheduler_config(scheduler_params_name, **scheduler_params_override)
-            scheduler_args = optimizer_params_cls()  # instantiate the parameters object
-            scheduler_args = vars(scheduler_args)  # extract just the dictionary from the Config object
+            scheduler_params_cls = get_scheduler_config(scheduler_params_name, **scheduler_params_override)
+            scheduler_params = scheduler_params_cls()  # instantiate the parameters object
+            scheduler_args = vars(scheduler_params)  # extract just the dictionary from the Config object
 
         else:
             # assume the input dictionary is schedular args (from dataclasses / omegaconf)

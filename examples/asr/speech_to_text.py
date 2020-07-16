@@ -11,9 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from pathlib import Path
-
-
 import hydra
 import pytorch_lightning as pl
 
@@ -71,12 +68,10 @@ def main(cfg):
     # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
     logging.set_verbosity(50)
     trainer = pl.Trainer(**cfg.pl.trainer)
-    this_file = Path(hydra.utils.get_original_cwd()) / __file__
-    root_dir = Path(hydra.utils.get_original_cwd()) / "test"
-    exp_manager(trainer, root_dir=root_dir, name=cfg.get("name", None), files_to_copy=[this_file])
+    exp_manager(trainer, root_dir="test", name=cfg.get("name", None), files_to_copy=[__file__])
     # logging.info(f'Hydra config: {cfg.pretty()}')
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
-    print("before fit")
+    print("before fit")  # TODO: remove debug statement
     trainer.fit(asr_model)
 
 

@@ -15,7 +15,7 @@
 # =============================================================================
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 __all__ = ['TrainerConfig']
 
@@ -50,3 +50,4 @@ class TrainerConfig:
     distributed_backend: Optional[str] = None
     max_steps: Optional[int] = None
     accumulate_grad_batches: int = 1
+    amp_level: str = "O0"

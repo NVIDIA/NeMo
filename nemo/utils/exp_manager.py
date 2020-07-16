@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from shutil import copyfile
 
+from hydra.utils import get_original_cwd
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -46,6 +47,12 @@ def exp_manager(
     print(trainer.is_global_zero)
     print(trainer.global_rank)
     print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+
+    if get_original_cwd() != os.getcwd():
+        raise ValueError(
+            "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
+            "hydra.run.dir=. to your python script."
+        )
     # TODO: Print a warning message if user is not running ddp / slurm since we test on those
     # Default root_dir to ~/NeMo_experiments if None was passed
     _root_dir = root_dir
