@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import time
+from typing import Union, Optional, List
 from pathlib import Path
 from shutil import copyfile
 
@@ -27,26 +28,51 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 
-# TODO: Typehints and docstring
+
 def exp_manager(
-    trainer,
-    root_dir=None,
-    name=None,
-    create_tensorboard_logger=True,
-    create_checkpoint_callback=True,
-    files_to_copy=None,
+    trainer: 'pytorch_lightning.Trainer',
+    root_dir: Optional[Union[str, Path]] = None,
+    name: Optional[str] = None,
+    create_tensorboard_logger: Optional[bool] = True,
+    create_checkpoint_callback: Optional[bool] = True,
+    files_to_copy: Optional[List[Union[str, Path]]] = None,
 ):
     """
-    ExpManager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm of
-    root_dir/model_or_experiment_name/version. It optionally creates TensorBoardLogger, and ModelCheckpoint objects
-    from pytorch lightning.
+    exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
+    of root_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get root_dir,
+    name, and version from the logger. Otherwise it will use the root_dir and name arguments to create the logging
+    directory. The version will be a datetime string if running single node, and version will be an integer if running
+    on slurm multi-node.
+    It optionally creates TensorBoardLogger, and ModelCheckpoint objects from pytorch lightning. It copies sys.argv,
+    and git information if available to the logging directory. It creates a log file for each process to log their
+    output into.
+
+    Args:
+        trainer (pytorch_lightning.Trainer): The lightning trainer.
+        root_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
+            ~/NeMo_experiments.
+        name (str): The name of the experiment. Defaults to None, which uses the lightning default of "default".
+        create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch lightning
+            trainer. Defaults to True.
+        create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the pytorch
+            lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss" as well as the most
+            recent model. Defaults to True.
+        files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which copies
+            no files.
     """
     if get_original_cwd() != os.getcwd():
         raise ValueError(
             "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
             "hydra.run.dir=. to your python script."
         )
-    # TODO: Print a warning message if user is not running ddp / slurm since we test on those
+    if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
+        logging.error(
+            "You are running multi-node without slurm. Please note that this is not tested in NeMo and could result in errors."
+        )
+    if trainer.num_gpus > 1 and not trainer.use_ddp:
+        logging.error(
+            "You are running multi-gpu without ddp.Please note that this is not tested in NeMo and could result in errors."
+        )
     # Default root_dir to ~/NeMo_experiments if None was passed
     _root_dir = root_dir
     if root_dir is None:
@@ -56,21 +82,21 @@ def exp_manager(
         if trainer.logger.save_dir:
             if root_dir:
                 raise ValueError(
-                    "The pytorch_lightning trainer that was passed to ExpManager contained a logger, the logger's "
+                    "The pytorch_lightning trainer that was passed to exp_manager contained a logger, the logger's "
                     f"save_dir was not None, and root_dir ({root_dir}) was not None. If trainer.logger.save_dir "
-                    "exists, ExpManager will use trainer.logger.save_dir as the logging directory and root_dir "
+                    "exists, exp_manager will use trainer.logger.save_dir as the logging directory and root_dir "
                     "must be None."
                 )
             _root_dir = trainer.logger.save_dir
         if name:
             raise ValueError(
-                f"The pytorch_lightning trainer that was passed to ExpManager contained a logger, and name ({name})"
-                " was also passed to ExpManager. If the trainer contains a logger, ExpManager will use "
-                "trainer.logger.name, and name that is passed to ExpManager must be None."
+                f"The pytorch_lightning trainer that was passed to exp_manager contained a logger, and name ({name})"
+                " was also passed to exp_manager. If the trainer contains a logger, exp_manager will use "
+                "trainer.logger.name, and name that is passed to exp_manager must be None."
             )
         if create_tensorboard_logger:
             raise ValueError(
-                "The pytorch_lightning trainer that was passed to ExpManager contained a logger, and "
+                "The pytorch_lightning trainer that was passed to exp_manager contained a logger, and "
                 "create_tensorboard_logger was set to True. create_tensorboard_logger can only be used if trainer "
                 "does not already have a logger."
             )
@@ -99,7 +125,7 @@ def exp_manager(
         for callback in trainer.callbacks:
             if isinstance(callback, ModelCheckpoint):
                 raise ValueError(
-                    "The pytorch_lightning trainer that was passed to ExpManager contained a ModelCheckpoint "
+                    "The pytorch_lightning trainer that was passed to exp_manager contained a ModelCheckpoint "
                     "and create_checkpoint_callback was set to True. Please either set create_checkpoint_callback "
                     "to False, or remove ModelCheckpoint from the lightning trainer"
                 )
