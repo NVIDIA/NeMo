@@ -18,8 +18,6 @@ model:
     prefix: train
     max_seq_length: 128
     pad_label: 'O'
-    punct_label_ids: null
-    capit_label_ids: null
     num_samples: -1
     ignore_extra_tokens: false
     ignore_start_end: false
@@ -34,8 +32,6 @@ model:
     prefix: dev
     max_seq_length: 128
     pad_label: 'O'
-    punct_label_ids: null
-    capit_label_ids: null
     num_samples: -1
     ignore_extra_tokens: false
     ignore_start_end: false
