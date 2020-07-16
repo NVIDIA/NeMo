@@ -16,6 +16,8 @@ import os
 import sentencepiece
 import tokenizers
 
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
+
 parser = argparse.ArgumentParser(description='LibriSpeech Data download')
 parser.add_argument("--manifest", required=True, default=None, type=str, help='Comma separated list of manifest files')
 parser.add_argument("--data_root", required=True, default=None, type=str, help='Output directory')
@@ -83,40 +85,14 @@ def __process_data(text_path: str, dst_folder: str, vocab_size: int, tokenizer_t
             logging.warning("Model file already exists, overriding old model file !")
             os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
 
-        cmd = (
-            f"--input={text_path} --model_prefix={tokenizer_dir}/tokenizer "
-            f"--vocab_size={vocab_size} "
-            f"--shuffle_input_sentence=true --hard_vocab_limit=false "
-            f"--bos_id=-1 --eos_id=-1 "
-            f"--normalization_rule_name=nmt_nfkc_cf"
+        tokenizer_path, vocab_path = create_spt_model(
+            data_file=text_path,
+            vocab_size=vocab_size,
+            sample_size=-1,
+            special_tokens=None,
+            do_lower_case=True,
+            output_dir=tokenizer_dir
         )
-
-        sentencepiece.SentencePieceTrainer.Train(cmd)
-
-        # Add BERT control symbols
-        tokens = []
-
-        with open(f"{tokenizer_dir}/tokenizer.vocab", "r") as f:
-            f.readline()  # skip first <unk> token
-
-            # Read tokens from each line and parse for vocab
-            for line in f:
-                piece = line.split("\t")[0]
-                token = piece[1:] if piece.startswith("▁") else f"##{piece}"
-
-                if len(token) > 0:
-                    tokens.append(token)
-                else:
-                    # Assume token is just "_" and insert
-                    tokens.append("_")
-
-        vocab = tokens
-
-        # Save vocabulary to output file
-        vocab_file = f'{tokenizer_dir}/vocab.txt'
-        with open(vocab_file, "w") as f:
-            for token in vocab:
-                f.write(f"{token}\n".format())
 
     else:
         tokenizer = tokenizers.BertWordPieceTokenizer(lowercase=True)
