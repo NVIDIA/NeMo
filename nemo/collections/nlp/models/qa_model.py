@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import torch
-import torch.nn as nn
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
@@ -24,11 +23,9 @@ from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.qa_dataset import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
-from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['QAModel']
@@ -71,7 +68,21 @@ class QAModel(ModelPT):
             use_transformer_init: whether to use pre-trained transformer weights for weights initialization
         """
         # init superclass
-        super().__init__()
+        # TODO: This is a workaround - please fix - see text_classification_model or asr for example
+        cfg = DictConfig(
+            {
+                'num_classes': num_classes,
+                'pretrained_model_name': pretrained_model_name,
+                'config_file': config_file,
+                'num_layers': num_layers,
+                'activation': activation,
+                'log_softmax': log_softmax,
+                'dropout': dropout,
+                'use_transformer_init': use_transformer_init,
+            }
+        )
+
+        super().__init__(cfg=cfg)
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = get_tokenizer(pretrained_model_name=pretrained_model_name, tokenizer_name="nemobert")
