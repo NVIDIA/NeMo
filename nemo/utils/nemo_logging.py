@@ -23,8 +23,8 @@ from contextlib import contextmanager
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, NEMO_ENV_VARNAME_TESTING
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.formatters.base import BaseNeMoFormatter, DebugNeMoFormatter
-from nemo.utils.metaclasses import Singleton
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.metaclasses import Singleton
 
 __all__ = ["Logger", "LogMode"]
 

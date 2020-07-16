@@ -16,17 +16,17 @@ import os
 import subprocess
 import sys
 import time
-from typing import Union, Optional, List
 from pathlib import Path
 from shutil import copyfile
+from typing import List, Optional, Union
 
 from hydra.utils import get_original_cwd
-from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import TensorBoardLogger
 
+from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 
 
 def exp_manager(
