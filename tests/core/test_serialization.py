@@ -11,18 +11,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from unittest import TestCase
 
 import pytest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.modules import SpectrogramAugmentation
+from nemo.core.classes.common import Serialization
 
 
-class EncDecCTCModelTest(TestCase):
+class SerializationTest(TestCase):
     @pytest.mark.unit
-    def test_constructor(self):
+    def test_from_config_dict_with_cls(self):
+        """Here we test that instantiation works for configs with cls class path in them.
+        Note that just Serialization.from_config_dict can be used to create an object"""
+        config = DictConfig(
+            {
+                'cls': 'nemo.collections.asr.modules.SpectrogramAugmentation',
+                'params': {'rect_freq': 50, 'rect_masks': 5, 'rect_time': 120,},
+            }
+        )
+        obj = Serialization.from_config_dict(config=config)
+        self.assertTrue(isinstance(obj, SpectrogramAugmentation))
+
+    def test_from_config_dict_without_cls(self):
+        """Here we test that instantiation works for configs without cls class path in them.
+        IMPORTANT: in this case, correct class type should call from_config_dict. This should work for Models."""
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
             'cls': 'nemo.collections.asr.modules.ConvASREncoder',
@@ -84,15 +99,8 @@ class EncDecCTCModelTest(TestCase):
                 ],
             },
         }
-
         modelConfig = DictConfig(
             {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
         )
-        asr_model = EncDecCTCModel(cfg=modelConfig)
-        asr_model.train()
-        # TODO: make proper config and assert correct number of weights
-
-        # Check to/from config_dict:
-        confdict = asr_model.to_config_dict()
-        instance2 = EncDecCTCModel.from_config_dict(confdict)
-        self.assertTrue(isinstance(instance2, EncDecCTCModel))
+        obj = EncDecCTCModel.from_config_dict(config=modelConfig)
+        self.assertTrue(isinstance(obj, EncDecCTCModel))
