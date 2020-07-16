@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import inspect
 from abc import abstractmethod
 from typing import Dict, Optional, Union
@@ -136,10 +137,19 @@ class ModelPT(LightningModule, Model):
             else:
                 optim_config.sched.max_steps = self._trainer.max_steps
 
+        # Force into DictConfig from nested structure
+        optim_config = OmegaConf.create(optim_config)
+        # Get back nested dict so we its mutable
+        optim_config = OmegaConf.to_container(optim_config, resolve=True)
+
+        # Extract scheduler config if inside optimizer config
+        if 'sched' in optim_config:
+            scheduler_config = optim_config.pop('sched')
+        else:
+            scheduler_config = None
+
         # Check if caller provided optimizer name, default to Adam otherwise
         optimizer_cls = optim_config.get('cls', None)
-
-        logging.info(f"CLS : {optimizer_cls}")
 
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
@@ -153,14 +163,23 @@ class ModelPT(LightningModule, Model):
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        lr = optim_config.get('lr', 0.0003)
+        lr = optim_config.get('lr', None)
 
         if 'lr' is None:
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
-        optimizer_args = optim_config.get('args', {})
-        optimizer_args = optim.parse_optimizer_args(optimizer_name, optimizer_args)
+        if 'args' in optim_config:
+            optimizer_args = optim_config.pop('args')
+            optimizer_args = optim.parse_optimizer_args(optimizer_name, optimizer_args)
+        else:
+            optimizer_args = copy.deepcopy(optim_config)
+
+            # Remove extra parameters from optimizer_args nest
+            # Assume all other parameters are to be passed into optimizer constructor
+            optimizer_args.pop('name', None)
+            optimizer_args.pop('cls', None)
+            optimizer_args.pop('lr', None)
 
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
@@ -204,7 +223,7 @@ class ModelPT(LightningModule, Model):
             self._optimizer = optimizer
 
         self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
+            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
         )
 
     def configure_optimizers(self):

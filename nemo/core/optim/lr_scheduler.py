@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import dataclasses
 import math
 import warnings
@@ -416,17 +417,22 @@ def prepare_lr_scheduler(
         scheduler_config = OmegaConf.to_container(scheduler_config, resolve=True)
 
     # Test to see if config follows above schema
-    if 'sched' in scheduler_config:
-        scheduler_config = scheduler_config['sched']
-
+    if scheduler_config is not None:
         if 'args' in scheduler_config:
-            scheduler_args = scheduler_config['args']
+            scheduler_args = scheduler_config.pop('args')
         else:
-            raise ValueError("If `sched` is provided, `args` must be provided in it.")
+            scheduler_args = copy.deepcopy(scheduler_config)
+
+            # Remove extra parameters from scheduler_args nest
+            # Assume all other parameters are to be passed into scheduler constructor
+            scheduler_args.pop('name', None)
+            scheduler_args.pop('iters_per_batch', None)
+            scheduler_args.pop('monitor', None)
+            scheduler_args.pop('reduce_on_plateau', None)
 
     else:
         # Return gracefully in case `sched` was not supplied; inform user
-        logging.info('Scheduler not initialized as no `scheduler` argument supplied to setup_optimizer()')
+        logging.info('Scheduler not initialized as no `sched` config supplied to setup_optimizer()')
         return None
 
     # Get name of the scheduler
