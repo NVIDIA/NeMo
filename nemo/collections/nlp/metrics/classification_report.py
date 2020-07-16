@@ -19,7 +19,7 @@ from pytorch_lightning.metrics import TensorMetric
 
 from nemo.utils import logging
 
-__all__ = ['ClassificationReport', 'get_precision_recall_f1']
+__all__ = ['ClassificationReport']
 
 
 class ClassificationReport(TensorMetric):
@@ -99,7 +99,7 @@ class ClassificationReport(TensorMetric):
         f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
 
         logging.info(
-            '{:16s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
+            '{:20s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         )
         for id in range(tp.shape[0]):
             label = f'label_id: {id}'
@@ -107,7 +107,7 @@ class ClassificationReport(TensorMetric):
                 label = f'{self.ids_to_labels[id]} ({label})'
 
             logging.info(
-                '{:16s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+                '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                     label, precision[id], recall[id], f1[id], num_examples_per_class[id]
                 )
             )
@@ -121,12 +121,12 @@ class ClassificationReport(TensorMetric):
         weighted_f1 = sum(f1 * num_examples_per_class) / total_examples
 
         logging.info(
-            '{:16s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+            '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                 'macro avg', macro_precision, macro_recall, macro_f1, total_examples
             )
         )
         logging.info(
-            '{:16s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+            '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                 'weighted avg', weighted_precision, weighted_recall, weighted_f1, total_examples
             )
         )

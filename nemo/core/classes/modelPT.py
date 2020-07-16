@@ -12,34 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import inspect
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import LightningModule
-from torch.optim.optimizer import Optimizer
+from pytorch_lightning import LightningModule, Trainer
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
-from nemo.core.config.base_config import Config
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging
 
-__all__ = ['ModelPT', 'ModelPTConfig']
-
-
-@dataclass
-class ModelPTConfig(Config):
-    """Inherit from this class when you parametrize NeMo models"""
-
-    optim: Optional[DictConfig] = None
-    train_ds: Optional[DictConfig] = None
-    validation_ds: Optional[DictConfig] = None
-    test_ds: Optional[DictConfig] = None
-    pl: Optional[DictConfig] = None
+__all__ = ['ModelPT']
 
 
 class ModelPT(LightningModule, Model):
@@ -47,22 +34,37 @@ class ModelPT(LightningModule, Model):
     Interface for Pytorch-lightning based NeMo models
     """
 
-    def __init__(self, cfg: ModelPTConfig = None):
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if not isinstance(cfg, DictConfig):
+            raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
+        if trainer is not None and not isinstance(trainer, Trainer):
+            raise ValueError(
+                f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
+            )
         super().__init__()
         self._cfg = cfg
+        self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
         self._optimizer = None
         self._scheduler = None
+        self._trainer = trainer
 
-        if cfg is not None:
-            if 'train_ds' in cfg and cfg.train_ds is not None:
-                self.setup_training_data(cfg.train_ds)
-            if 'validation_ds' in cfg and cfg.validation_ds is not None:
-                self.setup_validation_data(cfg.validation_ds)
-            if 'test_ds' in cfg and cfg.test_ds is not None:
-                self.setup_test_data(cfg.test_ds)
+        if self._cfg is not None:
+            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                self.setup_training_data(self._cfg.train_ds)
+            if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+                self.setup_validation_data(self._cfg.validation_ds)
+            if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+                self.setup_test_data(self._cfg.test_ds)
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
@@ -112,33 +114,51 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
         """
+        # If config was not explicitly passed to us
+        if optim_config is None:
+            # See if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
+
+        # If config is still None, or internal config has no Optim, return without instantiation
+        if optim_config is None:
+            logging.info('No optimizer config provided, therefore no optimizer was created')
+            return
+
         # Setup optimizer and scheduler
-        if 'sched' in optim_config and self._cfg is not None and 'trainer' in self._cfg.pl:
-            if self._cfg.pl.trainer.max_steps is None:
-                if self._cfg.pl.trainer.gpus == 0:
+        if optim_config is not None and isinstance(optim_config, DictConfig):
+            optim_config = OmegaConf.to_container(optim_config)
+
+        if 'sched' in optim_config and self._trainer is not None:
+            if not isinstance(self._trainer.accumulate_grad_batches, int):
+                raise ValueError("We do not currently support gradient acculumation that is not an integer.")
+            if self._trainer.max_steps is None:
+                if self._trainer.num_gpus == 0:
                     # training on CPU
-                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
-                        self._cfg.pl.trainer.num_nodes * self._cfg.pl.trainer.accumulate_grad_batches
+                    iters_per_batch = self._trainer.max_epochs / float(
+                        self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
                 else:
-                    iters_per_batch = self._cfg.pl.trainer.max_epochs / float(
-                        self._cfg.pl.trainer.gpus
-                        * self._cfg.pl.trainer.num_nodes
-                        * self._cfg.pl.trainer.accumulate_grad_batches
+                    iters_per_batch = self._trainer.max_epochs / float(
+                        self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
-                optim_config.sched.iters_per_batch = iters_per_batch
+                optim_config['sched']['iters_per_batch'] = iters_per_batch
             else:
-                optim_config.sched.max_steps = self._cfg.pl.trainer.max_steps
-
-        optim_config = optim_config or {}  # In case null was passed as optim_params
+                optim_config['sched']['max_steps'] = self._trainer.max_steps
 
         # Force into DictConfig from nested structure
         optim_config = OmegaConf.create(optim_config)
+        # Get back nested dict so we its mutable
+        optim_config = OmegaConf.to_container(optim_config, resolve=True)
+
+        # Extract scheduler config if inside optimizer config
+        if 'sched' in optim_config:
+            scheduler_config = optim_config.pop('sched')
+        else:
+            scheduler_config = None
 
         # Check if caller provided optimizer name, default to Adam otherwise
         optimizer_cls = optim_config.get('cls', None)
-
-        logging.info(f"CLS : {optimizer_cls}")
 
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
@@ -158,8 +178,17 @@ class ModelPT(LightningModule, Model):
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
-        optimizer_args = optim_config.get('args', {})
-        optimizer_args = optim.parse_optimizer_args(optimizer_name, optimizer_args)
+        if 'args' in optim_config:
+            optimizer_args = optim_config.pop('args')
+            optimizer_args = optim.parse_optimizer_args(optimizer_name, optimizer_args)
+        else:
+            optimizer_args = copy.deepcopy(optim_config)
+
+            # Remove extra parameters from optimizer_args nest
+            # Assume all other parameters are to be passed into optimizer constructor
+            optimizer_args.pop('name', None)
+            optimizer_args.pop('cls', None)
+            optimizer_args.pop('lr', None)
 
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
@@ -203,7 +232,7 @@ class ModelPT(LightningModule, Model):
             self._optimizer = optimizer
 
         self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
+            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
         )
 
     def configure_optimizers(self):

@@ -16,6 +16,7 @@ import os
 from typing import Dict, Optional
 
 import torch
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
@@ -26,7 +27,6 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 __all__ = ['BERTLMModel']
@@ -61,7 +61,15 @@ class BERTLMModel(ModelPT):
             pretrained_model_name: BERT model name 
             preprocessing_args: preprocessing parameters for on the fly data preprocessing
         """
-        super().__init__()
+        # TODO: This is a workaround - please fix - see text_classification_model or asr for example
+        cfg = DictConfig(
+            {
+                'config_file': config_file,
+                'pretrained_model_name': pretrained_model_name,
+                'preprocessing_args': preprocessing_args,
+            }
+        )
+        super().__init__(cfg=cfg)
         self.pretrained_model_name = pretrained_model_name
         self.tokenizer = None
         if preprocessing_args:

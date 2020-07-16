@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import os
-from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
 import torch
-from omegaconf import MISSING, DictConfig
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
@@ -26,90 +26,11 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
-from nemo.core.classes.modelPT import ModelPT, ModelPTConfig
-from nemo.core.config.optimizers import AdamParams, OptimizerArgs
-from nemo.core.config.schedulers import SchedulerArgs, WarmupAnnealingParams
+from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['PunctuationCapitalizationModel', 'PunctuationCapitalizationModelConfig']
-
-
-@dataclass
-class PunctuationCapitalizationOptimizationConfig:
-    name: str = "adam"
-    lr: float = 2e-5
-    args: OptimizerArgs = OptimizerArgs(params=AdamParams(weight_decay=0.01))
-    sched: SchedulerArgs = SchedulerArgs(params=WarmupAnnealingParams(warmup_ratio=0.1))
-
-
-@dataclass
-class PunctuationCapitalizationDataConfig:
-    max_seq_length: int = 128
-    pad_label: str = 'O'
-    punct_label_ids: dict = None
-    capit_label_ids: dict = None
-    num_samples: int = -1
-    ignore_extra_tokens: bool = False
-    ignore_start_end: bool = False
-    overwrite_processed_files: bool = False
-    shuffle: bool = True
-    batch_size: int = 2
-    num_workers: int = 2
-    pin_memory: bool = True
-    drop_last: bool = False
-
-
-@dataclass
-class SentencePieceTokenizerConfig:
-    name: str = 'sentencepiece'
-    model: str = MISSING
-
-
-@dataclass
-class NemoBertTokenizerConfig:
-    name: str = 'nemobert'
-
-
-@dataclass
-class LanguageModelConfig:
-    pretrained_model_name: Optional[str] = 'bert-base-uncased'
-    bert_config: Optional[DictConfig] = None
-    tokenizer: Optional[Union[SentencePieceTokenizerConfig, NemoBertTokenizerConfig]] = NemoBertTokenizerConfig()
-
-
-@dataclass
-class PunctuationHeadConfig:
-    punct_num_classes: int = 4
-    punct_num_fc_layers: int = 1
-    fc_dropout: float = 0.1
-    activation: str = 'relu'
-    log_softmax: bool = True
-    use_transformer_init: bool = True
-
-
-@dataclass
-class CapitalizationHeadConfig:
-    capit_num_classes: int = 2
-    capit_num_fc_layers: int = 1
-    fc_dropout: float = 0.1
-    activation: str = 'relu'
-    log_softmax: bool = True
-    use_transformer_init: bool = True
-
-
-@dataclass
-class PunctuationCapitalizationModelConfig(ModelPTConfig):
-    language_model: LanguageModelConfig = MISSING
-    punct_head: PunctuationHeadConfig = MISSING
-    capit_head: CapitalizationHeadConfig = MISSING
-    class_balancing: Optional[str] = None
-    data_dir: str = MISSING
-    tokenizer_type: str = 'nemobert'
-    train_ds: PunctuationCapitalizationDataConfig = MISSING
-    validation_ds: PunctuationCapitalizationDataConfig = MISSING
-    test_ds: Optional[PunctuationCapitalizationDataConfig] = None
-    optim: PunctuationCapitalizationOptimizationConfig = PunctuationCapitalizationOptimizationConfig()
+__all__ = ['PunctuationCapitalizationModel']
 
 
 @experimental
@@ -125,66 +46,56 @@ class PunctuationCapitalizationModel(ModelPT):
             "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
         }
 
-    def __init__(self, cfg: PunctuationCapitalizationModelConfig):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Initializes BERT Punctuation and Capitalization model.
-        Args:
-            # TODO add to hydra:
-            punct_num_classes: number of classes for pucntuation task
-            capit_num_classes: number of classes for capitalization task
-            none_label: none label used for padding
-            pretrained_model_name: pretrained language model name, to see the complete list use
-            config_file: model config file
-            activation: activation to usee between fully connected layers in the MLP
-            log_softmax: whether to apply softmax to the output
-            dropout: dropout to apply to the input hidden states
-            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
-            tokenizer_type: tokenizer type: nemobert or sentencepiece
-            punct_num_fc_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            capit_num_fc_layers: number of fully connected layers in the multilayer perceptron (MLP)
         """
         self.data_dir = cfg.data_dir
         # TODO add support for sentence_piece tokenizer
-        if PunctuationCapitalizationModelConfig.tokenizer_type == 'nemobert':
+        if cfg.language_model.tokenizer == 'nemobert':
             self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
         else:
             raise NotImplementedError()
 
-        super().__init__(cfg=cfg)
+        super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config,
+            checkpoint_file=cfg.language_model.bert_checkpoint,
         )
         self.hidden_size = self.bert_model.config.hidden_size
 
         # TODO refactor with data_desc
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=PunctuationHeadConfig.punct_num_classes,
-            activation=PunctuationHeadConfig.activation,
-            log_softmax=PunctuationHeadConfig.log_softmax,
-            dropout=PunctuationHeadConfig.fc_dropout,
-            num_layers=PunctuationHeadConfig.punct_num_fc_layers,
-            use_transformer_init=PunctuationHeadConfig.use_transformer_init,
+            num_classes=cfg.punct_head.punct_num_classes,
+            activation=cfg.punct_head.activation,
+            log_softmax=cfg.punct_head.log_softmax,
+            dropout=cfg.punct_head.fc_dropout,
+            num_layers=cfg.punct_head.punct_num_fc_layers,
+            use_transformer_init=cfg.punct_head.use_transformer_init,
         )
 
         self.capit_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=CapitalizationHeadConfig.capit_num_classes,
-            activation=CapitalizationHeadConfig.activation,
-            log_softmax=CapitalizationHeadConfig.log_softmax,
-            dropout=CapitalizationHeadConfig.fc_dropout,
-            num_layers=CapitalizationHeadConfig.capit_num_fc_layers,
-            use_transformer_init=CapitalizationHeadConfig.use_transformer_init,
+            num_classes=cfg.capit_head.capit_num_classes,
+            activation=cfg.capit_head.activation,
+            log_softmax=cfg.capit_head.log_softmax,
+            dropout=cfg.capit_head.fc_dropout,
+            num_layers=cfg.capit_head.capit_num_fc_layers,
+            use_transformer_init=cfg.capit_head.use_transformer_init,
         )
 
         self.loss = CrossEntropyLoss()
         self.agg_loss = AggregatorLoss(num_inputs=2)
+
+        # setup to track metrics
         self.punct_class_report = ClassificationReport(
-            PunctuationHeadConfig.punct_num_classes, label_ids=self.punct_label_ids
+            cfg.punct_head.punct_num_classes, label_ids=self.punct_label_ids
         )
         self.capit_class_report = ClassificationReport(
-            CapitalizationHeadConfig.capit_num_classes, label_ids=self.capit_label_ids
+            cfg.capit_head.capit_num_classes, label_ids=self.capit_label_ids
         )
 
         # Optimizer setup needs to happen after all model weights are ready
@@ -242,17 +153,19 @@ class PunctuationCapitalizationModel(ModelPT):
         capit_preds = torch.argmax(capit_logits, axis=-1)[subtokens_mask]
         capit_labels = capit_labels[subtokens_mask]
         capit_tp, capit_fp, capit_fn = self.capit_class_report(capit_preds, capit_labels)
-        tensorboard_logs = {'val_loss': val_loss}
-
-        return {
+        tensorboard_logs = {
             'val_loss': val_loss,
-            'log': tensorboard_logs,
             'punct_tp': punct_tp,
             'punct_fn': punct_fn,
             'punct_fp': punct_fp,
             'capit_tp': capit_tp,
             'capit_fn': capit_fn,
             'capit_fp': capit_fp,
+        }
+
+        return {
+            'val_loss': val_loss,
+            'log': tensorboard_logs,
         }
 
     def validation_epoch_end(self, outputs):
@@ -262,17 +175,17 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        # calculate metrics and log classification report for Punctuaion task
-        punct_tp = sum(torch.stack([x['punct_tp'] for x in outputs]))
-        punct_fn = sum(torch.stack([x['punct_fn'] for x in outputs]))
-        punct_fp = sum(torch.stack([x['punct_fp'] for x in outputs]))
+        # calculate metrics and log classification report for Punctuation task
+        punct_tp = sum(torch.stack([x['log']['punct_tp'] for x in outputs]))
+        punct_fn = sum(torch.stack([x['log']['punct_fn'] for x in outputs]))
+        punct_fp = sum(torch.stack([x['log']['punct_fp'] for x in outputs]))
         punct_precision, punct_recall, punct_f1 = self.punct_class_report.get_precision_recall_f1(
             punct_tp, punct_fn, punct_fp, mode='macro'
         )
         # calculate metrics and log classification report for Capitalization task
-        capit_tp = sum(torch.stack([x['capit_tp'] for x in outputs]))
-        capit_fn = sum(torch.stack([x['capit_fn'] for x in outputs]))
-        capit_fp = sum(torch.stack([x['capit_fp'] for x in outputs]))
+        capit_tp = sum(torch.stack([x['log']['capit_tp'] for x in outputs]))
+        capit_fn = sum(torch.stack([x['log']['capit_fn'] for x in outputs]))
+        capit_fp = sum(torch.stack([x['log']['capit_fp'] for x in outputs]))
         capit_precision, capit_recall, capit_f1 = self.capit_class_report.get_precision_recall_f1(
             capit_tp, capit_fn, capit_fp, mode='macro'
         )
@@ -296,7 +209,7 @@ class PunctuationCapitalizationModel(ModelPT):
     def setup_test_data(self, test_data_config: Optional[Dict]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: PunctuationCapitalizationDataConfig):
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
         text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
         label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
 

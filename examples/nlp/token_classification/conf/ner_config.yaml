@@ -1,25 +1,23 @@
-# Sentence classification with pretrained BERT models
+# Named Entity Recoginition with pretrained BERT models
 
 pl:
   trainer:
     gpus: 1 # the number of gpus, 0 for CPU
     num_nodes: 1
-    max_epochs: 5
+    max_epochs: 3
     max_steps: null # precedence over max_epochs
     accumulate_grad_batches: 1 # accumulates grads every k batches
     amp_level: O0 # O1/O2 for mixed precision
-    distributed_backend: null
+    distributed_backend: dpp
 
 model:
   data_dir: ??? # /path/to/data
-  class_balancing: null # or weighted_loss
+  class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
 
   train_ds:
     prefix: train
     max_seq_length: 128
     pad_label: 'O'
-    punct_label_ids: null
-    capit_label_ids: null
     num_samples: -1
     ignore_extra_tokens: false
     ignore_start_end: false
@@ -34,8 +32,6 @@ model:
     prefix: dev
     max_seq_length: 128
     pad_label: 'O'
-    punct_label_ids: null
-    capit_label_ids: null
     num_samples: -1
     ignore_extra_tokens: false
     ignore_start_end: false
@@ -50,21 +46,13 @@ model:
     pretrained_model_name: bert-base-uncased
     bert_checkpoint: null
     bert_config: null
-    tokenizer: null # only used if using custom checkpoint
+    tokenizer: nemobert # 'nemobert' or 'sentencepiece'
+    vocab_file: null
     tokenizer_model: null # only used if tokenizer is sentencepiece
-    do_lower_case: true # true for uncased models, false for cased models
+    do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
 
-  punct_head:
-    punct_num_classes: 4
-    punct_num_fc_layers: 1
-    fc_dropout: 0.1
-    activation: 'relu'
-    log_softmax: True
-    use_transformer_init: True
-
-  capit_head:
-    capit_num_classes: 2
-    capit_num_fc_layers: 1
+  head:
+    num_fc_layers: 2
     fc_dropout: 0.1
     activation: 'relu'
     log_softmax: True

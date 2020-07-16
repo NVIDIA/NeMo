@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-HYDRA_FULL_ERROR = 1
 import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
@@ -21,12 +20,11 @@ from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.utils import logging
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra.main(config_path="conf", config_name="punctuation_capitalization_config")
 def main(cfg: DictConfig) -> None:
-    cfg.model.pl = cfg.pl
     logging.info(f'Config: {cfg.pretty()}')
-    model = PunctuationCapitalizationModel(cfg.model)
     trainer = pl.Trainer(**cfg.pl.trainer)
+    model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     trainer.fit(model)
 
 

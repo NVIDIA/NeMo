@@ -16,12 +16,15 @@ import os
 from typing import Dict, Optional
 
 import torch
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import BertTokenClassificationDataset
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
@@ -42,65 +45,51 @@ class NERModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    def __init__(
-        self,
-        data_dir: str,
-        pretrained_model_name: str = 'bert-base-cased',
-        config_file: Optional[str] = None,
-        num_layers: int = 1,
-        activation: str = 'relu',
-        log_softmax: bool = True,
-        dropout: float = 0.0,
-        class_balancing: bool = False,
-        use_transformer_init: bool = True,
-    ):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Initializes BERT Named Entity Recognition model.
-        Args:
-            data_dir: the path to the folder containing the data
-            pretrained_model_name: pretrained language model name, to see the complete list use
-            config_file: model config file
-            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            activation: activation to usee between fully connected layers in the MLP
-            log_softmax: whether to apply softmax to the output
-            dropout: dropout to apply to the input hidden states
-            class_balancing: enables the weighted class balancing of the loss, may be used for handling unbalanced classes
-            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
-        super().__init__()
 
-        self.data_desc = TokenClassificationDataDesc(data_dir=data_dir, modes=["train", "test", "dev"], pad_label='O')
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
+        self.data_desc = TokenClassificationDataDesc(
+            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.train_ds.pad_label
+        )
+        self.data_dir = cfg.data_dir
+
+        # TODO add support for sentence_piece tokenizer
+        if cfg.language_model.tokenizer == 'nemobert':
+            self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
+        else:
+            raise NotImplementedError()
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config,
+            checkpoint_file=cfg.language_model.bert_checkpoint,
+        )
         self.hidden_size = self.bert_model.config.hidden_size
-        self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)
+
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.data_desc.num_classes,
-            num_layers=num_layers,
-            activation=activation,
-            log_softmax=log_softmax,
-            dropout=dropout,
-            use_transformer_init=use_transformer_init,
+            num_layers=cfg.head.num_fc_layers,
+            activation=cfg.head.activation,
+            log_softmax=cfg.head.log_softmax,
+            dropout=cfg.head.fc_dropout,
+            use_transformer_init=cfg.head.use_transformer_init,
         )
 
-        if class_balancing == 'weighted_loss':
+        if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
         else:
             self.loss = CrossEntropyLoss()
 
-        # TODO fix with configs:
-        self.overwrite_processed_files = False
-        self.max_seq_length = 128
-        self.num_samples = -1
-        self.ignore_extra_tokens = False
-        self.ignore_start_end = False
-        self.use_cache = False
-        self.shuffle = False
-        self.batch_size = 2
-        self.num_workers = 2
-        self.shuffle = False
-        self.num_workers = 0
+        # setup to track metrics
+        self.class_report = ClassificationReport(self.data_desc.num_classes, label_ids=self.data_desc.label_ids)
+        # Optimizer setup needs to happen after all model weights are ready
+        self.setup_optimization(cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -120,7 +109,7 @@ class NERModel(ModelPT):
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
-        tensorboard_logs = {'train_loss': loss}
+        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -133,8 +122,12 @@ class NERModel(ModelPT):
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
         subtokens_mask = subtokens_mask > 0.5
-        preds = torch.argmax(logits, axis=-1)
-        tensorboard_logs = {'val_loss': val_loss, 'preds': preds, 'labels': labels, 'subtokens_mask': subtokens_mask}
+
+        preds = torch.argmax(logits, axis=-1)[subtokens_mask]
+        labels = labels[subtokens_mask]
+        tp, fp, fn = self.class_report(preds, labels)
+
+        tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
         return {'val_loss': val_loss, 'log': tensorboard_logs}
 
@@ -145,43 +138,62 @@ class NERModel(ModelPT):
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        tensorboard_logs = {'val_loss': avg_loss}
+        # calculate metrics and log classification report
+        tp = sum(torch.stack([x['log']['tp'] for x in outputs]))
+        fn = sum(torch.stack([x['log']['fn'] for x in outputs]))
+        fp = sum(torch.stack([x['log']['fp'] for x in outputs]))
+        precision, recall, f1 = self.class_report.get_precision_recall_f1(tp, fn, fp, mode='macro')
+
+        tensorboard_logs = {
+            'val_loss': avg_loss,
+            'precision': precision,
+            'f1': f1,
+            'recall': recall,
+        }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, data_dir, train_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_config:
-            train_data_layer_config['shuffle'] = True
-        text_file = os.path.join(data_dir, 'text_train.txt')
-        labels_file = os.path.join(data_dir, 'labels_train.txt')
-        self._train_dl = self.__setup_dataloader(text_file, labels_file)
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-    def setup_validation_data(self, data_dir, val_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_config['shuffle'] = False
-        text_file = os.path.join(data_dir, 'text_dev.txt')
-        labels_file = os.path.join(data_dir, 'labels_dev.txt')
-        self._validation_dl = self.__setup_dataloader(text_file, labels_file)
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-        pass
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
 
-    def __setup_dataloader(self, text_file: str, label_file: str):
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
+        text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
+        label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
 
+        if not (os.path.exists(text_file) and os.path.exists(label_file)):
+            raise FileNotFoundError(
+                f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
+                        labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
+                        spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
+                        separated with spaces. Each line of the files should follow the format:  \
+                           [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
+                           [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+            )
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=self.max_seq_length,
+            max_seq_length=cfg.max_seq_length,
             tokenizer=self.tokenizer,
-            num_samples=self.num_samples,
+            num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
             label_ids=self.data_desc.label_ids,
-            ignore_extra_tokens=self.ignore_extra_tokens,
-            ignore_start_end=self.ignore_start_end,
-            overwrite_processed_files=self.overwrite_processed_files,
+            ignore_extra_tokens=cfg.ignore_extra_tokens,
+            ignore_start_end=cfg.ignore_start_end,
+            overwrite_processed_files=cfg.overwrite_processed_files,
         )
 
         return torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers,
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
         )
 
     @classmethod
