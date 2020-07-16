@@ -14,7 +14,10 @@
 
 import copy
 import inspect
+import tarfile
+import tempfile
 from abc import abstractmethod
+from os import path
 from typing import Dict, Optional, Union
 
 import hydra
@@ -28,6 +31,9 @@ from nemo.utils import logging
 
 __all__ = ['ModelPT']
 
+_MODEL_CONFIG_YAML = "model_config.yaml"
+_MODEL_WEIGHTS = "model_weights.ckpt"
+
 
 class ModelPT(LightningModule, Model):
     """
@@ -35,11 +41,31 @@ class ModelPT(LightningModule, Model):
     """
 
     def save_to(self, save_path: str):
-        pass
+        """
+        Saves model instance (weights and configuration) into .nemo file
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
+        """
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            self.to_config_file(path2yaml_file=config_yaml)
+            trainer = self._trainer if self._trainer else Trainer()
+            if trainer.model != self:
+                trainer.model = self
+            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
+            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
     def restore_from(cls, restore_path: str):
-        pass
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            conf = OmegaConf.load(config_yaml)
+            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
+        return instance
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if not isinstance(cfg, DictConfig):
@@ -252,3 +278,22 @@ class ModelPT(LightningModule, Model):
     # def test_dataloader(self):
     #     if self._test_dl is not None:
     #         return self._test_dl
+
+    @property
+    def num_weights(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    @staticmethod
+    def __make_nemo_file_from_folder(filename, source_dir):
+        with tarfile.open(filename, "w:gz") as tar:
+            # tar.add(source_dir, arcname=path.basename(source_dir))
+            tar.add(source_dir, arcname="./")
+
+    @staticmethod
+    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
+        if not path.exists(path2file):
+            raise FileNotFoundError(f"{path2file} does not exist")
+        tar = tarfile.open(path2file, "r:gz")
+        tar.extractall(path=out_folder)
+        tar.close()
+        return out_folder

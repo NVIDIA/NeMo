@@ -23,3 +23,7 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
     """
     Abstract class offering interface shared between all PyTorch Neural Modules.
     """
+
+    @property
+    def num_weights(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
