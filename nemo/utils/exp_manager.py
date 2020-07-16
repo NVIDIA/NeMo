@@ -24,11 +24,10 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 
 # TODO: Typehints and docstring
-# TODO: Why does checkpoint folder not match tensorboard
-# TODO: Why is PTL's global_rank != local_rank for single node
 def exp_manager(
     trainer,
     root_dir=None,
@@ -42,12 +41,6 @@ def exp_manager(
     root_dir/model_or_experiment_name/version. It optionally creates TensorBoardLogger, and ModelCheckpoint objects
     from pytorch lightning.
     """
-    print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
-    print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
-    print(trainer.is_global_zero)
-    print(trainer.global_rank)
-    print("TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
-
     if get_original_cwd() != os.getcwd():
         raise ValueError(
             "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
@@ -87,7 +80,7 @@ def exp_manager(
         version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
         if trainer.is_slurm_managing_tasks:
             logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
-        elif trainer.is_global_zero:
+        elif is_global_rank_zero():
             version = time.strftime('%Y-%m-%d_%H-%M-%S')
             os.environ[NEMO_ENV_VARNAME_DATETIME] = version
 
@@ -110,16 +103,22 @@ def exp_manager(
                     "and create_checkpoint_callback was set to True. Please either set create_checkpoint_callback "
                     "to False, or remove ModelCheckpoint from the lightning trainer"
                 )
-        checkpoint_callback = ModelCheckpoint(save_top_k=3, save_last=True)
-        trainer.callbacks.append(checkpoint_callback)
+        if trainer.default_root_dir == trainer.weights_save_path:
+            # If true, then trainer.weights_save_path was most likely auto_set and we can ignore it
+            trainer.weights_save_path = None
         trainer.default_root_dir = _root_dir
+        # Create the callback and attach it to trainer
+        checkpoint_callback = ModelCheckpoint(save_top_k=3, save_last=True)
+        trainer.configure_checkpoint_callback(checkpoint_callback)
+        trainer.callbacks.append(checkpoint_callback)
+        trainer.checkpoint_callback = checkpoint_callback
 
     # Create the logging directory if it does not exist
     log_dir = Path(_root_dir, name, version)
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
 
     # Move files_to_copy to folder and add git information if present
-    if trainer.is_global_zero:
+    if is_global_rank_zero():
         if files_to_copy:
             for _file in files_to_copy:
                 basename = os.path.basename(_file)
@@ -139,14 +138,11 @@ def exp_manager(
                 _file.write(get_git_diff())
 
     # Handle Loggers by creating file and handle DEBUG statements
-    print("YYYYYYYYYYYYYYYYYYYYYY")
-    print(trainer.is_global_zero)
-    print(trainer.global_rank)
-    print(trainer.local_rank)
-    print("YYYYYYYYYYYYYYYYYYYYYY")
-    log_file = log_dir / f'log_globalrank-{trainer.global_rank}_localrank-{trainer.local_rank}.txt'
+    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
+    global_rank = trainer.node_rank * trainer.num_processes + trainer.local_rank
+    log_file = log_dir / f'log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
     logging.add_file_handler(log_file)
-    logging.rank = trainer.global_rank
+    logging.rank = global_rank
 
 
 def get_git_hash():
