@@ -121,7 +121,7 @@ class ModelPT(LightningModule, Model):
 
         # Setup optimizer and scheduler
 
-        if optim_config is not None:
+        if optim_config is not None and isinstance(optim_config, DictConfig):
             optim_config = OmegaConf.to_container(optim_config)
 
         if 'sched' in optim_config and self._trainer is not None:
