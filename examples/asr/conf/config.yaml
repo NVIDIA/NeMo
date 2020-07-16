@@ -9,7 +9,7 @@ labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"
 model:
   pl: null
   train_ds:
-    manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
+    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
     sample_rate: 16000
     labels: *labels
     batch_size: 32
@@ -18,7 +18,7 @@ model:
     shuffle: True
 
   validation_ds:
-    manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
+    manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_val.json'
     sample_rate: 16000
     labels: *labels
     batch_size: 32

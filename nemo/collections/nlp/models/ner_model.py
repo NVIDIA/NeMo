@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import torch
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -63,7 +64,20 @@ class NERModel(ModelPT):
             dropout: dropout to apply to the input hidden states
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
-        super().__init__()
+        # TODO: This is a workaround - please fix - see text_classification_model or asr for example
+        cfg = DictConfig(
+            {
+                'num_classes': num_classes,
+                'pretrained_model_name': pretrained_model_name,
+                'config_file': config_file,
+                'num_layers': num_layers,
+                'activation': activation,
+                'log_softmax': log_softmax,
+                'dropout': dropout,
+                'use_transformer_init': use_transformer_init,
+            }
+        )
+        super(cfg=cfg).__init__()
         self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.tokenizer = NemoBertTokenizer(pretrained_model=pretrained_model_name)

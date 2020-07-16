@@ -16,6 +16,7 @@ from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -27,7 +28,6 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
-
 
 __all__ = ['TextClassificationModel']
 
@@ -42,7 +42,7 @@ class TextClassificationModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    def __init__(self, cfg: DictConfig, trainer=None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the BERTTextClassifier model.
         """
 

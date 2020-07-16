@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
-
 __all__ = [
     'OptimizerParams',
     'AdamParams',

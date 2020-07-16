@@ -14,32 +14,18 @@
 
 import inspect
 from abc import abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional, Union
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import LightningModule
-from torch.optim.optimizer import Optimizer
+from pytorch_lightning import LightningModule, Trainer
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
-from nemo.core.config.base_config import Config
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging
 
-__all__ = ['ModelPT', 'ModelPTConfig']
-
-
-@dataclass
-class ModelPTConfig(Config):
-    """Inherit from this class when you parametrize NeMo models"""
-
-    optim: Any = None
-    train_ds: Any = None
-    validation_ds: Any = None
-    test_ds: Any = None
-    trainer: Any = None
+__all__ = ['ModelPT']
 
 
 class ModelPT(LightningModule, Model):
@@ -47,7 +33,20 @@ class ModelPT(LightningModule, Model):
     Interface for Pytorch-lightning based NeMo models
     """
 
-    def __init__(self, cfg: ModelPTConfig = None, trainer=None):
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if not isinstance(cfg, DictConfig):
+            raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
+        if trainer is not None and not isinstance(trainer, Trainer):
+            raise ValueError(
+                f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
+            )
         super().__init__()
         self._cfg = cfg
         self.save_hyperparameters(self._cfg)
@@ -58,13 +57,13 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self._trainer = trainer
 
-        if cfg is not None:
-            if 'train_ds' in cfg and cfg.train_ds is not None:
-                self.setup_training_data(cfg.train_ds)
-            if 'validation_ds' in cfg and cfg.validation_ds is not None:
-                self.setup_validation_data(cfg.validation_ds)
-            if 'test_ds' in cfg and cfg.test_ds is not None:
-                self.setup_test_data(cfg.test_ds)
+        if self._cfg is not None:
+            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                self.setup_training_data(self._cfg.train_ds)
+            if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+                self.setup_validation_data(self._cfg.validation_ds)
+            if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+                self.setup_test_data(self._cfg.test_ds)
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
@@ -114,6 +113,11 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
         """
+        optim_config = optim_config or {}  # In case null was passed as optim_params
+
+        # Force into DictConfig from nested structure
+        optim_config = OmegaConf.create(optim_config)
+
         # Setup optimizer and scheduler
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
@@ -132,11 +136,6 @@ class ModelPT(LightningModule, Model):
             else:
                 optim_config.sched.max_steps = self._trainer.max_steps
 
-        optim_config = optim_config or {}  # In case null was passed as optim_params
-
-        # Force into DictConfig from nested structure
-        optim_config = OmegaConf.create(optim_config)
-
         # Check if caller provided optimizer name, default to Adam otherwise
         optimizer_cls = optim_config.get('cls', None)
 
@@ -154,7 +153,7 @@ class ModelPT(LightningModule, Model):
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        lr = optim_config.get('lr', None)
+        lr = optim_config.get('lr', 0.0003)
 
         if 'lr' is None:
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
