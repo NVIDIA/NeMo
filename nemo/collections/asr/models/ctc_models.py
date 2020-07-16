@@ -17,7 +17,8 @@ from typing import Dict, Optional, Union
 
 import hydra
 import torch
-from omegaconf import MISSING, DictConfig
+from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
@@ -25,26 +26,17 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncDecCTCModel', 'EncDecCTCModelConfig', 'JasperNet', 'QuartzNet']
-
-
-@dataclass
-class EncDecCTCModelConfig(ModelPTConfig):
-    preprocessor: DictConfig = MISSING
-    encoder: DictConfig = MISSING
-    decoder: DictConfig = MISSING
-    spec_augment: Optional[DictConfig] = None
+__all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
 @experimental
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
-    def __init__(self, cfg: Union[EncDecCTCModelConfig, DictConfig, Dict], trainer=None):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = hydra.utils.instantiate(self._cfg.preprocessor)
         self.encoder = hydra.utils.instantiate(self._cfg.encoder)
@@ -89,20 +81,20 @@ class EncDecCTCModel(ASRModel):
             num_workers=config.get('num_workers', 0),
         )
 
-    def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in train_data_layer_config:
-            train_data_layer_config['shuffle'] = True
-        self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
+    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+        if 'shuffle' not in train_data_config:
+            train_data_config['shuffle'] = True
+        self._train_dl = self.__setup_dataloader_from_config(config=train_data_config)
 
-    def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_config['shuffle'] = False
-        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
+    def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
+        if 'shuffle' not in val_data_config:
+            val_data_config['shuffle'] = False
+        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_config)
 
-    def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in test_data_layer_params:
-            test_data_layer_params['shuffle'] = False
-        self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
+    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
+        if 'shuffle' not in test_data_config:
+            test_data_config['shuffle'] = False
+        self._test_dl = self.__setup_dataloader_from_config(config=test_data_config)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

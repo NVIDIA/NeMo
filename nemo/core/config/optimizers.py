@@ -68,7 +68,7 @@ class AdamParams(OptimizerParams):
         https://pytorch.org/docs/stable/optim.html?highlight=adam#torch.optim.Adam
     """
 
-    betas: Tuple[float, float] = (0.9, 0.999)
+    # betas: Tuple[float, float] = (0.9, 0.999)
     eps: float = 1e-08
     weight_decay: float = 0
     amsgrad: bool = False

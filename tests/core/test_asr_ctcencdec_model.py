@@ -17,7 +17,7 @@ from unittest import TestCase
 import pytest
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelConfig
+from nemo.collections.asr.models import EncDecCTCModel
 
 
 class EncDecCTCModelTest(TestCase):
@@ -86,8 +86,8 @@ class EncDecCTCModelTest(TestCase):
             },
         }
 
-        modelConfig = EncDecCTCModelConfig(
-            preprocessor=DictConfig(preprocessor), encoder=DictConfig(encoder), decoder=DictConfig(decoder)
+        modelConfig = DictConfig(
+            {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
         )
         asr_model = EncDecCTCModel(cfg=modelConfig)
         asr_model.train()

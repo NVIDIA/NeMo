@@ -80,7 +80,7 @@ pipeline {
       parallel {
         stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp/text_classification && CUDA_VISIBLE_DEVICES=0 python text_classification_with_bert.py --pretrained_model_name bert-base-uncased --max_epochs=1 --max_seq_length=50 --data_dir=/home/TestData/nlp/retail/ --eval_file_prefix=dev --batch_size=10 --num_train_samples=-1 --do_lower_case --work_dir=outputs'
+            sh 'cd examples/nlp/text_classification && python text_classification_with_bert.py pl.trainer.gpus=1 model.language_model.pretrained_model_name=bert-base-uncased pl.trainer.max_epochs=1 model.language_model.max_seq_length=50 model.data_dir=/home/TestData/nlp/retail/ model.validation_ds.prefix=dev model.train_ds.batch_size=10 model.train_ds.num_samples=-1 model.language_model.do_lower_case=true'
             sh 'rm -rf examples/nlp/text_classification/outputs'
           }
         }
