@@ -183,3 +183,7 @@ pl:
 hydra:
   run:
     dir: .
+  job_logging:
+    root:
+      level: INFO
+      handlers: null
