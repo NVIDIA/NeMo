@@ -22,7 +22,7 @@ from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel, EncDecCTCModelConfig
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
@@ -32,16 +32,14 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
 
 
-@dataclass
-class EncDecCTCModelBPEConfig(EncDecCTCModelConfig):
-    tokenizer: DictConfig = MISSING
-
-
 @experimental
 class EncDecCTCModelBPE(EncDecCTCModel):
     """Encoder decoder CTC-based models with Byte Pair Encoding."""
 
-    def __init__(self, cfg: EncDecCTCModelBPEConfig, trainer=None):
+    def __init__(self, cfg: DictConfig, trainer=None):
+        if 'tokenizer' not in cfg:
+            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+
         self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
         self.tokenizer_path = self.tokenizer_cfg.pop('path')  # Remove path and resolve based on tokenizer type
 
