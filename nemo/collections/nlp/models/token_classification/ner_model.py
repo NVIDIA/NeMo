@@ -127,7 +127,7 @@ class NERModel(ModelPT):
         labels = labels[subtokens_mask]
         tp, fp, fn = self.class_report(preds, labels)
 
-        tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp, 'preds':preds, 'labels':labels}
 
         return {'val_loss': val_loss, 'log': tensorboard_logs}
 
@@ -139,10 +139,17 @@ class NERModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report
-        tp = sum(torch.stack([x['log']['tp'] for x in outputs]))
-        fn = sum(torch.stack([x['log']['fn'] for x in outputs]))
-        fp = sum(torch.stack([x['log']['fp'] for x in outputs]))
+
+        tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
+        fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
+        fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
         precision, recall, f1 = self.class_report.get_precision_recall_f1(tp, fn, fp, mode='macro')
+
+        preds = torch.cat([x['log']['preds'] for x in outputs])
+        labels = torch.cat([x['log']['labels'] for x in outputs])
+
+        from sklearn.metrics import classification_report
+        print(torch.distributed.get_rank(), classification_report(y_true=labels.cpu().numpy(), y_pred=preds.cpu().numpy()))
 
         tensorboard_logs = {
             'val_loss': avg_loss,
