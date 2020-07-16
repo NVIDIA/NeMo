@@ -122,7 +122,7 @@ pipeline {
       failFast true
         steps {
           sh 'cd examples/nlp/token_classification && python ner.py \
-          model.data_dir=data_dir /home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true'
+          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true'
           sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
         }
     }
