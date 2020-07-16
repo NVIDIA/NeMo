@@ -247,6 +247,8 @@ def create_spt_model(
 
             if len(token) > 0:
                 tokens.append(token)
+            else:
+                tokens.append(piece[0])
 
     vocab.extend(tokens)
 
