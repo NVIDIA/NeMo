@@ -40,34 +40,19 @@ class ModelPT(LightningModule, Model):
     Interface for Pytorch-lightning based NeMo models
     """
 
-    def save_to(self, save_path: str):
-        """
-        Saves model instance (weights and configuration) into .nemo file
-        Args:
-            save_path: Path to .nemo file where model instance should be saved
-        """
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-            self.to_config_file(path2yaml_file=config_yaml)
-            trainer = self._trainer if self._trainer else Trainer()
-            if trainer.model != self:
-                trainer.model = self
-            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
-            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-            conf = OmegaConf.load(config_yaml)
-            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
-        return instance
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        """
+        Base class from which all NeMo models should inherit
+        Args:
+            cfg (DictConfig):  configuration object.
+                The cfg object should have (optionally) the following sub-configs:
+                    * train_ds - to instantiate training dataset
+                    * validation_ds - to instantiate validation dataset
+                    * test_ds - to instantiate testing dataset
+                    * optim - to instantiate optimizer with learning rate scheduler
+
+            trainer (Optional): Pytorch Lightning Trainer instance
+        """
         if not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
         if trainer is not None and not isinstance(trainer, Trainer):
@@ -91,6 +76,55 @@ class ModelPT(LightningModule, Model):
                 self.setup_validation_data(self._cfg.validation_ds)
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self.setup_test_data(self._cfg.test_ds)
+
+    def save_to(self, save_path: str):
+        """
+        Saves model instance (weights and configuration) into .nemo file. You can use "restore_from" method to fully
+        restore instance from .nemo file.
+
+        .nemo file is an archive (tar.gz) with the following:
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
+
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            self.to_config_file(path2yaml_file=config_yaml)
+            trainer = self._trainer if self._trainer else Trainer()
+            if trainer.model != self:
+                trainer.model = self
+            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
+            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """
+        Restores model instance (weights and configuration) into .nemo file
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+
+            Example:
+                ```
+                model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+                assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+                ```
+
+        Returns:
+            An instance of type cls
+        """
+        if not path.exists(restore_path):
+            raise FileExistsError(f"Can't find {restore_path}")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            conf = OmegaConf.load(config_yaml)
+            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
+        return instance
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
