@@ -91,7 +91,7 @@ def __process_data(text_path: str, dst_folder: str, vocab_size: int, tokenizer_t
             sample_size=-1,
             special_tokens=None,
             do_lower_case=True,
-            output_dir=tokenizer_dir
+            output_dir=tokenizer_dir,
         )
 
     else:
