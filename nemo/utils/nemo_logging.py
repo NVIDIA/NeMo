@@ -21,8 +21,9 @@ import warnings
 from contextlib import contextmanager
 
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, NEMO_ENV_VARNAME_TESTING
-from nemo.utils.env_var_parsing import get_envbool, get_envint
+from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.formatters.base import BaseNeMoFormatter, DebugNeMoFormatter
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.metaclasses import Singleton
 
 __all__ = ["Logger", "LogMode"]
@@ -77,6 +78,8 @@ class Logger(metaclass=Singleton):
 
         self.once_logged = set()
 
+        self.rank = 0 if is_global_rank_zero() else "UNK"
+
     def _define_logger(self):
 
         # Use double-checked locking to avoid taking lock unnecessarily.
@@ -93,12 +96,12 @@ class Logger(metaclass=Singleton):
 
                     def record_factory(*args, **kwargs):
                         record = old_factory(*args, **kwargs)
-                        record.rank = get_envint("RANK", 0)
+                        record.rank = self.rank
                         return record
 
                     _logging.setLogRecordFactory(record_factory)
                     self.add_stream_handlers(formatter=DebugNeMoFormatter)
-                elif get_envint("RANK", 0) == 0:
+                elif is_global_rank_zero():
                     self.add_stream_handlers()
 
             finally:
