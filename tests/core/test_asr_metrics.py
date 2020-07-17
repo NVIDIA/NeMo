@@ -123,4 +123,4 @@ class WordErrorRateTests(TestCase):
             logging.debug(s1)
             logging.debug(n2)
             logging.debug(s2)
-            self.assertEqual(get_wer(prediction=s1, reference=s2), word_error_rate(hypotheses=[s1], references=[s2]))
+            self.assertEqual(get_wer(prediction=s1, reference=s2), word_error_rate(hypotheses=[s1], references=[s2]+1))
