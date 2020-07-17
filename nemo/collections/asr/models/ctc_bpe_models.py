@@ -45,8 +45,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
         if self.tokenizer_type not in ['bpe', 'wpe']:
-            raise ValueError("`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
-                             "`wpe` for BERT based tokenizer")
+            raise ValueError(
+                "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
+                "`wpe` for BERT based tokenizer"
+            )
 
         if self.tokenizer_type == 'bpe':
             # This is a BPE Tokenizer
