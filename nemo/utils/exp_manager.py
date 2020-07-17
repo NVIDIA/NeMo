@@ -160,11 +160,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             raise ValueError(
                 "The pytorch lightning was passed weights_save_path. This variable is ignored by exp_manager"
             )
+        trainer.weights_save_path = _root_dir
         trainer.default_root_dir = _root_dir
         # Create the callback and attach it to trainer
-        checkpoint_callback = ModelCheckpoint(
-            filepath=log_dir / "checkpoints" / f"{name}--{{epoch:d}}-{{val_loss:.2f}}", save_top_k=3, save_last=True
-        )
+        checkpoint_callback = ModelCheckpoint(save_top_k=3, save_last=True, prefix=name + "--")
         trainer.configure_checkpoint_callback(checkpoint_callback)
         trainer.callbacks.append(checkpoint_callback)
         trainer.checkpoint_callback = checkpoint_callback
