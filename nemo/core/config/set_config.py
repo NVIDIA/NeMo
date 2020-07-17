@@ -45,18 +45,20 @@ def hydra_runner(
             else:
                 args = get_args_parser()
 
-                # Force working directory to current dir
+                # Parse arguments in order to retrieve overrides
                 parsed_args = args.parse_args()
 
                 # Get overriding args in dot string format
-                overrides = parsed_args.overrides
+                overrides = parsed_args.overrides  # type: list
 
-                # Update override to include hydra.run.dir=.
+                # Update overrides
                 overrides.append("hydra.run.dir=.")
                 overrides.append('hydra.job_logging.root.handlers=null')
 
+                # Wrap a callable object with name `parse_args`
+                # This is to mimic the ArgParser.parse_args() API.
                 class _argparse_wrapper:
-                    def parse_args(self):
+                    def parse_args(self, args=None, namespace=None):
                         return parsed_args
 
                 # no return value from run_hydra() as it may sometime actually run the task_function
