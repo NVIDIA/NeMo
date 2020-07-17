@@ -12,41 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import numpy as np
-
-# Supported Numpy DTypes: `np.sctypes`
-ACCEPTED_INT_NUMBER_FORMATS = (
-    int,
-    np.uint8,
-    np.uint16,
-    np.uint32,
-    np.uint64,
-    np.int,
-    np.int8,
-    np.int16,
-    np.int32,
-    np.int64,
-)
-
-ACCEPTED_FLOAT_NUMBER_FORMATS = (
-    float,
-    np.float,
-    np.float16,
-    np.float32,
-    np.float64,
-    np.float128,
-)
-
-ACCEPTED_STR_NUMBER_FORMATS = (
-    str,
-    np.str,
-)
-
-ACCEPTED_NUMBER_FORMATS = ACCEPTED_INT_NUMBER_FORMATS + ACCEPTED_FLOAT_NUMBER_FORMATS + ACCEPTED_STR_NUMBER_FORMATS
-
-# NEMO_ENV_VARNAME_DEBUG_VERBOSITY = "NEMO_DEBUG_VERBOSITY"
 NEMO_ENV_VARNAME_ENABLE_COLORING = "NEMO_ENABLE_COLORING"
 NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR = "NEMO_REDIRECT_LOGS_TO_STDERR"
-NEMO_ENV_VARNAME_TESTING = "NEMO_TESTING"
-# NEMO_ENV_VARNAME_SAVE_LOGS_TO_DIR        = "NEMO_SAVE_LOGS_TO_DIR"
+NEMO_ENV_VARNAME_TESTING = "NEMO_TESTING"  # Set to True to enable nemo.util.logging's debug mode
+NEMO_ENV_VARNAME_DATETIME = "NEMO_DATETIME"  # Used for nemo.utils.exp_manager datatime versioning

@@ -1,4 +1,4 @@
-#model: "QuartzNet15x5"
+name: &name "QuartzNet15x5"
 sample_rate: &sample_rate 16000
 repeat: &repeat 1
 dropout: &dropout 0.0
@@ -7,7 +7,6 @@ labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 model:
-  pl: null
   train_ds:
     manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
     sample_rate: 16000
@@ -167,3 +166,18 @@ pl:
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
+    checkpoint_callback: False  # Provided by exp_manager
+    logger: False  # Provided by exp_manager
+
+exp_manager:
+  root_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
