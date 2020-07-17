@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from unittest import TestCase
 
 import pytest
 from omegaconf import DictConfig
@@ -21,7 +20,7 @@ from nemo.collections.asr.modules import SpectrogramAugmentation
 from nemo.core.classes.common import Serialization
 
 
-class SerializationTest(TestCase):
+class SerializationTest:
     @pytest.mark.unit
     def test_from_config_dict_with_cls(self):
         """Here we test that instantiation works for configs with cls class path in them.
@@ -33,7 +32,7 @@ class SerializationTest(TestCase):
             }
         )
         obj = Serialization.from_config_dict(config=config)
-        self.assertTrue(isinstance(obj, SpectrogramAugmentation))
+        assert isinstance(obj, SpectrogramAugmentation)
 
     def test_from_config_dict_without_cls(self):
         """Here we test that instantiation works for configs without cls class path in them.
@@ -103,4 +102,4 @@ class SerializationTest(TestCase):
             {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
         )
         obj = EncDecCTCModel.from_config_dict(config=modelConfig)
-        self.assertTrue(isinstance(obj, EncDecCTCModel))
+        assert isinstance(obj, EncDecCTCModel)
