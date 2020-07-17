@@ -21,6 +21,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.utils import logging
 
 
 class WordErrorRateTests(TestCase):
