@@ -23,6 +23,7 @@ from nemo.collections.asr.models import EncDecCTCModel
 
 class FileIOTest(TestCase):
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_to_from_config_file(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
@@ -102,6 +103,7 @@ class FileIOTest(TestCase):
             self.assertFalse(np.array_equal(w1, w2))
 
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_save_restore_from_nemo_file(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
