@@ -19,10 +19,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copyfile
-from typing import List, Optional, Union, Dict
+from typing import Dict, List, Optional, Union
 
-from omegaconf import OmegaConf, DictConfig
 from hydra.utils import get_original_cwd
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
