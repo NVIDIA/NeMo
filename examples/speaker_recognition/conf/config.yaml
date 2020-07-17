@@ -10,7 +10,7 @@ model:
   train_ds:
     manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
     sample_rate: 16000
-    labels: None
+    labels: null
     batch_size: 64 
     shuffle: True
     time_length: 8
@@ -113,7 +113,7 @@ model:
     # scheduler setup
     sched:
       name: CosineAnnealing
-      iters_per_batch: null # computed at runtime
+      iters_per_batch: 1 # computed at runtime
       max_steps: null # computed at runtime or explicitly set here
 
       # pytorch lightning args

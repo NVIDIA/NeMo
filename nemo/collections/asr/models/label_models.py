@@ -79,7 +79,6 @@ class EncDecSpeechLabelModel(ModelPT):
     def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_layer_config:
             train_data_layer_config['shuffle'] = True
-        train_data_layer_config['labels'] = None
         self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
 
     def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
