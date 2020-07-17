@@ -22,7 +22,6 @@ from nemo.collections.asr.models import EncDecCTCModel
 
 class EncDecCTCModelTest(TestCase):
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_constructor(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
