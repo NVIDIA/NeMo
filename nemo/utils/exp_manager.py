@@ -22,7 +22,7 @@ from shutil import copyfile
 from typing import Dict, List, Optional, Union
 
 from hydra.utils import get_original_cwd
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, MISSING
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
@@ -33,8 +33,8 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 @dataclass
 class ExpManagerConfig:
+    name: str = MISSING
     root_dir: Optional[str] = None
-    name: Optional[str] = None
     create_tensorboard_logger: Optional[bool] = True
     create_checkpoint_callback: Optional[bool] = True
     files_to_copy: Optional[List[str]] = None
@@ -54,9 +54,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
         cfg (DictConfig, dict): Can have the following keys:
+            - name (str): The name of the experiment. Required argument.
             - root_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
                 ./NeMo_experiments.
-            - name (str): The name of the experiment. Defaults to None, which uses the lightning default of "default".
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
@@ -65,10 +65,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
     """
-    schema = OmegaConf.structured(ExpManagerConfig)
     if cfg is None:
-        cfg = schema
-    elif isinstance(cfg, dict):
+        logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
+    schema = OmegaConf.structured(ExpManagerConfig)
+    if isinstance(cfg, dict):
         cfg = OmegaConf.create(cfg)
     elif not isinstance(cfg, DictConfig):
         raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")

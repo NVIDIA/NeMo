@@ -7,7 +7,7 @@ labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"
          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 model:
-  cls: ???
+  cls: null
   train_ds:
     manifest_filepath: '/Users/okuchaiev/Data/an4_dataset/an4_train.json'
     sample_rate: 16000
