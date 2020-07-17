@@ -69,7 +69,7 @@ class PunctuationCapitalizationModel(ModelPT):
         # TODO refactor with data_desc
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=cfg.punct_head.punct_num_classes,
+            num_classes=len(self.punct_label_ids),
             activation=cfg.punct_head.activation,
             log_softmax=cfg.punct_head.log_softmax,
             dropout=cfg.punct_head.fc_dropout,
@@ -79,7 +79,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         self.capit_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=cfg.capit_head.capit_num_classes,
+            num_classes=len(self.capit_label_ids),
             activation=cfg.capit_head.activation,
             log_softmax=cfg.capit_head.log_softmax,
             dropout=cfg.capit_head.fc_dropout,
@@ -91,12 +91,8 @@ class PunctuationCapitalizationModel(ModelPT):
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
         # setup to track metrics
-        self.punct_class_report = ClassificationReport(
-            cfg.punct_head.punct_num_classes, label_ids=self.punct_label_ids
-        )
-        self.capit_class_report = ClassificationReport(
-            cfg.capit_head.capit_num_classes, label_ids=self.capit_label_ids
-        )
+        self.punct_class_report = ClassificationReport(len(self.punct_label_ids), label_ids=self.punct_label_ids)
+        self.capit_class_report = ClassificationReport(len(self.capit_label_ids), label_ids=self.capit_label_ids)
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
