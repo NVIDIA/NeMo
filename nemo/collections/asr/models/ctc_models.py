@@ -37,8 +37,9 @@ class EncDecCTCModel(ASRModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if 'cls' not in cfg:
             # This is for Jarvis service. Adding here for now to avoid effects of decorators
-            cls_cfg = DictConfig({'cls': 'nemo.collections.asr.models.EncDecCTCModel'})
-            cfg = OmegaConf.merge(cfg, cls_cfg)
+            OmegaConf.set_struct(cfg, False)
+            cfg.cls = 'nemo.collections.asr.models.EncDecCTCModel'
+            OmegaConf.set_struct(cfg, True)
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
