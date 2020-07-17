@@ -21,6 +21,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
+from nemo.utils import logging
 
 
 class WordErrorRateTests(TestCase):
@@ -93,7 +94,6 @@ class WordErrorRateTests(TestCase):
         self.assertEqual(get_wer('a f c', 'a b c'), 1.0 / 3.0)
 
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_wer_metric_randomized(self):
         """This test relies on correctness of word_error_rate function"""
 
@@ -119,4 +119,8 @@ class WordErrorRateTests(TestCase):
             n2 = random.randint(0, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
+            logging.debug(n1)
+            logging.debug(s1)
+            logging.debug(n2)
+            logging.debug(s2)
             self.assertEqual(get_wer(prediction=s1, reference=s2), word_error_rate(hypotheses=[s1], references=[s2]))
