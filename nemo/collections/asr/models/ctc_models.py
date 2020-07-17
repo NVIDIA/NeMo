@@ -46,12 +46,12 @@ class EncDecCTCModel(ASRModel):
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
         self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if self._cfg.spec_augment is not None:
+        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(self._cfg.optim)
+        self.setup_optimization()
         # Setup metric objects
         self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
