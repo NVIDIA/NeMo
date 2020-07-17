@@ -19,14 +19,14 @@
 """Setup for pip package."""
 
 import codecs
-import os
 import subprocess
 import sys
 from distutils import cmd as distutils_cmd
 from distutils import log as distutils_log
 from itertools import chain
-
 import setuptools
+from os import path, makedirs, environ
+import yaml
 
 
 def is_build_action():
@@ -42,7 +42,7 @@ def is_build_action():
 
 
 if is_build_action():
-    os.environ['NEMO_PACKAGE_BUILDING'] = 'True'
+    environ['NEMO_PACKAGE_BUILDING'] = 'True'
 
 from nemo.package_info import (
     __contact_emails__,
@@ -57,15 +57,47 @@ from nemo.package_info import (
     __version__,
 )
 
-if os.path.exists('nemo/README.md'):
+################################################################################################
+# Get root path (i.e. path where NeMo is installed).
+root_dir = path.abspath(path.dirname(__file__))
+configuration = {
+    # Nemo root path.
+    "root_dir": root_dir,
+    # Default directory containing data(sets).
+    "data_dir": path.join(root_dir, "data"),
+    # Default directory containing data(sets) used during testing.
+    "test_data_dir": path.join(root_dir, "tests/data"),
+    # Default directory where the outputs of the experiments will be stored.
+    "experiments_dir": path.join(root_dir, "experiments"),
+}
+
+# Export configuration to file in ~/.nemo/ folder.
+nemo_dir = path.expanduser("~/.nemo/")
+makedirs(path.dirname(nemo_dir), exist_ok=True)
+conf_file = path.join(nemo_dir, "config.yaml")
+# In order NOT to override the existing configuration
+# (that user might set manually for the previous NeMo version)
+# load it first and overwrite the default params.
+if path.exists(conf_file):
+    with open(conf_file, "r") as file:
+        existing_configuration = yaml.load(file)
+    configuration = {**configuration, **existing_configuration}
+
+# Write the configuration to file.
+with open(conf_file, "w") as file:
+    yaml.dump(configuration, file)
+################################################################################################
+
+
+if path.exists('nemo/README.md'):
     with open("nemo/README.md", "r") as fh:
         long_description = fh.read()
     long_description_content_type = "text/markdown"
 
-elif os.path.exists('README.rst'):
+elif path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
+        path.join(path.abspath(path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
 
@@ -79,7 +111,7 @@ else:
 
 
 def req_file(filename, folder="requirements"):
-    with open(os.path.join(folder, filename)) as f:
+    with open(path.join(folder, filename)) as f:
         content = f.readlines()
     # you may also want to remove whitespace characters
     # Example: `\n` at the end of each line
@@ -251,3 +283,6 @@ setuptools.setup(
     # Custom commands.
     cmdclass={'style': StyleCommand},
 )
+
+print("{}\n NeMo configuration saved to `{}`:\n{}".format("="*80, path.join(nemo_dir, "config.yaml"), configuration))
+
