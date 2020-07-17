@@ -67,6 +67,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     """
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
+        return
     schema = OmegaConf.structured(ExpManagerConfig)
     if isinstance(cfg, dict):
         cfg = OmegaConf.create(cfg)
