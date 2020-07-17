@@ -1,17 +1,11 @@
-#model: "QuartzNet15x5"
+#model: "ContextNet5x1"
 sample_rate: &sample_rate 16000
 repeat: &repeat 1
 dropout: &dropout 0.0
 separable: &separable true
-labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
-
-hydra:
-  run:
-    dir: "."
 
 model:
-  pl: null
+  cfg: null
 
   logger:
     experiment_name: null
@@ -20,7 +14,6 @@ model:
   train_ds:
     manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
     sample_rate: 16000
-    labels: *labels
     batch_size: 32
     trim_silence: True
     max_duration: 16.7
@@ -29,7 +22,6 @@ model:
   validation_ds:
     manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
     sample_rate: 16000
-    labels: *labels
     batch_size: 32
     shuffle: False
 
@@ -153,33 +145,20 @@ model:
     name: adam
     # cls: nemo.core.optim.optimizers.Adam
     lr: .1
+
     # optimizer arguments
-    args:
-      name: auto
-      # cls: nemo.core.config.optimizers.AdamW
-      params:
-        betas: [0.9, 0.999]
-        weight_decay: 0.0001
+    betas: [0.9, 0.999]
+    weight_decay: 0.0001
 
     # scheduler setup
     sched:
       name: CosineAnnealing
-      iters_per_batch: null # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
-
-      # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
 
       # scheduler config override
-      args:
-        name: auto
-        # cls: nemo.core.config.schedulers.CosineAnnealingParams
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.05
-          min_lr: 1e-6
-          last_epoch: -1
+      warmup_steps: null
+      warmup_ratio: 0.05
+      min_lr: 1e-6
+      last_epoch: -1
 
 pl:
   trainer:
