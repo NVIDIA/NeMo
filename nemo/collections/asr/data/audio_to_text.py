@@ -271,7 +271,7 @@ class AudioToBPEDataset(_AudioDataset):
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
         featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,

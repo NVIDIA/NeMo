@@ -41,11 +41,16 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
 
         self.tokenizer_cfg = OmegaConf.to_container(cfg.tokenizer, resolve=True)  # type: dict
-        self.tokenizer_path = self.tokenizer_cfg.pop('path')  # Remove path and resolve based on tokenizer type
+        self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
+        self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
-        if os.path.exists(os.path.join(self.tokenizer_path, 'tokenizer.model')):
+        if self.tokenizer_type not in ['bpe', 'wpe']:
+            raise ValueError("`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
+                             "`wpe` for BERT based tokenizer")
+
+        if self.tokenizer_type == 'bpe':
             # This is a BPE Tokenizer
-            model_path = os.path.join(self.tokenizer_path, 'tokenizer.model')
+            model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
 
             if 'special_tokens' in self.tokenizer_cfg:
                 special_tokens = self.tokenizer_cfg['special_tokens']
@@ -56,7 +61,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path, special_tokens=special_tokens)
 
             vocabulary = {0: '<unk>'}
-            with open(os.path.join(self.tokenizer_path, 'vocab.txt')) as f:
+            with open(os.path.join(self.tokenizer_dir, 'vocab.txt')) as f:
                 for i, piece in enumerate(f):
                     piece = piece.replace('\n', '')
                     vocabulary[i + 1] = piece
@@ -72,8 +77,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         else:
             # This is a WPE Tokenizer
-            self.tokenizer_path = os.path.join(self.tokenizer_path, 'vocab.txt')
-            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_path, **self.tokenizer_cfg)
+            self.tokenizer_dir = os.path.join(self.tokenizer_dir, 'vocab.txt')
+            self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_dir, **self.tokenizer_cfg)
 
         logging.info(
             "Tokenizer {} initialized with {} tokens".format(
