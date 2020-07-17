@@ -33,20 +33,6 @@ from nemo.utils.get_rank import is_global_rank_zero
 
 @dataclass
 class ExpManagerConfig:
-    """
-    Args:
-        root_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
-            ./NeMo_experiments.
-        name (str): The name of the experiment. Defaults to None, which uses the lightning default of "default".
-        create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch lightning
-            trainer. Defaults to True.
-        create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the pytorch
-            lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss" as well as the most
-            recent model. Defaults to True.
-        files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which copies
-            no files.
-    """
-
     root_dir: Optional[str] = None
     name: Optional[str] = None
     create_tensorboard_logger: Optional[bool] = True
