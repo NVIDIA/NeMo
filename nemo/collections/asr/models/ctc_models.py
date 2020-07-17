@@ -35,6 +35,9 @@ class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if 'cls' not in cfg:
+            # This is for Jarvis service. Adding here for now to avoid effects of decorators
+            cfg['cls'] = 'nemo.collections.asr.models.EncDecCTCModel'
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)

@@ -63,7 +63,6 @@ class AudioPreprocessor(NeuralModule, ABC):
         return torch.ceil(length / self.hop_length).to(dtype=torch.long)
 
 
-@experimental
 class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     """Featurizer module that converts wavs to mel spectrograms.
         We don't use torchaudio's implementation here because the original
@@ -228,7 +227,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         return self.featurizer.filter_banks
 
 
-@experimental
 class SpectrogramAugmentation(NeuralModule):
     """
     Performs time and freq cuts in one of two ways.
@@ -301,7 +299,7 @@ class SpectrogramAugmentation(NeuralModule):
             self.spec_augment = SpecAugment(
                 freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
             )
-            self.spec_augment.to(self._device)
+            # self.spec_augment.to(self._device)
         else:
             self.spec_augment = lambda x: x
 
