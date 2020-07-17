@@ -114,7 +114,7 @@ class WordErrorRateTests(TestCase):
             )
             return res[0] / res[1]
 
-        for test_id in range(1024):
+        for test_id in range(256):
             n1 = random.randint(0, 512)
             n2 = random.randint(0, 512)
             s1 = __randomString(n1)
