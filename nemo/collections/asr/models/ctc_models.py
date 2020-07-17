@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
-import hydra
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -37,13 +35,16 @@ class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if 'cls' not in cfg:
+            # This is for Jarvis service. Adding here for now to avoid effects of decorators
+            cfg['cls'] = 'nemo.collections.asr.models.EncDecCTCModel'
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = hydra.utils.instantiate(self._cfg.preprocessor)
-        self.encoder = hydra.utils.instantiate(self._cfg.encoder)
-        self.decoder = hydra.utils.instantiate(self._cfg.decoder)
+        self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
+        self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+        self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
         if self._cfg.spec_augment is not None:
-            self.spec_augmentation = hydra.utils.instantiate(self._cfg.spec_augment)
+            self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready

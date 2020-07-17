@@ -15,13 +15,13 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
+import hydra
 import wrapt
-from ruamel.yaml import YAML
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.utils import logging
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
@@ -82,69 +82,27 @@ class Typing(ABC):
 
 
 class Serialization(ABC):
-    @staticmethod
-    def __instantiate_class_from_config(
-        configuration: Dict[str, Any], name: str = None, overwrite_params: Dict[str, Any] = {}
-    ):
-        """
-        Method instantiating the object based on the configuration (dictionary).
-        Args:
-            configuration: Dictionary containing proper "header" and "init_params" sections.
-            name: name of the module that will overwrite the name in the `init_params` (optional, DEFAULT: None)
-            overwrite_params: Dictionary containing parameters that will be added to or overwrite (!)
-            the default init parameters loaded from the configuration file (the module "init_params" section).
-        Returns:
-            Instance of the created object.
-        """
-
-        def __class_from_header(serialized_header: Dict[str, Any]):
-            """
-            Args:
-                Serialized_header: Dictionary containing module header.
-            Returns:
-                Class of the module to be created.
-            """
-            # Parse the "full specification".
-            spec_list = serialized_header["full_spec"].split(".")
-
-            # Get module class from the "full specification".
-            mod_obj = __import__(spec_list[0])
-            for spec in spec_list[1:]:
-                mod_obj = getattr(mod_obj, spec)
-
-            return mod_obj
-
-        # Deserialize header - get object class.
-        module_class = __class_from_header(configuration["header"])
-
-        # Update parameters with additional ones.
-        configuration["init_params"].update(overwrite_params)
-
-        # Override module name in init_params using the logic:
-        #  * section_name if not none overrides init_params.name first (skipped for now, TOTHINK!)
-        #  * name (if None) overrides init_params.name
-        if name is not None:
-            configuration["init_params"]["name"] = name
-
-        # Get init parameters.
-        init_params = configuration["init_params"]
-
-        # Create the module instance.
-        new_module = module_class(**init_params)
-        logging.info(f"Instantiated a new Neural Module of type {type(new_module).__name__}")
-
-        # Return the module instance.
-        return new_module
-
     @classmethod
-    def from_config_dict(cls, configuration: Dict[str, Any]):
-        """Instantiates object using dictionary-based configuration"""
-        return cls.__instantiate_class_from_config(configuration=configuration)
+    def from_config_dict(cls, config: DictConfig):
+        """Instantiates object using DictConfig-based configuration"""
+        if 'cls' in config and 'params' in config:
+            # regular hydra-based instantiation
+            instance = hydra.utils.instantiate(config=config)
+        else:
+            # models are handled differently for now
+            instance = cls(cfg=config)
+        if not hasattr(instance, '_cfg'):
+            instance._cfg = config
+        return instance
 
-    def to_config_dict(self) -> Dict[str, Any]:
-        """Saves object's configuration to config dictionary"""
-        # TODO: Implement me here
-        pass
+    def to_config_dict(self) -> DictConfig:
+        """Returns object's configuration to config dictionary"""
+        if hasattr(self, '_cfg') and self._cfg is not None and isinstance(self._cfg, DictConfig):
+            return self._cfg
+        else:
+            raise NotImplementedError(
+                'to_config_dict() can currently only return object._cfg but current object does not have it.'
+            )
 
 
 class FileIO(ABC):
@@ -170,11 +128,11 @@ class FileIO(ABC):
         Returns:
 
         """
-        yaml = YAML(typ="safe")
-        with open(path2yaml_file) as f:
-            model_config_dict = yaml.load(f)
-            instance = cls.from_config_dict(configuration=model_config_dict)
-            return instance
+        if issubclass(cls, Serialization):
+            conf = OmegaConf.load(path2yaml_file)
+            return cls.from_config_dict(config=conf)
+        else:
+            raise NotImplementedError()
 
     def to_config_file(self, path2yaml_file: str):
         """
@@ -183,10 +141,12 @@ class FileIO(ABC):
             path2yaml_file: path2yaml_file: path to yaml file where model model configuration will be saved
 
         Returns:
-
         """
-        # TODO: implement me
-        pass
+        if hasattr(self, '_cfg'):
+            with open(path2yaml_file, 'w') as fout:
+                OmegaConf.save(config=self._cfg, f=fout, resolve=True)
+        else:
+            raise NotImplementedError()
 
 
 class Model(Typing, Serialization, FileIO):
