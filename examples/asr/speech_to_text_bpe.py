@@ -36,12 +36,14 @@ from pytorch_lightning.logging import WandbLogger
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra.main(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
     if 'logger' in cfg.model:

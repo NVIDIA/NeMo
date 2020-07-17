@@ -1,12 +1,10 @@
-#model: "ContextNet5x1"
+name: &name "ContextNet5x1"
 sample_rate: &sample_rate 16000
 repeat: &repeat 1
 dropout: &dropout 0.0
 separable: &separable true
 
 model:
-  cfg: null
-
   logger:
     experiment_name: null
     project_name: null
@@ -171,3 +169,18 @@ pl:
     accumulate_grad_batches: 1
     amp_level: O0
     precision: 32
+    checkpoint_callback: False  # Provided by exp_manager
+    logger: False  # Provided by exp_manager
+
+exp_manager:
+  root_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
