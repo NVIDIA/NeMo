@@ -35,7 +35,7 @@ pipeline {
 
     stage('L0: Unit Tests GPU') {
       steps {
-        sh 'pytest -m "unit and not skipduringci"'
+        sh 'pytest -m "unit and not skipduringci and not pleasefixme"'
       }
     }
 
@@ -47,13 +47,13 @@ pipeline {
         }
       }
       steps {
-        sh 'pytest -m unit --cpu'
+        sh 'pytest -m "unit and not pleasefixme" --cpu'
       }
     }
 
     stage('L0: Integration Tests GPU') {
       steps {
-        sh 'pytest -s -m "integration and not skipduringci"'
+        sh 'pytest -s -m "integration and not skipduringci and not pleasefixme"'
       }
     }
 
@@ -65,13 +65,13 @@ pipeline {
         }
       }
       steps {
-        sh 'pytest -s -m integration --cpu'
+        sh 'pytest -s -m "integration and not pleasefixme" --cpu'
       }
     }
 
     stage('L1: System Tests GPU') {
       steps {
-        sh 'pytest -m "system and not skipduringci"'
+        sh 'pytest -m "system and not skipduringci and not pleasefixme"'
       }
     }
 
@@ -83,7 +83,7 @@ pipeline {
         }
       }
       steps {
-        sh 'pytest -m system --cpu'
+        sh 'pytest -m "system and not pleasefixme" --cpu'
       }
     }
 
