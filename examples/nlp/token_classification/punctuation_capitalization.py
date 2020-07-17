@@ -12,9 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.data_utils import *
-from nemo.collections.nlp.data.lm_bert_dataset import *
-from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
-    BertTokenClassificationDataset,
-    BertTokenClassificationInferDataset,
-)
+import hydra
+import pytorch_lightning as pl
+from omegaconf import DictConfig
+
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.utils import logging
+
+
+@hydra.main(config_path="conf", config_name="punctuation_capitalization_config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config: {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.pl.trainer)
+    model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
+    trainer.fit(model)
+
+
+if __name__ == '__main__':
+    main()
