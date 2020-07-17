@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Callable, Dict, List, Optional, Union
+import io
+import os
+from typing import Dict, Optional
 
+import braceexpand
 import torch
+import webdataset as wd
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -179,13 +184,6 @@ class _AudioTextDataset(Dataset):
         return len(self.collection)
 
     def _collate_fn(self, batch):
-        """collate batch of audio sig, audio len, tokens, tokens len
-        Args:
-            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-                   LongTensor):  A tuple of tuples of signal, signal lengths,
-                   encoded tokens, and encoded tokens length.  This collate func
-                   assumes the signals are 1d torch tensors (i.e. mono audio).
-        """
         return _speech_collate_fn(batch, pad_id=self.pad_id)
 
 
@@ -438,3 +436,162 @@ class AudioLabelDataset(Dataset):
                    assumes the signals are 1d torch tensors (i.e. mono audio).
         """
         return _speech_collate_fn(batch, pad_id=0)
+
+
+@experimental
+class TarredAudioToCharDataset(IterableDataset):
+    """
+    A similar Dataset to the AudioToTextDataset, but loads audio files from tarballs.
+    TODO(jocelynh): Port over documentation.
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+        """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        audio_tar_filepaths,
+        manifest_filepath,
+        labels,
+        featurizer,
+        shuffle_n=0,
+        min_duration=None,
+        max_duration=None,
+        max_utts=0,
+        blank_index=-1,
+        unk_index=-1,
+        normalize=True,
+        trim=False,
+        bos_id=None,
+        eos_id=None,
+        parser='en',
+        add_misc=False,
+        pad_id=0,
+    ):
+        self.collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath.split(','),
+            parser=parsers.make_parser(
+                labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            ),
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_number=max_utts,
+            index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+        )
+
+        self.featurizer = featurizer
+        self.trim = trim
+        self.eos_id = eos_id
+        self.bos_id = bos_id
+        self.pad_id = pad_id
+        self._add_misc = add_misc
+
+        # Check for distributed and partition shards accordingly
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            global_rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+
+            if isinstance(audio_tar_filepaths, str):
+                audio_tar_filepaths = list(braceexpand.braceexpand(audio_tar_filepaths))
+
+            if len(audio_tar_filepaths) % world_size != 0:
+                logging.warning(
+                    f"Number of shards in tarred dataset ({len(audio_tar_filepaths)}) is not divisible "
+                    f"by number of distributed workers ({world_size})."
+                )
+
+            begin_idx = (len(audio_tar_filepaths) // world_size) * global_rank
+            end_idx = begin_idx + (len(audio_tar_filepaths) // world_size)
+            audio_tar_filepaths = audio_tar_filepaths[begin_idx:end_idx]
+
+        # Put together WebDataset
+        self._dataset = (
+            wd.Dataset(audio_tar_filepaths)
+            .shuffle(shuffle_n)
+            .rename(audio='wav', key='__key__')
+            .to_tuple('audio', 'key')
+            .pipe(self._filter)
+            .map(f=self._build_sample)
+        )
+
+    def _filter(self, iterator):
+        """This function is used to remove samples that have been filtered out by ASRAudioText already.
+        Otherwise, we would get a KeyError as _build_sample attempts to find the manifest entry for a sample
+        that was filtered out (e.g. for duration).
+        Note that if using multi-GPU training, filtering may lead to an imbalance in samples in each shard,
+        which may make your code hang as one process will finish before the other.
+        """
+
+        class TarredAudioFilter:
+            def __init__(self, collection):
+                self.iterator = iterator
+                self.collection = collection
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                while True:
+                    audio_bytes, audio_filename = next(self.iterator)
+                    file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+                    if file_id in self.collection.mapping:
+                        return audio_bytes, audio_filename
+
+        return TarredAudioFilter(self.collection)
+
+    def _collate_fn(self, batch):
+        return seq_collate_fn(batch, self.pad_id)
+
+    def _build_sample(self, tup):
+        """Builds the training sample by combining the data from the WebDataset with the manifest info.
+        """
+        audio_bytes, audio_filename = tup
+
+        # Grab manifest entry from self.collection
+        file_id, _ = os.path.splitext(os.path.basename(audio_filename))
+        manifest_idx = self.collection.mapping[file_id]
+        manifest_entry = self.collection[manifest_idx]
+
+        offset = manifest_entry.offset
+        if offset is None:
+            offset = 0
+
+        # Convert audio bytes to IO stream for processing (for SoundFile to read)
+        audio_filestream = io.BytesIO(audio_bytes)
+        features = self.featurizer.process(
+            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
+        )
+        audio_filestream.close()
+
+        # Audio features
+        f, fl = features, torch.tensor(features.shape[0]).long()
+
+        # Text features
+        t, tl = manifest_entry.text_tokens, len(manifest_entry.text_tokens)
+        if self.bos_id is not None:
+            t = [self.bos_id] + t
+            tl += 1
+        if self.eos_id is not None:
+            t = t + [self.eos_id]
+            tl += 1
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __iter__(self):
+        return self._dataset.__iter__()
+
+    def __len__(self):
+        return len(self.collection)

@@ -21,7 +21,7 @@ import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
+from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
@@ -158,30 +158,54 @@ class EncDecCTCModel(ASRModel):
         else:
             augmentor = None
 
-        dataset = AudioToCharDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            max_utts=config.get('max_utts', 0),
-            blank_index=config.get('blank_index', -1),
-            unk_index=config.get('unk_index', -1),
-            normalize=config.get('normalize_transcripts', False),
-            trim=config.get('trim_silence', True),
-            load_audio=config.get('load_audio', True),
-            parser=config.get('parser', 'en'),
-            add_misc=config.get('add_misc', False),
-        )
+        shuffle = config['shuffle']
+
+        # Instantiate tarred dataset loader or normal dataset loader
+        if config['is_tarred']:
+            dataset = TarredAudioToCharDataset(
+                audio_tar_filepaths=config['tarred_audio_filepaths'],
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                sample_rate=config['sample_rate'],
+                int_values=config.get('int_values', False),
+                augmentor=augmentor,
+                shuffle_n=50,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                max_utts=config.get('max_utts', 0),
+                blank_index=config.get('blank_index', -1),
+                unk_index=config.get('unk_index', -1),
+                normalize=config.get('normalize_transcripts', False),
+                trim=config.get('trim_silence', True),
+                parser=config.get('parser', 'en'),
+                add_misc=config.get('add_misc', False),
+            )
+            shuffle = False
+        else:
+            dataset = AudioToCharDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                sample_rate=config['sample_rate'],
+                int_values=config.get('int_values', False),
+                augmentor=augmentor,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                max_utts=config.get('max_utts', 0),
+                blank_index=config.get('blank_index', -1),
+                unk_index=config.get('unk_index', -1),
+                normalize=config.get('normalize_transcripts', False),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+                parser=config.get('parser', 'en'),
+                add_misc=config.get('add_misc', False),
+            )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
             collate_fn=dataset.collate_fn,
             drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
+            shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
         )
 
