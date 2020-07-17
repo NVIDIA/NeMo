@@ -93,7 +93,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
@@ -107,7 +107,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
@@ -121,7 +121,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
@@ -146,7 +146,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
@@ -159,7 +159,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
@@ -172,7 +172,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
@@ -186,7 +186,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest target: 'candidate'()
+          changeRequest target: 'candidate'
         }
       }
       failFast true
