@@ -15,7 +15,7 @@
 from typing import Dict, Optional, Union
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
@@ -37,7 +37,7 @@ class EncDecCTCModel(ASRModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if 'cls' not in cfg:
             # This is for Jarvis service. Adding here for now to avoid effects of decorators
-            cfg['cls'] = 'nemo.collections.asr.models.EncDecCTCModel'
+            OmegaConf.update(cfg, 'nemo.collections.asr.models.EncDecCTCModel')
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
