@@ -16,7 +16,6 @@ from unittest import TestCase
 
 import numpy as np
 import pytest
-import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
@@ -24,7 +23,6 @@ from nemo.collections.asr.models import EncDecCTCModel
 
 class FileIOTest(TestCase):
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_to_from_config_file(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
         encoder = {
@@ -174,9 +172,8 @@ class FileIOTest(TestCase):
 
         with tempfile.NamedTemporaryFile() as fp:
             filename = fp.name
-            torch.save(asr_model.state_dict(), filename)
-            asr_model2 = EncDecCTCModel(cfg=modelConfig)
-            asr_model2.load_state_dict(torch.load(filename))
+            asr_model.save_to(save_path=filename)
+            asr_model2 = EncDecCTCModel.restore_from(restore_path=filename)
             self.assertEqual(len(asr_model.decoder.vocabulary), len(asr_model2.decoder.vocabulary))
             self.assertEqual(asr_model.num_weights, asr_model2.num_weights)
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
