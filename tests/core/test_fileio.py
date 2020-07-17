@@ -19,6 +19,7 @@ import pytest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
+import torch
 
 
 class FileIOTest(TestCase):
@@ -173,8 +174,9 @@ class FileIOTest(TestCase):
 
         with tempfile.NamedTemporaryFile() as fp:
             filename = fp.name
-            asr_model.save_to(save_path=filename)
-            asr_model2 = EncDecCTCModel.restore_from(restore_path=filename)
+            torch.save(asr_model.state_dict(), filename)
+            asr_model2 = EncDecCTCModel(cfg=modelConfig)
+            asr_model2.load_state_dict(torch.load(filename))            
             self.assertEqual(len(asr_model.decoder.vocabulary), len(asr_model2.decoder.vocabulary))
             self.assertEqual(asr_model.num_weights, asr_model2.num_weights)
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
