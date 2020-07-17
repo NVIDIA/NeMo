@@ -17,7 +17,6 @@
 import functools
 from typing import Any, Callable, Optional
 
-import hydra
 from hydra._internal.utils import get_args_parser, run_hydra
 from hydra.core.config_store import ConfigStore
 from hydra.types import TaskFunction
