@@ -33,11 +33,65 @@ pipeline {
       }
     }
 
+    stage('L0: Unit Tests GPU') {
+      steps {
+        sh 'pytest -m "unit and not skipduringci"'
+      }
+    }
+
+    stage('L0: Unit Tests CPU') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      steps {
+        sh 'pytest -m unit --cpu'
+      }
+    }
+
+    stage('L0: Integration Tests GPU') {
+      steps {
+        sh 'pytest -s -m "integration and not skipduringci"'
+      }
+    }
+
+    stage('L0: Integration Tests CPU') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      steps {
+        sh 'pytest -s -m integration --cpu'
+      }
+    }
+
+    stage('L1: System Tests GPU') {
+      steps {
+        sh 'pytest -m "system and not skipduringci"'
+      }
+    }
+
+    stage('L1: System Tests CPU') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      steps {
+        sh 'pytest -m system --cpu'
+      }
+    }
+
     stage('L2: BERT Squad v1.1') {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
@@ -51,7 +105,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
@@ -65,7 +119,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
@@ -90,7 +144,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
@@ -103,7 +157,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
@@ -116,7 +170,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
@@ -130,7 +184,7 @@ pipeline {
       when {
         anyOf{
           branch 'candidate'
-          changeRequest()
+          changeRequest target: 'candidate'()
         }
       }
       failFast true
