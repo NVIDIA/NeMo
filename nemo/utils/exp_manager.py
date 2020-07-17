@@ -36,7 +36,7 @@ class ExpManagerConfig:
     """TODO: Is this how you document a dataclass?
     Args:
         root_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
-            ~/NeMo_experiments.
+            ./NeMo_experiments.
         name (str): The name of the experiment. Defaults to None, which uses the lightning default of "default".
         create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch lightning
             trainer. Defaults to True.
@@ -95,10 +95,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             "You are running multi-gpu without ddp.Please note that this is not tested in NeMo and could result in "
             "errors."
         )
-    # Default root_dir to ~/NeMo_experiments if None was passed
+    # Default root_dir to ./NeMo_experiments if None was passed
     _root_dir = cfg.root_dir
     if cfg.root_dir is None:
-        _root_dir = str(Path.home() / 'NeMo_experiments')
+        _root_dir = str(Path.cwd() / 'NeMo_experiments')
     # If the user has already defined a logger for the trainer, use the logger defaults for logging directory
     if trainer.logger is not None:
         if trainer.logger.save_dir:
