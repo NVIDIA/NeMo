@@ -60,7 +60,7 @@ class WordErrorRateTests(TestCase):
         char_to_ind = dict([(self.vocabulary[i], i) for i in range(len(self.vocabulary))])
         return torch.Tensor([char_to_ind[c] for c in txt]).unsqueeze(0)
 
-    def __randomString(N):
+    def __randomString(self, N):
         return ''.join(random.choice(string.ascii_lowercase + ' ') for i in range(N))
 
     @pytest.mark.unit
@@ -96,7 +96,6 @@ class WordErrorRateTests(TestCase):
         self.assertEqual(get_wer('a f c', 'a b c'), 1.0 / 3.0)
 
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_wer_metric_randomized(self):
         """This test relies on correctness of word_error_rate function"""
         wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
