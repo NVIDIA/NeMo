@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import inspect
+import tarfile
+import tempfile
 from abc import abstractmethod
+from os import path
 from typing import Dict, Optional, Union
 
 import hydra
@@ -27,20 +31,28 @@ from nemo.utils import logging
 
 __all__ = ['ModelPT']
 
+_MODEL_CONFIG_YAML = "model_config.yaml"
+_MODEL_WEIGHTS = "model_weights.ckpt"
+
 
 class ModelPT(LightningModule, Model):
     """
     Interface for Pytorch-lightning based NeMo models
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        """
+        Base class from which all NeMo models should inherit
+        Args:
+            cfg (DictConfig):  configuration object.
+                The cfg object should have (optionally) the following sub-configs:
+                    * train_ds - to instantiate training dataset
+                    * validation_ds - to instantiate validation dataset
+                    * test_ds - to instantiate testing dataset
+                    * optim - to instantiate optimizer with learning rate scheduler
+
+            trainer (Optional): Pytorch Lightning Trainer instance
+        """
         if not isinstance(cfg, DictConfig):
             raise ValueError(f"cfg constructor argument must be of type DictConfig but got {type(cfg)} instead.")
         if trainer is not None and not isinstance(trainer, Trainer):
@@ -64,6 +76,55 @@ class ModelPT(LightningModule, Model):
                 self.setup_validation_data(self._cfg.validation_ds)
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self.setup_test_data(self._cfg.test_ds)
+
+    def save_to(self, save_path: str):
+        """
+        Saves model instance (weights and configuration) into .nemo file. You can use "restore_from" method to fully
+        restore instance from .nemo file.
+
+        .nemo file is an archive (tar.gz) with the following:
+            model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
+            model_wights.chpt - model checkpoint
+
+        Args:
+            save_path: Path to .nemo file where model instance should be saved
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            self.to_config_file(path2yaml_file=config_yaml)
+            trainer = self._trainer if self._trainer else Trainer()
+            if trainer.model != self:
+                trainer.model = self
+            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
+            self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """
+        Restores model instance (weights and configuration) into .nemo file
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+
+            Example:
+                ```
+                model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+                assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+                ```
+
+        Returns:
+            An instance of type cls
+        """
+        if not path.exists(restore_path):
+            raise FileExistsError(f"Can't find {restore_path}")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            conf = OmegaConf.load(config_yaml)
+            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
+        return instance
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
@@ -113,12 +174,21 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer
                 kwargs will be built and supplied to instantiate the optimizer.
         """
-        optim_config = optim_config or {}  # In case null was passed as optim_params
+        # If config was not explicitly passed to us
+        if optim_config is None:
+            # See if internal config has `optim` namespace
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                optim_config = self._cfg.optim
 
-        # Force into DictConfig from nested structure
-        optim_config = OmegaConf.create(optim_config)
+        # If config is still None, or internal config has no Optim, return without instantiation
+        if optim_config is None:
+            logging.info('No optimizer config provided, therefore no optimizer was created')
+            return
 
         # Setup optimizer and scheduler
+        if optim_config is not None and isinstance(optim_config, DictConfig):
+            optim_config = OmegaConf.to_container(optim_config)
+
         if 'sched' in optim_config and self._trainer is not None:
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
@@ -132,14 +202,23 @@ class ModelPT(LightningModule, Model):
                     iters_per_batch = self._trainer.max_epochs / float(
                         self._trainer.num_gpus * self._trainer.num_nodes * self._trainer.accumulate_grad_batches
                     )
-                optim_config.sched.iters_per_batch = iters_per_batch
+                optim_config['sched']['iters_per_batch'] = iters_per_batch
             else:
-                optim_config.sched.max_steps = self._trainer.max_steps
+                optim_config['sched']['max_steps'] = self._trainer.max_steps
+
+        # Force into DictConfig from nested structure
+        optim_config = OmegaConf.create(optim_config)
+        # Get back nested dict so we its mutable
+        optim_config = OmegaConf.to_container(optim_config, resolve=True)
+
+        # Extract scheduler config if inside optimizer config
+        if 'sched' in optim_config:
+            scheduler_config = optim_config.pop('sched')
+        else:
+            scheduler_config = None
 
         # Check if caller provided optimizer name, default to Adam otherwise
         optimizer_cls = optim_config.get('cls', None)
-
-        logging.info(f"CLS : {optimizer_cls}")
 
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
@@ -153,14 +232,23 @@ class ModelPT(LightningModule, Model):
 
         # We are guarenteed to have lr since it is required by the argparser
         # But maybe user forgot to pass it to this function
-        lr = optim_config.get('lr', 0.0003)
+        lr = optim_config.get('lr', None)
 
         if 'lr' is None:
             raise ValueError('`lr` must be passed to `optimizer_config` when setting up the optimization !')
 
         # Check if caller has optimizer kwargs, default to empty dictionary
-        optimizer_args = optim_config.get('args', {})
-        optimizer_args = optim.parse_optimizer_args(optimizer_name, optimizer_args)
+        if 'args' in optim_config:
+            optimizer_args = optim_config.pop('args')
+            optimizer_args = optim.parse_optimizer_args(optimizer_name, optimizer_args)
+        else:
+            optimizer_args = copy.deepcopy(optim_config)
+
+            # Remove extra parameters from optimizer_args nest
+            # Assume all other parameters are to be passed into optimizer constructor
+            optimizer_args.pop('name', None)
+            optimizer_args.pop('cls', None)
+            optimizer_args.pop('lr', None)
 
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
@@ -204,7 +292,7 @@ class ModelPT(LightningModule, Model):
             self._optimizer = optimizer
 
         self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
+            optimizer=self._optimizer, scheduler_config=scheduler_config, train_dataloader=self._train_dl
         )
 
     def configure_optimizers(self):
@@ -224,3 +312,22 @@ class ModelPT(LightningModule, Model):
     # def test_dataloader(self):
     #     if self._test_dl is not None:
     #         return self._test_dl
+
+    @property
+    def num_weights(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    @staticmethod
+    def __make_nemo_file_from_folder(filename, source_dir):
+        with tarfile.open(filename, "w:gz") as tar:
+            # tar.add(source_dir, arcname=path.basename(source_dir))
+            tar.add(source_dir, arcname="./")
+
+    @staticmethod
+    def __unpack_nemo_file(path2file: str, out_folder: str) -> str:
+        if not path.exists(path2file):
+            raise FileNotFoundError(f"{path2file} does not exist")
+        tar = tarfile.open(path2file, "r:gz")
+        tar.extractall(path=out_folder)
+        tar.close()
+        return out_folder

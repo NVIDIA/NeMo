@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.nn import Module
+import hydra
+import pytorch_lightning as pl
+from omegaconf import DictConfig
 
-from nemo.core.classes.common import FileIO, Serialization, Typing
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.utils import logging
 
-__all__ = ['NeuralModule']
+
+@hydra.main(config_path="conf", config_name="punctuation_capitalization_config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config: {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.pl.trainer)
+    model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
+    trainer.fit(model)
 
 
-class NeuralModule(Module, Typing, Serialization, FileIO):
-    """
-    Abstract class offering interface shared between all PyTorch Neural Modules.
-    """
-
-    @property
-    def num_weights(self):
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+if __name__ == '__main__':
+    main()

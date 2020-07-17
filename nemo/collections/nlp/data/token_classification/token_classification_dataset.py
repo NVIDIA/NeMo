@@ -20,15 +20,17 @@ Some parts of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/pytorch-pretrained-BERT
 """
 
-import itertools
 import os
 import pickle
+from typing import Dict, Optional
 
 import numpy as np
+import torch
 
 from nemo import logging
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
+from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.core.classes import Dataset
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
@@ -187,7 +189,21 @@ class BertTokenClassificationDataset(Dataset):
             the loss_mask,
         ignore_start_end (bool): whether to ignore bos and eos tokens in
             the loss_mask
+        overwrite_processed_files (bool): whether to overwrite the preprocessed files
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'labels': NeuralType(('B', 'T'), LabelsType()),
+        }
 
     def __init__(
         self,
@@ -195,51 +211,39 @@ class BertTokenClassificationDataset(Dataset):
         label_file,
         max_seq_length,
         tokenizer,
+        label_ids,
         num_samples=-1,
         pad_label='O',
-        label_ids=None,
         ignore_extra_tokens=False,
         ignore_start_end=False,
-        use_cache=False,
+        overwrite_processed_files=False,
     ):
 
-        if use_cache:
-            # Cache features
-            data_dir = os.path.dirname(text_file)
-            filename = os.path.basename(text_file)
+        data_dir = os.path.dirname(text_file)
+        filename = os.path.basename(text_file)
 
-            if not filename.endswith('.txt'):
-                raise ValueError("{text_file} should have extension .txt")
+        if not filename.endswith('.txt'):
+            raise ValueError("{text_file} should have extension .txt")
 
-            tokenizer_type = type(tokenizer.tokenizer).__name__
-            vocab_size = getattr(tokenizer, "vocab_size", 0)
-            features_pkl = os.path.join(
-                data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
-            )
-            label_ids_pkl = os.path.join(data_dir, "label_ids.pkl")
+        tokenizer_type = type(tokenizer.tokenizer).__name__
+        vocab_size = getattr(tokenizer, "vocab_size", 0)
+        features_pkl = os.path.join(
+            data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
+        )
 
-        if use_cache and os.path.exists(features_pkl) and os.path.exists(label_ids_pkl):
-            # If text_file was already processed, load from pickle
-            features = pickle.load(open(features_pkl, 'rb'))
-            logging.info(f'features restored from {features_pkl}')
-
-            label_ids = pickle.load(open(label_ids_pkl, 'rb'))
-            logging.info(f'Labels to ids dict restored from {label_ids_pkl}')
-        else:
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if master_device and (overwrite_processed_files or not os.path.exists(features_pkl)):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
 
             with open(text_file, 'r') as f:
                 text_lines = f.readlines()
 
-            # Collect all possible labels
-            unique_labels = set([])
             labels_lines = []
             with open(label_file, 'r') as f:
                 for line in f:
                     line = line.strip().split()
                     labels_lines.append(line)
-                    unique_labels.update(line)
 
             if len(labels_lines) != len(text_lines):
                 raise ValueError("Labels file should contain labels for every word")
@@ -252,33 +256,6 @@ class BertTokenClassificationDataset(Dataset):
                 text_lines = dataset[0]
                 labels_lines = dataset[1]
 
-            # for dev/test sets use label mapping from training set
-            if label_ids:
-                if len(label_ids) != len(unique_labels):
-                    logging.warning(
-                        f'Not all labels from the specified'
-                        + ' label_ids dictionary are present in the'
-                        + ' current dataset. Using the provided'
-                        + ' label_ids dictionary.'
-                    )
-                else:
-                    logging.info(f'Using the provided label_ids dictionary.')
-            else:
-                logging.info(
-                    f'Creating a new label to label_id dictionary.'
-                    + ' It\'s recommended to use label_ids generated'
-                    + ' during training for dev/test sets to avoid'
-                    + ' errors if some labels are not'
-                    + ' present in the dev/test sets.'
-                    + ' For training set label_ids should be None.'
-                )
-
-                label_ids = {pad_label: 0}
-                if pad_label in unique_labels:
-                    unique_labels.remove(pad_label)
-                for label in sorted(unique_labels):
-                    label_ids[label] = len(label_ids)
-
             features = get_features(
                 text_lines,
                 max_seq_length,
@@ -290,12 +267,15 @@ class BertTokenClassificationDataset(Dataset):
                 ignore_start_end=ignore_start_end,
             )
 
-            if use_cache:
-                pickle.dump(features, open(features_pkl, "wb"))
-                logging.info(f'features saved to {features_pkl}')
+            pickle.dump(features, open(features_pkl, "wb"))
+            logging.info(f'features saved to {features_pkl}')
 
-                pickle.dump(label_ids, open(label_ids_pkl, "wb"))
-                logging.info(f'labels to ids dict saved to {label_ids_pkl}')
+        # wait until the master process writes to the processed data files
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        features = pickle.load(open(features_pkl, 'rb'))
+        logging.info(f'features restored from {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -303,19 +283,6 @@ class BertTokenClassificationDataset(Dataset):
         self.all_loss_mask = features[3]
         self.all_subtokens_mask = features[4]
         self.all_labels = features[5]
-        self.label_ids = label_ids
-
-        infold = text_file[: text_file.rfind('/')]
-        merged_labels = itertools.chain.from_iterable(self.all_labels)
-        logging.info('Three most popular labels')
-        _, self.label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_stats.tsv')
-
-        # save label_ids
-        out = open(infold + '/label_ids.csv', 'w')
-        labels, _ = zip(*sorted(self.label_ids.items(), key=lambda x: x[1]))
-        out.write('\n'.join(labels))
-        logging.info(f'Labels: {self.label_ids}')
-        logging.info(f'Labels mapping saved to : {out.name}')
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -348,6 +315,18 @@ class BertTokenClassificationInferDataset(Dataset):
         max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
         tokenizer (Tokenizer): such as NemoBertTokenizer
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
+            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+        }
 
     def __init__(self, queries, max_seq_length, tokenizer):
         features = get_features(queries, max_seq_length, tokenizer)

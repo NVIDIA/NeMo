@@ -142,32 +142,22 @@ model:
     # cls: nemo.core.optim.optimizers.Novograd
     lr: .01
     # optimizer arguments
-    args:
-      name: auto
-      # cls: nemo.core.config.optimizers.NovogradParams
-      params:
-        betas: [0.8, 0.5]
-        weight_decay: 0.001
+    betas: [0.8, 0.5]
+    weight_decay: 0.001
 
     # scheduler setup
     sched:
       name: CosineAnnealing
-      iters_per_batch: null # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
 
       # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
+      # monitor: val_loss
+      # reduce_on_plateau: false
 
-      # scheduler config override
-      args:
-        name: auto
-        # cls: nemo.core.config.schedulers.CosineAnnealingParams
-        params:
-          warmup_steps: null
-          warmup_ratio: null
-          min_lr: 0.0
-          last_epoch: -1
+      # Scheduler params
+      warmup_steps: null
+      warmup_ratio: null
+      min_lr: 0.0
+      last_epoch: -1
 
 pl:
   trainer:
