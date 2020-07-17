@@ -22,7 +22,7 @@ from shutil import copyfile
 from typing import Dict, List, Optional, Union
 
 from hydra.utils import get_original_cwd
-from omegaconf import DictConfig, OmegaConf, MISSING
+from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
