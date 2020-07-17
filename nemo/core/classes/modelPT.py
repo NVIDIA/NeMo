@@ -123,7 +123,7 @@ class ModelPT(LightningModule, Model):
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             conf = OmegaConf.load(config_yaml)
-            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
+            instance = cls.load_from_checkpoint(model_weights, cfg=conf)
         return instance
 
     @abstractmethod
