@@ -24,7 +24,6 @@ class EncDecCTCModelTest(TestCase):
     @pytest.mark.unit
     def test_constructor(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
-
         encoder = {
             'cls': 'nemo.collections.asr.modules.ConvASREncoder',
             'params': {
@@ -92,3 +91,8 @@ class EncDecCTCModelTest(TestCase):
         asr_model = EncDecCTCModel(cfg=modelConfig)
         asr_model.train()
         # TODO: make proper config and assert correct number of weights
+
+        # Check to/from config_dict:
+        confdict = asr_model.to_config_dict()
+        instance2 = EncDecCTCModel.from_config_dict(confdict)
+        self.assertTrue(isinstance(instance2, EncDecCTCModel))
