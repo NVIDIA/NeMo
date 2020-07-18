@@ -92,6 +92,7 @@ class TestWordErrorRate:
         assert get_wer('a f c', 'a b c') == 1.0 / 3.0
 
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_wer_metric_randomized(self):
         """This test relies on correctness of word_error_rate function"""
 
