@@ -121,8 +121,16 @@ class TestWordErrorRate:
 
             assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
 
-            # @Oleksii: THIS TEST IS UNSTABLE! DURING ONE OF THE RUNS GOT THIS:
+            # @Oleksii: THIS TEST IS UNSTABLE!
+
+            # One failed case:
             # assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
             # assert tensor(4.3333) == 4.666666666666667
             # -tensor(4.3333)
             # +4.666666666666667
+
+            # Second failed case:
+            # assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
+            # assert tensor(2.1818) == 2.272727272727273
+            # -tensor(2.1818)
+            # +2.272727272727273
