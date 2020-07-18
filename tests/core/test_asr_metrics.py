@@ -125,4 +125,4 @@ class TestWordErrorRate:
             # assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
             # assert tensor(4.3333) == 4.666666666666667
             # -tensor(4.3333)
-            # +4.666666666666667            
+            # +4.666666666666667

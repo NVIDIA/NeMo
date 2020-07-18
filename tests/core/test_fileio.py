@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import tempfile
-import pytest
 
 import numpy as np
+import pytest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
@@ -90,8 +90,8 @@ def asr_model():
 
     return EncDecCTCModel(cfg=modelConfig)
 
-class FileIOTest:
 
+class FileIOTest:
     @pytest.mark.unit
     def test_to_from_config_file(self, asr_model):
 
@@ -99,7 +99,7 @@ class FileIOTest:
             yaml_filename = fp.name
             asr_model.to_config_file(path2yaml_file=yaml_filename)
             next_instance = EncDecCTCModel.from_config_file(path2yaml_file=yaml_filename)
-            assert  isinstance(next_instance, EncDecCTCModel) == True
+            assert isinstance(next_instance, EncDecCTCModel) == True
             self.assertEqual(len(next_instance.decoder.vocabulary), 28)
             self.assertEqual(asr_model.num_weights, next_instance.num_weights)
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
