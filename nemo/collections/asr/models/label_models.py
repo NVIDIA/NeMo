@@ -17,14 +17,14 @@ from typing import Dict, Optional, Union
 
 import hydra
 import torch
-from omegaconf import MISSING, DictConfig
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
-from nemo.core.classes.modelPT import ModelPTConfig
 from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -32,23 +32,21 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecSpeechLabelModel']
 
 
-@dataclass
-class EncDecCTCModelConfig(ModelPTConfig):
-    preprocessor: DictConfig = MISSING
-    encoder: DictConfig = MISSING
-    decoder: DictConfig = MISSING
-    spec_augment: Optional[DictConfig] = None
-
-
 @experimental
 class EncDecSpeechLabelModel(ModelPT):
     """Encoder decoder CTC-based models."""
 
-    def __init__(self, cfg: EncDecCTCModelConfig):
-        super().__init__(cfg=cfg)
-        self.preprocessor = hydra.utils.instantiate(cfg.preprocessor)
-        self.encoder = hydra.utils.instantiate(cfg.encoder)
-        self.decoder = hydra.utils.instantiate(cfg.decoder)
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if 'cls' not in cfg:
+            # This is for Jarvis service. Adding here for now to avoid effects of decorators
+            OmegaConf.set_struct(cfg, False)
+            cfg.cls = 'nemo.collections.asr.models.EncDecSpeechLabelModel'
+            OmegaConf.set_struct(cfg, True)
+
+        super().__init__(cfg=cfg, trainer=trainer)
+        self.preprocessor = EncDecSpeechLabelModel.from_config_dict(cfg.preprocessor)
+        self.encoder = EncDecSpeechLabelModel.from_config_dict(cfg.encoder)
+        self.decoder = EncDecSpeechLabelModel.from_config_dict(cfg.decoder)
         self.loss = CELoss()
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -85,7 +83,7 @@ class EncDecSpeechLabelModel(ModelPT):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         val_data_layer_config['labels'] = self.dataset.labels
-        num_classes = self.dataset.num_classes
+        # num_classes = self.dataset.num_classes
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
