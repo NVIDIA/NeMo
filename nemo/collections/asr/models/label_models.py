@@ -49,7 +49,7 @@ class EncDecSpeechLabelModel(ModelPT):
         self.decoder = EncDecSpeechLabelModel.from_config_dict(cfg.decoder)
         self.loss = CELoss()
         # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+        self.setup_optimization()
 
     # @staticmethod
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
