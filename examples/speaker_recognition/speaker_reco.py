@@ -19,6 +19,7 @@ import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecSpeechLabelModel
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -45,11 +46,11 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg):
-    # omegaconf merg trainer stuff to optim - this is necessary to be able to correctly setup LR scheduler
-    cfg.model.pl = cfg.pl
+    
     logging.info(f'Hydra config: {cfg.pretty()}')
-    speaker_model = EncDecSpeechLabelModel(cfg=cfg.model)
     trainer = pl.Trainer(**cfg.pl.trainer)
+    # exp_manager(trainer,cfg.get("exp_manager",None))
+    speaker_model = EncDecSpeechLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
 
 

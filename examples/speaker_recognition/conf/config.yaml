@@ -1,4 +1,4 @@
-#model: "QuartzNet3x2"
+name: "Voxnet"
 sample_rate: &sample_rate 16000
 repeat: &rep 1
 dropout: &drop 0.5
@@ -139,3 +139,18 @@ pl:
     distributed_backend: ddp
     accumulate_grad_batches: 1
     amp_level: O1
+    checkpoint_callback: False 
+    logger: False
+
+exp_manager:
+  root_dir: null
+  name: ${name}
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
