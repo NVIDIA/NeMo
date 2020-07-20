@@ -30,8 +30,8 @@ from torch import nn
 from torch.nn.functional import pad
 
 import nemo.collections.asr as nemo_asr
-import nemo.collections.tts.jason as nemo_tts_jason
-from nemo.collections.tts.jason.helpers.helpers import get_mask_from_lengths, waveglow_log_to_tb_func
+import nemo.collections.tts as nemo_tts
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, waveglow_log_to_tb_func
 from nemo.core.classes import ModelPT
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
@@ -43,7 +43,7 @@ class WaveglowPTL(ModelPT):
         super().__init__()
         self.pad_value = -11.42
         self.sigma = 1.0
-        self.audio_to_melspec_precessor = nemo_tts_jason.data.processors.FilterbankFeatures(
+        self.audio_to_melspec_precessor = nemo_tts.data.processors.FilterbankFeatures(
             sample_rate=22050,
             n_window_size=1024,
             n_window_stride=256,
@@ -63,7 +63,7 @@ class WaveglowPTL(ModelPT):
             mag_power=1.0,
             stft_conv=True,
         )
-        self.waveglow = nemo_tts_jason.waveglow.waveglow.WaveGlow(
+        self.waveglow = nemo_tts.waveglow.waveglow.WaveGlow(
             n_mel_channels=80,
             n_flows=12,
             n_group=8,
@@ -128,7 +128,7 @@ class WaveglowPTL(ModelPT):
         return self.__train_dl
 
     def setup_training_data(self, path):
-        dataset = nemo_tts_jason.data.datalayers.AudioDataset(
+        dataset = nemo_tts.data.datalayers.AudioDataset(
             manifest_filepath=path, n_segments=16000, min_duration=0.1, max_duration=None, trim=False,
         )
         return torch.utils.data.DataLoader(dataset, batch_size=24, shuffle=True, collate_fn=dataset._collate_fn)
@@ -163,7 +163,7 @@ class WaveglowPTL(ModelPT):
 
     def setup_validation_data(self, path):
         # TODO: Should n_segments be 16k? But it seems to help with memory footprint
-        dataset = nemo_tts_jason.data.datalayers.AudioDataset(
+        dataset = nemo_tts.data.datalayers.AudioDataset(
             manifest_filepath=path, n_segments=30000, min_duration=0.1, max_duration=None, trim=False,
         )
         return torch.utils.data.DataLoader(dataset, batch_size=12, shuffle=False, collate_fn=dataset._collate_fn)

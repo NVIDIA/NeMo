@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.tts.jason.helpers.helpers
+import nemo.collections.tts.helpers.helpers

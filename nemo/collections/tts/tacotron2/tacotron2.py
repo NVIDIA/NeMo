@@ -18,7 +18,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 from nemo.utils import logging
-from nemo.collections.tts.jason.helpers.helpers import get_mask_from_lengths
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 
 
 class LinearNorm(torch.nn.Module):

@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.tts.jason.tacotron2.tacotron2
+import nemo.collections.tts.tacotron2.tacotron2

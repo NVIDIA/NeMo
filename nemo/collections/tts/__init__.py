@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.tts.jason.data
-import nemo.collections.tts.jason.helpers
-import nemo.collections.tts.jason.tacotron2
-import nemo.collections.tts.jason.waveglow
+import nemo.collections.tts.data
+import nemo.collections.tts.helpers
+import nemo.collections.tts.tacotron2
+import nemo.collections.tts.waveglow

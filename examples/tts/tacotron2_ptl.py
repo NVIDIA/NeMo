@@ -29,8 +29,8 @@ from torch import nn
 from torch.nn.functional import pad
 
 import nemo.collections.asr as nemo_asr
-import nemo.collections.tts.jason as nemo_tts_jason
-from nemo.collections.tts.jason.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
+import nemo.collections.tts as nemo_tts
+from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.core.classes import ModelPT
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging
@@ -47,7 +47,7 @@ class Tacotron2PTL(ModelPT):
         # self.eval_dataset = args.eval_dataset
         self.pad_value = -11.42
         self.featurizer = nemo_asr.parts.features.WaveformFeaturizer(22050)
-        self.audio_to_melspec_precessor = nemo_tts_jason.data.processors.FilterbankFeatures(
+        self.audio_to_melspec_precessor = nemo_tts.data.processors.FilterbankFeatures(
             sample_rate=22050,
             n_window_size=1024,
             n_window_stride=256,
@@ -68,8 +68,8 @@ class Tacotron2PTL(ModelPT):
             stft_conv=True,
         )
         self.text_embedding = nn.Embedding(len(labels) + 3, 512)
-        self.encoder = nemo_tts_jason.tacotron2.tacotron2.Encoder(5, 512, 3)
-        self.decoder = nemo_tts_jason.tacotron2.tacotron2.Decoder(
+        self.encoder = nemo_tts.tacotron2.tacotron2.Encoder(5, 512, 3)
+        self.decoder = nemo_tts.tacotron2.tacotron2.Decoder(
             n_mel_channels=80,
             n_frames_per_step=1,
             encoder_embedding_dim=512,
@@ -86,7 +86,7 @@ class Tacotron2PTL(ModelPT):
             prenet_p_dropout=0.5,
             early_stopping=True,
         )
-        self.postnet = nemo_tts_jason.tacotron2.tacotron2.Postnet(
+        self.postnet = nemo_tts.tacotron2.tacotron2.Postnet(
             n_mel_channels=80,
             postnet_embedding_dim=512,
             postnet_kernel_size=5,
@@ -181,7 +181,7 @@ class Tacotron2PTL(ModelPT):
         output = {
             'loss': loss,  # required
             'progress_bar': {'training_loss': loss},  # optional (MUST ALL BE TENSORS)
-            'log': {'loss': loss}
+            'log': {'loss': loss},
         }
         # return a dict
         return output
@@ -190,7 +190,7 @@ class Tacotron2PTL(ModelPT):
         return self.__train_dl
 
     def setup_training_data(self, path):
-        dataset = nemo_tts_jason.data.datalayers.AudioToTextDataset(
+        dataset = nemo_tts.data.datalayers.AudioToTextDataset(
             manifest_filepath=path,
             labels=self.labels,
             featurizer=self.featurizer,
@@ -259,7 +259,7 @@ class Tacotron2PTL(ModelPT):
         return self.__val_dl
 
     def setup_validation_data(self, path):
-        dataset = nemo_tts_jason.data.datalayers.AudioToTextDataset(
+        dataset = nemo_tts.data.datalayers.AudioToTextDataset(
             manifest_filepath=path,
             labels=self.labels,
             featurizer=self.featurizer,
@@ -297,7 +297,7 @@ def main():
         log_save_interval=1000,
         row_log_interval=200,
         check_val_every_n_epoch=25,
-        distributed_backend="ddp"
+        distributed_backend="ddp",
     )
     args = parser.parse_args()
     if args.max_epochs is None:
