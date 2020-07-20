@@ -69,19 +69,21 @@ model:
 
   optim:
     name: adam
-    lr: 1e-3
+    lr: 1e-4
 
 pl:
   trainer:
     gpus: 1 # number of gpus
-    max_epochs: 5
-    max_steps: null # computed at runtime if not set
+    max_epochs: ???
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
-    precision: 16
     checkpoint_callback: False  # Provided by exp_manager
     logger: False  # Provided by exp_manager
+    log_save_interval: 1000
+    row_log_interval: 200
+    check_val_every_n_epoch: 25
+    precision: 16
 
 exp_manager:
   root_dir: null
