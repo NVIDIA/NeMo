@@ -83,7 +83,6 @@ class Typing(ABC):
 
 
 class Serialization:
-
     @classmethod
     def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""

@@ -20,6 +20,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
 
+
 @pytest.fixture()
 def asr_model():
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
