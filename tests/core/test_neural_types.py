@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-from unittest import TestCase
-
 import pytest
 
 from nemo.core.neural_types import (
@@ -34,7 +32,7 @@ from nemo.core.neural_types import (
 )
 
 
-class NeuralTypeSystemTests(TestCase):
+class TestNeuralTypeSystem:
     @pytest.mark.unit
     def test_short_vs_long_version(self):
         long_version = NeuralType(
@@ -42,8 +40,9 @@ class NeuralTypeSystemTests(TestCase):
             elements_type=AcousticEncodedRepresentation(),
         )
         short_version = NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
-        self.assertEqual(long_version.compare(short_version), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(short_version.compare(long_version), NeuralTypeComparisonResult.SAME)
+
+        assert long_version.compare(short_version) == NeuralTypeComparisonResult.SAME
+        assert short_version.compare(long_version) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_parameterized_type_audio_sampling_frequency(self):
@@ -51,42 +50,46 @@ class NeuralTypeSystemTests(TestCase):
         audio8K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(8000))
         another16K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(16000))
 
-        self.assertEqual(audio8K.compare(audio16K), NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS)
-        self.assertEqual(audio16K.compare(audio8K), NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS)
-        self.assertEqual(another16K.compare(audio16K), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(audio16K.compare(another16K), NeuralTypeComparisonResult.SAME)
+        assert audio8K.compare(audio16K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
+        assert audio16K.compare(audio8K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
+        assert another16K.compare(audio16K) == NeuralTypeComparisonResult.SAME
+        assert audio16K.compare(another16K) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_transpose_same_1(self):
         type1 = NeuralType(axes=('B', 'T', 'C'))
         type2 = NeuralType(axes=('T', 'B', 'C'))
-        self.assertEqual(type1.compare(type2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
-        self.assertEqual(type2.compare(type1), NeuralTypeComparisonResult.TRANSPOSE_SAME)
+
+        assert type1.compare(type2) == NeuralTypeComparisonResult.TRANSPOSE_SAME
+        assert type2.compare(type1) == NeuralTypeComparisonResult.TRANSPOSE_SAME
 
     @pytest.mark.unit
     def test_transpose_same_2(self):
         audio16K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(16000))
         audio16K_t = NeuralType(axes=('T', 'B'), elements_type=AudioSignal(16000))
-        self.assertEqual(audio16K.compare(audio16K_t), NeuralTypeComparisonResult.TRANSPOSE_SAME)
+
+        assert audio16K.compare(audio16K_t) == NeuralTypeComparisonResult.TRANSPOSE_SAME
 
     @pytest.mark.unit
     def test_inheritance_spec_augment_example(self):
         input = NeuralType(('B', 'D', 'T'), SpectrogramType())
         out1 = NeuralType(('B', 'D', 'T'), MelSpectrogramType())
         out2 = NeuralType(('B', 'D', 'T'), MFCCSpectrogramType())
-        self.assertEqual(out1.compare(out2), NeuralTypeComparisonResult.INCOMPATIBLE)
-        self.assertEqual(out2.compare(out1), NeuralTypeComparisonResult.INCOMPATIBLE)
-        self.assertEqual(input.compare(out1), NeuralTypeComparisonResult.GREATER)
-        self.assertEqual(input.compare(out2), NeuralTypeComparisonResult.GREATER)
-        self.assertEqual(out1.compare(input), NeuralTypeComparisonResult.LESS)
-        self.assertEqual(out2.compare(input), NeuralTypeComparisonResult.LESS)
+
+        assert out1.compare(out2) == NeuralTypeComparisonResult.INCOMPATIBLE
+        assert out2.compare(out1) == NeuralTypeComparisonResult.INCOMPATIBLE
+        assert input.compare(out1) == NeuralTypeComparisonResult.GREATER
+        assert input.compare(out2) == NeuralTypeComparisonResult.GREATER
+        assert out1.compare(input) == NeuralTypeComparisonResult.LESS
+        assert out2.compare(input) == NeuralTypeComparisonResult.LESS
 
     @pytest.mark.unit
     def test_singletone(self):
         loss_output1 = NeuralType(axes=None)
         loss_output2 = NeuralType(axes=None)
-        self.assertEqual(loss_output1.compare(loss_output2), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(loss_output2.compare(loss_output1), NeuralTypeComparisonResult.SAME)
+
+        assert loss_output1.compare(loss_output2) == NeuralTypeComparisonResult.SAME
+        assert loss_output2.compare(loss_output1) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_list_of_lists(self):
@@ -111,16 +114,17 @@ class NeuralTypeSystemTests(TestCase):
             elements_type=ChannelType(),
         )
         # TODO: should this be incompatible instead???
-        self.assertEqual(T1.compare(T2), NeuralTypeComparisonResult.TRANSPOSE_SAME)
+        assert T1.compare(T2), NeuralTypeComparisonResult.TRANSPOSE_SAME
 
     @pytest.mark.unit
     def test_void(self):
         btc_spctr = NeuralType(('B', 'T', 'C'), SpectrogramType())
         btc_spct_bad = NeuralType(('B', 'T'), SpectrogramType())
         btc_void = NeuralType(('B', 'T', 'C'), VoidType())
-        self.assertEqual(btc_void.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(btc_spctr.compare(btc_void), NeuralTypeComparisonResult.INCOMPATIBLE)
-        self.assertEqual(btc_void.compare(btc_spct_bad), NeuralTypeComparisonResult.INCOMPATIBLE)
+
+        assert btc_void.compare(btc_spctr) == NeuralTypeComparisonResult.SAME
+        assert btc_spctr.compare(btc_void) == NeuralTypeComparisonResult.INCOMPATIBLE
+        assert btc_void.compare(btc_spct_bad) == NeuralTypeComparisonResult.INCOMPATIBLE
 
     @pytest.mark.unit
     def test_big_void(self):
@@ -150,15 +154,15 @@ class NeuralTypeSystemTests(TestCase):
             elements_type=ChannelType(),
         )
 
-        self.assertEqual(big_void_1.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(big_void_1.compare(btc_spct_bad), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(big_void_1.compare(t1), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(big_void_1.compare(t2), NeuralTypeComparisonResult.SAME)
+        assert big_void_1.compare(btc_spctr) == NeuralTypeComparisonResult.SAME
+        assert big_void_1.compare(btc_spct_bad) == NeuralTypeComparisonResult.SAME
+        assert big_void_1.compare(t1) == NeuralTypeComparisonResult.SAME
+        assert big_void_1.compare(t2) == NeuralTypeComparisonResult.SAME
 
-        self.assertEqual(big_void_2.compare(btc_spctr), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(big_void_2.compare(btc_spct_bad), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(big_void_2.compare(t1), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(big_void_2.compare(t2), NeuralTypeComparisonResult.SAME)
+        assert big_void_2.compare(btc_spctr) == NeuralTypeComparisonResult.SAME
+        assert big_void_2.compare(btc_spct_bad) == NeuralTypeComparisonResult.SAME
+        assert big_void_2.compare(t1) == NeuralTypeComparisonResult.SAME
+        assert big_void_2.compare(t2) == NeuralTypeComparisonResult.SAME
 
     @pytest.mark.unit
     def test_unspecified_dimensions(self):
@@ -167,19 +171,21 @@ class NeuralTypeSystemTests(TestCase):
             SpectrogramType(),
         )
         t1 = NeuralType(('B', 'T', 'C'), SpectrogramType())
-        self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE)
+
+        assert t1.compare(t0), NeuralTypeComparisonResult.SAME
+        assert t0.compare(t1), NeuralTypeComparisonResult.DIM_INCOMPATIBLE
 
     @pytest.mark.unit
     def test_any_axis(self):
         t0 = NeuralType(('B', 'Any', 'Any'), VoidType())
         t1 = NeuralType(('B', 'Any', 'Any'), SpectrogramType())
         t2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
-        self.assertEqual(t0.compare(t1), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(t0.compare(t2), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(t1.compare(t2), NeuralTypeComparisonResult.SAME)
-        self.assertEqual(t2.compare(t1), NeuralTypeComparisonResult.INCOMPATIBLE)
-        self.assertEqual(t1.compare(t0), NeuralTypeComparisonResult.INCOMPATIBLE)
+
+        assert t0.compare(t1) == NeuralTypeComparisonResult.SAME
+        assert t0.compare(t2) == NeuralTypeComparisonResult.SAME
+        assert t1.compare(t2) == NeuralTypeComparisonResult.SAME
+        assert t2.compare(t1) == NeuralTypeComparisonResult.INCOMPATIBLE
+        assert t1.compare(t0) == NeuralTypeComparisonResult.INCOMPATIBLE
 
     @pytest.mark.unit
     def test_struct(self):
@@ -216,4 +222,4 @@ class NeuralTypeSystemTests(TestCase):
                 AxisType(kind=AxisKind2.Image, size=None, is_list=True),
             ),
         )
-        self.assertEqual(T2.compare(T1), NeuralTypeComparisonResult.INCOMPATIBLE)
+        assert T2.compare(T1) == NeuralTypeComparisonResult.INCOMPATIBLE
