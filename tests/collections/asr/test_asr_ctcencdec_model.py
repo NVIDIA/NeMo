@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import TestCase
-
 import pytest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
 
 
-class EncDecCTCModelTest(TestCase):
+class TestEncDecCTCModel:
     @pytest.mark.unit
     def test_constructor(self):
         preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
@@ -95,4 +93,5 @@ class EncDecCTCModelTest(TestCase):
         # Check to/from config_dict:
         confdict = asr_model.to_config_dict()
         instance2 = EncDecCTCModel.from_config_dict(confdict)
-        self.assertTrue(isinstance(instance2, EncDecCTCModel))
+
+        assert isinstance(instance2, EncDecCTCModel)
