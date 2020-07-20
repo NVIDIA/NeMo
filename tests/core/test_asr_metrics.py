@@ -15,7 +15,6 @@
 
 import random
 import string
-from unittest import TestCase
 
 import pytest
 import torch
@@ -24,7 +23,7 @@ from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.utils import logging
 
 
-class WordErrorRateTests(TestCase):
+class TestWordErrorRate:
 
     vocabulary = [
         " ",
@@ -63,12 +62,12 @@ class WordErrorRateTests(TestCase):
 
     @pytest.mark.unit
     def test_wer_function(self):
-        self.assertEqual(word_error_rate(hypotheses=['cat'], references=['cot']), 1.0)
-        self.assertEqual(word_error_rate(hypotheses=['GPU'], references=['G P U']), 1.0)
-        self.assertEqual(word_error_rate(hypotheses=['G P U'], references=['GPU']), 3.0)
-        self.assertEqual(word_error_rate(hypotheses=['ducati motorcycle'], references=['motorcycle']), 1.0)
-        self.assertEqual(word_error_rate(hypotheses=['ducati motorcycle'], references=['ducuti motorcycle']), 0.5)
-        self.assertEqual(word_error_rate(hypotheses=['a B c'], references=['a b c']), 1.0 / 3.0)
+        assert word_error_rate(hypotheses=['cat'], references=['cot']) == 1.0
+        assert word_error_rate(hypotheses=['GPU'], references=['G P U']) == 1.0
+        assert word_error_rate(hypotheses=['G P U'], references=['GPU']) == 3.0
+        assert word_error_rate(hypotheses=['ducati motorcycle'], references=['motorcycle']) == 1.0
+        assert word_error_rate(hypotheses=['ducati motorcycle'], references=['ducuti motorcycle']) == 0.5
+        assert word_error_rate(hypotheses=['a B c'], references=['a b c']) == 1.0 / 3.0
 
     @pytest.mark.unit
     def test_wer_metric_simple(self):
@@ -86,14 +85,15 @@ class WordErrorRateTests(TestCase):
             )
             return res[0] / res[1]
 
-        self.assertEqual(get_wer('cat', 'cot'), 1.0)
-        self.assertEqual(get_wer('gpu', 'g p u'), 1.0)
-        self.assertEqual(get_wer('g p u', 'gpu'), 3.0)
-        self.assertEqual(get_wer('ducati motorcycle', 'motorcycle'), 1.0)
-        self.assertEqual(get_wer('ducati motorcycle', 'ducuti motorcycle'), 0.5)
-        self.assertEqual(get_wer('a f c', 'a b c'), 1.0 / 3.0)
+        assert get_wer('cat', 'cot') == 1.0
+        assert get_wer('gpu', 'g p u') == 1.0
+        assert get_wer('g p u', 'gpu') == 3.0
+        assert get_wer('ducati motorcycle', 'motorcycle') == 1.0
+        assert get_wer('ducati motorcycle', 'ducuti motorcycle') == 0.5
+        assert get_wer('a f c', 'a b c') == 1.0 / 3.0
 
     @pytest.mark.unit
+    @pytest.mark.pleasefixme
     def test_wer_metric_randomized(self):
         """This test relies on correctness of word_error_rate function"""
 
@@ -119,8 +119,10 @@ class WordErrorRateTests(TestCase):
             n2 = random.randint(0, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
+
             logging.debug(n1)
             logging.debug(s1)
             logging.debug(n2)
             logging.debug(s2)
-            self.assertEqual(get_wer(prediction=s1, reference=s2), word_error_rate(hypotheses=[s1], references=[s2]))
+
+            assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
