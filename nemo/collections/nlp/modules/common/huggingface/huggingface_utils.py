@@ -17,14 +17,17 @@ from typing import List, Optional
 from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST,
     AlbertConfig,
     BertConfig,
+    DistilBertConfig,
     RobertaConfig,
 )
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
 from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 
 __all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list']
@@ -56,6 +59,12 @@ MODELS = {
         'class': BertEncoder,
         'config': BertConfig,
         'model_list': BERT_PRETRAINED_MODEL_ARCHIVE_LIST,
+    },
+    'distilbert': {
+        'default': 'distilbert-base-uncased',
+        'class': DistilBertEncoder,
+        'config': DistilBertConfig,
+        'model_list': DISTILBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
     },
     'roberta': {
         'default': 'roberta-base',

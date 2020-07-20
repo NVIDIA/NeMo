@@ -15,15 +15,23 @@
 import os
 from typing import List, Optional
 
-from transformers import AlbertTokenizer, BertTokenizer, RobertaTokenizer
+from transformers import AlbertTokenizer, BertTokenizer, DistilBertTokenizerFast, RobertaTokenizer
 
 import nemo
-from nemo.utils import logging
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 
 MODEL_SPECIAL_TOKENS = {
     'bert': {
+        'unk_token': '[UNK]',
+        'sep_token': '[SEP]',
+        'pad_token': '[PAD]',
+        'bos_token': '[CLS]',
+        'mask_token': '[MASK]',
+        'eos_token': '[SEP]',
+        'cls_token': '[CLS]',
+    },
+    'distilbert': {
         'unk_token': '[UNK]',
         'sep_token': '[SEP]',
         'pad_token': '[PAD]',
@@ -53,7 +61,12 @@ MODEL_SPECIAL_TOKENS = {
 }
 
 
-TOKENIZERS = {'bert': BertTokenizer, 'albert': AlbertTokenizer, 'roberta': RobertaTokenizer}
+TOKENIZERS = {
+    'bert': BertTokenizer,
+    'albert': AlbertTokenizer,
+    'roberta': RobertaTokenizer,
+    'distilbert': DistilBertTokenizerFast,
+}
 
 
 def get_bert_special_tokens(bert_derivative):
@@ -85,7 +98,6 @@ def get_tokenizer(
     vocab_size: vocab size for building sentence piece
     do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with sentencepiece
     '''
-    # Check if we can use Megatron utils.
     if pretrained_model_name:
         model_type = pretrained_model_name.split('-')[0]
 

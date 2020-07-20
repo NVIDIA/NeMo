@@ -27,7 +27,7 @@ from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['PunctuationCapitalizationModel']
@@ -37,7 +37,13 @@ __all__ = ['PunctuationCapitalizationModel']
 class PunctuationCapitalizationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
+            "token_type_ids": NeuralType(
+                ('B', 'T'), ChannelType(), optional=True
+            ),  # token_type_ids are optional for DistilBert models
+        }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -100,14 +106,18 @@ class PunctuationCapitalizationModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
+        token_type_ids = is not for DistilBert model
         """
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        if 'distil' in self.model_cfg.language_model.pretrained_model_name:
+            hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)
+        else:
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
         punct_logits = self.punct_classifier(hidden_states=hidden_states)
         capit_logits = self.capit_classifier(hidden_states=hidden_states)
         return punct_logits, capit_logits
