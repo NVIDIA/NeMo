@@ -14,5 +14,5 @@
 
 from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
 from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
-from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
 from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
+from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder
