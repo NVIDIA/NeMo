@@ -13,31 +13,26 @@ pl:
 model:
   data_dir: ??? # /path/to/data
   class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+  max_seq_length: 128
+  pad_label: 'O'
+  ignore_extra_tokens: false
+  ignore_start_end: false
+  overwrite_processed_files: false
 
   train_ds:
     prefix: train
-    max_seq_length: 128
-    pad_label: 'O'
-    num_samples: -1
-    ignore_extra_tokens: false
-    ignore_start_end: false
-    overwrite_processed_files: false
     shuffle: true
-    batch_size: 2
+    num_samples: -1
+    batch_size: 32
     num_workers:  2
     pin_memory: false
     drop_last: false
 
   validation_ds:
     prefix: dev
-    max_seq_length: 128
-    pad_label: 'O'
-    num_samples: -1
-    ignore_extra_tokens: false
-    ignore_start_end: false
-    overwrite_processed_files: false
     shuffle: false
-    batch_size: 2
+    num_samples: -1
+    batch_size: 32
     num_workers:  2
     pin_memory: false
     drop_last: false
