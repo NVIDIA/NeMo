@@ -10,7 +10,7 @@ model:
     project_name: null
 
   train_ds:
-    manifest_filepath: '/raid/data/an4/an4/train_manifest.json'
+    manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
     trim_silence: True
@@ -18,7 +18,7 @@ model:
     shuffle: True
 
   validation_ds:
-    manifest_filepath: '/raid/data/an4/an4/test_manifest.json'
+    manifest_filepath: ???
     sample_rate: 16000
     batch_size: 32
     shuffle: False
