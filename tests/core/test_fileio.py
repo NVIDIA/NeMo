@@ -113,16 +113,17 @@ class TestFileIO:
             assert np.array_equal(w1, w2) == False
 
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_save_restore_from_nemo_file(self, asr_model):
         """" Test makes sure that the second instance created from the same configuration AND checkpoint 
         has the same weights. """
 
         with tempfile.NamedTemporaryFile() as fp:
             filename = fp.name
+
+            # Save model.
             asr_model.save_to(save_path=filename)
 
-            # Restore!
+            # Restore the model.
             asr_model2 = EncDecCTCModel.restore_from(restore_path=filename)
 
             assert len(asr_model.decoder.vocabulary) == len(asr_model2.decoder.vocabulary)
@@ -131,6 +132,4 @@ class TestFileIO:
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
             w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
 
-            print(w1)
-            print(w2)
             assert np.array_equal(w1, w2)
