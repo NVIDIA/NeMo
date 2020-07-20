@@ -35,7 +35,7 @@ _MODEL_CONFIG_YAML = "model_config.yaml"
 _MODEL_WEIGHTS = "model_weights.ckpt"
 
 
-class ModelPT(LightningModule, Model):
+class ModelPT(LightningModule):
     """
     Interface for Pytorch-lightning based NeMo models
     """
