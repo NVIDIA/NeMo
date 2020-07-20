@@ -29,7 +29,7 @@ model:
     batch_size: 12
 
   preprocessor:
-    cls: nemo.collections.tts.data.processors.FilterbankFeatures
+    cls: nemo.collections.asr.parts.features.FilterbankFeatures
     params:
       dither: 0.0
       nfilt: *n_mels

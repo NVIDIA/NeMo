@@ -22,7 +22,7 @@ from nemo.core.classes import ModelPT
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.utils.decorators import experimental
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.collections.tts.data.datalayers import AudioToTextDataset
+from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 
 
 @experimental
@@ -32,55 +32,10 @@ class Tacotron2PTL(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.audio_to_melspec_precessor = Tacotron2PTL.from_config_dict(self._cfg.preprocessor)
-        # nemo_tts.data.processors.FilterbankFeatures(
-        #     sample_rate=22050,
-        #     n_window_size=1024,
-        #     n_window_stride=256,
-        #     normalize=None,
-        #     n_fft=1024,
-        #     preemph=None,
-        #     nfilt=80,
-        #     lowfreq=0,
-        #     highfreq=None,
-        #     log=True,
-        #     log_zero_guard_type="clamp",
-        #     log_zero_guard_value=1e-5,
-        #     dither=0.0,
-        #     pad_to=8,
-        #     frame_splicing=1,
-        #     pad_value=self.pad_value,
-        #     mag_power=1.0,
-        #     stft_conv=True,
-        # )
         self.text_embedding = nn.Embedding(len(cfg.train_ds.labels) + 3, 512)
-        # self.encoder = nemo_tts.modules.tacotron2.Encoder(5, 512, 3)
         self.encoder = Tacotron2PTL.from_config_dict(self._cfg.encoder)
         self.decoder = Tacotron2PTL.from_config_dict(self._cfg.decoder)
-        # self.decoder = nemo_tts.modules.tacotron2.Decoder(
-        #     n_mel_channels=80,
-        #     n_frames_per_step=1,
-        #     encoder_embedding_dim=512,
-        #     gate_threshold=0.5,
-        #     prenet_dim=256,
-        #     max_decoder_steps=1000,
-        #     decoder_rnn_dim=1024,
-        #     p_decoder_dropout=0.1,
-        #     p_attention_dropout=0.1,
-        #     attention_rnn_dim=1024,
-        #     attention_dim=128,
-        #     attention_location_n_filters=32,
-        #     attention_location_kernel_size=31,
-        #     prenet_p_dropout=0.5,
-        #     early_stopping=True,
-        # )
-        # self.postnet = nemo_tts.modules.tacotron2.Postnet(
         self.postnet = Tacotron2PTL.from_config_dict(self._cfg.postnet)
-        #     n_mel_channels=80,
-        #     postnet_embedding_dim=512,
-        #     postnet_kernel_size=5,
-        #     postnet_n_convolutions=5,
-        #     p_dropout=0.5,
-        # )
 
         # After defining all torch.modules, create optimizer and scheduler
         self.setup_optimization()
@@ -120,23 +75,29 @@ class Tacotron2PTL(ModelPT):
         gate_loss = nn.BCEWithLogitsLoss()(gate_out, gate_target)
         return mel_loss + gate_loss
 
-    def forward(self):
-        pass
-
-    def training_step(self, batch, batch_idx):
-        audio, audio_len, tokens, token_len = batch
+    def forward(self, audio, audio_len, tokens, token_len):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding, token_len)
-        spec_dec, gate, alignments = self.decoder(encoder_embedding, spec, memory_lengths=token_len)
+        if self.training:
+            spec_dec, gate, alignments = self.decoder(encoder_embedding, spec, memory_lengths=token_len)
+        else:
+            spec_dec, gate, alignments, _ = self.decoder.infer(encoder_embedding, memory_lengths=token_len)
         spec_postnet = self.postnet(spec_dec)
 
         max_len = spec.shape[2]
-        gate_padded = torch.FloatTensor(spec_len.shape[0], max_len)
-        gate_padded.zero_()
+        gate_padded = torch.zeros(spec_len.shape[0], max_len)
+        gate_padded = gate_padded.type_as(gate)
         for i, length in enumerate(spec_len):
             gate_padded[i, length.data - 1 :] = 1
-        gate_padded = gate_padded.cuda()
+
+        return spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, alignments
+
+    def training_step(self, batch, batch_idx):
+        audio, audio_len, tokens, token_len = batch
+        spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, _ = self.forward(
+            audio, audio_len, tokens, token_len
+        )
 
         loss = self.loss(
             mel_out=spec_dec,
@@ -148,28 +109,17 @@ class Tacotron2PTL(ModelPT):
         )
 
         output = {
-            'loss': loss,  # required
-            'progress_bar': {'training_loss': loss},  # optional (MUST ALL BE TENSORS)
+            'loss': loss,
+            'progress_bar': {'training_loss': loss},
             'log': {'loss': loss},
         }
-        # return a dict
         return output
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
-        spec, spec_len = self.audio_to_melspec_precessor.forward(audio, audio_len)
-        token_embedding = self.text_embedding(tokens).transpose(1, 2)
-        encoder_embedding = self.encoder(token_embedding, token_len)
-        spec_dec, gate, alignments, mel_len = self.decoder.infer(encoder_embedding, memory_lengths=token_len)
-        # mel_output, gate_output, alignments, mel_len
-        spec_postnet = self.postnet(spec_dec)
-
-        max_len = spec.shape[2]
-        gate_padded = torch.FloatTensor(spec_len.shape[0], max_len)
-        gate_padded.zero_()
-        for i, length in enumerate(spec_len):
-            gate_padded[i, length.data - 1 :] = 1
-        gate_padded = gate_padded.cuda()
+        spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, alignments = self.forward(
+            audio, audio_len, tokens, token_len
+        )
 
         loss = self.loss(
             mel_out=spec_dec,

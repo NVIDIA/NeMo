@@ -28,34 +28,6 @@ class WaveglowPTL(ModelPT):
         self.sigma = 1.0
         self.audio_to_melspec_precessor = WaveglowPTL.from_config_dict(self._cfg.preprocessor)
         self.waveglow = WaveglowPTL.from_config_dict(self._cfg.waveglow)
-        # self.audio_to_melspec_precessor = nemo_tts.data.processors.FilterbankFeatures(
-        #     sample_rate=22050,
-        #     n_window_size=1024,
-        #     n_window_stride=256,
-        #     normalize=None,
-        #     n_fft=1024,
-        #     preemph=None,
-        #     nfilt=80,
-        #     lowfreq=0,
-        #     highfreq=None,
-        #     log=True,
-        #     log_zero_guard_type="clamp",
-        #     log_zero_guard_value=1e-5,
-        #     dither=0.0,
-        #     pad_to=8,
-        #     frame_splicing=1,
-        #     pad_value=self.pad_value,
-        #     mag_power=1.0,
-        #     stft_conv=True,
-        # )
-        # self.waveglow = nemo_tts.waveglow.waveglow.WaveGlow(
-        #     n_mel_channels=80,
-        #     n_flows=12,
-        #     n_group=8,
-        #     n_early_every=4,
-        #     n_early_size=2,
-        #     WN_config={"n_layers": 8, "n_channels": 32, "kernel_size": 3,},
-        # )
 
         self.setup_optimization()
 
@@ -71,29 +43,29 @@ class WaveglowPTL(ModelPT):
         loss = torch.sum(z * z) / (2 * self.sigma * self.sigma) - log_s_total - log_det_W_total
         return loss / (z.size(0) * z.size(1) * z.size(2))
 
-    def forward(self):
-        pass
+    def forward(self, audio, audio_len):
+        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
+        if self.training:
+            return self.waveglow((spec, audio))
+        else:
+            audio_pred = self.waveglow.infer(spec)
+        return audio_pred, spec, spec_len
 
     def training_step(self, batch, batch_idx):
-        audio, audio_len, = batch
-        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
+        audio, audio_len = batch
+        z, log_s_list, log_det_W_list = self.forward(audio, audio_len)
 
-        z, log_s_list, log_det_W_list = self.waveglow((spec, audio))
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
-
         output = {
-            'loss': loss,  # required
-            'progress_bar': {'training_loss': loss},  # optional (MUST ALL BE TENSORS)
+            'loss': loss,
+            'progress_bar': {'training_loss': loss},
             'log': {'loss': loss},
         }
-        # return a dict
         return output
 
     def validation_step(self, batch, batch_idx):
-        audio, audio_len, = batch
-        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-
-        audio_pred = self.waveglow.infer(spec)
+        audio, audio_len = batch
+        audio_pred, spec, spec_len = self.forward(audio, audio_len)
         return {
             "audio_pred": audio_pred,
             "mel_target": spec,
