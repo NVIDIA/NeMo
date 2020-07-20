@@ -41,15 +41,6 @@ class OptimizerParams:
 
 
 @dataclass
-class OptimizerArgs:
-    """Base class to configure optimizers.
-    """
-
-    name: str = "auto"
-    params: OptimizerParams = OptimizerParams()
-
-
-@dataclass
 class SGDParams(OptimizerParams):
     """
     Default configuration for Adam optimizer.
