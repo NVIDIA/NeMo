@@ -1,4 +1,4 @@
-name: "Voxnet"
+name: &name "Voxnet"
 sample_rate: &sample_rate 16000
 repeat: &rep 1
 dropout: &drop 0.5
@@ -144,7 +144,7 @@ pl:
 
 exp_manager:
   root_dir: null
-  name: ${name}
+  name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
