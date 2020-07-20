@@ -49,7 +49,7 @@ def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
-    exp_manager(trainer,cfg.get("exp_manager",None))
+    exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeechLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
 
