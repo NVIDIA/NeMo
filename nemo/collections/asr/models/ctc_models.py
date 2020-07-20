@@ -22,17 +22,19 @@ from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.modules import (
+    AudioToMelSpectrogramPreprocessor,
+    ConvASRDecoder,
+    ConvASREncoder,
+    SpectrogramAugmentation,
+)
 from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.core.classes import Serialization
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
-from nemo.core.classes import Serialization
-
-from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConvASREncoder, ConvASRDecoder, SpectrogramAugmentation
-
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
-
 
 
 @experimental

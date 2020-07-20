@@ -20,7 +20,6 @@ import pytest
 import torch
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
-
 from nemo.utils import logging
 
 
@@ -127,4 +126,3 @@ class TestWordErrorRate:
             logging.debug(s2)
 
             assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
-

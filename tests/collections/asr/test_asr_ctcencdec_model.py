@@ -87,7 +87,6 @@ class TestEncDecCTCModel:
             {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
         )
         asr_model = EncDecCTCModel(cfg=modelConfig)
-        # WHAT IS THAT?!
         asr_model.train()
         # TODO: make proper config and assert correct number of weights
 

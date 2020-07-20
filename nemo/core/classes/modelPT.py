@@ -22,14 +22,13 @@ from typing import Dict, Optional, Union
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from torch import save, load
 from pytorch_lightning import LightningModule, Trainer
+from torch import load, save
 
 from nemo.core import optim
 from nemo.core.classes.common import Model, Serialization
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging
-
 
 __all__ = ['ModelPT']
 
