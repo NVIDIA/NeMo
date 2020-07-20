@@ -21,7 +21,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.common.tokenizers import get_tokenizer
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import BertTokenClassificationDataset
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
@@ -56,11 +56,13 @@ class NERModel(ModelPT):
         self.data_dir = cfg.data_dir
         self.model_cfg = cfg
 
-        # TODO add support for sentence_piece tokenizer
-        if cfg.language_model.tokenizer == 'nemobert':
-            self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
-        else:
-            raise NotImplementedError()
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.language_model.do_lower_case,
+        )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
