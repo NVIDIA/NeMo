@@ -21,6 +21,8 @@ import torch
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 
+from nemo.utils import logging
+
 
 class TestWordErrorRate:
 
@@ -119,18 +121,10 @@ class TestWordErrorRate:
             s1 = __randomString(n1)
             s2 = __randomString(n2)
 
+            logging.debug(n1)
+            logging.debug(s1)
+            logging.debug(n2)
+            logging.debug(s2)
+
             assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
 
-            # @Oleksii: THIS TEST IS UNSTABLE!
-
-            # One failed case:
-            # assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
-            # assert tensor(4.3333) == 4.666666666666667
-            # -tensor(4.3333)
-            # +4.666666666666667
-
-            # Second failed case:
-            # assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
-            # assert tensor(2.1818) == 2.272727272727273
-            # -tensor(2.1818)
-            # +2.272727272727273

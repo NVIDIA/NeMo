@@ -20,7 +20,6 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models import EncDecCTCModel
 
-
 @pytest.fixture()
 def asr_model():
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
@@ -130,4 +129,7 @@ class TestFileIO:
 
             w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
             w2 = asr_model2.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+
+            print(w1)
+            print(w2)
             assert np.array_equal(w1, w2)
