@@ -112,7 +112,7 @@ class PunctuationCapitalizationModel(ModelPT):
         in the `nn.Module` in vanilla PyTorch.
         token_type_ids are not used for DistilBert models
         """
-        if 'distil' in self.model_cfg.language_model.pretrained_model_name:
+        if 'distilbert' in self.model_cfg.language_model.pretrained_model_name:
             hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)
         else:
             hidden_states = self.bert_model(
