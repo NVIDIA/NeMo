@@ -42,7 +42,7 @@ class PunctuationCapitalizationModel(ModelPT):
             "attention_mask": NeuralType(('B', 'T'), ChannelType()),
             "token_type_ids": NeuralType(
                 ('B', 'T'), ChannelType(), optional=True
-            ),  # token_type_ids are optional for DistilBert models
+            ),  # token_type_ids are not used for DistilBert models
         }
 
     @property
@@ -110,7 +110,7 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
-        token_type_ids is None for DistilBert model
+        token_type_ids are not used for DistilBert models
         """
         if 'distil' in self.model_cfg.language_model.pretrained_model_name:
             hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)

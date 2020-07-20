@@ -89,7 +89,6 @@ class ClassificationReport(TensorMetric):
             aggregated precision, recall, f1
         """
         zeros = torch.zeros_like(tp)
-        # import pdb; pdb.set_trace()
         num_classes = tp.shape[0]
         num_examples_per_class = tp + fn
         total_examples = torch.sum(num_examples_per_class)
