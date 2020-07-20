@@ -110,7 +110,7 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
-        token_type_ids = is not for DistilBert model
+        token_type_ids is None for DistilBert model
         """
         if 'distil' in self.model_cfg.language_model.pretrained_model_name:
             hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)
