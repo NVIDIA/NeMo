@@ -41,7 +41,7 @@ class DistilBertEncoder(DistilBertModel, BertModule):
     def forward(self, **kwargs):
         # distilBert does not use token_type_ids as the most of the other Bert models
         if 'token_type_ids' in kwargs:
-            logging.info("DistilBert doesn’t use token_type_ids.")
+            logging.info("DistilBert doesn’t use token_type_ids, and it is ignored.")
             del kwargs['token_type_ids']
 
         res = super().forward(**kwargs)[0]
