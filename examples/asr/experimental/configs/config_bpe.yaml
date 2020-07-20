@@ -167,8 +167,6 @@ pl:
     num_nodes: 1
     distributed_backend: ddp
     accumulate_grad_batches: 1
-    amp_level: O0
-    precision: 32
     checkpoint_callback: False  # Provided by exp_manager
     logger: False  # Provided by exp_manager
 
