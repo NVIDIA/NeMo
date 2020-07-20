@@ -14,5 +14,4 @@
 
 import nemo.collections.tts.data
 import nemo.collections.tts.helpers
-import nemo.collections.tts.tacotron2
-import nemo.collections.tts.waveglow
+import nemo.collections.tts.models
