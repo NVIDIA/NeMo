@@ -24,12 +24,12 @@ __all__ = ['ClassificationReport']
 
 class ClassificationReport(TensorMetric):
     """
-    This metric computes number of True Positive, False Negative, and False Positive examples per class.
+    This metric computes the number of True Positive, False Negative, and False Positive examples per class.
     When doing distributed training/evaluation the result of res=ClassificationReport(predictions, labels) calls
     will be all-reduced between all workers using SUM operations.
 
     If used with PytorchLightning LightningModule, include TPs, FNs, and FPs inside validation_step results.
-    Then aggregate them at the end of validation epoch to correctly compute validation precesion, recall, f1
+    Then aggregate them at the end of validation epoch to correctly compute validation precision, recall, f1
     using get_precision_recall_f1().
 
     Example:
@@ -40,9 +40,9 @@ class ClassificationReport(TensorMetric):
 
         def validation_epoch_end(self, outputs):
             ...
-            tp = sum(torch.stack([x['tp'] for x in outputs]))
-            fn = sum(torch.stack([x['fn'] for x in outputs]))
-            fp = sum(torch.stack([x['fp'] for x in outputs]))
+            tp = torch.sum(torch.stack([x['tp'] for x in outputs]), 0)
+            fn = torch.sum(torch.stack([x['fn'] for x in outputs]), 0)
+            fp = torch.sum(torch.stack([x['fp'] for x in outputs]), 0)
             precision, recall, f1 = self.get_precision_recall_f1(tp, fn, fp, mode='macro')
             tensorboard_logs = {'validation_loss': avg_loss, 'precision': precision, 'f1': f1, 'recall': recall}
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
@@ -85,14 +85,13 @@ class ClassificationReport(TensorMetric):
             fn: Number of false negatives per class
             fp: Number of false positives per class
             mode: 'macro' to use macro averaging to combine f1 scores for classes
-            label_ids (optional): label name to label id mapping
         Return:
             aggregated precision, recall, f1
         """
         zeros = torch.zeros_like(tp)
         num_classes = tp.shape[0]
         num_examples_per_class = tp + fn
-        total_examples = sum(num_examples_per_class)
+        total_examples = torch.sum(num_examples_per_class)
 
         precision = torch.where(tp + fp != zeros, tp / (tp + fp) * 100, zeros)
         recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
@@ -103,7 +102,7 @@ class ClassificationReport(TensorMetric):
         )
         for id in range(tp.shape[0]):
             label = f'label_id: {id}'
-            if self.ids_to_labels:
+            if self.ids_to_labels and id in self.ids_to_labels:
                 label = f'{self.ids_to_labels[id]} ({label})'
 
             logging.info(
@@ -112,14 +111,27 @@ class ClassificationReport(TensorMetric):
                 )
             )
 
-        macro_precision = sum(precision) / num_classes
-        macro_recall = sum(recall) / num_classes
-        macro_f1 = sum(f1) / num_classes
+        micro_precision = torch.where(torch.sum(tp + fp) != zeros, torch.sum(tp) / torch.sum(tp + fp) * 100, zeros)
+        micro_recall = torch.where(torch.sum(tp + fn) != zeros, torch.sum(tp) / torch.sum(tp + fn) * 100, zeros)
+        micro_f1 = torch.where(
+            micro_precision + micro_recall != zeros,
+            2 * micro_precision * micro_recall / (micro_precision + micro_recall),
+            zeros,
+        )
 
-        weighted_precision = sum(precision * num_examples_per_class) / total_examples
-        weighted_recall = sum(recall * num_examples_per_class) / total_examples
-        weighted_f1 = sum(f1 * num_examples_per_class) / total_examples
+        macro_precision = torch.sum(precision) / num_classes
+        macro_recall = torch.sum(recall) / num_classes
+        macro_f1 = torch.sum(f1) / num_classes
 
+        weighted_precision = torch.sum(precision * num_examples_per_class) / total_examples
+        weighted_recall = torch.sum(recall * num_examples_per_class) / total_examples
+        weighted_f1 = torch.sum(f1 * num_examples_per_class) / total_examples
+
+        logging.info(
+            '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+                'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples
+            )
+        )
         logging.info(
             '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                 'macro avg', macro_precision, macro_recall, macro_f1, total_examples
@@ -130,9 +142,13 @@ class ClassificationReport(TensorMetric):
                 'weighted avg', weighted_precision, weighted_recall, weighted_f1, total_examples
             )
         )
-
+        logging.info('')
         if mode == 'macro':
             return macro_precision, macro_recall, macro_f1
+        elif mode == 'micro':
+            return micro_precision, micro_recall, micro_f1
+        elif mode == 'weighted':
+            return weighted_precision, weighted_recall, weighted_f1
         elif mode == 'all':
             return precision, recall, f1
         else:

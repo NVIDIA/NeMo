@@ -21,7 +21,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import BertTokenClassificationDataset
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
@@ -51,15 +51,18 @@ class NERModel(ModelPT):
         """
 
         self.data_desc = TokenClassificationDataDesc(
-            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.train_ds.pad_label
+            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.pad_label
         )
         self.data_dir = cfg.data_dir
+        self.model_cfg = cfg
 
-        # TODO add support for sentence_piece tokenizer
-        if cfg.language_model.tokenizer == 'nemobert':
-            self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
-        else:
-            raise NotImplementedError()
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.language_model.do_lower_case,
+        )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -179,14 +182,14 @@ class NERModel(ModelPT):
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=cfg.max_seq_length,
+            max_seq_length=self.model_cfg.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
             label_ids=self.data_desc.label_ids,
-            ignore_extra_tokens=cfg.ignore_extra_tokens,
-            ignore_start_end=cfg.ignore_start_end,
-            overwrite_processed_files=cfg.overwrite_processed_files,
+            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
+            ignore_start_end=self.model_cfg.ignore_start_end,
+            overwrite_processed_files=self.model_cfg.overwrite_processed_files,
         )
 
         return torch.utils.data.DataLoader(

@@ -20,7 +20,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -51,11 +51,14 @@ class PunctuationCapitalizationModel(ModelPT):
         Initializes BERT Punctuation and Capitalization model.
         """
         self.data_dir = cfg.data_dir
-        # TODO add support for sentence_piece tokenizer
-        if cfg.language_model.tokenizer == 'nemobert':
-            self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
-        else:
-            raise NotImplementedError()
+        self.model_cfg = cfg
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.language_model.do_lower_case,
+        )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -66,7 +69,6 @@ class PunctuationCapitalizationModel(ModelPT):
         )
         self.hidden_size = self.bert_model.config.hidden_size
 
-        # TODO refactor with data_desc
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=len(self.punct_label_ids),
@@ -98,7 +100,7 @@ class PunctuationCapitalizationModel(ModelPT):
         self.setup_optimization(cfg.optim)
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -172,16 +174,17 @@ class PunctuationCapitalizationModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report for Punctuation task
-        punct_tp = sum(torch.stack([x['log']['punct_tp'] for x in outputs]))
-        punct_fn = sum(torch.stack([x['log']['punct_fn'] for x in outputs]))
-        punct_fp = sum(torch.stack([x['log']['punct_fp'] for x in outputs]))
+        punct_tp = torch.sum(torch.stack([x['log']['punct_tp'] for x in outputs]), 0)
+        punct_fn = torch.sum(torch.stack([x['log']['punct_fn'] for x in outputs]), 0)
+        punct_fp = torch.sum(torch.stack([x['log']['punct_fp'] for x in outputs]), 0)
         punct_precision, punct_recall, punct_f1 = self.punct_class_report.get_precision_recall_f1(
             punct_tp, punct_fn, punct_fp, mode='macro'
         )
+
         # calculate metrics and log classification report for Capitalization task
-        capit_tp = sum(torch.stack([x['log']['capit_tp'] for x in outputs]))
-        capit_fn = sum(torch.stack([x['log']['capit_fn'] for x in outputs]))
-        capit_fp = sum(torch.stack([x['log']['capit_fp'] for x in outputs]))
+        capit_tp = torch.sum(torch.stack([x['log']['capit_tp'] for x in outputs]), 0)
+        capit_fn = torch.sum(torch.stack([x['log']['capit_fn'] for x in outputs]), 0)
+        capit_fp = torch.sum(torch.stack([x['log']['capit_fp'] for x in outputs]), 0)
         capit_precision, capit_recall, capit_f1 = self.capit_class_report.get_precision_recall_f1(
             capit_tp, capit_fn, capit_fp, mode='macro'
         )
@@ -218,38 +221,22 @@ class PunctuationCapitalizationModel(ModelPT):
                    [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
                    [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
             )
+        dataset = BertPunctuationCapitalizationDataset(
+            tokenizer=self.tokenizer,
+            text_file=text_file,
+            label_file=label_file,
+            pad_label=self.model_cfg.pad_label,
+            punct_label_ids=None if cfg.prefix == 'train' else self.punct_label_ids,
+            capit_label_ids=None if cfg.prefix == 'train' else self.capit_label_ids,
+            max_seq_length=self.model_cfg.max_seq_length,
+            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
+            ignore_start_end=self.model_cfg.ignore_start_end,
+            overwrite_processed_files=self.model_cfg.overwrite_processed_files,
+            num_samples=cfg.num_samples,
+        )
         if cfg.prefix == 'train':
-            dataset = BertPunctuationCapitalizationDataset(
-                tokenizer=self.tokenizer,
-                text_file=text_file,
-                label_file=label_file,
-                pad_label=cfg.pad_label,
-                punct_label_ids=None,
-                capit_label_ids=None,
-                max_seq_length=cfg.max_seq_length,
-                ignore_extra_tokens=cfg.ignore_extra_tokens,
-                ignore_start_end=cfg.ignore_start_end,
-                overwrite_processed_files=cfg.overwrite_processed_files,
-                num_samples=cfg.num_samples,
-            )
             self.punct_label_ids = dataset.punct_label_ids
             self.capit_label_ids = dataset.capit_label_ids
-        else:
-            # reuse label_ids established during training file processing
-            # TODO fix with data descriptor
-            dataset = BertPunctuationCapitalizationDataset(
-                tokenizer=self.tokenizer,
-                text_file=text_file,
-                label_file=label_file,
-                pad_label=cfg.pad_label,
-                punct_label_ids=self.punct_label_ids,
-                capit_label_ids=self.capit_label_ids,
-                max_seq_length=cfg.max_seq_length,
-                ignore_extra_tokens=cfg.ignore_extra_tokens,
-                ignore_start_end=cfg.ignore_start_end,
-                overwrite_processed_files=cfg.overwrite_processed_files,
-                num_samples=cfg.num_samples,
-            )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
