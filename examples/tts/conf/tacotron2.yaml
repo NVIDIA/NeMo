@@ -7,7 +7,7 @@ labels: &labels [' ', '!', '"', "'", '(', ')', ',', '-', '.', ':', ';', '?', 'A'
 'u', 'v', 'w', 'x', 'y', 'z']
 n_fft: &n_fft 1024
 n_mels: &n_mels 80
-fmax: &fmax 8000
+fmax: &fmax null
 n_stride: &n_window_stride 256
 pad_value: &pad_value -11.52
 
