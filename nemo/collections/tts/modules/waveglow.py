@@ -148,7 +148,7 @@ class WN(torch.nn.Module):
 
 class WaveGlow(torch.nn.Module):
     def __init__(
-        self, n_mel_channels, n_flows, n_group, n_early_every, n_early_size, WN_config,
+        self, n_mel_channels, n_flows, n_group, n_early_every, n_early_size, n_wn_channels, n_wn_layers, wn_kernel_size
     ):
         super(WaveGlow, self).__init__()
 
@@ -171,7 +171,15 @@ class WaveGlow(torch.nn.Module):
                 n_half = n_half - int(self.n_early_size / 2)
                 n_remaining_channels = n_remaining_channels - self.n_early_size
             self.convinv.append(Invertible1x1Conv(n_remaining_channels))
-            self.WN.append(WN(n_half, n_mel_channels * n_group, **WN_config))
+            self.WN.append(
+                WN(
+                    n_half,
+                    n_mel_channels * n_group,
+                    n_layers=n_wn_layers,
+                    n_channels=n_wn_channels,
+                    kernel_size=wn_kernel_size,
+                )
+            )
         self.n_remaining_channels = n_remaining_channels
 
     def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor]):

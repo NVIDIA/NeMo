@@ -65,7 +65,6 @@ model:
       n_mel_channels: *n_mels
       n_wn_channels: 512
       n_wn_layers: 8
-      sample_rate: *sr
       wn_kernel_size: 3
 
   optim:
