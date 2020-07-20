@@ -27,7 +27,12 @@ from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
+from nemo.core.classes import Serialization
+
+from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConvASREncoder, ConvASRDecoder, SpectrogramAugmentation
+
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
+
 
 
 @experimental
@@ -37,17 +42,23 @@ class EncDecCTCModel(ASRModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if 'cls' not in cfg:
             # This is for Jarvis service. Adding here for now to avoid effects of decorators
-            OmegaConf.set_struct(cfg, False)
-            cfg.cls = 'nemo.collections.asr.models.EncDecCTCModel'
-            OmegaConf.set_struct(cfg, True)
+            # Assuming cfg will have the config structure CONSISTENT with the modules, i.e.: {cls: ..., params: ...}
+            config = {"cls": 'nemo.collections.asr.models.EncDecCTCModel'}
+            if "params" in cfg:
+                config["params"] = cfg.params
+            else:
+                config["params"] = cfg
+
+            # Overwrite the cfg.
+            cfg = OmegaConf.create(config)
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
-        self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
-        self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
+        self.preprocessor = AudioToMelSpectrogramPreprocessor(**self._cfg.params.preprocessor.params)
+        self.encoder = ConvASREncoder(**self._cfg.params.encoder.params)
+        self.decoder = ConvASRDecoder(**self._cfg.params.decoder.params)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
+        if hasattr(self._cfg.params, 'spec_augment') and self._cfg.spec_augment is not None:
+            self.spec_augmentation = SpectrogramAugmentation(**self._cfg.params.spec_augment.params)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready
