@@ -14,10 +14,10 @@
 
 import torch
 
+from nemo.collections.tts.data.datalayers import AudioDataset
+from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
-from nemo.collections.tts.data.datalayers import AudioDataset
 
 
 @experimental
