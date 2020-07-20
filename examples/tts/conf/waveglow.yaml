@@ -22,7 +22,7 @@ model:
     drop_last: false
     max_duration: null
     min_duration: 0.1
-    n_segments: 0
+    n_segments: 30000
     sample_rate: *sr
     shuffle: false
     trim_silence: false

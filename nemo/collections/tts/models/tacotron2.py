@@ -19,10 +19,10 @@ from torch.nn.functional import pad
 
 
 from nemo.core.classes import ModelPT
-import nemo.collections.asr as nemo_asr
-import nemo.collections.tts as nemo_tts
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.utils.decorators import experimental
+from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.tts.data.datalayers import AudioToTextDataset
 
 
 @experimental
@@ -196,10 +196,8 @@ class Tacotron2PTL(ModelPT):
 
     @staticmethod
     def __setup_dataloader_from_config(config: 'Optional[Dict]'):
-        featurizer = nemo_asr.parts.features.WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False)
-        )
-        dataset = nemo_tts.data.datalayers.AudioToTextDataset(
+        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
+        dataset = AudioToTextDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
             featurizer=featurizer,

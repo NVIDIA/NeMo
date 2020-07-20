@@ -15,61 +15,49 @@
 import torch
 
 from nemo.core.classes import ModelPT
-import nemo.collections.tts as nemo_tts
+from nemo.utils.decorators import experimental
+from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
+from nemo.collections.tts.data.datalayers import AudioDataset
 
 
+@experimental
 class WaveglowPTL(ModelPT):
-    def __init__(self, args):
-        super().__init__()
-        self.pad_value = -11.42
+    def __init__(self, cfg: 'DictConfig', trainer: 'Trainer' = None):
+        super().__init__(cfg=cfg, trainer=trainer)
+        self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = 1.0
-        self.audio_to_melspec_precessor = nemo_tts.data.processors.FilterbankFeatures(
-            sample_rate=22050,
-            n_window_size=1024,
-            n_window_stride=256,
-            normalize=None,
-            n_fft=1024,
-            preemph=None,
-            nfilt=80,
-            lowfreq=0,
-            highfreq=None,
-            log=True,
-            log_zero_guard_type="clamp",
-            log_zero_guard_value=1e-5,
-            dither=0.0,
-            pad_to=8,
-            frame_splicing=1,
-            pad_value=self.pad_value,
-            mag_power=1.0,
-            stft_conv=True,
-        )
-        self.waveglow = nemo_tts.waveglow.waveglow.WaveGlow(
-            n_mel_channels=80,
-            n_flows=12,
-            n_group=8,
-            n_early_every=4,
-            n_early_size=2,
-            WN_config={"n_layers": 8, "n_channels": 32, "kernel_size": 3,},
-        )
+        self.audio_to_melspec_precessor = WaveglowPTL.from_config_dict(self._cfg.preprocessor)
+        self.waveglow = WaveglowPTL.from_config_dict(self._cfg.waveglow)
+        # self.audio_to_melspec_precessor = nemo_tts.data.processors.FilterbankFeatures(
+        #     sample_rate=22050,
+        #     n_window_size=1024,
+        #     n_window_stride=256,
+        #     normalize=None,
+        #     n_fft=1024,
+        #     preemph=None,
+        #     nfilt=80,
+        #     lowfreq=0,
+        #     highfreq=None,
+        #     log=True,
+        #     log_zero_guard_type="clamp",
+        #     log_zero_guard_value=1e-5,
+        #     dither=0.0,
+        #     pad_to=8,
+        #     frame_splicing=1,
+        #     pad_value=self.pad_value,
+        #     mag_power=1.0,
+        #     stft_conv=True,
+        # )
+        # self.waveglow = nemo_tts.waveglow.waveglow.WaveGlow(
+        #     n_mel_channels=80,
+        #     n_flows=12,
+        #     n_group=8,
+        #     n_early_every=4,
+        #     n_early_size=2,
+        #     WN_config={"n_layers": 8, "n_channels": 32, "kernel_size": 3,},
+        # )
 
-        # # Set up datasets
-        self.__train_dl = self.setup_training_data(args.train_dataset)
-        self.__val_dl = self.setup_validation_data(args.eval_datasets)
-
-        # After defining all torch.modules, create optimizer and scheduler
-        optimizer_params = {
-            'optimizer': args.optimizer,
-            'lr': args.lr,
-            'opt_args': args.opt_args,
-        }
-        self.setup_optimization(optimizer_params)
-        # iters_per_batch = scheduler_args.pop('iters_per_batch')  # 1 for T2
-        # iters_per_batch = 1
-        # num_gpus = 1  # TODO: undo hardcode
-        # num_samples = len(self.__train_dl.dataset)
-        # batch_size = self.__train_dl.batch_size
-        # max_steps = math.ceil(num_samples / float(batch_size * iters_per_batch * num_gpus)) * args.max_epochs
-        # self.__scheduler = CosineAnnealing(self.__optimizer, max_steps=max_steps, min_lr=1e-5)
+        self.setup_optimization()
 
     def loss(self, z, log_s_list, log_det_W_list):
         for i, log_s in enumerate(log_s_list):
@@ -82,9 +70,6 @@ class WaveglowPTL(ModelPT):
 
         loss = torch.sum(z * z) / (2 * self.sigma * self.sigma) - log_s_total - log_det_W_total
         return loss / (z.size(0) * z.size(1) * z.size(2))
-
-    def setup_optimization(self, optim_params: 'Optional[Dict]' = None) -> torch.optim.Optimizer:
-        self.__optimizer = super().setup_optimization(optim_params)
 
     def forward(self):
         pass
@@ -103,19 +88,6 @@ class WaveglowPTL(ModelPT):
         }
         # return a dict
         return output
-
-    def train_dataloader(self):
-        return self.__train_dl
-
-    def setup_training_data(self, path):
-        dataset = nemo_tts.data.datalayers.AudioDataset(
-            manifest_filepath=path, n_segments=16000, min_duration=0.1, max_duration=None, trim=False,
-        )
-        return torch.utils.data.DataLoader(dataset, batch_size=24, shuffle=True, collate_fn=dataset._collate_fn)
-
-    def configure_optimizers(self):
-        # return [self.__optimizer], [self.__scheduler]
-        return self.__optimizer
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, = batch
@@ -138,12 +110,47 @@ class WaveglowPTL(ModelPT):
         )
         return {}
 
-    def val_dataloader(self):
-        return self.__val_dl
-
-    def setup_validation_data(self, path):
-        # TODO: Should n_segments be 16k? But it seems to help with memory footprint
-        dataset = nemo_tts.data.datalayers.AudioDataset(
-            manifest_filepath=path, n_segments=30000, min_duration=0.1, max_duration=None, trim=False,
+    def setup_training_data(self, config):
+        if 'shuffle' not in config:
+            config['shuffle'] = True
+        dataset = AudioDataset(
+            manifest_filepath=config["manifest_filepath"],
+            n_segments=config["n_segments"],
+            min_duration=config.get("min_duration", 0.1),
+            max_duration=config.get("max_duration", None),
+            trim=config.get("trim_silence", False),
         )
-        return torch.utils.data.DataLoader(dataset, batch_size=12, shuffle=False, collate_fn=dataset._collate_fn)
+        self._train_dl = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=config.get("batch_size", False),
+            shuffle=config["shuffle"],
+            collate_fn=dataset._collate_fn,
+        )
+
+    def setup_validation_data(self, config):
+        if 'shuffle' not in config:
+            config['shuffle'] = False
+        dataset = AudioDataset(
+            manifest_filepath=config["manifest_filepath"],
+            n_segments=config["n_segments"],
+            min_duration=config.get("min_duration", 0.1),
+            max_duration=config.get("max_duration", None),
+            trim=config.get("trim_silence", False),
+        )
+        self._validation_dl = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=config.get("batch_size", False),
+            shuffle=config["shuffle"],
+            collate_fn=dataset._collate_fn,
+        )
+
+    @classmethod
+    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
+        pass
+
+    @classmethod
+    def from_pretrained(cls, name: str):
+        pass
+
+    def export(self, **kwargs):
+        pass
