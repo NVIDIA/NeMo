@@ -34,6 +34,7 @@ class SerializationTest:
         obj = Serialization.from_config_dict(config=config)
         assert isinstance(obj, SpectrogramAugmentation)
 
+    @pytest.mark.unit
     def test_from_config_dict_without_cls(self):
         """Here we test that instantiation works for configs without cls class path in them.
         IMPORTANT: in this case, correct class type should call from_config_dict. This should work for Models."""
