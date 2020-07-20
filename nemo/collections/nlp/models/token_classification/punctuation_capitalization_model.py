@@ -37,13 +37,7 @@ __all__ = ['PunctuationCapitalizationModel']
 class PunctuationCapitalizationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
-            "token_type_ids": NeuralType(
-                ('B', 'T'), ChannelType(), optional=True
-            ),  # token_type_ids are not used for DistilBert models
-        }
+        return self.bert_model.input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -110,14 +104,10 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
-        token_type_ids are not used for DistilBert models
         """
-        if 'distilbert' in self.model_cfg.language_model.pretrained_model_name:
-            hidden_states = self.bert_model(input_ids=input_ids, attention_mask=attention_mask)
-        else:
-            hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-            )
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
         punct_logits = self.punct_classifier(hidden_states=hidden_states)
         capit_logits = self.capit_classifier(hidden_states=hidden_states)
         return punct_logits, capit_logits
@@ -231,46 +221,30 @@ class PunctuationCapitalizationModel(ModelPT):
                    [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
                    [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
             )
+        dataset = BertPunctuationCapitalizationDataset(
+            tokenizer=self.tokenizer,
+            text_file=text_file,
+            label_file=label_file,
+            pad_label=self.model_cfg.pad_label,
+            punct_label_ids=None if cfg.prefix == 'train' else self.punct_label_ids,
+            capit_label_ids=None if cfg.prefix == 'train' else self.capit_label_ids,
+            max_seq_length=self.model_cfg.max_seq_length,
+            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
+            ignore_start_end=self.model_cfg.ignore_start_end,
+            overwrite_processed_files=self.model_cfg.overwrite_processed_files,
+            num_samples=cfg.num_samples,
+        )
         if cfg.prefix == 'train':
-            dataset = BertPunctuationCapitalizationDataset(
-                tokenizer=self.tokenizer,
-                text_file=text_file,
-                label_file=label_file,
-                pad_label=self.model_cfg.pad_label,
-                punct_label_ids=None,
-                capit_label_ids=None,
-                max_seq_length=self.model_cfg.max_seq_length,
-                ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
-                ignore_start_end=self.model_cfg.ignore_start_end,
-                overwrite_processed_files=self.model_cfg.overwrite_processed_files,
-                num_samples=cfg.num_samples,
-            )
             self.punct_label_ids = dataset.punct_label_ids
             self.capit_label_ids = dataset.capit_label_ids
-        else:
-            # reuse label_ids established during training file processing
-            # TODO fix with data descriptor
-            dataset = BertPunctuationCapitalizationDataset(
-                tokenizer=self.tokenizer,
-                text_file=text_file,
-                label_file=label_file,
-                pad_label=self.model_cfg.pad_label,
-                punct_label_ids=self.punct_label_ids,
-                capit_label_ids=self.capit_label_ids,
-                max_seq_length=self.model_cfg.max_seq_length,
-                ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
-                ignore_start_end=self.model_cfg.ignore_start_end,
-                overwrite_processed_files=self.model_cfg.overwrite_processed_files,
-                num_samples=cfg.num_samples,
-            )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=self.model_cfg.batch_size,
+            batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.model_cfg.num_workers,
-            pin_memory=self.model_cfg.pin_memory,
-            drop_last=self.model_cfg.drop_last,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
         )
 
     @classmethod

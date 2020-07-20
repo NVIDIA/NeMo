@@ -194,11 +194,11 @@ class NERModel(ModelPT):
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=self.model_cfg.batch_size,
+            batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=self.model_cfg.num_workers,
-            pin_memory=self.model_cfg.pin_memory,
-            drop_last=self.model_cfg.drop_last,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
         )
 
     @classmethod

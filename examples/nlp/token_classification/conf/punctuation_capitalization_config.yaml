@@ -17,20 +17,24 @@ model:
   ignore_extra_tokens: false
   ignore_start_end: false
   overwrite_processed_files: false
-  batch_size: 32
-  num_workers:  20
-  pin_memory: false
-  drop_last: false
 
   train_ds:
     prefix: train
     shuffle: true
     num_samples: -1
+    batch_size: 32
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   validation_ds:
     prefix: dev
     shuffle: false
     num_samples: -1
+    batch_size: 32
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   language_model:
     pretrained_model_name: bert-base-uncased
