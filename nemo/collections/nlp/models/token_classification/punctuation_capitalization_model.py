@@ -51,6 +51,7 @@ class PunctuationCapitalizationModel(ModelPT):
         Initializes BERT Punctuation and Capitalization model.
         """
         self.data_dir = cfg.data_dir
+        self.model_cfg = cfg
         # TODO add support for sentence_piece tokenizer
         if cfg.language_model.tokenizer == 'nemobert':
             self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
@@ -172,16 +173,17 @@ class PunctuationCapitalizationModel(ModelPT):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report for Punctuation task
-        punct_tp = sum(torch.stack([x['log']['punct_tp'] for x in outputs]))
-        punct_fn = sum(torch.stack([x['log']['punct_fn'] for x in outputs]))
-        punct_fp = sum(torch.stack([x['log']['punct_fp'] for x in outputs]))
+        punct_tp = torch.sum(torch.stack([x['log']['punct_tp'] for x in outputs]), 0)
+        punct_fn = torch.sum(torch.stack([x['log']['punct_fn'] for x in outputs]), 0)
+        punct_fp = torch.sum(torch.stack([x['log']['punct_fp'] for x in outputs]), 0)
         punct_precision, punct_recall, punct_f1 = self.punct_class_report.get_precision_recall_f1(
             punct_tp, punct_fn, punct_fp, mode='macro'
         )
+
         # calculate metrics and log classification report for Capitalization task
-        capit_tp = sum(torch.stack([x['log']['capit_tp'] for x in outputs]))
-        capit_fn = sum(torch.stack([x['log']['capit_fn'] for x in outputs]))
-        capit_fp = sum(torch.stack([x['log']['capit_fp'] for x in outputs]))
+        capit_tp = torch.sum(torch.stack([x['log']['capit_tp'] for x in outputs]), 0)
+        capit_fn = torch.sum(torch.stack([x['log']['capit_fn'] for x in outputs]), 0)
+        capit_fp = torch.sum(torch.stack([x['log']['capit_fp'] for x in outputs]), 0)
         capit_precision, capit_recall, capit_f1 = self.capit_class_report.get_precision_recall_f1(
             capit_tp, capit_fn, capit_fp, mode='macro'
         )
@@ -223,13 +225,13 @@ class PunctuationCapitalizationModel(ModelPT):
                 tokenizer=self.tokenizer,
                 text_file=text_file,
                 label_file=label_file,
-                pad_label=cfg.pad_label,
+                pad_label=self.model_cfg.pad_label,
                 punct_label_ids=None,
                 capit_label_ids=None,
-                max_seq_length=cfg.max_seq_length,
-                ignore_extra_tokens=cfg.ignore_extra_tokens,
-                ignore_start_end=cfg.ignore_start_end,
-                overwrite_processed_files=cfg.overwrite_processed_files,
+                max_seq_length=self.model_cfg.max_seq_length,
+                ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
+                ignore_start_end=self.model_cfg.ignore_start_end,
+                overwrite_processed_files=self.model_cfg.overwrite_processed_files,
                 num_samples=cfg.num_samples,
             )
             self.punct_label_ids = dataset.punct_label_ids
@@ -241,23 +243,23 @@ class PunctuationCapitalizationModel(ModelPT):
                 tokenizer=self.tokenizer,
                 text_file=text_file,
                 label_file=label_file,
-                pad_label=cfg.pad_label,
+                pad_label=self.model_cfg.pad_label,
                 punct_label_ids=self.punct_label_ids,
                 capit_label_ids=self.capit_label_ids,
-                max_seq_length=cfg.max_seq_length,
-                ignore_extra_tokens=cfg.ignore_extra_tokens,
-                ignore_start_end=cfg.ignore_start_end,
-                overwrite_processed_files=cfg.overwrite_processed_files,
+                max_seq_length=self.model_cfg.max_seq_length,
+                ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
+                ignore_start_end=self.model_cfg.ignore_start_end,
+                overwrite_processed_files=self.model_cfg.overwrite_processed_files,
                 num_samples=cfg.num_samples,
             )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=cfg.batch_size,
+            batch_size=self.model_cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self.model_cfg.num_workers,
+            pin_memory=self.model_cfg.pin_memory,
+            drop_last=self.model_cfg.drop_last,
         )
 
     @classmethod

@@ -51,9 +51,10 @@ class NERModel(ModelPT):
         """
 
         self.data_desc = TokenClassificationDataDesc(
-            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.train_ds.pad_label
+            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.pad_label
         )
         self.data_dir = cfg.data_dir
+        self.model_cfg = cfg
 
         # TODO add support for sentence_piece tokenizer
         if cfg.language_model.tokenizer == 'nemobert':
@@ -179,23 +180,23 @@ class NERModel(ModelPT):
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=cfg.max_seq_length,
+            max_seq_length=self.model_cfg.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
             label_ids=self.data_desc.label_ids,
-            ignore_extra_tokens=cfg.ignore_extra_tokens,
-            ignore_start_end=cfg.ignore_start_end,
-            overwrite_processed_files=cfg.overwrite_processed_files,
+            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
+            ignore_start_end=self.model_cfg.ignore_start_end,
+            overwrite_processed_files=self.model_cfg.overwrite_processed_files,
         )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=cfg.batch_size,
+            batch_size=self.model_cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self.model_cfg.num_workers,
+            pin_memory=self.model_cfg.pin_memory,
+            drop_last=self.model_cfg.drop_last,
         )
 
     @classmethod
