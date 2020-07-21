@@ -436,7 +436,7 @@ class SquadProcessor(DataProcessor):
 
     def get_examples(self):
         if self.data_file is None:
-            raise ValueError("SquadProcessor should be instantiated")
+            raise ValueError("Data file is None.")
 
         with open(self.data_file, "r", encoding="utf-8") as reader:
             input_data = json.load(reader)["data"]

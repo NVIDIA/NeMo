@@ -1,51 +1,6 @@
 
 # Question Answering with SQUAD
 
-max_answer_length: 30
-# The maximum length of an answer that can be 
-# generated. This is needed because the start
-# and end predictions are not conditioned
-# on one another.
-
-output_prediction_file: predictions.json
-# File to write predictions to. Only in evaluation or test mode,
-    
-output_nbest_file: nbest.json
-# File to write nbest predictions to. Only in evaluation or test mode.
-
-version_2_with_negative: false
-# If true, the examples contain some that do not have an answer.
-
-null_score_diff_threshold: 0.0
-# If null_score - best_non_null is greater than the threshold predict null.
-
-n_best_size: 20
-# The total number of n-best predictions to generate at testing.
-
-mode: train_eval
-# Choices: train, train_eval, eval, test
-# Mode of model usage.
-# When using test mode the script is running inference on the data,
-# i.e. no ground-truth labels are required in the dataset.
-
-use_cache: true
-# Preprocess and cache text data. 
-
-doc_stride: 128
-# When splitting up a long document into chunks,
-# how much stride to take between chunks.
-
-max_query_length: 64
-# The maximum number of tokens for the question.
-# Questions longer than this will be truncated to
-# this length.
-
-max_seq_length: 384
-# The maximum total input sequence length after
-# WordPiece tokenization. Sequences longer than this
-# will be truncated, and sequences shorter than this
-# will be padded.
-
 pl:
   trainer:
     gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
@@ -59,9 +14,51 @@ pl:
     val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
 
 model:
+  max_answer_length: 30
+  # The maximum length of an answer that can be 
+  # generated. This is needed because the start
+  # and end predictions are not conditioned
+  # on one another.
+
+  output_prediction_file: predictions.json
+  # File to write predictions to. Only in evaluation or test mode,
+      
+  output_nbest_file: nbest.json
+  # File to write nbest predictions to. Only in evaluation or test mode.
+
+  version_2_with_negative: false
+  # If true, the examples contain some that do not have an answer.
+
+  null_score_diff_threshold: 0.0
+  # If null_score - best_non_null is greater than the threshold predict null.
+
+  n_best_size: 20
+  # The total number of n-best predictions to generate at testing.
+
+  mode: train_eval
+  # Choices: train, train_eval, eval, test
+  # Mode of model usage.
+  # When using test mode the script is running inference on the data,
+  # i.e. no ground-truth labels are required in the dataset.
+
+  doc_stride: 128
+  # When splitting up a long document into chunks,
+  # how much stride to take between chunks.
+
+  max_query_length: 64
+  # The maximum number of tokens for the question.
+  # Questions longer than this will be truncated to
+  # this length.
+
+  max_seq_length: 384
+  # The maximum total input sequence length after
+  # WordPiece tokenization. Sequences longer than this
+  # will be truncated, and sequences shorter than this
+  # will be padded.
 
   train_ds:
-    file: ??? # .json file
+    mode: train
+    file: null # .json file
     batch_size: 8 # per GPU
     shuffle: true
     num_samples: -1
@@ -71,6 +68,7 @@ model:
     pin_memory: false
 
   validation_ds:
+    mode: eval
     file: null # .json file
     batch_size: 8 # per GPU
     shuffle: false
@@ -80,7 +78,6 @@ model:
     drop_last: false
     pin_memory: false
   
-
   optim:
     name: adam
     lr: 2e-5

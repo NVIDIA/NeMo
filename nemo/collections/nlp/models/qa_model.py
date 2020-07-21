@@ -27,6 +27,7 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
+from pytorch_lightning import Trainer
 
 __all__ = ['QAModel']
 
@@ -50,51 +51,27 @@ class QAModel(ModelPT):
         cfg: DictConfig,
         trainer: Trainer = None
     ):
-    #     num_classes: int = 2,
-    #     pretrained_model_name: str = 'bert-base-cased',
-    #     config_file: Optional[str] = None,
-    #     num_layers: int = 1,
-    #     activation: str = 'relu',
-    #     log_softmax: bool = False,
-    #     dropout: float = 0.0,
-    #     use_transformer_init: bool = True,
-    # ):
-        """
-        Args:
-            num_classes: number of classes
-            pretrained_model_name: pretrained language model name, to see the complete list use
-            config_file: model config file
-            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            activation: activation to usee between fully connected layers in the MLP
-            log_softmax: whether to apply softmax to the output
-            dropout: dropout to apply to the input hidden states
-            use_transformer_init: whether to use pre-trained transformer weights for weights initialization
-        """
-        # init superclass
-        # TODO: This is a workaround - please fix - see text_classification_model or asr for example
-        # cfg = DictConfig(
-        #     {
-        #         'num_classes': num_classes,
-        #         'pretrained_model_name': pretrained_model_name,
-        #         'config_file': config_file,
-        #         'num_layers': num_layers,
-        #         'activation': activation,
-        #         'log_softmax': log_softmax,
-        #         'dropout': dropout,
-        #         'use_transformer_init': use_transformer_init,
-        #     }
-        # )
+        self.max_answer_length = cfg.max_answer_length
+        self.output_prediction_file = cfg.output_prediction_file
+        self.output_nbest_file = cfg.output_nbest_file
+        self.version_2_with_negative = cfg.version_2_with_negative
+        self.null_score_diff_threshold = cfg.null_score_diff_threshold
+        self.n_best_size = cfg.n_best_size
+        self.doc_stride = cfg.doc_stride
+        self.max_query_length = cfg.max_query_length
+        self.max_seq_length = cfg.max_seq_length
 
+        self.tokenizer = get_tokenizer(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            tokenizer_name="nemobert"
+        )
         super().__init__(cfg=cfg, trainer=trainer)
+
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config
         )
         self.hidden_size = self.bert_model.config.hidden_size
-        self.tokenizer = get_tokenizer(
-            pretrained_model_name=cfg.pretrained_model_name,
-            tokenizer_name="nemobert"
-        )
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -138,39 +115,33 @@ class QAModel(ModelPT):
         tensorboard_logs = {'val_loss': avg_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, train_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_config:
-            train_data_layer_config['shuffle'] = True
-            train_data_layer_config['mode'] = 'train'
-        self._train_dl = self.__setup_dataloader(train_data_layer_config)
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
-    def setup_validation_data(self, val_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_config['shuffle'] = False
-            val_data_layer_config['mode'] = 'eval'
-        self._validation_dl = self.__setup_dataloader(val_data_layer_config)
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
-        pass
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        self._test_dl = self._setup_dataloader(cfg=test_data_config)
 
-    def __setup_dataloader(self, data_layer_params):
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
-            data_file=data_layer_params['data_file'],
-            doc_stride=data_layer_params['doc_stride'],
-            max_query_length=data_layer_params['max_query_length'],
-            max_seq_length=data_layer_params['max_seq_length'],
-            version_2_with_negative=data_layer_params['version_2_with_negative'],
-            mode=data_layer_params['mode'],
-            use_cache=data_layer_params['use_cache'],
+            data_file=cfg.file,
+            doc_stride=self.doc_stride,
+            max_query_length=self.max_query_length,
+            max_seq_length=self.max_seq_length,
+            version_2_with_negative=self.version_2_with_negative,
+            mode=cfg.mode,
+            use_cache=self.use_cache,
         )
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=data_layer_params['batch_size'],
+            batch_size=cfg.batch_size,
             collate_fn=dataset.collate_fn,
-            drop_last=data_layer_params.get('drop_last', False),
-            shuffle=data_layer_params['shuffle'],
-            num_workers=data_layer_params.get('num_workers', 0),
+            drop_last=cfg.get('drop_last', False),
+            shuffle=cfg.shuffle,
+            num_workers=cfg.get('num_workers', 0),
         )
         return dl
 
