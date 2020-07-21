@@ -134,7 +134,7 @@ pipeline {
           sh 'cd examples/nlp/question_answering && \
           python question_answering_squad.py \
           model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-          model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v2.0.json \
+          model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
           model.language_model.do_lower_case=true \
           model.language_model.pretrained_model_name=bert-base-uncased \
           model.version_2_with_negative=true \
