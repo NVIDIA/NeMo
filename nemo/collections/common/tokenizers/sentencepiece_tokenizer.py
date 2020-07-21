@@ -186,7 +186,7 @@ def create_spt_model(
     data_file: str,
     vocab_size: int,
     sample_size: int,
-    special_tokens: Union[Dict[str, str], List[str]],
+    special_tokens: Optional[Union[Dict[str, str], List[str]]],
     do_lower_case: bool,
     output_dir: Optional[str] = None,
 ):
@@ -223,12 +223,14 @@ def create_spt_model(
     cmd = (
         f"--input={data_file} --model_prefix={output_dir}/tokenizer "
         f"--vocab_size={vocab_size - len(vocab)} "
-        f"--input_sentence_size={sample_size} "
         f"--shuffle_input_sentence=true --hard_vocab_limit=false "
         f"--bos_id=-1 --eos_id=-1"
     )
     if do_lower_case:
         cmd += " --normalization_rule_name=nmt_nfkc_cf"
+
+    if sample_size > 0:
+        cmd += " --input_sentence_size={sample_size}"
 
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
@@ -242,7 +244,11 @@ def create_spt_model(
         for line in f:
             piece = line.split("\t")[0]
             token = piece[1:] if piece.startswith("▁") else f"##{piece}"
-            tokens.append(token)
+
+            if len(token) > 0:
+                tokens.append(token)
+            else:
+                tokens.append(piece[0])
 
     vocab.extend(tokens)
 
