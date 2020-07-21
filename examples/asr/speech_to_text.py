@@ -13,9 +13,7 @@
 # limitations under the License.
 import hydra
 import pytorch_lightning as pl
-from pytorch_lightning.logging import WandbLogger
 
-from nemo import logging
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils.exp_manager import exp_manager
 
