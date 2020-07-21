@@ -189,7 +189,7 @@ class NERModel(ModelPT):
             label_ids=self.data_desc.label_ids,
             ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
             ignore_start_end=self.model_cfg.ignore_start_end,
-            overwrite_processed_files=self.model_cfg.overwrite_processed_files,
+            use_cache=self.model_cfg.use_cache,
         )
 
         return torch.utils.data.DataLoader(
