@@ -16,7 +16,7 @@ model:
   pad_label: 'O'
   ignore_extra_tokens: false
   ignore_start_end: false
-  overwrite_processed_files: false
+  use_cache: true
 
   train_ds:
     prefix: train

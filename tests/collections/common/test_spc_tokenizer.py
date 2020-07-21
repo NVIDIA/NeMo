@@ -21,7 +21,7 @@ from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOK
 
 
 class TestSPCTokenizer(TestCase):
-    model_path = "../../data/m_common.model"
+    model_path = ".tests/data/m_common.model"
 
     @pytest.mark.unit
     def test_add_special_tokens(self):
