@@ -115,7 +115,7 @@ pipeline {
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[0] \
-            pl.trainer.max_steps=2 \
+            +pl.trainer.fast_dev_run=true \
             '
             sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
             rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
@@ -132,7 +132,7 @@ pipeline {
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[1] \
-            pl.trainer.max_steps=2 \
+            +pl.trainer.fast_dev_run=true \
             '
             sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
             rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
@@ -162,7 +162,7 @@ pipeline {
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[0] \
-            pl.trainer.max_steps=2 \
+            +pl.trainer.fast_dev_run=true \
             '
             sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
             rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
@@ -180,7 +180,7 @@ pipeline {
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[1] \
-            pl.trainer.max_steps=2 \
+            +pl.trainer.fast_dev_run=true \
             '
             sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
             rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
