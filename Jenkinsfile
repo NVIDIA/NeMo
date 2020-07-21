@@ -112,7 +112,7 @@ pipeline {
           model.language_model.pretrained_model_name=bert-base-uncased \
           model.optim.name=adamw model.optim.lr=1e-5 \
           model.version_2_with_negative=false \
-          model.optim.scheduler.name=WarmupAnnealing \
+          model.optim.sched.name=WarmupAnnealing \
           pl.trainer.precision=16 \
           pl.trainer.amp_level=O1 \
           pl.trainer.gpus=[0] \
@@ -139,7 +139,7 @@ pipeline {
           model.language_model.pretrained_model_name=bert-base-uncased \
           model.version_2_with_negative=true \
           model.optim.name=adamw model.optim.lr=1e-5 \
-          model.optim.scheduler.name=WarmupAnnealing \
+          model.optim.sched.name=WarmupAnnealing \
           pl.trainer.precision=16 \
           pl.trainer.amp_level=O1 \
           pl.trainer.gpus=[0] \
@@ -166,7 +166,7 @@ pipeline {
           model.language_model.pretrained_model_name=roberta-base \
           model.optim.name=adamw model.optim.lr=1e-5 \
           model.version_2_with_negative=false \
-          model.optim.scheduler.name=WarmupAnnealing \
+          model.optim.sched.name=WarmupAnnealing \
           pl.trainer.precision=16 \
           pl.trainer.amp_level=O1 \
           pl.trainer.gpus=[0] \
