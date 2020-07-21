@@ -23,10 +23,9 @@ from typing import Dict, Optional, Union
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule, Trainer
-from torch import load, save
 
 from nemo.core import optim
-from nemo.core.classes.common import Model, Serialization
+from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging
 
@@ -91,14 +90,13 @@ class ModelPT(LightningModule, Model):
             save_path: Path to .nemo file where model instance should be saved
         """
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Prepare filenames.
-            config_yaml_file = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights_file = path.join(tmpdir, _MODEL_WEIGHTS)
-            # Save the configuration.
-            self.to_config_file(path2yaml_file=config_yaml_file)
-            # Save the weights.
-            save(self.state_dict(), model_weights_file)
-            # Put both to .nemo file.
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            self.to_config_file(path2yaml_file=config_yaml)
+            trainer = self._trainer if self._trainer else Trainer()
+            if trainer.model != self:
+                trainer.model = self
+            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
@@ -122,21 +120,10 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-            # Prepare filenames.
-            config_yaml_file = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights_file = path.join(tmpdir, _MODEL_WEIGHTS)
-
-            # Load the configuration.
-            config = OmegaConf.load(config_yaml_file)
-            print(config)
-
-            # Instantiate the object.
-            instance = Serialization.from_config_dict(config)
-
-            # Load the weights.
-            state_dict = load(model_weights_file, map_location=lambda storage, loc: storage)
-            instance.load_state_dict(state_dict)
-
+            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            conf = OmegaConf.load(config_yaml)
+            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
         return instance
 
     @abstractmethod
