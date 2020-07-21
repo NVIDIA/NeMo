@@ -1,10 +1,26 @@
-# Sentence classification with pretrained BERT models
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Config file for sentence classification with pretrained BERT models
 
 pl:
   trainer:
     gpus: 1 # the number of gpus, 0 for CPU
     num_nodes: 1
-    max_epochs: 10
+    max_epochs: 100
     max_steps: null # precedence over max_epochs
     accumulate_grad_batches: 1 # accumulates grads every k batches
     amp_level: O0 # O1/O2 for mixed precision
@@ -20,7 +36,7 @@ model:
     shuffle: true
     num_samples: -1
     num_workers: 2
-    use_cache: true
+    use_cache: false
     drop_last: false
     pin_memory: false
 
@@ -30,7 +46,7 @@ model:
     shuffle: false
     num_samples: -1
     num_workers: 2
-    use_cache: true
+    use_cache: false
     drop_last: false
     pin_memory: false
 
@@ -39,9 +55,10 @@ model:
     max_seq_length: 36
     bert_checkpoint: null
     bert_config: null
-    tokenizer: null # only used if using custom checkpoint
+    tokenizer: nemobert # 'nemobert' or 'sentencepiece'
+    vocab_file: null
     tokenizer_model: null # only used if tokenizer is sentencepiece
-    do_lower_case: true # true for uncased models, false for cased models
+    do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
   
   head:
     num_output_layers: 2
