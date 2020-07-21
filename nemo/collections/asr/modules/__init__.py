@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.asr.modules.audio_preprocessing import AudioToMelSpectrogramPreprocessor, SpectrogramAugmentation
-from nemo.collections.asr.modules.conv_asr import ConvASRDecoder, ConvASREncoder, SpeakerDecoder
+from nemo.collections.asr.modules.conv_asr import ConvASRDecoder, ConvASREncoder, SpeakerDecoder, ConvASRDecoderClassification
