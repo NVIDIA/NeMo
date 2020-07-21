@@ -115,7 +115,6 @@ target_label_n, "offset": offset_in_sec_n}
                 LongTensor):  A tuple of tuples of signal, signal lengths,
                 encoded tokens, and encoded tokens length.  This collate func
                 assumes the signals are 1d torch tensors (i.e. mono audio).
-            fixed_length (Optional[int]): length of input signal to be considered
         """
         fixed_length = self.featurizer.sample_rate * self.time_length
         _, audio_lengths, _, tokens_lengths = zip(*batch)
