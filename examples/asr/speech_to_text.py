@@ -67,6 +67,7 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModel(cfg=cfg.model, trainer=trainer)
+
     trainer.fit(asr_model)
 
 

@@ -299,7 +299,6 @@ class SpectrogramAugmentation(NeuralModule):
             self.spec_augment = SpecAugment(
                 freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
             )
-            # self.spec_augment.to(self._device)
         else:
             self.spec_augment = lambda x: x
 
