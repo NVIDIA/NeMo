@@ -11,20 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts import collections, features, parsers
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
-__all__ = ['AudioToTextDataset']
+__all__ = ['AudioToCharDataset', 'AudioToBPEDataset']
 
 
-@experimental
-class AudioToTextDataset(Dataset):
+class _AudioDataset(Dataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, transcripts, and durations (in seconds). Each new line is a
@@ -54,46 +53,25 @@ class AudioToTextDataset(Dataset):
         add_misc: True if add additional info dict.
     """
 
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
-        return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-        }
-
     def __init__(
         self,
-        manifest_filepath,
-        labels,
-        featurizer,
-        max_duration=None,
-        min_duration=None,
-        max_utts=0,
-        blank_index=-1,
-        unk_index=-1,
-        normalize=True,
-        trim=False,
-        bos_id=None,
-        eos_id=None,
-        load_audio=True,
-        parser='en',
-        add_misc=False,
-        pad_id=0,
+        manifest_filepath: str,
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        parser: Union[str, Callable],
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+        load_audio: bool = True,
+        add_misc: bool = False,
     ):
+
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
-            parser=parsers.make_parser(
-                labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
-            ),
+            parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
@@ -182,3 +160,160 @@ class AudioToTextDataset(Dataset):
         tokens_lengths = torch.stack(tokens_lengths)
 
         return audio_signal, audio_lengths, tokens, tokens_lengths
+
+
+@experimental
+class AudioToCharDataset(_AudioDataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, transcripts, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+    "/path/to/audio.txt", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "text": "the
+    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        labels: String containing all the possible characters to map to
+        featurizer: Initialized featurizer class that converts paths of
+            audio to feature tensors
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        max_utts: Limit number of utterances
+        blank_index: blank character index, default = -1
+        unk_index: unk_character index, default = -1
+        normalize: whether to normalize transcript text (default): True
+        bos_id: Id of beginning of sequence symbol to append if not None
+        eos_id: Id of end of sequence symbol to append if not None
+        load_audio: Boolean flag indicate whether do or not load audio
+        add_misc: True if add additional info dict.
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        labels: List[str],
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        max_utts: int = 0,
+        blank_index: int = -1,
+        unk_index: int = -1,
+        normalize: bool = True,
+        trim: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        pad_id: int = 0,
+        load_audio: bool = True,
+        parser: Union[str, Callable] = 'en',
+        add_misc: bool = False,
+    ):
+        self.labels = labels
+
+        parser = parsers.make_parser(
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+        )
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            featurizer=featurizer,
+            parser=parser,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
+            load_audio=load_audio,
+            add_misc=add_misc,
+        )
+
+
+@experimental
+class AudioToBPEDataset(_AudioDataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        load_audio: bool = True,
+        add_misc: bool = False,
+    ):
+        if hasattr(tokenizer, 'bos_token'):
+            bos_id = tokenizer.bos_id
+        else:
+            bos_id = None
+
+        if hasattr(tokenizer, 'eos_token'):
+            eos_id = tokenizer.eos_id
+        else:
+            eos_id = None
+
+        if hasattr(tokenizer, 'pad_token'):
+            pad_id = tokenizer.pad_id
+        else:
+            pad_id = 0
+
+        class TokenizerWrapper:
+            def __init__(self, tokenizer):
+                self._tokenizer = tokenizer
+
+            def __call__(self, text):
+                t = self._tokenizer.text_to_ids(text)
+                return t
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            featurizer=featurizer,
+            parser=TokenizerWrapper(tokenizer),
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            pad_id=pad_id,
+            trim=trim,
+            load_audio=load_audio,
+            add_misc=add_misc,
+        )
