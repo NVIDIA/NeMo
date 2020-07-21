@@ -157,7 +157,6 @@ class TextClassificationModel(ModelPT):
                 'recall': recall,
                 'f1': f1,
             }
-            #print(tensorboard_logs)
             return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
