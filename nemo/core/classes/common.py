@@ -88,8 +88,15 @@ class Serialization:
         """Instantiates object using DictConfig-based configuration"""
 
         if 'cls' in config and 'params' in config:
-            class_obj = eval(config.cls)
-            instance = class_obj(cfg=config)
+            # Parse the "full specification".
+            spec_list = config.cls.split(".")
+
+            # Get module class from the "full specification".
+            mod_obj = __import__(spec_list[0])
+            for spec in spec_list[1:]:
+                mod_obj = getattr(mod_obj, spec)
+
+            instance = mod_obj(cfg=config)
         else:
             # models are handled differently for now
             # instance = cls(cfg=config)
