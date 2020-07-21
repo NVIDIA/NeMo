@@ -143,6 +143,7 @@ pipeline {
           }
         }
       }
+    }
 
 
     stage('L2: Roberta Squad v1.1') {
