@@ -334,16 +334,3 @@ class ModelPT(LightningModule, Model):
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder
-
-    def _update_hyperparameters(self, *args, **kwargs):
-        """
-        Convenience method to add / update hyper parameters that are tracked by the model.
-        """
-        hparams = self.hparams
-
-        for arg in args:
-            hparams.update(arg)
-
-        hparams.update(**kwargs)
-
-        self._set_hparams(hparams)
