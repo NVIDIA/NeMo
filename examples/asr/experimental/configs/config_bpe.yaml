@@ -5,10 +5,6 @@ dropout: &dropout 0.0
 separable: &separable true
 
 model:
-  logger:
-    experiment_name: null
-    project_name: null
-
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
@@ -175,6 +171,10 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+
+wandb_logger:
+  experiment_name: null
+  project_name: null
 
 hydra:
   run:

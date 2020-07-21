@@ -46,10 +46,26 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
-    if 'logger' in cfg.model:
-        if cfg.model.logger.experiment_name is not None and cfg.model.logger.project_name is not None:
-            logger = WandbLogger(name=cfg.model.logger.experiment_name, project=cfg.model.logger.project_name)
-            trainer.configure_logger(logger)
+    if 'wandb_logger' in cfg:
+        if cfg.wandb_logger.experiment_name is not None and cfg.wandb_logger.project_name is not None:
+            if trainer.logger is None:
+                logger = WandbLogger(name=cfg.wandb_logger.experiment_name, project=cfg.wandb_logger.project_name)
+                trainer.configure_logger(logger)
+
+            else:
+                save_dir = trainer.logger.save_dir
+                wandb_logger = WandbLogger(name=cfg.wandb_logger.experiment_name,
+                                           project=cfg.wandb_logger.project_name,
+                                           save_dir=save_dir)
+
+                trainer_logger = trainer.logger
+
+                if type(trainer_logger) in [list, tuple]:
+                    logger_list = [*trainer_logger, wandb_logger]
+                else:
+                    logger_list = [trainer_logger, wandb_logger]
+
+                trainer.configure_logger(logger_list)
 
             logging.info("WandB Logger has been setup")
 

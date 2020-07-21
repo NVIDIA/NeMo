@@ -175,6 +175,10 @@ exp_manager:
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
+wandb_logger:
+  experiment_name: null
+  project_name: null
+
 hydra:
   run:
     dir: .
