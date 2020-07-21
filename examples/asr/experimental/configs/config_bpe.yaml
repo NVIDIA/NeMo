@@ -1,16 +1,13 @@
-name: &name "QuartzNet15x5"
+name: &name "ContextNet5x1"
 sample_rate: &sample_rate 16000
 repeat: &repeat 1
 dropout: &dropout 0.0
 separable: &separable true
-labels: &labels [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
-         "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
 
 model:
   train_ds:
     manifest_filepath: ???
     sample_rate: 16000
-    labels: *labels
     batch_size: 32
     trim_silence: True
     max_duration: 16.7
@@ -19,9 +16,12 @@ model:
   validation_ds:
     manifest_filepath: ???
     sample_rate: 16000
-    labels: *labels
     batch_size: 32
     shuffle: False
+
+  tokenizer:
+    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    type: ???  # Can be either bpe or wpe
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -133,29 +133,26 @@ model:
     cls: nemo.collections.asr.modules.ConvASRDecoder
     params:
       feat_in: 1024
-      num_classes: 28
-      vocabulary: *labels
+      num_classes: -1  # filled with vocabulary size from tokenizer at runtime
+      vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
   optim:
-    name: novograd
-    # cls: nemo.core.optim.optimizers.Novograd
-    lr: .01
+    name: adam
+    # cls: nemo.core.optim.optimizers.Adam
+    lr: .1
+
     # optimizer arguments
-    betas: [0.8, 0.5]
-    weight_decay: 0.001
+    betas: [0.9, 0.999]
+    weight_decay: 0.0001
 
     # scheduler setup
     sched:
       name: CosineAnnealing
 
-      # pytorch lightning args
-      # monitor: val_loss
-      # reduce_on_plateau: false
-
-      # Scheduler params
+      # scheduler config override
       warmup_steps: null
-      warmup_ratio: null
-      min_lr: 0.0
+      warmup_ratio: 0.05
+      min_lr: 1e-6
       last_epoch: -1
 
 pl:
@@ -174,6 +171,8 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  wandb_exp: null
+  wandb_project: null
 
 hydra:
   run:

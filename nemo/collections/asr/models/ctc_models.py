@@ -15,21 +15,15 @@
 from typing import Dict, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
+from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.modules import (
-    AudioToMelSpectrogramPreprocessor,
-    ConvASRDecoder,
-    ConvASREncoder,
-    SpectrogramAugmentation,
-)
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes import Serialization
+from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
@@ -37,44 +31,38 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 
-@experimental
+# @experimental
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        if 'cls' not in cfg:
-            # This is for Jarvis service. Adding here for now to avoid effects of decorators
-            # Assuming cfg will have the config structure CONSISTENT with the modules, i.e.: {cls: ..., params: ...}
-            config = {"cls": 'nemo.collections.asr.models.EncDecCTCModel'}
-            if "params" in cfg:
-                config["params"] = cfg.params
-            else:
-                config["params"] = cfg
-
-            # Overwrite the cfg.
-            cfg = OmegaConf.create(config)
-
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = AudioToMelSpectrogramPreprocessor(**self._cfg.params.preprocessor.params)
-        self.encoder = ConvASREncoder(**self._cfg.params.encoder.params)
-        self.decoder = ConvASRDecoder(**self._cfg.params.decoder.params)
+        self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
+        self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+        self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if hasattr(self._cfg.params, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = SpectrogramAugmentation(**self._cfg.params.spec_augment.params)
+        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+            self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization()
         # Setup metric objects
-        self.__wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+        self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
-    @staticmethod
-    def __setup_dataloader_from_config(config: Optional[Dict]):
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
-        dataset = AudioToTextDataset(
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+
+        featurizer = WaveformFeaturizer(
+            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+        )
+        dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
             featurizer=featurizer,
@@ -87,6 +75,7 @@ class EncDecCTCModel(ASRModel):
             trim=config.get('trim_silence', True),
             load_audio=config.get('load_audio', True),
             parser=config.get('parser', 'en'),
+            add_misc=config.get('add_misc', False),
         )
 
         return torch.utils.data.DataLoader(
@@ -101,17 +90,17 @@ class EncDecCTCModel(ASRModel):
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
-        self._train_dl = self.__setup_dataloader_from_config(config=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
-        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
-        self._test_dl = self.__setup_dataloader_from_config(config=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -158,7 +147,6 @@ class EncDecCTCModel(ASRModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        self.train()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
@@ -166,12 +154,15 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-        tensorboard_logs = {'train_loss': loss_value, 'training_batch_wer': wer_num / wer_denom}
+        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
+        tensorboard_logs = {
+            'train_loss': loss_value,
+            'training_batch_wer': wer_num / wer_denom,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+        }
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
-        self.eval()
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
@@ -179,7 +170,7 @@ class EncDecCTCModel(ASRModel):
         loss_value = self.loss(
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
-        wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
+        wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
 

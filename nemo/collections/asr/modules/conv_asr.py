@@ -180,7 +180,7 @@ class ConvASRDecoder(NeuralModule):
         if vocabulary is not None:
             if num_classes != len(vocabulary):
                 raise ValueError(
-                    f"If vocabulary is specified, it's length should be equal to the num_classes. But I got: num_classes={num_classes} and len(vocabluary)={len(vocabulary)}"
+                    f"If vocabulary is specified, it's length should be equal to the num_classes. Instead got: num_classes={num_classes} and len(vocabulary)={len(vocabulary)}"
                 )
             self.__vocabulary = vocabulary
         self._feat_in = feat_in
