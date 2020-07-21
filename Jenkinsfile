@@ -237,8 +237,8 @@ pipeline {
       failFast true
         steps {
           sh 'cd examples/nlp/token_classification && python ner.py \
-          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true'
-          sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
+          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true \
+          model.use_cache=false'
         }
     }
     stage('L4: Punctuation and capitalization: DistilBert + MultiGPU') {
@@ -253,8 +253,8 @@ pipeline {
           sh 'cd examples/nlp/token_classification && python punctuation_capitalization.py \
           model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true \
           pl.trainer.gpus=2 pl.trainer.distributed_backend=ddp \
-          model.language_model.pretrained_model_name=distilbert-base-uncased'
-          sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
+          model.language_model.pretrained_model_name=distilbert-base-uncased \
+          model.use_cache=false'
         }
     }
 
