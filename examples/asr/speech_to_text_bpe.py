@@ -32,7 +32,6 @@ python speech_to_text_bpe.py \
 
 import hydra
 import pytorch_lightning as pl
-from pytorch_lightning.logging import WandbLogger
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.utils import logging
@@ -45,29 +44,6 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
-
-    if 'wandb_logger' in cfg:
-        if cfg.wandb_logger.experiment_name is not None and cfg.wandb_logger.project_name is not None:
-            if trainer.logger is None:
-                logger = WandbLogger(name=cfg.wandb_logger.experiment_name, project=cfg.wandb_logger.project_name)
-                trainer.configure_logger(logger)
-
-            else:
-                save_dir = trainer.logger.save_dir
-                wandb_logger = WandbLogger(name=cfg.wandb_logger.experiment_name,
-                                           project=cfg.wandb_logger.project_name,
-                                           save_dir=save_dir)
-
-                trainer_logger = trainer.logger
-
-                if type(trainer_logger) in [list, tuple]:
-                    logger_list = [*trainer_logger, wandb_logger]
-                else:
-                    logger_list = [trainer_logger, wandb_logger]
-
-                trainer.configure_logger(logger_list)
-
-            logging.info("WandB Logger has been setup")
 
     trainer.fit(asr_model)
 

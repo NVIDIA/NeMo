@@ -24,7 +24,9 @@ from typing import Dict, List, Optional, Union
 from hydra.utils import get_original_cwd
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.logging import WandbLogger
 
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
@@ -38,6 +40,8 @@ class ExpManagerConfig:
     create_tensorboard_logger: Optional[bool] = True
     create_checkpoint_callback: Optional[bool] = True
     files_to_copy: Optional[List[str]] = None
+    wandb_exp: Optional[str] = None
+    wandb_project: Optional[str] = None
 
 
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None):
@@ -64,6 +68,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                  as the most recent model. Defaults to True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
+
+            Following are optional values that can be provided to exp_manager inside cfg
+
+            WandB support - Both arguments must be provided to optionally add WandB logging.
+            - wandb_exp (str): The name of the WandB experiment. Must be provided if set as an argument.
+            - wandb_porject (str): The project name of the WandB experiments. Groups together multiple experiments in
+                the WandB dashboard. Must be provided if set as an argument.
     """
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -140,6 +151,18 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if version is None:
         version = tensorboard_logger.version
 
+    # Potentially create a WandBLogger, if its arguments are provided
+    if hasattr(cfg, 'wandb_exp') and hasattr(cfg, 'wandb_project'):
+        if cfg.wandb_exp is not None and cfg.wandb_project is not None:
+            wandb_logger = WandbLogger(
+                name=cfg.wandb_exp, project=cfg.wandb_project, save_dir=_root_dir, version=version
+            )
+
+            logger_list = [tensorboard_logger, wandb_logger]
+            logger_list = LoggerList(logger_list)
+
+            trainer.configure_logger(logger_list)
+
     # Create the logging directory if it does not exist
     log_dir = Path(_root_dir, name, version)
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
@@ -207,3 +230,15 @@ def get_git_diff():
         return subprocess.check_output(['git', 'diff'], stderr=subprocess.STDOUT).decode()
     except subprocess.CalledProcessError as err:
         return "{}\n".format(err.output.decode("utf-8"))
+
+
+class LoggerList(_LoggerCollection):
+    @property
+    def name(self) -> str:
+        logger_names = [str(logger.name) for logger in self._logger_iterable]
+        return logger_names[0]
+
+    @property
+    def version(self) -> str:
+        logger_versions = [str(logger.version) for logger in self._logger_iterable]
+        return logger_versions[0]
