@@ -16,10 +16,10 @@
 import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
-from nemo.utils.exp_manager import exp_manager
 
 from nemo.collections.nlp.models.text_classification.text_classification_model import TextClassificationModel
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra.main(config_path="conf", config_name="text_classification_config")
