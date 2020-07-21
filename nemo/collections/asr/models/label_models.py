@@ -34,7 +34,14 @@ __all__ = ['EncDecSpeechLabelModel']
 
 @experimental
 class EncDecSpeechLabelModel(ModelPT):
-    """Encoder decoder CTC-based models."""
+    """Encoder decoder class for speaker label models.
+    Model class creates training, validation methods for setting up data
+    performing model forward pass. 
+    Expects config dict for 
+    * preprocessor
+    * Jasper/Quartznet Encoder
+    * Speaker Decoder 
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if 'cls' not in cfg:
@@ -51,7 +58,6 @@ class EncDecSpeechLabelModel(ModelPT):
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization()
 
-    # @staticmethod
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
         self.dataset = AudioToSpeechLabelDataSet(
@@ -83,7 +89,6 @@ class EncDecSpeechLabelModel(ModelPT):
         if 'shuffle' not in val_data_layer_config:
             val_data_layer_config['shuffle'] = False
         val_data_layer_config['labels'] = self.dataset.labels
-        # num_classes = self.dataset.num_classes
         self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
 
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
@@ -132,7 +137,6 @@ class EncDecSpeechLabelModel(ModelPT):
         processed_signal, processed_signal_len = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
-        # Spec augment is not applied during evaluation/testing
 
         encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded)

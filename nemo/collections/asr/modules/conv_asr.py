@@ -280,11 +280,10 @@ class SpeakerDecoder(NeuralModule):
             nn.ReLU(),
         )
 
-        return layer  # layer, embs
+        return layer
 
     @typecheck()
     def forward(self, encoder_output):
-        # encoder_output = self.norm(encoder_output)
         pool = self._pooling(encoder_output)
         embs = []
 
