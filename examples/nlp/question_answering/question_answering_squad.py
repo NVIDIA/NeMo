@@ -14,8 +14,8 @@
 
 
 import hydra
-from omegaconf import DictConfig
 import pytorch_lightning as pl
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.models.qa_model import QAModel
 from nemo.utils import logging
