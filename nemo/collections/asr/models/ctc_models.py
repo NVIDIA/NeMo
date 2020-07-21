@@ -15,21 +15,14 @@
 from typing import Dict, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.modules import (
-    AudioToMelSpectrogramPreprocessor,
-    ConvASRDecoder,
-    ConvASREncoder,
-    SpectrogramAugmentation,
-)
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes import Serialization
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
@@ -42,25 +35,13 @@ class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        if 'cls' not in cfg:
-            # This is for Jarvis service. Adding here for now to avoid effects of decorators
-            # Assuming cfg will have the config structure CONSISTENT with the modules, i.e.: {cls: ..., params: ...}
-            config = {"cls": 'nemo.collections.asr.models.EncDecCTCModel'}
-            if "params" in cfg:
-                config["params"] = cfg.params
-            else:
-                config["params"] = cfg
-
-            # Overwrite the cfg.
-            cfg = OmegaConf.create(config)
-
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = AudioToMelSpectrogramPreprocessor(**self._cfg.params.preprocessor.params)
-        self.encoder = ConvASREncoder(**self._cfg.params.encoder.params)
-        self.decoder = ConvASRDecoder(**self._cfg.params.decoder.params)
+        self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
+        self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
+        self.decoder = EncDecCTCModel.from_config_dict(self._cfg.decoder)
         self.loss = CTCLoss(num_classes=self.decoder.num_classes_with_blank - 1)
-        if hasattr(self._cfg.params, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = SpectrogramAugmentation(**self._cfg.params.spec_augment.params)
+        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+            self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
         # Optimizer setup needs to happen after all model weights are ready
