@@ -45,10 +45,10 @@ class WERBPE(TensorMetric):
            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-       vocabulary:
-       batch_dim_index:
-       use_cer:
-       ctc_decode:
+       vocabulary: NeMo tokenizer object, which inherits from TokenizerSpec.
+       batch_dim_index: Index of the batch dimension.
+       use_cer: Whether to compute word-error-rate or character-error-rate.
+       ctc_decode: Whether to perform CTC decode.
 
     Returns:
        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominators]. To correctly compute average
