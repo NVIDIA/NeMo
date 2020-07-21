@@ -702,7 +702,7 @@ def convert_examples_to_features(
                     logging.info("start_position: %d" % (start_position))
                     logging.info("end_position: %d" % (end_position))
                     logging.info("answer: %s" % (answer_text))
-            if example_index % 100:
+            if example_index % 100 == 0:
                 logging.info(f"Finished processing: {example_index}")
             features.append(
                 InputFeatures(
