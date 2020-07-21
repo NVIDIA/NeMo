@@ -20,7 +20,7 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentenceP
 from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS
 
 
-class TestSPCTokenizer(TestCase):
+class TestSentencePieceTokenizer(TestCase):
     model_path = "./tests/data/m_common.model"
 
     @pytest.mark.unit
