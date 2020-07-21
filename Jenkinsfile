@@ -136,7 +136,7 @@ pipeline {
             model.optim.sched.name=WarmupAnnealing \
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
-            pl.trainer.gpus=[0] \
+            pl.trainer.gpus=[1] \
             pl.trainer.max_steps=2 \
             '
             sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
