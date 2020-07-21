@@ -16,6 +16,7 @@
 import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
+from nemo.utils.exp_manager import exp_manager
 
 from nemo.collections.nlp.models.text_classification.text_classification_model import TextClassificationModel
 from nemo.utils import logging
@@ -25,6 +26,8 @@ from nemo.utils import logging
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config Params:\n {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
+
     text_classification_model = TextClassificationModel(cfg.model, trainer=trainer)
     trainer.fit(text_classification_model)
 

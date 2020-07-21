@@ -94,10 +94,10 @@ model:
   pl: null # used at runtime
 
 exp_manager:
-  root_dir: null
-  name: "TextClassification"
-  create_tensorboard_logger: True
-  create_checkpoint_callback: True
+  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
+  name: "TextClassification"  # The name of your model
+  create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
+  create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
 
 hydra:
   run:
