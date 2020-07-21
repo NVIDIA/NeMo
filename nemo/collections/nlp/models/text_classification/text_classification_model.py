@@ -12,21 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Dict, Optional
 
 import torch
-import os
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.common.tokenizers import get_tokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes.common import typecheck
-from nemo.collections.common.tokenizers import get_tokenizer
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
