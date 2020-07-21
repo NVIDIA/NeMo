@@ -4,8 +4,8 @@ n_fft: &n_fft 1024
 n_mels: &n_mels 80
 fmax: &fmax null
 pad_value: &pad_value -11.52
-train_dataset: ???  # For backwards compatibility with NeMo 0.11
-validation_datasets: ???  # For somewhat backwards compatibility with NeMo 0.11
+train_dataset: ???
+validation_datasets: ???
 
 model:
   train_ds:

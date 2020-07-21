@@ -15,8 +15,8 @@
 import hydra
 import pytorch_lightning as pl
 
-from nemo.collections.tts.helpers.helpers import LogEpochTimeCallback
-from nemo.collections.tts.models import WaveglowPTL
+from nemo.collections.tts.callbacks import LogEpochTimeCallback
+from nemo.collections.tts.models import Waveglow
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -24,7 +24,7 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = WaveglowPTL(cfg=cfg.model, trainer=trainer)
+    model = Waveglow(cfg=cfg.model, trainer=trainer)
     lr_logger = pl.callbacks.LearningRateLogger()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])

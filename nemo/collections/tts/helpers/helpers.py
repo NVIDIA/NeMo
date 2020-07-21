@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
-
 import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
-from pytorch_lightning.callbacks.base import Callback
 
 from nemo.utils import logging
 
@@ -180,11 +177,19 @@ def waveglow_log_to_tb_func(
         )
 
 
-class LogEpochTimeCallback(Callback):
-    def on_epoch_start(self, trainer, pl_module):
-        self.epoch_start = time.time()
+def remove_weightnorm(model):
+    waveglow = model
+    for wavenet in waveglow.wavenet:
+        wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
+        wavenet.in_layers = remove(wavenet.in_layers)
+        wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
+        wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
+    return waveglow
 
-    def on_epoch_end(self, trainer, pl_module):
-        curr_time = time.time()
-        duration = curr_time - self.epoch_start
-        trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)
+
+def remove(conv_list):
+    new_conv_list = torch.nn.ModuleList()
+    for old_conv in conv_list:
+        old_conv = torch.nn.utils.remove_weight_norm(old_conv)
+        new_conv_list.append(old_conv)
+    return new_conv_list

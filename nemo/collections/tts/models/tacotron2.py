@@ -24,16 +24,16 @@ from nemo.utils.decorators import experimental
 
 
 @experimental
-class Tacotron2PTL(ModelPT):
+class Tacotron2(ModelPT):
     # TODO: tensorboard for training
     def __init__(self, cfg: 'DictConfig', trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.audio_to_melspec_precessor = Tacotron2PTL.from_config_dict(self._cfg.preprocessor)
+        self.audio_to_melspec_precessor = Tacotron2.from_config_dict(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.train_ds.labels) + 3, 512)
-        self.encoder = Tacotron2PTL.from_config_dict(self._cfg.encoder)
-        self.decoder = Tacotron2PTL.from_config_dict(self._cfg.decoder)
-        self.postnet = Tacotron2PTL.from_config_dict(self._cfg.postnet)
+        self.encoder = Tacotron2.from_config_dict(self._cfg.encoder)
+        self.decoder = Tacotron2.from_config_dict(self._cfg.decoder)
+        self.postnet = Tacotron2.from_config_dict(self._cfg.postnet)
 
         # After defining all torch.modules, create optimizer and scheduler
         self.setup_optimization()

@@ -11,23 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 import torch
-from omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
-
-
-@dataclass
-class AudioDatasetConfig:
-    manifest_filepath: str = MISSING
-    n_segments: int = MISSING
-    max_duration: Optional[float] = None
-    min_duration: Optional[float] = None
-    trim: Optional[bool] = False
 
 
 class AudioDataset(torch.utils.data.Dataset):

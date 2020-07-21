@@ -13,178 +13,41 @@
 # limitations under the License.
 
 import torch
-from torch import nn
 from torch.autograd import Variable
 from torch.nn import functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
+from nemo.collections.tts.modules.submodules import ConvNorm, Prenet, Attention, LinearNorm
 from nemo.utils import logging
 
 
-class LinearNorm(torch.nn.Module):
-    def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
-        super(LinearNorm, self).__init__()
-        self.linear_layer = torch.nn.Linear(in_dim, out_dim, bias=bias)
-
-        torch.nn.init.xavier_uniform_(self.linear_layer.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
-
-    def forward(self, x):
-        return self.linear_layer(x)
-
-
-class ConvNorm(torch.nn.Module):
+class Postnet(torch.nn.Module):
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        kernel_size=1,
-        stride=1,
-        padding=None,
-        dilation=1,
-        bias=True,
-        w_init_gain='linear',
-    ):
-        super(ConvNorm, self).__init__()
-        if padding is None:
-            assert kernel_size % 2 == 1
-            padding = int(dilation * (kernel_size - 1) / 2)
-
-        self.conv = torch.nn.Conv1d(
-            in_channels,
-            out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            bias=bias,
-        )
-
-        torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
-
-    def forward(self, signal):
-        conv_signal = self.conv(signal)
-        return conv_signal
-
-
-class LocationLayer(nn.Module):
-    def __init__(self, attention_n_filters, attention_kernel_size, attention_dim):
-        super(LocationLayer, self).__init__()
-        padding = int((attention_kernel_size - 1) / 2)
-        self.location_conv = ConvNorm(
-            2,
-            attention_n_filters,
-            kernel_size=attention_kernel_size,
-            padding=padding,
-            bias=False,
-            stride=1,
-            dilation=1,
-        )
-        self.location_dense = LinearNorm(attention_n_filters, attention_dim, bias=False, w_init_gain='tanh')
-
-    def forward(self, attention_weights_cat):
-        processed_attention = self.location_conv(attention_weights_cat)
-        processed_attention = processed_attention.transpose(1, 2)
-        processed_attention = self.location_dense(processed_attention)
-        return processed_attention
-
-
-class Attention(nn.Module):
-    def __init__(
-        self,
-        attention_rnn_dim,
-        embedding_dim,
-        attention_dim,
-        attention_location_n_filters,
-        attention_location_kernel_size,
-    ):
-        super(Attention, self).__init__()
-        self.query_layer = LinearNorm(attention_rnn_dim, attention_dim, bias=False, w_init_gain='tanh')
-        self.memory_layer = LinearNorm(embedding_dim, attention_dim, bias=False, w_init_gain='tanh')
-        self.v = LinearNorm(attention_dim, 1, bias=False)
-        self.location_layer = LocationLayer(
-            attention_location_n_filters, attention_location_kernel_size, attention_dim,
-        )
-        self.score_mask_value = -float("inf")
-
-    def get_alignment_energies(self, query, processed_memory, attention_weights_cat):
-        """
-        PARAMS
-        ------
-        query: decoder output (batch, n_mel_channels * n_frames_per_step)
-        processed_memory: processed encoder outputs (B, T_in, attention_dim)
-        attention_weights_cat: cumulative and prev. att weights (B, 2, max_time)
-        RETURNS
-        -------
-        alignment (batch, max_time)
-        """
-
-        processed_query = self.query_layer(query.unsqueeze(1))
-        processed_attention_weights = self.location_layer(attention_weights_cat)
-        energies = self.v(torch.tanh(processed_query + processed_attention_weights + processed_memory))
-
-        energies = energies.squeeze(-1)
-        return energies
-
-    def forward(
-        self, attention_hidden_state, memory, processed_memory, attention_weights_cat, mask,
+        n_mel_channels: int,
+        postnet_embedding_dim: int,
+        postnet_kernel_size: int,
+        postnet_n_convolutions: int,
+        p_dropout: float = 0.5,
     ):
         """
-        PARAMS
-        ------
-        attention_hidden_state: attention rnn last output
-        memory: encoder outputs
-        processed_memory: processed encoder outputs
-        attention_weights_cat: previous and cummulative attention weights
-        mask: binary mask for padded data
+        Tacotron 2 Postnet. A convolutional network with postnet_n_convolutions number of layers. Each layer has a
+        kernel of postnet_kernel_size. Each layer apart from the last outputs postnet_embedding_dim channels, the last
+        outputs n_mel_channels channels. After each layer is a dropout layer with p_dropout% drop. The last linear has
+        no activation, all intermediate layers have tanh activation.
+
+        Args:
+            n_mel_channels (int): Number of mel channels to output from Posnet.
+            postnet_embedding_dim (int): Number of channels to output from the intermediate layers.
+            postnet_kernel_size (int): The kernel size for the convolution layers.
+            postnet_n_convolutions (int): The number of convolutions layers.
+            p_dropout (float): Dropout probability. Defaults to 0.5.
         """
-        alignment = self.get_alignment_energies(attention_hidden_state, processed_memory, attention_weights_cat)
-
-        if mask is not None:
-            alignment.data.masked_fill_(mask, self.score_mask_value)
-
-        attention_weights = F.softmax(alignment, dim=1)
-        attention_context = torch.bmm(attention_weights.unsqueeze(1), memory)
-        attention_context = attention_context.squeeze(1)
-
-        return attention_context, attention_weights
-
-
-class Prenet(nn.Module):
-    def __init__(self, in_dim, sizes, p_dropout=0.5):
-        super(Prenet, self).__init__()
-        in_sizes = [in_dim] + sizes[:-1]
-        self.p_dropout = p_dropout
-        self.layers = nn.ModuleList(
-            [LinearNorm(in_size, out_size, bias=False) for (in_size, out_size) in zip(in_sizes, sizes)]
-        )
-
-    def forward(self, x, inference=False):
-        if inference:
-            for linear in self.layers:
-                x = F.relu(linear(x))
-                x0 = x[0].unsqueeze(0)
-                mask = Variable(torch.bernoulli(x0.data.new(x0.data.size()).fill_(1 - self.p_dropout)))
-                mask = mask.expand(x.size(0), x.size(1))
-                x = x * mask * 1 / (1 - self.p_dropout)
-        else:
-            for linear in self.layers:
-                x = F.dropout(F.relu(linear(x)), p=self.p_dropout, training=True)
-        return x
-
-
-class Postnet(nn.Module):
-    """Postnet
-        - Five 1-d convolution with 512 channels and kernel size 5
-    """
-
-    def __init__(
-        self, n_mel_channels, postnet_embedding_dim, postnet_kernel_size, postnet_n_convolutions, p_dropout=0.5,
-    ):
-        super(Postnet, self).__init__()
-        self.convolutions = nn.ModuleList()
+        super().__init__()
+        self.convolutions = torch.nn.ModuleList()
 
         self.convolutions.append(
-            nn.Sequential(
+            torch.nn.Sequential(
                 ConvNorm(
                     n_mel_channels,
                     postnet_embedding_dim,
@@ -194,13 +57,13 @@ class Postnet(nn.Module):
                     dilation=1,
                     w_init_gain='tanh',
                 ),
-                nn.BatchNorm1d(postnet_embedding_dim),
+                torch.nn.BatchNorm1d(postnet_embedding_dim),
             )
         )
 
         for _ in range(1, postnet_n_convolutions - 1):
             self.convolutions.append(
-                nn.Sequential(
+                torch.nn.Sequential(
                     ConvNorm(
                         postnet_embedding_dim,
                         postnet_embedding_dim,
@@ -210,12 +73,12 @@ class Postnet(nn.Module):
                         dilation=1,
                         w_init_gain='tanh',
                     ),
-                    nn.BatchNorm1d(postnet_embedding_dim),
+                    torch.nn.BatchNorm1d(postnet_embedding_dim),
                 )
             )
 
         self.convolutions.append(
-            nn.Sequential(
+            torch.nn.Sequential(
                 ConvNorm(
                     postnet_embedding_dim,
                     n_mel_channels,
@@ -225,7 +88,7 @@ class Postnet(nn.Module):
                     dilation=1,
                     w_init_gain='linear',
                 ),
-                nn.BatchNorm1d(n_mel_channels),
+                torch.nn.BatchNorm1d(n_mel_channels),
             )
         )
         self.p_dropout = p_dropout
@@ -238,20 +101,23 @@ class Postnet(nn.Module):
         return x
 
 
-class Encoder(nn.Module):
-    """Encoder module:
-        - Three 1-d convolution banks
-        - Bidirectional LSTM
-    """
-
+class Encoder(torch.nn.Module):
     def __init__(
-        self, encoder_n_convolutions, encoder_embedding_dim, encoder_kernel_size,
+        self, encoder_n_convolutions: int, encoder_embedding_dim: int, encoder_kernel_size: int,
     ):
-        super(Encoder, self).__init__()
+        """
+        Tacotron 2 Encoder. A number of convolution layers that feed into a LSTM
+
+        Args:
+            encoder_n_convolutions (int): Number of convolution layers.
+            encoder_embedding_dim (int): Final output embedding size. Also used to create the convolution and LSTM layers.
+            encoder_kernel_size (int): Kernel of the convolution front-end.
+        """
+        super().__init__()
 
         convolutions = []
         for _ in range(encoder_n_convolutions):
-            conv_layer = nn.Sequential(
+            conv_layer = torch.nn.Sequential(
                 ConvNorm(
                     encoder_embedding_dim,
                     encoder_embedding_dim,
@@ -261,12 +127,12 @@ class Encoder(nn.Module):
                     dilation=1,
                     w_init_gain='relu',
                 ),
-                nn.BatchNorm1d(encoder_embedding_dim),
+                torch.nn.BatchNorm1d(encoder_embedding_dim),
             )
             convolutions.append(conv_layer)
-        self.convolutions = nn.ModuleList(convolutions)
+        self.convolutions = torch.nn.ModuleList(convolutions)
 
-        self.lstm = nn.LSTM(
+        self.lstm = torch.nn.LSTM(
             encoder_embedding_dim, int(encoder_embedding_dim / 2), 1, batch_first=True, bidirectional=True,
         )
 
@@ -278,36 +144,60 @@ class Encoder(nn.Module):
 
         # pytorch tensor are not reversible, hence the conversion
         input_lengths = input_lengths.cpu().numpy()
-        x = nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True, enforce_sorted=False)
+        x = torch.nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True, enforce_sorted=False)
 
         self.lstm.flatten_parameters()
         outputs, _ = self.lstm(x)
 
-        outputs, _ = nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
+        outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
         return outputs
 
 
-class Decoder(nn.Module):
+class Decoder(torch.nn.Module):
     def __init__(
         self,
-        n_mel_channels,
-        n_frames_per_step,
-        encoder_embedding_dim,
-        attention_dim,
-        attention_location_n_filters,
-        attention_location_kernel_size,
-        attention_rnn_dim,
-        decoder_rnn_dim,
-        prenet_dim,
-        max_decoder_steps,
-        gate_threshold,
-        p_attention_dropout,
-        p_decoder_dropout,
-        early_stopping,
-        prenet_p_dropout=0.5,
+        n_mel_channels: int,
+        n_frames_per_step: int,
+        encoder_embedding_dim: int,
+        attention_dim: int,
+        attention_location_n_filters: int,
+        attention_location_kernel_size: int,
+        attention_rnn_dim: int,
+        decoder_rnn_dim: int,
+        prenet_dim: int,
+        max_decoder_steps: int,
+        gate_threshold: float,
+        p_attention_dropout: float,
+        p_decoder_dropout: float,
+        early_stopping: bool,
+        prenet_p_dropout: float = 0.5,
     ):
-        super(Decoder, self).__init__()
+        """
+        Tacotron 2 Decoder. Consists of a 2 layer LSTM, one of which interfaces with the attention mechanism while the
+        other is used as a regular LSTM. Includes the prenet and attention modules as well.
+
+        Args:
+            n_mel_channels (int): Number of mel channels to output
+            n_frames_per_step (int): Number of spectrogram frames to predict per decoder step.
+            encoder_embedding_dim (int): The size of the output from the encoder.
+            attention_dim (int): The output dimension of the attention layer.
+            attention_location_n_filters (int): Channel size for the convolution used the attention mechanism.
+            attention_location_kernel_size (int): Kernel size for the convolution used the attention mechanism.
+            attention_rnn_dim (int): The output dimension of the attention LSTM layer.
+            decoder_rnn_dim (int): The output dimension of the second LSTM layer.
+            prenet_dim (int): The output dimension of the prenet.
+            max_decoder_steps (int): For evaluation, the max number of steps to predict.
+            gate_threshold (float): At each step, tacotron 2 predicts a probability of stopping. Rather than sampling,
+                this module checks if predicted probability is above the gate_threshold. Only in evaluation.
+            p_attention_dropout (float): Dropout probability on the attention LSTM.
+            p_decoder_dropout (float): Dropout probability on the second LSTM.
+            early_stopping (bool): In evaluation mode, whether to stop when all batches hit the gate_threshold or to
+                continue until max_decoder_steps.
+            prenet_p_dropout (float): Dropout probability for prenet. Note, dropout is on even in eval() mode.
+                Defaults to 0.5.
+        """
+        super().__init__()
         self.n_mel_channels = n_mel_channels
         self.n_frames_per_step = n_frames_per_step
         self.encoder_embedding_dim = encoder_embedding_dim
@@ -322,7 +212,7 @@ class Decoder(nn.Module):
 
         self.prenet = Prenet(n_mel_channels * n_frames_per_step, [prenet_dim, prenet_dim], prenet_p_dropout)
 
-        self.attention_rnn = nn.LSTMCell(prenet_dim + encoder_embedding_dim, attention_rnn_dim)
+        self.attention_rnn = torch.nn.LSTMCell(prenet_dim + encoder_embedding_dim, attention_rnn_dim)
 
         self.attention_layer = Attention(
             attention_rnn_dim,
@@ -332,7 +222,7 @@ class Decoder(nn.Module):
             attention_location_kernel_size,
         )
 
-        self.decoder_rnn = nn.LSTMCell(attention_rnn_dim + encoder_embedding_dim, decoder_rnn_dim, 1)
+        self.decoder_rnn = torch.nn.LSTMCell(attention_rnn_dim + encoder_embedding_dim, decoder_rnn_dim, 1)
 
         self.linear_projection = LinearNorm(
             decoder_rnn_dim + encoder_embedding_dim, n_mel_channels * n_frames_per_step,

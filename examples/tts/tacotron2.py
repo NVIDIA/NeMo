@@ -15,8 +15,8 @@
 import hydra
 import pytorch_lightning as pl
 
-from nemo.collections.tts.helpers.helpers import LogEpochTimeCallback
-from nemo.collections.tts.models import Tacotron2PTL
+from nemo.collections.tts.callbacks import LogEpochTimeCallback
+from nemo.collections.tts.models import Tacotron2
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -24,7 +24,7 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = Tacotron2PTL(cfg=cfg.model, trainer=trainer)
+    model = Tacotron2(cfg=cfg.model, trainer=trainer)
     lr_logger = pl.callbacks.LearningRateLogger()
     epoch_time_logger = LogEpochTimeCallback()
     trainer.callbacks.extend([lr_logger, epoch_time_logger])

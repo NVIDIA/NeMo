@@ -22,13 +22,13 @@ from nemo.utils import logging
 
 
 @experimental
-class WaveglowPTL(ModelPT):
+class Waveglow(ModelPT):
     def __init__(self, cfg: 'DictConfig', trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = 1.0
-        self.audio_to_melspec_precessor = WaveglowPTL.from_config_dict(self._cfg.preprocessor)
-        self.waveglow = WaveglowPTL.from_config_dict(self._cfg.waveglow)
+        self.audio_to_melspec_precessor = Waveglow.from_config_dict(self._cfg.preprocessor)
+        self.waveglow = Waveglow.from_config_dict(self._cfg.waveglow)
 
         self.setup_optimization()
 
@@ -102,7 +102,7 @@ class WaveglowPTL(ModelPT):
         elif not shuffle_should_be and cfg["dataloader_params"]["shuffle"]:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        dataset = WaveglowPTL.from_config_dict(cfg["dataset"])
+        dataset = Waveglow.from_config_dict(cfg["dataset"])
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg["dataloader_params"])
 
     def setup_training_data(self, cfg):
