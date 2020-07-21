@@ -47,12 +47,7 @@ class QAModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.max_answer_length = cfg.max_answer_length
-        self.output_prediction_file = cfg.output_prediction_file
-        self.output_nbest_file = cfg.output_nbest_file
         self.version_2_with_negative = cfg.version_2_with_negative
-        self.null_score_diff_threshold = cfg.null_score_diff_threshold
-        self.n_best_size = cfg.n_best_size
         self.doc_stride = cfg.doc_stride
         self.max_query_length = cfg.max_query_length
         self.max_seq_length = cfg.max_seq_length

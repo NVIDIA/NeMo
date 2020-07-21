@@ -5,44 +5,21 @@ pl:
   trainer:
     gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
     num_nodes: 1
-    max_epochs: 10 # the number of training epochs
+    max_epochs: 2 # the number of training epochs
     max_steps: null # precedence over max_epochs
     accumulate_grad_batches: 1 # accumulates grads every k batches
-    precision: 32 # 16 to use AMP
+    precision: 16 # 16 to use AMP
     amp_level: O1 # O1 or O2 if using AMP 
     distributed_backend: ddp
-    gradient_clip_val: 1.0
+    gradient_clip_val: 0.0
     val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
     checkpoint_callback: false # provided by exp_manager
     logger: false # provided by exp_manager
 
 model:
-  max_answer_length: 30
-  # The maximum length of an answer that can be 
-  # generated. This is needed because the start
-  # and end predictions are not conditioned
-  # on one another.
-
-  output_prediction_file: predictions.json
-  # File to write predictions to. Only in evaluation or test mode,
-      
-  output_nbest_file: nbest.json
-  # File to write nbest predictions to. Only in evaluation or test mode.
 
   version_2_with_negative: false
   # If true, the examples contain some that do not have an answer.
-
-  null_score_diff_threshold: 0.0
-  # If null_score - best_non_null is greater than the threshold predict null.
-
-  n_best_size: 20
-  # The total number of n-best predictions to generate at testing.
-
-  mode: train_eval
-  # Choices: train, train_eval, eval, test
-  # Mode of model usage.
-  # When using test mode the script is running inference on the data,
-  # i.e. no ground-truth labels are required in the dataset.
 
   doc_stride: 128
   # When splitting up a long document into chunks,
@@ -62,35 +39,61 @@ model:
   train_ds:
     mode: train
     file: null # .json file
-    batch_size: 8 # per GPU
+    batch_size: 24 # per GPU
     shuffle: true
     num_samples: -1
     num_workers: 2
     use_cache: true
     drop_last: false
     pin_memory: false
+    max_answer_length: null
+    # The maximum length of an answer that can be 
+    # generated. This is needed because the start
+    # and end predictions are not conditioned
+    # on one another.
+    output_prediction_file: null
+    # File to write predictions to. Only in evaluation or test mode,
+    output_nbest_file: null
+    # File to write nbest predictions to. Only in evaluation or test mode.
+    null_score_diff_threshold: null
+    # If null_score - best_non_null is greater than the threshold predict null.
+    n_best_size: null
+    # The total number of n-best predictions to generate at testing.
 
   validation_ds:
     mode: eval
     file: null # .json file
-    batch_size: 8 # per GPU
+    batch_size: 24 # per GPU
     shuffle: false
     num_samples: -1
     num_workers: 2
     use_cache: true
     drop_last: false
     pin_memory: false
+    max_answer_length: 30
+    # The maximum length of an answer that can be 
+    # generated. This is needed because the start
+    # and end predictions are not conditioned
+    # on one another.
+    output_prediction_file: predictions.json
+    # File to write predictions to. Only in evaluation or test mode,
+    output_nbest_file: nbest.json
+    # File to write nbest predictions to. Only in evaluation or test mode.
+    null_score_diff_threshold: 0.0
+    # If null_score - best_non_null is greater than the threshold predict null.
+    n_best_size: 20
+    # The total number of n-best predictions to generate at testing.
   
   optim:
-    name: adam
+    name: adamw
     lr: 3e-5
     args:
       name: auto
       params:
-        weight_decay: 0.01
+        weight_decay: 0.0
 
     sched:
-      name: CosineAnnealing
+      name: SquareRootAnnealing
       iters_per_batch: null # computed at runtime
       max_steps: null # computed at runtime or explicitly set here
 
@@ -109,16 +112,16 @@ model:
 
   language_model:
     pretrained_model_name: bert-base-uncased
-    max_seq_length: 384
     bert_checkpoint: null
     bert_config: null
-    tokenizer: null # only used if using custom checkpoint
+    tokenizer: nemobert # only used if using custom checkpoint
     tokenizer_model: null # only used if tokenizer is sentencepiece
+    vocab_file: null
     do_lower_case: true # true for uncased models, false for cased models
   
   token_classifier:
-    num_layers: 2
-    dropout: 0.1
+    num_layers: 1
+    dropout: 0.0
     num_classes: 2
     activation: relu
     log_softmax: false
@@ -127,8 +130,8 @@ model:
   pl: null # used at runtime
 
 exp_manager:
-  root_dir: null
-  name: *name
+  root_dir: null # where to store logs and checkpoints
+  name: *name # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
