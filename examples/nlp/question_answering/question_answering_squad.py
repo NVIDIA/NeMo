@@ -16,9 +16,8 @@ import random
 import sys
 
 import hydra
-from omegaconf import DictConfig
-
 import pytorch_lightning as pl
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.models.qa_model import QAModel
 from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing, WarmupAnnealing
@@ -31,6 +30,7 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.pl.trainer)
     question_answering_model = QAModel(cfg.model, trainer=trainer)
     trainer.fit(question_answering_model)
+
 
 if __name__ == '__main__':
     main()

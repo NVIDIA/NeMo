@@ -16,6 +16,7 @@ from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
@@ -27,7 +28,6 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
-from pytorch_lightning import Trainer
 
 __all__ = ['QAModel']
 
@@ -46,11 +46,7 @@ class QAModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    def __init__(
-        self,
-        cfg: DictConfig,
-        trainer: Trainer = None
-    ):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.max_answer_length = cfg.max_answer_length
         self.output_prediction_file = cfg.output_prediction_file
         self.output_nbest_file = cfg.output_nbest_file
@@ -62,14 +58,12 @@ class QAModel(ModelPT):
         self.max_seq_length = cfg.max_seq_length
 
         self.tokenizer = get_tokenizer(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            tokenizer_name="nemobert"
+            pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
         )
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config
+            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
         )
         self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = TokenClassifier(
