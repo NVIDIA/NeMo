@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import torch
+from omegaconf import DictConfig, open_dict
 
-from nemo.collections.tts.data.datalayers import AudioDataset
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
+from nemo.utils import logging
 
 
 @experimental
@@ -82,39 +83,33 @@ class WaveglowPTL(ModelPT):
         )
         return {}
 
-    def setup_training_data(self, config):
-        if 'shuffle' not in config:
-            config['shuffle'] = True
-        dataset = AudioDataset(
-            manifest_filepath=config["manifest_filepath"],
-            n_segments=config["n_segments"],
-            min_duration=config.get("min_duration", 0.1),
-            max_duration=config.get("max_duration", None),
-            trim=config.get("trim_silence", False),
-        )
-        self._train_dl = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=config.get("batch_size", False),
-            shuffle=config["shuffle"],
-            collate_fn=dataset._collate_fn,
-        )
+    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+        logging.debug(isinstance(cfg["dataset"], (dict, DictConfig)))
+        if "dataset" not in cfg or not isinstance(cfg["dataset"], (dict, DictConfig)):
+            raise ValueError(f"No dataset for {name}")  # TODO
+        if "dataloader_params" not in cfg or not isinstance(cfg["dataloader_params"], (dict, DictConfig)):
+            raise ValueError(f"No dataloder_params for {name}")  # TODO
+        if shuffle_should_be:
+            if 'shuffle' not in cfg["dataloader_params"]:
+                logging.warning(
+                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
+                    "config. Manually setting to True"
+                )
+                with open_dict(cfg["dataloader_params"]):
+                    cfg["dataloader_params"]["shuffle"] = True
+            elif not cfg["dataloader_params"]["shuffle"]:
+                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+        elif not shuffle_should_be and cfg["dataloader_params"]["shuffle"]:
+            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-    def setup_validation_data(self, config):
-        if 'shuffle' not in config:
-            config['shuffle'] = False
-        dataset = AudioDataset(
-            manifest_filepath=config["manifest_filepath"],
-            n_segments=config["n_segments"],
-            min_duration=config.get("min_duration", 0.1),
-            max_duration=config.get("max_duration", None),
-            trim=config.get("trim_silence", False),
-        )
-        self._validation_dl = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=config.get("batch_size", False),
-            shuffle=config["shuffle"],
-            collate_fn=dataset._collate_fn,
-        )
+        dataset = WaveglowPTL.from_config_dict(cfg["dataset"])
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg["dataloader_params"])
+
+    def setup_training_data(self, cfg):
+        self._train_dl = self.__setup_dataloader_from_config(cfg)
+
+    def setup_validation_data(self, cfg):
+        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':

@@ -11,17 +11,58 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from dataclasses import dataclass
+from typing import Dict, Optional, Union
+
 import torch
+from omegaconf import MISSING, DictConfig, OmegaConf
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 
 
+@dataclass
+class AudioDatasetConfig:
+    manifest_filepath: str = MISSING
+    n_segments: int = MISSING
+    max_duration: Optional[float] = None
+    min_duration: Optional[float] = None
+    trim: Optional[bool] = False
+
+
 class AudioDataset(torch.utils.data.Dataset):
     def __init__(
-        self, manifest_filepath, n_segments=0, max_duration=None, min_duration=None, trim=False,
+        self,
+        manifest_filepath: Union[str, 'pathlib.Path'],
+        n_segments: int,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        trim: Optional[bool] = False,
     ):
-        """See AudioDataLayer"""
+        """
+        Mostly compliant with nemo.collections.asr.data.datalayers.AudioToTextDataset except it only returns Audio
+        without text. Dataset that loads tensors via a json file containing paths to audio files, transcripts, and
+        durations (in seconds). Each new line is a different sample. Note that text is required, but is ignored for
+        AudioDataset. Example below:
+        {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+        "/path/to/audio.txt", "duration": 23.147}
+        ...
+        {"audio_filepath": "/path/to/audio.wav", "text": "the
+        transcription", "offset": 301.75, "duration": 0.82, "utt":
+        "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+        Args:
+            manifest_filepath (str, Path): Path to manifest json as described above. Can be comma-separated paths
+                such as "train_1.json,train_2.json" which is treated as two separate json files.
+            n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
+                n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
+                be randomly sampled everytime the audio is batched. Can be set to -1 to load the entire audio.
+            max_duration (float): If audio exceeds this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            min_duration(float): If audio is less than this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            trim (bool): Whether to use librosa.effects.trim on the audio clip
+        """
+
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
             parser=parsers.make_parser(),
@@ -31,7 +72,15 @@ class AudioDataset(torch.utils.data.Dataset):
         self.trim = trim
         self.n_segments = n_segments
 
+    def collate_fn(self, batch):
+        return self._collate_fn(batch)
+
     def _collate_fn(self, batch):
+        """
+        Takes a batch: a lists of length batch_size, defined in the dataloader. Returns 2 padded and batched
+        tensors corresponding to the audio and audio_length.
+        """
+
         def find_max_len(seq, index):
             max_len = -1
             for item in seq:
@@ -50,20 +99,24 @@ class AudioDataset(torch.utils.data.Dataset):
 
             audio_signal = torch.zeros(batch_size, max_audio_len, dtype=torch.float)
             audio_lengths = []
-            for i, s in enumerate(batch):
-                audio_signal[i].narrow(0, 0, s[0].size(0)).copy_(s[0])
-                audio_lengths.append(s[1])
+            for i, sample in enumerate(batch):
+                audio_signal[i].narrow(0, 0, sample[0].size(0)).copy_(sample[0])
+                audio_lengths.append(sample[1])
             audio_lengths = torch.tensor(audio_lengths, dtype=torch.long)
 
         return audio_signal, audio_lengths
 
     def __getitem__(self, index):
+        """
+        Given a index, returns audio and audio_length of the corresponding element. Audio clips of n_segments are
+        randomly chosen if the audio is longer than n_segments.
+        """
         example = self.collection[index]
         features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim)
         features = torch.tensor(features.samples)
-        f, fl = features, torch.tensor(features.shape[0]).long()
+        audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-        return f, fl
+        return audio, audio_length
 
     def __len__(self):
         return len(self.collection)

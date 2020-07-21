@@ -61,7 +61,7 @@ class AudioToTextDataset(Dataset):
         return {
             'audio_signal': NeuralType(
                 ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
+                AudioSignal(freq=self._sample_rate)  # TODO: self._sample_rate is not defined anywhere
                 if self is not None and hasattr(self, '_sample_rate')
                 else AudioSignal(),
             ),
