@@ -87,8 +87,8 @@ class WER(TensorMetric):
         ctc_decode:
 
     Returns:
-        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominators]. To correctly compute average
-        text word error rate, compute wer=wer_numerator/wer_denominators
+        res: a torch.Tensor object with two elements: [wer_numerator, wer_denominator]. To correctly compute average
+        text word error rate, compute wer=wer_numerator/wer_denominator
     """
 
     def __init__(self, vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True):
