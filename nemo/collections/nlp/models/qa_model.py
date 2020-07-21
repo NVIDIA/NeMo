@@ -133,7 +133,7 @@ class QAModel(ModelPT):
             max_seq_length=self.max_seq_length,
             version_2_with_negative=self.version_2_with_negative,
             mode=cfg.mode,
-            use_cache=self.use_cache,
+            use_cache=cfg.use_cache,
         )
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
