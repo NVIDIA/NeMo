@@ -1,7 +1,4 @@
-# ! /usr/bin/python
-# -*- coding: utf-8 -*-
-
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 from unittest import TestCase
 
@@ -25,16 +21,18 @@ from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOK
 
 
 class TestSPCTokenizer(TestCase):
+    model_path = "../../data/m_common.model"
+
     @pytest.mark.unit
     def test_add_special_tokens(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
         self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values())))
 
     @pytest.mark.unit
     def test_text_to_tokens(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -48,7 +46,7 @@ class TestSPCTokenizer(TestCase):
 
     @pytest.mark.unit
     def test_tokens_to_text(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
         tokens = tokenizer.text_to_tokens(text)
@@ -58,7 +56,7 @@ class TestSPCTokenizer(TestCase):
 
     @pytest.mark.unit
     def test_text_to_ids(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -72,7 +70,7 @@ class TestSPCTokenizer(TestCase):
 
     @pytest.mark.unit
     def test_ids_to_text(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -84,7 +82,7 @@ class TestSPCTokenizer(TestCase):
 
     @pytest.mark.unit
     def test_tokens_to_ids(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -99,7 +97,7 @@ class TestSPCTokenizer(TestCase):
 
     @pytest.mark.unit
     def test_ids_to_tokens(self):
-        tokenizer = SentencePieceTokenizer("./tests/data/m_common.model")
+        tokenizer = SentencePieceTokenizer(self.model_path)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
