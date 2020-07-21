@@ -38,7 +38,7 @@ class ClassificationReportTests(TestCase):
         def __convert_to_tensor(sklearn_metric):
             return torch.Tensor([round(sklearn_metric * 100)])[0]
 
-        for mode in ['macro', 'micro']:
+        for mode in ['macro', 'micro', 'weighted']:
 
             precision, recall, f1 = classification_report_nemo.get_precision_recall_f1(tp, fn, fp, mode)
             pr_sklearn, recall_sklearn, f1_sklearn, _ = precision_recall_fscore_support(labels, preds, average=mode)
