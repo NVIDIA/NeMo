@@ -24,13 +24,10 @@ def experimental(cls):
     """
 
     def wrapped(cls):
-        class WrappedClass(cls):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                logging.warning(
-                    f'Module {cls} is experimental, not ready for production and is not supported. Use at your own risk.'
-                )
+        logging.warning(
+            f'Module {cls} is experimental, not ready for production and is not fully supported. Use at your own risk.'
+        )
 
-        return WrappedClass
+        return cls
 
     return wrapped(cls=cls)
