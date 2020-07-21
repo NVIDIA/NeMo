@@ -121,8 +121,8 @@ class TestWordErrorRate:
         wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         for test_id in range(256):
-            n1 = random.randint(0, 512)
-            n2 = random.randint(0, 512)
+            n1 = random.randint(1, 512)
+            n2 = random.randint(1, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
             # Floating-point math doesn't seem to be an issue here. Leaving as ==
