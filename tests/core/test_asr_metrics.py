@@ -56,9 +56,40 @@ class TestWordErrorRate:
         "'",
     ]
 
-    def __string_to_tensor(self, txt: str) -> torch.Tensor:
+    def __string_to_ctc_tensor(self, txt: str) -> torch.Tensor:
+        # This function emulates how CTC output could like for txt
+        blank_id = len(self.vocabulary)
         char_to_ind = dict([(self.vocabulary[i], i) for i in range(len(self.vocabulary))])
-        return torch.Tensor([char_to_ind[c] for c in txt]).unsqueeze(0)
+        string_in_id_form = [char_to_ind[c] for c in txt]
+        ctc_list = []
+        prev_id = -1
+        for c in string_in_id_form:
+            # when character is repeated we need to insert CTC blank symbol
+            if c != prev_id:
+                ctc_list.append(c)
+            else:
+                ctc_list.append(blank_id)
+                ctc_list.append(c)
+            prev_id = c
+        return torch.Tensor(ctc_list).unsqueeze(0)
+
+    def __reference_string_to_tensor(self, txt: str) -> torch.Tensor:
+        # Reference tensors aren't produced by CTC logic
+        char_to_ind = dict([(self.vocabulary[i], i) for i in range(len(self.vocabulary))])
+        string_in_id_form = [char_to_ind[c] for c in txt]
+        return torch.Tensor(string_in_id_form).unsqueeze(0)
+
+    def get_wer(self, wer, prediction: str, reference: str):
+        res = (
+            wer(
+                predictions=self.__string_to_ctc_tensor(prediction),
+                targets=self.__reference_string_to_tensor(reference),
+                target_lengths=torch.tensor([len(reference)]),
+            )
+            .detach()
+            .cpu()
+        )
+        return res[0] / res[1]
 
     @pytest.mark.unit
     def test_wer_function(self):
@@ -73,56 +104,26 @@ class TestWordErrorRate:
     def test_wer_metric_simple(self):
         wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-        def get_wer(prediction: str, reference: str):
-            res = (
-                wer(
-                    predictions=self.__string_to_tensor(prediction),
-                    targets=self.__string_to_tensor(reference),
-                    target_lengths=torch.tensor([len(reference)]),
-                )
-                .detach()
-                .cpu()
-            )
-            return res[0] / res[1]
-
-        assert get_wer('cat', 'cot') == 1.0
-        assert get_wer('gpu', 'g p u') == 1.0
-        assert get_wer('g p u', 'gpu') == 3.0
-        assert get_wer('ducati motorcycle', 'motorcycle') == 1.0
-        assert get_wer('ducati motorcycle', 'ducuti motorcycle') == 0.5
-        assert get_wer('a f c', 'a b c') == 1.0 / 3.0
+        assert self.get_wer(wer, 'cat', 'cot') == 1.0
+        assert self.get_wer(wer, 'gpu', 'g p u') == 1.0
+        assert self.get_wer(wer, 'g p u', 'gpu') == 3.0
+        assert self.get_wer(wer, 'ducati motorcycle', 'motorcycle') == 1.0
+        assert self.get_wer(wer, 'ducati motorcycle', 'ducuti motorcycle') == 0.5
+        assert self.get_wer(wer, 'a f c', 'a b c') == 1.0 / 3.0
 
     @pytest.mark.unit
-    @pytest.mark.pleasefixme
     def test_wer_metric_randomized(self):
-        """This test relies on correctness of word_error_rate function"""
+        """This test relies on correctness of word_error_rate function."""
 
         def __randomString(N):
-            return ''.join(random.choice(string.ascii_lowercase + ' ') for i in range(N))
+            return ''.join(random.choice(''.join(self.vocabulary)) for i in range(N))
 
         wer = WER(vocabulary=self.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
-
-        def get_wer(prediction: str, reference: str):
-            res = (
-                wer(
-                    predictions=self.__string_to_tensor(prediction),
-                    targets=self.__string_to_tensor(reference),
-                    target_lengths=torch.tensor([len(reference)]),
-                )
-                .detach()
-                .cpu()
-            )
-            return res[0] / res[1]
 
         for test_id in range(256):
             n1 = random.randint(0, 512)
             n2 = random.randint(0, 512)
             s1 = __randomString(n1)
             s2 = __randomString(n2)
-
-            logging.debug(n1)
-            logging.debug(s1)
-            logging.debug(n2)
-            logging.debug(s2)
-
-            assert get_wer(prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
+            # Floating-point math doesn't seem to be an issue here. Leaving as ==
+            assert self.get_wer(wer, prediction=s1, reference=s2) == word_error_rate(hypotheses=[s1], references=[s2])
