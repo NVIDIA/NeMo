@@ -25,6 +25,8 @@ pl:
     accumulate_grad_batches: 1 # accumulates grads every k batches
     amp_level: O0 # O1/O2 for mixed precision
     distributed_backend: ddp
+    checkpoint_callback: False  # Provided by exp_manager
+    logger: False  # Provided by exp_manager
 
 model:
   data_dir: ??? # /path/to/data
@@ -90,3 +92,16 @@ model:
           last_epoch: -1
 
   pl: null # used at runtime
+
+exp_manager:
+  root_dir: null
+  name: "TextClassification"
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
