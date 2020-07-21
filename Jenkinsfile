@@ -91,7 +91,7 @@ pipeline {
 
     stage('L2: Speech 2 Text dev run') {
       steps {
-        sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_val.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
+        sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
       }
     }
 
