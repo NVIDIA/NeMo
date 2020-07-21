@@ -84,6 +84,9 @@ class QAModel(ModelPT):
 
         self.loss = SpanningLoss()
 
+        # Optimizer setup needs to happen after all model weights are ready
+        self.setup_optimization(cfg.optim)
+
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         hidden_states = self.bert_model(
@@ -110,10 +113,11 @@ class QAModel(ModelPT):
         return {'val_loss': loss}
 
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        if outputs:
+            avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+            tensorboard_logs = {'val_loss': avg_loss}
+            return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
