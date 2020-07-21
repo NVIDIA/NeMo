@@ -95,7 +95,7 @@ pipeline {
       }
     }
 
-    stage('L2: BERT Squad v1.1') {
+    stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
           branch 'candidate'
@@ -103,26 +103,48 @@ pipeline {
         }
       }
       failFast true
-        steps {
-          sh 'cd examples/nlp/question_answering && \
-          python question_answering_squad.py \
-          model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-          model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-          model.language_model.do_lower_case=true \
-          model.language_model.pretrained_model_name=bert-base-uncased \
-          model.optim.name=adamw model.optim.lr=1e-5 \
-          model.version_2_with_negative=false \
-          model.optim.sched.name=WarmupAnnealing \
-          pl.trainer.precision=16 \
-          pl.trainer.amp_level=O1 \
-          pl.trainer.gpus=[0] \
-          pl.trainer.max_steps=2 \
-          '
-          sh 'rm -rf examples/nlp/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+      parallel {
+        stage('BERT SQUAD 1.1') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.language_model.do_lower_case=true \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.optim.name=adamw model.optim.lr=1e-5 \
+            model.version_2_with_negative=false \
+            model.optim.sched.name=WarmupAnnealing \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[0] \
+            pl.trainer.max_steps=2 \
+            '
+            sh 'rm -rf examples/nlp/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          }
         }
-    }
+        stage('BERT SQUAD 2.0') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.do_lower_case=true \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.version_2_with_negative=true \
+            model.optim.name=adamw model.optim.lr=1e-5 \
+            model.optim.sched.name=WarmupAnnealing \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[0] \
+            pl.trainer.max_steps=2 \
+            '
+            sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+          }
+        }
+      }
 
-    stage('L2: BERT Squad v2.0') {
+    stage('L2: BERT SQUAD v2.0') {
       when {
         anyOf{
           branch 'candidate'
