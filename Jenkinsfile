@@ -144,32 +144,6 @@ pipeline {
         }
       }
 
-    stage('L2: BERT SQUAD v2.0') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp/question_answering && \
-          python question_answering_squad.py \
-          model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-          model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-          model.language_model.do_lower_case=true \
-          model.language_model.pretrained_model_name=bert-base-uncased \
-          model.version_2_with_negative=true \
-          model.optim.name=adamw model.optim.lr=1e-5 \
-          model.optim.sched.name=WarmupAnnealing \
-          pl.trainer.precision=16 \
-          pl.trainer.amp_level=O1 \
-          pl.trainer.gpus=[0] \
-          pl.trainer.max_steps=2 \
-          '
-          sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
-        }
-    }
 
     stage('L2: Roberta Squad v1.1') {
       when {
