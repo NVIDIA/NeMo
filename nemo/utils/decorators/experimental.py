@@ -28,8 +28,6 @@ def experimental(cls):
             f'Module {cls} is experimental, not ready for production and is not fully supported. Use at your own risk.'
         )
 
-        cls.__name__ = cls.__name__ + '(Experimental)'
-
         return cls
 
     return wrapped(cls=cls)
