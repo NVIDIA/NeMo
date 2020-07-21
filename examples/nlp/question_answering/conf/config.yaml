@@ -28,9 +28,6 @@ mode: train_eval
 # When using test mode the script is running inference on the data,
 # i.e. no ground-truth labels are required in the dataset.
 
-no_data_cache: false
-# When specified do not load and store cache preprocessed data.
-
 use_cache: true
 # Preprocess and cache text data. 
 
@@ -109,17 +106,22 @@ model:
           warmup_ratio: 0.1
           last_epoch: -1
 
-  pl: null # used at runtime
 
   language_model:
-    pretrained_model_name: roberta-base
-    max_seq_length: 36
+    pretrained_model_name: bert-base-uncased
+    max_seq_length: 384
     bert_checkpoint: null
     bert_config: null
     tokenizer: null # only used if using custom checkpoint
     tokenizer_model: null # only used if tokenizer is sentencepiece
     do_lower_case: true # true for uncased models, false for cased models
   
-  head:
-    num_output_layers: 2
-    fc_dropout: 0.1
+  token_classifier:
+    num_layers: 2
+    dropout: 0.1
+    num_classes: 2
+    activation: relu
+    log_softmax: false
+    use_transformer_init: true
+
+  pl: null # used at runtime

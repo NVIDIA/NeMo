@@ -47,15 +47,18 @@ class QAModel(ModelPT):
 
     def __init__(
         self,
-        num_classes: int = 2,
-        pretrained_model_name: str = 'bert-base-cased',
-        config_file: Optional[str] = None,
-        num_layers: int = 1,
-        activation: str = 'relu',
-        log_softmax: bool = False,
-        dropout: float = 0.0,
-        use_transformer_init: bool = True,
+        cfg: DictConfig,
+        trainer: Trainer = None
     ):
+    #     num_classes: int = 2,
+    #     pretrained_model_name: str = 'bert-base-cased',
+    #     config_file: Optional[str] = None,
+    #     num_layers: int = 1,
+    #     activation: str = 'relu',
+    #     log_softmax: bool = False,
+    #     dropout: float = 0.0,
+    #     use_transformer_init: bool = True,
+    # ):
         """
         Args:
             num_classes: number of classes
@@ -69,31 +72,37 @@ class QAModel(ModelPT):
         """
         # init superclass
         # TODO: This is a workaround - please fix - see text_classification_model or asr for example
-        cfg = DictConfig(
-            {
-                'num_classes': num_classes,
-                'pretrained_model_name': pretrained_model_name,
-                'config_file': config_file,
-                'num_layers': num_layers,
-                'activation': activation,
-                'log_softmax': log_softmax,
-                'dropout': dropout,
-                'use_transformer_init': use_transformer_init,
-            }
-        )
+        # cfg = DictConfig(
+        #     {
+        #         'num_classes': num_classes,
+        #         'pretrained_model_name': pretrained_model_name,
+        #         'config_file': config_file,
+        #         'num_layers': num_layers,
+        #         'activation': activation,
+        #         'log_softmax': log_softmax,
+        #         'dropout': dropout,
+        #         'use_transformer_init': use_transformer_init,
+        #     }
+        # )
 
-        super().__init__(cfg=cfg)
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
+        super().__init__(cfg=cfg, trainer=trainer)
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config
+        )
         self.hidden_size = self.bert_model.config.hidden_size
-        self.tokenizer = get_tokenizer(pretrained_model_name=pretrained_model_name, tokenizer_name="nemobert")
+        self.tokenizer = get_tokenizer(
+            pretrained_model_name=cfg.pretrained_model_name,
+            tokenizer_name="nemobert"
+        )
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=num_classes,
-            num_layers=num_layers,
-            activation=activation,
-            log_softmax=log_softmax,
-            dropout=dropout,
-            use_transformer_init=use_transformer_init,
+            num_classes=cfg.token_classifier.num_classes,
+            num_layers=cfg.token_classifier.num_layers,
+            activation=cfg.token_classifier.activation,
+            log_softmax=cfg.token_classifier.log_softmax,
+            dropout=cfg.token_classifier.dropout,
+            use_transformer_init=cfg.token_classifier.use_transformer_init,
         )
 
         self.loss = SpanningLoss()
