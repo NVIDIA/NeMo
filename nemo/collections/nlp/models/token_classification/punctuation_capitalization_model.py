@@ -231,7 +231,7 @@ class PunctuationCapitalizationModel(ModelPT):
             max_seq_length=self.model_cfg.max_seq_length,
             ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
             ignore_start_end=self.model_cfg.ignore_start_end,
-            overwrite_processed_files=self.model_cfg.overwrite_processed_files,
+            use_cache=self.model_cfg.use_cache,
             num_samples=cfg.num_samples,
         )
         if cfg.prefix == 'train':
