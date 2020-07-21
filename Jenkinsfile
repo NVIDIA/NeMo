@@ -110,11 +110,8 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.language_model.do_lower_case=true \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.optim.name=adamw model.optim.lr=1e-5 \
             model.version_2_with_negative=false \
-            model.optim.sched.name=WarmupAnnealing \
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[0] \
@@ -129,11 +126,54 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.do_lower_case=true \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=true \
-            model.optim.name=adamw model.optim.lr=1e-5 \
-            model.optim.sched.name=WarmupAnnealing \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[1] \
+            pl.trainer.max_steps=2 \
+            '
+            sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+          }
+        }
+      }
+
+    }
+    stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('RoBERTa SQUAD 1.1') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.language_model.do_lower_case=true \
+            model.language_model.pretrained_model_name=roberta-base \
+            model.version_2_with_negative=false \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[0] \
+            pl.trainer.max_steps=2 \
+            '
+            sh 'rm -rf examples/nlp/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          }
+        }
+        stage('RoBERTa SQUAD 2.0') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.do_lower_case=true \
+            model.language_model.pretrained_model_name=roberta-base \
+            model.version_2_with_negative=true \
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[1] \
@@ -145,33 +185,6 @@ pipeline {
       }
     }
 
-
-    stage('L2: Roberta Squad v1.1') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp/question_answering && \
-          python question_answering_squad.py \
-          model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-          model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-          model.language_model.do_lower_case=true \
-          model.language_model.pretrained_model_name=roberta-base \
-          model.optim.name=adamw model.optim.lr=1e-5 \
-          model.version_2_with_negative=false \
-          model.optim.sched.name=WarmupAnnealing \
-          pl.trainer.precision=16 \
-          pl.trainer.amp_level=O1 \
-          pl.trainer.gpus=[0] \
-          pl.trainer.max_steps=2 \
-          '
-          sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
-        }
-    }
     stage('L2: Parallel NLP Examples 1') {
       failFast true
       parallel {
