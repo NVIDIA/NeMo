@@ -104,8 +104,21 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/question_answering && python question_answering_squad.py pl.trainer.precision=16 pl.trainer.amp_level=O1 model.train_ds.file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json pl.trainer.gpus=[0] model.language_model.do_lower_case=true model.language_model.pretrained_model_name=bert-base-uncased model.optim.name=adamw model.optim.lr 1e-5 pl.trainer.max_steps=2 model.version_2_with_negative=false model.optim.scheduler.name=WarmupAnnealing'
-          sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          sh 'cd examples/nlp/question_answering && \
+          python question_answering_squad.py \
+          model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+          model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+          model.language_model.do_lower_case=true \
+          model.language_model.pretrained_model_name=bert-base-uncased \
+          model.optim.name=adamw model.optim.lr=1e-5 \
+          model.version_2_with_negative=false \
+          model.optim.scheduler.name=WarmupAnnealing \
+          pl.trainer.precision=16 \
+          pl.trainer.amp_level=O1 \
+          pl.trainer.gpus=[0] \
+          pl.trainer.max_steps=2 \
+          '
+          sh 'rm -rf examples/nlp/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
         }
     }
 
@@ -118,7 +131,20 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/question_answering && python question_answering_squad.py pl.trainer.precision=16 pl.trainer.amp_level=O1 model.train_ds.file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json pl.trainer.gpus=[0] model.language_model.do_lower_case=true model.language_model.pretrained_model_name=bert-base-uncased model.optim.name=adamw model.optim.lr 1e-5 pl.trainer.max_steps=2 model.version_2_with_negative=true model.optim.scheduler.name=WarmupAnnealing'
+          sh 'cd examples/nlp/question_answering && \
+          python question_answering_squad.py \
+          model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+          model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v2.0.json \
+          model.language_model.do_lower_case=true \
+          model.language_model.pretrained_model_name=bert-base-uncased \
+          model.version_2_with_negative=true \
+          model.optim.name=adamw model.optim.lr=1e-5 \
+          model.optim.scheduler.name=WarmupAnnealing \
+          pl.trainer.precision=16 \
+          pl.trainer.amp_level=O1 \
+          pl.trainer.gpus=[0] \
+          pl.trainer.max_steps=2 \
+          '
           sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
         }
     }
@@ -132,7 +158,20 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/question_answering && python question_answering_squad.py pl.trainer.precision=16 pl.trainer.amp_level=O1 model.train_ds.file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json pl.trainer.gpus=[1] model.language_model.do_lower_case=true model.language_model.pretrained_model_name=roberta-base model.optim.name=adamw model.optim.lr 1e-5 pl.trainer.max_steps=2 model.version_2_with_negative=false model.optim.scheduler.name=WarmupAnnealing'
+          sh 'cd examples/nlp/question_answering && \
+          python question_answering_squad.py \
+          model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+          model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+          model.language_model.do_lower_case=true \
+          model.language_model.pretrained_model_name=roberta-base \
+          model.optim.name=adamw model.optim.lr=1e-5 \
+          model.version_2_with_negative=false \
+          model.optim.scheduler.name=WarmupAnnealing \
+          pl.trainer.precision=16 \
+          pl.trainer.amp_level=O1 \
+          pl.trainer.gpus=[0] \
+          pl.trainer.max_steps=2 \
+          '
           sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
         }
     }
