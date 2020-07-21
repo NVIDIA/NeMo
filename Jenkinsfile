@@ -104,8 +104,8 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 5e-5 --max_steps 2 --scheduler WarmupAnnealing'
-          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          sh 'cd examples/nlp/question_answering && python question_answering_squad.py pl.trainer.precision=16 pl.trainer.amp_level=O1 model.train_ds.file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json pl.trainer.gpus=[0] model.language_model.do_lower_case=true model.language_model.pretrained_model_name=bert-base-uncased model.optim.name=adamw model.optim.lr 1e-5 pl.trainer.max_steps=2 model.version_2_with_negative=false model.optim.scheduler.name=WarmupAnnealing'
+          sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
         }
     }
 
@@ -118,8 +118,8 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 1e-5 --max_steps 2 --version_2_with_negative --scheduler WarmupAnnealing'
-          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+          sh 'cd examples/nlp/question_answering && python question_answering_squad.py pl.trainer.precision=16 pl.trainer.amp_level=O1 model.train_ds.file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json pl.trainer.gpus=[0] model.language_model.do_lower_case=true model.language_model.pretrained_model_name=bert-base-uncased model.optim.name=adamw model.optim.lr 1e-5 pl.trainer.max_steps=2 model.version_2_with_negative=true model.optim.scheduler.name=WarmupAnnealing'
+          sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
         }
     }
 
@@ -132,8 +132,8 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 5 --gpus 1 --pretrained_model_name roberta-base --optimizer adamw --lr 1e-5 --max_steps 2 --scheduler WarmupAnnealing'
-          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          sh 'cd examples/nlp/question_answering && python question_answering_squad.py pl.trainer.precision=16 pl.trainer.amp_level=O1 model.train_ds.file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json pl.trainer.gpus=[1] model.language_model.do_lower_case=true model.language_model.pretrained_model_name=roberta-base model.optim.name=adamw model.optim.lr 1e-5 pl.trainer.max_steps=2 model.version_2_with_negative=false model.optim.scheduler.name=WarmupAnnealing'
+          sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
         }
     }
     stage('L2: Parallel NLP Examples 1') {
