@@ -21,7 +21,6 @@ import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
 
-import nemo
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
@@ -82,28 +81,16 @@ class Typing(ABC):
                     res.neural_type = out_types_list[ind][1]
 
 
-class Serialization:
+class Serialization(ABC):
     @classmethod
     def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
-
         if 'cls' in config and 'params' in config:
-            # Parse the "full specification".
-            spec_list = config.cls.split(".")
-
-            # Get module class from the "full specification".
-            mod_obj = __import__(spec_list[0])
-            for spec in spec_list[1:]:
-                mod_obj = getattr(mod_obj, spec)
-
-            instance = mod_obj(cfg=config)
+            # regular hydra-based instantiation
+            instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
-            # instance = cls(cfg=config)
-            # How this should work in the case when one would instantiate e.g. decoder inside of a model?
-            # Example from "EncDecCTCModel" class:
-            # self.decoder = EncDecCTCModel.from_config_dict(param1, param2)
-            raise NotImplementedError("Deserialization requires 'cls' and 'params' to be set")
+            instance = cls(cfg=config)
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
         return instance
