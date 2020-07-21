@@ -135,7 +135,7 @@ pipeline {
             pl.trainer.max_steps=2 \
             '
             sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
-            && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
         }
       }
