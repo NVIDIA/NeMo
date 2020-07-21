@@ -117,7 +117,8 @@ pipeline {
             pl.trainer.gpus=[0] \
             pl.trainer.max_steps=2 \
             '
-            sh 'rm -rf examples/nlp/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
         stage('BERT SQUAD 2.0') {
@@ -133,7 +134,8 @@ pipeline {
             pl.trainer.gpus=[1] \
             pl.trainer.max_steps=2 \
             '
-            sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
         }
       }
@@ -162,7 +164,8 @@ pipeline {
             pl.trainer.gpus=[0] \
             pl.trainer.max_steps=2 \
             '
-            sh 'rm -rf examples/nlp/outputs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
           }
         }
         stage('RoBERTa SQUAD 2.0') {
@@ -179,7 +182,8 @@ pipeline {
             pl.trainer.gpus=[1] \
             pl.trainer.max_steps=2 \
             '
-            sh 'rm -rf examples/nlp/question_answering/outputs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
           }
         }
       }

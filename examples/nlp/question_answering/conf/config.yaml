@@ -1,5 +1,5 @@
-
 # Question Answering with SQUAD
+name: &name QA
 
 pl:
   trainer:
@@ -13,6 +13,8 @@ pl:
     distributed_backend: ddp
     gradient_clip_val: 1.0
     val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
+    checkpoint_callback: false # provided by exp_manager
+    logger: false # provided by exp_manager
 
 model:
   max_answer_length: 30
@@ -123,3 +125,16 @@ model:
     use_transformer_init: true
 
   pl: null # used at runtime
+
+exp_manager:
+  root_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
