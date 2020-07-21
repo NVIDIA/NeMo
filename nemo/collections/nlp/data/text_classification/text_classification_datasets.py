@@ -60,7 +60,7 @@ class TextClassificationDataset(Dataset):
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
             'label': NeuralType(('B', 'T'), LabelsType()),
         }
 
