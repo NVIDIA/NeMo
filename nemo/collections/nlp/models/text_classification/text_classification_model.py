@@ -18,7 +18,6 @@ from typing import Dict, Optional
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers import get_tokenizer
