@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.huggingface.albert import *
-from nemo.collections.nlp.modules.common.huggingface.bert import *
-from nemo.collections.nlp.modules.common.huggingface.roberta import *
+from nemo.collections.nlp.modules.common.huggingface.albert import AlbertEncoder
+from nemo.collections.nlp.modules.common.huggingface.bert import BertEncoder
+from nemo.collections.nlp.modules.common.huggingface.distilbert import DistilBertEncoder
+from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncoder

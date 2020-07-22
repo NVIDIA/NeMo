@@ -189,7 +189,7 @@ class BertTokenClassificationDataset(Dataset):
             the loss_mask,
         ignore_start_end (bool): whether to ignore bos and eos tokens in
             the loss_mask
-        overwrite_processed_files (bool): whether to overwrite the preprocessed files
+        use_cache (bool): whether to use the preprocessed files or not
     """
 
     @property
@@ -216,7 +216,7 @@ class BertTokenClassificationDataset(Dataset):
         pad_label='O',
         ignore_extra_tokens=False,
         ignore_start_end=False,
-        overwrite_processed_files=False,
+        use_cache=True,
     ):
 
         data_dir = os.path.dirname(text_file)
@@ -232,7 +232,7 @@ class BertTokenClassificationDataset(Dataset):
         )
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        if master_device and (overwrite_processed_files or not os.path.exists(features_pkl)):
+        if master_device and (not use_cache or not os.path.exists(features_pkl)):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
 
