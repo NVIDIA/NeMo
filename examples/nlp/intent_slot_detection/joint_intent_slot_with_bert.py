@@ -1,6 +1,4 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.bert_module import *
-from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_models_list
-from nemo.collections.nlp.modules.common.huggingface import *
-from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
-from nemo.collections.nlp.modules.common.token_classifier import BertPretrainingTokenClassifier, TokenClassifier
-from nemo.collections.nlp.modules.common.sequence_token_classifier import SequenceTokenClassifier
+import hydra
+import pytorch_lightning as pl
+from omegaconf import DictConfig
+
+from nemo.collections.nlp.models.intent_slot_model import IntentSlotModel
+from nemo.utils import logging
+
+
+@hydra.main(config_path="conf", config_name="config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config: {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.pl.trainer)
+    intent_slot_model = IntentSlotModel(cfg.model, trainer=trainer)
+    trainer.fit(intent_slot_model)
+
+
+if __name__ == '__main__':
+    main()
