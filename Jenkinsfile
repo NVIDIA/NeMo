@@ -269,12 +269,12 @@ pipeline {
       parallel {
         stage('Tacotron 2') {
           steps {
-            sh 'python examples/tts/tacotron2.py train_dataset=/home/TestData/an4_dataset/an4_train.json validation_datasets=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus="[0]" +pl.trainer.fast_dev_run=True pl.trainer.distributed_backend=null'
+            sh 'python examples/tts/tacotron2.py train_dataset=/home/TestData/an4_dataset/an4_train.json validation_datasets=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus="[0]" +pl.trainer.fast_dev_run=True pl.trainer.distributed_backend=null pl.trainer.max_epochs=-1'
           }
         }
         stage('WaveGlow') {
           steps {
-            sh 'python examples/tts/waveglow.py train_dataset=/home/TestData/an4_dataset/an4_train.json validation_datasets=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus="[1]" +pl.trainer.fast_dev_run=True pl.trainer.distributed_backend=null'
+            sh 'python examples/tts/waveglow.py train_dataset=/home/TestData/an4_dataset/an4_train.json validation_datasets=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus="[1]" +pl.trainer.fast_dev_run=True pl.trainer.distributed_backend=null pl.trainer.max_epochs=-1'
           }
         }
       }
