@@ -15,7 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import hydra
 import wrapt
@@ -83,13 +83,14 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig):
+    def from_config_dict(cls, config: DictConfig, *args: Any, **kwargs: Any):
         """Instantiates object using DictConfig-based configuration"""
         if 'cls' in config and 'params' in config:
             # regular hydra-based instantiation
-            instance = hydra.utils.instantiate(config=config)
+            instance = hydra.utils.instantiate(config=config, *args, **kwargs)
         else:
             # models are handled differently for now
+            # TODO: allow passthrough for args, and kwargs too?
             instance = cls(cfg=config)
         if not hasattr(instance, '_cfg'):
             instance._cfg = config

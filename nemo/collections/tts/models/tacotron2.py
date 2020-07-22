@@ -12,25 +12,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from typing import Dict, Optional
+
 import torch
 from torch import nn
 from torch.nn.functional import pad
+from omegaconf import DictConfig, open_dict, MISSING, OmegaConf
 
-from nemo.collections.asr.data.audio_to_text import AudioToTextDataset
-from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
+from nemo.utils import logging
+
+
+@dataclass
+class PreprocessorParams:
+    pad_value: float = MISSING
+
+
+@dataclass
+class Preprocessor:
+    cls: str = MISSING
+    params: PreprocessorParams = PreprocessorParams()
+
+
+@dataclass
+class Tacotron2Config:
+    preprocessor: Preprocessor = Preprocessor()
+    encoder: Dict = MISSING
+    decoder: Dict = MISSING
+    postnet: Dict = MISSING
+    train_ds: Optional[Dict] = None
+    validation_ds: Optional[Dict] = None
 
 
 @experimental
 class Tacotron2(ModelPT):
     # TODO: tensorboard for training
-    def __init__(self, cfg: 'DictConfig', trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
+
+        schema = OmegaConf.structured(Tacotron2Config)
+        # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
+        elif not isinstance(cfg, DictConfig):
+            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+        # Ensure passed cfg is compliant with schema
+        OmegaConf.merge(cfg, schema)
+
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.audio_to_melspec_precessor = Tacotron2.from_config_dict(self._cfg.preprocessor)
-        self.text_embedding = nn.Embedding(len(cfg.train_ds.labels) + 3, 512)
+        self.text_embedding = nn.Embedding(len(cfg.train_ds.dataset.params.labels) + 3, 512)
         self.encoder = Tacotron2.from_config_dict(self._cfg.encoder)
         self.decoder = Tacotron2.from_config_dict(self._cfg.decoder)
         self.postnet = Tacotron2.from_config_dict(self._cfg.postnet)
@@ -142,40 +176,35 @@ class Tacotron2(ModelPT):
         )
         return {}
 
-    @staticmethod
-    def __setup_dataloader_from_config(config: 'Optional[Dict]'):
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
-        dataset = AudioToTextDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            featurizer=featurizer,
-            bos_id=len(config['labels']),
-            eos_id=len(config['labels']) + 1,
-            pad_id=len(config['labels']) + 2,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            normalize=False,
-            trim=False,
+    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+        if "dataset" not in cfg or not isinstance(cfg["dataset"], DictConfig):
+            raise ValueError(f"No dataset for {name}")  # TODO
+        if "dataloader_params" not in cfg or not isinstance(cfg["dataloader_params"], (dict, DictConfig)):
+            raise ValueError(f"No dataloder_params for {name}")  # TODO
+        if shuffle_should_be:
+            if 'shuffle' not in cfg["dataloader_params"]:
+                logging.warning(
+                    f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
+                    "config. Manually setting to True"
+                )
+                with open_dict(cfg["dataloader_params"]):
+                    cfg["dataloader_params"]["shuffle"] = True
+            elif not cfg["dataloader_params"]["shuffle"]:
+                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+        elif not shuffle_should_be and cfg["dataloader_params"]["shuffle"]:
+            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+
+        labels = cfg["dataset"]["params"]["labels"]
+        dataset = Tacotron2.from_config_dict(
+            cfg["dataset"], bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2,
         )
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset._collate_fn, **cfg["dataloader_params"])
 
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=config['batch_size'],
-            collate_fn=dataset._collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
-            num_workers=config.get('num_workers', 0),
-        )
+    def setup_training_data(self, cfg):
+        self._train_dl = self.__setup_dataloader_from_config(cfg)
 
-    def setup_training_data(self, config):
-        if 'shuffle' not in config:
-            config['shuffle'] = True
-        self._train_dl = self.__setup_dataloader_from_config(config)
-
-    def setup_validation_data(self, config):
-        if 'shuffle' not in config:
-            config['shuffle'] = False
-        self._validation_dl = self.__setup_dataloader_from_config(config)
+    def setup_validation_data(self, cfg):
+        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':

@@ -227,7 +227,7 @@ class Invertible1x1Conv(torch.nn.Module):
             )
 
 
-class Wavenet(torch.nn.Module):
+class WaveNet(torch.nn.Module):
     """
     This is the WaveNet like layer for the affine coupling.  The primary
     difference from WaveNet is the convolutions need not be causal.  There is

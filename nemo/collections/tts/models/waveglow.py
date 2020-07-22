@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
+from typing import Dict, Optional
+
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, open_dict, MISSING, OmegaConf
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.core.classes import ModelPT
@@ -21,10 +24,39 @@ from nemo.utils.decorators import experimental
 from nemo.utils import logging
 
 
+@dataclass
+class PreprocessorParams:
+    pad_value: float = MISSING
+
+
+@dataclass
+class Preprocessor:
+    cls: str = MISSING
+    params: PreprocessorParams = PreprocessorParams()
+
+
+@dataclass
+class WaveglowConfig:
+    waveglow: Dict = MISSING
+    preprocessor: Preprocessor = Preprocessor()
+    train_ds: Optional[Dict] = None
+    validation_ds: Optional[Dict] = None
+
+
 @experimental
 class Waveglow(ModelPT):
-    def __init__(self, cfg: 'DictConfig', trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
+
+        schema = OmegaConf.structured(WaveglowConfig)
+        # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
+        elif not isinstance(cfg, DictConfig):
+            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+        # Ensure passed cfg is compliant with schema
+        OmegaConf.merge(cfg, schema)
+
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = 1.0
         self.audio_to_melspec_precessor = Waveglow.from_config_dict(self._cfg.preprocessor)
@@ -84,8 +116,7 @@ class Waveglow(ModelPT):
         return {}
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
-        logging.debug(isinstance(cfg["dataset"], (dict, DictConfig)))
-        if "dataset" not in cfg or not isinstance(cfg["dataset"], (dict, DictConfig)):
+        if "dataset" not in cfg or not isinstance(cfg["dataset"], DictConfig):
             raise ValueError(f"No dataset for {name}")  # TODO
         if "dataloader_params" not in cfg or not isinstance(cfg["dataloader_params"], (dict, DictConfig)):
             raise ValueError(f"No dataloder_params for {name}")  # TODO
