@@ -14,10 +14,10 @@
 
 import os
 
-import hydra
 import pytorch_lightning as pl
 
-from nemo.collections.asr.models import EncDecSpeechLabelModel
+from nemo.collections.asr.models import EncDecSpeakerLabelModel
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
@@ -44,13 +44,13 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 """
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra_runner(config_path="conf", config_name="config")
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    speaker_model = EncDecSpeechLabelModel(cfg=cfg.model, trainer=trainer)
+    speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
 
 

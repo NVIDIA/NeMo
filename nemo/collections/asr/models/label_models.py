@@ -31,7 +31,7 @@ __all__ = ['EncDecSpeechLabelModel']
 
 
 @experimental
-class EncDecSpeechLabelModel(ModelPT):
+class EncDecSpeakerLabelModel(ModelPT):
     """Encoder decoder class for speaker label models.
     Model class creates training, validation methods for setting up data
     performing model forward pass. 
@@ -45,13 +45,13 @@ class EncDecSpeechLabelModel(ModelPT):
         if 'cls' not in cfg:
             # This is for Jarvis service. Adding here for now to avoid effects of decorators
             OmegaConf.set_struct(cfg, False)
-            cfg.cls = 'nemo.collections.asr.models.EncDecSpeechLabelModel'
+            cfg.cls = 'nemo.collections.asr.models.EncDecSpeakerLabelModel'
             OmegaConf.set_struct(cfg, True)
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.preprocessor = EncDecSpeechLabelModel.from_config_dict(cfg.preprocessor)
-        self.encoder = EncDecSpeechLabelModel.from_config_dict(cfg.encoder)
-        self.decoder = EncDecSpeechLabelModel.from_config_dict(cfg.decoder)
+        self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
+        self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
+        self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
         self.loss = CELoss()
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization()

@@ -17,7 +17,7 @@ from unittest import TestCase
 import pytest
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models import EncDecSpeechLabelModel
+from nemo.collections.asr.models import EncDecSpeakerLabelModel
 
 
 class EncDecSpeechLabelModelTest(TestCase):
@@ -53,7 +53,7 @@ class EncDecSpeechLabelModelTest(TestCase):
         modelConfig = DictConfig(
             {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
         )
-        speaker_model = EncDecSpeechLabelModel(cfg=modelConfig)
+        speaker_model = EncDecSpeakerLabelModel(cfg=modelConfig)
         speaker_model.train()
         # TODO: make proper config and assert correct number of weights
 
