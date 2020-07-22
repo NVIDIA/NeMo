@@ -36,8 +36,8 @@ collections = {
 }
 
 
-def analyze_member(name, obj, module_list):
-    """ Helper function analysing the passed object and, if ok, adding a record to module list.
+def process_member(name, obj, module_list):
+    """ Helper function processing the passed object and, if ok, adding a record to the module list.
     
     Args:
         name: name of the member
@@ -114,28 +114,28 @@ def main():
     try:  # Datasets in dataset folder
         logging.info("Analysing the 'data' package")
         for name, obj in inspect.getmembers(collection.data):
-            analyze_member(name, obj, module_list)
+            process_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No datasets found")
 
     try:  # Datasets in dataset folder
         logging.info("Analysing the 'datasets' package")
         for name, obj in inspect.getmembers(collection.datasets):
-            analyze_member(name, obj, module_list)
+            process_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No datasets found")
 
     try:  # Modules
         logging.info("Analysing the 'modules' package")
         for name, obj in inspect.getmembers(collection.modules):
-            analyze_member(name, obj, module_list)
+            process_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No modules found")
 
     try:  # Losses
         logging.info("Analysing the 'losses' package")
         for name, obj in inspect.getmembers(collection.losses):
-            analyze_member(name, obj, module_list)
+            process_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No losses found")
 
