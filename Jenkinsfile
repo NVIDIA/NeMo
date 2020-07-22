@@ -227,7 +227,7 @@ pipeline {
             model.validation_ds.prefix=dev \
             model.train_ds.batch_size=10 \
             model.train_ds.use_cache=false \
-            model.language_model.do_lower_case=true
+            model.language_model.do_lower_case=true \
             pl.trainer.gpus=[0] \
             +pl.trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_base_uncased
