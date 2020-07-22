@@ -12,22 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-__all__ = ['experimental']
-
-from nemo.utils import logging
-
-
-def experimental(cls):
-    """ Decorator which indicates that module is experimental.
-    Use it to mark experimental or research modules.
-    """
-
-    def wrapped(cls):
-        logging.warning(
-            f'Module {cls} is experimental, not ready for production and is not fully supported. Use at your own risk.'
-        )
-
-        return cls
-
-    return wrapped(cls=cls)
+from nemo.collections.nlp.models.text_classification.text_classification_model import TextClassificationModel

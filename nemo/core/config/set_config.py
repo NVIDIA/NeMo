@@ -25,6 +25,57 @@ from omegaconf import DictConfig
 from nemo.core.config import Config
 
 
+def hydra_runner(
+    config_path: Optional[str] = None, config_name: Optional[str] = None
+) -> Callable[[TaskFunction], Any]:
+    """
+    Decorator used for passing the Config paths to main function.
+
+    Args:
+        config_path: path to the directory where the config exists.
+        config_name: name of the config file.
+    """
+
+    def decorator(task_function: TaskFunction) -> Callable[[], None]:
+        @functools.wraps(task_function)
+        def wrapper(cfg_passthrough: Optional[DictConfig] = None) -> Any:
+            # Check it config was passed.
+            if cfg_passthrough is not None:
+                return task_function(cfg_passthrough)
+            else:
+                args = get_args_parser()
+
+                # Parse arguments in order to retrieve overrides
+                parsed_args = args.parse_args()
+
+                # Get overriding args in dot string format
+                overrides = parsed_args.overrides  # type: list
+
+                # Update overrides
+                overrides.append("hydra.run.dir=.")
+                overrides.append('hydra.job_logging.root.handlers=null')
+
+                # Wrap a callable object with name `parse_args`
+                # This is to mimic the ArgParser.parse_args() API.
+                class _argparse_wrapper:
+                    def parse_args(self, args=None, namespace=None):
+                        return parsed_args
+
+                # no return value from run_hydra() as it may sometime actually run the task_function
+                # multiple times (--multirun)
+                run_hydra(
+                    args_parser=_argparse_wrapper(),
+                    task_function=task_function,
+                    config_path=config_path,
+                    config_name=config_name,
+                    strict=None,
+                )
+
+        return wrapper
+
+    return decorator
+
+
 def set_config(config: Config) -> Callable[[TaskFunction], Any]:
     """
     Decorator used for passing the Structured Configs to main function.
@@ -47,6 +98,7 @@ def set_config(config: Config) -> Callable[[TaskFunction], Any]:
                 return task_function(cfg_passthrough)
             else:
                 args = get_args_parser()
+
                 # no return value from run_hydra() as it may sometime actually run the task_function
                 # multiple times (--multirun)
                 run_hydra(
