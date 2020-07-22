@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.common import losses, parts, tokenizers
-
 from nemo.package_info import __version__
 
 # Set collection version equal to NeMo version.
