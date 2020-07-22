@@ -18,4 +18,9 @@ from nemo.collections.asr.modules.audio_preprocessing import (
     CropOrPadSpectrogramAugmentation,
     SpectrogramAugmentation,
 )
-from nemo.collections.asr.modules.conv_asr import ConvASRDecoder, ConvASRDecoderClassification, ConvASREncoder, SpeakerDecoder
+from nemo.collections.asr.modules.conv_asr import (
+    ConvASRDecoder,
+    ConvASRDecoderClassification,
+    ConvASREncoder,
+    SpeakerDecoder,
+)
