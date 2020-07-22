@@ -33,7 +33,7 @@ from nemo.utils.decorators import experimental
 __all__ = ['EncDecClassificationModel', 'MatchboxNet']
 
 
-# @experimental
+@experimental
 class EncDecClassificationModel(ASRModel):
     """Encoder decoder CTC-based models."""
 

@@ -30,6 +30,7 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils.decorators import experimental
 
 try:
     import torchaudio
@@ -42,7 +43,6 @@ try:
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
-    logging.warning('Could not import torchaudio. Some features might not work.')
 
 __all__ = [
     'AudioToMelSpectrogramPreprocessor',
@@ -73,6 +73,7 @@ class AudioPreprocessor(NeuralModule, ABC):
             None: torch.ones,
         }
 
+    @typecheck()
     @torch.no_grad()
     def forward(self, input_signal, length):
         processed_signal = self.get_features(input_signal, length)
@@ -254,6 +255,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         return self.featurizer.filter_banks
 
 
+@experimental
 class AudioToMFCCPreprocessor(AudioPreprocessor):
     """Preprocessor that converts wavs to MFCCs.
     Uses torchaudio.transforms.MFCC.
@@ -334,6 +336,8 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     ):
         self._sample_rate = sample_rate
         if not HAVE_TORCHAUDIO:
+            logging.error('Could not import torchaudio. Some features might not work.')
+
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
                 "AudioToMFCCPreprocessor. We recommend you try "
@@ -482,6 +486,7 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
         super(CropOrPadSpectrogramAugmentation, self).__init__()
         self.audio_length = audio_length
 
+    @typecheck()
     @torch.no_grad()
     def forward(self, input_signal, length):
         image = input_signal

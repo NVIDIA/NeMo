@@ -86,21 +86,23 @@ class TopKClassificationAccuracy(TensorMetric):
         self.top_k = top_k
 
     def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        max_k = max(self.top_k)
+        with torch.no_grad():
+            max_k = max(self.top_k)
 
-        _, predictions = logits.topk(max_k, dim=1, largest=True, sorted=True)
-        predictions = predictions.t()
-        correct = predictions.eq(labels.view(1, -1)).expand_as(predictions)
+            _, predictions = logits.topk(max_k, dim=1, largest=True, sorted=True)
+            predictions = predictions.t()
+            correct = predictions.eq(labels.view(1, -1)).expand_as(predictions)
 
-        correct_counts_k = []
-        total_counts_k = []
+            correct_counts_k = []
+            total_counts_k = []
 
-        for k in self.top_k:
-            correct_k = correct[:k].view(-1).float().sum()
-            total_k = labels.shape[0]
+            for k in self.top_k:
+                correct_k = correct[:k].view(-1).float().sum()
+                total_k = labels.shape[0]
 
-            correct_counts_k.append(correct_k)
-            total_counts_k.append(total_k)
+                correct_counts_k.append(correct_k)
+                total_counts_k.append(total_k)
 
-        results = torch.tensor([correct_counts_k, total_counts_k], dtype=labels.dtype, device=labels.device)
+            results = torch.tensor([correct_counts_k, total_counts_k], dtype=labels.dtype, device=labels.device)
+
         return results

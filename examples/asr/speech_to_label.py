@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import hydra
+
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models import EncDecClassificationModel
+from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
@@ -30,7 +31,7 @@ Basic run (on 1 GPU + AMP O1 for 200 epochs):
 """
 
 
-@hydra.main(config_path="conf", config_name="matchboxnet_3x1x64_v1.yaml")
+@hydra_runner(config_path="conf", config_name="matchboxnet_3x1x64_v1.yaml")
 def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
