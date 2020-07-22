@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 from tqdm import tqdm
+from transformers.tokenization_bert import BasicTokenizer
 
 from nemo import logging
 from nemo.collections.common.parts.utils import _compute_softmax
