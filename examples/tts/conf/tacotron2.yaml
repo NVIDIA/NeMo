@@ -16,7 +16,7 @@ validation_datasets: ???
 model:
   train_ds:
     dataset:
-      cls: "nemo.collections.asr.data.audio_to_text.AudioToTextDataset"
+      cls: "nemo.collections.asr.data.audio_to_text.AudioToCharDataset"
       params:
         manifest_filepath: ${train_dataset}
         max_duration: null
@@ -38,7 +38,7 @@ model:
 
   validation_ds:
     dataset:
-      cls: "nemo.collections.asr.data.audio_to_text.AudioToTextDataset"
+      cls: "nemo.collections.asr.data.audio_to_text.AudioToCharDataset"
       params:
         manifest_filepath: ${validation_datasets}
         max_duration: null
