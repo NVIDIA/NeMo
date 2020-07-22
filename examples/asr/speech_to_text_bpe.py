@@ -29,16 +29,15 @@ python speech_to_text_bpe.py \
     model.logger.project_name="AN4_BPE_1024_candidate" \
     hydra.run.dir=.
 """
-
-import hydra
 import pytorch_lightning as pl
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra.main(config_path="experimental/configs/", config_name="config_bpe")
+@hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
