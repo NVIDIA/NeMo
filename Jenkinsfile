@@ -97,7 +97,7 @@ pipeline {
     
     stage('L2: Speaker Recognition dev run') {
       steps {
-        sh 'python examples/speaker_recognition/speaker_reco.py model.train_ds.batch_size=10 model.validation_ds.batch_size=2 model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
+        sh 'python examples/speaker_recognition/speaker_reco.py model.train_ds.batch_size=10 model.validation_ds.batch_size=2 model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json pl.trainer.gpus=[1] +pl.trainer.fast_dev_run=True'
       }
     }
 
