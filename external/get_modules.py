@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =============================================================================
-# Copyright (c) 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 # limitations under the License.
 # =============================================================================
 
-""" Script responsible for generation of JSON file containing a list of modules. """
+""" Script responsible for generation of a JSON file containing list of modules of a given collection. """
 
 import argparse
 import importlib
