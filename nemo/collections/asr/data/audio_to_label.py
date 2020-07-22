@@ -17,7 +17,7 @@ import torch
 
 from nemo.collections.asr.parts import collections
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
