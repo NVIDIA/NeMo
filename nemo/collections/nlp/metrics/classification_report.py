@@ -97,6 +97,7 @@ class ClassificationReport(TensorMetric):
         recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
         f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
 
+        print("")
         logging.info(
             '{:20s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         )
@@ -145,10 +146,10 @@ class ClassificationReport(TensorMetric):
         logging.info('')
         if mode == 'macro':
             return macro_precision, macro_recall, macro_f1
-        elif mode == 'micro':
-            return micro_precision, micro_recall, micro_f1
         elif mode == 'weighted':
             return weighted_precision, weighted_recall, weighted_f1
+        elif mode == 'micro':
+            return micro_precision[0], micro_recall[0], micro_f1[0]
         elif mode == 'all':
             return precision, recall, f1
         else:

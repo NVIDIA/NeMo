@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.tokenizers.bert_tokenizer import NemoBertTokenizer
+from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
+from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes.common import typecheck
@@ -48,11 +49,18 @@ class TextClassificationModel(ModelPT):
 
         self.max_seq_length = cfg.language_model.max_seq_length
         self.data_dir = cfg.data_dir
-        self.tokenizer = NemoBertTokenizer(pretrained_model=cfg.language_model.pretrained_model_name)
+        self.tokenizer = get_tokenizer(
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.language_model.do_lower_case,
+        )
+
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        data_desc = TextClassificationDataDesc(data_dir=self.data_dir, modes=["train", "test", "dev"])
+        self.data_desc = TextClassificationDataDesc(data_dir=self.data_dir, modes=["train", "test", "dev"])
 
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
@@ -60,17 +68,23 @@ class TextClassificationModel(ModelPT):
         self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = SequenceClassifier(
             hidden_size=self.hidden_size,
-            num_classes=data_desc.num_labels,
-            dropout=cfg.head.fc_dropout,
+            num_classes=self.data_desc.num_classes,
             num_layers=cfg.head.num_output_layers,
+            activation='relu',
             log_softmax=False,
+            dropout=cfg.head.fc_dropout,
+            use_transformer_init=True,
+            idx_conditioned_on=0,
         )
 
         if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.loss = CrossEntropyLoss(weight=data_desc.class_weights)
+            self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
         else:
             self.loss = CrossEntropyLoss()
+
+        # setup to track metrics
+        self.classification_report = ClassificationReport(self.data_desc.num_classes)
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -112,19 +126,34 @@ class TextClassificationModel(ModelPT):
 
         val_loss = self.loss(logits=logits, labels=labels)
 
-        # TODO - add eval - callback?
-        # labels_hat = torch.argmax(y_hat, dim=1)
-        # n_correct_pred = torch.sum(y == labels_hat).item()
-        return {'val_loss': val_loss}
+        preds = torch.argmax(logits, axis=-1)
+        tp, fp, fn = self.classification_report(preds, labels)
+
+        tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+
+        return {'val_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
+        # TODO: Check why need this?
         if outputs:
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-            tensorboard_logs = {'val_loss': avg_loss}  # , 'val_acc': val_acc}
+
+            # calculate metrics and log classification report
+            tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
+            fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
+            fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
+            precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
+
+            tensorboard_logs = {
+                'val_loss': avg_loss,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
+            }
             return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -137,7 +166,7 @@ class TextClassificationModel(ModelPT):
         self._test_dl = self.__setup_dataloader(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = f'{self.data_dir}/{cfg.prefix}.tsv'
+        input_file = os.path.join(self.data_dir, f"{cfg.prefix}.tsv")
         # TODO: check that file exists
         dataset = TextClassificationDataset(
             input_file=input_file,

@@ -212,7 +212,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             the loss_mask,
         ignore_start_end (bool): whether to ignore bos and eos tokens in
             the loss_mask
-        overwrite_processed_files (bool): whether to overwrite processed data cache or not
+        use_cache (bool): whether to use processed data cache or not
     """
 
     @property
@@ -241,7 +241,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_label_ids=None,
         ignore_extra_tokens=False,
         ignore_start_end=False,
-        overwrite_processed_files=False,
+        use_cache=True,
     ):
 
         # Cache features
@@ -260,7 +260,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
 
-        if master_device and (not os.path.exists(features_pkl) or overwrite_processed_files):
+        if master_device and (not os.path.exists(features_pkl) or not use_cache):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
             logging.info(f'Processing {text_file}')

@@ -95,7 +95,7 @@ pipeline {
       }
     }
 
-    stage('L2: BERT Squad v1.1') {
+    stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
           branch 'candidate'
@@ -103,39 +103,92 @@ pipeline {
         }
       }
       failFast true
-        steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 5e-5 --max_steps 2 --scheduler WarmupAnnealing'
-          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+      parallel {
+        stage('BERT SQUAD 1.1') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.version_2_with_negative=false \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[0] \
+            +pl.trainer.fast_dev_run=true \
+            '
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          }
         }
+        stage('BERT SQUAD 2.0') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.version_2_with_negative=true \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[1] \
+            +pl.trainer.fast_dev_run=true \
+            '
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+          }
+        }
+      }
+
+    }
+    stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('RoBERTa SQUAD 1.1') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.language_model.do_lower_case=true \
+            model.language_model.pretrained_model_name=roberta-base \
+            model.version_2_with_negative=false \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[0] \
+            +pl.trainer.fast_dev_run=true \
+            '
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+          }
+        }
+        stage('RoBERTa SQUAD 2.0') {
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.do_lower_case=true \
+            model.language_model.pretrained_model_name=roberta-base \
+            model.version_2_with_negative=true \
+            pl.trainer.precision=16 \
+            pl.trainer.amp_level=O1 \
+            pl.trainer.gpus=[1] \
+            +pl.trainer.fast_dev_run=true \
+            '
+            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
+            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+          }
+        }
+      }
     }
 
-    stage('L2: BERT Squad v2.0') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v2.0/train-v2.0.json --eval_file /home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json --batch_size 8 --gpus 1 --do_lower_case --pretrained_model_name bert-base-uncased --optimizer adamw --lr 1e-5 --max_steps 2 --version_2_with_negative --scheduler WarmupAnnealing'
-          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
-        }
-    }
-
-    stage('L2: Roberta Squad v1.1') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python question_answering_squad.py --precision 16 --amp_level=O1 --train_file /home/TestData/nlp/squad_mini/v1.1/train-v1.1.json --eval_file /home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json --batch_size 5 --gpus 1 --pretrained_model_name roberta-base --optimizer adamw --lr 1e-5 --max_steps 2 --scheduler WarmupAnnealing'
-          sh 'rm -rf examples/nlp/lightning_logs && rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
-        }
-    }
     stage('L2: Parallel NLP Examples 1') {
       failFast true
       parallel {
@@ -184,8 +237,8 @@ pipeline {
       failFast true
         steps {
           sh 'cd examples/nlp/token_classification && python ner.py \
-          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true'
-          sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
+          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true \
+          model.use_cache=false'
         }
     }
     stage('L4: Punctuation and capitalization: DistilBert + MultiGPU') {
@@ -200,8 +253,8 @@ pipeline {
           sh 'cd examples/nlp/token_classification && python punctuation_capitalization.py \
           model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true \
           pl.trainer.gpus=2 pl.trainer.distributed_backend=ddp \
-          model.language_model.pretrained_model_name=distilbert-base-uncased'
-          sh 'rm -rf /home/TestData/nlp/token_classification_punctuation/*cache*'
+          model.language_model.pretrained_model_name=distilbert-base-uncased \
+          model.use_cache=false'
         }
     }
 
