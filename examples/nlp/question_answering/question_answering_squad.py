@@ -13,16 +13,16 @@
 # limitations under the License.
 
 
-import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.models.qa_model import QAModel
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra.main(config_path="conf", config_name="config")
+@hydra_runner(config_path="conf", config_name="config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
