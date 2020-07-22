@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from nemo.core.classes import Dataset
 
 from nemo import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -222,7 +222,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
             'punct_labels': NeuralType(('B', 'T'), LabelsType()),
@@ -418,7 +418,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
             'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
         }

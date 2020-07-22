@@ -43,7 +43,7 @@ class NERModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
+        return self.bert_model.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
@@ -111,7 +111,7 @@ class NERModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
         tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
@@ -123,7 +123,7 @@ class NERModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
         subtokens_mask = subtokens_mask > 0.5

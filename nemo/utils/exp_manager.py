@@ -166,7 +166,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # Create the logging directory if it does not exist
     log_dir = Path(_root_dir, name, version)
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
-
+    logging.info(f'Experiments will be logged at {log_dir}')
     if cfg.create_checkpoint_callback:
         for callback in trainer.callbacks:
             if isinstance(callback, ModelCheckpoint):
