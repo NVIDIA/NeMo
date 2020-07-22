@@ -15,11 +15,9 @@
 from typing import Dict, Optional, Union
 
 import torch
-import torch.distributed as dist
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
