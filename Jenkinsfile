@@ -132,8 +132,7 @@ pipeline {
             +pl.trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_squad_1.1 \
             '
-            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1 && \
-            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
           }
         }
         stage('BERT SQUAD 2.0') {
@@ -151,8 +150,7 @@ pipeline {
             +pl.trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_squad_2.0 \
             '
-            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0 && \
-            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
           }
         }
       }
@@ -230,7 +228,7 @@ pipeline {
             model.language_model.do_lower_case=true \
             pl.trainer.gpus=[0] \
             +pl.trainer.fast_dev_run=true \
-            exp_manager.root_dir=exp_bert_base_uncased
+            exp_manager.root_dir=exp_bert_base_uncased \
             '
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
