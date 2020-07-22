@@ -117,7 +117,7 @@ pipeline {
             pl.trainer.gpus=[1] \
             +pl.trainer.fast_dev_run=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            ~model.preprocessor.params.n_mfcc'
+            ~model.preprocessor.params'
             sh 'rm -rf examples/asr/NeMo_experiments'
           }
         }
