@@ -61,10 +61,17 @@ class TopKClassificationAccuracy(TensorMetric):
 
         def validation_epoch_end(self, outputs):
             ...
-            correct_count = torch.stack([x['val_correct_count'] for x in outputs]).sum()
-            total_count = torch.stack([x['val_total_count'] for x in outputs]).sum()
-            tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_acc': correct_count / total_count}
-            return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+            correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
+            total_counts = torch.stack([x['val_total_counts'] for x in outputs])
+
+            topk_scores = compute_topk_accuracy(correct_counts, total_counts)
+
+            tensorboard_log = {'val_loss': val_loss_mean}
+            for top_k, score in zip(self._accuracy.top_k, topk_scores):
+                tensorboard_log['val_epoch_top@{}'.format(top_k)] = score
+
+            return {'log': tensorboard_log}
 
     Args:
         top_k: Optional list of integers. Defaults to [1].
