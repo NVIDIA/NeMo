@@ -19,11 +19,21 @@
 
 import argparse
 import inspect
+import importlib
 import json
 import os
 
 import nemo
 from nemo.utils import logging
+
+# List of NeMo collections.
+collections = {
+    "asr": "nemo.collections.asr",
+    "common": "nemo.collections.common",
+    "cv": "nemo.collections.cv",
+    "nlp": "nemo.collections.nlp",
+    "tts": "nemo.collections.tts",
+}
 
 
 def analyze_member(name, obj, module_list):
@@ -43,7 +53,7 @@ def analyze_member(name, obj, module_list):
     if not issubclass(obj, nemo.core.Serialization):
         return
 
-    logging.info("  * Processed `{}`".format(str(obj)))
+    logging.info("  * Processing `{}`".format(str(obj)))
 
     module_list.append(
         {
@@ -82,21 +92,20 @@ def main():
     parser.add_argument('--filename', help='Name of the output JSON file', type=str, default="modules.json")
     args = parser.parse_args()
 
-    # Load the right collection.
-    if args.collection == "asr":
-        import nemo.collections.asr as col
-    elif args.collection == "common":
-        import nemo.collections.common as col
-    elif args.collection == "cv":
-        import nemo.collections.cv as col
-    elif args.collection == "nlp":
-        import nemo.collections.nlp as col
-    elif args.collection == "tts":
-        import nemo.collections.tts as col
-    else:
+    # Check the collection.
+    if args.collection not in collections.keys():
         logging.error("Coudn't process the incidated `{}` collection".format(args.collection))
-        logging.info("Please indicate one of the existing collections using `--collection [asr|commom|cv|nlp|tts]`")
+        logging.info("Please select one of the existing collections using `--collection [asr|commom|cv|nlp|tts]`")
         exit(-1)
+
+    # Load the collection specification.
+    collection_spec = importlib.util.find_spec(collections[args.collection])
+    if collection_spec is None:
+        logging.error("Failed to load the `{}` collection".format(val))
+
+    # Import the module from the module specification.
+    collection = importlib.util.module_from_spec(collection_spec)
+    collection_spec.loader.exec_module(collection)
 
     module_list = []
     # Iterate over the packages in the indicated collection.
@@ -104,28 +113,28 @@ def main():
 
     try:  # Datasets in dataset folder
         logging.info("Analysing the 'data' package")
-        for name, obj in inspect.getmembers(col.data):
+        for name, obj in inspect.getmembers(collection.data):
             analyze_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No datasets found")
 
     try:  # Datasets in dataset folder
         logging.info("Analysing the 'datasets' package")
-        for name, obj in inspect.getmembers(col.datasets):
+        for name, obj in inspect.getmembers(collection.datasets):
             analyze_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No datasets found")
 
     try:  # Modules
         logging.info("Analysing the 'modules' package")
-        for name, obj in inspect.getmembers(col.modules):
+        for name, obj in inspect.getmembers(collection.modules):
             analyze_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No modules found")
 
     try:  # Losses
         logging.info("Analysing the 'losses' package")
-        for name, obj in inspect.getmembers(col.losses):
+        for name, obj in inspect.getmembers(collection.losses):
             analyze_member(name, obj, module_list)
     except AttributeError as e:
         logging.info("  * No losses found")

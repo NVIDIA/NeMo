@@ -18,58 +18,30 @@
 """ Script responsible for generation of a JSON file with list of NeMo collections. """
 
 import argparse
+import importlib
 import json
 import os
 
 import nemo
 from nemo.utils import logging
 
-# List of collections.
-collections = {}
-try:
-    import nemo.collections.asr as col_asr
-
-    collections["asr"] = col_asr
-except ModuleNotFoundError as e:
-    logging.warning("Collection `asr` not found")
-
-try:
-    import nemo.collections.common as col_common
-
-    collections["common"] = col_common
-except ModuleNotFoundError as e:
-    logging.warning("Collection `common` not found")
-
-try:
-    import nemo.collections.cv as col_cv
-
-    collections["cv"] = col_cv
-except ModuleNotFoundError as e:
-    logging.warning("Collection `cv` not found")
-
-try:
-    import nemo.collections.nlp as col_nlp
-
-    collections["nlp"] = col_nlp
-except ModuleNotFoundError as e:
-    logging.warning("Collection `nlp` not found")
-
-try:
-    import nemo.collections.tts as col_tts
-
-    collections["tts"] = col_tts
-except ModuleNotFoundError as e:
-    logging.warning("Collection `tts` not found")
+# List of NeMo collections.
+collections = {
+    "asr": "nemo.collections.asr",
+    "common": "nemo.collections.common",
+    "cv": "nemo.collections.cv",
+    "nlp": "nemo.collections.nlp",
+    "tts": "nemo.collections.tts",
+}
 
 
-def analyse_collection(id, col):
-    """ Helper function analysing the collection.
+def process_collection(id, col):
+    """ Helper function processing the collection.
     
     Args:
-        id: (short) name of the collectino
-        col: a collection (module).
+        id: (short) name of the collection.
+        col: a collection (python module).
     """
-    logging.info("  * Processed `{}`".format(id))
     return {
         "id": id,
         "name": col.__name__,
@@ -90,16 +62,26 @@ def main():
     colletions_dir = os.path.dirname(nemo.collections.__file__)
     logging.info('Analysing collections in `{}`'.format(colletions_dir))
 
-    col_list = []
+    output_list = []
     # Iterate over all collections.
-    for id, col in collections.items():
-        col_list.append(analyse_collection(id, col))
+    for key, val in collections.items():
+        # Try to get module specification.
+        module_spec = importlib.util.find_spec(val)
+        if module_spec is None:
+            logging.warning("  * Failed to process `{}`".format(val))
+        else:
+            logging.info("  * Processing `{}`".format(val))
+            # Import the module from the module specification.
+            module = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+            # Add to list.
+            output_list.append(process_collection(key, module))
 
     # Export to JSON.
     with open(args.filename, 'w') as outfile:
-        json.dump(col_list, outfile)
+        json.dump(output_list, outfile)
 
-    logging.info('Exported collections to `{}`.'.format(args.filename))
+    logging.info('Finshed the analysis, results exported to `{}`.'.format(args.filename))
 
 
 if __name__ == '__main__':
