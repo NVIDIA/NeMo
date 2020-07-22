@@ -48,7 +48,7 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.pl.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)

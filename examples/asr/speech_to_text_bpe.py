@@ -40,7 +40,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.pl.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
 
