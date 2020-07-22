@@ -59,5 +59,5 @@ class EncDecSpeechLabelModelTest(TestCase):
 
         # Check to/from config_dict:
         confdict = speaker_model.to_config_dict()
-        instance2 = EncDecSpeechLabelModel.from_config_dict(confdict)
-        self.assertTrue(isinstance(instance2, EncDecSpeechLabelModel))
+        instance2 = EncDecSpeakerLabelModel.from_config_dict(confdict)
+        self.assertTrue(isinstance(instance2, EncDecSpeakerLabelModel))
