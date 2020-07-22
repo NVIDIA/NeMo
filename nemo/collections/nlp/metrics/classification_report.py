@@ -97,6 +97,7 @@ class ClassificationReport(TensorMetric):
         recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
         f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
 
+        print("")
         logging.info(
             '{:20s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         )
