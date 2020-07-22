@@ -27,7 +27,7 @@ from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncDecSpeechLabelModel']
+__all__ = ['EncDecSpeakerLabelModel']
 
 
 @experimental
