@@ -26,36 +26,40 @@ from nemo.utils import logging
 
 # List of collections.
 collections = {}
-try:  
+try:
     import nemo.collections.asr as col_asr
+
     collections["asr"] = col_asr
 except ModuleNotFoundError as e:
     logging.warning("Collection `asr` not found")
 
-try:  
+try:
     import nemo.collections.common as col_common
+
     collections["common"] = col_common
 except ModuleNotFoundError as e:
     logging.warning("Collection `common` not found")
 
-try:  
+try:
     import nemo.collections.cv as col_cv
+
     collections["cv"] = col_cv
 except ModuleNotFoundError as e:
     logging.warning("Collection `cv` not found")
 
-try:  
+try:
     import nemo.collections.nlp as col_nlp
+
     collections["nlp"] = col_nlp
 except ModuleNotFoundError as e:
     logging.warning("Collection `nlp` not found")
 
-try:  
+try:
     import nemo.collections.tts as col_tts
+
     collections["tts"] = col_tts
 except ModuleNotFoundError as e:
     logging.warning("Collection `tts` not found")
-
 
 
 def analyse_collection(id, col):
