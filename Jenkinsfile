@@ -89,15 +89,28 @@ pipeline {
     //   }
     // }
 
-    stage('L2: Speech 2 Text dev run') {
+    stage('L2: ASR dev run') {
       when {
         anyOf{
           branch 'candidate'
           changeRequest target: 'candidate'
         }
       }
-      steps {
-        sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
+      failFast true
+      parallel {
+        stage('Speech to Text') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus=[0] +pl.trainer.fast_dev_run=True'
+            sh 'rm -rf examples/asr/NeMo_experiments'
+          }
+        }
+
+        stage('Speech to Label') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json pl.trainer.gpus=[1] +pl.trainer.fast_dev_run=True'
+            sh 'rm -rf examples/asr/NeMo_experiments'
+          }
+        }
       }
     }
     
