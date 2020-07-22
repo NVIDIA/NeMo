@@ -20,7 +20,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
+from nemo.collections.common.tokenizers import get_tokenizer
 from nemo.collections.nlp.data.text_classification import TextClassificationDataDesc, TextClassificationDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import SequenceClassifier
