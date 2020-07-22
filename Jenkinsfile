@@ -104,8 +104,9 @@ pipeline {
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             pl.trainer.gpus=[0] \
-            +pl.trainer.fast_dev_run=True'
-            sh 'rm -rf examples/asr/NeMo_experiments'
+            +pl.trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
 
@@ -117,8 +118,9 @@ pipeline {
             pl.trainer.gpus=[1] \
             +pl.trainer.fast_dev_run=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params=null'
-            sh 'rm -rf examples/asr/NeMo_experiments'
+            model.preprocessor.params=null \
+            exp_manager.root_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
           }
         }
 
@@ -130,8 +132,9 @@ pipeline {
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
             pl.trainer.gpus=[1] \
-            +pl.trainer.fast_dev_run=True'
-            sh 'rm -rf examples/speaker_recognition/NeMo_experiments'
+            +pl.trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/speaker_recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
           }
         }
       }
