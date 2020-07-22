@@ -13,21 +13,23 @@
 # limitations under the License.
 
 
-__all__ = ['experimental']
+import pytorch_lightning as pl
+from omegaconf import DictConfig
 
+from nemo.collections.nlp.models.qa_model import QAModel
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
 
 
-def experimental(cls):
-    """ Decorator which indicates that module is experimental.
-    Use it to mark experimental or research modules.
-    """
+@hydra_runner(config_path="conf", config_name="config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config: {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.pl.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
+    question_answering_model = QAModel(cfg.model, trainer=trainer)
+    trainer.fit(question_answering_model)
 
-    def wrapped(cls):
-        logging.warning(
-            f'Module {cls} is experimental, not ready for production and is not fully supported. Use at your own risk.'
-        )
 
-        return cls
-
-    return wrapped(cls=cls)
+if __name__ == '__main__':
+    main()
