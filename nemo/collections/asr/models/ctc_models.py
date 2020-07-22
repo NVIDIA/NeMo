@@ -56,6 +56,10 @@ class EncDecCTCModel(ASRModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+        self.world_size = trainer.num_nodes * trainer.num_gpus
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
@@ -179,6 +183,8 @@ class EncDecCTCModel(ASRModel):
                 trim=config.get('trim_silence', True),
                 parser=config.get('parser', 'en'),
                 add_misc=config.get('add_misc', False),
+                global_rank=self.global_rank,
+                world_size=self.world_size,
             )
             shuffle = False
         else:
