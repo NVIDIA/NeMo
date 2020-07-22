@@ -21,6 +21,10 @@ from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_lm_models_list,
 )
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
+    get_megatron_lm_model,
+    get_megatron_lm_models_list,
+)
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
@@ -29,7 +33,8 @@ def get_pretrained_lm_models_list() -> List[str]:
     '''
     Returns the list of support pretrained models
     '''
-    return get_huggingface_lm_models_list()
+    return get_huggingface_lm_models_list() + get_megatron_lm_models_list()
+    
 
 
 def get_pretrained_lm_model(
@@ -48,7 +53,10 @@ def get_pretrained_lm_model(
     if pretrained_model_name in get_huggingface_lm_models_list():
         model = get_huggingface_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
     else:
-        raise ValueError(f'{pretrained_model_name} is not supported')
+        if pretrained_model_name in get_megatron_lm_models_list():
+            model = get_megatron_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
+        else:
+            raise ValueError(f'{pretrained_model_name} is not supported')
 
     if checkpoint_file:
         model.restore_from(checkpoint_file)
