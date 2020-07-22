@@ -53,7 +53,7 @@ class EncDecCTCModel(ASRModel):
         pass
 
     @staticmethod
-    def __setup_dataloader_from_config(config: Optional[Dict]):
+    def _setup_dataloader_from_config(config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:

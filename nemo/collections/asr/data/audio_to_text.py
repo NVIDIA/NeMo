@@ -37,7 +37,7 @@ class _AudioTextDataset(Dataset):
         labels: String containing all the possible characters to map to
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
-        augmentors (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded
             audio
         max_duration: If audio exceeds this length, do not include in dataset
         min_duration: If audio is less than this length, do not include in dataset
