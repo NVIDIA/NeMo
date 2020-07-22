@@ -18,22 +18,13 @@
 """ Script responsible for generation of JSON file containing a list of modules. """
 
 import argparse
-import inspect
 import importlib
+import inspect
 import json
 import os
 
 import nemo
 from nemo.utils import logging
-
-# List of NeMo collections.
-collections = {
-    "asr": "nemo.collections.asr",
-    "common": "nemo.collections.common",
-    "cv": "nemo.collections.cv",
-    "nlp": "nemo.collections.nlp",
-    "tts": "nemo.collections.tts",
-}
 
 
 def process_member(name, obj, module_list):
@@ -92,10 +83,26 @@ def main():
     parser.add_argument('--filename', help='Name of the output JSON file', type=str, default="modules.json")
     args = parser.parse_args()
 
+    # Get collections directory.
+    colletions_dir = os.path.dirname(nemo.collections.__file__)
+    logging.info('Analysing collections in `{}`'.format(colletions_dir))
+
+    # Generate list of NeMo collections - from the list of collection subfolders.
+    collections = {}
+    for sub_dir in os.listdir(colletions_dir):
+        # Skip cache.
+        if sub_dir == "__pycache__":
+            continue
+        # Check if it is a directory.
+        if os.path.isdir(os.path.join(colletions_dir, sub_dir)):
+            collections[sub_dir] = "nemo.collections." + sub_dir
+
     # Check the collection.
     if args.collection not in collections.keys():
         logging.error("Coudn't process the incidated `{}` collection".format(args.collection))
-        logging.info("Please select one of the existing collections using `--collection [asr|commom|cv|nlp|tts]`")
+        logging.info(
+            "Please select one of the existing collections using `--collection [{}]`".format("|".join(collections))
+        )
         exit(-1)
 
     # Load the collection specification.
@@ -139,12 +146,14 @@ def main():
     except AttributeError as e:
         logging.info("  * No losses found")
 
+    # Add prefix - only for default name.
+    filename = args.filename if args.filename != "modules.json" else args.collection + "_" + args.filename
     # Export to JSON.
-    with open(args.filename, 'w') as outfile:
+    with open(filename, 'w') as outfile:
         json.dump(module_list, outfile)
 
     logging.info(
-        'Finished analysis of the `{}` collection, results exported to `{}`.'.format(args.collection, args.filename)
+        'Finished analysis of the `{}` collection, results exported to `{}`.'.format(args.collection, filename)
     )
 
 
