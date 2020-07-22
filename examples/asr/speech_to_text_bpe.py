@@ -17,9 +17,9 @@ python speech_to_text_bpe.py \
     model.train_ds.manifest_filepath="./an4/train_manifest.json" \
     model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
     model.tokenizer.path="./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/" \
-    pl.trainer.gpus=2 \
-    pl.trainer.distributed_backend="ddp" \
-    pl.trainer.max_epochs=100 \
+    trainer.gpus=2 \
+    trainer.distributed_backend="ddp" \
+    trainer.max_epochs=100 \
     model.optim.name="adamw" \
     model.optim.lr=0.1 \
     model.optim.args.params.betas=[0.9,0.999] \

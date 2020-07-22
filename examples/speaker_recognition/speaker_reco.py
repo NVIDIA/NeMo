@@ -29,14 +29,14 @@ Basic run (on CPU for 50 epochs):
         model.train_ds.manifest_filepath="<train_manifest_file>" \
         model.validation_ds.manifest_filepath="<validation_manifest_file>" \
         hydra.run.dir="." \
-        pl.trainer.gpus=0 \
-        pl.trainer.max_epochs=50
+        trainer.gpus=0 \
+        trainer.max_epochs=50
 
 
 Add PyTorch Lightning Trainer arguments from CLI:
     python speaker_reco.py \
         ... \
-        +pl.trainer.fast_dev_run=true
+        +trainer.fast_dev_run=true
 
 Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
