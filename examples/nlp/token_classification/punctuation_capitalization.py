@@ -24,7 +24,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="punctuation_capitalization_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.pl.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     trainer.fit(model)
