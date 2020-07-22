@@ -94,6 +94,12 @@ pipeline {
         sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
       }
     }
+    
+    stage('L2: Speaker Recognition dev run') {
+      steps {
+        sh 'python examples/speaker_recognition/speaker_reco.py model.train_ds.batch_size=10 model.validation_ds.batch_size=2 model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json pl.trainer.gpus=[1] +pl.trainer.fast_dev_run=True'
+      }
+    }
 
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {

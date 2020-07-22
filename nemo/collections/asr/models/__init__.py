@@ -14,3 +14,4 @@
 
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
