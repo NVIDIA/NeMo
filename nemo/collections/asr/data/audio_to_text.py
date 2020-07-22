@@ -15,7 +15,7 @@ from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.parts import collections, features, parsers
+from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
