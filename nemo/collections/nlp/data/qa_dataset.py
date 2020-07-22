@@ -108,6 +108,7 @@ class SquadDataset(Dataset):
             with open(cached_features_file, "rb") as reader:
                 self.features = pickle.load(reader)
         else:
+            logging.info(f"Preprocessing data.")
             self.features = convert_examples_to_features(
                 examples=self.examples,
                 tokenizer=tokenizer,
@@ -436,7 +437,7 @@ class SquadProcessor(DataProcessor):
 
     def get_examples(self):
         if self.data_file is None:
-            raise ValueError("SquadProcessor should be instantiated")
+            raise ValueError(f"{self.mode} data file is None.")
 
         with open(self.data_file, "r", encoding="utf-8") as reader:
             input_data = json.load(reader)["data"]
@@ -701,7 +702,8 @@ def convert_examples_to_features(
                     logging.info("start_position: %d" % (start_position))
                     logging.info("end_position: %d" % (end_position))
                     logging.info("answer: %s" % (answer_text))
-
+            if example_index % 100 == 0:
+                logging.info(f"Finished processing: {example_index}")
             features.append(
                 InputFeatures(
                     unique_id=unique_id,
