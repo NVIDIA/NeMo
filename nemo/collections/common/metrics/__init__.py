@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.models.classification_models import EncDecClassificationModel
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
+from nemo.collections.common.metrics.classification_accuracy import TopKClassificationAccuracy, compute_topk_accuracy

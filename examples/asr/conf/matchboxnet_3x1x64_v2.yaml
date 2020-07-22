@@ -1,4 +1,4 @@
-name: &name "MatchboxNet-3x1x64-v1"
+name: &name "MatchboxNet-3x1x64-v2"
 sample_rate: &sample_rate 16000
 
 timesteps: &timesteps 128
@@ -6,9 +6,9 @@ repeat: &repeat 1
 dropout: &dropout 0.0
 kernel_size_factor: &kfactor 1.0
 
-labels: &labels ['bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'four', 'go', 'happy', 'house', 'left', 'marvin',
-                 'nine', 'no', 'off', 'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up',
-                 'wow', 'yes', 'zero']
+labels: &labels ['visual', 'wow', 'learn', 'backward', 'dog', 'two', 'left', 'happy', 'nine', 'go', 'up', 'bed', 'stop',
+                 'one', 'zero', 'tree', 'seven', 'on', 'four', 'bird', 'right', 'eight', 'no', 'six', 'forward', 'house',
+                 'marvin', 'sheila', 'five', 'off', 'three', 'down', 'cat', 'follow', 'yes']
 
 model:
   train_ds:
@@ -137,7 +137,7 @@ model:
     cls: nemo.collections.asr.modules.ConvASRDecoderClassification
     params:
       feat_in: *enc_final_filters
-      num_classes: 30
+      num_classes: 35
       return_logits: true
       pooling_type: 'avg'
 
