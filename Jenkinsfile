@@ -90,6 +90,12 @@ pipeline {
     // }
 
     stage('L2: Speech 2 Text dev run') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
       steps {
         sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
       }
@@ -190,6 +196,12 @@ pipeline {
     }
 
     stage('L2: Parallel NLP Examples 1') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
       failFast true
       parallel {
         stage ('Text Classification with BERT Test') {
@@ -227,7 +239,7 @@ pipeline {
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }
-    stage('L3: NER') {
+    stage('L2: NER') {
       when {
         anyOf{
           branch 'candidate'
@@ -241,7 +253,7 @@ pipeline {
           model.use_cache=false'
         }
     }
-    stage('L4: Punctuation and capitalization: DistilBert + MultiGPU') {
+    stage('L2: Punctuation and capitalization: DistilBert + MultiGPU') {
       when {
         anyOf{
           branch 'candidate'
