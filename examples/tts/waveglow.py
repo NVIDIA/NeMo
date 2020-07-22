@@ -14,9 +14,9 @@
 
 import pytorch_lightning as pl
 
-from nemo.core.config import hydra_runner
 from nemo.collections.tts.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import Waveglow
+from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 
 
