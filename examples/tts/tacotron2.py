@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import hydra
 import pytorch_lightning as pl
 
+from nemo.core.config import hydra_runner
 from nemo.collections.tts.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import Tacotron2
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra.main(config_path="conf", config_name="tacotron2")
+@hydra_runner(config_path="conf", config_name="tacotron2")
 def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

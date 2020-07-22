@@ -98,10 +98,3 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null

@@ -12,21 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import hydra
 import pytorch_lightning as pl
 
+from nemo.core.config import hydra_runner
 from nemo.collections.tts.callbacks import LogEpochTimeCallback
 from nemo.collections.tts.models import Waveglow
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra.main(config_path="conf", config_name="waveglow")
+@hydra_runner(config_path="conf", config_name="waveglow")
 def main(cfg):
     trainer = pl.Trainer(**cfg.pl.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = Waveglow(cfg=cfg.model, trainer=trainer)
     epoch_time_logger = LogEpochTimeCallback()
-    trainer.callbacks.extend([lr_logger, epoch_time_logger])
+    trainer.callbacks.extend([epoch_time_logger])
     trainer.fit(model)
 
 
