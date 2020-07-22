@@ -14,9 +14,8 @@
 
 from typing import Tuple
 
-from torch.autograd import Variable
-
 import torch
+from torch.autograd import Variable
 from torch.nn import functional as F
 
 

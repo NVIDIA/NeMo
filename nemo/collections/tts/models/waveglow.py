@@ -16,12 +16,12 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig, open_dict, MISSING, OmegaConf
+from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.core.classes import ModelPT
-from nemo.utils.decorators import experimental
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 
 @dataclass
@@ -116,25 +116,25 @@ class Waveglow(ModelPT):
         return {}
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
-        if "dataset" not in cfg or not isinstance(cfg["dataset"], DictConfig):
+        if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")  # TODO
-        if "dataloader_params" not in cfg or not isinstance(cfg["dataloader_params"], (dict, DictConfig)):
+        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
             raise ValueError(f"No dataloder_params for {name}")  # TODO
         if shuffle_should_be:
-            if 'shuffle' not in cfg["dataloader_params"]:
+            if 'shuffle' not in cfg.dataloader_params:
                 logging.warning(
                     f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
                     "config. Manually setting to True"
                 )
                 with open_dict(cfg["dataloader_params"]):
-                    cfg["dataloader_params"]["shuffle"] = True
-            elif not cfg["dataloader_params"]["shuffle"]:
+                    cfg.dataloader_params.shuffle = True
+            elif not cfg.dataloader_params.shuffle:
                 logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
-        elif not shuffle_should_be and cfg["dataloader_params"]["shuffle"]:
+        elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        dataset = Waveglow.from_config_dict(cfg["dataset"])
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg["dataloader_params"])
+        dataset = Waveglow.from_config_dict(cfg.dataset)
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)

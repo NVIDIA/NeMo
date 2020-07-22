@@ -15,7 +15,7 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 import hydra
 import wrapt

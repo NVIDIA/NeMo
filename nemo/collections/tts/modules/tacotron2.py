@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from torch.nn import functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
-from nemo.collections.tts.modules.submodules import ConvNorm, Prenet, Attention, LinearNorm
+from nemo.collections.tts.modules.submodules import Attention, ConvNorm, LinearNorm, Prenet
 from nemo.utils import logging
 
 
