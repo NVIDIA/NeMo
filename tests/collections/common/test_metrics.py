@@ -19,11 +19,7 @@ from nemo.collections.common.metrics.classification_accuracy import TopKClassifi
 
 
 class TestCommonMetrics:
-    top_k_logits = torch.tensor(
-        [[0.1, 0.3, 0.2, 0.0],  # 1
-         [0.9, 0.6, 0.2, 0.3],  # 0
-         [0.2, 0.1, 0.4, 0.3]],  # 2
-    )
+    top_k_logits = torch.tensor([[0.1, 0.3, 0.2, 0.0], [0.9, 0.6, 0.2, 0.3], [0.2, 0.1, 0.4, 0.3]],)  # 1  # 0  # 2
 
     @pytest.mark.unit
     def test_top_1_accuracy(self):
@@ -83,8 +79,10 @@ class TestCommonMetrics:
         # Simulate test on 2 process DDP execution
         accuracy = TopKClassificationAccuracy(top_k=None)
         correct1, total1 = accuracy(logits=self.top_k_logits, labels=torch.tensor([0, 0, 2]))
-        correct2, total2 = accuracy(logits=torch.flip(self.top_k_logits, dims=[1])[:2, :],  # reverse logits, select first 2 samples
-                                    labels=torch.tensor([2, 0]))  # reduce number of labels
+        correct2, total2 = accuracy(
+            logits=torch.flip(self.top_k_logits, dims=[1])[:2, :],  # reverse logits, select first 2 samples
+            labels=torch.tensor([2, 0]),
+        )  # reduce number of labels
 
         correct = torch.stack([correct1, correct2])
         total = torch.stack([total1, total2])
