@@ -89,23 +89,58 @@ pipeline {
     //   }
     // }
 
-    stage('L2: Speech 2 Text dev run') {
+    stage('L2: ASR dev run') {
       when {
         anyOf{
           branch 'candidate'
           changeRequest target: 'candidate'
         }
       }
-      steps {
-        sh 'python examples/asr/speech_to_text.py model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json pl.trainer.gpus=1 +pl.trainer.fast_dev_run=True'
+      failFast true
+      parallel {
+        stage('Speech to Text') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            pl.trainer.gpus=[0] \
+            +pl.trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+
+        stage('Speech to Label') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            pl.trainer.gpus=[1] \
+            +pl.trainer.fast_dev_run=True \
+            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            model.preprocessor.params=null \
+            exp_manager.root_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+
+        stage('Speaker Recognition') {
+          steps {
+            sh 'python examples/speaker_recognition/speaker_reco.py \
+            model.train_ds.batch_size=10 \
+            model.validation_ds.batch_size=2 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            pl.trainer.gpus=[1] \
+            +pl.trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/speaker_recognition/speaker_recognition_results'
+            sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
+          }
+        }
       }
     }
     
-    stage('L2: Speaker Recognition dev run') {
-      steps {
-        sh 'python examples/speaker_recognition/speaker_reco.py model.train_ds.batch_size=10 model.validation_ds.batch_size=2 model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json pl.trainer.gpus=[1] +pl.trainer.fast_dev_run=True'
-      }
-    }
+
 
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {

@@ -29,7 +29,7 @@ from nemo.core.neural_types import (
 )
 from nemo.utils.decorators import experimental
 
-__all__ = ['ConvASRDecoder', 'ConvASREncoder', 'SpeakerDecoder']
+__all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
 @experimental
@@ -204,6 +204,63 @@ class ConvASRDecoder(NeuralModule):
 
     @property
     def num_classes_with_blank(self):
+        return self._num_classes
+
+
+@experimental
+class ConvASRDecoderClassification(NeuralModule):
+    """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
+
+     Based on these papers:
+        https://arxiv.org/pdf/2005.04290.pdf
+    """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"logits": NeuralType(('B', 'D'), LogitsType())})
+
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", return_logits=True, pooling_type='avg'):
+        super().__init__()
+
+        self._feat_in = feat_in
+        self._return_logits = return_logits
+        self._num_classes = num_classes
+
+        if pooling_type == 'avg':
+            self.pooling = torch.nn.AdaptiveAvgPool1d(1)
+        elif pooling_type == 'max':
+            self.pooling = torch.nn.AdaptiveMaxPool1d(1)
+        else:
+            raise ValueError('Pooling type chosen is not valid. Must be either `avg` or `max`')
+
+        self.decoder_layers = torch.nn.Sequential(torch.nn.Linear(self._feat_in, self._num_classes, bias=True))
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+    @typecheck()
+    def forward(self, encoder_output):
+        batch, in_channels, timesteps = encoder_output.size()
+
+        encoder_output = self.pooling(encoder_output).view(batch, in_channels)  # [B, C]
+        logits = self.decoder_layers(encoder_output)  # [B, num_classes]
+
+        if self._return_logits:
+            return logits
+
+        return torch.nn.functional.softmax(logits, dim=-1)
+
+    @property
+    def num_classes(self):
         return self._num_classes
 
 
