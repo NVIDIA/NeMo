@@ -15,6 +15,7 @@
 import hydra
 import pytorch_lightning as pl
 from omegaconf import DictConfig
+from nemo.utils.exp_manager import exp_manager
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.utils import logging
@@ -24,6 +25,7 @@ from nemo.utils import logging
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.pl.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
     model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     trainer.fit(model)
 
