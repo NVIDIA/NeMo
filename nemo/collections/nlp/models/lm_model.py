@@ -17,6 +17,7 @@ from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig
+from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo import logging
@@ -37,7 +38,7 @@ __all__ = ['BERTLMModel']
 @experimental
 class BERTLMModel(ModelPT):
     """
-    BERT LM model pretraining.
+    BERT language model pretraining.
     """
 
     @property
@@ -51,32 +52,24 @@ class BERTLMModel(ModelPT):
             'nsp_logits': self.nsp_classifier.output_types['logits'],
         }
 
-    def __init__(
-        self,
-        config_file: Optional[str] = None,
-        pretrained_model_name: Optional[str] = 'bert-base-uncased',
-        preprocessing_args: Optional[Dict[str, str]] = None,
-    ):
-        """
-        Args:
-            config_file: model config file
-            pretrained_model_name: BERT model name 
-            preprocessing_args: preprocessing parameters for on the fly data preprocessing
-        """
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # TODO: This is a workaround - please fix - see text_classification_model or asr for example
-        cfg = DictConfig(
-            {
-                'config_file': config_file,
-                'pretrained_model_name': pretrained_model_name,
-                'preprocessing_args': preprocessing_args,
-            }
-        )
-        super().__init__(cfg=cfg)
+        # cfg = DictConfig(
+        #     {
+        #         'config_file': config_file,
+        #         'pretrained_model_name': pretrained_model_name,
+        #         'preprocessing_args': preprocessing_args,
+        #     }
+        # )
         self.pretrained_model_name = pretrained_model_name
         self.tokenizer = None
         if preprocessing_args:
             self.__setup_tokenizer(preprocessing_args)
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
+        super().__init__(cfg=cfg)
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=pretrained_model_name,
+            config_file=config_file
+        )
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
         self.mlm_classifier = BertPretrainingTokenClassifier(
