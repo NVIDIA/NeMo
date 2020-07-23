@@ -85,9 +85,9 @@ class NERModel(ModelPT):
 
         if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
+            self.loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
         else:
-            self.loss = CrossEntropyLoss()
+            self.loss = CrossEntropyLoss(logits_ndim=3)
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
