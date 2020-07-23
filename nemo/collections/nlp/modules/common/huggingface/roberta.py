@@ -31,13 +31,6 @@ class RobertaEncoder(RobertaModel, BertModule):
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         res = super().forward(input_ids=input_ids, attention_mask=attention_mask)[0]
