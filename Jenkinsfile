@@ -323,7 +323,7 @@ pipeline {
         stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
           steps {
             sh 'cd examples/cv && python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
-            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData
+            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
             exp_manager.root_dir=examples/asr/results'
             sh 'rm -rf examples/cv/results'
           }
