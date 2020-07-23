@@ -21,11 +21,11 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import torch
-from nemo.core.classes import Dataset
 
 from nemo import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_stats, get_stats
+from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 
 

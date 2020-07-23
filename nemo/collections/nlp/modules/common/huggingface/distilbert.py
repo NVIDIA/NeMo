@@ -32,13 +32,6 @@ class DistilBertEncoder(DistilBertModel, BertModule):
 
     logging.info("DistilBert doesn’t use token_type_ids, and it will be ignored.")
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @typecheck()
     def forward(self, **kwargs):
         # distilBert does not use token_type_ids as the most of the other Bert models
