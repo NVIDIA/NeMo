@@ -156,16 +156,18 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.validation_ds.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=false \
             pl.trainer.precision=16 \
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[0] \
             +pl.trainer.fast_dev_run=true \
+            exp_manager.root_dir=exp_bert_squad_1.1 \
             '
-            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
-            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
           }
         }
         stage('BERT SQUAD 2.0') {
@@ -173,6 +175,7 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=true \
@@ -180,9 +183,9 @@ pipeline {
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[1] \
             +pl.trainer.fast_dev_run=true \
+            exp_manager.root_dir=exp_bert_squad_2.0 \
             '
-            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
-            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
           }
         }
       }
@@ -202,6 +205,7 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.language_model.do_lower_case=true \
             model.language_model.pretrained_model_name=roberta-base \
@@ -210,9 +214,9 @@ pipeline {
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[0] \
             +pl.trainer.fast_dev_run=true \
+            exp_manager.root_dir=exp_roberta_squad_1.1 \
             '
-            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
-            rm -rf /home/TestData/nlp/squad_mini/v1.1/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
           }
         }
         stage('RoBERTa SQUAD 2.0') {
@@ -220,6 +224,7 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.do_lower_case=true \
             model.language_model.pretrained_model_name=roberta-base \
@@ -228,9 +233,9 @@ pipeline {
             pl.trainer.amp_level=O1 \
             pl.trainer.gpus=[1] \
             +pl.trainer.fast_dev_run=true \
+            exp_manager.root_dir=exp_roberta_squad_2.0 \
             '
-            sh 'rm -rf examples/nlp/question_answering/NeMo_experiments && \
-            rm -rf /home/TestData/nlp/squad_mini/v2.0/*cache*'
+            sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
           }
         }
       }
@@ -247,8 +252,20 @@ pipeline {
       parallel {
         stage ('Text Classification with BERT Test') {
           steps {
-            sh 'cd examples/nlp/text_classification && python text_classification_with_bert.py pl.trainer.gpus=1 model.language_model.pretrained_model_name=bert-base-uncased pl.trainer.max_epochs=1 model.language_model.max_seq_length=50 model.data_dir=/home/TestData/nlp/retail/ model.validation_ds.prefix=dev model.train_ds.batch_size=10 model.train_ds.num_samples=-1 model.language_model.do_lower_case=true'
-            sh 'rm -rf examples/nlp/text_classification/outputs'
+            sh 'cd examples/nlp/text_classification && \
+            python text_classification_with_bert.py \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.language_model.max_seq_length=50 \
+            model.data_dir=/home/TestData/nlp/retail/ \
+            model.validation_ds.prefix=dev \
+            model.train_ds.batch_size=10 \
+            model.train_ds.use_cache=false \
+            model.language_model.do_lower_case=true \
+            pl.trainer.gpus=[0] \
+            +pl.trainer.fast_dev_run=true \
+            exp_manager.root_dir=exp_bert_base_uncased \
+            '
+            sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
         }
       }
@@ -289,9 +306,13 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/token_classification && python ner.py \
-          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true \
-          model.use_cache=false'
+          sh 'cd examples/nlp/token_classification && \
+          python ner.py \
+          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+          pl.trainer.gpus=[0] \
+          +pl.trainer.fast_dev_run=true \
+          model.use_cache=false \
+          '
         }
     }
     stage('L2: Punctuation and capitalization: DistilBert + MultiGPU') {
@@ -303,11 +324,15 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp/token_classification && python punctuation_capitalization.py \
-          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ +pl.trainer.fast_dev_run=true \
-          pl.trainer.gpus=2 pl.trainer.distributed_backend=ddp \
+          sh 'cd examples/nlp/token_classification && \
+          python punctuation_capitalization.py \
+          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
           model.language_model.pretrained_model_name=distilbert-base-uncased \
-          model.use_cache=false'
+          model.use_cache=false \
+          pl.trainer.gpus=[0,1] \
+          pl.trainer.distributed_backend=ddp \
+          +pl.trainer.fast_dev_run=true \
+          '
         }
     }
 
