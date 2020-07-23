@@ -18,7 +18,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
 import hydra
-import torch
 import wrapt
 from omegaconf import DictConfig, OmegaConf
 
