@@ -14,20 +14,22 @@
 from collections import OrderedDict
 
 import torch
+import torch.nn as nn
 from omegaconf import ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.jasper import JasperBlock, init_weights, jasper_activations
+from nemo.collections.asr.parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,
+    LogitsType,
     LogprobsType,
     NeuralType,
     SpectrogramType,
 )
 from nemo.utils.decorators import experimental
 
-__all__ = ['ConvASRDecoder', 'ConvASREncoder']
+__all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
 @experimental
@@ -203,3 +205,149 @@ class ConvASRDecoder(NeuralModule):
     @property
     def num_classes_with_blank(self):
         return self._num_classes
+
+
+@experimental
+class ConvASRDecoderClassification(NeuralModule):
+    """Simple ASR Decoder for use with classification models such as JasperNet and QuartzNet
+
+     Based on these papers:
+        https://arxiv.org/pdf/2005.04290.pdf
+    """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict({"logits": NeuralType(('B', 'D'), LogitsType())})
+
+    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", return_logits=True, pooling_type='avg'):
+        super().__init__()
+
+        self._feat_in = feat_in
+        self._return_logits = return_logits
+        self._num_classes = num_classes
+
+        if pooling_type == 'avg':
+            self.pooling = torch.nn.AdaptiveAvgPool1d(1)
+        elif pooling_type == 'max':
+            self.pooling = torch.nn.AdaptiveMaxPool1d(1)
+        else:
+            raise ValueError('Pooling type chosen is not valid. Must be either `avg` or `max`')
+
+        self.decoder_layers = torch.nn.Sequential(torch.nn.Linear(self._feat_in, self._num_classes, bias=True))
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+    @typecheck()
+    def forward(self, encoder_output):
+        batch, in_channels, timesteps = encoder_output.size()
+
+        encoder_output = self.pooling(encoder_output).view(batch, in_channels)  # [B, C]
+        logits = self.decoder_layers(encoder_output)  # [B, num_classes]
+
+        if self._return_logits:
+            return logits
+
+        return torch.nn.functional.softmax(logits, dim=-1)
+
+    @property
+    def num_classes(self):
+        return self._num_classes
+
+
+class SpeakerDecoder(NeuralModule):
+    """
+    Speaker Decoder creates the final neural layers that maps from the outputs
+    of Jasper Encoder to the embedding layer followed by speaker based softmax loss.
+    Args:
+        feat_in (int): Number of channels being input to this module
+        num_classes (int): Number of unique speakers in dataset
+        emb_sizes (list) : shapes of intermediate embedding layers (we consider speaker embbeddings from 1st of this layers)
+                Defaults to [1024,1024]
+        pool_mode (str) : Pooling stratergy type. options are 'gram','xvector','superVector'.
+                Defaults to 'xvector'
+        init_mode (str): Describes how neural network parameters are
+            initialized. Options are ['xavier_uniform', 'xavier_normal',
+            'kaiming_uniform','kaiming_normal'].
+            Defaults to "xavier_uniform".
+    """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_types(self):
+        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+
+    @property
+    def output_types(self):
+        return OrderedDict(
+            {
+                "logits": NeuralType(('B', 'D'), LogitsType()),
+                "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+            }
+        )
+
+    def __init__(
+        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
+    ):
+        super().__init__()
+
+        if type(emb_sizes) is str:
+            emb_sizes = emb_sizes.split(',')
+        else:
+            emb_sizes = list(emb_sizes)
+
+        self._num_classes = num_classes
+        self._pooling = StatsPoolLayer(feat_in=feat_in, pool_mode=pool_mode)
+        self._feat_in = self._pooling.feat_in
+
+        shapes = [self._feat_in]
+        for size in emb_sizes:
+            shapes.append(int(size))
+
+        emb_layers = []
+        for shape_in, shape_out in zip(shapes[:-1], shapes[1:]):
+            layer = self.affineLayer(shape_in, shape_out, learn_mean=False)
+            emb_layers.append(layer)
+
+        self.emb_layers = nn.ModuleList(emb_layers)
+
+        self.final = nn.Linear(shapes[-1], self._num_classes)
+
+        self.apply(lambda x: init_weights(x, mode=init_mode))
+
+    def affineLayer(self, inp_shape, out_shape, learn_mean=True):
+        layer = nn.Sequential(
+            nn.Linear(inp_shape, out_shape),
+            nn.BatchNorm1d(out_shape, affine=learn_mean, track_running_stats=True),
+            nn.ReLU(),
+        )
+
+        return layer
+
+    @typecheck()
+    def forward(self, encoder_output):
+        pool = self._pooling(encoder_output)
+        embs = []
+
+        for layer in self.emb_layers:
+            pool, emb = layer(pool), layer[:2](pool)
+            embs.append(emb)
+
+        out = self.final(pool)
+
+        return out, embs[-1]

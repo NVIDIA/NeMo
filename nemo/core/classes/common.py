@@ -60,9 +60,9 @@ class Typing(ABC):
                     )
 
                 # Perform neural type check
-                if (
-                    hasattr(value, 'neural_type')
-                    and self.input_types[key].compare(value.neural_type) != NeuralTypeComparisonResult.SAME
+                if hasattr(value, 'neural_type') and not self.input_types[key].compare(value.neural_type) in (
+                    NeuralTypeComparisonResult.SAME,
+                    NeuralTypeComparisonResult.GREATER,
                 ):
                     raise TypeError(
                         f"{self.input_types[key].compare(value.neural_type)} : \n"

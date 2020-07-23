@@ -1,0 +1,186 @@
+name: &name "MatchboxNet-3x1x64-v1"
+sample_rate: &sample_rate 16000
+
+timesteps: &timesteps 128
+repeat: &repeat 1
+dropout: &dropout 0.0
+kernel_size_factor: &kfactor 1.0
+
+labels: &labels ['bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'four', 'go', 'happy', 'house', 'left', 'marvin',
+                 'nine', 'no', 'off', 'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up',
+                 'wow', 'yes', 'zero']
+
+model:
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: *sample_rate
+    labels: *labels
+    batch_size: 128
+    shuffle: True
+    augmentor:
+      shift:
+        prob: 1.0
+        min_shift_ms: -5.0
+        max_shift_ms: 5.0
+      white_noise:
+        prob: 1.0
+        min_level: -90
+        max_level: -46
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: *sample_rate
+    labels: *labels
+    batch_size: 128
+    shuffle: False
+
+#  test_ds:
+#    manifest_filepath: ???
+#    sample_rate: *sample_rate
+#    labels: *labels
+#    batch_size: 128
+#    shuffle: False
+
+  preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMFCCPreprocessor
+    params:
+      window_size: 0.025
+      window_stride: 0.01
+      window: "hann"
+      n_mels: &n_mels 64
+      n_mfcc: *n_mels
+      n_fft: 512
+
+  spec_augment:
+    cls: nemo.collections.asr.modules.SpectrogramAugmentation
+    params:
+      freq_masks: 2
+      time_masks: 2
+      freq_width: 15
+      time_width: 25
+      rect_masks: 5
+      rect_time: 25
+      rect_freq: 15
+
+  crop_or_pad_augment:
+    cls: nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation
+    params:
+      audio_length: *timesteps
+
+  encoder:
+    cls: nemo.collections.asr.modules.ConvASREncoder
+    params:
+      feat_in: *n_mels
+      activation: relu
+      conv_mask: true
+
+      jasper:
+        - filters: 128
+          repeat: 1
+          kernel: [11]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: false
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 64
+          repeat: *repeat
+          kernel: [13]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 64
+          repeat: *repeat
+          kernel: [15]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 64
+          repeat: *repeat
+          kernel: [17]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: true
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: 128
+          repeat: 1
+          kernel: [29]
+          stride: [1]
+          dilation: [2]
+          dropout: *dropout
+          residual: false
+          separable: true
+          kernel_size_factor: *kfactor
+
+        - filters: &enc_final_filters 128
+          repeat: 1
+          kernel: [1]
+          stride: [1]
+          dilation: [1]
+          dropout: *dropout
+          residual: false
+
+  decoder:
+    cls: nemo.collections.asr.modules.ConvASRDecoderClassification
+    params:
+      feat_in: *enc_final_filters
+      num_classes: 30
+      return_logits: true
+      pooling_type: 'avg'
+
+  optim:
+    name: novograd
+    # cls: nemo.core.optim.optimizers.Novograd
+    lr: 0.05
+    # optimizer arguments
+    betas: [0.95, 0.5]
+    weight_decay: 0.001
+
+    # scheduler setup
+    sched:
+      name: PolynomialHoldDecayAnnealing
+
+      # Scheduler params
+      power: 2.0
+      warmup_ratio: 0.05
+      hold_ratio: 0.45
+      min_lr: 0.001
+      last_epoch: -1
+
+trainer:
+  gpus: 0 # number of gpus
+  max_epochs: 200
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+
+exp_manager:
+  root_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  wandb_exp: null
+  wandb_project: null
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
