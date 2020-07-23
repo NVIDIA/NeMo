@@ -77,7 +77,6 @@ model:
         params:
           warmup_steps: null
           warmup_ratio: 0.1
-<<<<<<< HEAD
           last_epoch: -1
 
 exp_manager:
@@ -92,6 +91,3 @@ hydra:
   job_logging:
     root:
       handlers: null
-=======
-          last_epoch: -1
->>>>>>> flattened pl.trainer to trainer
