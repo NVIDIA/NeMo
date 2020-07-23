@@ -103,8 +103,8 @@ pipeline {
             sh 'python examples/asr/speech_to_text.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
-            pl.trainer.gpus=[0] \
-            +pl.trainer.fast_dev_run=True \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
             exp_manager.root_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
@@ -115,8 +115,8 @@ pipeline {
             sh 'python examples/asr/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
             model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
-            pl.trainer.gpus=[1] \
-            +pl.trainer.fast_dev_run=True \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
             model.preprocessor.params=null \
             exp_manager.root_dir=examples/asr/speech_to_label_results'
@@ -131,8 +131,8 @@ pipeline {
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
-            pl.trainer.gpus=[1] \
-            +pl.trainer.fast_dev_run=True \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
             exp_manager.root_dir=examples/speaker_recognition/speaker_recognition_results'
             sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
           }
@@ -161,10 +161,10 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=false \
-            pl.trainer.precision=16 \
-            pl.trainer.amp_level=O1 \
-            pl.trainer.gpus=[0] \
-            +pl.trainer.fast_dev_run=true \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
@@ -179,10 +179,10 @@ pipeline {
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=true \
-            pl.trainer.precision=16 \
-            pl.trainer.amp_level=O1 \
-            pl.trainer.gpus=[1] \
-            +pl.trainer.fast_dev_run=true \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
@@ -210,10 +210,10 @@ pipeline {
             model.language_model.do_lower_case=true \
             model.language_model.pretrained_model_name=roberta-base \
             model.version_2_with_negative=false \
-            pl.trainer.precision=16 \
-            pl.trainer.amp_level=O1 \
-            pl.trainer.gpus=[0] \
-            +pl.trainer.fast_dev_run=true \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_roberta_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
@@ -229,10 +229,10 @@ pipeline {
             model.language_model.do_lower_case=true \
             model.language_model.pretrained_model_name=roberta-base \
             model.version_2_with_negative=true \
-            pl.trainer.precision=16 \
-            pl.trainer.amp_level=O1 \
-            pl.trainer.gpus=[1] \
-            +pl.trainer.fast_dev_run=true \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_roberta_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
@@ -261,8 +261,8 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.train_ds.use_cache=false \
             model.language_model.do_lower_case=true \
-            pl.trainer.gpus=[0] \
-            +pl.trainer.fast_dev_run=true \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_base_uncased \
             '
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
@@ -309,8 +309,8 @@ pipeline {
           sh 'cd examples/nlp/token_classification && \
           python ner.py \
           model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-          pl.trainer.gpus=[0] \
-          +pl.trainer.fast_dev_run=true \
+          trainer.gpus=[0] \
+          +trainer.fast_dev_run=true \
           model.use_cache=false \
           '
         }
@@ -329,9 +329,9 @@ pipeline {
           model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
           model.language_model.pretrained_model_name=distilbert-base-uncased \
           model.use_cache=false \
-          pl.trainer.gpus=[0,1] \
-          pl.trainer.distributed_backend=ddp \
-          +pl.trainer.fast_dev_run=true \
+          trainer.gpus=[0,1] \
+          trainer.distributed_backend=ddp \
+          +trainer.fast_dev_run=true \
           exp_manager.root_dir=exp_distilbert_base_uncased \
           '
           sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
