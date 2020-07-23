@@ -13,22 +13,32 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
-from omegaconf import DictConfig
 
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.core.config import hydra_runner
-from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="punctuation_capitalization_config")
-def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
+"""
+Basic run (on 1 GPU + AMP O1 for 200 epochs):
+    python examples/asr/speech_to_label.py \
+        model.train_ds.manifest_filepath="<path to train manifest>" \
+        model.validation_ds.manifest_filepath="<path to test manifest>" \
+        pl.trainer.gpus=1 \
+        pl.trainer.max_epochs=200 \
+        +pl.trainer.precision=16 \
+        +pl.trainer.amp_level=O1
+"""
+
+
+@hydra_runner(config_path="conf", config_name="matchboxnet_3x1x64_v1.yaml")
+def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
-    trainer.fit(model)
+    asr_model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
+
+    trainer.fit(asr_model)
 
 
 if __name__ == '__main__':
-    main()
+    main()  # noqa pylint: disable=no-value-for-parameter
