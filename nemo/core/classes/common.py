@@ -45,12 +45,18 @@ class Typing(ABC):
     def _validate_input_types(self, **kwargs):
         # TODO: Properly implement this
         if self.input_types is not None:
-            if len(kwargs) != len(self.input_types):
-                raise TypeError(
-                    "Number of input arguments provided ({}) is not as expected ({})".format(
-                        len(kwargs), len(self.input_types)
+            total_input_types = len(self.input_types)
+            mandatory_input_types = len(
+                [type_val for type_key, type_val in self.input_types.items() if not type_val.optional]
+            )
+
+            if len(kwargs) != total_input_types:
+                if len(kwargs) != mandatory_input_types:
+                    raise TypeError(
+                        "Number of input arguments provided ({}) is not as expected ({})".format(
+                            len(kwargs), len(self.input_types)
+                        )
                     )
-                )
 
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
@@ -72,6 +78,20 @@ class Typing(ABC):
                     )
 
     def _attach_and_validate_output_types(self, out_objects):
+        """
+        This function does a few things.
+        1) It ensures that len(out_object) == len(self.output_types).
+        2) If the output is a tensor (or list/tuple of list/tuple ... of tensors), it
+            attaches a neural_type to it. For objects without the neural_type attribute,
+            such as python objects (dictionaries and lists, primitive data types, structs),
+            no neural_type is attached.
+
+            Note: tensor.neural_type is only checked during _validate_input_types which is
+            called prior to forward().
+
+        Args:
+            out_objects: The outputs of the wrapped function.
+        """
         # TODO: Properly implement this
         if self.output_types is not None:
             out_types_list = list(self.output_types.items())
