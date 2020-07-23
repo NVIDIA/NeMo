@@ -20,7 +20,47 @@ from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
-__all__ = ['AudioToCharDataset', 'AudioToBPEDataset']
+__all__ = ['AudioToCharDataset', 'AudioToBPEDataset', 'AudioLabelDataset']
+
+
+def _speech_collate_fn(batch, pad_id):
+    """collate batch of audio sig, audio len, tokens, tokens len
+    Args:
+        batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+               LongTensor):  A tuple of tuples of signal, signal lengths,
+               encoded tokens, and encoded tokens length.  This collate func
+               assumes the signals are 1d torch tensors (i.e. mono audio).
+    """
+    _, audio_lengths, _, tokens_lengths = zip(*batch)
+    max_audio_len = 0
+    has_audio = audio_lengths[0] is not None
+    if has_audio:
+        max_audio_len = max(audio_lengths).item()
+    max_tokens_len = max(tokens_lengths).item()
+
+    audio_signal, tokens = [], []
+    for sig, sig_len, tokens_i, tokens_i_len in batch:
+        if has_audio:
+            sig_len = sig_len.item()
+            if sig_len < max_audio_len:
+                pad = (0, max_audio_len - sig_len)
+                sig = torch.nn.functional.pad(sig, pad)
+            audio_signal.append(sig)
+        tokens_i_len = tokens_i_len.item()
+        if tokens_i_len < max_tokens_len:
+            pad = (0, max_tokens_len - tokens_i_len)
+            tokens_i = torch.nn.functional.pad(tokens_i, pad, value=pad_id)
+        tokens.append(tokens_i)
+
+    if has_audio:
+        audio_signal = torch.stack(audio_signal)
+        audio_lengths = torch.stack(audio_lengths)
+    else:
+        audio_signal, audio_lengths = None, None
+    tokens = torch.stack(tokens)
+    tokens_lengths = torch.stack(tokens_lengths)
+
+    return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
 class _AudioDataset(Dataset):
@@ -130,36 +170,7 @@ class _AudioDataset(Dataset):
                    encoded tokens, and encoded tokens length.  This collate func
                    assumes the signals are 1d torch tensors (i.e. mono audio).
         """
-        _, audio_lengths, _, tokens_lengths = zip(*batch)
-        max_audio_len = 0
-        has_audio = audio_lengths[0] is not None
-        if has_audio:
-            max_audio_len = max(audio_lengths).item()
-        max_tokens_len = max(tokens_lengths).item()
-
-        audio_signal, tokens = [], []
-        for sig, sig_len, tokens_i, tokens_i_len in batch:
-            if has_audio:
-                sig_len = sig_len.item()
-                if sig_len < max_audio_len:
-                    pad = (0, max_audio_len - sig_len)
-                    sig = torch.nn.functional.pad(sig, pad)
-                audio_signal.append(sig)
-            tokens_i_len = tokens_i_len.item()
-            if tokens_i_len < max_tokens_len:
-                pad = (0, max_tokens_len - tokens_i_len)
-                tokens_i = torch.nn.functional.pad(tokens_i, pad, value=self.pad_id)
-            tokens.append(tokens_i)
-
-        if has_audio:
-            audio_signal = torch.stack(audio_signal)
-            audio_lengths = torch.stack(audio_lengths)
-        else:
-            audio_signal, audio_lengths = None, None
-        tokens = torch.stack(tokens)
-        tokens_lengths = torch.stack(tokens_lengths)
-
-        return audio_signal, audio_lengths, tokens, tokens_lengths
+        return _speech_collate_fn(batch, pad_id=self.pad_id)
 
 
 @experimental
@@ -317,3 +328,89 @@ class AudioToBPEDataset(_AudioDataset):
             load_audio=load_audio,
             add_misc=add_misc,
         )
+
+
+# Ported from https://github.com/NVIDIA/OpenSeq2Seq/blob/master/open_seq2seq/data/speech2text/speech_commands.py
+@experimental
+class AudioLabelDataset(Dataset):
+    """
+    Dataset that loads tensors via a json file containing paths to audio
+    files, command class, and durations (in seconds). Each new line is a
+    different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "label":
+    "label", "duration": 23.147}
+    ...
+    {"audio_filepath": "/path/to/audio.wav", "label": "label",
+    "offset": 301.75, "duration": 0.82}
+    Args:
+        manifest_filepath: Path to manifest json as described above. Can
+            be comma-separated paths.
+        labels (Optional[list]): String containing all the possible labels to map to
+            if None then automatically picks from ASRSpeechLabel collection.
+        featurizer: Initialized featurizer class that converts paths of
+            audio to feature tensors
+        max_duration: If audio exceeds this length, do not include in dataset
+        min_duration: If audio is less than this length, do not include
+            in dataset
+        trim: Boolean flag whether to trim the audio
+        load_audio: Boolean flag indicate whether do or not load audio
+    """
+
+    def __init__(
+        self,
+        manifest_filepath,
+        featurizer,
+        labels=None,
+        max_duration=None,
+        min_duration=None,
+        trim=False,
+        load_audio=True,
+    ):
+        self.collection = collections.ASRSpeechLabel(
+            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
+        )
+
+        self.featurizer = featurizer
+        self.trim = trim
+        self.load_audio = load_audio
+
+        self.labels = labels if labels else self.collection.uniq_labels
+        self.num_commands = len(self.labels)
+
+        self.label2id, self.id2label = {}, {}
+        for label_id, label in enumerate(self.labels):
+            self.label2id[label] = label_id
+            self.id2label[label_id] = label
+
+    def __getitem__(self, index):
+        sample = self.collection[index]
+        if self.load_audio:
+            offset = sample.offset
+
+            if offset is None:
+                offset = 0
+
+            features = self.featurizer.process(
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim
+            )
+            f, fl = features, torch.tensor(features.shape[0]).long()
+        else:
+            f, fl = None, None
+
+        t = self.label2id[sample.label]
+        tl = 1  # For compatibility with collate_fn used later
+
+        return f, fl, torch.tensor(t).long(), torch.tensor(tl).long()
+
+    def __len__(self):
+        return len(self.collection)
+
+    def _collate_fn(self, batch):
+        """collate batch of audio sig, audio len, tokens (single token), tokens len (1)
+        Args:
+            batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
+                   LongTensor):  A tuple of tuples of signal, signal lengths,
+                   encoded tokens, and encoded tokens length.  This collate func
+                   assumes the signals are 1d torch tensors (i.e. mono audio).
+        """
+        return _speech_collate_fn(batch, pad_id=0)

@@ -1,0 +1,154 @@
+name: &name "Voxnet"
+sample_rate: &sample_rate 16000
+repeat: &rep 1
+dropout: &drop 0.5
+separable: &separable False
+n_filters: &n_filters 512
+
+model:
+  train_ds:
+    manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
+    sample_rate: 16000
+    labels: null
+    batch_size: 64 
+    shuffle: True
+    time_length: 8
+
+  validation_ds:
+    manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
+    sample_rate: 16000
+    labels: None
+    batch_size: 128
+    shuffle: False
+    time_length: 8
+
+  preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    params:
+      normalize: "per_feature"
+      window_size: 0.02
+      sample_rate: *sample_rate
+      window_stride: 0.01
+      window: "hann"
+      features: &n_mels 64
+      n_fft: 512
+      frame_splicing: 1
+      dither: 0.00001
+      stft_conv: false
+
+  encoder:
+    cls: nemo.collections.asr.modules.ConvASREncoder
+    params:
+      feat_in: *n_mels
+      activation: relu
+      conv_mask: true
+
+      jasper:
+        -   filters: *n_filters
+            repeat: 1
+            kernel: [3]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [5]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [7]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [9]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: &enc_feat_out 1500
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: *separable
+
+  decoder:
+    cls: nemo.collections.asr.modules.SpeakerDecoder
+    params:
+      feat_in: *enc_feat_out
+      num_classes: 1211
+      pool_mode: 'xvector'
+      emb_sizes: 1024,1024
+
+  optim:
+    name: novograd
+    # cls: nemo.core.optim.optimizers.Novograd
+    lr: .008
+    # optimizer arguments
+    args:
+      name: auto
+      # cls: nemo.core.config.optimizers.NovogradParams
+      params:
+        betas: [0.95, 0.5]
+        weight_decay: 0.001
+
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+      iters_per_batch: 1 # computed at runtime
+      max_steps: null # computed at runtime or explicitly set here
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
+
+      # scheduler config override
+      args:
+        name: auto
+        # cls: nemo.core.config.schedulers.CosineAnnealingParams
+        params:
+          warmup_steps: null
+          warmup_ratio: 0.1
+          min_lr: 0.0
+          last_epoch: -1
+
+trainer:
+  gpus: 2 # number of gpus
+  max_epochs: 100
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  amp_level: O1
+  checkpoint_callback: False 
+  logger: False
+
+exp_manager:
+  root_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null

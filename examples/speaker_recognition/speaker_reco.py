@@ -12,39 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-python speech_to_text_bpe.py \
-    model.train_ds.manifest_filepath="./an4/train_manifest.json" \
-    model.validation_ds.manifest_filepath="./an4/test_manifest.json" \
-    model.tokenizer.path="./an4/tokenizer/LibriSpeechTokenizer/librispeech_tokenizer_bpe_v1024/" \
-    trainer.gpus=2 \
-    trainer.distributed_backend="ddp" \
-    trainer.max_epochs=100 \
-    model.optim.name="adamw" \
-    model.optim.lr=0.1 \
-    model.optim.args.params.betas=[0.9,0.999] \
-    model.optim.args.params.weight_decay=0.0001 \
-    model.optim.sched.args.params.warmup_ratio=0.05 \
-    model.logger.experiment_name="AN4-BPE-1024" \
-    model.logger.project_name="AN4_BPE_1024_candidate" \
-    hydra.run.dir=.
-"""
+import os
+
 import pytorch_lightning as pl
 
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-@hydra_runner(config_path="experimental/configs/", config_name="config_bpe")
+"""
+Basic run (on CPU for 50 epochs):
+    python examples/speaker_recognition/speaker_reco.py \
+        model.train_ds.manifest_filepath="<train_manifest_file>" \
+        model.validation_ds.manifest_filepath="<validation_manifest_file>" \
+        hydra.run.dir="." \
+        trainer.gpus=0 \
+        trainer.max_epochs=50
+
+
+Add PyTorch Lightning Trainer arguments from CLI:
+    python speaker_reco.py \
+        ... \
+        +trainer.fast_dev_run=true
+
+Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
+PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
+
+"""
+
+
+@hydra_runner(config_path="conf", config_name="config")
 def main(cfg):
+
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    asr_model = EncDecCTCModelBPE(cfg=cfg.model, trainer=trainer)
-
-    trainer.fit(asr_model)
+    speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
+    trainer.fit(speaker_model)
 
 
 if __name__ == '__main__':
