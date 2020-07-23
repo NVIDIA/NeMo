@@ -324,7 +324,6 @@ pipeline {
           steps {
             sh 'cd examples/cv && python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
             trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData'
-            sh 'rm -rf examples/cv/outputs'
           }
         }
       }

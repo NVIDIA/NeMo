@@ -89,13 +89,6 @@ class MNISTLeNet5(ModelPT):
         self.module = LeNet5Module(cfg.module)
         self.loss = NLLLoss()
 
-        # This will be set by setup_training_data
-        self._train_dl = None
-        # This will be set by setup_validation_data
-        self._val_dl = None
-        # This will be set by setup_test_data
-        self._test_dl = None
-
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.module.input_types
