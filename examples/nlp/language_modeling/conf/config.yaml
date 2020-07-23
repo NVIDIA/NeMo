@@ -1,41 +1,35 @@
 # BERT Pretraining
-name: &name QA
-
-pl:
-  trainer:
-    gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
-    num_nodes: 1
-    max_epochs: 2 # the number of training epochs
-    max_steps: null # precedence over max_epochs
-    accumulate_grad_batches: 1 # accumulates grads every k batches
-    precision: 16 # 16 to use AMP
-    amp_level: O1 # O1 or O2 if using AMP 
-    distributed_backend: ddp
-    gradient_clip_val: 0.0
-    val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
-    checkpoint_callback: false # provided by exp_manager
-    logger: false # provided by exp_manager
+trainer:
+  gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
+  num_nodes: 1
+  max_epochs: 2 # the number of training epochs
+  max_steps: null # precedence over max_epochs
+  accumulate_grad_batches: 1 # accumulates grads every k batches
+  precision: 16 # 16 to use AMP
+  amp_level: O1 # O1 or O2 if using AMP 
+  distributed_backend: ddp
+  gradient_clip_val: 0.0
+  val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
+  checkpoint_callback: false # provided by exp_manager
+  logger: false # provided by exp_manager
 
 model:
 
-  version_2_with_negative: false
-  # If true, the examples contain some that do not have an answer.
-
-  doc_stride: 128
-  # When splitting up a long document into chunks,
-  # how much stride to take between chunks.
-
-  max_query_length: 64
-  # The maximum number of tokens for the question.
-  # Questions longer than this will be truncated to
-  # this length.
-
-  max_seq_length: 384
+  max_seq_length: 128
   # The maximum total input sequence length after
   # WordPiece tokenization. Sequences longer than this
   # will be truncated, and sequences shorter than this
   # will be padded.
 
+  sample_size: 1e7
+  # Data sample size.
+
+  mask_probability: 0.15
+  # Probability of masking a token in the input text during data processing.
+
+  short_seq_prob: 0.1
+  # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
+   
   train_ds:
     mode: train
     file: null # .json file
@@ -131,7 +125,7 @@ model:
 
 exp_manager:
   root_dir: null # where to store logs and checkpoints
-  name: *name # name of experiment
+  name: PretrainingBERT # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
