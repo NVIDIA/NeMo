@@ -122,7 +122,7 @@ def create_all_dags(args, neural_factory):
 
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
-        num_classes=254,
+        num_classes=7205,
         emb_sizes=spkr_params['JasperDecoderForSpkrClass']['emb_sizes'].split(','),
         pool_mode=spkr_params["JasperDecoderForSpkrClass"]['pool_mode'],
     )
