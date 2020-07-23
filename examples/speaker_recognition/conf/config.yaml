@@ -6,7 +6,6 @@ separable: &separable False
 n_filters: &n_filters 512
 
 model:
-  pl: null
   train_ds:
     manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
     sample_rate: 16000
@@ -130,17 +129,16 @@ model:
           min_lr: 0.0
           last_epoch: -1
 
-pl:
-  trainer:
-    gpus: 2 # number of gpus
-    max_epochs: 100
-    max_steps: null # computed at runtime if not set
-    num_nodes: 1
-    distributed_backend: ddp
-    accumulate_grad_batches: 1
-    amp_level: O1
-    checkpoint_callback: False 
-    logger: False
+trainer:
+  gpus: 2 # number of gpus
+  max_epochs: 100
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  amp_level: O1
+  checkpoint_callback: False 
+  logger: False
 
 exp_manager:
   root_dir: null
