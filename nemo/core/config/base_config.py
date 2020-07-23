@@ -14,8 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
-from dataclasses import dataclass
 from typing import Optional
+
+from dataclasses import dataclass
 
 __all__ = ['Config']
 

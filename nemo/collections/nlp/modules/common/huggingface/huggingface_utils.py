@@ -44,6 +44,7 @@ def get_huggingface_lm_model(pretrained_model_name: str, config_file: Optional[s
     model_type = pretrained_model_name.split('-')[0]
     if model_type in MODELS:
         model_class = MODELS[model_type]['class']
+
         if config_file:
             config_class = MODELS[model_type]['config']
             return model_class(config_class.from_json_file(config_file))

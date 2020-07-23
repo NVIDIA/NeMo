@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import copy
-import dataclasses
 import math
 import warnings
 from functools import partial
 from typing import Any, Dict, Optional, Union
 
+import dataclasses
 import hydra
 import torch.optim as optim
 import torch.optim.lr_scheduler as pt_scheduler

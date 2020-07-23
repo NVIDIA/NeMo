@@ -34,7 +34,6 @@ def get_pretrained_lm_models_list() -> List[str]:
     Returns the list of support pretrained models
     '''
     return get_huggingface_lm_models_list() + get_megatron_lm_models_list()
-    
 
 
 def get_pretrained_lm_model(
@@ -54,11 +53,16 @@ def get_pretrained_lm_model(
         model = get_huggingface_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
     else:
         if pretrained_model_name in get_megatron_lm_models_list():
-            model = get_megatron_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
+            model, default_checkpoint_file = get_megatron_lm_model(
+                config_file=config_file, pretrained_model_name=pretrained_model_name
+            )
+            if not checkpoint_file:
+                checkpoint_file = default_checkpoint_file
         else:
             raise ValueError(f'{pretrained_model_name} is not supported')
 
     if checkpoint_file:
-        model.restore_from(checkpoint_file)
-        logging.info(f"{pretrained_model_name} model restored from {checkpoint_file}")
+        model.restore_weights(restore_path=checkpoint_file)
+        logging.info(f"{pretrained_model_name} weights restored from {checkpoint_file}")
+
     return model

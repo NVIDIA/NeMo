@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common import *
+from nemo.collections.nlp.modules.common import AlbertEncoder, BertEncoder, DistilBertEncoder, RobertaEncoder
+from nemo.collections.nlp.modules.common import MegatronBertEncoder
+from nemo.collections.nlp.modules.common import get_pretrained_lm_models_list, get_pretrained_lm_model

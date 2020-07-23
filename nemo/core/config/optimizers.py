@@ -14,9 +14,10 @@
 # limitations under the License.
 # =============================================================================
 
-from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
+
+from dataclasses import dataclass
 
 __all__ = [
     'OptimizerParams',

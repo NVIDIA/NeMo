@@ -13,4 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.nlp.modules.common.megatron.bert import MegatronBertEncoder
-
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_checkpoint

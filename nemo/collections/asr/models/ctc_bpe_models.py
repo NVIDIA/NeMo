@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
-from dataclasses import dataclass
 from typing import Dict, Optional
 
 import torch
+from dataclasses import dataclass
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 
 from nemo import logging

@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2020 The HuggingFace Inc. team.
 #
@@ -13,23 +12,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 import os
-import torch
-import wget
-
 from typing import List, Optional
 
+import torch
+import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
+
+from nemo.collections.nlp.modules.common.megatron.bert import MegatronBertEncoder
 
 __all__ = [
     'get_megatron_lm_model',
     'get_megatron_lm_models_list',
+    'get_megatron_checkpoint',
     'is_lower_cased_megatron',
 ]
 
-from nemo.collections.nlp.modules.common.megatron.bert import MegatronBertEncoder
 
 MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), 'megatron')
 
@@ -61,6 +60,7 @@ MEGATRON_CONFIG_MAP = {
     },
 }
 
+
 def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str] = None):
     '''
     Returns the dict of special tokens associated with the model.
@@ -73,13 +73,16 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
     if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
         if not (config_file):
             raise ValueError(f'Config file is required for {pretrained_model_name}')
-        
+
     config = get_megatron_config(pretrained_model_name)
     if config_file:
         with open(config_file) as f:
             config = json.load(f)
+
+    checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
+
     vocab = get_megatron_vocab_file(pretrained_model_name)
-    checkpoint = get_megatron_checkpoint(pretrained_model_name)
+
     model = MegatronBertEncoder(
         model_name=pretrained_model_name,
         vocab_file=vocab,
@@ -88,9 +91,11 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
         num_layers=config['num-layers'],
         max_seq_length=config['max-seq-length'],
     )
-    return model
 
-def get_megatron_lm_models_list()  -> List[str]:
+    return model, checkpoint_file
+
+
+def get_megatron_lm_models_list() -> List[str]:
     '''
     Return the list of support Megatron models
     '''

@@ -14,6 +14,8 @@
 
 from typing import Dict, Optional
 
+import torch
+
 from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import ChannelType, NeuralType
 from nemo.utils.decorators import experimental
@@ -34,3 +36,22 @@ class BertModule(NeuralModule):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """Restores module/model with weights"""
+        pass
+
+    @classmethod
+    def save_to(self, save_path: str):
+        """Saves module/model with weights"""
+        pass
+
+    def restore_weights(self, restore_path: str):
+        """Restores module/model's weights"""
+        state_dict = torch.load(restore_path)
+
+        if 'model' in state_dict:
+            self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
+        else:
+            self.load_state_dict(state_dict)

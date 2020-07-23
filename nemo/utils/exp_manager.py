@@ -16,11 +16,11 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from shutil import copyfile
 from typing import Dict, List, Optional, Union
 
+from dataclasses import dataclass
 from hydra.utils import get_original_cwd
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint

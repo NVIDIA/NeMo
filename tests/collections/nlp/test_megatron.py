@@ -18,6 +18,7 @@ import pytest
 
 import nemo.collections.nlp as nemo_nlp
 
+
 class TestMegatron(TestCase):
     @pytest.mark.unit
     def test_list_pretrained_models(self):
@@ -28,6 +29,7 @@ class TestMegatron(TestCase):
     def test_get_pretrained_bert_345m_uncased_model(self):
         model = nemo_nlp.modules.get_pretrained_lm_model('megatron-bert-345m-uncased')
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
+
 
 #    TODO: uncomment once https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/merge_requests/98 is merged.
 #    @pytest.mark.unit

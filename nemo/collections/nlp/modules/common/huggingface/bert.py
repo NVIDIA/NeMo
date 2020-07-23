@@ -29,13 +29,6 @@ class BertEncoder(BertModel, BertModule):
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
     @typecheck()
     def forward(self, **kwargs):
         res = super().forward(**kwargs)[0]

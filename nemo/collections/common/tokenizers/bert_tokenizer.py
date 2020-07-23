@@ -78,8 +78,9 @@ class NemoBertTokenizer(TokenizerSpec):
             tokenizer_cls = TOKENIZERS[bert_derivative]
         else:
             raise ValueError(
-                "Bert_derivative value {bert_derivative} is not currently supported"
-                + " Please choose from the following list: {TOKENIZERS.keys()}"
+                f"Bert_derivative value {bert_derivative} is not currently supported"
+                + " Please choose from the following list: "
+                + ",".join(TOKENIZERS.keys())
             )
 
         if pretrained_model:

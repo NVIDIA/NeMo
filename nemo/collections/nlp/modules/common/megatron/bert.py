@@ -15,11 +15,14 @@
 # limitations under the License.
 
 import os
+from typing import Dict, List, Optional
 
+import torch
 from megatron.initialize import initialize_megatron
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 from megatron.model.language_model import get_language_model
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
+from transformers import BertConfig
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
@@ -39,23 +42,6 @@ class MegatronBertEncoder(BertModule):
         vocab_file (str): path to vocabulary file.
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
-    def input_ports(self):
-        """Returns definitions of module input ports.
-        input_ids: input token ids
-        token_type_ids: segment type ids
-        attention_mask: attention mask
-        """
-        return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
-        }
-
-    def output_ports(self):
-        """Returns definitions of module output ports.
-        hidden_states: output embedding 
-        """
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(
         self,
@@ -71,7 +57,7 @@ class MegatronBertEncoder(BertModule):
     ):
 
         super().__init__()
-        
+
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
@@ -83,6 +69,14 @@ class MegatronBertEncoder(BertModule):
             "tokenizer_type": tokenizer_type,
             "vocab_file": vocab_file,
         }
+
+        self.config = BertConfig(
+            num_layers=num_layers,
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            tokenizer_type=tokenizer_type,
+            vocab_file=vocab_file,
+        )
 
         initialize_megatron(None, megatron_args, ignore_unknown_args=True)
         init_method = init_method_normal(init_method_std)
@@ -119,21 +113,12 @@ class MegatronBertEncoder(BertModule):
         )
         return sequence_output
 
-    @classmethod
-    def restore_from(self, path, local_rank=0):
-        if self.placement == DeviceType.AllGpu:
-            load_device = f"cuda:{local_rank}"
-        else:
-            load_device = self._device
-
-        state_dict = torch.load(path, map_location=load_device)
+    def restore_weights(self, restore_path: str):
+        """Restores module/model's weights"""
+        state_dict = torch.load(restore_path)
 
         # to load from Megatron pretrained checkpoint
         if 'model' in state_dict:
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
         else:
             self.load_state_dict(state_dict)
-    
-    def save_to(self, save_path: str):
-        pass
-
