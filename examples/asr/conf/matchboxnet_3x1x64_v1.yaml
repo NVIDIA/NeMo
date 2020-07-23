@@ -160,16 +160,15 @@ model:
       min_lr: 0.001
       last_epoch: -1
 
-pl:
-  trainer:
-    gpus: 0 # number of gpus
-    max_epochs: 200
-    max_steps: null # computed at runtime if not set
-    num_nodes: 1
-    distributed_backend: ddp
-    accumulate_grad_batches: 1
-    checkpoint_callback: False  # Provided by exp_manager
-    logger: False  # Provided by exp_manager
+trainer:
+  gpus: 0 # number of gpus
+  max_epochs: 200
+  max_steps: null # computed at runtime if not set
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
 
 exp_manager:
   root_dir: null
