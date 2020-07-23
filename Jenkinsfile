@@ -311,6 +311,25 @@ pipeline {
         }
     }
 
+    stage('L2: Computer Vision') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('MNIST image classification with LeNet-5 Test - on CPU') {
+          steps {
+            sh 'cd examples/cv && python mnist_lenet5_image_classification_pure_lightning.py.py trainer.gpus=0 \
+            model.dataset.data_folder=/home/TestData'
+            sh 'rm -rf examples/cv/outputs'
+          }
+        }
+      }
+    }
+
   }
   post {
     always {
