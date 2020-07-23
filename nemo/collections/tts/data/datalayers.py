@@ -11,15 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 
 import torch
 
+from nemo.core.classes import Dataset
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType
 
 
-class AudioDataset(torch.utils.data.Dataset):
+class AudioDataset(Dataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
     def __init__(
         self,
         manifest_filepath: Union[str, 'pathlib.Path'],
@@ -60,9 +71,6 @@ class AudioDataset(torch.utils.data.Dataset):
         )
         self.trim = trim
         self.n_segments = n_segments
-
-    def collate_fn(self, batch):
-        return self._collate_fn(batch)
 
     def _collate_fn(self, batch):
         """

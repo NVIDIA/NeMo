@@ -19,89 +19,20 @@ from torch.nn import functional as F
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.modules.submodules import Attention, ConvNorm, LinearNorm, Prenet
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
+from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.neural_types.elements import (
+    EmbeddedTextType,
+    MelSpectrogramType,
+    LengthsType,
+    LogitsType,
+    SequenceToSequenceAlignmentType,
+)
 
 
-class Postnet(torch.nn.Module):
-    def __init__(
-        self,
-        n_mel_channels: int,
-        postnet_embedding_dim: int,
-        postnet_kernel_size: int,
-        postnet_n_convolutions: int,
-        p_dropout: float = 0.5,
-    ):
-        """
-        Tacotron 2 Postnet. A convolutional network with postnet_n_convolutions number of layers. Each layer has a
-        kernel of postnet_kernel_size. Each layer apart from the last outputs postnet_embedding_dim channels, the last
-        outputs n_mel_channels channels. After each layer is a dropout layer with p_dropout% drop. The last linear has
-        no activation, all intermediate layers have tanh activation.
-
-        Args:
-            n_mel_channels (int): Number of mel channels to output from Posnet.
-            postnet_embedding_dim (int): Number of channels to output from the intermediate layers.
-            postnet_kernel_size (int): The kernel size for the convolution layers.
-            postnet_n_convolutions (int): The number of convolutions layers.
-            p_dropout (float): Dropout probability. Defaults to 0.5.
-        """
-        super().__init__()
-        self.convolutions = torch.nn.ModuleList()
-
-        self.convolutions.append(
-            torch.nn.Sequential(
-                ConvNorm(
-                    n_mel_channels,
-                    postnet_embedding_dim,
-                    kernel_size=postnet_kernel_size,
-                    stride=1,
-                    padding=int((postnet_kernel_size - 1) / 2),
-                    dilation=1,
-                    w_init_gain='tanh',
-                ),
-                torch.nn.BatchNorm1d(postnet_embedding_dim),
-            )
-        )
-
-        for _ in range(1, postnet_n_convolutions - 1):
-            self.convolutions.append(
-                torch.nn.Sequential(
-                    ConvNorm(
-                        postnet_embedding_dim,
-                        postnet_embedding_dim,
-                        kernel_size=postnet_kernel_size,
-                        stride=1,
-                        padding=int((postnet_kernel_size - 1) / 2),
-                        dilation=1,
-                        w_init_gain='tanh',
-                    ),
-                    torch.nn.BatchNorm1d(postnet_embedding_dim),
-                )
-            )
-
-        self.convolutions.append(
-            torch.nn.Sequential(
-                ConvNorm(
-                    postnet_embedding_dim,
-                    n_mel_channels,
-                    kernel_size=postnet_kernel_size,
-                    stride=1,
-                    padding=int((postnet_kernel_size - 1) / 2),
-                    dilation=1,
-                    w_init_gain='linear',
-                ),
-                torch.nn.BatchNorm1d(n_mel_channels),
-            )
-        )
-        self.p_dropout = p_dropout
-
-    def forward(self, x):
-        for i in range(len(self.convolutions) - 1):
-            x = F.dropout(torch.tanh(self.convolutions[i](x)), self.p_dropout, self.training)
-        x = F.dropout(self.convolutions[-1](x), self.p_dropout, self.training)
-
-        return x
-
-
-class Encoder(torch.nn.Module):
+@experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
+class Encoder(NeuralModule):
     def __init__(
         self, encoder_n_convolutions: int, encoder_embedding_dim: int, encoder_kernel_size: int,
     ):
@@ -136,25 +67,51 @@ class Encoder(torch.nn.Module):
             encoder_embedding_dim, int(encoder_embedding_dim / 2), 1, batch_first=True, bidirectional=True,
         )
 
-    def forward(self, x, input_lengths):
-        for conv in self.convolutions:
-            x = F.dropout(F.relu(conv(x)), 0.5, self.training)
+    @property
+    def input_types(self):
+        return {
+            "token_embedding": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
+            "token_len": NeuralType(('B'), LengthsType()),
+        }
 
-        x = x.transpose(1, 2)
+    @property
+    def output_types(self):
+        return {
+            "encoder_embedding": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+        }
+
+    @typecheck()
+    def forward(self, *, token_embedding, token_len):
+        for conv in self.convolutions:
+            token_embedding = F.dropout(F.relu(conv(token_embedding)), 0.5, self.training)
+
+        token_embedding = token_embedding.transpose(1, 2)
 
         # pytorch tensor are not reversible, hence the conversion
-        input_lengths = input_lengths.cpu().numpy()
-        x = torch.nn.utils.rnn.pack_padded_sequence(x, input_lengths, batch_first=True, enforce_sorted=False)
+        input_lengths = token_len.cpu().numpy()
+        token_embedding = torch.nn.utils.rnn.pack_padded_sequence(
+            token_embedding, input_lengths, batch_first=True, enforce_sorted=False
+        )
 
         self.lstm.flatten_parameters()
-        outputs, _ = self.lstm(x)
+        outputs, _ = self.lstm(token_embedding)
 
         outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 
         return outputs
 
+    def save_to(self, save_path: str):
+        """TODO: Implement"""
+        pass
 
-class Decoder(torch.nn.Module):
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """TODO: Implement"""
+        pass
+
+
+@experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
+class Decoder(NeuralModule):
     def __init__(
         self,
         n_mel_channels: int,
@@ -225,10 +182,39 @@ class Decoder(torch.nn.Module):
         self.decoder_rnn = torch.nn.LSTMCell(attention_rnn_dim + encoder_embedding_dim, decoder_rnn_dim, 1)
 
         self.linear_projection = LinearNorm(
-            decoder_rnn_dim + encoder_embedding_dim, n_mel_channels * n_frames_per_step,
+            decoder_rnn_dim + encoder_embedding_dim, n_mel_channels * n_frames_per_step
         )
 
-        self.gate_layer = LinearNorm(decoder_rnn_dim + encoder_embedding_dim, 1, bias=True, w_init_gain='sigmoid',)
+        self.gate_layer = LinearNorm(decoder_rnn_dim + encoder_embedding_dim, 1, bias=True, w_init_gain='sigmoid')
+
+    @property
+    def input_types(self):
+        input_dict = {
+            "memory": NeuralType(('B', 'T', 'D'), EmbeddedTextType()),
+            "memory_lengths": NeuralType(('B'), LengthsType()),
+        }
+        if self.training:
+            input_dict["decoder_inputs"] = NeuralType(('B', 'D', 'T'), MelSpectrogramType())
+        return input_dict
+
+    @property
+    def output_types(self):
+        output_dict = {
+            "mel_outputs": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "gate_outputs": NeuralType(('B', 'T'), LogitsType()),
+            "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+        }
+        if not self.training:
+            output_dict["mel_lengths"] = NeuralType(('B'), LengthsType())
+        return output_dict
+
+    @typecheck()
+    def forward(self, *args, **kwargs):
+        """ TODO
+        """
+        if self.training:
+            return self.train_forward(**kwargs)
+        return self.infer(**kwargs)
 
     def get_go_frame(self, memory):
         """ Gets all zeros frames to use as first decoder input
@@ -335,7 +321,7 @@ class Decoder(torch.nn.Module):
         self.attention_hidden = F.dropout(self.attention_hidden, self.p_attention_dropout, self.training)
 
         attention_weights_cat = torch.cat(
-            (self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1),), dim=1,
+            (self.attention_weights.unsqueeze(1), self.attention_weights_cum.unsqueeze(1)), dim=1,
         )
         self.attention_context, self.attention_weights = self.attention_layer(
             self.attention_hidden, self.memory, self.processed_memory, attention_weights_cat, self.mask,
@@ -355,7 +341,7 @@ class Decoder(torch.nn.Module):
         gate_prediction = self.gate_layer(decoder_hidden_attention_context)
         return decoder_output, gate_prediction, self.attention_weights
 
-    def forward(self, memory, decoder_inputs, memory_lengths):
+    def train_forward(self, *, memory, decoder_inputs, memory_lengths):
         """ Decoder forward pass for training
         PARAMS
         ------
@@ -368,7 +354,6 @@ class Decoder(torch.nn.Module):
         gate_outputs: gate outputs from the decoder
         alignments: sequence of attention weights from the decoder
         """
-
         decoder_input = self.get_go_frame(memory).unsqueeze(0)
         decoder_inputs = self.parse_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0)
@@ -386,10 +371,9 @@ class Decoder(torch.nn.Module):
             alignments += [attention_weights]
 
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(mel_outputs, gate_outputs, alignments)
-
         return mel_outputs, gate_outputs, alignments
 
-    def infer(self, memory, memory_lengths):
+    def infer(self, *, memory, memory_lengths):
         """ Decoder inference
         PARAMS
         ------
@@ -443,3 +427,117 @@ class Decoder(torch.nn.Module):
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(mel_outputs, gate_outputs, alignments)
 
         return mel_outputs, gate_outputs, alignments, mel_lengths
+
+    def save_to(self, save_path: str):
+        """TODO: Implement"""
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """TODO: Implement"""
+        pass
+
+
+@experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
+class Postnet(NeuralModule):
+    def __init__(
+        self,
+        n_mel_channels: int,
+        postnet_embedding_dim: int,
+        postnet_kernel_size: int,
+        postnet_n_convolutions: int,
+        p_dropout: float = 0.5,
+    ):
+        """
+        Tacotron 2 Postnet. A convolutional network with postnet_n_convolutions number of layers. Each layer has a
+        kernel of postnet_kernel_size. Each layer apart from the last outputs postnet_embedding_dim channels, the last
+        outputs n_mel_channels channels. After each layer is a dropout layer with p_dropout% drop. The last linear has
+        no activation, all intermediate layers have tanh activation.
+
+        Args:
+            n_mel_channels (int): Number of mel channels to output from Posnet.
+            postnet_embedding_dim (int): Number of channels to output from the intermediate layers.
+            postnet_kernel_size (int): The kernel size for the convolution layers.
+            postnet_n_convolutions (int): The number of convolutions layers.
+            p_dropout (float): Dropout probability. Defaults to 0.5.
+        """
+        super().__init__()
+        self.convolutions = torch.nn.ModuleList()
+
+        self.convolutions.append(
+            torch.nn.Sequential(
+                ConvNorm(
+                    n_mel_channels,
+                    postnet_embedding_dim,
+                    kernel_size=postnet_kernel_size,
+                    stride=1,
+                    padding=int((postnet_kernel_size - 1) / 2),
+                    dilation=1,
+                    w_init_gain='tanh',
+                ),
+                torch.nn.BatchNorm1d(postnet_embedding_dim),
+            )
+        )
+
+        for _ in range(1, postnet_n_convolutions - 1):
+            self.convolutions.append(
+                torch.nn.Sequential(
+                    ConvNorm(
+                        postnet_embedding_dim,
+                        postnet_embedding_dim,
+                        kernel_size=postnet_kernel_size,
+                        stride=1,
+                        padding=int((postnet_kernel_size - 1) / 2),
+                        dilation=1,
+                        w_init_gain='tanh',
+                    ),
+                    torch.nn.BatchNorm1d(postnet_embedding_dim),
+                )
+            )
+
+        self.convolutions.append(
+            torch.nn.Sequential(
+                ConvNorm(
+                    postnet_embedding_dim,
+                    n_mel_channels,
+                    kernel_size=postnet_kernel_size,
+                    stride=1,
+                    padding=int((postnet_kernel_size - 1) / 2),
+                    dilation=1,
+                    w_init_gain='linear',
+                ),
+                torch.nn.BatchNorm1d(n_mel_channels),
+            )
+        )
+        self.p_dropout = p_dropout
+
+    @property
+    def input_types(self):
+        return {
+            "mel_spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "mel_spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @typecheck()
+    def forward(self, *, mel_spec):
+        mel_spec_out = mel_spec
+        for i in range(len(self.convolutions) - 1):
+            mel_spec_out = F.dropout(torch.tanh(self.convolutions[i](mel_spec_out)), self.p_dropout, self.training)
+        mel_spec_out = F.dropout(self.convolutions[-1](mel_spec_out), self.p_dropout, self.training)
+
+        return mel_spec + mel_spec_out
+
+    def save_to(self, save_path: str):
+        """TODO: Implement"""
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """TODO: Implement"""
+        pass
+

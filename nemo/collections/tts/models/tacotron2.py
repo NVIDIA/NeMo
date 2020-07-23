@@ -47,7 +47,7 @@ class Tacotron2Config:
     validation_ds: Optional[Dict] = None
 
 
-@experimental
+@experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
 class Tacotron2(ModelPT):
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -110,12 +110,14 @@ class Tacotron2(ModelPT):
     def forward(self, audio, audio_len, tokens, token_len):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
-        encoder_embedding = self.encoder(token_embedding, token_len)
+        encoder_embedding = self.encoder(token_embedding=token_embedding, token_len=token_len)
         if self.training:
-            spec_dec, gate, alignments = self.decoder(encoder_embedding, spec, memory_lengths=token_len)
+            spec_dec, gate, alignments = self.decoder(
+                memory=encoder_embedding, decoder_inputs=spec, memory_lengths=token_len
+            )
         else:
-            spec_dec, gate, alignments, _ = self.decoder.infer(encoder_embedding, memory_lengths=token_len)
-        spec_postnet = self.postnet(spec_dec)
+            spec_dec, gate, alignments, _ = self.decoder(memory=encoder_embedding, memory_lengths=token_len)
+        spec_postnet = self.postnet(mel_spec=spec_dec)
 
         max_len = spec.shape[2]
         gate_padded = torch.zeros(spec_len.shape[0], max_len)
@@ -198,7 +200,7 @@ class Tacotron2(ModelPT):
         dataset = Tacotron2.from_config_dict(
             cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2,
         )
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset._collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
@@ -208,11 +210,14 @@ class Tacotron2(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
+        """TODO: Implement me!"""
         pass
 
     @classmethod
     def from_pretrained(cls, name: str):
+        """TODO: Implement me!"""
         pass
 
     def export(self, **kwargs):
+        """TODO: Implement me!"""
         pass

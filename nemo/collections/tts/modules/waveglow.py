@@ -16,10 +16,15 @@ from typing import Tuple
 
 import torch
 
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
+from nemo.core.classes import NeuralModule, typecheck
+from nemo.utils.decorators import experimental
 
 
-class WaveGlow(torch.nn.Module):
+@experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
+class WaveGlow(NeuralModule):
     def __init__(
         self,
         n_mel_channels: int,
@@ -76,13 +81,41 @@ class WaveGlow(torch.nn.Module):
             )
         self.n_remaining_channels = n_remaining_channels
 
-    def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor]):
+    @typecheck()
+    def forward(self, *args, **kwargs):
+        """ TODO
         """
-        forward_input[0] = mel_spectrogram:  batch x n_mel_channels x frames
-        forward_input[1] = audio: batch x time
-        """
-        spect, audio = forward_input[0], forward_input[1]
+        if self.training:
+            return self.audio_to_normal_dist(**kwargs)
+        return self.norm_dist_to_audio(**kwargs)
 
+    @property
+    def input_types(self):
+        if self.training:
+            return {
+                "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "audio": NeuralType(('B', 'T'), AudioSignal()),
+            }
+        else:
+            return {
+                "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                # "sigma": NeuralType(tuple('B'), LengthsType()),  # TODO: This is optional, how can I express this?
+            }
+
+    @property
+    def output_types(self):
+        if self.training:
+            return {
+                "pred_normal_dist": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
+                "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+                "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+            }
+        else:
+            return {
+                "audio": NeuralType(('B', 'T'), AudioSignal()),
+            }
+
+    def audio_to_normal_dist(self, *, spect: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
         #  Upsample spectrogram to size of audio
         spect = self.upsample(spect)
         assert spect.size(2) >= audio.size(1)
@@ -121,7 +154,7 @@ class WaveGlow(torch.nn.Module):
         output_audio.append(audio)
         return torch.cat(output_audio, 1), log_s_list, log_det_W_list
 
-    def infer(self, spect, sigma: float = 1.0):
+    def norm_dist_to_audio(self, *, spect, sigma: float = 1.0):
         spect = self.upsample(spect)
         # trim conv artifacts. maybe pad spec to kernel multiple
         time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
@@ -134,9 +167,6 @@ class WaveGlow(torch.nn.Module):
         audio = sigma * torch.randn(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device).to(
             spect.dtype
         )
-        # audio=sigma * torch.ones(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device).to(
-        #     spect.dtype
-        # )
 
         for k in reversed(range(self.n_flows)):
             n_half = int(audio.size(1) / 2)
@@ -154,6 +184,14 @@ class WaveGlow(torch.nn.Module):
                 z = sigma * torch.randn(spect.size(0), self.n_early_size, spect.size(2), device=spect.device).to(
                     spect.dtype
                 )
-                # z = sigma * torch.ones(spect.size(0), self.n_early_size, spect.size(2), device=spect.device).to(spect.dtype)
                 audio = torch.cat((z, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
+
+    def save_to(self, save_path: str):
+        """TODO: Implement"""
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """TODO: Implement"""
+        pass

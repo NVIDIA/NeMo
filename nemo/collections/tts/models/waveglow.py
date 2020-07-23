@@ -43,7 +43,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict] = None
 
 
-@experimental
+@experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
 class Waveglow(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -79,9 +79,8 @@ class Waveglow(ModelPT):
     def forward(self, audio, audio_len):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         if self.training:
-            return self.waveglow((spec, audio))
-        else:
-            audio_pred = self.waveglow.infer(spec)
+            return self.waveglow(spect=spec, audio=audio)
+        audio_pred = self.waveglow(spect=spec)
         return audio_pred, spec, spec_len
 
     def training_step(self, batch, batch_idx):
@@ -144,11 +143,14 @@ class Waveglow(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
+        """TODO: Implement me!"""
         pass
 
     @classmethod
     def from_pretrained(cls, name: str):
+        """TODO: Implement me!"""
         pass
 
     def export(self, **kwargs):
+        """TODO: Implement me!"""
         pass
