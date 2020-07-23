@@ -240,6 +240,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
+            collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
             num_workers=cfg.num_workers,
