@@ -20,12 +20,11 @@ import tarfile
 import tempfile
 from abc import abstractmethod
 from os import path
-from typing import Dict, Optional, Union, List
+from typing import Dict, List, Optional, Union
 
 import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
-import torch
 from pytorch_lightning import LightningModule, Trainer
 
 from nemo.core import optim
@@ -414,8 +413,7 @@ class ModelPT(LightningModule, Model):
             return output_dict
 
     def test_epoch_end(
-            self,
-            outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
 
         if type(outputs[0]) == dict:

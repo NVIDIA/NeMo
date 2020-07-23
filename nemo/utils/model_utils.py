@@ -14,7 +14,8 @@
 
 import copy
 from pathlib import Path
-from omegaconf import ListConfig, DictConfig
+
+from omegaconf import DictConfig, ListConfig
 
 
 def parse_filepath_as_name(filepath: str) -> str:
@@ -45,8 +46,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
             dataloaders.append(model._validation_dl)
 
         model._validation_dl = dataloaders
-        model._validation_filenames = [parse_filepath_as_name(fp)
-                                       for fp in manifest_paths]
+        model._validation_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
 
         # In fast-dev-run, only one data loader is used
         if model._trainer.fast_dev_run:
@@ -71,8 +71,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
             dataloaders.append(model._test_dl)
 
         model._test_dl = dataloaders
-        model._test_filenames = [parse_filepath_as_name(fp)
-                                 for fp in manifest_paths]
+        model._test_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
 
         # In fast-dev-run, only one data loader is used
         if model._trainer.fast_dev_run:
