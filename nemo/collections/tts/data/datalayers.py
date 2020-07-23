@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Union, Dict
+from typing import Dict, Optional, Union
 
 import torch
 
-from nemo.core.classes import Dataset
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
-from nemo.core.neural_types import NeuralType, AudioSignal, LengthsType
+from nemo.core.classes import Dataset
+from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 
 
 class AudioDataset(Dataset):

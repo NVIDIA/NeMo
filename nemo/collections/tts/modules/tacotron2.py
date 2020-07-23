@@ -18,17 +18,17 @@ from torch.nn import functional as F
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.modules.submodules import Attention, ConvNorm, LinearNorm, Prenet
-from nemo.utils import logging
-from nemo.utils.decorators import experimental
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.neural_types.elements import (
     EmbeddedTextType,
-    MelSpectrogramType,
     LengthsType,
     LogitsType,
+    MelSpectrogramType,
     SequenceToSequenceAlignmentType,
 )
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 
 @experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
@@ -540,4 +540,3 @@ class Postnet(NeuralModule):
     def restore_from(cls, restore_path: str):
         """TODO: Implement"""
         pass
-

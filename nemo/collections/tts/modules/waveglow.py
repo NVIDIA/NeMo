@@ -14,10 +14,10 @@
 
 import torch
 
-from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 
 
