@@ -109,7 +109,7 @@ model:
         name: auto
         params:
           warmup_steps: null
-          warmup_ratio: 0.1
+          warmup_ratio: 0.0
           last_epoch: -1
 
 
