@@ -17,7 +17,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
@@ -27,7 +26,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, NovogradParams
 from nemo.core.neural_types import *
-from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 
