@@ -332,7 +332,9 @@ pipeline {
           pl.trainer.gpus=[0,1] \
           pl.trainer.distributed_backend=ddp \
           +pl.trainer.fast_dev_run=true \
+          exp_manager.root_dir=exp_distilbert_base_uncased \
           '
+          sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
         }
     }
 
