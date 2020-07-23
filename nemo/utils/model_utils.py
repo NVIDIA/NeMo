@@ -64,7 +64,9 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
 
     else:
         # no manifest filepath, cannot resolve multi paths
-        logging.warning('Cannot resolve multi-dataloader path since `validation_ds` does not contain `manifest_filepath`')
+        logging.warning(
+            'Cannot resolve multi-dataloader path since `validation_ds` does not contain `manifest_filepath`'
+        )
 
         model.setup_validation_data(cfg.validation_ds)
         model._validation_filenames = ['validation_']
