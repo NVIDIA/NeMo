@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 """
 This script faciliates to get EER % based on cosine-smilarity 
-for HI-MIA dataset.
+for Voxceleb dataset.
 
 Args:
     data_root str: Path to embeddings file and also make sure trails_1m file is also
@@ -50,11 +50,11 @@ def get_labels(manifest):
     return test_list
 
 
-def get_acc(trial_file='./myExps/hi-mia/', emb='', manifest=''):
-    basename = os.path.dirname(emb)
-    X_test = np.load(emb)
+def get_acc(trial_file='', emb='', manifest=''):
 
-    assert len(X_test) == len(open(manifest).readlines())
+    X_test = np.load(emb)
+    manifest_lines = open(manifest, 'r').readlines()
+    assert len(X_test) == len(manifest_lines)
 
     test_list = get_labels(manifest)
 
