@@ -17,6 +17,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
+import torch
 import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
@@ -74,11 +75,39 @@ class Typing(ABC):
         # TODO: Properly implement this
         if self.output_types is not None:
             out_types_list = list(self.output_types.items())
+
+            # First convert all outputs to list/tuple format to check correct number of outputs
+            if type(out_objects) in (list, tuple):
+                out_container = out_objects
+            else:
+                out_container = [out_objects]
+
+            if len(self.output_types) != len(out_container):
+                raise TypeError(
+                    "Number of output arguments provided ({}) is not as expected ({})".format(
+                        len(out_container), len(self.output_types)
+                    )
+                )
+
+            # Attach types recursively, if possible
             if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
-                out_objects.neural_type = out_types_list[0][1]
+                try:
+                    out_objects.neural_type = out_types_list[0][1]
+                except Exception:
+                    pass
             else:
                 for ind, res in enumerate(out_objects):
-                    res.neural_type = out_types_list[ind][1]
+                    self.__attach_neural_type(res, out_types_list[ind][1])
+
+    def __attach_neural_type(self, obj, type_val):
+        if isinstance(obj, tuple) or isinstance(obj, list):
+            for elem in obj:
+                self.__attach_neural_type(elem, type_val)
+
+        try:
+            obj.neural_type = type_val
+        except Exception:
+            pass
 
 
 class Serialization(ABC):
@@ -223,6 +252,12 @@ class typecheck:
 
         if not isinstance(instance, Typing):
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
+
+        if hasattr(instance, 'input_ports') or hasattr(instance, 'output_ports'):
+            raise RuntimeError(
+                "Typing requires override of `input_types()` and `output_types()`, "
+                "not `input_ports() and `output_ports()`"
+            )
 
         # If types are not defined, skip type checks and just call the wrapped method
         if instance.input_types is None and instance.output_types is None:
