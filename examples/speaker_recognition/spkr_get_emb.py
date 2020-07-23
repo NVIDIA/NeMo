@@ -190,7 +190,7 @@ def main():
     for idx in range(len(inf_label)):
         whole_embs.extend(inf_emb[idx].numpy())
 
-    embedding_dir = args.work_dir + './embeddings/'
+    embedding_dir = os.path.join(args.work_dir + 'embeddings')
     if not os.path.exists(embedding_dir):
         os.mkdir(embedding_dir)
 
