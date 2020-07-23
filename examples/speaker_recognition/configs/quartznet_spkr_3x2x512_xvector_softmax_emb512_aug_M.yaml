@@ -1,0 +1,89 @@
+model: "JasperVoxNet"
+sample_rate: &sample_rate 16000
+dropout: &drop 0.5
+repeat:  &rep  2
+time_length: 8
+n_filters: &n_filters 512
+separable: &separable true
+
+AudioToSpeechLabelDataLayer:
+    sample_rate: *sample_rate
+    train:
+        min_duration: 0.1
+        shuffle: true
+    eval:
+        min_duration: 0.01
+        shuffle: false
+
+AudioToMelSpectrogramPreprocessor:
+    normalize: "per_feature"
+    window_size: 0.02
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 64
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    stft_conv: false
+
+AudioAugmentor:
+        noise:
+                manifest_path: '/ws/manifests/raid/musan/musan_music_noise_manifest.json'
+                prob: 0.2
+                min_snr_db: 5
+                max_snr_db: 15
+JasperEncoder:
+    feat_in: *n_mels
+    activation: "relu"
+    jasper:
+        -   filters: *n_filters
+            repeat: 1
+            kernel: [3]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [7]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [11]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: *n_filters
+            repeat: *rep
+            kernel: [15]
+            stride: [1]
+            dilation: [1]
+            dropout: *drop
+            residual: true
+            separable: *separable
+
+        -   filters: &enc_feat_out 1500
+            repeat: 1
+            kernel: [1]
+            stride: [1]
+            dilation: [1]
+            dropout: 0.0
+            residual: false
+            separable: *separable
+
+JasperDecoderForSpkrClass:
+    feat_in: *enc_feat_out
+    pool_mode: 'xvector'
+    emb_sizes: 512,512
+    angular: false
+    num_classes: 7205

@@ -119,10 +119,11 @@ def create_all_dags(args, neural_factory):
 
     # (QuartzNet uses the Jasper baseline encoder and decoder)
     encoder = nemo_asr.JasperEncoder(**spkr_params["JasperEncoder"],)
+    num_classes = spkr_params['JasperDecoderForSpkrClass'].get('num_classes', 7205)
 
     decoder = nemo_asr.JasperDecoderForSpkrClass(
         feat_in=spkr_params['JasperEncoder']['jasper'][-1]['filters'],
-        num_classes=254,
+        num_classes=num_classes,
         emb_sizes=spkr_params['JasperDecoderForSpkrClass']['emb_sizes'].split(','),
         pool_mode=spkr_params["JasperDecoderForSpkrClass"]['pool_mode'],
     )
@@ -190,12 +191,12 @@ def main():
     for idx in range(len(inf_label)):
         whole_embs.extend(inf_emb[idx].numpy())
 
-    embedding_dir = args.work_dir + './embeddings/'
+    embedding_dir = os.path.join(args.work_dir, 'embeddings')
     if not os.path.exists(embedding_dir):
         os.mkdir(embedding_dir)
 
     filename = os.path.basename(args.eval_datasets[0]).split('.')[0]
-    name = embedding_dir + filename
+    name = os.path.join(embedding_dir, filename)
 
     np.save(name + '.npy', np.asarray(whole_embs))
     np.save(name + '_labels.npy', np.asarray(whole_labels))

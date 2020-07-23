@@ -413,36 +413,32 @@ class JasperDecoderForSpkrClass(TrainableNM):
             "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
 
-    def __init__(self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform"):
-        TrainableNM.__init__(self)
-        self._feat_in = 0
-        if pool_mode == 'gram':
-            gram = True
-            super_vector = False
-        elif pool_mode == 'superVector':
-            gram = True
-            super_vector = True
+    def __init__(
+        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
+    ):
+        super().__init__()
+
+        if type(emb_sizes) is str:
+            emb_sizes = emb_sizes.split(',')
         else:
-            gram = False
-            super_vector = False
-
-        if gram:
-            self._feat_in += feat_in ** 2
-        else:
-            self._feat_in += 2 * feat_in
-
-        if super_vector and gram:
-            self._feat_in += 2 * feat_in
-
-        self._midEmbd1 = int(emb_sizes[0])  # Spkr Vector Embedding Shape
-        self._midEmbd2 = int(emb_sizes[1]) if len(emb_sizes) > 1 else 0  # Spkr Vector Embedding Shape
+            emb_sizes = list(emb_sizes)
 
         self._num_classes = num_classes
-        self._pooling = StatsPoolLayer(gram=gram, super_vector=super_vector)
+        self._pooling = StatsPoolLayer(feat_in=feat_in, pool_mode=pool_mode)
+        self._feat_in = self._pooling.feat_in
 
-        self.mid1 = self.affineLayer(self._feat_in, self._midEmbd1, learn_mean=False)
-        self.mid2 = self.affineLayer(self._midEmbd1, self._midEmbd2, learn_mean=False)
-        self.final = nn.Linear(self._midEmbd2, self._num_classes)
+        shapes = [self._feat_in]
+        for size in emb_sizes:
+            shapes.append(int(size))
+
+        emb_layers = []
+        for shape_in, shape_out in zip(shapes[:-1], shapes[1:]):
+            layer = self.affineLayer(shape_in, shape_out, learn_mean=False)
+            emb_layers.append(layer)
+
+        self.emb_layers = nn.ModuleList(emb_layers)
+
+        self.final = nn.Linear(shapes[-1], self._num_classes)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
         self.to(self._device)
@@ -454,16 +450,19 @@ class JasperDecoderForSpkrClass(TrainableNM):
             nn.ReLU(),
         )
 
-        return layer  # layer, embs
+        return layer
 
     def forward(self, encoder_output):
-        # encoder_output = self.norm(encoder_output)
         pool = self._pooling(encoder_output)
-        mid1, emb1 = self.mid1(pool), self.mid1[:2](pool)
-        mid2, embs = self.mid2(mid1), self.mid2[:2](mid1)
-        out = self.final(mid2)
+        embs = []
 
-        return out, emb1
+        for layer in self.emb_layers:
+            pool, emb = layer(pool), layer[:2](pool)
+            embs.append(emb)
+
+        out = self.final(pool)
+
+        return out, embs[-1]
 
 
 # Siamese Network, support to be added in future releases
