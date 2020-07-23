@@ -12,3 +12,12 @@ To get EER for voxceleb trial files, generate manifest files for them (see $NeMo
 
 python voxceleb_eval.py --trial_file=<trial_file> --emb=<npy_embeddings> --manifest='manifest of trail file> 
 
+voxceleb EER values:
+Quartznet:
+EER trial_files/veri_test2.txt 2.62
+EER trial_files/voxceleb1_test_v2.txt 2.76
+
+JASPER:
+EER trial_files/veri_test2.txt 2.33
+EER trial_files/voxceleb1_test_v2.txt 2.52
+
