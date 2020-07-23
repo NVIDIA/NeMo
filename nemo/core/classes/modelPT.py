@@ -322,7 +322,6 @@ class ModelPT(LightningModule, Model):
     def test_step(self, batch, what_is_this_input):
         pass
 
-
     @property
     def num_weights(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
