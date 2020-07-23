@@ -20,17 +20,18 @@ import tarfile
 import tempfile
 from abc import abstractmethod
 from os import path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 
 import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
+import torch
 from pytorch_lightning import LightningModule, Trainer
 
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 __all__ = ['ModelPT']
 
@@ -80,10 +81,12 @@ class ModelPT(LightningModule, Model):
         if self._cfg is not None:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self.setup_training_data(self._cfg.train_ds)
+
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_validation_data(self._cfg.validation_ds)
+                model_utils.resolve_validation_dataloaders(model=self)
+
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_test_data(self._cfg.test_ds)
+                model_utils.resolve_test_dataloaders(model=self)
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -371,6 +374,99 @@ class ModelPT(LightningModule, Model):
 
     def test_step(self, batch, batch_ix):
         pass
+
+    def validation_epoch_end(
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+    ) -> Dict[str, Dict[str, torch.Tensor]]:
+
+        if type(outputs[0]) == dict:
+            return self.multi_validation_epoch_end(outputs, idx=0)
+
+        else:
+            output_dict = {'log': {}}
+
+            for dataloader_idx, val_outputs in enumerate(outputs):
+                dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
+                dataloader_logs = self.multi_validation_epoch_end(val_outputs, idx=dataloader_idx)
+
+                dataloader_logs = dataloader_logs or {}
+
+                for k, v in dataloader_logs.items():
+                    if k == 'log':
+                        log_dict = {}
+                        for k_log, v_log in v.items():
+                            if k_log == 'val_loss' and 'val_loss' not in output_dict['log']:
+                                new_k_log = 'val_loss'
+                            else:
+                                new_k_log = dataloader_prefix + k_log
+
+                            log_dict[new_k_log] = v_log
+
+                        output_logs = output_dict['log']
+                        output_logs.update(log_dict)
+
+                        output_dict['log'] = output_logs
+
+                    else:
+                        new_k = dataloader_prefix + k
+                        output_dict[new_k] = v
+
+            return output_dict
+
+    def test_epoch_end(
+            self,
+            outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+
+        if type(outputs[0]) == dict:
+            return self.multi_validation_epoch_end(outputs, idx=0)
+
+        else:
+            output_dict = {'log': {}}
+
+            for dataloader_idx, test_outputs in enumerate(outputs):
+                dataloader_prefix = self.get_test_dataloader_prefix(dataloader_idx)
+                dataloader_logs = self.multi_test_epoch_end(test_outputs, idx=dataloader_idx)
+
+                dataloader_logs = dataloader_logs or {}
+
+                for k, v in dataloader_logs.items():
+                    if k == 'log':
+                        log_dict = {}
+                        for k_log, v_log in v.items():
+                            if k_log == 'test_loss' and 'test_loss' not in output_dict['log']:
+                                new_k_log = 'test_loss'
+                            else:
+                                new_k_log = dataloader_prefix + k_log
+
+                            log_dict[new_k_log] = v_log
+
+                        output_logs = output_dict.get('log', {})
+                        output_logs.update(log_dict)
+
+                        output_dict['log'] = output_logs
+
+                    else:
+                        new_k = dataloader_prefix + k
+                        output_dict[new_k] = v
+
+            return output_dict
+
+    def multi_validation_epoch_end(
+        self, outputs: List[Dict[str, torch.Tensor]], idx: int = 0
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        return
+
+    def multi_test_epoch_end(
+        self, outputs: List[Dict[str, torch.Tensor]], idx: int = 0
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        return
+
+    def get_validation_dataloader_prefix(self, idx=0):
+        return self._validation_filenames[idx]
+
+    def get_test_dataloader_prefix(self, idx=0):
+        return self._test_filenames[idx]
 
     @property
     def num_weights(self):
