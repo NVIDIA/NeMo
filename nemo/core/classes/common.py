@@ -42,6 +42,23 @@ class Typing(ABC):
         return None
 
     def _validate_input_types(self, **kwargs):
+        """
+        This function does a few things.
+        1) It ensures that len(kwargs) == len(self.input_types).
+        2) If above fails, it checks len(kwargs) == len(self.input_types <non-optional>).
+        3) For each (keyword name, keyword value) passed as input to the wrapped function:
+            - Check if the keyword name exists in the list of valid self.input_types names.
+            - Check if keyword value has the `neural_type` property.
+                - If it does, then perform a comparative check and assert that neural types
+                    are compatible (SAME or GREATER).
+            - Check if keyword value is a container type (list or tuple). If yes,
+                then perform the elementwise test of neural type above on each element
+                of the nested structure, recursively.
+
+        Args:
+            kwargs: Dictionary of argument_name:argument_value pairs passed to the wrapped
+                function upon call.
+        """
         # TODO: Properly implement this
         if self.input_types is not None:
             total_input_types = len(self.input_types)
@@ -75,6 +92,11 @@ class Typing(ABC):
                         f"Input type expected = {self.input_types[key]} | \n"
                         f"Input type found : {value.neural_type}"
                     )
+
+                # Perform recursive neural type check for homogenous elements
+                elif isinstance(value, list) or isinstance(value, tuple):
+                    for ind, val in enumerate(value):
+                        self.__check_neural_type(val, self.input_types[key])
 
     def _attach_and_validate_output_types(self, out_objects):
         """
@@ -117,6 +139,21 @@ class Typing(ABC):
             else:
                 for ind, res in enumerate(out_objects):
                     self.__attach_neural_type(res, out_types_list[ind][1])
+
+    def __check_neural_type(self, obj, type_val):
+        if isinstance(obj, tuple) or isinstance(obj, list):
+            for elem in obj:
+                self.__check_neural_type(elem, type_val)
+
+        if hasattr(obj, 'neural_type') and not type_val.compare(obj.neural_type) in (
+                NeuralTypeComparisonResult.SAME,
+                NeuralTypeComparisonResult.GREATER,
+        ):
+            raise TypeError(
+                f"{type_val.compare(obj.neural_type)} : \n"
+                f"Input type expected = {type_val} | \n"
+                f"Input type found : {obj.neural_type}"
+            )
 
     def __attach_neural_type(self, obj, type_val):
         if isinstance(obj, tuple) or isinstance(obj, list):
