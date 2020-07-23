@@ -15,7 +15,8 @@
 import copy
 from pathlib import Path
 
-from omegaconf import DictConfig, ListConfig
+from omegaconf import ListConfig
+from nemo import logging
 
 
 def parse_filepath_as_name(filepath: str) -> str:
@@ -35,49 +36,69 @@ def parse_filepath_as_name(filepath: str) -> str:
 
 def resolve_validation_dataloaders(model: 'ModelPT'):
     cfg = copy.deepcopy(model._cfg)
-    manifest_paths = cfg.validation_ds.manifest_filepath
     dataloaders = []
 
-    if type(manifest_paths) in (list, tuple, ListConfig):
+    if hasattr(cfg.validation_ds, 'manifest_filepath'):
+        manifest_paths = cfg.validation_ds.manifest_filepath
 
-        for filepath in manifest_paths:
-            cfg.validation_ds['manifest_filepath'] = filepath
+        if type(manifest_paths) in (list, tuple, ListConfig):
+
+            for filepath in manifest_paths:
+                cfg.validation_ds['manifest_filepath'] = filepath
+                model.setup_validation_data(cfg.validation_ds)
+                dataloaders.append(model._validation_dl)
+
+            model._validation_dl = dataloaders
+            model._validation_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
+
+            # In fast-dev-run, only one data loader is used
+            if model._trainer.fast_dev_run:
+                model._validation_dl = model._validation_dl[:1]
+                model._validation_filenames = model._validation_filenames[:1]
+
+            return
+
+        else:
             model.setup_validation_data(cfg.validation_ds)
-            dataloaders.append(model._validation_dl)
-
-        model._validation_dl = dataloaders
-        model._validation_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
-
-        # In fast-dev-run, only one data loader is used
-        if model._trainer.fast_dev_run:
-            model._validation_dl = model._validation_dl[:1]
-            model._validation_filenames = model._validation_filenames[:1]
+            model._validation_filenames = [parse_filepath_as_name(model._cfg.validation_ds.manifest_filepath)]
 
     else:
+        # no manifest filepath, cannot resolve multi paths
+        logging.warn('Cannot resolve multi-dataloader path since `validation_ds` does not contain `manifest_filepath`')
+
         model.setup_validation_data(cfg.validation_ds)
-        model._validation_filenames = [parse_filepath_as_name(model._cfg.validation_ds.manifest_filepath)]
+        model._validation_filenames = ['validation_']
 
 
 def resolve_test_dataloaders(model: 'ModelPT'):
     cfg = copy.deepcopy(model._cfg)
-    manifest_paths = cfg.test_ds.manifest_filepath
     dataloaders = []
 
-    if type(manifest_paths) in (list, tuple, ListConfig):
+    if hasattr(cfg.test_ds, 'manifest_filepath'):
+        manifest_paths = cfg.test_ds.manifest_filepath
 
-        for filepath in manifest_paths:
-            cfg.test_ds['manifest_filepath'] = filepath
+        if type(manifest_paths) in (list, tuple, ListConfig):
+
+            for filepath in manifest_paths:
+                cfg.test_ds['manifest_filepath'] = filepath
+                model.setup_test_data(cfg.test_ds)
+                dataloaders.append(model._test_dl)
+
+            model._test_dl = dataloaders
+            model._test_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
+
+            # In fast-dev-run, only one data loader is used
+            if model._trainer.fast_dev_run:
+                model._test_dl = model._test_dl[:1]
+                model._test_filenames = model._test_filenames[:1]
+
+        else:
             model.setup_test_data(cfg.test_ds)
-            dataloaders.append(model._test_dl)
-
-        model._test_dl = dataloaders
-        model._test_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
-
-        # In fast-dev-run, only one data loader is used
-        if model._trainer.fast_dev_run:
-            model._test_dl = model._test_dl[:1]
-            model._test_filenames = model._test_filenames[:1]
+            model._test_filenames = [parse_filepath_as_name(model._cfg.test_ds.manifest_filepath)]
 
     else:
+        # no manifest filepath, cannot resolve multi paths
+        logging.warn('Cannot resolve multi-dataloader path since `test_ds` does not contain `manifest_filepath`')
+
         model.setup_test_data(cfg.test_ds)
-        model._test_filenames = [parse_filepath_as_name(model._cfg.test_ds.manifest_filepath)]
+        model._test_filenames = ['test_']
