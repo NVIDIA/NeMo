@@ -146,8 +146,8 @@ class Typing(ABC):
                 self.__check_neural_type(elem, type_val)
 
         if hasattr(obj, 'neural_type') and not type_val.compare(obj.neural_type) in (
-                NeuralTypeComparisonResult.SAME,
-                NeuralTypeComparisonResult.GREATER,
+            NeuralTypeComparisonResult.SAME,
+            NeuralTypeComparisonResult.GREATER,
         ):
             raise TypeError(
                 f"{type_val.compare(obj.neural_type)} : \n"
