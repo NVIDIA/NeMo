@@ -2,7 +2,8 @@ pipeline {
   agent {
         docker {
             image 'nvcr.io/nvidia/pytorch:20.06-py3'
-            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
+            args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData \
+            -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
   options {
@@ -280,7 +281,10 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_text.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wikitext-2/  --batch_size 64 --config_file /home/TestData/nlp/bert_configs/bert_3200.json --lr 0.01 --warmup_ratio 0.05 --max_steps=2 --tokenizer_name=sentencepiece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1'
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_text.py --precision 16 \
+          --amp_level=O1 --data_dir /home/TestData/nlp/wikitext-2/  --batch_size 64 \
+          --config_file /home/TestData/nlp/bert_configs/bert_3200.json --lr 0.01 --warmup_ratio 0.05 \
+          --max_steps=2 --tokenizer_name=sentencepiece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1'
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }
@@ -293,11 +297,15 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 2'
+          sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 \
+          --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 \
+          --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 \
+          --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 2'
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }
-    stage('L2: NER') {
+
+    stage('L2: Parallel NER / Punctuation and Capitalization') {
       when {
         anyOf{
           branch 'candidate'
@@ -305,25 +313,21 @@ pipeline {
         }
       }
       failFast true
-        steps {
+      parallel {
+        stage('NER') {
+          steps {
           sh 'cd examples/nlp/token_classification && \
           python ner.py \
           model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
           trainer.gpus=[0] \
           +trainer.fast_dev_run=true \
           model.use_cache=false \
-          '
+          exp_manager.root_dir=exp_ner_bert_base_uncased'
+          sh 'rm -rf examples/nlp/token_classification/exp_ner_bert_base_uncased'
+          }
         }
-    }
-    stage('L2: Punctuation and capitalization: DistilBert + MultiGPU') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-        steps {
+        stage('Punctuation and Capitalization with DistilBert, multi-gpu') {
+          steps {
           sh 'cd examples/nlp/token_classification && \
           python punctuation_capitalization.py \
           model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
@@ -332,10 +336,11 @@ pipeline {
           trainer.gpus=[0,1] \
           trainer.distributed_backend=ddp \
           +trainer.fast_dev_run=true \
-          exp_manager.root_dir=exp_distilbert_base_uncased \
-          '
+          exp_manager.root_dir=exp_distilbert_base_uncased'
           sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
         }
+        }
+      }
     }
 
   }

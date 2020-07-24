@@ -1,9 +1,25 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Named Entity Recognition with pretrained BERT models
 
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
-  max_epochs: 3
+  max_epochs: 5
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
@@ -24,7 +40,7 @@ model:
     prefix: train
     shuffle: true
     num_samples: -1
-    batch_size: 32
+    batch_size: 64
     num_workers:  2
     pin_memory: false
     drop_last: false
@@ -33,7 +49,7 @@ model:
     prefix: dev
     shuffle: false
     num_samples: -1
-    batch_size: 32
+    batch_size: 64
     num_workers:  2
     pin_memory: false
     drop_last: false
@@ -49,18 +65,18 @@ model:
 
   head:
     num_fc_layers: 2
-    fc_dropout: 0.1
+    fc_dropout: 0.5
     activation: 'relu'
     log_softmax: True
     use_transformer_init: True
 
   optim:
     name: adam
-    lr: 2e-5
+    lr: 5e-5
     args:
       name: auto
       params:
-        weight_decay: 0.01
+        weight_decay: 0.00
 
     sched:
       name: WarmupAnnealing
