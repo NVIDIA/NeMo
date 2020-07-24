@@ -5,7 +5,7 @@ for voxceleb trial files you can download
 voxceleb1_test_v2.txt from http://www.openslr.org/resources/49/voxceleb1_test_v2.txt and
 veri_test2.txt from http://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test2.txt 
 
-Generate manifest files for voxceleb test files (see $NeMo/scipts to see how we can generate scp to manifest using simple steps) 
+Generate manifest files for voxceleb test files (refer $NeMo/scipts/scp_to_manifest.py for help) 
 
 name=CKPT_NAME
 python ./spkr_get_emb.py --batch_size=128 --exp_name=$name \

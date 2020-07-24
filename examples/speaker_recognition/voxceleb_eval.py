@@ -28,7 +28,7 @@ This script faciliates to get EER % based on cosine-smilarity
 for Voxceleb dataset.
 
 Args:
-    trial_file str: Path to voxceleb trial file
+    trial_file str: path to voxceleb trial file
     emb : path to numpy file of embeddings (generated from spkr_get_emb.py)
     manifest: path to test manifest file that contains path of audio files which is used in spkr_get_emb.py
     Note: order of audio files in manifest file should match the embeddings
@@ -110,7 +110,7 @@ def get_acc(trial_file='', emb='', manifest=''):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--trial_file", help="Path to voxceleb trial file", type=str, required=True)
+    parser.add_argument("--trial_file", help="path to voxceleb trial file", type=str, required=True)
     parser.add_argument("--emb", help="path to numpy file of embeddings", type=str, required=True)
     parser.add_argument(
         "--manifest", help="path to test manifest file that contains path of audio files", type=str, required=True
