@@ -464,14 +464,6 @@ class TestNeuralTypeCheckSystem:
         assert result2.sum() == torch.tensor(-10.0)
         assert hasattr(result2, 'neural_type') is False
 
-        # Test cached types stored inside obj (injected by wrapper dynamically)
-        # This can be used for introspection of dynamic types
-        func_name = obj.forward.__name__
-        input_types = getattr(obj, '__wrapped_fn_{}_input_types'.format(func_name))
-
-        assert input_types is not None and 'y' in input_types
-        assert input_types['y'].compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
-
     @pytest.mark.unit
     def test_output_type_override(self):
         class OutputTypes(Typing):
@@ -507,16 +499,6 @@ class TestNeuralTypeCheckSystem:
         assert hasattr(result2, 'neural_type')
         assert (
             result2.neural_type.compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
-        )
-
-        # Test cached types stored inside obj (injected by wrapper dynamically)
-        # This can be used for introspection of dynamic types
-        func_name = obj.forward.__name__
-        output_types = getattr(obj, '__wrapped_fn_{}_output_types'.format(func_name))
-
-        assert output_types is not None and 'z' in output_types
-        assert (
-            output_types['z'].compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
         )
 
     @pytest.mark.unit

@@ -56,7 +56,7 @@ class Typing(ABC):
         """Define these to enable output neural type checks"""
         return None
 
-    def _validate_input_types(self, input_types, **kwargs):
+    def _validate_input_types(self, input_types=None, **kwargs):
         """
         This function does a few things.
         1) It ensures that len(kwargs) == len(self.input_types).
@@ -115,7 +115,7 @@ class Typing(ABC):
                     for ind, val in enumerate(value):
                         self.__check_neural_type(val, input_types[key])
 
-    def _attach_and_validate_output_types(self, output_types, out_objects):
+    def _attach_and_validate_output_types(self, out_objects, output_types=None):
         """
         This function does a few things.
         1) It ensures that len(out_object) == len(self.output_types).
@@ -415,12 +415,12 @@ class typecheck:
             raise TypeError("All arguments must be passed by kwargs only for typed methods")
 
         # Perform rudimentary input checks here
-        instance._validate_input_types(input_types, **kwargs)
+        instance._validate_input_types(input_types=input_types, **kwargs)
 
         # Call the method - this can be forward, or any other callable method
         outputs = wrapped(*args, **kwargs)
 
-        instance._attach_and_validate_output_types(output_types, outputs)
+        instance._attach_and_validate_output_types(output_types=output_types, out_objects=outputs)
 
         return outputs
 
