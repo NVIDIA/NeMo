@@ -53,18 +53,18 @@ class BERTLMModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.max_seq_length = cfg.max_seq_length
         self.tokenizer = None
-        # TODO: Not sure why this is here 
-        #if preprocessing_args:
+        # TODO: Not sure why this is here
+        # if preprocessing_args:
         self._setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # TODO: this method name should be changed since it not only 
+        # TODO: this method name should be changed since it not only
         # gets pretrained language models, but also instantiates them
         # if a config is present
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
-            config_file=cfg.language_model.bert_config_file
+            config_file=cfg.language_model.bert_config_file,
         )
 
         self.hidden_size = self.bert_model.config.hidden_size
@@ -165,9 +165,7 @@ class BERTLMModel(ModelPT):
         if 'shuffle' not in cfg:
             cfg['shuffle'] = True
         self._train_dl = (
-            self._setup_preprocessed_dataloader(cfg)
-            if self.tokenizer is None
-            else self._setup_dataloader(cfg)
+            self._setup_preprocessed_dataloader(cfg) if self.tokenizer is None else self._setup_dataloader(cfg)
         )
 
     def setup_validation_data(self, val_data_config: Optional[Dict]):
@@ -184,7 +182,7 @@ class BERTLMModel(ModelPT):
 
     def _setup_preprocessed_dataloader(self, data_layer_params):
         raise NotImplementedError
-        #TODO: can we merge the two scripts?
+        # TODO: can we merge the two scripts?
         # dataset = data_layer_params['train_data']
         # max_predictions_per_seq = data_layer_params['max_predictions_per_seq']
         # batch_size = data_layer_params['batch_size']

@@ -34,9 +34,7 @@ __all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list
 
 
 def get_huggingface_lm_model(
-    pretrained_model_name: str,
-    config_dict: Optional[dict], 
-    config_file: Optional[str] = None
+    pretrained_model_name: str, config_dict: Optional[dict], config_file: Optional[str] = None
 ):
     '''
     Returns the dict of special tokens associated with the model.
