@@ -339,17 +339,15 @@ pipeline {
         }
     }
 
-    stage('L2: Parallel NER with Megatron') {
+    stage('L2: NER with uncased Megatron') {
           when {
             anyOf{
               branch 'candidate'
               changeRequest target: 'candidate'
             }
-          }
+          }          
           failFast true
-          parallel {
-            stage('NER with uncased Megatron') {
-              steps {
+	  steps {
                 sh 'cd examples/nlp/token_classification && \
                 python ner.py \
                 model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
@@ -359,23 +357,28 @@ pipeline {
                 model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
                 exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
                 sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
-              }
+          }
+     }
+     stage('L2: NER with cased Megatron') {
+          when {
+            anyOf{
+              branch 'candidate'
+              changeRequest target: 'candidate'
             }
-            stage('NER with cased Megatron') {
-              steps {
+          }          
+          failFast true
+          steps {
                 sh 'cd examples/nlp/token_classification && \
                 python ner.py \
                 model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-                trainer.gpus=[1] \
+                trainer.gpus=[0] \
                 +trainer.fast_dev_run=true \
                 model.use_cache=false \
                 model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
                 exp_manager.root_dir=exp_ner_megatron_bert_base_cased'
                 sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
-              }
-          }
-        }
-    }	
+           }
+      }
   }
   post {
     always {
