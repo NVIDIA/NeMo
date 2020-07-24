@@ -15,7 +15,6 @@
 import argparse
 import base64
 import json
-import os
 from collections import defaultdict
 
 import dash
