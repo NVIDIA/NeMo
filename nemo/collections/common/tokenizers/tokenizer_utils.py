@@ -109,11 +109,6 @@ def get_tokenizer(
         vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
             pretrained_model_name
         )
-        args = {
-            'rank': 0,
-            'tokenizer_type': 'BertWordPieceLowerCase' if do_lower_case else 'BertWordPiece',
-            'vocab_file': vocab_file,
-        }
         tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
             vocab_file=vocab_file, do_lower_case=do_lower_case
         )

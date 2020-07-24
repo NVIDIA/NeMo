@@ -15,8 +15,6 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
-
 import torch
 from megatron.initialize import initialize_megatron
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
