@@ -100,10 +100,7 @@ class ModelPT(LightningModule, Model):
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             self.to_config_file(path2yaml_file=config_yaml)
-            trainer = self._trainer if self._trainer else Trainer()
-            if trainer.model != self:
-                trainer.model = self
-            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
+            torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
@@ -131,8 +128,7 @@ class ModelPT(LightningModule, Model):
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             conf = OmegaConf.load(config_yaml)
             instance = cls.from_config_dict(config=conf)
-            sd = torch.load(model_weights)
-            instance.load_state_dict(sd['state_dict'])
+            instance.load_state_dict(torch.load(model_weights))
         return instance
 
     @abstractmethod
