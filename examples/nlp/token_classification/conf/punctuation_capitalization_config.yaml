@@ -39,7 +39,7 @@ model:
     prefix: train
     shuffle: true
     num_samples: -1
-    batch_size: 32
+    batch_size: 64
     num_workers:  2
     pin_memory: false
     drop_last: false
@@ -48,7 +48,7 @@ model:
     prefix: dev
     shuffle: false
     num_samples: -1
-    batch_size: 32
+    batch_size: 64
     num_workers:  2
     pin_memory: false
     drop_last: false
@@ -77,8 +77,8 @@ model:
     use_transformer_init: true
 
   optim:
-    name: adam
-    lr: 2e-5
+    name: adam_w
+    lr: 1e-5
     args:
       name: auto
       params:
