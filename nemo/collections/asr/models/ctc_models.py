@@ -13,6 +13,7 @@
 # limitations under the License.
 import copy
 import json
+from math import ceil
 import os
 import tempfile
 from typing import Dict, List, Optional, Union
@@ -57,8 +58,8 @@ class EncDecCTCModel(ASRModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
-        self.world_size = trainer.num_nodes * trainer.num_gpus
+        self.global_rank = (trainer.node_rank * trainer.num_processes) + trainer.local_rank
+        self.world_size = trainer.num_nodes * trainer.num_processes
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
@@ -219,6 +220,14 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if train_data_config['is_tarred']:
+            self._trainer.limit_train_batches = ceil(
+                (len(self._train_dl) / self.world_size) / train_data_config['batch_size']
+            )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:

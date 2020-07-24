@@ -554,7 +554,7 @@ class TarredAudioToCharDataset(IterableDataset):
         return TarredAudioFilter(self.collection)
 
     def _collate_fn(self, batch):
-        return seq_collate_fn(batch, self.pad_id)
+        return _speech_collate_fn(batch, self.pad_id)
 
     def _build_sample(self, tup):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
