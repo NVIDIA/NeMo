@@ -33,7 +33,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 32
+      batch_size: 48
 
 
   validation_ds:
@@ -55,7 +55,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 32
+      batch_size: 48
 
   preprocessor:
     cls: nemo.collections.asr.parts.features.FilterbankFeatures

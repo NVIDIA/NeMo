@@ -20,7 +20,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 12
+      batch_size: 16
 
   validation_ds:
     dataset:
@@ -29,12 +29,12 @@ model:
         manifest_filepath: ${validation_datasets}
         max_duration: null
         min_duration: 0.1
-        n_segments: 30000
+        n_segments: -1
         trim: false
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 12
+      batch_size: 6
 
   preprocessor:
     cls: nemo.collections.asr.parts.features.FilterbankFeatures
