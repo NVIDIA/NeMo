@@ -14,6 +14,8 @@
 
 import copy
 import inspect
+import os
+import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
@@ -98,6 +100,14 @@ class ModelPT(LightningModule, Model):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            if hasattr(self, 'artifacts') and self.artifacts is not None:
+                for (conf_path, src) in self.artifacts:
+                    try:
+                        if os.path.exists(src):
+                            shutil.copy2(src, tmpdir)
+                    except:
+                        logging.error(f"Could not copy artifact {src} used in {conf_path}")
+
             self.to_config_file(path2yaml_file=config_yaml)
             torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
