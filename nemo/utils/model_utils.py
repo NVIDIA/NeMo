@@ -41,9 +41,9 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
             if os.path.exists(value) or os.path.isdir(value):
                 return key
 
-    raise ValueError("Could not resolve any filepath to a file for dataset ! Provided dictionary : {}".format(
-        str(cfg)
-    ))
+    raise ValueError(
+        "Could not resolve any filepath to a file for dataset ! Provided dictionary : {}".format(str(cfg))
+    )
 
 
 def parse_filepath_as_name(filepath: str) -> str:
