@@ -156,7 +156,7 @@ def save_figure_to_numpy(fig):
 def waveglow_log_to_tb_func(
     swriter, tensors, step, tag="train", n_fft=1024, hop_length=256, window="hann", mel_fb=None,
 ):
-    audio_pred, spec_target, mel_length = tensors
+    _, audio_pred, spec_target, mel_length = tensors
     mel_length = mel_length[0]
     spec_target = spec_target[0].data.cpu().numpy()[:, :mel_length]
     swriter.add_image(

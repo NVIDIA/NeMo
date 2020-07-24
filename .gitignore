@@ -152,6 +152,8 @@ cifar-10-batches-py
 
 # outputs folder
 examples/*/outputs
+examples/*/NeMo_experiments
+examples/*/.hydra
 examples/*/wandb
 examples/*/data
 wandb
@@ -162,3 +164,6 @@ docs/sources/source/test_build/
 # Checkpoints, config files and temporary files created in tutorials.
 examples/neural_graphs/*.chkpt
 examples/neural_graphs/*.yml
+
+# pylintrc
+.pylintrc
