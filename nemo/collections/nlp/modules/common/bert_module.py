@@ -50,8 +50,4 @@ class BertModule(NeuralModule):
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
         state_dict = torch.load(restore_path)
-
-        if 'model' in state_dict:
-            self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
-        else:
-            self.load_state_dict(state_dict)
+        self.load_state_dict(state_dict)

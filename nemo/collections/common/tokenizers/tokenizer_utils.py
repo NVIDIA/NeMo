@@ -66,7 +66,6 @@ TOKENIZERS = {
     'albert': AlbertTokenizer,
     'roberta': RobertaTokenizer,
     'distilbert': DistilBertTokenizerFast,
-    'megatron': "",
 }
 
 
