@@ -16,7 +16,7 @@ import copy
 import os
 from pathlib import Path
 
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo import logging
 
@@ -115,6 +115,17 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
+    # process val_loss_idx
+    if hasattr(cfg.validation_ds, 'val_loss_idx'):
+        cfg = OmegaConf.to_container(cfg)
+        val_loss_idx = cfg['validation_ds'].pop('val_loss_idx')
+        cfg = OmegaConf.create(cfg)
+    else:
+        val_loss_idx = 0
+
+    # Set val_loss_idx
+    model._validation_loss_idx = val_loss_idx
+
     filepath_key = resolve_filepath_from_cfg(cfg.validation_ds)
 
     if filepath_key is None:
@@ -175,6 +186,17 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     """
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
+
+    # process test_loss_idx
+    if hasattr(cfg.test_ds, 'test_loss_idx'):
+        cfg = OmegaConf.to_container(cfg)
+        test_loss_idx = cfg['test_ds'].pop('test_loss_idx')
+        cfg = OmegaConf.create(cfg)
+    else:
+        test_loss_idx = 0
+
+    # Set val_loss_idx
+    model._test_loss_idx = test_loss_idx
 
     filepath_key = resolve_filepath_from_cfg(cfg.test_ds)
 

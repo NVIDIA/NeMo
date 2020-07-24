@@ -377,6 +377,26 @@ class ModelPT(LightningModule, Model):
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
     ) -> Dict[str, Dict[str, torch.Tensor]]:
+        """
+        Default DataLoader for Validation set which automatically supports multiple data loaders
+        via `multi_validation_epoch_end`.
+
+        If multi dataset support is not required, override this method entirely in base class.
+        In such a case, there is no need to implement `multi_validation_epoch_end` either.
+
+        Note:
+            If more than one data loader exists, and they all provide `val_loss`,
+            only the `val_loss` of the first data loader will be used by default.
+            This default can be changed by passing the special key `val_loss_idx: int`
+            inside the `validation_ds` config.
+
+        Args:
+            outputs: Single or nested list of tensor outputs from one or more data loaders.
+
+        Returns:
+            A dictionary containing the union of all items from individual data_loaders,
+            along with merged logs from all data loaders.
+        """
 
         if type(outputs[0]) == dict:
             return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
@@ -394,7 +414,11 @@ class ModelPT(LightningModule, Model):
                     if k == 'log':
                         log_dict = {}
                         for k_log, v_log in v.items():
-                            if k_log == 'val_loss' and 'val_loss' not in output_dict['log']:
+                            if (
+                                k_log == 'val_loss'
+                                and 'val_loss' not in output_dict['log']
+                                and dataloader_idx == self._validation_loss_idx
+                            ):
                                 new_k_log = 'val_loss'
 
                                 # Also insert duplicate key with prefix for ease of comparison
@@ -435,7 +459,11 @@ class ModelPT(LightningModule, Model):
                     if k == 'log':
                         log_dict = {}
                         for k_log, v_log in v.items():
-                            if k_log == 'test_loss' and 'test_loss' not in output_dict['log']:
+                            if (
+                                k_log == 'test_loss'
+                                and 'test_loss' not in output_dict['log']
+                                and dataloader_idx == self._test_loss_idx
+                            ):
                                 new_k_log = 'test_loss'
 
                                 # Also insert duplicate key with prefix for ease of comparison
