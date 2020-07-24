@@ -40,7 +40,7 @@ class EncDecClassificationModel(ASRModel):
         self.preprocessor = EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecClassificationModel.from_config_dict(self._cfg.encoder)
         self.decoder = EncDecClassificationModel.from_config_dict(self._cfg.decoder)
-        self.loss = CrossEntropyLoss(logits_ndim=self.decoder.num_classes)
+        self.loss = CrossEntropyLoss()
         if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
             self.spec_augmentation = EncDecClassificationModel.from_config_dict(self._cfg.spec_augment)
         else:

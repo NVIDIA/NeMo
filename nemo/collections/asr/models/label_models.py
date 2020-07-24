@@ -143,24 +143,24 @@ class EncDecSpeakerLabelModel(ModelPT):
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         self.train()
-        audio_signal, audio_signal_len, label, _ = batch
+        audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits, label)
+        loss_value = self.loss(logits=logits, labels=labels)
         labels_hat = torch.argmax(logits, dim=1)
-        n_correct_pred = torch.sum(label == labels_hat, dim=0).item()
-        tensorboard_logs = {'train_loss': loss_value, 'training_batch_acc': (n_correct_pred / len(label)) * 100}
+        n_correct_pred = torch.sum(labels == labels_hat, dim=0).item()
+        tensorboard_logs = {'train_loss': loss_value, 'training_batch_acc': (n_correct_pred / len(labels)) * 100}
 
-        return {'loss': loss_value, 'log': tensorboard_logs, "n_correct_pred": n_correct_pred, "n_pred": len(label)}
+        return {'loss': loss_value, 'log': tensorboard_logs, "n_correct_pred": n_correct_pred, "n_pred": len(labels)}
 
     def validation_step(self, batch, batch_idx):
         self.eval()
-        audio_signal, audio_signal_len, label, _ = batch
+        audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        loss_value = self.loss(logits, label)
+        loss_value = self.loss(logits=logits, labels=labels)
         labels_hat = torch.argmax(logits, dim=1)
-        n_correct_pred = torch.sum(label == labels_hat, dim=0).item()
+        n_correct_pred = torch.sum(labels == labels_hat, dim=0).item()
 
-        return {'val_loss': loss_value, "n_correct_pred": n_correct_pred, "n_pred": len(label)}
+        return {'val_loss': loss_value, "n_correct_pred": n_correct_pred, "n_pred": len(labels)}
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()

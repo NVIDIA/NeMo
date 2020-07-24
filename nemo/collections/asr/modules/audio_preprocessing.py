@@ -285,7 +285,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     """
 
     @property
-    def input_ports(self):
+    def input_types(self):
         """Returns definitions of module input ports.
         """
         return {
@@ -294,7 +294,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         }
 
     @property
-    def output_ports(self):
+    def output_types(self):
         """Returns definitions of module output ports.
         """
         return {
@@ -513,7 +513,7 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
         return image, length
 
     @property
-    def input_ports(self):
+    def input_types(self):
         """Returns definitions of module output ports.
         """
         return {
@@ -522,7 +522,7 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
         }
 
     @property
-    def output_ports(self):
+    def output_types(self):
         """Returns definitions of module output ports.
         """
         return {
