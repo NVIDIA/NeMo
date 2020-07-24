@@ -27,14 +27,14 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
 
     for key, value in cfg.items():
         if type(value) in [list, tuple, ListConfig]:
-            values_are_paths = True
+            values_are_paths = 0
             for val_i in value:
                 if os.path.exists(val_i) or os.path.isdir(val_i):
-                    values_are_paths = values_are_paths & True
+                    values_are_paths += 1
                 else:
-                    values_are_paths = False
+                    values_are_paths = 0
 
-            if values_are_paths:
+            if values_are_paths == len(value):
                 return key
 
         else:
