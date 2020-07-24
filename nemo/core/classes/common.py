@@ -93,7 +93,7 @@ class Typing(ABC):
                         f"Input type found : {value.neural_type}"
                     )
 
-                # Perform recursive neural type check for homogenous elements
+                # Perform recursive neural type check for homogeneous elements
                 elif isinstance(value, list) or isinstance(value, tuple):
                     for ind, val in enumerate(value):
                         self.__check_neural_type(val, self.input_types[key])
@@ -144,6 +144,7 @@ class Typing(ABC):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
                 self.__check_neural_type(elem, type_val)
+            return  # after processing nest, return to avoid testing nest itself
 
         if hasattr(obj, 'neural_type') and not type_val.compare(obj.neural_type) in (
             NeuralTypeComparisonResult.SAME,
@@ -159,6 +160,7 @@ class Typing(ABC):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
                 self.__attach_neural_type(elem, type_val)
+            return  # after processing nest, return to avoid argument insertion into nest itself
 
         try:
             obj.neural_type = type_val
