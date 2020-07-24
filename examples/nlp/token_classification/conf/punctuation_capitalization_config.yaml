@@ -8,8 +8,8 @@ trainer:
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
   distributed_backend: ddp
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
 
 model:
   data_dir: ??? # /path/to/data
@@ -57,8 +57,8 @@ model:
     capit_num_fc_layers: 1
     fc_dropout: 0.1
     activation: 'relu'
-    log_softmax: True
-    use_transformer_init: True
+    log_softmax: true
+    use_transformer_init: true
 
   optim:
     name: adam
@@ -88,8 +88,8 @@ model:
 exp_manager:
   root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
   name: Punctuation_and_Capitalization  # The name of your model
-  create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
-  create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
+  create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
 
 hydra:
   run:
