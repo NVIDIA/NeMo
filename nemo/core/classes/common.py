@@ -406,7 +406,8 @@ class typecheck:
         else:
             output_types = instance.output_types
 
-        # Inject type information into the wrapped function for introspection
+        # Inject type information into the instance of the class
+        # by using the wrapped function name. Can be used for introspection
         wrapped_func_name = wrapped.__name__
         setattr(instance, '__wrapped_fn_{}_input_types'.format(wrapped_func_name), input_types)
         setattr(instance, '__wrapped_fn_{}_output_types'.format(wrapped_func_name), output_types)
