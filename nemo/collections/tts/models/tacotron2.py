@@ -48,7 +48,7 @@ class Tacotron2Config:
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
-class Tacotron2(ModelPT):
+class Tacotron2Model(ModelPT):
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -63,11 +63,11 @@ class Tacotron2(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.audio_to_melspec_precessor = Tacotron2.from_config_dict(self._cfg.preprocessor)
+        self.audio_to_melspec_precessor = Tacotron2Model.from_config_dict(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.train_ds.dataset.params.labels) + 3, 512)
-        self.encoder = Tacotron2.from_config_dict(self._cfg.encoder)
-        self.decoder = Tacotron2.from_config_dict(self._cfg.decoder)
-        self.postnet = Tacotron2.from_config_dict(self._cfg.postnet)
+        self.encoder = Tacotron2Model.from_config_dict(self._cfg.encoder)
+        self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
+        self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
 
         # After defining all torch.modules, create optimizer and scheduler
         self.setup_optimization()
@@ -176,7 +176,9 @@ class Tacotron2(ModelPT):
         tacotron2_log_to_tb_func(
             self.logger.experiment, outputs[0].values(), self.global_step, tag="eval", log_images=True, add_audio=False
         )
-        return {}
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -197,7 +199,7 @@ class Tacotron2(ModelPT):
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         labels = cfg.dataset.params.labels
-        dataset = Tacotron2.from_config_dict(
+        dataset = Tacotron2Model.from_config_dict(
             cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2,
         )
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)

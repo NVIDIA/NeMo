@@ -22,6 +22,7 @@ from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.core.classes import ModelPT
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.collections.tts.modules.waveglow import OperationMode
 
 
 @dataclass
@@ -44,7 +45,7 @@ class WaveglowConfig:
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
-class Waveglow(ModelPT):
+class WaveGlowModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -59,8 +60,9 @@ class Waveglow(ModelPT):
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = 1.0
-        self.audio_to_melspec_precessor = Waveglow.from_config_dict(self._cfg.preprocessor)
-        self.waveglow = Waveglow.from_config_dict(self._cfg.waveglow)
+        self.audio_to_melspec_precessor = WaveGlowModel.from_config_dict(self._cfg.preprocessor)
+        self.waveglow = WaveGlowModel.from_config_dict(self._cfg.waveglow)
+        self.mode = OperationMode.infer
 
         self.setup_optimization()
 
@@ -76,16 +78,25 @@ class Waveglow(ModelPT):
         loss = torch.sum(z * z) / (2 * self.sigma * self.sigma) - log_s_total - log_det_W_total
         return loss / (z.size(0) * z.size(1) * z.size(2))
 
-    def forward(self, audio, audio_len):
+    def forward(self, audio, audio_len, run_inverse=True):
+        if self.mode != self.waveglow.mode:
+            raise ValueError(
+                f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.waveglow.mode}"
+            )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        if self.training:
-            return self.waveglow(spect=spec, audio=audio)
-        audio_pred = self.waveglow(spect=spec)
-        return audio_pred, spec, spec_len
+        tensors = self.waveglow(spect=spec, audio=audio, run_inverse=run_inverse)
+        if self.mode == OperationMode.training:
+            return tensors  # z, log_s_list, log_det_W_list, audio_pred
+        elif self.mode == OperationMode.validation:
+            z, log_s_list, log_det_W_list, audio_pred = tensors
+            return z, log_s_list, log_det_W_list, audio_pred, spec, spec_len
+        return tensors  # audio_pred
 
     def training_step(self, batch, batch_idx):
+        self.mode = OperationMode.training
+        self.waveglow.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list = self.forward(audio, audio_len)
+        z, log_s_list, log_det_W_list, _ = self.forward(audio, audio_len)
 
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
         output = {
@@ -96,9 +107,15 @@ class Waveglow(ModelPT):
         return output
 
     def validation_step(self, batch, batch_idx):
+        self.mode = OperationMode.validation
+        self.waveglow.mode = OperationMode.validation
         audio, audio_len = batch
-        audio_pred, spec, spec_len = self.forward(audio, audio_len)
+        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
+            audio, audio_len, run_inverse=(batch_idx == 0)
+        )
+        loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
         return {
+            "val_loss": loss,
             "audio_pred": audio_pred,
             "mel_target": spec,
             "mel_len": spec_len,
@@ -112,7 +129,9 @@ class Waveglow(ModelPT):
             tag="eval",
             mel_fb=self.audio_to_melspec_precessor.fb,
         )
-        return {}
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -132,7 +151,7 @@ class Waveglow(ModelPT):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        dataset = Waveglow.from_config_dict(cfg.dataset)
+        dataset = WaveGlowModel.from_config_dict(cfg.dataset)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):

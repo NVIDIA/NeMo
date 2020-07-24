@@ -247,6 +247,10 @@ class StringLabel(StringType):
     """
 
 
+class BoolType(ElementType):
+    """Element type representing a single integer"""
+
+
 class IntType(ElementType):
     """Element type representing a single integer"""
 

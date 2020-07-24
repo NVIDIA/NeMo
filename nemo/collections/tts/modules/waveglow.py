@@ -11,18 +11,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from enum import Enum
+
 
 import torch
 
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType, NormalDistributionSamplesType, VoidType
+from nemo.core.neural_types.elements import (
+    AudioSignal,
+    MelSpectrogramType,
+    NormalDistributionSamplesType,
+    VoidType,
+    IntType,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 
 
+class OperationMode(Enum):
+    """Training or Inference (Evaluation) mode"""
+
+    training = 0
+    validation = 1
+    infer = 2
+
+
 @experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
-class WaveGlow(NeuralModule):
+class WaveGlowModule(NeuralModule):
     def __init__(
         self,
         n_mel_channels: int,
@@ -57,6 +73,7 @@ class WaveGlow(NeuralModule):
         self.n_early_size = n_early_size
         self.wavenet = torch.nn.ModuleList()
         self.convinv = torch.nn.ModuleList()
+        self.mode = OperationMode.infer
 
         n_half = int(n_group / 2)
 
@@ -80,33 +97,45 @@ class WaveGlow(NeuralModule):
         self.n_remaining_channels = n_remaining_channels
 
     @typecheck()
-    def forward(self, *args, **kwargs):
+    def forward(self, *, spect, audio=None, run_inverse=True):
         """ TODO
         """
-        if self.training:
-            return self.audio_to_normal_dist(**kwargs)
-        return self.norm_dist_to_audio(**kwargs)
+        if self.training and self.mode != OperationMode.training:
+            raise ValueError(f"{self} has self.training set to True but self.OperationMode was not set to training")
+        if not self.training and self.mode == OperationMode.training:
+            raise ValueError(f"{self} has self.training set to False but self.OperationMode was set to training")
+
+        audio_pred = torch.zeros((1, 1))
+        if audio is not None and self.mode != OperationMode.infer:
+            # audio_to_normal_dist is used to calculate loss so only run this in train or val model
+            z, log_s_list, log_det_W_list = self.audio_to_normal_dist(spect=spect, audio=audio)
+        if run_inverse:
+            # norm_dist_to_audio is used to predict audio from spectrogram so only used in val or infer mode
+            # Could also log train audio but currently not done
+            audio_pred = self.norm_dist_to_audio(spect=spect)
+
+        # Return the necessary tensors
+        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
+            return z, log_s_list, log_det_W_list, audio_pred
+        return audio
 
     @property
     def input_types(self):
-        if self.training:
-            return {
-                "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "audio": NeuralType(('B', 'T'), AudioSignal()),
-            }
-        else:
-            return {
-                "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                # "sigma": NeuralType(tuple('B'), LengthsType()),  # TODO: This is optional, how can I express this?
-            }
+        return {
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+            "run_inverse": NeuralType(elements_type=IntType(), optional=True),
+            # "sigma": NeuralType(elements_type=BoolType(), optional=True),  # TODO: Add to forward
+        }
 
     @property
     def output_types(self):
-        if self.training:
+        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             return {
                 "pred_normal_dist": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
                 "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
                 "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+                "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
             }
         else:
             return {
