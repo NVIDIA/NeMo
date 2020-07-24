@@ -14,5 +14,5 @@
 
 from nemo.collections.nlp.models.lm_model import BERTLMModel
 from nemo.collections.nlp.models.qa_model import QAModel
-from nemo.collections.nlp.models.text_classification_model import TextClassificationModel
+from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.models.token_classification import NERModel, PunctuationCapitalizationModel

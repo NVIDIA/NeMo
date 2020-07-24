@@ -78,4 +78,4 @@ class TextClassificationDataDesc:
 
         self.class_weights = fill_class_weights(class_weights_dict, max_label_id)
 
-        self.num_labels = max_label_id + 1
+        self.num_classes = max_label_id + 1

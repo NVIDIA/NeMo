@@ -24,7 +24,7 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import random
-from typing import Any
+from typing import Any, Dict, Optional
 
 import h5py
 import numpy as np
@@ -33,6 +33,7 @@ from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
+from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 
 __all__ = ['TextClassificationDataset']
 
@@ -51,6 +52,17 @@ class TextClassificationDataset(Dataset):
         shuffle: Shuffles the dataset after loading.
         use_cache: Enables caching to use HDFS format to store and read data from
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'input_ids': NeuralType(('B', 'T'), ChannelType()),
+            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+            'input_mask': NeuralType(('B', 'T'), MaskType()),
+            'label': NeuralType(('B', 'T'), LabelsType()),
+        }
 
     def __init__(
         self,
@@ -84,7 +96,7 @@ class TextClassificationDataset(Dataset):
             self.load_cached_features(cached_features_file)
         else:
             with open(input_file, "r") as f:
-                sent_labels, all_sent_subtokens = [], []
+                labels, all_sent_subtokens = [], []
                 sent_lengths = []
                 too_long_count = 0
 
@@ -102,8 +114,8 @@ class TextClassificationDataset(Dataset):
                         logging.debug(f"Processing line {index}/{len(lines)}")
 
                     line_splited = line.strip().split()
-                    sent_label = int(line_splited[-1])
-                    sent_labels.append(sent_label)
+                    label = int(line_splited[-1])
+                    labels.append(label)
                     sent_words = line_splited[:-1]
                     sent_subtokens = [tokenizer.cls_token]
 
@@ -128,7 +140,7 @@ class TextClassificationDataset(Dataset):
                         sentences with more than {max_seq_length} subtokens.'
             )
 
-            self.convert_sequences_to_features(all_sent_subtokens, sent_labels, tokenizer, max_seq_length)
+            self.convert_sequences_to_features(all_sent_subtokens, labels, tokenizer, max_seq_length)
 
             if self.use_cache:
                 self.cache_features(cached_features_file, self.features)
@@ -151,17 +163,17 @@ class TextClassificationDataset(Dataset):
                 np.array(feature.input_ids),
                 np.array(feature.segment_ids),
                 np.array(feature.input_mask, dtype=np.long),
-                feature.sent_label,
+                feature.label,
             )
 
-    def convert_sequences_to_features(self, all_sent_subtokens, sent_labels, tokenizer, max_seq_length):
+    def convert_sequences_to_features(self, all_sent_subtokens, labels, tokenizer, max_seq_length):
         """Loads a data file into a list of `InputBatch`s.
         """
 
         self.features = []
         for sent_id in range(len(all_sent_subtokens)):
             sent_subtokens = all_sent_subtokens[sent_id]
-            sent_label = sent_labels[sent_id]
+            label = labels[sent_id]
 
             input_ids = [tokenizer.tokens_to_ids(t) for t in sent_subtokens]
 
@@ -182,17 +194,13 @@ class TextClassificationDataset(Dataset):
                 logging.info("*** Example ***")
                 logging.info("example_index: %s" % sent_id)
                 logging.info("subtokens: %s" % " ".join(sent_subtokens))
-                logging.info("sent_label: %s" % sent_label)
+                logging.info("label: %s" % label)
                 logging.info("input_ids: %s" % list2str(input_ids))
                 logging.info("input_mask: %s" % list2str(input_mask))
 
             self.features.append(
                 InputFeatures(
-                    sent_id=sent_id,
-                    sent_label=sent_label,
-                    input_ids=input_ids,
-                    input_mask=input_mask,
-                    segment_ids=segment_ids,
+                    sent_id=sent_id, label=label, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
                 )
             )
 
@@ -201,24 +209,24 @@ class TextClassificationDataset(Dataset):
         input_ids_array = np.zeros((len_features, self.max_seq_length))
         segment_ids_array = np.zeros((len_features, self.max_seq_length))
         input_mask_array = np.zeros((len_features, self.max_seq_length))
-        sent_labels_array = np.zeros((len_features,))
+        labels_array = np.zeros((len_features,))
 
         for idx in range(len_features):
             input_ids_array[idx] = features[idx].input_ids
             segment_ids_array[idx] = features[idx].segment_ids
             input_mask_array[idx] = features[idx].input_mask
-            sent_labels_array[idx] = features[idx].sent_label
+            labels_array[idx] = features[idx].label
 
         f = h5py.File(cached_features_file, mode='w')
         f.create_dataset('input_ids', data=input_ids_array)
         f.create_dataset('segment_ids', data=segment_ids_array)
         f.create_dataset('input_mask', data=input_mask_array)
-        f.create_dataset('sent_labels', data=sent_labels_array)
+        f.create_dataset('label', data=labels_array)
         f.close()
 
     def load_cached_features(self, cached_features_file):
         f = h5py.File(cached_features_file, 'r')
-        keys = ['input_ids', 'segment_ids', 'input_mask', 'sent_labels']
+        keys = ['input_ids', 'segment_ids', 'input_masks', 'labels']
         self.features = [np.asarray(f[key], dtype=np.long) for key in keys]
         f.close()
         logging.info(f'features restored from {cached_features_file}')
@@ -238,9 +246,9 @@ class TextClassificationDataset(Dataset):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, sent_id, sent_label, input_ids, input_mask, segment_ids):
-        self.sent_id = sent_id
-        self.sent_label = sent_label
+    def __init__(self, sent_id, label, input_ids, input_mask, segment_ids):
+        self.sent_ids = sent_id
+        self.label = label
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids

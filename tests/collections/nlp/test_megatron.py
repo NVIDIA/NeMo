@@ -31,10 +31,9 @@ class TestMegatron(TestCase):
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
 
 
-#    TODO: uncomment once https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/merge_requests/98 is merged.
+#    TODO: uncomment once megatron double init is fixed
 #    @pytest.mark.unit
 #    def test_get_pretrained_bert_345m_cased_model(self):
 #        model = nemo_nlp.modules.get_pretrained_lm_model('megatron-bert-345m-cased')
 #        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
 
-#    TODO : add test for 2 models requiring config

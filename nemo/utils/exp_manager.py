@@ -16,11 +16,11 @@ import os
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from shutil import copyfile
 from typing import Dict, List, Optional, Union
 
-from dataclasses import dataclass
 from hydra.utils import get_original_cwd
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -163,10 +163,12 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
             trainer.configure_logger(logger_list)
 
+            logging.info("WandBLogger has been setup in addition to TensorboardLogger")
+
     # Create the logging directory if it does not exist
     log_dir = Path(_root_dir, name, version)
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
-
+    logging.info(f'Experiments will be logged at {log_dir}')
     if cfg.create_checkpoint_callback:
         for callback in trainer.callbacks:
             if isinstance(callback, ModelCheckpoint):

@@ -14,8 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
-import pytorch_lightning as ptl
 from dataclasses import dataclass
+
+import pytorch_lightning as ptl
 from omegaconf import DictConfig
 
 from nemo.collections.cv.models import MNISTLeNet5, MNISTLeNet5Config

@@ -76,11 +76,11 @@ class NemoBertTokenizer(TokenizerSpec):
             logging.info(f'Deriving bert model type from pretrained model name.')
         if bert_derivative in TOKENIZERS:
             tokenizer_cls = TOKENIZERS[bert_derivative]
+            logging.info(f'Using {tokenizer_cls.__name__} tokenizer')
         else:
             raise ValueError(
                 f"Bert_derivative value {bert_derivative} is not currently supported"
-                + " Please choose from the following list: "
-                + ",".join(TOKENIZERS.keys())
+                + f" Please choose from the following list: {TOKENIZERS.keys()}"
             )
 
         if pretrained_model:

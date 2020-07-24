@@ -14,9 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
-from dataclasses import dataclass
 from omegaconf import MISSING
 
 __all__ = ['DataLoaderConfig']

@@ -17,7 +17,7 @@ from typing import Dict, Optional
 import torch
 
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import ChannelType, NeuralType
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertModule']
@@ -29,7 +29,7 @@ class BertModule(NeuralModule):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), ChannelType()),
+            "attention_mask": NeuralType(('B', 'T'), MaskType()),
             "token_type_ids": NeuralType(('B', 'T'), ChannelType()),
         }
 
@@ -55,3 +55,4 @@ class BertModule(NeuralModule):
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
         else:
             self.load_state_dict(state_dict)
+

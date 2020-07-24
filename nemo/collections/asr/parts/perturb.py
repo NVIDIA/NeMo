@@ -5,6 +5,7 @@ import random
 
 import librosa
 import numpy as np
+from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 
 from nemo import logging
@@ -421,8 +422,11 @@ def process_augmentations(augmenter) -> AudioAugmentor:
     if isinstance(augmenter, AudioAugmentor):
         return augmenter
 
-    if not type(augmenter) == dict:
+    if not type(augmenter) in {dict, DictConfig}:
         raise ValueError("Cannot parse augmenter. Must be a dict or an AudioAugmentor object ")
+
+    if isinstance(augmenter, DictConfig):
+        augmenter = OmegaConf.to_container(augmenter, resolve=True)
 
     augmenter = copy.deepcopy(augmenter)
 

@@ -14,9 +14,9 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from dataclasses import dataclass
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 

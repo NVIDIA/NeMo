@@ -15,10 +15,10 @@
 # limitations under the License.
 # =============================================================================
 
+from dataclasses import dataclass
 from os.path import expanduser
 from typing import Optional
 
-from dataclasses import dataclass
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Resize, ToTensor
 
