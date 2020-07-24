@@ -131,8 +131,8 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
 
     if type(manifest_paths) in (list, tuple, ListConfig):
 
-        for filepath_key in manifest_paths:
-            cfg.validation_ds[filepath_key] = filepath_key
+        for filepath_val in manifest_paths:
+            cfg.validation_ds[filepath_key] = filepath_val
             model.setup_validation_data(cfg.validation_ds)
             dataloaders.append(model._validation_dl)
 
@@ -192,8 +192,8 @@ def resolve_test_dataloaders(model: 'ModelPT'):
 
     if type(manifest_paths) in (list, tuple, ListConfig):
 
-        for filepath_key in manifest_paths:
-            cfg.test_ds[filepath_key] = filepath_key
+        for filepath_val in manifest_paths:
+            cfg.test_ds[filepath_key] = filepath_val
             model.setup_test_data(cfg.test_ds)
             dataloaders.append(model._test_dl)
 

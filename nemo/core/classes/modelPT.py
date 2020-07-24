@@ -379,14 +379,14 @@ class ModelPT(LightningModule, Model):
     ) -> Dict[str, Dict[str, torch.Tensor]]:
 
         if type(outputs[0]) == dict:
-            return self.multi_validation_epoch_end(outputs, idx=0)
+            return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
 
         else:
             output_dict = {'log': {}}
 
             for dataloader_idx, val_outputs in enumerate(outputs):
                 dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
-                dataloader_logs = self.multi_validation_epoch_end(val_outputs, idx=dataloader_idx)
+                dataloader_logs = self.multi_validation_epoch_end(val_outputs, dataloader_idx=dataloader_idx)
 
                 dataloader_logs = dataloader_logs or {}
 
@@ -417,14 +417,14 @@ class ModelPT(LightningModule, Model):
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
 
         if type(outputs[0]) == dict:
-            return self.multi_validation_epoch_end(outputs, idx=0)
+            return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
 
         else:
             output_dict = {'log': {}}
 
             for dataloader_idx, test_outputs in enumerate(outputs):
                 dataloader_prefix = self.get_test_dataloader_prefix(dataloader_idx)
-                dataloader_logs = self.multi_test_epoch_end(test_outputs, idx=dataloader_idx)
+                dataloader_logs = self.multi_test_epoch_end(test_outputs, dataloader_idx=dataloader_idx)
 
                 dataloader_logs = dataloader_logs or {}
 
@@ -451,20 +451,20 @@ class ModelPT(LightningModule, Model):
             return output_dict
 
     def multi_validation_epoch_end(
-        self, outputs: List[Dict[str, torch.Tensor]], idx: int = 0
+        self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         return
 
     def multi_test_epoch_end(
-        self, outputs: List[Dict[str, torch.Tensor]], idx: int = 0
+        self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         return
 
-    def get_validation_dataloader_prefix(self, idx=0):
-        return self._validation_filenames[idx]
+    def get_validation_dataloader_prefix(self, dataloader_idx=0):
+        return self._validation_filenames[dataloader_idx]
 
-    def get_test_dataloader_prefix(self, idx=0):
-        return self._test_filenames[idx]
+    def get_test_dataloader_prefix(self, dataloader_idx=0):
+        return self._test_filenames[dataloader_idx]
 
     @property
     def num_weights(self):
