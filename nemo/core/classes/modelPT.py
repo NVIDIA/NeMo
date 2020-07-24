@@ -62,12 +62,11 @@ class ModelPT(LightningModule, Model):
             )
         super().__init__()
         if 'target' not in cfg:
-            # This is for Jarvis service. Adding here for now to avoid effects of decorators
+            # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)
-            cfg.target = self.__class__.__name__
+            cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
         self._cfg = cfg
-
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
