@@ -54,7 +54,7 @@ def get_huggingface_lm_model(
             return model_class(config_class.from_json_file(config_file))
         elif config_dict:
             config_class = MODELS[model_type]['config']
-            model_class(config=config_class(**config_dict))
+            return model_class(config=config_class(**config_dict))
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
