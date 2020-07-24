@@ -22,11 +22,30 @@ from nemo import logging
 
 
 def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
+    """
+    Parses items of the provided sub-config to find the first potential key that
+    resolves to an existing file or directory.
+
+    NOTE:
+    It <can> potentially mismatch if there exist more than 2 valid paths, and the
+    first path does *not* resolve the the path of the data file (but does resolve to
+    some other valid path).
+
+    To avoid this side-effect, place the data path as the first item on the config file.
+
+    Args:
+        cfg: DictConfig (Sub-config) that should be parsed.
+
+    Returns:
+        A str representing the `key` of the config which hosts the filepath(s),
+        or None in case path could not be resolved.
+    """
     if hasattr(cfg, 'manifest_filepath'):
         return 'manifest_filepath'
 
     for key, value in cfg.items():
         if type(value) in [list, tuple, ListConfig]:
+            # Count the number of valid paths in the list
             values_are_paths = 0
             for val_i in value:
                 val_i = str(val_i)
@@ -34,7 +53,8 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
                 if os.path.exists(val_i) or os.path.isdir(val_i):
                     values_are_paths += 1
                 else:
-                    values_are_paths = 0
+                    # reset counter and break inner loop
+                    break
 
             if values_are_paths == len(value):
                 return key
@@ -47,6 +67,15 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
 
 
 def parse_filepath_as_name(filepath: str) -> str:
+    """
+    Constructs a valid prefix-name from a provided file path.
+
+    Args:
+        filepath: str path to some valid data/manifest file.
+
+    Returns:
+        str prefix used to identify uniquely this data/manifest file.
+    """
     filename = Path(filepath).stem
 
     # cleanup name
@@ -62,12 +91,33 @@ def parse_filepath_as_name(filepath: str) -> str:
 
 
 def resolve_validation_dataloaders(model: 'ModelPT'):
+    """
+    Helper method that operates on the ModelPT class to automatically support
+    multiple dataloaders for the validation set.
+
+    It does so by first resolving the path to one/more data files via `resolve_filepath_from_cfg()`.
+    If this resolution fails, it assumes the data loader is prepared to manually support / not support
+    multiple data loaders and simply calls the appropriate setup method.
+
+    If resolution succeeds:
+        Checks if provided path is to a single file or a list of files.
+        If a single file is provided, simply tags that file as such and loads it via the setup method.
+        If multiple files are provided:
+            Inject a new manifest path at index "i" into the resolved key.
+            Calls the appropriate setup method to set the data loader.
+            Collects the initialized data loader in a list and preserves it.
+            Once all data loaders are processed, assigns the list of loaded loaders to the ModelPT.
+            Finally assigns a list of unique names resolved from the file paths to the ModelPT.
+
+    Args:
+        model: ModelPT subclass, which requires >=1 Validation Dataloaders to be setup.
+    """
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
-    filepath = resolve_filepath_from_cfg(cfg.validation_ds)
+    filepath_key = resolve_filepath_from_cfg(cfg.validation_ds)
 
-    if filepath is None:
+    if filepath_key is None:
         logging.debug(
             "Could not resolve file path from provided config - {}. "
             "Disabling support for multi-dataloaders.".format(cfg.validation_ds)
@@ -77,12 +127,12 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
         model._validation_filenames = ["validation_"]
         return
 
-    manifest_paths = cfg.validation_ds[filepath]
+    manifest_paths = cfg.validation_ds[filepath_key]
 
     if type(manifest_paths) in (list, tuple, ListConfig):
 
-        for filepath in manifest_paths:
-            cfg.validation_ds['manifest_filepath'] = filepath
+        for filepath_key in manifest_paths:
+            cfg.validation_ds[filepath_key] = filepath_key
             model.setup_validation_data(cfg.validation_ds)
             dataloaders.append(model._validation_dl)
 
@@ -102,27 +152,48 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
 
 
 def resolve_test_dataloaders(model: 'ModelPT'):
+    """
+    Helper method that operates on the ModelPT class to automatically support
+    multiple dataloaders for the test set.
+
+    It does so by first resolving the path to one/more data files via `resolve_filepath_from_cfg()`.
+    If this resolution fails, it assumes the data loader is prepared to manually support / not support
+    multiple data loaders and simply calls the appropriate setup method.
+
+    If resolution succeeds:
+        Checks if provided path is to a single file or a list of files.
+        If a single file is provided, simply tags that file as such and loads it via the setup method.
+        If multiple files are provided:
+            Inject a new manifest path at index "i" into the resolved key.
+            Calls the appropriate setup method to set the data loader.
+            Collects the initialized data loader in a list and preserves it.
+            Once all data loaders are processed, assigns the list of loaded loaders to the ModelPT.
+            Finally assigns a list of unique names resolved from the file paths to the ModelPT.
+
+    Args:
+        model: ModelPT subclass, which requires >=1 Test Dataloaders to be setup.
+    """
     cfg = copy.deepcopy(model._cfg)
     dataloaders = []
 
-    filepath = resolve_filepath_from_cfg(cfg.test_ds)
+    filepath_key = resolve_filepath_from_cfg(cfg.test_ds)
 
-    if filepath is None:
+    if filepath_key is None:
         logging.debug(
             "Could not resolve file path from provided config - {}. "
             "Disabling support for multi-dataloaders.".format(cfg.test_ds)
         )
 
-        model.setup_validation_data(cfg.test_ds)
-        model._validation_filenames = ["test_"]
+        model.setup_test_data(cfg.test_ds)
+        model._test_filenames = ["test_"]
         return
 
-    manifest_paths = cfg.test_ds[filepath]
+    manifest_paths = cfg.test_ds[filepath_key]
 
     if type(manifest_paths) in (list, tuple, ListConfig):
 
-        for filepath in manifest_paths:
-            cfg.test_ds['manifest_filepath'] = filepath
+        for filepath_key in manifest_paths:
+            cfg.test_ds[filepath_key] = filepath_key
             model.setup_test_data(cfg.test_ds)
             dataloaders.append(model._test_dl)
 
