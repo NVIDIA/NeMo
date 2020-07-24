@@ -185,7 +185,7 @@ class EncDecClassificationModel(ASRModel):
         correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
         return {'test_loss': loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
 
-    def multi_validation_epoch_end(self, outputs, idx: int = 0):
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
         total_counts = torch.stack([x['val_total_counts'] for x in outputs])
@@ -198,7 +198,7 @@ class EncDecClassificationModel(ASRModel):
 
         return {'log': tensorboard_log}
 
-    def multi_test_epoch_end(self, outputs, idx: int = 0):
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['test_correct_counts'].unsqueeze(0) for x in outputs])
         total_counts = torch.stack([x['test_total_counts'].unsqueeze(0) for x in outputs])

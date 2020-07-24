@@ -185,7 +185,7 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('Speech to Text') {
+        stage('Speech to Text multi-dataloader') {
           steps {
             sh 'python examples/asr/speech_to_text.py \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -197,7 +197,7 @@ pipeline {
           }
         }
 
-        stage('Speech to Label') {
+        stage('Speech to Label multi-dataloader') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
