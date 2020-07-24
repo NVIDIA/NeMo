@@ -36,4 +36,3 @@ class TestMegatron(TestCase):
 #    def test_get_pretrained_bert_345m_cased_model(self):
 #        model = nemo_nlp.modules.get_pretrained_lm_model('megatron-bert-345m-cased')
 #        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
-
