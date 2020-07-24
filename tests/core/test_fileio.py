@@ -92,25 +92,25 @@ def asr_model():
 
 
 class TestFileIO:
-    @pytest.mark.unit
-    def test_to_from_config_file(self, asr_model):
-        """" Test makes sure that the second instance created with the same configuration (BUT NOT checkpoint)
-        has different weights. """
-
-        with tempfile.NamedTemporaryFile() as fp:
-            yaml_filename = fp.name
-            asr_model.to_config_file(path2yaml_file=yaml_filename)
-            next_instance = EncDecCTCModel.from_config_file(path2yaml_file=yaml_filename)
-
-            assert isinstance(next_instance, EncDecCTCModel)
-
-            assert len(next_instance.decoder.vocabulary) == 28
-            assert asr_model.num_weights == next_instance.num_weights
-
-            w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
-            w2 = next_instance.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
-
-            assert np.array_equal(w1, w2) == False
+    # @pytest.mark.unit
+    # def test_to_from_config_file(self, asr_model):
+    #     """" Test makes sure that the second instance created with the same configuration (BUT NOT checkpoint)
+    #     has different weights. """
+    #
+    #     with tempfile.NamedTemporaryFile() as fp:
+    #         yaml_filename = fp.name
+    #         asr_model.to_config_file(path2yaml_file=yaml_filename)
+    #         next_instance = EncDecCTCModel.from_config_file(path2yaml_file=yaml_filename)
+    #
+    #         assert isinstance(next_instance, EncDecCTCModel)
+    #
+    #         assert len(next_instance.decoder.vocabulary) == 28
+    #         assert asr_model.num_weights == next_instance.num_weights
+    #
+    #         w1 = asr_model.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+    #         w2 = next_instance.encoder.encoder[0].mconv[0].conv.weight.data.detach().cpu().numpy()
+    #
+    #         assert np.array_equal(w1, w2) == False
 
     @pytest.mark.unit
     def test_save_restore_from_nemo_file(self, asr_model):

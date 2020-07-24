@@ -85,12 +85,13 @@ class Serialization(ABC):
     @classmethod
     def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
-        if 'cls' in config and 'params' in config:
+        if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
             instance = cls(cfg=config)
+
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
         return instance

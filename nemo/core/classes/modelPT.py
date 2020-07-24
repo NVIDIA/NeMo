@@ -21,6 +21,7 @@ from os import path
 from typing import Dict, Optional, Union
 
 import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule, Trainer
 
@@ -60,7 +61,13 @@ class ModelPT(LightningModule, Model):
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
+        if 'target' not in cfg:
+            # This is for Jarvis service. Adding here for now to avoid effects of decorators
+            OmegaConf.set_struct(cfg, False)
+            cfg.target = self.__class__.__name__
+            OmegaConf.set_struct(cfg, True)
         self._cfg = cfg
+
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
@@ -123,7 +130,9 @@ class ModelPT(LightningModule, Model):
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             conf = OmegaConf.load(config_yaml)
-            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
+            instance = cls.from_config_dict(config=conf)
+            sd = torch.load(model_weights)
+            instance.load_state_dict(sd['state_dict'])
         return instance
 
     @abstractmethod
