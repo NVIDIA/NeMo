@@ -29,16 +29,20 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
         if type(value) in [list, tuple, ListConfig]:
             values_are_paths = 0
             for val_i in value:
+                val_i = str(val_i)
+
                 if os.path.exists(val_i) or os.path.isdir(val_i):
                     values_are_paths += 1
                 else:
                     values_are_paths = 0
 
             if values_are_paths == len(value):
+                logging.info("List path : {}".format(str(value)))
                 return key
 
         else:
-            if os.path.exists(value) or os.path.isdir(value):
+            if os.path.exists(str(value)) or os.path.isdir(str(value)):
+                logging.info("Key path : {}".format(value))
                 return key
 
     return None
