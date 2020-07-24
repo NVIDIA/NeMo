@@ -83,7 +83,7 @@ class NERModel(ModelPT):
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             vocab_file=vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
+            tokenizer_model=tokenizer_model,
             do_lower_case=cfg.language_model.do_lower_case,
         )
         # After this line self._cfg == cfg
