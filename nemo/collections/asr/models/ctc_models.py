@@ -58,8 +58,11 @@ class EncDecCTCModel(ASRModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
-        self.global_rank = (trainer.node_rank * trainer.num_processes) + trainer.local_rank
-        self.world_size = trainer.num_nodes * trainer.num_processes
+        self.global_rank = 0
+        self.world_size = 0
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_processes) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_processes
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)

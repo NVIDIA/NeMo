@@ -440,8 +440,71 @@ class AudioLabelDataset(Dataset):
 @experimental
 class TarredAudioToCharDataset(IterableDataset):
     """
-    A similar Dataset to the AudioToTextDataset, but loads audio files from tarballs.
-    TODO(jocelynh): Port over documentation.
+    A similar Dataset to the AudioToCharDataset, but which loads tarred audio files.
+
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the transcript and name of the audio
+    file within the tarball.
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+    In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
+    is applied. We currently do not check for this, but your program may hang if the shards are uneven!
+
+    Notice that a few arguments are different from the AudioToCharDataset; for example, shuffle (bool) has been
+    replaced by shuffle_n (int).
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
+    after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
+
+    Args:
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
+        labels (list): List of characters that can be output by the ASR model.
+            For Jasper, this is the 28 character set {a-z '}. The CTC blank
+            symbol is automatically added later for models using ctc.
+        featurizer: Initialized featurizer class that converts paths of
+            audio to feature tensors
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        max_utts (int): Limit number of utterances. 0 means no maximum.
+        blank_index (int): Blank character index, defaults to -1.
+        unk_index (int): Unknown character index, defaults to -1.
+        normalize (bool): Dataset parameter.
+            Whether to use automatic text cleaning.
+            It is highly recommended to manually clean text for best results.
+            Defaults to True.
+        trim (bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        bos_id (id): Dataset parameter.
+            Beginning of string symbol id used for seq2seq models.
+            Defaults to None.
+        eos_id (id): Dataset parameter.
+            End of string symbol id used for seq2seq models.
+            Defaults to None.
+        pad_id (id): Token used to pad when collating samples in batches.
+            If this is None, pads using 0s.
+            Defaults to None.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """
 
     @property
