@@ -433,6 +433,163 @@ class TestNeuralTypeCheckSystem:
 
         with pytest.raises(TypeError):
             # wrong input + wrong mode
+            _ = obj.infer_forward(y=x)
+
+    @pytest.mark.unit
+    def test_input_type_override(self):
+        class InputTypesOverride(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                x += 1
+                return x
+
+            @typecheck(input_types={"y": NeuralType(('B',), CategoricalValuesType())})
+            def forward(self, y):
+                y -= 1
+                return y
+
+        obj = InputTypesOverride()
+        result = obj(x=torch.zeros(10))
+
+        assert result.sum() == torch.tensor(10.0)
+        assert hasattr(result, 'neural_type') is False
+
+        # Test override
+        result2 = obj.forward(y=torch.zeros(10))
+
+        assert result2.sum() == torch.tensor(-10.0)
+        assert hasattr(result2, 'neural_type') is False
+
+        # Test cached types stored inside obj (injected by wrapper dynamically)
+        # This can be used for introspection of dynamic types
+        func_name = obj.forward.__name__
+        input_types = getattr(obj, '__wrapped_fn_{}_input_types'.format(func_name))
+
+        assert input_types is not None and 'y' in input_types
+        assert input_types['y'].compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
+
+    @pytest.mark.unit
+    def test_output_type_override(self):
+        class OutputTypes(Typing):
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                x += 1
+                return x
+
+            @typecheck(output_types={"z": NeuralType(('B',), CategoricalValuesType())})
+            def forward(self, z):
+                z -= 1
+                return z
+
+        obj = OutputTypes()
+        result = obj(x=torch.zeros(10))
+
+        assert result.sum() == torch.tensor(10.0)
+        assert result.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        # Test passing positional args
+        # Positional args allowed if input types is not set !
+        result = obj(torch.zeros(10))
+        assert result.sum() == torch.tensor(10.0)
+
+        # Test override
+        result2 = obj.forward(z=torch.zeros(10))
+
+        assert result2.sum() == torch.tensor(-10.0)
+        assert hasattr(result2, 'neural_type')
+        assert (
+            result2.neural_type.compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
+        )
+
+        # Test cached types stored inside obj (injected by wrapper dynamically)
+        # This can be used for introspection of dynamic types
+        func_name = obj.forward.__name__
+        output_types = getattr(obj, '__wrapped_fn_{}_output_types'.format(func_name))
+
+        assert output_types is not None and 'z' in output_types
+        assert (
+            output_types['z'].compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
+        )
+
+    @pytest.mark.unit
+    def test_multi_type_override(self):
+        class AdaptiveTypeCheck(Typing):
+            @property
+            def input_types(self):
+                # __call__ assumed to be for inference only,
+                # therefore infer types checked at class scope
+                return {"y": NeuralType(('B',), ChannelType())}
+
+            @property
+            def output_types(self):
+                # __call__ assumed to be for inference only,
+                # therefore infer types checked at class scope
+                return {"v": NeuralType(('B',), ChannelType())}
+
+            def __call__(self, **kwargs):
+                # Call should call and forward appropriate method in its own mode
+                # Let default "forward" call be the infer mode (this is upto developer)
+                # Therefore default class level types == infer types
+                return self.infer_forward(y=kwargs['y'])
+
+            @typecheck(
+                input_types={"x": NeuralType(('B',), ElementType())},
+                output_types={"u": NeuralType(('B',), ElementType())},
+            )
+            def train_forward(self, x):
+                return x + 10
+
+            @typecheck(
+                input_types={"x": NeuralType(('B',), ElementType()), "y": NeuralType(('B',), ChannelType())},
+                output_types={"u": NeuralType(('B',), ElementType()), "v": NeuralType(('B',), ChannelType())},
+            )
+            def eval_forward(self, x, y):
+                return x - 1, y - 1
+
+            @typecheck(
+                input_types={"y": NeuralType(('B',), ChannelType())},
+                output_types={"v": NeuralType(('B',), ChannelType())},
+            )
+            def infer_forward(self, y):
+                return y - 10
+
+        obj = AdaptiveTypeCheck()
+
+        x = torch.zeros(10)
+        y = torch.full([10], fill_value=5)
+
+        # infer mode
+        y = obj(y=y)
+
+        assert torch.all(y == -5)
+        assert y.neural_type.compare(NeuralType(('B',), ChannelType())) == NeuralTypeComparisonResult.SAME
+
+        x, y = obj.eval_forward(x=x, y=y)
+
+        assert torch.all(x == -1)
+        assert torch.all(y == -6)
+        assert x.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+        assert y.neural_type.compare(NeuralType(('B',), ChannelType())) == NeuralTypeComparisonResult.SAME
+
+        x = obj.train_forward(x=x)
+
+        assert torch.all(x == 9)
+        assert x.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        # In train func, call eval signature
+        with pytest.raises(TypeError):
+            _ = obj.train_forward(x=x, y=y)
+
+        with pytest.raises(TypeError):
+            # wrong input + wrong mode
             _ = obj.infer_forward(x=x)
 
     @pytest.mark.unit
