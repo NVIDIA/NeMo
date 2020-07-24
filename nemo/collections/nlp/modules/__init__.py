@@ -22,5 +22,3 @@ from nemo.collections.nlp.modules.common import (
     get_pretrained_lm_model,
     get_pretrained_lm_models_list,
 )
-from nemo.collections.nlp.modules.common import MegatronBertEncoder
-from nemo.collections.nlp.modules.common import get_pretrained_lm_models_list, get_pretrained_lm_model

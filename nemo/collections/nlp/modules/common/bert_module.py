@@ -55,4 +55,3 @@ class BertModule(NeuralModule):
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
         else:
             self.load_state_dict(state_dict)
-
