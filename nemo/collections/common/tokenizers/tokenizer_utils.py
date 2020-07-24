@@ -109,7 +109,7 @@ def get_tokenizer(
             pretrained_model_name
         )
         tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
-            vocab_file=vocab_file, do_lower_case=do_lower_case
+            bert_derivative='bert', vocab_file=vocab_file, do_lower_case=do_lower_case
         )
     elif tokenizer_name == 'nemobert':
         tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
