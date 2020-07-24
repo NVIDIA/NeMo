@@ -37,12 +37,10 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
                     values_are_paths = 0
 
             if values_are_paths == len(value):
-                logging.info("List path : {}".format(str(value)))
                 return key
 
         else:
             if os.path.exists(str(value)) or os.path.isdir(str(value)):
-                logging.info("Key path : {}".format(value))
                 return key
 
     return None
@@ -68,8 +66,6 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     filepath = resolve_filepath_from_cfg(cfg.validation_ds)
-
-    logging.info("Resolved filepath : {}".format(filepath))
 
     if filepath is None:
         logging.debug(
