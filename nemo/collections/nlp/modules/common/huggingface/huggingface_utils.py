@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -33,12 +33,17 @@ from nemo.collections.nlp.modules.common.huggingface.roberta import RobertaEncod
 __all__ = ['MODELS', 'get_huggingface_lm_model', 'get_huggingface_lm_models_list']
 
 
-def get_huggingface_lm_model(pretrained_model_name: str, config_file: Optional[str] = None):
+def get_huggingface_lm_model(
+    pretrained_model_name: str,
+    config_dict: Optional[dict], 
+    config_file: Optional[str] = None
+):
     '''
     Returns the dict of special tokens associated with the model.
     Args:
         pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
             for example: bert-base-cased
+        config_dict: dict with huggingface configs
         config_file: path to model configuration file.
     '''
     model_type = pretrained_model_name.split('-')[0]
@@ -47,6 +52,9 @@ def get_huggingface_lm_model(pretrained_model_name: str, config_file: Optional[s
         if config_file:
             config_class = MODELS[model_type]['config']
             return model_class(config_class.from_json_file(config_file))
+        elif config_dict:
+            config_class = MODELS[model_type]['config']
+            model_class(config=config_class(**config_dict))
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:

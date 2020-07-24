@@ -44,9 +44,9 @@ class BertPretrainingDataset(Dataset):
     def __init__(
         self,
         tokenizer: object,
-        dataset: str,
+        data_path: str,
         max_seq_length: Optional[int] = 128,
-        mask_probability: Optional[float] = 0.15,
+        mask_prob: Optional[float] = 0.15,
         short_seq_prob: Optional[float] = 0.1,
         seq_a_ratio: Optional[float] = 0.6,
         sentence_idx_file: Optional[str] = None,
@@ -70,8 +70,8 @@ class BertPretrainingDataset(Dataset):
         # from main memory when needed during training.
 
         if sentence_idx_file is None:
-            data_dir = dataset[: dataset.rfind('/')]
-            mode = dataset[dataset.rfind('/') + 1 : dataset.rfind('.')]
+            data_dir = data_path[: data_path.rfind('/')]
+            mode = data_path[data_path.rfind('/') + 1 : data_path.rfind('.')]
             sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
 
         if os.path.isfile(sentence_idx_file):
@@ -105,18 +105,18 @@ class BertPretrainingDataset(Dataset):
                     except ValueError:
                         break
 
-            if os.path.isdir(dataset):
-                dataset_pattern = os.path.join(dataset, "**", "*.txt")
+            if os.path.isdir(data_path):
+                dataset_pattern = os.path.join(data_path, "**", "*.txt")
                 filenames = glob.glob(dataset_pattern, recursive=True)
             else:
-                filenames = [dataset]
+                filenames = [data_path]
 
             for filename in tqdm(filenames):
                 with open(filename, "rb") as f:
                     contents = f.read()
                     newline_indices = find_newlines(contents)
 
-                if os.path.isdir(dataset):
+                if os.path.isdir(data_path):
                     # Only keep the parts of the filepath that are invariant to
                     # the dataset's location on disk
                     filename = os.path.basename(filename)
@@ -143,9 +143,9 @@ class BertPretrainingDataset(Dataset):
             del sentence_indices[filename]
 
         self.corpus_size = corpus_size
-        self.dataset = dataset
+        self.dataset = data_path
         self.filenames = list(sentence_indices.keys())
-        self.mask_probability = mask_probability
+        self.mask_probability = mask_prob
         self.max_seq_length = max_seq_length
         self.sentence_indices = sentence_indices
         self.vocab_size = self.tokenizer.vocab_size

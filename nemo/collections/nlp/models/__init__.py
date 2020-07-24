@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.lm_model import BERTLMModel
+from nemo.collections.nlp.models.language_modeling.lm_model import BERTLMModel
 from nemo.collections.nlp.models.qa_model import QAModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
 from nemo.collections.nlp.models.token_classification import NERModel, PunctuationCapitalizationModel

@@ -14,69 +14,73 @@ trainer:
   logger: false # provided by exp_manager
 
 model:
+  language_model:
+    pretrained_model_name: bert-base-uncased
+    bert_checkpoint: null
+    hf_config: 
+      attention_probs_dropout_prob: 0.1
+      hidden_act: gelu
+      hidden_dropout_prob: 0.1
+      hidden_size": 768
+      initializer_range": 0.02
+      intermediate_size": 3072
+      max_position_embeddings": 512
+      num_attention_heads": 12
+      num_hidden_layers": 12
+      type_vocab_size": 2
+      vocab_size": 30522
+
+
 
   max_seq_length: 128
-  # The maximum total input sequence length after
-  # WordPiece tokenization. Sequences longer than this
-  # will be truncated, and sequences shorter than this
-  # will be padded.
-
+  # The maximum total input sequence length after tokenization. Sequences longer than this
+  # will be truncated, and sequences shorter than this will be padded.
   sample_size: 1e7
   # Data sample size.
-
-  mask_probability: 0.15
+  mask_prob: 0.15
   # Probability of masking a token in the input text during data processing.
-
   short_seq_prob: 0.1
   # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
+  batch_size: 16 # per GPU
+
+  tokenizer:
+    tokenizer_name: nemobert
+    pretrained_model_name: null # huggingface model name
+    special_tokens: null
+    vocab_file: null # path to vocab file
+    data_file: null # used to build sentencepiece
+    tokenizer_model: null # tokenizer model for sentencepiece
+    sample_size: null # for sentencepiece
+    vocab_size: null # vocab size for building sentence piece
+    do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
    
   train_ds:
     mode: train
-    file: null # .json file
-    batch_size: 24 # per GPU
+    data_path: null # path to data files
+    max_seq_length: ${model.max_seq_length}
+    mask_prob: ${model.mask_probability}
+    short_seq_prob: ${model.short_seq_prob}
+    batch_size: ${model.batch_size}
     shuffle: true
     num_samples: -1
     num_workers: 2
     use_cache: true
     drop_last: false
     pin_memory: false
-    max_answer_length: null
-    # The maximum length of an answer that can be 
-    # generated. This is needed because the start
-    # and end predictions are not conditioned
-    # on one another.
-    output_prediction_file: null
-    # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: null
-    # File to write nbest predictions to. Only in evaluation or test mode.
-    null_score_diff_threshold: null
-    # If null_score - best_non_null is greater than the threshold predict null.
-    n_best_size: null
-    # The total number of n-best predictions to generate at testing.
 
   validation_ds:
     mode: eval
-    file: null # .json file
-    batch_size: 24 # per GPU
+    data_path: null # path to data files
+    max_seq_length: ${model.max_seq_length}
+    mask_prob: ${model.mask_probability}
+    short_seq_prob: ${model.short_seq_prob}
+    batch_size: ${model.batch_size}
     shuffle: false
     num_samples: -1
     num_workers: 2
     use_cache: true
     drop_last: false
     pin_memory: false
-    max_answer_length: 30
-    # The maximum length of an answer that can be 
-    # generated. This is needed because the start
-    # and end predictions are not conditioned
-    # on one another.
-    output_prediction_file: predictions.json
-    # File to write predictions to. Only in evaluation or test mode,
-    output_nbest_file: nbest.json
-    # File to write nbest predictions to. Only in evaluation or test mode.
-    null_score_diff_threshold: 0.0
-    # If null_score - best_non_null is greater than the threshold predict null.
-    n_best_size: 20
-    # The total number of n-best predictions to generate at testing.
   
   optim:
     name: adamw
@@ -87,7 +91,7 @@ model:
         weight_decay: 0.0
 
     sched:
-      name: SquareRootAnnealing
+      name: CosineAnnealing
       iters_per_batch: null # computed at runtime
       max_steps: null # computed at runtime or explicitly set here
 
@@ -104,27 +108,9 @@ model:
           last_epoch: -1
 
 
-  language_model:
-    pretrained_model_name: bert-base-uncased
-    bert_checkpoint: null
-    bert_config: null
-    tokenizer: nemobert # only used if using custom checkpoint
-    tokenizer_model: null # only used if tokenizer is sentencepiece
-    vocab_file: null
-    do_lower_case: true # true for uncased models, false for cased models
   
-  token_classifier:
-    num_layers: 1
-    dropout: 0.0
-    num_classes: 2
-    activation: relu
-    log_softmax: false
-    use_transformer_init: true
-
-  pl: null # used at runtime
-
 exp_manager:
-  root_dir: null # where to store logs and checkpoints
+  root_dir: NeMo_experiments # where to store logs and checkpoints
   name: PretrainingBERT # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
