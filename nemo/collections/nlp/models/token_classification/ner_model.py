@@ -67,7 +67,7 @@ class NERModel(ModelPT):
                 raise FileNotFoundError(
                     f'file {cfg.language_model.vocab_file} used in cfg.language_model.vocab_file does not exist'
                 )
-            self.artifacts.append(('cfg.language_model.vocab_file', vocab_file))
+            self.artifacts.append(('language_model.vocab_file', vocab_file))
 
         if cfg.language_model.tokenizer_model is not None and cfg.language_model.tokenizer_model.strip() != '':
             tokenizer_model = cfg.language_model.tokenizer_model
@@ -77,7 +77,7 @@ class NERModel(ModelPT):
                 raise FileNotFoundError(
                     f'file {cfg.language_model.tokenizer_model} used in cfg.language_model.tokenizer_model does not exist'
                 )
-            self.artifacts.append(('cfg.language_model.tokenizer_model', tokenizer_model))
+            self.artifacts.append(('language_model.tokenizer_model', tokenizer_model))
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
