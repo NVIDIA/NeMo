@@ -18,10 +18,6 @@ from typing import List, Optional
 from transformers import AlbertTokenizer, BertTokenizer, DistilBertTokenizerFast, RobertaTokenizer
 
 import nemo
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
-    get_megatron_vocab_file,
-    is_lower_cased_megatron,
-)
 
 __all__ = ['MODEL_SPECIAL_TOKENS', 'TOKENIZERS', 'get_tokenizer', 'get_bert_special_tokens']
 
@@ -107,8 +103,12 @@ def get_tokenizer(
         model_type = pretrained_model_name.split('-')[0]
 
     if 'megatron' in pretrained_model_name:
-        do_lower_case = is_lower_cased_megatron(pretrained_model_name)
-        vocab_file = get_megatron_vocab_file(pretrained_model_name)
+        do_lower_case = nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(
+            pretrained_model_name
+        )
+        vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
+            pretrained_model_name
+        )
         args = {
             'rank': 0,
             'tokenizer_type': 'BertWordPieceLowerCase' if do_lower_case else 'BertWordPiece',
