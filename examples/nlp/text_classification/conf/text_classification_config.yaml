@@ -23,44 +23,42 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
+  precision: 32 # Should be set to 16 for O1 and O2
   distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 model:
-  data_dir: ??? # /path/to/data
-  class_balancing: null # or weighted_loss
+  dataset:
+    do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
+    max_seq_length: 36
+    class_balancing: null # or weighted_loss
+    use_cache: false
+    num_workers: 2 # number of workers for data loaders
+    drop_last: false # drops the last last batch if it is smaller than the batch size
+    pin_memory: false # enables pin_memory feature of the data loaders
 
   train_ds:
-    prefix: train
+    file_name: ???
     batch_size: 32
     shuffle: true
     num_samples: -1
-    num_workers: 2
-    use_cache: false
-    drop_last: false
-    pin_memory: false
 
   validation_ds:
-    prefix: dev
+    file_name: ???
     batch_size: 32
     shuffle: false
     num_samples: -1
-    num_workers: 2
-    use_cache: false
-    drop_last: false
-    pin_memory: false
 
   language_model:
     pretrained_model_name: roberta-base
-    max_seq_length: 36
-    bert_checkpoint: null
-    bert_config: null
     tokenizer: nemobert # 'nemobert' or 'sentencepiece'
+    checkpoint_file: null # the path of a checkpoint file of a BERT-like model if a customized checkpoint is supposed to be used
+    bert_config: null
     vocab_file: null
     tokenizer_model: null # only used if tokenizer is sentencepiece
-    do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
-  
+
   head:
     num_output_layers: 2
     fc_dropout: 0.1
@@ -75,8 +73,8 @@ model:
 
     sched:
       name: WarmupAnnealing
-      iters_per_batch: null # computed at runtime
       max_steps: null # computed at runtime or explicitly set here
+      iters_per_batch: null # computed at runtime
 
       # pytorch lightning args
       monitor: val_loss

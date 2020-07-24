@@ -67,7 +67,7 @@ def process_imdb(infold, outfold, uncased, modes=['train', 'test']):
         outfiles[mode].close()
 
 
-def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'dev']):
+def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'val']):
     if not os.path.exists(source_dir):
         link = 'https://github.com/arwhirang/recursive_chemprot/tree/master/Demo/tree_LSTM/data'
         raise ValueError(f'Data not found at {source_dir}. ' f'Please download ChemProt from {link}.')
@@ -75,7 +75,7 @@ def process_chemprot(source_dir, target_dir, uncased, modes=['train', 'test', 'd
     logging.info(f'Processing Chemprot dataset and store at {target_dir}')
     os.makedirs(target_dir, exist_ok=True)
 
-    naming_map = {'train': 'trainingPosit_chem', 'test': 'testPosit_chem', 'dev': 'developPosit_chem'}
+    naming_map = {'train': 'trainingPosit_chem', 'test': 'testPosit_chem', 'val': 'developPosit_chem'}
 
     def _read_tsv(input_file, quotechar=None):
         """Reads a tab separated value file."""
