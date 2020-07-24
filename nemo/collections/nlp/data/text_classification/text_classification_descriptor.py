@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
-
 import os
+from typing import List
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
@@ -56,9 +55,7 @@ class TextClassificationDataDesc:
                 queries.append(' '.join(parts[:-1]))
 
             logging.info(f'Three most popular classes in {input_file} file:')
-            total_sents, sent_label_freq, max_id = get_label_stats(
-                raw_sentences, f'{input_file}_sentence_stats.tsv'
-            )
+            total_sents, sent_label_freq, max_id = get_label_stats(raw_sentences, f'{input_file}_sentence_stats.tsv')
             max_label_id = max(max_label_id, max_id)
 
             if input_file == train_file:
