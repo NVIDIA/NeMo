@@ -42,14 +42,37 @@ class Typing(ABC):
         return None
 
     def _validate_input_types(self, **kwargs):
+        """
+        This function does a few things.
+        1) It ensures that len(kwargs) == len(self.input_types).
+        2) If above fails, it checks len(kwargs) == len(self.input_types <non-optional>).
+        3) For each (keyword name, keyword value) passed as input to the wrapped function:
+            - Check if the keyword name exists in the list of valid self.input_types names.
+            - Check if keyword value has the `neural_type` property.
+                - If it does, then perform a comparative check and assert that neural types
+                    are compatible (SAME or GREATER).
+            - Check if keyword value is a container type (list or tuple). If yes,
+                then perform the elementwise test of neural type above on each element
+                of the nested structure, recursively.
+
+        Args:
+            kwargs: Dictionary of argument_name:argument_value pairs passed to the wrapped
+                function upon call.
+        """
         # TODO: Properly implement this
         if self.input_types is not None:
-            if len(kwargs) != len(self.input_types):
-                raise TypeError(
-                    "Number of input arguments provided ({}) is not as expected ({})".format(
-                        len(kwargs), len(self.input_types)
+            total_input_types = len(self.input_types)
+            mandatory_input_types = len(
+                [type_val for type_key, type_val in self.input_types.items() if not type_val.optional]
+            )
+
+            if len(kwargs) != total_input_types:
+                if len(kwargs) != mandatory_input_types:
+                    raise TypeError(
+                        "Number of input arguments provided ({}) is not as expected ({})".format(
+                            len(kwargs), len(self.input_types)
+                        )
                     )
-                )
 
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
@@ -70,15 +93,79 @@ class Typing(ABC):
                         f"Input type found : {value.neural_type}"
                     )
 
+                # Perform recursive neural type check for homogeneous elements
+                elif isinstance(value, list) or isinstance(value, tuple):
+                    for ind, val in enumerate(value):
+                        self.__check_neural_type(val, self.input_types[key])
+
     def _attach_and_validate_output_types(self, out_objects):
+        """
+        This function does a few things.
+        1) It ensures that len(out_object) == len(self.output_types).
+        2) If the output is a tensor (or list/tuple of list/tuple ... of tensors), it
+            attaches a neural_type to it. For objects without the neural_type attribute,
+            such as python objects (dictionaries and lists, primitive data types, structs),
+            no neural_type is attached.
+
+            Note: tensor.neural_type is only checked during _validate_input_types which is
+            called prior to forward().
+
+        Args:
+            out_objects: The outputs of the wrapped function.
+        """
         # TODO: Properly implement this
         if self.output_types is not None:
             out_types_list = list(self.output_types.items())
+
+            # First convert all outputs to list/tuple format to check correct number of outputs
+            if type(out_objects) in (list, tuple):
+                out_container = out_objects
+            else:
+                out_container = [out_objects]
+
+            if len(self.output_types) != len(out_container):
+                raise TypeError(
+                    "Number of output arguments provided ({}) is not as expected ({})".format(
+                        len(out_container), len(self.output_types)
+                    )
+                )
+
+            # Attach types recursively, if possible
             if not isinstance(out_objects, tuple) and not isinstance(out_objects, list):
-                out_objects.neural_type = out_types_list[0][1]
+                try:
+                    out_objects.neural_type = out_types_list[0][1]
+                except Exception:
+                    pass
             else:
                 for ind, res in enumerate(out_objects):
-                    res.neural_type = out_types_list[ind][1]
+                    self.__attach_neural_type(res, out_types_list[ind][1])
+
+    def __check_neural_type(self, obj, type_val):
+        if isinstance(obj, tuple) or isinstance(obj, list):
+            for elem in obj:
+                self.__check_neural_type(elem, type_val)
+            return  # after processing nest, return to avoid testing nest itself
+
+        if hasattr(obj, 'neural_type') and not type_val.compare(obj.neural_type) in (
+            NeuralTypeComparisonResult.SAME,
+            NeuralTypeComparisonResult.GREATER,
+        ):
+            raise TypeError(
+                f"{type_val.compare(obj.neural_type)} : \n"
+                f"Input type expected = {type_val} | \n"
+                f"Input type found : {obj.neural_type}"
+            )
+
+    def __attach_neural_type(self, obj, type_val):
+        if isinstance(obj, tuple) or isinstance(obj, list):
+            for elem in obj:
+                self.__attach_neural_type(elem, type_val)
+            return  # after processing nest, return to avoid argument insertion into nest itself
+
+        try:
+            obj.neural_type = type_val
+        except Exception:
+            pass
 
 
 class Serialization(ABC):
@@ -223,6 +310,12 @@ class typecheck:
 
         if not isinstance(instance, Typing):
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
+
+        if hasattr(instance, 'input_ports') or hasattr(instance, 'output_ports'):
+            raise RuntimeError(
+                "Typing requires override of `input_types()` and `output_types()`, "
+                "not `input_ports() and `output_ports()`"
+            )
 
         # If types are not defined, skip type checks and just call the wrapped method
         if instance.input_types is None and instance.output_types is None:
