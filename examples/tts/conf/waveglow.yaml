@@ -64,7 +64,7 @@ model:
       window: hann
 
   waveglow:
-    cls: nemo.collections.tts.modules.waveglow.WaveGlow
+    cls: nemo.collections.tts.modules.waveglow.WaveGlowModule
     params:
       n_early_every: 4
       n_early_size: 2
