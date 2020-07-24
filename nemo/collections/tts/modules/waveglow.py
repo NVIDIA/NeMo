@@ -13,17 +13,16 @@
 # limitations under the License.
 from enum import Enum
 
-
 import torch
 
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
+    IntType,
     MelSpectrogramType,
     NormalDistributionSamplesType,
     VoidType,
-    IntType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
