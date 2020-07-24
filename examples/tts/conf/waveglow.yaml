@@ -21,6 +21,7 @@ model:
       drop_last: false
       shuffle: true
       batch_size: 16
+      num_workers: 4
 
   validation_ds:
     dataset:
@@ -35,6 +36,7 @@ model:
       drop_last: false
       shuffle: false
       batch_size: 6
+      num_workers: 3
 
   preprocessor:
     cls: nemo.collections.asr.parts.features.FilterbankFeatures
