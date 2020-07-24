@@ -41,9 +41,7 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
             if os.path.exists(value) or os.path.isdir(value):
                 return key
 
-    raise ValueError(
-        "Could not resolve any filepath to a file for dataset ! Provided dictionary : {}".format(str(cfg))
-    )
+    return None
 
 
 def parse_filepath_as_name(filepath: str) -> str:
@@ -66,6 +64,19 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     filepath = resolve_filepath_from_cfg(cfg.validation_ds)
+
+    logging.info("Resolved filepath : {}".format(filepath))
+
+    if filepath is None:
+        logging.debug(
+            "Could not resolve file path from provided config - {}. "
+            "Disabling support for multi-dataloaders.".format(cfg.validation_ds)
+        )
+
+        model.setup_validation_data(cfg.validation_ds)
+        model._validation_filenames = ["validation_"]
+        return
+
     manifest_paths = cfg.validation_ds[filepath]
 
     if type(manifest_paths) in (list, tuple, ListConfig):
@@ -95,6 +106,17 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     filepath = resolve_filepath_from_cfg(cfg.test_ds)
+
+    if filepath is None:
+        logging.debug(
+            "Could not resolve file path from provided config - {}. "
+            "Disabling support for multi-dataloaders.".format(cfg.test_ds)
+        )
+
+        model.setup_validation_data(cfg.test_ds)
+        model._validation_filenames = ["test_"]
+        return
+
     manifest_paths = cfg.test_ds[filepath]
 
     if type(manifest_paths) in (list, tuple, ListConfig):
