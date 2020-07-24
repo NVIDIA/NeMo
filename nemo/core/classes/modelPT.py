@@ -396,6 +396,9 @@ class ModelPT(LightningModule, Model):
                         for k_log, v_log in v.items():
                             if k_log == 'val_loss' and 'val_loss' not in output_dict['log']:
                                 new_k_log = 'val_loss'
+
+                                # Also insert duplicate key with prefix for ease of comparison
+                                log_dict[dataloader_prefix + k_log] = v_log
                             else:
                                 new_k_log = dataloader_prefix + k_log
 
@@ -434,6 +437,9 @@ class ModelPT(LightningModule, Model):
                         for k_log, v_log in v.items():
                             if k_log == 'test_loss' and 'test_loss' not in output_dict['log']:
                                 new_k_log = 'test_loss'
+
+                                # Also insert duplicate key with prefix for ease of comparison
+                                log_dict[dataloader_prefix + k_log] = v_log
                             else:
                                 new_k_log = dataloader_prefix + k_log
 
