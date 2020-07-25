@@ -20,19 +20,14 @@ import nemo.collections.nlp as nemo_nlp
 
 
 class TestMegatron(TestCase):
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_list_pretrained_models(self):
         pretrained_lm_models = nemo_nlp.modules.get_pretrained_lm_models_list()
         self.assertTrue(len(pretrained_lm_models) > 0)
 
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_get_pretrained_bert_345m_uncased_model(self):
         model = nemo_nlp.modules.get_pretrained_lm_model('megatron-bert-345m-uncased')
         assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
-
-
-#    With Megatron 1.1, still fails
-#    @pytest.mark.unit
-#    def test_get_pretrained_bert_345m_cased_model(self):
-#        model = nemo_nlp.modules.get_pretrained_lm_model('megatron-bert-345m-cased')
-#        assert isinstance(model, nemo_nlp.modules.MegatronBertEncoder)
