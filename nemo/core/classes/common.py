@@ -115,7 +115,7 @@ class Typing(ABC):
                     value_shape = value.shape
                     type_shape = input_types[key].axes
 
-                    if len(value_shape) != len(type_shape):
+                    if type_shape is not None and len(value_shape) != len(type_shape):
                         raise TypeError(
                             f"Input shape mismatch occured : \n"
                             f"Input shape expected = {input_types[key].axes} | \n"
@@ -173,7 +173,7 @@ class Typing(ABC):
                     value_shape = out_objects.shape
                     type_shape = out_types_list[0][1].axes
 
-                    if len(value_shape) != len(type_shape):
+                    if type_shape is not None and len(value_shape) != len(type_shape):
                         raise TypeError(
                             f"Output shape mismatch occured : \n"
                             f"Output shape expected = {type_shape} | \n"
@@ -204,7 +204,7 @@ class Typing(ABC):
             value_shape = obj.shape
             type_shape = type_val.axes
 
-            if len(value_shape) != len(type_shape):
+            if type_shape is not None and len(value_shape) != len(type_shape):
                 raise TypeError(
                     f"Input shape mismatch occured : \n"
                     f"Input shape expected = {type_shape} | \n"
@@ -227,7 +227,7 @@ class Typing(ABC):
             value_shape = obj.shape
             type_shape = type_val.axes
 
-            if len(value_shape) != len(type_shape):
+            if type_shape is not None and len(value_shape) != len(type_shape):
                 raise TypeError(
                     f"Output shape mismatch occured : \n"
                     f"Output shape expected = {type_shape} | \n"
