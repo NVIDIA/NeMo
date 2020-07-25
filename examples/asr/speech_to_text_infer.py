@@ -15,7 +15,7 @@
 """
 This example demonstrates basic batch-based inference using NeMo's ASR model
 """
-
+# TODO: Make me pretty and run on GPU
 from argparse import ArgumentParser
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
@@ -26,14 +26,9 @@ from nemo.utils import logging
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model",
-        type=str,
-        default="QuartzNet15x5Base-En",
-        required=True,
-        help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
-    parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
@@ -47,28 +42,33 @@ def main():
         asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model)
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = EncDecCTCModel.from_pretrained(name=args.asr_model)
-    asr_model.eval()
-
+        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
     asr_model.setup_test_data(
         test_data_config={
             'manifest_filepath': args.dataset,
             'sample_rate': 16000,
             'labels': asr_model.decoder.vocabulary,
-            'batch_size': args.eval_batch_size,
+            'batch_size': 1,
             'trim_silence': args.trim_silence,
             'normalize_transcripts': args.normalize_text,
-            'shuffle': False,
         }
     )
+    asr_model.eval()
+    labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
     wer = WER(vocabulary=asr_model.decoder.vocabulary)
-    test_outs = []
+    hypotheses = []
+    references = []
     for test_batch in asr_model.test_dataloader():
         log_probs, encoded_len, greedy_predictions = asr_model(
             input_signal=test_batch[0], input_signal_length=test_batch[1]
         )
-        test_outs.append(wer.ctc_decoder_predictions_tensor(greedy_predictions))
-    print(test_outs)
+        hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
+        reference = ''.join([labels_map[c] for c in test_batch[2].squeeze(0).cpu().detach().numpy()])
+        references.append(reference)
+    print(hypotheses)
+    wer_value = word_error_rate(hypotheses=hypotheses, references=references)
+    print(f"WORD ERROR RATE = {wer_value}")
+    assert wer_value < args.wer_tolerance
 
 
 if __name__ == '__main__':

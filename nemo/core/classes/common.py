@@ -18,17 +18,16 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from typing import Dict, Optional
 
-import nemo
 import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
 
+import nemo
 from nemo import logging
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
+from nemo.utils.cloud import maybe_download_from_cloud
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
-
-from nemo.utils.cloud import maybe_download_from_cloud
 
 
 class Typing(ABC):
@@ -242,9 +241,7 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
-PretrainedModelInfo = namedtuple(
-    "PretrainedModelInfo", ("pretrained_model_name", "description", "location"),
-)
+PretrainedModelInfo = namedtuple("PretrainedModelInfo", ("pretrained_model_name", "description", "location"),)
 
 
 class Model(Typing, Serialization, FileIO):
@@ -280,7 +277,8 @@ class Model(Typing, Serialization, FileIO):
                 location_in_the_cloud = pretrained_model_info.location
         if location_in_the_cloud is None:
             raise FileNotFoundError(
-                f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models.")
+                f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."
+            )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
         cache_subfolder = f"NEMO_{nemo.__version__}"
