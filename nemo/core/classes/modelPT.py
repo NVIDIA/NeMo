@@ -381,3 +381,4 @@ class ModelPT(LightningModule, Model):
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder
+

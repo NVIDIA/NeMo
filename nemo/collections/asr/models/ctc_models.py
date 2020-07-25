@@ -24,7 +24,7 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import typecheck, PretrainedModelInfo
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
@@ -34,6 +34,17 @@ __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 @experimental
 class EncDecCTCModel(ASRModel):
     """Encoder decoder CTC-based models."""
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        result = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="QuartzNet15x5Base-En",
+            location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/QuartzNet15x5Base-En.nemo",
+            description="The model is trained on ~3300 hours of publicly available data and achieves a WER of 3.91% on LibriSpeech dev-clean, and a WER of 10.58% on dev-other.",
+        )
+        result.append(model)
+        return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -101,14 +112,6 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
-
-    @classmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
 
     def export(self, **kwargs):
         pass

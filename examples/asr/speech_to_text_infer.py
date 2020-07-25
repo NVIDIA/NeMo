@@ -28,9 +28,9 @@ def main():
     parser.add_argument(
         "--asr_model",
         type=str,
-        default="QuartzNet15x5-En",
+        default="QuartzNet15x5Base-En",
         required=True,
-        help="Pass: 'QuartzNet15x5-En', 'QuartzNet15x5-Zh', or 'JasperNet10x5-En'",
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
