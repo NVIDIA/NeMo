@@ -56,38 +56,15 @@ class NERModel(ModelPT):
         self.data_dir = cfg.data_dir
         # self.model_cfg = cfg
 
-        # setup artifacts to be saved with model
-        # Note that when restoring either absolute or base path will be used
-        self.artifacts = []
-        if cfg.language_model.vocab_file is not None and cfg.language_model.vocab_file.strip() != '':
-            vocab_file = cfg.language_model.vocab_file
-            if not os.path.exists(cfg.language_model.vocab_file):
-                vocab_file = os.path.basename(vocab_file)
-            if not os.path.exists(vocab_file):
-                raise FileNotFoundError(
-                    f'file {cfg.language_model.vocab_file} used in cfg.language_model.vocab_file does not exist'
-                )
-            self.artifacts.append(('language_model.vocab_file', vocab_file))
-        else:
-            vocab_file = None
-
-        if cfg.language_model.tokenizer_model is not None and cfg.language_model.tokenizer_model.strip() != '':
-            tokenizer_model = cfg.language_model.tokenizer_model
-            if not os.path.exists(cfg.language_model.tokenizer_model):
-                tokenizer_model = os.path.basename(tokenizer_model)
-            if not os.path.exists(tokenizer_model):
-                raise FileNotFoundError(
-                    f'file {cfg.language_model.tokenizer_model} used in cfg.language_model.tokenizer_model does not exist'
-                )
-            self.artifacts.append(('language_model.tokenizer_model', tokenizer_model))
-        else:
-            tokenizer_model = None
-
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=vocab_file,
-            tokenizer_model=tokenizer_model,
+            vocab_file=self.register_artifact(
+                conf_path='language_model.vocab_file', src=cfg.language_model.vocab_file
+            ),
+            tokenizer_model=self.register_artifact(
+                conf_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
+            ),
             do_lower_case=cfg.language_model.do_lower_case,
         )
         # After this line self._cfg == cfg

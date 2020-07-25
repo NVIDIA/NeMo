@@ -85,6 +85,39 @@ class ModelPT(LightningModule, Model):
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self.setup_test_data(self._cfg.test_ds)
 
+    def register_artifact(self, conf_path: str, src: str):
+        """
+        Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+        when model.save_to("mymodel.nemo") is called.
+
+        WARNING: If you specified /example_folder/example.txt but ./example.txt exists, then ./example.txt will be used.
+
+        Args:
+            conf_path: config path where artifact is used
+            src: path to the artifact
+
+        Returns:
+            path to be used when accessing artifact. If src='' or None then '' or None will be returned
+        """
+        if not hasattr(self, 'artifacts'):
+            self.artifacts = []
+        if self.artifacts is None:
+            self.artifacts = []
+        if src is not None and src.strip() != '':
+            basename_src = os.path.basename(src)
+            # filename exists in current workdir - use it and raise warning
+            if os.path.exists(basename_src):
+                logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
+                used_src = basename_src
+            else:
+                used_src = src
+            if not os.path.exists(used_src):
+                raise FileNotFoundError(f"Could not find {used_src}")
+            self.artifacts.append((conf_path, used_src))
+            return used_src
+        else:
+            return src
+
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file. You can use "restore_from" method to fully
