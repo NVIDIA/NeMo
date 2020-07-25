@@ -19,6 +19,26 @@ from nemo.core import NeuralModule, Typing, typecheck
 from nemo.core.neural_types import *
 
 
+# Perform recursive shape assert
+def recursive_assert_shape(x, shape):
+    if isinstance(x, list) or isinstance(x, tuple):
+        for xi in x:
+            recursive_assert_shape(xi, shape)
+        return
+
+    assert x.shape == shape
+
+
+# Perform recursive type assert
+def recursive_assert_homogeneous_type(x, type_val):
+    if isinstance(x, list) or isinstance(x, tuple):
+        for xi in x:
+            recursive_assert_homogeneous_type(xi, type_val)
+        return
+
+    assert x.neural_type.compare(type_val) == NeuralTypeComparisonResult.SAME
+
+
 class TestNeuralTypeCheckSystem:
     @pytest.mark.unit
     def test_no_types_passthrough(self):
@@ -164,6 +184,48 @@ class TestNeuralTypeCheckSystem:
                 return x + 1, x - 1
 
         obj = OutputPortDefinitionRejection()
+
+        with pytest.raises(TypeError):
+            _ = obj(x=torch.zeros(10))
+
+    @pytest.mark.unit
+    def test_port_shape_rejection(self):
+        class InputPortShapeRejection(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B', 'T'), ElementType())}  # expect rank 2 matrix
+
+            @property
+            def output_types(self):
+                return {"w": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                x += 1
+                return x
+
+        # Test input port mismatch
+        obj = InputPortShapeRejection()
+
+        with pytest.raises(TypeError):
+            _ = obj(x=torch.zeros(10))
+
+        class OutputPortShapeRejection(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @property
+            def output_types(self):
+                return {
+                    "w": NeuralType(('B', 'T', 'D'), ElementType()),  # expect rank 3 matrix
+                }
+
+            @typecheck()
+            def __call__(self, x):
+                return x + 1
+
+        obj = OutputPortShapeRejection()
 
         with pytest.raises(TypeError):
             _ = obj(x=torch.zeros(10))
@@ -319,14 +381,6 @@ class TestNeuralTypeCheckSystem:
         outB = nodeB(w=outA)
 
         # Perform recursive shape assert
-        def recursive_assert_shape(x, shape):
-            if isinstance(x, list) or isinstance(x, tuple):
-                for xi in x:
-                    recursive_assert_shape(xi, shape)
-                return
-
-            assert x.shape == shape
-
         recursive_assert_shape(outB, torch.Size([10]))
 
         # Assert non-homogeneous type assertions
@@ -603,3 +657,49 @@ class TestNeuralTypeCheckSystem:
 
         # Test passing wrong key for input
         _ = obj(a=torch.zeros(10), x=torch.zeros(5))
+
+    @pytest.mark.pleasefixme
+    @pytest.mark.unit
+    def test_nested_shape_mismatch(self):
+        class NestedShapeMismatch(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('D',), ElementType())}  # Each element of nest will have 4 values
+
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('D',), ElementType())}  # Each element of nest will have 4 values
+
+            @typecheck()
+            def __call__(self, x):
+                # v-- this is to satisfy 1 output constraint, python will otherwise interpret x as a 3 output value
+                return (x,)
+
+        def bb(dim=4):
+            return torch.zeros(dim)
+
+        obj = NestedShapeMismatch()
+
+        # Arbitrary nest 1
+        data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
+        result = obj(x=data)
+
+        recursive_assert_shape(result, torch.Size([4]))
+        recursive_assert_homogeneous_type(result, NeuralType(('D',), ElementType()))
+
+        # Arbitrary nest 2
+        def bb(dim=4):
+            return torch.zeros(dim, dim)
+
+        data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
+        # Fails since input shape is incorrect
+        with pytest.raises(TypeError):
+            _ = obj(x=data)
+
+        # Arbitrary nest 3
+        def bb(dim=4):
+            return torch.zeros(dim)
+
+        data = [[[bb(), bb(), bb()]], [[bb()], [bb(), bb()]]]
+        # TODO> THIS FINAL CHECK SHOULD FAIL !
+        result = obj(x=data)

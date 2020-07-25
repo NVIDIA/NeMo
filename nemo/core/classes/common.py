@@ -110,6 +110,18 @@ class Typing(ABC):
                         f"Input type found : {value.neural_type}"
                     )
 
+                # Perform input ndim check
+                if hasattr(value, 'shape'):
+                    value_shape = value.shape
+                    type_shape = input_types[key].axes
+
+                    if len(value_shape) != len(type_shape):
+                        raise TypeError(
+                            f"Input shape mismatch occured : \n"
+                            f"Input shape expected = {input_types[key].axes} | \n"
+                            f"Input shape found : {value_shape}"
+                        )
+
                 # Perform recursive neural type check for homogeneous elements
                 elif isinstance(value, list) or isinstance(value, tuple):
                     for ind, val in enumerate(value):
@@ -155,6 +167,18 @@ class Typing(ABC):
                     out_objects.neural_type = out_types_list[0][1]
                 except Exception:
                     pass
+
+                # Perform output ndim check
+                if hasattr(out_objects, 'shape'):
+                    value_shape = out_objects.shape
+                    type_shape = out_types_list[0][1].axes
+
+                    if len(value_shape) != len(type_shape):
+                        raise TypeError(
+                            f"Output shape mismatch occured : \n"
+                            f"Output shape expected = {type_shape} | \n"
+                            f"Output shape found : {value_shape}"
+                        )
             else:
                 for ind, res in enumerate(out_objects):
                     self.__attach_neural_type(res, out_types_list[ind][1])
@@ -175,6 +199,18 @@ class Typing(ABC):
                 f"Input type found : {obj.neural_type}"
             )
 
+        # Perform input ndim check
+        if hasattr(obj, 'shape'):
+            value_shape = obj.shape
+            type_shape = type_val.axes
+
+            if len(value_shape) != len(type_shape):
+                raise TypeError(
+                    f"Input shape mismatch occured : \n"
+                    f"Input shape expected = {type_shape} | \n"
+                    f"Input shape found : {value_shape}"
+                )
+
     def __attach_neural_type(self, obj, type_val):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
@@ -185,6 +221,18 @@ class Typing(ABC):
             obj.neural_type = type_val
         except Exception:
             pass
+
+        # Perform output ndim check
+        if hasattr(obj, 'shape'):
+            value_shape = obj.shape
+            type_shape = type_val.axes
+
+            if len(value_shape) != len(type_shape):
+                raise TypeError(
+                    f"Output shape mismatch occured : \n"
+                    f"Output shape expected = {type_shape} | \n"
+                    f"Output shape found : {value_shape}"
+                )
 
 
 class Serialization(ABC):
