@@ -17,15 +17,21 @@
 import os
 
 import torch
-from megatron.initialize import initialize_megatron
-from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-from megatron.model.language_model import get_language_model
-from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from transformers import BertConfig
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
+
+try:
+    from megatron.initialize import initialize_megatron
+    from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
+    from megatron.model.language_model import get_language_model
+    from megatron.model.utils import init_method_normal, scaled_init_method_normal
+except ModuleNotFoundError as err:
+    logging.error(f"Could not import {err.name}. Megatron LM is not available. Make sure you are using NeMo on GPUs.")
+
 
 __all__ = ['MegatronBertEncoder']
 
