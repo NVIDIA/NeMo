@@ -19,11 +19,11 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.losses import CrossEntropyLoss, AggregatorLoss
+from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotClassificationDataset, IntentSlotDataDesc
-from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
@@ -63,7 +63,8 @@ class IntentSlotClassificationModel(ModelPT):
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint)
+            checkpoint_file=cfg.language_model.bert_checkpoint,
+        )
 
         self.data_dir = cfg.data_dir
         self.max_seq_length = cfg.language_model.max_seq_length
@@ -90,8 +91,12 @@ class IntentSlotClassificationModel(ModelPT):
         self.total_loss = AggregatorLoss(num_inputs=2, weights=[cfg.intent_loss_weight, 1.0 - cfg.intent_loss_weight])
 
         # setup to track metrics
-        self.intents_classification_report = ClassificationReport(self.data_desc.num_intents, self.data_desc.intents_label_ids)
-        self.slots_classification_report = ClassificationReport(self.data_desc.num_slots, self.data_desc.slots_label_ids)
+        self.intents_classification_report = ClassificationReport(
+            self.data_desc.num_intents, self.data_desc.intents_label_ids
+        )
+        self.slots_classification_report = ClassificationReport(
+            self.data_desc.num_slots, self.data_desc.slots_label_ids
+        )
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -115,7 +120,9 @@ class IntentSlotClassificationModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
-        intent_logits, slot_logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        intent_logits, slot_logits = self(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+        )
 
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
@@ -131,7 +138,9 @@ class IntentSlotClassificationModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
-        intent_logits, slot_logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        intent_logits, slot_logits = self(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
+        )
 
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
@@ -148,8 +157,15 @@ class IntentSlotClassificationModel(ModelPT):
         slot_labels = slot_labels[subtokens_mask]
         slot_tp, slot_fp, slot_fn = self.classification_report(preds, slot_labels)
 
-        tensorboard_logs = {'val_loss': val_loss, 'intent_tp': intent_tp, 'intent_fn': intent_fn, 'intent_fp': intent_fp,
-                            'slot_tp': slot_tp, 'slot_fn': slot_fn, 'slot_fp': slot_fp}
+        tensorboard_logs = {
+            'val_loss': val_loss,
+            'intent_tp': intent_tp,
+            'intent_fn': intent_fn,
+            'intent_fp': intent_fp,
+            'slot_tp': slot_tp,
+            'slot_fn': slot_fn,
+            'slot_fp': slot_fp,
+        }
 
         return {'loss': val_loss, 'log': tensorboard_logs}
 
@@ -164,12 +180,16 @@ class IntentSlotClassificationModel(ModelPT):
         tp = torch.sum(torch.stack([x['log']['intent_tp'] for x in outputs]), 0)
         fn = torch.sum(torch.stack([x['log']['intent_fn'] for x in outputs]), 0)
         fp = torch.sum(torch.stack([x['log']['intent_fp'] for x in outputs]), 0)
-        intent_precision, intent_recall, intent_f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
+        intent_precision, intent_recall, intent_f1 = self.classification_report.get_precision_recall_f1(
+            tp, fn, fp, mode='micro'
+        )
 
         tp = torch.sum(torch.stack([x['log']['slot_tp'] for x in outputs]), 0)
         fn = torch.sum(torch.stack([x['log']['slot_fn'] for x in outputs]), 0)
         fp = torch.sum(torch.stack([x['log']['slot_fp'] for x in outputs]), 0)
-        slot_precision, slot_recall, slot_f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='macro')
+        slot_precision, slot_recall, slot_f1 = self.classification_report.get_precision_recall_f1(
+            tp, fn, fp, mode='macro'
+        )
 
         tensorboard_logs = {
             'val_loss': avg_loss,
@@ -178,7 +198,7 @@ class IntentSlotClassificationModel(ModelPT):
             'intent_f1': intent_f1,
             'slot_precision': slot_precision,
             'slot_recall': slot_recall,
-            'slot_f1': slot_f1
+            'slot_f1': slot_f1,
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
@@ -201,7 +221,7 @@ class IntentSlotClassificationModel(ModelPT):
             slot_file=slot_file,
             tokenizer=self.tokenizer,
             max_seq_length=self.max_seq_length,
-            num_samples=cfg.num_samples
+            num_samples=cfg.num_samples,
         )
 
         return DataLoader(
