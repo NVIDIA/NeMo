@@ -13,12 +13,10 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.modules.common import (
-    AlbertEncoder,
-    BertEncoder,
-    DistilBertEncoder,
-    MegatronBertEncoder,
-    RobertaEncoder,
-    get_pretrained_lm_model,
-    get_pretrained_lm_models_list,
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import (
+    IntentSlotClassificationDataset,
+    IntentSlotInferenceDataset,
+)
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_descriptor import (
+    IntentSlotDataDesc,
 )

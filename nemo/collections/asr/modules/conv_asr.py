@@ -49,7 +49,7 @@ class ConvASREncoder(NeuralModule):
         pass
 
     @property
-    def input_ports(self):
+    def input_types(self):
         """Returns definitions of module input ports.
         """
         return OrderedDict(
@@ -60,7 +60,7 @@ class ConvASREncoder(NeuralModule):
         )
 
     @property
-    def output_ports(self):
+    def output_types(self):
         """Returns definitions of module output ports.
         """
         return OrderedDict(
