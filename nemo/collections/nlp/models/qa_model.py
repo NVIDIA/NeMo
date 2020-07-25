@@ -41,7 +41,7 @@ class QAModel(ModelPT):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
+        return self.bert.input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -53,16 +53,17 @@ class QAModel(ModelPT):
         self.max_query_length = cfg.max_query_length
         self.max_seq_length = cfg.max_seq_length
         self.do_lower_case = cfg.do_lower_case
-
         self.tokenizer = get_tokenizer(
             pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
         )
+
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
         )
-        self.hidden_size = self.bert_model.config.hidden_size
+
+        self.hidden_size = self.bert.config.hidden_size
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -80,7 +81,7 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.bert_model(
+        hidden_states = self.bert(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
         logits = self.classifier(hidden_states=hidden_states)
@@ -205,9 +206,14 @@ class QAModel(ModelPT):
     def save_to(self, save_path: str):
         pass
 
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    def restore_from(self, restore_path: str):
+        if restore_path:
+            logging.info(f"restore from {restore_path}")
+            pretrained_dict = torch.load(restore_path)
+            model_dict = self.state_dict()
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+            model_dict.update(pretrained_dict)
+            self.load_state_dict(model_dict)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
