@@ -21,9 +21,8 @@ from nemo.collections.nlp.modules.common.huggingface import (
     BertEncoder,
     DistilBertEncoder,
     RobertaEncoder,
-    get_huggingface_lm_model,
-    get_huggingface_lm_models_list,
 )
+from nemo.collections.nlp.modules.common.megatron import MegatronBertEncoder
 from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
 from nemo.collections.nlp.modules.common.sequence_token_classifier import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.token_classifier import BertPretrainingTokenClassifier, TokenClassifier
