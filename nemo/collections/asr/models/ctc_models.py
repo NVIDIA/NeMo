@@ -176,6 +176,10 @@ class EncDecCTCModel(ASRModel):
         wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
 
+    def test_dataloader(self):
+        if self._test_dl is not None:
+            return self._test_dl
+
 
 @experimental
 class JasperNet(EncDecCTCModel):

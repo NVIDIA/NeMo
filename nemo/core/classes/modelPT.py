@@ -359,9 +359,9 @@ class ModelPT(LightningModule, Model):
         if self._validation_dl is not None:
             return self._validation_dl
 
-    def test_dataloader(self):
-        if self._test_dl is not None:
-            return self._test_dl
+    # def test_dataloader(self):
+    #     if self._test_dl is not None:
+    #         return self._test_dl
 
     @property
     def num_weights(self):
