@@ -46,7 +46,7 @@ class SequenceTokenClassifier(NeuralModule):
         activation: str = 'relu',
         log_softmax: bool = False,
         dropout: float = 0.0,
-        use_transformer_init: bool = True
+        use_transformer_init: bool = True,
     ):
         """
         Initializes the SequenceClassifier module.
