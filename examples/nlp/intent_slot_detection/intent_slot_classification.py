@@ -12,8 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.lm_model import BERTLMModel
-from nemo.collections.nlp.models.qa_model import QAModel
-from nemo.collections.nlp.models.text_classification import TextClassificationModel
-from nemo.collections.nlp.models.token_classification import NERModel, PunctuationCapitalizationModel
+import pytorch_lightning as pl
+from omegaconf import DictConfig
+
 from nemo.collections.nlp.models.intent_slot_classification_model import IntentSlotClassificationModel
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
+
+
+@hydra_runner(config_path="conf", config_name="intent_slot_classification_config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config Params:\n {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
+
+    intent_slot_classification_model = IntentSlotClassificationModel(cfg.model, trainer=trainer)
+    trainer.fit(intent_slot_classification_model)
+
+
+if __name__ == '__main__':
+    main()
+

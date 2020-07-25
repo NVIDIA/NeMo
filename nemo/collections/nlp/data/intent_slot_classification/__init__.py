@@ -12,21 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import hydra
-import pytorch_lightning as pl
-from omegaconf import DictConfig
 
-from nemo.collections.nlp.models.intent_slot_model import IntentSlotModel
-from nemo.utils import logging
-
-
-@hydra.main(config_path="conf", config_name="config")
-def main(cfg: DictConfig) -> None:
-    logging.info(f'Config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.pl.trainer)
-    intent_slot_model = IntentSlotModel(cfg.model, trainer=trainer)
-    trainer.fit(intent_slot_model)
-
-
-if __name__ == '__main__':
-    main()
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import IntentSlotClassificationDataset
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import IntentSlotInferenceDataset
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_descriptor import IntentSlotDataDesc
