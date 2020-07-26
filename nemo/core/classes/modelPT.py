@@ -82,9 +82,19 @@ class ModelPT(LightningModule, Model):
                 self.setup_training_data(self._cfg.train_ds)
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+                # Set some placeholder overriden by helper method
+                self._validation_loss_idx = 0
+                self._validation_filenames = ['validation_']
+                self._validation_dl = None  # type: torch.utils.data.DataLoader
+
                 model_utils.resolve_validation_dataloaders(model=self)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+                # Set some placeholder overriden by helper method
+                self._test_loss_idx = 0
+                self._test_filenames = ['test_']
+                self._test_dl = None  # type: torch.utils.data.DataLoader
+
                 model_utils.resolve_test_dataloaders(model=self)
 
     def register_artifact(self, config_path: str, src: str):
@@ -423,6 +433,12 @@ class ModelPT(LightningModule, Model):
 
                                 # Also insert duplicate key with prefix for ease of comparison
                                 log_dict[dataloader_prefix + k_log] = v_log
+
+                            elif k_log == 'val_loss' and dataloader_idx != self._validation_loss_idx:
+                                # replace "val_loss" with <prefix> + loss
+                                # this avoid duplication of the word <prefix> + "val_loss" which causes confusion
+                                new_k_log = dataloader_prefix + 'loss'
+
                             else:
                                 new_k_log = dataloader_prefix + k_log
 
@@ -468,6 +484,12 @@ class ModelPT(LightningModule, Model):
 
                                 # Also insert duplicate key with prefix for ease of comparison
                                 log_dict[dataloader_prefix + k_log] = v_log
+
+                            elif k_log == 'test_loss' and dataloader_idx != self._test_loss_idx:
+                                # replace "test_loss" with <prefix> + loss
+                                # this avoid duplication of the word <prefix> + "test_loss" which causes confusion
+                                new_k_log = dataloader_prefix + 'loss'
+
                             else:
                                 new_k_log = dataloader_prefix + k_log
 
