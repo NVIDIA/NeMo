@@ -20,7 +20,7 @@ import wget
 from nemo.utils import logging
 
 
-def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, referesh_cache=False) -> str:
+def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, refresh_cache=False) -> str:
     """
     Helper function to download pre-trained weights from the cloud
     Args:
@@ -30,7 +30,7 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
             be empty
         cache_dir: (str) a cache directory where to download. If not present, this function will attempt to create it.
             If None (default), then it will be $HOME/.cache/torch/NeMo
-        referesh_cache: (bool) if True and cached file is present, it will delete it and re-fetch
+        refresh_cache: (bool) if True and cached file is present, it will delete it and re-fetch
 
     Returns:
         If successful - absolute local path to the downloaded file
@@ -53,7 +53,7 @@ def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, ref
 
     if os.path.exists(destination_file):
         logging.info(f"Found existing object {destination_file}.")
-        if referesh_cache:
+        if refresh_cache:
             logging.info("Asked to refresh the cache.")
             logging.info(f"Deleting file: {destination_file}")
             os.remove(destination_file)

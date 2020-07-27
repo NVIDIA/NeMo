@@ -266,15 +266,16 @@ class Model(Typing, Serialization, FileIO):
         Instantiates an instance of NeMo from NVIDIA NGC cloud
         Args:
             model_name: string key which will be used to find the module. Could be path to local .nemo file.
-            refresh_cache: If set to True, then when fetching from clould, this will re-fetch the file
-                from clould even if it is  already found in a cache locally.
+            refresh_cache: If set to True, then when fetching from cloud, this will re-fetch the file
+                from cloud even if it is already found in a cache locally.
         Returns:
             A model instance of a particular model class
         """
         location_in_the_cloud = None
-        for pretrained_model_info in cls.list_available_models():
-            if pretrained_model_info.pretrained_model_name == model_name:
-                location_in_the_cloud = pretrained_model_info.location
+        if cls.list_available_models() is not None:
+            for pretrained_model_info in cls.list_available_models():
+                if pretrained_model_info.pretrained_model_name == model_name:
+                    location_in_the_cloud = pretrained_model_info.location
         if location_in_the_cloud is None:
             raise FileNotFoundError(
                 f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."
@@ -284,7 +285,7 @@ class Model(Typing, Serialization, FileIO):
         cache_subfolder = f"NEMO_{nemo.__version__}"
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
         nemo_model_file_in_cache = maybe_download_from_cloud(
-            url=url, filename=filename, subfolder=cache_subfolder, referesh_cache=refresh_cache
+            url=url, filename=filename, subfolder=cache_subfolder, refresh_cache=refresh_cache
         )
         logging.info("Instantiating model from pre-trained checkpoint")
         instance = cls.restore_from(restore_path=nemo_model_file_in_cache)

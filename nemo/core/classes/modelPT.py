@@ -85,7 +85,7 @@ class ModelPT(LightningModule, Model):
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self.setup_test_data(self._cfg.test_ds)
 
-    def register_artifact(self, conf_path: str, src: str):
+    def register_artifact(self, config_path: str, src: str):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
         when model.save_to("mymodel.nemo") is called.
@@ -93,7 +93,7 @@ class ModelPT(LightningModule, Model):
         WARNING: If you specified /example_folder/example.txt but ./example.txt exists, then ./example.txt will be used.
 
         Args:
-            conf_path: config path where artifact is used
+            config_path: config path where artifact is used
             src: path to the artifact
 
         Returns:
@@ -113,7 +113,7 @@ class ModelPT(LightningModule, Model):
                 used_src = src
             if not os.path.exists(used_src):
                 raise FileNotFoundError(f"Could not find {used_src}")
-            self.artifacts.append((conf_path, used_src))
+            self.artifacts.append((config_path, used_src))
             return used_src
         else:
             return src
@@ -138,7 +138,7 @@ class ModelPT(LightningModule, Model):
                     try:
                         if os.path.exists(src):
                             shutil.copy2(src, tmpdir)
-                    except:
+                    except Exception:
                         logging.error(f"Could not copy artifact {src} used in {conf_path}")
 
             self.to_config_file(path2yaml_file=config_yaml)

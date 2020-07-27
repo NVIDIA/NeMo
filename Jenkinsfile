@@ -158,21 +158,6 @@ pipeline {
         }
       }
     }
-    
-//     stage('L2 QuartzNet En Checkpoint inference Test' {
-//         when {
-//           anyOf {
-//                  branch 'candidate'
-//                  changeRequest target: 'candidate'
-//           }
-//         }
-//         failFast true
-//         parallel {
-//             steps {
-//                 sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
-//             }
-// 	    }
-//     }
 
     stage('L2: ASR Checkponts tests') {
       when {

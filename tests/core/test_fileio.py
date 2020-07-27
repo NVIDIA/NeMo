@@ -123,7 +123,7 @@ class TestFileIO:
 
             # Save model (with random artifact).
             with tempfile.NamedTemporaryFile() as artifact:
-                asr_model.register_artifact(conf_path=None, src=artifact.name)
+                asr_model.register_artifact(config_path=None, src=artifact.name)
                 asr_model.save_to(save_path=filename)
 
             # Restore the model.
