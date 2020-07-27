@@ -116,7 +116,7 @@ class WaveGlowModule(NeuralModule):
         # Return the necessary tensors
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             return z, log_s_list, log_det_W_list, audio_pred
-        return audio
+        return audio_pred
 
     @property
     def input_types(self):

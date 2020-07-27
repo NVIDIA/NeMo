@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
@@ -43,6 +43,7 @@ class Tacotron2Config:
     encoder: Dict = MISSING
     decoder: Dict = MISSING
     postnet: Dict = MISSING
+    labels: List = MISSING
     train_ds: Optional[Dict] = None
     validation_ds: Optional[Dict] = None
 
@@ -51,6 +52,8 @@ class Tacotron2Config:
 class Tacotron2Model(ModelPT):
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(Tacotron2Config)
@@ -64,7 +67,7 @@ class Tacotron2Model(ModelPT):
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.audio_to_melspec_precessor = Tacotron2Model.from_config_dict(self._cfg.preprocessor)
-        self.text_embedding = nn.Embedding(len(cfg.train_ds.dataset.params.labels) + 3, 512)
+        self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
         self.encoder = Tacotron2Model.from_config_dict(self._cfg.encoder)
         self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
         self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)

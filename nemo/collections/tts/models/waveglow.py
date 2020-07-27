@@ -47,6 +47,8 @@ class WaveglowConfig:
 @experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
 class WaveGlowModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(WaveglowConfig)
