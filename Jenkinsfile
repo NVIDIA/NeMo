@@ -374,6 +374,8 @@ pipeline {
       }
       failFast true
         steps {
+          sh 'rm -rf /home/TestData/nlp/wikitext-2/spt'
+          sh 'rm -f /home/TestData/nlp/wikitext-2/*.pkl'
           sh 'cd examples/nlp/language_modeling && \
           python bert_pretraining_from_text.py \
           trainer.precision=16 \
