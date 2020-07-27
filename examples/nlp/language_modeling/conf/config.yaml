@@ -9,6 +9,7 @@ trainer:
   amp_level: O1 # O1 or O2 if using AMP 
   distributed_backend: ddp
   gradient_clip_val: 0.0
+  row_log_interval: 1
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
   checkpoint_callback: false # provided by exp_manager
   logger: false # provided by exp_manager
@@ -18,8 +19,6 @@ model:
   max_seq_length: 128
   # The maximum total input sequence length after tokenization. Sequences longer than this
   # will be truncated, and sequences shorter than this will be padded.
-  sample_size: 1e7
-  # Data sample size.
   mask_prob: 0.15
   # Probability of masking a token in the input text during data processing.
   short_seq_prob: 0.1
@@ -55,7 +54,7 @@ model:
     do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
    
   train_ds:
-    data_path: null # path to data files
+    data_dir: null # path to data file(s)
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
@@ -68,7 +67,7 @@ model:
     pin_memory: false
 
   validation_ds:
-    data_path: null # path to data files
+    data_dir: null # path to data file(s)
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}

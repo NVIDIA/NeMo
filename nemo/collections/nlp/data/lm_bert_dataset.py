@@ -44,7 +44,7 @@ class BertPretrainingDataset(Dataset):
     def __init__(
         self,
         tokenizer: object,
-        data_path: str,
+        data_dir: str,
         max_seq_length: Optional[int] = 128,
         mask_prob: Optional[float] = 0.15,
         short_seq_prob: Optional[float] = 0.1,
@@ -70,8 +70,8 @@ class BertPretrainingDataset(Dataset):
         # from main memory when needed during training.
 
         if sentence_idx_file is None:
-            data_dir = data_path[: data_path.rfind('/')]
-            mode = data_path[data_path.rfind('/') + 1 : data_path.rfind('.')]
+            data_dir = data_dir[: data_dir.rfind('/')]
+            mode = data_dir[data_dir.rfind('/') + 1 : data_dir.rfind('.')]
             sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
 
         if os.path.isfile(sentence_idx_file):
@@ -105,18 +105,18 @@ class BertPretrainingDataset(Dataset):
                     except ValueError:
                         break
 
-            if os.path.isdir(data_path):
-                dataset_pattern = os.path.join(data_path, "**", "*.txt")
+            if os.path.isdir(data_dir):
+                dataset_pattern = os.path.join(data_dir, "**", "*.txt")
                 filenames = glob.glob(dataset_pattern, recursive=True)
             else:
-                filenames = [data_path]
+                filenames = [data_dir]
 
             for filename in tqdm(filenames):
                 with open(filename, "rb") as f:
                     contents = f.read()
                     newline_indices = find_newlines(contents)
 
-                if os.path.isdir(data_path):
+                if os.path.isdir(data_dir):
                     # Only keep the parts of the filepath that are invariant to
                     # the dataset's location on disk
                     filename = os.path.basename(filename)
@@ -143,7 +143,7 @@ class BertPretrainingDataset(Dataset):
             del sentence_indices[filename]
 
         self.corpus_size = corpus_size
-        self.dataset = data_path
+        self.dataset = data_dir
         self.filenames = list(sentence_indices.keys())
         self.mask_probability = mask_prob
         self.max_seq_length = max_seq_length
