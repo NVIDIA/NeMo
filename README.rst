@@ -1,22 +1,23 @@
-.. image:: http://www.repostatus.org/badges/latest/active.svg
+|status| |stable| |license| |lgtm_grade| |lgtm_alerts| |black| 
+
+.. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
   :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
 
-|stable|
-    
-.. image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
+
+.. |license| image:: https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg
   :target: https://github.com/NVIDIA/NeMo/blob/master/LICENSE
   :alt: NeMo core license and license for collections in this repo
 
-.. image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+.. |lgtm_grade| image:: https://img.shields.io/lgtm/grade/python/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/context:python
   :alt: Language grade: Python
 
-.. image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
+.. |lgtm_alerts| image:: https://img.shields.io/lgtm/alerts/g/NVIDIA/NeMo.svg?logo=lgtm&logoWidth=18
   :target: https://lgtm.com/projects/g/NVIDIA/NeMo/alerts/
   :alt: Total alerts
 
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+.. |black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
   :target: https://github.com/psf/black
   :alt: Code style: black
 
@@ -189,20 +190,6 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 
 ** NeMo Documentation **
 
-+=========+==========+=========================================================+
-| Version | Status   | Description                                             |
-+=========+==========+=========================================================+
-| Master  | |master| | Documentation of the `master` branch                    |
-+---------+----------+---------------------------------------------------------+
-| Latest  | |latest| | Documentation of the latest (i.e. `master`) branch      |
-+---------+----------+---------------------------------------------------------+
-| Stable  | |stable| | Documentation of the latest releast (currently v0.11.0) |
-+---------+----------+---------------------------------------------------------+
-| v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
-+---------+----------+---------------------------------------------------------+
-| v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
-+---------+----------+---------------------------------------------------------+
-
 .. |master| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=master
   :alt: Documentation Status
   :scale: 100%
@@ -227,6 +214,20 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
   :alt: Documentation Status
   :scale: 100%
   :target: https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.10.1/
+
++=========+==========+=========================================================+
+| Version | Status   | Description                                             |
++=========+==========+=========================================================+
+| Master  | |master| | Documentation of the `master` branch                    |
++---------+----------+---------------------------------------------------------+
+| Latest  | |latest| | Documentation of the latest (i.e. `master`) branch      |
++---------+----------+---------------------------------------------------------+
+| Stable  | |stable| | Documentation of the latest releast (currently v0.11.0) |
++---------+----------+---------------------------------------------------------+
+| v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
++---------+----------+---------------------------------------------------------+
+| v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
++---------+----------+---------------------------------------------------------+
 
 ** NeMo Test Suite **
 
