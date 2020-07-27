@@ -77,7 +77,7 @@ model:
     use_transformer_init: true
 
   optim:
-    name: adam_w
+    name: adamw
     lr: 1e-5
     args:
       name: auto
