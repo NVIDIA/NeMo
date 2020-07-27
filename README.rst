@@ -189,7 +189,7 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
     python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
 
-** NeMo Documentation **
+**NeMo Documentation**
 
 .. |master| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=master
   :alt: Documentation Status
@@ -229,7 +229,7 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 | v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
 +---------+----------+---------------------------------------------------------+
 
-** NeMo Test Suite **
+**NeMo Test Suite**
 
 NeMo contains test suite divided into 5 subsets:
  1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
