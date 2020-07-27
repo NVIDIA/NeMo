@@ -54,8 +54,8 @@ class BERTLMModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.max_seq_length = cfg.max_seq_length
         self.tokenizer = None
-        if cfg.model.language_model.bert_config_file is not None:
-            cfg.model.tokenizer.vocab_size = json.load(open(cfg.model.language_model.bert_config_file))['vocab_size']
+        if cfg.language_model.bert_config_file is not None:
+            cfg.tokenizer.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
         # if using preprocessed data we don't need to setup tokenizer
         self._setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
