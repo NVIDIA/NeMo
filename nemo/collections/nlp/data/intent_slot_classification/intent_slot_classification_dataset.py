@@ -129,7 +129,7 @@ def get_features(
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 
 
-class IntentSlotDataset(Dataset):
+class IntentSlotClassificationDataset(Dataset):
     """
     Creates dataset to use for the task of joint intent
     and slot classification with pretrained model.
@@ -225,7 +225,7 @@ class IntentSlotDataset(Dataset):
         )
 
 
-class IntentSlotInferDataset(Dataset):
+class IntentSlotInferenceDataset(Dataset):
     """
     Creates dataset to use for the task of joint intent
     and slot classification with pretrained model.
