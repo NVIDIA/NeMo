@@ -36,36 +36,20 @@ class AppConfig(Config):
     """
 
     name: str = "Training of a LeNet-5 Model using a pure PyTorchLightning approach - using DDP on 2 GPUs."
-    trainer: TrainerConfig = TrainerConfig(gpus=2, distributed_backend="ddp")
+    trainer: TrainerConfig = TrainerConfig(gpus=2, distributed_backend="dp")
     model: MNISTLeNet5Config = MNISTLeNet5Config()
 
 
 @set_config(config=AppConfig)
 def main(cfg: DictConfig):
     # Show configuration - user can modify every parameter from command line!
-    logging.info("=" * 40 + " Hydra says hello! " + "=" * 40 + "\n" + cfg.pretty())
+    logging.info("Application config\n" + cfg.pretty())
 
     # The "model" - with dataloader/dataset inside of it.
     lenet5 = MNISTLeNet5(cfg.model)
 
     # Setup train data loader and optimizer
     lenet5.setup_training_data()
-
-    # Setup optimizer and scheduler
-    if 'sched' in cfg.model.optim:
-        if cfg.trainer.max_steps is None:
-            if cfg.trainer.gpus == 0:
-                # training on CPU
-                iters_per_batch = cfg.trainer.max_epochs / float(
-                    cfg.trainer.num_nodes * cfg.trainer.accumulate_grad_batches
-                )
-            else:
-                iters_per_batch = cfg.trainer.max_epochs / float(
-                    cfg.trainer.gpus * cfg.trainer.num_nodes * cfg.trainer.accumulate_grad_batches
-                )
-            cfg.model.optim.sched.iters_per_batch = iters_per_batch
-        else:
-            cfg.model.optim.sched.max_steps = cfg.trainer.max_steps
 
     # Setup optimizer and scheduler
     lenet5.setup_optimization()

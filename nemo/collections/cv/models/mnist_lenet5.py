@@ -17,7 +17,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from nemo.collections.cv.datasets import MNISTDataset, MNISTDatasetConfig
@@ -27,7 +26,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, NovogradParams
 from nemo.core.neural_types import *
-from nemo.core.optim.lr_scheduler import prepare_lr_scheduler
 from nemo.utils.decorators import experimental
 
 
@@ -59,7 +57,7 @@ class MNISTOptimizer(Config):
     lr: float = 0.01
 
     args: NovogradParams = NovogradParams(betas=(0.8, 0.5))
-    sched: NovogradScheduler = NovogradScheduler()
+    # sched: NovogradScheduler = NovogradScheduler()
 
 
 @dataclass
@@ -85,23 +83,11 @@ class MNISTLeNet5Config(Config):
 @experimental
 class MNISTLeNet5(ModelPT):
     def __init__(self, cfg: MNISTLeNet5Config = MNISTLeNet5Config()):
-        super().__init__()
-        # Remember config - should be moved to base init.
-        self._cfg = cfg
+        super().__init__(cfg=cfg)
 
         # Initialize modules.
         self.module = LeNet5Module(cfg.module)
         self.loss = NLLLoss()
-
-        # This will be set by setup_training_data
-        self._train_dl = None
-        # This will be set by setup_validation_data
-        self._val_dl = None
-        # This will be set by setup_test_data
-        self._test_dl = None
-
-        self._optimizer = None
-        self._scheduler = None
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -114,23 +100,6 @@ class MNISTLeNet5(ModelPT):
     @typecheck()
     def forward(self, images):
         return self.module.forward(images=images)
-
-    # This will fail as train_dataloader is not yet instantiated !
-    # def configure_optimizers(self):
-    #     # Get optimizer class.
-    #     optim_config = self._cfg.optim
-    #     optimizer = self.setup_optimization(optim_config)
-    #     scheduler = prepare_lr_scheduler(
-    #         optimizer, scheduler_config=optim_config, train_dataloader=self._train_dataloader
-    #     )
-    #     return [optimizer], [scheduler]
-
-    def setup_optimization(self, optim_config=None) -> Optimizer:
-        optim_config = optim_config or self._cfg.optim
-        self._optimizer = super().setup_optimization(optim_config)
-        self._scheduler = prepare_lr_scheduler(
-            optimizer=self._optimizer, scheduler_config=optim_config, train_dataloader=self._train_dl
-        )
 
     def setup_training_data(self, train_data_layer_config: Optional[Dict] = None):
         """ Create dataset, wrap it with dataloader and return the latter """
@@ -145,12 +114,6 @@ class MNISTLeNet5(ModelPT):
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict] = None):
         self._test_dl = None
-
-    def configure_optimizers(self):
-        if self._scheduler is None:
-            return self._optimizer
-        else:
-            return [self._optimizer], [self._scheduler]
 
     def training_step(self, batch, what_is_this_input):
         # "Unpack" the batch.
