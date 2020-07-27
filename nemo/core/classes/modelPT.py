@@ -386,7 +386,7 @@ class ModelPT(LightningModule, Model):
 
     def validation_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
-    ) -> Dict[str, Dict[str, torch.Tensor]]:
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
         """
         Default DataLoader for Validation set which automatically supports multiple data loaders
         via `multi_validation_epoch_end`.
@@ -407,6 +407,9 @@ class ModelPT(LightningModule, Model):
             A dictionary containing the union of all items from individual data_loaders,
             along with merged logs from all data loaders.
         """
+
+        if outputs is not None and len(outputs) == 0:
+            return
 
         if type(outputs[0]) == dict:
             return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
@@ -458,6 +461,28 @@ class ModelPT(LightningModule, Model):
     def test_epoch_end(
         self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """
+        Default DataLoader for Test set which automatically supports multiple data loaders
+        via `multi_test_epoch_end`.
+
+        If multi dataset support is not required, override this method entirely in base class.
+        In such a case, there is no need to implement `multi_test_epoch_end` either.
+
+        Note:
+            If more than one data loader exists, and they all provide `test_loss`,
+            only the `test_loss` of the first data loader will be used by default.
+            This default can be changed by passing the special key `test_loss_idx: int`
+            inside the `test_ds` config.
+
+        Args:
+            outputs: Single or nested list of tensor outputs from one or more data loaders.
+
+        Returns:
+            A dictionary containing the union of all items from individual data_loaders,
+            along with merged logs from all data loaders.
+        """
+        if outputs is not None and len(outputs) == 0:
+            return
 
         if type(outputs[0]) == dict:
             return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
