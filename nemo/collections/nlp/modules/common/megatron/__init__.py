@@ -12,11 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import (
-    IntentSlotClassificationDataset,
-    IntentSlotInferenceDataset,
-)
-from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_descriptor import (
-    IntentSlotDataDesc,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_checkpoint

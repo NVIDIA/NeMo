@@ -1,27 +1,67 @@
-boto3
+numpy>=1.18.2
+pytorch-lightning>=0.8.5
+pandas
+python-dateutil
+tensorboardX
+tensorboard
+torch
+wget
+wrapt
+ruamel.yaml
+scikit-learn
+scipy
+hydra-core==1.0.0rc2
+# test
+black
+isort[requirements] < 5
+parameterized
+pytest
+pytest-runner
+
+sphinx
+sphinxcontrib-bibtex
+
+
+# doc
+latexcodec
+sphinx_rtd_theme
+
+
+# cv
+pillow
+torchvision
+# asr
+braceexpand
+editdistance
 frozendict
-h5py
-html2text
 inflect
-ipdb
-ipython[all]
-jupyterlab
 kaldi-io
 librosa
 marshmallow
-matplotlib
-nltk
+packaging
 num2words
-onnx
-pandas
-pillow>=4.3.0
-progressbar
-requests
-ruamel.yaml
-sentencepiece
-six
+
+soundfile
 sox
-tqdm>=4.41.0
+torch-stft
 unidecode
-wget
+webdataset
+kaldi-python-io
+# nlp
+boto3
+h5py
+matplotlib
+sentencepiece
+torchtext
+transformers>=2.11.0
+
 youtokentome
+tqdm>=4.41.0
+rapidfuzz
+gdown
+megatron-lm==1.1
+# inflect
+# tts
+
+pypinyin
+attrdict
