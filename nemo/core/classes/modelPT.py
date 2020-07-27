@@ -308,13 +308,22 @@ class ModelPT(LightningModule, Model):
         if self._train_dl is not None:
             return self._train_dl
 
+    def training_step(self, batch, batch_ix):
+        pass
+
     def val_dataloader(self):
         if self._validation_dl is not None:
             return self._validation_dl
 
-    # def test_dataloader(self):
-    #     if self._test_dl is not None:
-    #         return self._test_dl
+    def validation_step(self, batch, batch_ix):
+        pass
+
+    def test_dataloader(self):
+        if self._test_dl is not None:
+            return self._test_dl
+
+    def test_step(self, batch, batch_ix):
+        pass
 
     @property
     def num_weights(self):
