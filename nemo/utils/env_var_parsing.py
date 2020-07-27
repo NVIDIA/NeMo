@@ -22,7 +22,6 @@
 #
 # Vendored dependency from : https://github.com/yunojuno/python-env-utils/blob/master/env_utils/utils.py
 #
-# =========================================================================================================
 #
 # Modified by NVIDIA
 #
