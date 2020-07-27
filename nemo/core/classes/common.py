@@ -345,7 +345,7 @@ class typecheck:
 
         return outputs
 
-    @classmethod
-    def set_typecheck_enabled(cls, enabled: bool = True):
+    @staticmethod
+    def set_typecheck_enabled(enabled: bool = True):
         global _TYPECHECK_ENABLED
         _TYPECHECK_ENABLED = enabled
