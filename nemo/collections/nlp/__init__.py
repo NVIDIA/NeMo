@@ -13,3 +13,13 @@
 # limitations under the License.
 
 from nemo.collections.nlp import data, models, modules
+from nemo.package_info import __version__
+
+# Set collection version equal to NeMo version.
+__version = __version__
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Natural Language Processing collection"
