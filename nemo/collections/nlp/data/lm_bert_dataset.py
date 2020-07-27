@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import array
+import glob
 import itertools
 import os
 import pickle
 import random
 from typing import Dict, List, Optional
-import glob
 
 import h5py
 import numpy as np
