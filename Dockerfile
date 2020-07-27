@@ -42,7 +42,6 @@ COPY . .
 # start building the final container
 FROM nemo-deps as nemo
 ARG NEMO_VERSION=1.0
-ARG BASE_IMAGE
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes
