@@ -1,4 +1,5 @@
-|status| |stable| |license| |lgtm_grade| |lgtm_alerts| |black| 
+
+|status| |v0110| |license| |lgtm_grade| |lgtm_alerts| |black| 
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -33,7 +34,7 @@ Installation
 
 * Docker container installation from NGC: https://ngc.nvidia.com/catalog/containers/nvidia:nemo
 
-* `Documentation <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/stable/>`_
+* `Documentation <https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.11.0/>`_
 
 * NVIDIA `Developer Blog <https://devblogs.nvidia.com/announcing-nemo-fast-development-of-speech-and-language-models/>`_
 
@@ -188,7 +189,7 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
     python setup.py style --scope=tests  # Operates within certain scope (dir of file).
 
 
-** NeMo Documentation **
+**NeMo Documentation**
 
 .. |master| image:: https://readthedocs.com/projects/nvidia-nemo/badge/?version=master
   :alt: Documentation Status
@@ -223,21 +224,20 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 +---------+----------+---------------------------------------------------------+
 | Latest  | |latest| | Documentation of the latest (i.e. `master`) branch      |
 +---------+----------+---------------------------------------------------------+
-| Stable  | |stable| | Documentation of the latest releast (currently v0.11.0) |
-+---------+----------+---------------------------------------------------------+
 | v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
 +---------+----------+---------------------------------------------------------+
 | v0.10.1 | |v0101|  | Documentation of the v0.10.1 release                    |
 +---------+----------+---------------------------------------------------------+
 
-** NeMo Test Suite **
+**NeMo Test Suite**
 
 NeMo contains test suite divided into 5 subsets:
- 1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
- 2) ``integration``: tests checking the elements when integrated into subsystems
- 3) ``system``: tests working at the highest integration level
- 4) ``acceptance``: tests checking whether the developed product/model passes the user defined acceptance criteria
- 5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
+
+1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
+2) ``integration``: tests checking the elements when integrated into subsystems
+3) ``system``: tests working at the highest integration level
+4) ``acceptance``: tests checking whether the developed product/model passes the user defined acceptance criteria
+5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
 
 The user can run  all the tests locally by simply executing:
 
