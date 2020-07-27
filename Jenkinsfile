@@ -374,15 +374,13 @@ pipeline {
       }
       failFast true
         steps {
-          sh 'ls -lh /home/TestData/nlp/bert_configs/'
-          sh 'cat /home/TestData/nlp/bert_configs/bert_3200.json'
           sh 'cd examples/nlp/language_modeling && \
           python bert_pretraining_from_text.py \
           trainer.precision=16 \
           trainer.amp_level=O1 \
           +trainer.fast_dev_run=true \
-          model.train_ds.data_dir=/home/TestData/nlp/wikitext-2/train.txt  \
-          model.validation_ds.data_dir=/home/TestData/nlp/wikitext-2/valid.txt  \
+          model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
+          model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
           model.batch_size=64 \
           model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
           model.optim.lr=0.01 \
