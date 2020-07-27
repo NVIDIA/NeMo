@@ -385,6 +385,7 @@ pipeline {
           model.optim.lr=0.01 \
           model.optim.sched.warmup_ratio=0.1 \
           model.tokenizer.tokenizer_name=sentencepiece \
+          model.tokenizer.data_file=/home/TestData/nlp/wikitext-2/train.txt \
           model.tokenizer.sample_size=10000000 \
           model.mask_prob=0.15 \
           model.short_seq_prob=0.1 \
