@@ -1,6 +1,5 @@
 black
 isort[requirements] < 5
-onnxruntime
 parameterized
 pytest
 pytest-runner
