@@ -15,13 +15,20 @@
 """
 This example demonstrates basic batch-based inference using NeMo's ASR model
 """
-# TODO: Make me pretty and run on GPU
+import torch
 from argparse import ArgumentParser
-
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
+"""
+This script serves three goals:
+    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
+    (2) Shows example of batch ASR inference
+    (3) Serves as CI test for pre-trained checkpoint
+"""
+
+can_gpu = torch.cuda.is_available()
 
 def main():
     parser = ArgumentParser()
@@ -30,6 +37,7 @@ def main():
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(
         "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
@@ -44,28 +52,34 @@ def main():
         asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model)
     asr_model.setup_test_data(
         test_data_config={
+            'sample_rate': 16000,
             'manifest_filepath': args.dataset,
             'labels': asr_model.decoder.vocabulary,
-            'batch_size': 1,
+            'batch_size': args.batch_size,
             'normalize_transcripts': args.normalize_text,
         }
     )
+    if can_gpu:
+        asr_model = asr_model.cuda()
     asr_model.eval()
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
     wer = WER(vocabulary=asr_model.decoder.vocabulary)
     hypotheses = []
     references = []
     for test_batch in asr_model.test_dataloader():
+        if can_gpu:
+            test_batch = [x.cuda() for x in test_batch]
         log_probs, encoded_len, greedy_predictions = asr_model(
             input_signal=test_batch[0], input_signal_length=test_batch[1]
         )
         hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
-        reference = ''.join([labels_map[c] for c in test_batch[2].squeeze(0).cpu().detach().numpy()])
-        references.append(reference)
-    print(hypotheses)
+        for batch_ind in range(args.batch_size):
+            reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
+            references.append(reference)
+        del test_batch
     wer_value = word_error_rate(hypotheses=hypotheses, references=references)
-    print(f"WORD ERROR RATE = {wer_value}")
     assert wer_value < args.wer_tolerance
+    logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
 
 
 if __name__ == '__main__':
