@@ -233,11 +233,11 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 
 NeMo contains test suite divided into 5 subsets:
 
- 1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
- 2) ``integration``: tests checking the elements when integrated into subsystems
- 3) ``system``: tests working at the highest integration level
- 4) ``acceptance``: tests checking whether the developed product/model passes the user defined acceptance criteria
- 5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
+1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
+2) ``integration``: tests checking the elements when integrated into subsystems
+3) ``system``: tests working at the highest integration level
+4) ``acceptance``: tests checking whether the developed product/model passes the user defined acceptance criteria
+5) ``docs``: tests related to documentation (deselect with '-m "not docs"')
 
 The user can run  all the tests locally by simply executing:
 
