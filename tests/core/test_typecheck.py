@@ -658,6 +658,9 @@ class TestNeuralTypeCheckSystem:
         # Test passing wrong key for input
         _ = obj(a=torch.zeros(10), x=torch.zeros(5))
 
+        # Re-enable type checking
+        typecheck.set_typecheck_enabled(enabled=True)
+
     @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_nested_shape_mismatch(self):
