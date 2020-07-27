@@ -1,0 +1,92 @@
+name: &name "GlowTTS"
+
+model:
+  hidden_channels: 192
+  filter_channels: 768
+  filter_channels_dp: 256
+  kernel_size: 3
+  p_dropout: 0.1
+  n_blocks_dec: 12
+  n_layers_enc: 6
+  n_heads: 2
+  p_dropout_dec: 0.05
+  dilation_rate: 1
+  kernel_size_dec: 5
+  n_block_layers: 4
+  n_sqz: 2
+  prenet: true
+  mean_only: true
+  hidden_channels_enc: 192
+  hidden_channels_dec: 192
+  window_size: 4
+
+  train_ds:
+    batch_size: 8
+    shuffle: True
+    num_workers: 8
+    files_list: /home/samuel/Data/ljspeech/filelists/ljs_audio_text_train_filelist.txt
+
+  validation_ds:
+    batch_size: 8
+    shuffle: False
+    num_workers: 8
+    files_list: /home/samuel/Data/ljspeech/filelists/ljs_audio_text_val_filelist.txt
+
+  data:
+    load_mel_from_disk: false
+    text_cleaners:
+      - english_cleaners
+    max_wav_value: 32768
+    sampling_rate: 22050
+    filter_length: 1024
+    hop_length: 256
+    win_length: 1024
+    n_mel_channels: 80
+    mel_fmin: 0
+    mel_fmax: 8000
+    add_noise: true
+    add_space: false
+    cmudict_path: /home/samuel/Data/cmudict/cmu_dictionary
+
+  optim:
+    name: adam
+    lr: 1e-3
+    # optimizer arguments
+    betas: [0.9, 0.98]
+    weight_decay: 0
+
+    # scheduler setup
+    sched:
+      name: CosineAnnealing
+
+      # pytorch lightning args
+      # monitor: val_loss
+      # reduce_on_plateau: false
+
+      # Scheduler params
+      warmup_steps: 4000
+      min_lr: 1e-5
+      last_epoch: -1
+
+trainer:
+  gpus: -1 # number of gpus
+  max_epochs: 500
+  max_steps: 20000
+  num_nodes: 1
+  distributed_backend: ddp
+  accumulate_grad_batches: 1
+  checkpoint_callback: False  # Provided by exp_manager
+  logger: False  # Provided by exp_manager
+
+exp_manager:
+  root_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+
+hydra:
+  run:
+    dir: .
+  job_logging:
+    root:
+      handlers: null
