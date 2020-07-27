@@ -232,6 +232,7 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 **NeMo Test Suite**
 
 NeMo contains test suite divided into 5 subsets:
+
  1) ``unit``: unit tests, i.e. testing a single, well isolated functionality
  2) ``integration``: tests checking the elements when integrated into subsystems
  3) ``system``: tests working at the highest integration level
