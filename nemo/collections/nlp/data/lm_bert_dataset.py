@@ -45,7 +45,7 @@ class BertPretrainingDataset(Dataset):
     def __init__(
         self,
         tokenizer: object,
-        data_dir: str,
+        data_file: str,
         max_seq_length: Optional[int] = 128,
         mask_prob: Optional[float] = 0.15,
         short_seq_prob: Optional[float] = 0.1,
@@ -55,7 +55,7 @@ class BertPretrainingDataset(Dataset):
         """
         Args:
             tokenizer: tokenizer
-            data_dir: path to data
+            data_file: path to data
             max_seq_length: maximum sequence length of input tensors
             mask_probability: proability to mask token
             short_seq_prob: probability to create a sequence shorter than max_seq_length
@@ -71,8 +71,8 @@ class BertPretrainingDataset(Dataset):
         # from main memory when needed during training.
 
         if sentence_idx_file is None:
-            data_dir = data_dir[: data_dir.rfind('/')]
-            mode = data_dir[data_dir.rfind('/') + 1 : data_dir.rfind('.')]
+            data_dir = data_file[: data_file.rfind('/')]
+            mode = data_file[data_file.rfind('/') + 1 : data_file.rfind('.')]
             sentence_idx_file = f"{data_dir}/{mode}_sentence_indices.pkl"
 
         if os.path.isfile(sentence_idx_file):
@@ -107,7 +107,9 @@ class BertPretrainingDataset(Dataset):
                         break
 
             if os.path.isdir(data_dir):
-                dataset_pattern = os.path.join(data_dir, "**", "*.txt")
+                # TODO: was this a bug before? this grabs train.txt, valid.txt and test.txt with wikitext-2
+                #dataset_pattern = os.path.join(data_dir, "**", "*.txt")
+                dataset_pattern = os.path.join(data_dir, "**", f"{mode}*.txt")
                 filenames = glob.glob(dataset_pattern, recursive=True)
             else:
                 filenames = [data_dir]

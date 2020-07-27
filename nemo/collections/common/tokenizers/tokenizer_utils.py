@@ -122,8 +122,6 @@ def get_tokenizer(
             if not special_tokens and pretrained_model_name:
                 special_tokens = MODEL_SPECIAL_TOKENS[model_type]
                 num_special_tokens = len(set(special_tokens.values()))
-            print(f'sample_size: {sample_size}')
-            print(f'type(sample_size): {type(sample_size)}')
             tokenizer_model, _ = nemo.collections.common.tokenizers.sentencepiece_tokenizer.create_spt_model(
                 data_file=data_file,
                 vocab_size=vocab_size - num_special_tokens,

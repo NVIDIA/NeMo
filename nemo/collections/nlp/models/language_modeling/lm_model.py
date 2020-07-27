@@ -206,7 +206,7 @@ class BERTLMModel(ModelPT):
     def _setup_dataloader(self, cfg: DictConfig):
         dataset = BertPretrainingDataset(
             tokenizer=self.tokenizer,
-            data_dir=cfg.data_dir,
+            data_file=cfg.data_file,
             max_seq_length=cfg.max_seq_length,
             mask_prob=cfg.mask_prob,
             short_seq_prob=cfg.short_seq_prob,

@@ -54,7 +54,7 @@ model:
     do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
    
   train_ds:
-    data_dir: null # path to data file(s)
+    data_file: null # path to data file
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
@@ -67,7 +67,7 @@ model:
     pin_memory: false
 
   validation_ds:
-    data_dir: null # path to data file(s)
+    data_file: null # path to data file
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
