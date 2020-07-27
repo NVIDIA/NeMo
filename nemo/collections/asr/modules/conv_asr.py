@@ -54,7 +54,17 @@ class ConvASREncoder(NeuralModule, Exportable):
         logging.warning(f"Turned off {m_count} masked convolutions")
 
         input_example = torch.randn(16, self.__feat_in, 256)
-        return (input_example, None)
+        return input_example, None
+
+    @property
+    def disabled_deployment_input_names(self):
+        """Implement this method to return a set of input names disabled for export"""
+        return set(["length"])
+
+    @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of output names disabled for export"""
+        return set(["encoded_lengths"])
 
     def save_to(self, save_path: str):
         pass

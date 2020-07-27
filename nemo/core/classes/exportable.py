@@ -85,7 +85,7 @@ class Exportable(ABC):
             if _in_example is None:
                 raise ValueError(f'Example input is None, but ONNX tracing was attempted')
             if _out_example is None:
-                if isinstance(input_example, tuple):
+                if isinstance(_in_example, tuple):
                     _out_example = self.forward(*_in_example)
                 else:
                     _out_example = self.forward(_in_example)
@@ -110,13 +110,13 @@ class Exportable(ABC):
 
     @property
     def disabled_deployment_input_names(self):
-        """Implement this method to return a list of input names disabled for export"""
-        return []
+        """Implement this method to return a set of input names disabled for export"""
+        return set()
 
     @property
     def disabled_deployment_output_names(self):
-        """Implement this method to return a list of output names disabled for export"""
-        return []
+        """Implement this method to return a set of output names disabled for export"""
+        return set()
 
     @staticmethod
     def __extract_dynamic_axes(port_name, ntype: NeuralType, dynamic_axes: defaultdict):
