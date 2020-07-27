@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
+from typing import Optional
 
 import torch
 import torch.nn as nn
 from omegaconf import ListConfig, OmegaConf
 
 from nemo.collections.asr.parts.jasper import JasperBlock, StatsPoolLayer, init_weights, jasper_activations
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes.common import typecheck
+from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,
@@ -27,19 +30,31 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
 
 @experimental
-class ConvASREncoder(NeuralModule):
+class ConvASREncoder(NeuralModule, Exportable):
     """
     Convolutional encoder for ASR models. With this class you can implement JasperNet and QuartzNet models.
     Based on these papers:
         https://arxiv.org/pdf/1904.03288.pdf
         https://arxiv.org/pdf/1910.10261.pdf
     """
+
+    def prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+        m_count = 0
+        for m in self.modules():
+            if type(m).__name__ == "MaskedConv1d":
+                m.use_mask = False
+                m_count += 1
+        logging.warning(f"Turned off {m_count} masked convolutions")
+
+        input_example = torch.randn(16, self.__feat_in, 256)
+        return (input_example, None)
 
     def save_to(self, save_path: str):
         pass
