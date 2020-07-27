@@ -97,7 +97,7 @@ class Encoder(NeuralModule):
         self.lstm.flatten_parameters()
         # Avoid CUDNN_STATUS_BAD_PARAM by casting to float()
         with torch.cuda.amp.autocast(enabled=False):
-            token_embedding = token_embedding.float()
+            # token_embedding = token_embedding.float()
             outputs, _ = self.lstm(token_embedding)
 
         outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
