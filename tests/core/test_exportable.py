@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import tempfile
 
 import pytest
 from omegaconf import DictConfig
@@ -43,6 +45,10 @@ class TestExportable:
                 ],
             },
         }
-        encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
-        assert isinstance(encoder_instance, ConvASREncoder)
-        encoder_instance.export(output='encoder.onnx')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
+            assert isinstance(encoder_instance, ConvASREncoder)
+            filename = os.path.join(tmpdir, 'qn_encoder.onnx')
+            encoder_instance.export(output=filename)
+            # TODO: how to assert that this is a proper .onnx file
+            assert os.path.exists(filename)

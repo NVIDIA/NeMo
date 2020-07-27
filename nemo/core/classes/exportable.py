@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, Optional
+from typing import Optional
 
 import torch
 
+from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
 
 __all__ = ['ExportFormat', 'Exportable']
@@ -44,69 +45,75 @@ class Exportable(ABC):
         format: ExportFormat = ExportFormat.ONNX,
         onnx_opset_version=11,
     ):
-        _in_example, _out_example = self.prepare_for_export()
-        if input_example is not None:
-            _in_example = input_example
-        if output_example is not None:
-            _out_example = output_example
+        try:
+            # Disable typechecks
+            typecheck.set_typecheck_enabled(enabled=False)
 
-        # Check if output already exists
-        if os.path.exists(output):
-            raise FileExistsError(f"Destination {output} already exists. " f"Aborting export.")
+            _in_example, _out_example = self.prepare_for_export()
+            if input_example is not None:
+                _in_example = input_example
+            if output_example is not None:
+                _out_example = output_example
 
-        if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
-            raise NotImplementedError('For export to work you must define input and output types')
-        input_names = list(self.input_types.keys())
-        output_names = list(self.output_types.keys())
-        dynamic_axes = defaultdict(list)
+            # Check if output already exists
+            if os.path.exists(output):
+                raise FileExistsError(f"Destination {output} already exists. " f"Aborting export.")
 
-        # extract dynamic axes and remove unnecessary inputs/outputs
-        # for input_ports
-        for _name, ntype in self.input_types.items():
-            if _name in self.disabled_deployment_input_names:
-                input_names.remove(_name)
-                continue
-            self.__extract_dynamic_axes(_name, ntype, dynamic_axes)
-        # for output_ports
-        for _name, ntype in self.output_types.items():
-            if _name in self.disabled_deployment_output_names:
-                output_names.remove(_name)
-                continue
-            self.__extract_dynamic_axes(_name, ntype, dynamic_axes)
+            if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
+                raise NotImplementedError('For export to work you must define input and output types')
+            input_names = list(self.input_types.keys())
+            output_names = list(self.output_types.keys())
+            dynamic_axes = defaultdict(list)
 
-        if len(dynamic_axes) == 0:
-            dynamic_axes = None
+            # extract dynamic axes and remove unnecessary inputs/outputs
+            # for input_ports
+            for _name, ntype in self.input_types.items():
+                if _name in self.disabled_deployment_input_names:
+                    input_names.remove(_name)
+                    continue
+                self.__extract_dynamic_axes(_name, ntype, dynamic_axes)
+            # for output_ports
+            for _name, ntype in self.output_types.items():
+                if _name in self.disabled_deployment_output_names:
+                    output_names.remove(_name)
+                    continue
+                self.__extract_dynamic_axes(_name, ntype, dynamic_axes)
 
-        # Set module to eval mode
-        self.eval()
+            if len(dynamic_axes) == 0:
+                dynamic_axes = None
 
-        # Attempt export
-        if format == ExportFormat.ONNX:
-            if _in_example is None:
-                raise ValueError(f'Example input is None, but ONNX tracing was attempted')
-            if _out_example is None:
-                if isinstance(_in_example, tuple):
-                    _out_example = self.forward(*_in_example)
-                else:
-                    _out_example = self.forward(_in_example)
-            with torch.jit.optimized_execution(True):
-                jitted_model = torch.jit.trace(self, _in_example)
+            # Set module to eval mode
+            self.eval()
 
-            torch.onnx.export(
-                jitted_model,
-                _in_example,
-                output,
-                input_names=input_names,
-                output_names=output_names,
-                verbose=False,
-                export_params=True,
-                do_constant_folding=True,
-                dynamic_axes=dynamic_axes,
-                opset_version=onnx_opset_version,
-                example_outputs=_out_example,
-            )
-        else:
-            raise ValueError(f'Encountered unknown export format {format}.')
+            # Attempt export
+            if format == ExportFormat.ONNX:
+                if _in_example is None:
+                    raise ValueError(f'Example input is None, but ONNX tracing was attempted')
+                if _out_example is None:
+                    if isinstance(_in_example, tuple):
+                        _out_example = self.forward(*_in_example)
+                    else:
+                        _out_example = self.forward(_in_example)
+                with torch.jit.optimized_execution(True):
+                    jitted_model = torch.jit.trace(self, _in_example)
+
+                torch.onnx.export(
+                    jitted_model,
+                    _in_example,
+                    output,
+                    input_names=input_names,
+                    output_names=output_names,
+                    verbose=False,
+                    export_params=True,
+                    do_constant_folding=True,
+                    dynamic_axes=dynamic_axes,
+                    opset_version=onnx_opset_version,
+                    example_outputs=_out_example,
+                )
+            else:
+                raise ValueError(f'Encountered unknown export format {format}.')
+        finally:
+            typecheck.set_typecheck_enabled(enabled=True)
 
     @property
     def disabled_deployment_input_names(self):
