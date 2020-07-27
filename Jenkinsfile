@@ -374,6 +374,8 @@ pipeline {
       }
       failFast true
         steps {
+          sh 'ls -lh /home/TestData/nlp/bert_configs/'
+          sh 'cat /home/TestData/nlp/bert_configs/bert_3200.json'
           sh 'cd examples/nlp/language_modeling && \
           python bert_pretraining_from_text.py \
           trainer.precision=16 \
