@@ -35,8 +35,8 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 6
-      num_workers: 3
+      batch_size: 16
+      num_workers: 4
 
   preprocessor:
     cls: nemo.collections.asr.parts.features.FilterbankFeatures
