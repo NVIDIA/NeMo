@@ -1,6 +1,4 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,22 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from transformers import BertModel
-
-from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.core.classes import typecheck
-from nemo.utils.decorators import experimental
-
-__all__ = ['BertEncoder']
-
-
-@experimental
-class BertEncoder(BertModel, BertModule):
-    """
-    Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
-    """
-
-    @typecheck()
-    def forward(self, **kwargs):
-        res = super().forward(**kwargs)[0]
-        return res
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_checkpoint

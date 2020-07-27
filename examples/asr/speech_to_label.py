@@ -33,7 +33,7 @@ Basic run (on 1 GPU + AMP O1 for 200 epochs):
 
 @hydra_runner(config_path="conf", config_name="matchboxnet_3x1x64_v1.yaml")
 def main(cfg):
-    trainer = pl.Trainer(**cfg.pl.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
 

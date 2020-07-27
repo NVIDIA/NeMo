@@ -89,7 +89,7 @@ class PunctuationCapitalizationModel(ModelPT):
             use_transformer_init=cfg.capit_head.use_transformer_init,
         )
 
-        self.loss = CrossEntropyLoss()
+        self.loss = CrossEntropyLoss(logits_ndim=3)
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
         # setup to track metrics
@@ -240,6 +240,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
+            collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
             num_workers=cfg.num_workers,

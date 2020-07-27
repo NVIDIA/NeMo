@@ -29,14 +29,14 @@ Basic run (on CPU for 50 epochs):
         model.train_ds.manifest_filepath="<train_manifest_file>" \
         model.validation_ds.manifest_filepath="<validation_manifest_file>" \
         hydra.run.dir="." \
-        pl.trainer.gpus=0 \
-        pl.trainer.max_epochs=50
+        trainer.gpus=0 \
+        trainer.max_epochs=50
 
 
 Add PyTorch Lightning Trainer arguments from CLI:
     python speaker_reco.py \
         ... \
-        +pl.trainer.fast_dev_run=true
+        +trainer.fast_dev_run=true
 
 Hydra logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/.hydra)"
 PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/lightning_logs)"
@@ -48,7 +48,7 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.pl.trainer)
+    trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)

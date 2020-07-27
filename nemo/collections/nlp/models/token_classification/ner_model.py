@@ -85,9 +85,9 @@ class NERModel(ModelPT):
 
         if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
+            self.loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
         else:
-            self.loss = CrossEntropyLoss()
+            self.loss = CrossEntropyLoss(logits_ndim=3)
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
@@ -133,7 +133,6 @@ class NERModel(ModelPT):
         tp, fp, fn = self.classification_report(preds, labels)
 
         tensorboard_logs = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-
         return {'val_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -194,6 +193,7 @@ class NERModel(ModelPT):
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
+            collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
             num_workers=cfg.num_workers,
