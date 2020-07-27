@@ -31,7 +31,6 @@ def main():
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
-    parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
     parser.add_argument(
         "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
     )
@@ -46,10 +45,8 @@ def main():
     asr_model.setup_test_data(
         test_data_config={
             'manifest_filepath': args.dataset,
-            'sample_rate': 16000,
             'labels': asr_model.decoder.vocabulary,
             'batch_size': 1,
-            'trim_silence': args.trim_silence,
             'normalize_transcripts': args.normalize_text,
         }
     )
