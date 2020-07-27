@@ -192,7 +192,7 @@ pipeline {
       parallel {
         stage('QuartzNet15x5Base-En') {
           steps {
-                sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/mnt/D1/Data/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
+                sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
           }
         }
       }
