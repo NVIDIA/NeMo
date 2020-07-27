@@ -383,7 +383,7 @@ pipeline {
           model.batch_size=64 \
           model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
           model.optim.lr=0.01 \
-          model.optim.sched.args.warmup_ratio=0.1 \
+          model.optim.sched.warmup_ratio=0.1 \
           model.tokenizer.tokenizer_name=sentencepiece \
           model.tokenizer.sample_size=10000000 \
           model.mask_prob=0.15 \

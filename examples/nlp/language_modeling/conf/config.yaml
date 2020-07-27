@@ -82,27 +82,14 @@ model:
   optim:
     name: adamw
     lr: 3e-5
-    args:
-      name: auto
-      params:
-        weight_decay: 0.0
+    weight_decay: 0.0
 
     sched:
       name: CosineAnnealing
-      iters_per_batch: null # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
-
-      # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
-
-      # scheduler config override
-      args:
-        name: auto
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.1
-          last_epoch: -1
+      warmup_steps: null
+      warmup_ratio: 0.1
+      min_lr: 0.0
+      last_epoch: -1
 
   
 exp_manager:

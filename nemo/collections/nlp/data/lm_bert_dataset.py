@@ -55,7 +55,7 @@ class BertPretrainingDataset(Dataset):
         """
         Args:
             tokenizer: tokenizer
-            dataset: data path
+            data_dir: path to data
             max_seq_length: maximum sequence length of input tensors
             mask_probability: proability to mask token
             short_seq_prob: probability to create a sequence shorter than max_seq_length
