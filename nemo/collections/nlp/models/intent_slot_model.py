@@ -19,10 +19,9 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
+from nemo.collections.common.losses import CrossEntropyLoss, AggregatorLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.intent_slot_classification import IntentSlotClassificationDataset, IntentSlotDataDesc
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.data.intent_slot_detection.intent_slot_descriptor import IntentSlotDataDesc
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
@@ -32,7 +31,7 @@ from nemo.utils.decorators import experimental
 
 
 @experimental
-class IntentSlotClassificationModel(ModelPT):
+class IntentSlotModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -42,7 +41,7 @@ class IntentSlotClassificationModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ Initializes BERT Joint Intent and Slot model.
+        """ Initializes the BERT Joint Intent and Slot model.
         """
 
         # init superclass
@@ -63,8 +62,7 @@ class IntentSlotClassificationModel(ModelPT):
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
-        )
+            checkpoint_file=cfg.language_model.bert_checkpoint)
 
         self.data_dir = cfg.data_dir
         self.max_seq_length = cfg.language_model.max_seq_length
@@ -79,7 +77,6 @@ class IntentSlotClassificationModel(ModelPT):
             log_softmax=False,
         )
 
-        # define losses
         if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=data_desc.intent_weights)
@@ -89,14 +86,6 @@ class IntentSlotClassificationModel(ModelPT):
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
 
         self.total_loss = AggregatorLoss(num_inputs=2, weights=[cfg.intent_loss_weight, 1.0 - cfg.intent_loss_weight])
-
-        # setup to track metrics
-        self.intents_classification_report = ClassificationReport(
-            self.data_desc.num_intents, self.data_desc.intents_label_ids
-        )
-        self.slots_classification_report = ClassificationReport(
-            self.data_desc.num_slots, self.data_desc.slots_label_ids
-        )
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -119,17 +108,13 @@ class IntentSlotClassificationModel(ModelPT):
         passed in as `batch`.
         """
         # forward pass
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
-        intent_logits, slot_logits = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        input_ids, input_type_ids, input_mask, labels = batch
+        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-        # calculate combined loss for intents and slots
-        intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.intent_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
-        train_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
+        # TODO replace with loss module
+        train_loss = self.loss(logits=logits, labels=labels)
 
-        tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
+        tensorboard_logs = {'train_loss': train_loss}
         return {'loss': train_loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -137,37 +122,16 @@ class IntentSlotClassificationModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels = batch
-        intent_logits, slot_logits = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        input_ids, input_type_ids, input_mask, labels = batch
+        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-        # calculate combined loss for intents and slots
-        intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.intent_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
-        val_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
+        val_loss = self.loss(logits=logits, labels=labels)
 
-        # calculate accuracy metrics for intents and slot reporting
-        # intents
-        preds = torch.argmax(intent_logits, axis=-1)
-        intent_tp, intent_fp, intent_fn = self.classification_report(preds, intent_labels)
-        # slots
-        subtokens_mask = subtokens_mask > 0.5
-        preds = torch.argmax(slot_logits, axis=-1)[subtokens_mask]
-        slot_labels = slot_labels[subtokens_mask]
-        slot_tp, slot_fp, slot_fn = self.classification_report(preds, slot_labels)
-
-        tensorboard_logs = {
-            'val_loss': val_loss,
-            'intent_tp': intent_tp,
-            'intent_fn': intent_fn,
-            'intent_fp': intent_fp,
-            'slot_tp': slot_tp,
-            'slot_fn': slot_fn,
-            'slot_fp': slot_fp,
-        }
-
-        return {'loss': val_loss, 'log': tensorboard_logs}
+        tensorboard_logs = {'val_loss': val_loss}
+        # TODO - add eval - callback?
+        # labels_hat = torch.argmax(y_hat, dim=1)
+        # n_correct_pred = torch.sum(y == labels_hat).item()
+        return {'val_loss': val_loss, 'log': tensorboard_logs}  # , "n_correct_pred": n_correct_pred, "n_pred": len(x)}
 
     def validation_epoch_end(self, outputs):
         """
@@ -175,32 +139,9 @@ class IntentSlotClassificationModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-
-        # calculate metrics and log classification report (separately for intents and slots)
-        tp = torch.sum(torch.stack([x['log']['intent_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['intent_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['intent_fp'] for x in outputs]), 0)
-        intent_precision, intent_recall, intent_f1 = self.classification_report.get_precision_recall_f1(
-            tp, fn, fp, mode='micro'
-        )
-
-        tp = torch.sum(torch.stack([x['log']['slot_tp'] for x in outputs]), 0)
-        fn = torch.sum(torch.stack([x['log']['slot_fn'] for x in outputs]), 0)
-        fp = torch.sum(torch.stack([x['log']['slot_fp'] for x in outputs]), 0)
-        slot_precision, slot_recall, slot_f1 = self.classification_report.get_precision_recall_f1(
-            tp, fn, fp, mode='macro'
-        )
-
-        tensorboard_logs = {
-            'val_loss': avg_loss,
-            'intent_precision': intent_precision,
-            'intent_recall': intent_recall,
-            'intent_f1': intent_f1,
-            'slot_precision': slot_precision,
-            'slot_recall': slot_recall,
-            'slot_f1': slot_f1,
-        }
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        # val_acc = sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)
+        # tensorboard_logs = {'val_loss': avg_loss, 'val_acc': val_acc}
+        return {'val_loss': avg_loss}  # , 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
@@ -209,22 +150,21 @@ class IntentSlotClassificationModel(ModelPT):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         input_file = f'{self.data_dir}/{cfg.prefix}.tsv'
-        slot_file = f'{self.data_dir}/{cfg.prefix}_slots.tsv'
-
         # TODO: check that file exists
-        dataset = IntentSlotClassificationDataset(
+        dataset = TextClassificationDataset(
             input_file=input_file,
-            slot_file=slot_file,
             tokenizer=self.tokenizer,
             max_seq_length=self.max_seq_length,
             num_samples=cfg.num_samples,
+            shuffle=cfg.shuffle,
+            use_cache=cfg.use_cache,
         )
 
-        return DataLoader(
+        return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
