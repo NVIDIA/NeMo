@@ -108,7 +108,7 @@ class BertPretrainingDataset(Dataset):
 
             if os.path.isdir(data_dir):
                 # TODO: was this a bug before? this grabs train.txt, valid.txt and test.txt with wikitext-2
-                #dataset_pattern = os.path.join(data_dir, "**", "*.txt")
+                # dataset_pattern = os.path.join(data_dir, "**", "*.txt")
                 dataset_pattern = os.path.join(data_dir, "**", f"{mode}*.txt")
                 filenames = glob.glob(dataset_pattern, recursive=True)
             else:
