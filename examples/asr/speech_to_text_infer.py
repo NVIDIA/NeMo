@@ -13,8 +13,12 @@
 # limitations under the License.
 
 """
-This example demonstrates basic batch-based inference using NeMo's ASR model
+This script serves three goals:
+    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
+    (2) Shows example of batch ASR inference
+    (3) Serves as CI test for pre-trained checkpoint
 """
+
 from argparse import ArgumentParser
 
 import torch
@@ -22,13 +26,6 @@ import torch
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
-
-"""
-This script serves three goals:
-    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
-    (2) Shows example of batch ASR inference
-    (3) Serves as CI test for pre-trained checkpoint
-"""
 
 can_gpu = torch.cuda.is_available()
 
