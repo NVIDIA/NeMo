@@ -114,6 +114,7 @@ def plot_alignment_to_numpy(alignment, info=None):
 
 
 def plot_spectrogram_to_numpy(spectrogram):
+    spectrogram = spectrogram.astype(np.float32)
     fig, ax = plt.subplots(figsize=(12, 3))
     im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation='none')
     plt.colorbar(im, ax=ax)
