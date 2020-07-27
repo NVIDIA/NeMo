@@ -28,29 +28,29 @@ model:
   language_model:
     pretrained_model_name: ${model.pretrained_model_name}
     bert_checkpoint: null
-    bert_config: 
+    bert_config:
       attention_probs_dropout_prob: 0.1
       hidden_act: gelu
       hidden_dropout_prob: 0.1
-      hidden_size": 768
-      initializer_range": 0.02
-      intermediate_size": 3072
-      max_position_embeddings": 512
-      num_attention_heads": 12
-      num_hidden_layers": 12
-      type_vocab_size": 2
-      vocab_size": 30522
-    bert_config_file: null
+      hidden_size: 768
+      initializer_range: 0.02
+      intermediate_size: 3072
+      max_position_embeddings: 512
+      num_attention_heads: 12
+      num_hidden_layers: 12
+      type_vocab_size: 2
+      vocab_size: 30522
+    bert_config_file: null # json file, precedence over bert_config
 
   tokenizer:
-    tokenizer_name: nemobert
+    tokenizer_name: nemobert # or sentencepiece
     pretrained_model_name: ${model.pretrained_model_name}
     special_tokens: null
     vocab_file: null # path to vocab file
     data_file: null # used to build sentencepiece
     tokenizer_model: null # tokenizer model for sentencepiece
     sample_size: null # for sentencepiece
-    vocab_size: null # vocab size for building sentence piece
+    vocab_size: ${model.language_model.bert_config.vocab_size} # vocab size for building sentence piece
     do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
    
   train_ds:

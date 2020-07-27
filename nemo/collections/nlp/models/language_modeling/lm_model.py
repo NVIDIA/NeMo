@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from typing import Dict, Optional
 
@@ -53,8 +54,10 @@ class BERTLMModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.max_seq_length = cfg.max_seq_length
         self.tokenizer = None
-        # TODO: Not sure why this is here
-        # if preprocessing_args:
+        if cfg.model.language_model.bert_config_file is not None:
+            cfg.model.tokenizer.vocab_size = json.load(
+                open(cfg.model.language_model.bert_config_file))['vocab_size']
+        # if using preprocessed data we don't need to setup tokenizer
         self._setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
 
