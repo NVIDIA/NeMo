@@ -15,8 +15,10 @@
 """
 This example demonstrates basic batch-based inference using NeMo's ASR model
 """
-import torch
 from argparse import ArgumentParser
+
+import torch
+
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
@@ -29,6 +31,7 @@ This script serves three goals:
 """
 
 can_gpu = torch.cuda.is_available()
+
 
 def main():
     parser = ArgumentParser()
