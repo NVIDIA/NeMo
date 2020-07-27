@@ -104,7 +104,6 @@ model:
           warmup_ratio: 0.1
           last_epoch: -1
 
-
   
 exp_manager:
   root_dir: NeMo_experiments # where to store logs and checkpoints

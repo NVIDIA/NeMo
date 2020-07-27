@@ -388,7 +388,7 @@ pipeline {
           model.tokenizer.sample_size=10000000 \
           model.mask_prob=0.15 \
           model.short_seq_prob=0.1 \
-          exp_manager.root_dir=PretrainingBERTOnText
+          exp_manager.root_dir=PretrainingBERTOnText \
           '
           sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTOnText'
           sh 'ls -lha examples/nlp/language_modeling'
