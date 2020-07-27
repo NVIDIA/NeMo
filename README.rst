@@ -1,4 +1,5 @@
-|status| |stable| |license| |lgtm_grade| |lgtm_alerts| |black| 
+
+|status| |v0110| |license| |lgtm_grade| |lgtm_alerts| |black| 
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -222,8 +223,6 @@ If you prefer to use NeMo's latest development version (from GitHub) follow the 
 | Master  | |master| | Documentation of the `master` branch                    |
 +---------+----------+---------------------------------------------------------+
 | Latest  | |latest| | Documentation of the latest (i.e. `master`) branch      |
-+---------+----------+---------------------------------------------------------+
-| Stable  | |stable| | Documentation of the latest releast (currently v0.11.0) |
 +---------+----------+---------------------------------------------------------+
 | v0.11.0 | |v0110|  | Documentation of the v0.11.0 release                    |
 +---------+----------+---------------------------------------------------------+
