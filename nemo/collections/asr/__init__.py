@@ -35,6 +35,8 @@ from nemo.collections.asr.jasper import (
 from nemo.collections.asr.las.misc import JasperRNNConnector
 from nemo.collections.asr.losses import CTCLossNM
 
+from nemo.package_info import __version__ as nemo_version
+
 __all__ = [
     'AudioToTextDataLayer',
     'TarredAudioToTextDataLayer',
@@ -61,3 +63,12 @@ __all__ = [
     'CTCLossNM',
     'CrossEntropyLossNM',
 ]
+
+# Set collection version equal to NeMo version.
+__version__ = nemo_version
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Automatic Speech Recognition collection"

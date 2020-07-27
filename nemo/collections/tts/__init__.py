@@ -28,3 +28,14 @@ from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
 __all__ = (
     ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__ + fastspeech__all__ + fasterspeech__all__
 )
+
+from nemo.package_info import __version__ as nemo_version
+
+# Set collection version equal to NeMo version.
+__version__ = nemo_version
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Text-To-Speech collection"
