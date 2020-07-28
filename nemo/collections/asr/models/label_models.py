@@ -15,8 +15,11 @@
 from typing import Dict, Optional, Union
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+import json
+import os
+import numpy as np
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -28,7 +31,7 @@ from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncDecSpeakerLabelModel']
+__all__ = ['EncDecSpeakerLabelModel','GetSpeakerEmbeddings']
 
 
 @experimental
@@ -92,6 +95,7 @@ class EncDecSpeakerLabelModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
+        self.test_manifest = test_data_layer_params.get('manifest_filepath',None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
     @classmethod
@@ -149,6 +153,12 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         return {'loss': loss_value, 'log': tensorboard_logs, "n_correct_pred": n_correct_pred, "n_pred": len(labels)}
 
+    def training_epoch_end(self, outputs):
+        train_acc = (sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)) * 100
+        logging.info("training accuracy {:.3f}".format(train_acc))
+
+        return {}
+    
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
@@ -167,8 +177,42 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
-    def training_epoch_end(self, outputs):
-        train_acc = (sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)) * 100
-        logging.info("training accuracy {:.3f}".format(train_acc))
 
-        return {}
+
+class GetSpeakerEmbeddings(EncDecSpeakerLabelModel):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, root_dir='.'):
+        super().__init__(cfg=cfg, trainer=trainer)
+        self.dir = root_dir
+
+    def test_step(self, batch, batch_ix):
+        self.eval()
+        audio_signal, audio_signal_len, labels, _ = batch 
+        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        
+        return {'embs': embs, 'labels': labels}
+    
+    def test_epoch_end(self,outputs):
+        embs = torch.stack([x['embs'] for x in outputs])
+        emb_shape = embs.shape[-1]
+        embs = embs.view(-1,emb_shape).cpu().numpy()
+        labels = []
+
+        with open(self.test_manifest,'r') as manifest:
+            for line in manifest.readlines():
+                line = line.strip()
+                dic = json.loads(line)
+                structure = dic['audio_filepath'].split('/')[-3:]
+                uniq_name = '@'.join(structure)
+                labels.append(uniq_name)
+
+        embedding_dir = os.path.join(self.dir,'embeddings')
+        if not os.path.exists(embedding_dir):
+            os.mkdir(embedding_dir)
+
+        prefix = self.test_manifest.split('/')[-1].split('.')[-2]
+
+        name = os.path.join(embedding_dir,prefix)
+        np.save(name + '.npy', embs)
+        np.save(name + '_labels.npy', np.asarray(labels)) 
+        import ipdb; ipdb.set_trace()
+        
