@@ -431,6 +431,11 @@ class ModelPT(LightningModule, Model):
 
                 dataloader_logs = dataloader_logs or {}
 
+                # Perform `val_loss` resolution first (if provided outside logs)
+                if 'val_loss' in dataloader_logs:
+                    if 'val_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                        output_dict['val_loss'] = dataloader_logs['val_loss']
+
                 for k, v in dataloader_logs.items():
                     if k == 'log':
                         log_dict = {}
@@ -504,6 +509,11 @@ class ModelPT(LightningModule, Model):
 
                 dataloader_logs = dataloader_logs or {}
 
+                # Perform `test_loss` resolution first (if provided outside logs)
+                if 'test_loss' in dataloader_logs:
+                    if 'test_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                        output_dict['test_loss'] = dataloader_logs['test_loss']
+
                 for k, v in dataloader_logs.items():
                     if k == 'log':
                         log_dict = {}
@@ -542,12 +552,12 @@ class ModelPT(LightningModule, Model):
     def multi_validation_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-        return
+        raise NotImplementedError()
 
     def multi_test_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-        return
+        raise NotImplementedError()
 
     def get_validation_dataloader_prefix(self, dataloader_idx=0):
         return self._validation_names[dataloader_idx]
