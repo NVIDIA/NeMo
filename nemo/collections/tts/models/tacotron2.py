@@ -78,7 +78,7 @@ class Tacotron2Loss(Loss):
 
     @typecheck()
     def forward(
-        self, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len,
+        self, *, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len,
     ):
         mel_target.requires_grad = False
         gate_target.requires_grad = False
@@ -163,7 +163,7 @@ class Tacotron2Model(ModelPT):
         }
 
     @typecheck()
-    def forward(self, audio, audio_len, tokens, token_len):
+    def forward(self, *, audio, audio_len, tokens, token_len):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
         encoder_embedding = self.encoder(token_embedding=token_embedding, token_len=token_len)
@@ -186,7 +186,7 @@ class Tacotron2Model(ModelPT):
     def training_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
         spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, _ = self.forward(
-            audio, audio_len, tokens, token_len
+            audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
         )
 
         loss = self.loss(
@@ -208,7 +208,7 @@ class Tacotron2Model(ModelPT):
     def validation_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
         spec_dec, spec_postnet, gate, spec, gate_padded, spec_len, alignments = self.forward(
-            audio, audio_len, tokens, token_len
+            audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
         )
 
         loss = self.loss(
