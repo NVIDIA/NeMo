@@ -14,6 +14,8 @@
 
 import copy
 import inspect
+import os
+import shutil
 import tarfile
 import tempfile
 from abc import abstractmethod
@@ -21,6 +23,7 @@ from os import path
 from typing import Dict, Optional, Union
 
 import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import LightningModule, Trainer
 
@@ -60,6 +63,11 @@ class ModelPT(LightningModule, Model):
                 f"trainer constructor argument must be either None or pytroch_lightning.Trainer. But got {type(trainer)} instead."
             )
         super().__init__()
+        if 'target' not in cfg:
+            # This is for Jarvis service.
+            OmegaConf.set_struct(cfg, False)
+            cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
+            OmegaConf.set_struct(cfg, True)
         self._cfg = cfg
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
@@ -77,6 +85,39 @@ class ModelPT(LightningModule, Model):
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self.setup_test_data(self._cfg.test_ds)
 
+    def register_artifact(self, config_path: str, src: str):
+        """
+        Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+        when model.save_to("mymodel.nemo") is called.
+
+        WARNING: If you specified /example_folder/example.txt but ./example.txt exists, then ./example.txt will be used.
+
+        Args:
+            config_path: config path where artifact is used
+            src: path to the artifact
+
+        Returns:
+            path to be used when accessing artifact. If src='' or None then '' or None will be returned
+        """
+        if not hasattr(self, 'artifacts'):
+            self.artifacts = []
+        if self.artifacts is None:
+            self.artifacts = []
+        if src is not None and src.strip() != '':
+            basename_src = os.path.basename(src)
+            # filename exists in current workdir - use it and raise warning
+            if os.path.exists(basename_src):
+                logging.warning(f"Using {os.path.abspath(basename_src)} instead of {src}.")
+                used_src = basename_src
+            else:
+                used_src = src
+            if not os.path.exists(used_src):
+                raise FileNotFoundError(f"Could not find {used_src}")
+            self.artifacts.append((config_path, used_src))
+            return used_src
+        else:
+            return src
+
     def save_to(self, save_path: str):
         """
         Saves model instance (weights and configuration) into .nemo file. You can use "restore_from" method to fully
@@ -92,11 +133,16 @@ class ModelPT(LightningModule, Model):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+            if hasattr(self, 'artifacts') and self.artifacts is not None:
+                for (conf_path, src) in self.artifacts:
+                    try:
+                        if os.path.exists(src):
+                            shutil.copy2(src, tmpdir)
+                    except Exception:
+                        logging.error(f"Could not copy artifact {src} used in {conf_path}")
+
             self.to_config_file(path2yaml_file=config_yaml)
-            trainer = self._trainer if self._trainer else Trainer()
-            if trainer.model != self:
-                trainer.model = self
-            trainer.save_checkpoint(filepath=model_weights, weights_only=True)
+            torch.save(self.state_dict(), model_weights)
             self.__make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
 
     @classmethod
@@ -123,7 +169,8 @@ class ModelPT(LightningModule, Model):
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             conf = OmegaConf.load(config_yaml)
-            instance = cls.load_from_checkpoint(checkpoint_path=model_weights, cfg=conf)
+            instance = cls.from_config_dict(config=conf)
+            instance.load_state_dict(torch.load(model_weights))
         return instance
 
     @abstractmethod

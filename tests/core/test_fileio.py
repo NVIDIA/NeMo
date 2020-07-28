@@ -88,7 +88,8 @@ def asr_model():
         {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
     )
 
-    return EncDecCTCModel(cfg=modelConfig)
+    model_instance = EncDecCTCModel(cfg=modelConfig)
+    return model_instance
 
 
 class TestFileIO:
@@ -120,8 +121,10 @@ class TestFileIO:
         with tempfile.NamedTemporaryFile() as fp:
             filename = fp.name
 
-            # Save model.
-            asr_model.save_to(save_path=filename)
+            # Save model (with random artifact).
+            with tempfile.NamedTemporaryFile() as artifact:
+                asr_model.register_artifact(config_path=None, src=artifact.name)
+                asr_model.save_to(save_path=filename)
 
             # Restore the model.
             asr_model2 = EncDecCTCModel.restore_from(restore_path=filename)
