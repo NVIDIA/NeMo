@@ -21,7 +21,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from nemo import logging
 
 
-def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
+def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
     """
     Parses items of the provided sub-config to find the first potential key that
     resolves to an existing file or directory.
@@ -40,8 +40,8 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
         A str representing the `key` of the config which hosts the filepath(s),
         or None in case path could not be resolved.
     """
-    if hasattr(cfg, 'manifest_filepath'):
-        return 'manifest_filepath'
+    if hasattr(cfg, 'ds_name'):
+        return 'ds_name'
 
     for key, value in cfg.items():
         if type(value) in [list, tuple, ListConfig]:
@@ -66,7 +66,7 @@ def resolve_filepath_from_cfg(cfg: DictConfig) -> str:
     return None
 
 
-def parse_filepath_as_name(filepath: str) -> str:
+def parse_dataset_as_name(filepath: str) -> str:
     """
     Constructs a valid prefix-name from a provided file path.
 
@@ -126,40 +126,39 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     # Set val_loss_idx
     model._validation_loss_idx = val_loss_idx
 
-    filepath_key = resolve_filepath_from_cfg(cfg.validation_ds)
+    ds_key = resolve_dataset_name_from_cfg(cfg.validation_ds)
 
-    if filepath_key is None:
+    if ds_key is None:
         logging.debug(
             "Could not resolve file path from provided config - {}. "
             "Disabling support for multi-dataloaders.".format(cfg.validation_ds)
         )
 
         model.setup_validation_data(cfg.validation_ds)
-        model._validation_filenames = ["validation_"]
         return
 
-    manifest_paths = cfg.validation_ds[filepath_key]
+    ds_values = cfg.validation_ds[ds_key]
 
-    if type(manifest_paths) in (list, tuple, ListConfig):
+    if type(ds_values) in (list, tuple, ListConfig):
 
-        for filepath_val in manifest_paths:
-            cfg.validation_ds[filepath_key] = filepath_val
+        for ds_value in ds_values:
+            cfg.validation_ds[ds_key] = ds_value
             model.setup_validation_data(cfg.validation_ds)
             dataloaders.append(model._validation_dl)
 
         model._validation_dl = dataloaders
-        model._validation_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
+        model._validation_names = [parse_dataset_as_name(fp) for fp in ds_values]
 
         # In fast-dev-run, only one data loader is used
         if model._trainer.fast_dev_run:
             model._validation_dl = model._validation_dl[:1]
-            model._validation_filenames = model._validation_filenames[:1]
+            model._validation_names = model._validation_names[:1]
 
         return
 
     else:
         model.setup_validation_data(cfg.validation_ds)
-        model._validation_filenames = [parse_filepath_as_name(manifest_paths)]
+        model._validation_names = [parse_dataset_as_name(ds_values)]
 
 
 def resolve_test_dataloaders(model: 'ModelPT'):
@@ -198,35 +197,34 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     # Set val_loss_idx
     model._test_loss_idx = test_loss_idx
 
-    filepath_key = resolve_filepath_from_cfg(cfg.test_ds)
+    ds_key = resolve_dataset_name_from_cfg(cfg.test_ds)
 
-    if filepath_key is None:
+    if ds_key is None:
         logging.debug(
             "Could not resolve file path from provided config - {}. "
             "Disabling support for multi-dataloaders.".format(cfg.test_ds)
         )
 
         model.setup_test_data(cfg.test_ds)
-        model._test_filenames = ["test_"]
         return
 
-    manifest_paths = cfg.test_ds[filepath_key]
+    ds_values = cfg.test_ds[ds_key]
 
-    if type(manifest_paths) in (list, tuple, ListConfig):
+    if type(ds_values) in (list, tuple, ListConfig):
 
-        for filepath_val in manifest_paths:
-            cfg.test_ds[filepath_key] = filepath_val
+        for ds_value in ds_values:
+            cfg.test_ds[ds_key] = ds_value
             model.setup_test_data(cfg.test_ds)
             dataloaders.append(model._test_dl)
 
         model._test_dl = dataloaders
-        model._test_filenames = [parse_filepath_as_name(fp) for fp in manifest_paths]
+        model._test_names = [parse_dataset_as_name(fp) for fp in ds_values]
 
         # In fast-dev-run, only one data loader is used
         if model._trainer.fast_dev_run:
             model._test_dl = model._test_dl[:1]
-            model._test_filenames = model._test_filenames[:1]
+            model._test_names = model._test_names[:1]
 
     else:
         model.setup_test_data(cfg.test_ds)
-        model._test_filenames = [parse_filepath_as_name(manifest_paths)]
+        model._test_names = [parse_dataset_as_name(ds_values)]
