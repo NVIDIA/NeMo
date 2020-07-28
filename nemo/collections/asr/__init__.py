@@ -13,3 +13,13 @@
 # limitations under the License.
 
 from nemo.collections.asr import data, losses, models, modules
+from nemo.package_info import __version__
+
+# Set collection version equal to NeMo version.
+__version = __version__
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Automatic Speech Recognition collection"

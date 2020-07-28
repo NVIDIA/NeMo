@@ -103,10 +103,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         if cfg.decoder.params['num_classes'] < 1:
             logging.info(
                 "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                    cfg.decoder.params['num_classes'], self.tokenizer.vocab_size
+                    cfg.decoder.params['num_classes'], len(vocabulary)
                 )
             )
-            cfg.decoder.params['num_classes'] = self.tokenizer.vocab_size
+            cfg.decoder.params['num_classes'] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 

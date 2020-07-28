@@ -27,8 +27,9 @@ trainer:
   distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
+  row_log_interval: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
-  row_log_interval: 10
 
 model:
   dataset:

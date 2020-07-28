@@ -51,6 +51,26 @@ pipeline {
       }
     }
 
+    stage('L0: Computer Vision Integration') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('MNIST image classification with LeNet-5 Integration Test - on CPU') {
+          steps {
+            sh 'cd examples/cv && \
+            python mnist_lenet5_image_classification_pure_lightning.py trainer.gpus=0 \
+            trainer.fast_dev_run=true model.dataset.data_folder=/home/TestData \
+            && rm -rf outputs'
+          }
+        }
+      }
+    }
+
     // We have no integration tests, please enable this when one is added
     // stage('L0: Integration Tests GPU') {
     //   steps {
@@ -109,7 +129,6 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -139,8 +158,23 @@ pipeline {
         }
       }
     }
-    
 
+    stage('L2: ASR Checkponts tests') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('QuartzNet15x5Base-En') {
+          steps {
+                sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
+          }
+        }
+      }
+    }
 
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
@@ -297,7 +331,7 @@ pipeline {
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }
-    stage('L2: NER') {
+   stage('L2: NER') {
       when {
         anyOf{
           branch 'candidate'
@@ -315,6 +349,7 @@ pipeline {
           '
         }
     }
+
     stage('L2: Punctuation and capitalization: DistilBert + MultiGPU') {
       when {
         anyOf{
@@ -338,6 +373,47 @@ pipeline {
         }
     }
 
+     stage('L2: NER with cased Megatron') {
+          when {
+            anyOf{
+              branch 'candidate'
+              changeRequest target: 'candidate'
+            }
+          }          
+          failFast true
+          steps {
+                sh 'cd examples/nlp/token_classification && \
+                python ner.py \
+                model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+                trainer.gpus=[0] \
+                +trainer.fast_dev_run=true \
+                model.use_cache=false \
+                model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
+                exp_manager.root_dir=exp_ner_megatron_bert_base_cased'
+                sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
+           }
+    }
+
+    stage('L2: NER with uncased Megatron') {
+          when {
+            anyOf{
+              branch 'candidate'
+              changeRequest target: 'candidate'
+            }
+          }          
+          failFast true
+	  steps {
+                sh 'cd examples/nlp/token_classification && \
+                python ner.py \
+                model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+                trainer.gpus=[0] \
+                +trainer.fast_dev_run=true \
+                model.use_cache=false \
+                model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
+                exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
+                sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
+          }
+     }
   }
   post {
     always {

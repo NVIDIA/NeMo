@@ -29,7 +29,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
     """
 
     @property
-    def input_ports(self):
+    def input_types(self):
         """Returns definitions of module input ports.
         """
         return {
@@ -39,7 +39,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
         }
 
     @property
-    def output_ports(self):
+    def output_types(self):
         """Returns definitions of module output ports.
         loss:
             NeuralType(None)

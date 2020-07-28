@@ -101,7 +101,17 @@ def get_tokenizer(
     if pretrained_model_name:
         model_type = pretrained_model_name.split('-')[0]
 
-    if tokenizer_name == 'nemobert':
+    if 'megatron' in pretrained_model_name:
+        do_lower_case = nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(
+            pretrained_model_name
+        )
+        vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
+            pretrained_model_name
+        )
+        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
+            bert_derivative='bert', vocab_file=vocab_file, do_lower_case=do_lower_case
+        )
+    elif tokenizer_name == 'nemobert':
         tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
             pretrained_model=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
         )
