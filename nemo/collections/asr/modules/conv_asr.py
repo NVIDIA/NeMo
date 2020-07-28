@@ -45,7 +45,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
         m_count = 0
         for m in self.modules():
             if type(m).__name__ == "MaskedConv1d":

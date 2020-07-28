@@ -49,7 +49,7 @@ class Exportable(ABC):
             # Disable typechecks
             typecheck.set_typecheck_enabled(enabled=False)
 
-            _in_example, _out_example = self.prepare_for_export()
+            _in_example, _out_example = self._prepare_for_export()
             if input_example is not None:
                 _in_example = input_example
             if output_example is not None:
@@ -63,6 +63,7 @@ class Exportable(ABC):
                 raise NotImplementedError('For export to work you must define input and output types')
             input_names = list(self.input_types.keys())
             output_names = list(self.output_types.keys())
+            # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
             dynamic_axes = defaultdict(list)
 
             # extract dynamic axes and remove unnecessary inputs/outputs
@@ -71,13 +72,13 @@ class Exportable(ABC):
                 if _name in self.disabled_deployment_input_names:
                     input_names.remove(_name)
                     continue
-                self.__extract_dynamic_axes(_name, ntype, dynamic_axes)
+                dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
             # for output_ports
             for _name, ntype in self.output_types.items():
                 if _name in self.disabled_deployment_output_names:
                     output_names.remove(_name)
                     continue
-                self.__extract_dynamic_axes(_name, ntype, dynamic_axes)
+                dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
 
             if len(dynamic_axes) == 0:
                 dynamic_axes = None
@@ -126,13 +127,30 @@ class Exportable(ABC):
         return set()
 
     @staticmethod
-    def __extract_dynamic_axes(port_name, ntype: NeuralType, dynamic_axes: defaultdict):
+    def _extract_dynamic_axes(name: str, ntype: NeuralType):
+        """
+        Implement this method to provide dynamic axes id for ONNX export.
+        By default, this method will extract BATCH and TIME dimension ids from each provided input/output name argument.
+
+        For example, if module/model accepts argument named "input_signal" with type corresponding to [Batch, Time, Dim]
+        shape, then the returned result should contain "input_signal" -> [0, 1] because Batch and Time are dynamic axes
+        as they can change from call to call during inference.
+
+        Args:
+            name: Name of input or output parameter
+            ntype: Corresponding Neural Type
+
+        Returns:
+
+        """
+        dynamic_axes = defaultdict(list)
         if ntype.axes:
             for ind, axis in enumerate(ntype.axes):
                 if axis.kind == AxisKind.Batch or axis.kind == AxisKind.Time:
-                    dynamic_axes[port_name].append(ind)
+                    dynamic_axes[name].append(ind)
+        return dynamic_axes
 
-    def prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
         """
         Implement this method to prepare module for export. Do all necessary changes on module pre-export here.
         Also, return a pair in input, output examples for tracing.
@@ -140,4 +158,3 @@ class Exportable(ABC):
             A pair of (input, output) examples.
         """
         pass
-        # return (None, None)

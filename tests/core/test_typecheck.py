@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.core import NeuralModule, Typing, typecheck
+from nemo.core import Typing, typecheck
 from nemo.core.neural_types import *
 
 
