@@ -294,7 +294,7 @@ pipeline {
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            model.language_model.do_lower_case=true \
+            model.dataset.do_lower_case=true \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_base_uncased \
