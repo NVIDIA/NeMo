@@ -84,18 +84,26 @@ class ModelPT(LightningModule, Model):
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                 # Set some placeholder overriden by helper method
                 self._validation_loss_idx = 0
-                self._validation_filenames = ['validation_']
+                self._validation_filenames = None
                 self._validation_dl = None  # type: torch.utils.data.DataLoader
 
                 model_utils.resolve_validation_dataloaders(model=self)
 
+                if self._validation_filenames is None:
+                    if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
+                        self._validation_filenames = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 # Set some placeholder overriden by helper method
                 self._test_loss_idx = 0
-                self._test_filenames = ['test_']
+                self._test_filenames = None
                 self._test_dl = None  # type: torch.utils.data.DataLoader
 
                 model_utils.resolve_test_dataloaders(model=self)
+
+                if self._test_filenames is None:
+                    if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
+                        self._test_filenames = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
     def register_artifact(self, config_path: str, src: str):
         """
