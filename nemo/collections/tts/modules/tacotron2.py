@@ -329,7 +329,7 @@ class Decoder(NeuralModule):
 
         # TODO: Pytorch 1.6 has issues with rnns and amp, so cast to float until fixed
         if _NATIVE_AMP:
-            with torch.cuda.amp.autocast(enabled=False):
+            with autocast(enabled=False):
                 self.attention_hidden, self.attention_cell = self.attention_rnn(
                     cell_input.float(), (self.attention_hidden, self.attention_cell)
                 )
@@ -351,7 +351,7 @@ class Decoder(NeuralModule):
 
         # TODO: Pytorch 1.6 has issues with rnns and amp, so cast to float until fixed
         if _NATIVE_AMP:
-            with torch.cuda.amp.autocast(enabled=False):
+            with autocast(enabled=False):
                 self.decoder_hidden, self.decoder_cell = self.decoder_rnn(
                     decoder_input, (self.decoder_hidden, self.decoder_cell)
                 )
