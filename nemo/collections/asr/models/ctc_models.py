@@ -169,7 +169,7 @@ class EncDecCTCModel(ASRModel):
         shuffle = config['shuffle']
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if config['is_tarred']:
+        if config.get('is_tarred', False):
             dataset = TarredAudioToCharDataset(
                 audio_tar_filepaths=config['tarred_audio_filepaths'],
                 manifest_filepath=config['manifest_filepath'],
