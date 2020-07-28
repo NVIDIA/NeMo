@@ -66,28 +66,35 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
     return None
 
 
-def parse_dataset_as_name(filepath: str) -> str:
+def parse_dataset_as_name(name: str) -> str:
     """
     Constructs a valid prefix-name from a provided file path.
 
     Args:
-        filepath: str path to some valid data/manifest file.
+        name: str path to some valid data/manifest file or a python object that
+            will be used as a name for the data loader (via str() cast).
 
     Returns:
         str prefix used to identify uniquely this data/manifest file.
     """
-    filename = Path(filepath).stem
+    if os.path.exists(str(name)) or os.path.isdir(str(name)):
+        name = Path(name).stem
+    else:
+        name = str(name)
 
     # cleanup name
-    filename = filename.replace('-', '_')
+    name = name.replace('-', '_')
 
-    if 'manifest' in filename:
-        filename = filename.replace('manifest', '')
+    if 'manifest' in name:
+        name = name.replace('manifest', '')
 
-    if '_' != filename[-1]:
-        filename = filename + '_'
+    if 'dataset' in name:
+        name = name.replace('dataset', '')
 
-    return filename
+    if '_' != name[-1]:
+        name = name + '_'
+
+    return name
 
 
 def resolve_validation_dataloaders(model: 'ModelPT'):
@@ -139,7 +146,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
 
     ds_values = cfg.validation_ds[ds_key]
 
-    if type(ds_values) in (list, tuple, ListConfig):
+    if isinstance(ds_values, (list, tuple, ListConfig)):
 
         for ds_value in ds_values:
             cfg.validation_ds[ds_key] = ds_value
@@ -147,7 +154,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
             dataloaders.append(model._validation_dl)
 
         model._validation_dl = dataloaders
-        model._validation_names = [parse_dataset_as_name(fp) for fp in ds_values]
+        model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         # In fast-dev-run, only one data loader is used
         if model._trainer.fast_dev_run:
@@ -210,7 +217,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
 
     ds_values = cfg.test_ds[ds_key]
 
-    if type(ds_values) in (list, tuple, ListConfig):
+    if isinstance(ds_values, (list, tuple, ListConfig)):
 
         for ds_value in ds_values:
             cfg.test_ds[ds_key] = ds_value
@@ -218,7 +225,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
             dataloaders.append(model._test_dl)
 
         model._test_dl = dataloaders
-        model._test_names = [parse_dataset_as_name(fp) for fp in ds_values]
+        model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         # In fast-dev-run, only one data loader is used
         if model._trainer.fast_dev_run:
