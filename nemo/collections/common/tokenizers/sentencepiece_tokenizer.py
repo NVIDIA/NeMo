@@ -22,7 +22,6 @@ from nemo import logging
 from nemo.collections.common.parts.utils import if_exist
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
-from nemo.collections.nlp.data.data_utils.data_preprocessing import DATABASE_EXISTS_TMP
 
 __all__ = ['SentencePieceTokenizer', 'create_spt_model']
 

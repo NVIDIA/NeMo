@@ -1,4 +1,4 @@
-# Copyright (c) 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.cv.models.mnist_lenet5 import MNISTLeNet5, MNISTLeNet5Config
+from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_checkpoint
