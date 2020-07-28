@@ -18,6 +18,7 @@
 import argparse
 import importlib
 import inspect
+import pkgutil
 import json
 import os
 
@@ -25,7 +26,8 @@ import nemo
 from nemo.utils import logging
 
 
-def process_member(name, obj, module_list):
+
+def process_member(name, obj, module_list) -> bool:
     """ Helper function processing the passed object and, if ok, adding a record to the module list.
     
     Args:
@@ -33,20 +35,21 @@ def process_member(name, obj, module_list):
         obj: member (class/function etc.)
         module_list: list of modules that (probably) will be expanded.
     """
+
     # It is not a class - skip it.
     if not inspect.isclass(obj):
-        return
+        return False
 
     # Check inheritance - we know that all our datasets/modules/losses inherit from NeuralInterface.
-    if not issubclass(obj, nemo.core.NeuralInterface):
-        return
+    if not issubclass(obj, nemo.core.neural_interface.NeuralInterface):
+        return False
 
-    logging.info("  * Processing `{}`".format(str(obj)))
+    logging.info("   * Processing `{}`".format(str(obj)))
 
     module_list.append(
         {
             "name": name,
-            "cls": str(obj),
+            "id": ".".join([obj.__module__, obj.__name__]),
             # Temporary solution: mockup arguments.
             "arguments": [
                 "jasper",
@@ -70,6 +73,28 @@ def process_member(name, obj, module_list):
             },
         }
     )
+    # Ok, got a module.
+    return True
+
+
+def import_submodules(package, recursive=True):
+    """ Import all submodules of a module, recursively, including subpackages
+
+    Args:
+        package: package (name or actual module) (str | module)
+
+    Returns:
+        dict[str, types.ModuleType]
+    """
+    if isinstance(package, str):
+        package = importlib.import_module(package)
+    results = {}
+    for loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
+        full_name = package.__name__ + '.' + name
+        results[full_name] = importlib.import_module(full_name)
+        if recursive and is_pkg:
+            results.update(import_submodules(full_name))
+    return results
 
 
 def main():
@@ -94,9 +119,9 @@ def main():
         if os.path.isdir(os.path.join(colletions_dir, sub_dir)):
             collections[sub_dir] = "nemo.collections." + sub_dir
 
-    # Check the collection.
+    # Check the "user choice".
     if args.collection not in collections.keys():
-        logging.error("Coudn't process the incidated `{}` collection".format(args.collection))
+        logging.error("Couldn't process the incidated `{}` collection".format(args.collection))
         logging.info(
             "Please select one of the existing collections using `--collection [{}]`".format("|".join(collections))
         )
@@ -106,42 +131,30 @@ def main():
     collection_spec = importlib.util.find_spec(collections[args.collection])
     if collection_spec is None:
         logging.error("Failed to load the `{}` collection".format(val))
+        exit(-2)
 
-    # Import the module from the module specification.
-    collection = importlib.util.module_from_spec(collection_spec)
-    collection_spec.loader.exec_module(collection)
-
-    module_list = []
     # Iterate over the packages in the indicated collection.
     logging.info("Analysing the `{}` collection".format(args.collection))
 
-    try:  # Datasets in dataset folder
-        logging.info("Analysing the 'data' package")
-        for name, obj in inspect.getmembers(collection.data):
-            process_member(name, obj, module_list)
-    except AttributeError as e:
-        logging.info("  * No datasets found")
+    # Import all submodules.   
+    submodules = import_submodules(collections[args.collection])
 
-    try:  # Datasets in dataset folder
-        logging.info("Analysing the 'datasets' package")
-        for name, obj in inspect.getmembers(collection.datasets):
-            process_member(name, obj, module_list)
-    except AttributeError as e:
-        logging.info("  * No datasets found")
+    total_counter = 0
 
-    try:  # Modules
-        logging.info("Analysing the 'modules' package")
-        for name, obj in inspect.getmembers(collection.modules):
-            process_member(name, obj, module_list)
-    except AttributeError as e:
-        logging.info("  * No modules found")
+    # Extract list of neural modules/
+    module_list = []
+    for sub_name, submodule in submodules.items():
+        try:  # Datasets in main folder
+            logging.info("* Analysing the {} module".format(sub_name))
 
-    try:  # Losses
-        logging.info("Analysing the 'losses' package")
-        for name, obj in inspect.getmembers(collection.losses):
-            process_member(name, obj, module_list)
-    except AttributeError as e:
-        logging.info("  * No losses found")
+            counter = 0
+            for name, obj in inspect.getmembers(submodule):
+                if process_member(name, obj, module_list):
+                    counter +=1
+            logging.info("  * Found {} neural modules".format(counter))
+        except AttributeError as e:
+            logging.info("  * No neural modules were found")
+        total_counter += counter
 
     # Add prefix - only for default name.
     filename = args.filename if args.filename != "modules.json" else args.collection + "_" + args.filename
@@ -150,7 +163,8 @@ def main():
         json.dump(module_list, outfile)
 
     logging.info(
-        'Finished analysis of the `{}` collection, results exported to `{}`.'.format(args.collection, filename)
+        'Finished analysis of the `{}` collection, found {} modules, results exported to `{}`.'.format(
+            args.collection, total_counter, filename)
     )
 
 
