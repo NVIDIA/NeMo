@@ -47,12 +47,6 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        # if 'cls' not in cfg:
-        #     # This is for Jarvis service. Adding here for now to avoid effects of decorators
-        #     OmegaConf.set_struct(cfg, False)
-        #     cfg.cls = 'nemo.collections.asr.models.EncDecSpeakerLabelModel'
-        #     OmegaConf.set_struct(cfg, True)
-        
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
