@@ -26,15 +26,18 @@ trainer:
   distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 model:
-  data_dir: ??? # /path/to/data
-  class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
-  max_seq_length: 128
-  pad_label: 'O'
-  ignore_extra_tokens: false
-  ignore_start_end: false
-  use_cache: true
+  dataset:
+    data_dir: ??? # /path/to/data
+    class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
+    max_seq_length: 128
+    pad_label: 'O'
+    ignore_extra_tokens: false
+    ignore_start_end: false
+    use_cache: true
 
   train_ds:
     prefix: train
@@ -73,33 +76,20 @@ model:
   optim:
     name: adam
     lr: 5e-5
-    args:
-      name: auto
-      params:
-        weight_decay: 0.00
+    weight_decay: 0.00
 
     sched:
       name: WarmupAnnealing
-      iters_per_batch: null # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
-
-      # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
-
-      # scheduler config override
-      args:
-        name: auto
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.1
-          last_epoch: -1
+      # Scheduler params
+      warmup_steps: null
+      warmup_ratio: 0.1
+      last_epoch: -1
 
 exp_manager:
   root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
   name: NamedEntityRecognition  # The name of your model
-  create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
-  create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
+  create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
 
 hydra:
   run:

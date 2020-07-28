@@ -32,11 +32,11 @@ from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['NERModel']
+__all__ = ['TokenClassificationModel']
 
 
 @experimental
-class NERModel(ModelPT):
+class TokenClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -51,9 +51,9 @@ class NERModel(ModelPT):
         """
 
         self.data_desc = TokenClassificationDataDesc(
-            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.pad_label
+            data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
         )
-        self.data_dir = cfg.data_dir
+        self.data_dir = cfg.dataset.data_dir
         self.model_cfg = cfg
 
         self.tokenizer = get_tokenizer(
@@ -83,7 +83,7 @@ class NERModel(ModelPT):
             use_transformer_init=cfg.head.use_transformer_init,
         )
 
-        if cfg.class_balancing == 'weighted_loss':
+        if cfg.dataset.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
         else:
@@ -181,14 +181,14 @@ class NERModel(ModelPT):
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=self.model_cfg.max_seq_length,
+            max_seq_length=self.model_cfg.dataset.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
             label_ids=self.data_desc.label_ids,
-            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
-            ignore_start_end=self.model_cfg.ignore_start_end,
-            use_cache=self.model_cfg.use_cache,
+            ignore_extra_tokens=self.model_cfg.dataset.ignore_extra_tokens,
+            ignore_start_end=self.model_cfg.dataset.ignore_start_end,
+            use_cache=self.model_cfg.dataset.use_cache,
         )
 
         return torch.utils.data.DataLoader(
