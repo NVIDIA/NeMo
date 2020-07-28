@@ -37,8 +37,17 @@ class BertModule(NeuralModule):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
-    def save_to(self, save_path: str):
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """Restores module/model with weights"""
         pass
 
-    def restore_from(self, restore_path: str):
-        self.load_state_dict(torch.load(restore_path))
+    @classmethod
+    def save_to(self, save_path: str):
+        """Saves module/model with weights"""
+        pass
+
+    def restore_weights(self, restore_path: str):
+        """Restores module/model's weights"""
+        state_dict = torch.load(restore_path)
+        self.load_state_dict(state_dict)

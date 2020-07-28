@@ -169,6 +169,8 @@ trainer:
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
+  row_log_interval: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 exp_manager:
   root_dir: null
