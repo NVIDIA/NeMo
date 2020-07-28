@@ -16,14 +16,6 @@ import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
 
-_NATIVE_AMP = False
-try:
-    from torch.cuda.amp import autocast
-
-    _NATIVE_AMP = True
-except ImportError:
-    pass
-
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths
 from nemo.collections.tts.modules.submodules import Attention, ConvNorm, LinearNorm, Prenet
 from nemo.core.classes import NeuralModule, typecheck
@@ -37,6 +29,14 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+
+_NATIVE_AMP = False
+try:
+    from torch.cuda.amp import autocast
+
+    _NATIVE_AMP = True
+except ImportError:
+    pass
 
 
 @experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?

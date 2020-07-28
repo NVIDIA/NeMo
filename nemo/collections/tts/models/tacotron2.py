@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
@@ -21,18 +21,18 @@ from torch import nn
 from torch.nn.functional import pad
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
-from nemo.core.classes import ModelPT, Loss, typecheck
-from nemo.utils import logging
+from nemo.core.classes import Loss, ModelPT, typecheck
 from nemo.core.neural_types.elements import (
-    LengthsType,
-    MelSpectrogramType,
-    LossType,
-    LogitsType,
     AudioSignal,
     EmbeddedTextType,
+    LengthsType,
+    LogitsType,
+    LossType,
+    MelSpectrogramType,
     SequenceToSequenceAlignmentType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 

@@ -20,18 +20,18 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.modules.waveglow import OperationMode
-from nemo.core.classes import ModelPT, Loss, typecheck
-from nemo.utils import logging
-from nemo.utils.decorators import experimental
+from nemo.core.classes import Loss, ModelPT, typecheck
 from nemo.core.neural_types.elements import (
+    AudioSignal,
+    LengthsType,
+    LossType,
+    MelSpectrogramType,
     NormalDistributionSamplesType,
     VoidType,
-    LossType,
-    LengthsType,
-    AudioSignal,
-    MelSpectrogramType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 
 class WaveGlowLoss(Loss):
