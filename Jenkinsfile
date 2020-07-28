@@ -289,7 +289,7 @@ pipeline {
             sh 'cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
             model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
-            model.validation_ds.file_name=/home/TestData/nlp/retail/test.tsv \
+            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.train_ds.batch_size=10 \
             model.dataset.max_seq_length=50 \
