@@ -21,8 +21,18 @@ from torch import nn
 from torch.nn.functional import pad
 
 from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func
-from nemo.core.classes import ModelPT
+from nemo.core.classes import ModelPT, Loss, typecheck
 from nemo.utils import logging
+from nemo.core.neural_types.elements import (
+    LengthsType,
+    MelSpectrogramType,
+    LossType,
+    LogitsType,
+    AudioSignal,
+    EmbeddedTextType,
+    SequenceToSequenceAlignmentType,
+)
+from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 
 
@@ -48,34 +58,26 @@ class Tacotron2Config:
     validation_ds: Optional[Dict] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
-class Tacotron2Model(ModelPT):
-    # TODO: tensorboard for training
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
-        super().__init__(cfg=cfg, trainer=trainer)
+class Tacotron2Loss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "mel_out": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "mel_out_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "gate_out": NeuralType(('B', 'T'), LogitsType()),
+            "mel_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "gate_target": NeuralType(('B', 'T'), LogitsType()),
+            "target_len": NeuralType(('B'), LengthsType()),
+        }
 
-        schema = OmegaConf.structured(Tacotron2Config)
-        # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
-        elif not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
-        # Ensure passed cfg is compliant with schema
-        OmegaConf.merge(cfg, schema)
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
 
-        self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.audio_to_melspec_precessor = Tacotron2Model.from_config_dict(self._cfg.preprocessor)
-        self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
-        self.encoder = Tacotron2Model.from_config_dict(self._cfg.encoder)
-        self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
-        self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
-
-        # After defining all torch.modules, create optimizer and scheduler
-        self.setup_optimization()
-
-    def loss(
+    @typecheck()
+    def forward(
         self, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len,
     ):
         mel_target.requires_grad = False
@@ -110,6 +112,57 @@ class Tacotron2Model(ModelPT):
         gate_loss = nn.BCEWithLogitsLoss()(gate_out, gate_target)
         return mel_loss + gate_loss
 
+
+@experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
+class Tacotron2Model(ModelPT):
+    # TODO: tensorboard for training
+    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        schema = OmegaConf.structured(Tacotron2Config)
+        # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
+        elif not isinstance(cfg, DictConfig):
+            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+        # Ensure passed cfg is compliant with schema
+        OmegaConf.merge(cfg, schema)
+
+        self.pad_value = self._cfg.preprocessor.params.pad_value
+        self.audio_to_melspec_precessor = Tacotron2Model.from_config_dict(self._cfg.preprocessor)
+        self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
+        self.encoder = Tacotron2Model.from_config_dict(self._cfg.encoder)
+        self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
+        self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
+        self.loss = Tacotron2Loss()
+
+        # After defining all torch.modules, create optimizer and scheduler
+        self.setup_optimization()
+
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_len": NeuralType(('B'), LengthsType()),
+            "tokens": NeuralType(('B', 'T'), EmbeddedTextType()),
+            "token_len": NeuralType(('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "mel_out": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "mel_out_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "gate_out": NeuralType(('B', 'T'), LogitsType()),
+            "mel_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "gate_target": NeuralType(('B', 'T'), LogitsType()),
+            "target_len": NeuralType(('B'), LengthsType()),
+            "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+        }
+
+    @typecheck()
     def forward(self, audio, audio_len, tokens, token_len):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         token_embedding = self.text_embedding(tokens).transpose(1, 2)

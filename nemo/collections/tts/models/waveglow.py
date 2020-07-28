@@ -20,9 +20,47 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.modules.waveglow import OperationMode
-from nemo.core.classes import ModelPT
+from nemo.core.classes import ModelPT, Loss, typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.core.neural_types.elements import (
+    NormalDistributionSamplesType,
+    VoidType,
+    LossType,
+    LengthsType,
+    AudioSignal,
+    MelSpectrogramType,
+)
+from nemo.core.neural_types.neural_type import NeuralType
+
+
+class WaveGlowLoss(Loss):
+    @property
+    def input_types(self):
+        return {
+            "z": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
+            "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+            "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "loss": NeuralType(elements_type=LossType()),
+        }
+
+    @typecheck()
+    def forward(self, z, log_s_list, log_det_W_list):
+        for i, log_s in enumerate(log_s_list):
+            if i == 0:
+                log_s_total = torch.sum(log_s)
+                log_det_W_total = log_det_W_list[i]
+            else:
+                log_s_total = log_s_total + torch.sum(log_s)
+                log_det_W_total += log_det_W_list[i]
+
+        loss = torch.sum(z * z) / (2 * self.sigma * self.sigma) - log_s_total - log_det_W_total
+        return loss / (z.size(0) * z.size(1) * z.size(2))
 
 
 @dataclass
@@ -65,21 +103,36 @@ class WaveGlowModel(ModelPT):
         self.audio_to_melspec_precessor = WaveGlowModel.from_config_dict(self._cfg.preprocessor)
         self.waveglow = WaveGlowModel.from_config_dict(self._cfg.waveglow)
         self.mode = OperationMode.infer
+        self.loss = WaveGlowLoss()
 
         self.setup_optimization()
 
-    def loss(self, z, log_s_list, log_det_W_list):
-        for i, log_s in enumerate(log_s_list):
-            if i == 0:
-                log_s_total = torch.sum(log_s)
-                log_det_W_total = log_det_W_list[i]
-            else:
-                log_s_total = log_s_total + torch.sum(log_s)
-                log_det_W_total += log_det_W_list[i]
+    @property
+    def input_types(self):
+        return {
+            "audio": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_len": NeuralType(('B'), LengthsType()),
+            "run_inverse": NeuralType(optional=True),
+        }
 
-        loss = torch.sum(z * z) / (2 * self.sigma * self.sigma) - log_s_total - log_det_W_total
-        return loss / (z.size(0) * z.size(1) * z.size(2))
+    @property
+    def output_types(self):
+        if self.mode == OperationMode.training or self.mode == OperationMode.validation:
+            output_dict = {
+                "z": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
+                "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+                "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+            }
+            if self.mode == OperationMode.validation:
+                output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
+                output_dict["spec"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
+                output_dict["spec_len"] = NeuralType(('B'), LengthsType())
+            return output_dict
+        return {
+            "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
+        }
 
+    @typecheck()
     def forward(self, audio, audio_len, run_inverse=True):
         if self.mode != self.waveglow.mode:
             raise ValueError(
@@ -88,7 +141,7 @@ class WaveGlowModel(ModelPT):
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
         tensors = self.waveglow(spect=spec, audio=audio, run_inverse=run_inverse)
         if self.mode == OperationMode.training:
-            return tensors  # z, log_s_list, log_det_W_list, audio_pred
+            return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
             z, log_s_list, log_det_W_list, audio_pred = tensors
             return z, log_s_list, log_det_W_list, audio_pred, spec, spec_len
@@ -98,7 +151,7 @@ class WaveGlowModel(ModelPT):
         self.mode = OperationMode.training
         self.waveglow.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list, _ = self.forward(audio, audio_len)
+        z, log_s_list, log_det_W_list = self.forward(audio, audio_len)
 
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list)
         output = {
