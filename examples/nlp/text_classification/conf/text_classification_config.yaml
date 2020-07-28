@@ -79,7 +79,6 @@ model:
       # Scheduler params
       warmup_steps: null
       warmup_ratio: 0.1
-      min_lr: 0.0
       last_epoch: -1
 
       # pytorch lightning args
