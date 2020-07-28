@@ -122,8 +122,9 @@ class BaseInformationRetrievalDataset(Dataset):
         )
 
     def psgid2tokens(self, psg_id):
-        seq_len = self.passages[psg_id][0]
-        return self.passages[psg_id][1 : seq_len + 1].tolist()
+        #seq_len = self.passages[psg_id][0]
+        #return self.passages[psg_id][1 : seq_len + 1].tolist()
+        return self.passages[psg_id]
 
 
 class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
@@ -136,14 +137,16 @@ class BertInformationRetrievalDatasetTrain(BaseInformationRetrievalDataset):
         max_query_length=31,
         max_passage_length=190,
         num_negatives=10,
+        local_rank=0,
         preprocess_fn="preprocess_bert",
     ):
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_negatives = num_negatives
 
-        self.passages = self.parse_npz(passages, max_passage_length)
+        self.passages = self.parse_pkl(passages, max_passage_length)
         self.queries = self.parse_pkl(queries, max_query_length)
         self.idx2psgs = self.parse_query_to_passages(query_to_passages)
+        self.local_rank = local_rank
         self._preprocess_fn = getattr(self, preprocess_fn)
 
     def __getitem__(self, idx):
@@ -187,7 +190,7 @@ class BertInformationRetrievalDatasetEval(BaseInformationRetrievalDataset):
         super().__init__(tokenizer, max_query_length, max_passage_length)
         self.num_candidates = num_candidates
 
-        self.passages = self.parse_npz(passages, max_passage_length)
+        self.passages = self.parse_pkl(passages, max_passage_length)
         self.queries = self.parse_pkl(queries, max_query_length)
         self.idx2topk = self.parse_topk_list(query_to_passages)
         self._preprocess_fn = getattr(self, preprocess_fn)
@@ -220,10 +223,11 @@ class BertDensePassageRetrievalDatasetInfer(BaseInformationRetrievalDataset):
         super().__init__(tokenizer, max_query_length, max_passage_length)
 
         if passages is not None:
-            self.passages = self.parse_npz(passages, max_passage_length)
+            self.passages = self.parse_pkl(passages, max_passage_length)
             self.max_seq_length = max_passage_length
             self._get_tokens = self.psgid2tokens
-            self.idx2dataid = {psg_id: psg_id for psg_id in range(self.passages.shape[0])}
+            #self.idx2dataid = {psg_id: psg_id for psg_id in range(self.passages.shape[0])}
+            self.idx2dataid = {i: psg_id for i, psg_id in enumerate(self.passages)}
         elif queries is not None:
             self.queries = self.parse_pkl(queries, max_query_length)
             self.max_seq_length = max_query_length

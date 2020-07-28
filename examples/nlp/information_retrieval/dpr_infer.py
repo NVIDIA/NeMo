@@ -26,11 +26,13 @@ import nemo.collections.nlp.nm.data_layers.information_retrieval_datalayer as ir
 
 parser = nemo.utils.NemoArgParser(description='Bert for Information Retrieval')
 
-parser.set_defaults(eval_datasets=["dev.small"], work_dir="outputs/test2", amp_opt_level="O2")
+parser.set_defaults(eval_datasets=["dev.small"],
+                    work_dir="outputs/test2",
+                    amp_opt_level="O2",
+                    batch_size=16)
 parser.add_argument("--data_dir", default="/home/ohrinchuk/datasets/msmarco", type=str)
 parser.add_argument("--pretrained_model", default="bert-base-uncased", type=str)
 parser.add_argument("--d_model", default=768, type=int)
-parser.add_argument("--restore_checkpoint_from", default=None, type=str)
 parser.add_argument("--data_for_eval", default="passages", type=str)
 parser.add_argument("--restore_path", type=str)
 parser.add_argument("--chunk_id", default=0, type=int)
@@ -47,7 +49,7 @@ tokenizer = nemo_nlp.data.NemoBertTokenizer(pretrained_model=args.pretrained_mod
 vocab_size = 8 * math.ceil(tokenizer.vocab_size / 8)
 tokens_to_add = vocab_size - tokenizer.vocab_size
 
-encoder = nemo_nlp.nm.trainables.get_huggingface_model(pretrained_model_name=args.pretrained_model)
+encoder = nemo_nlp.nm.trainables.get_huggingface_lm_model(pretrained_model_name=args.pretrained_model)
 device = encoder.bert.embeddings.word_embeddings.weight.get_device()
 zeros = torch.zeros((tokens_to_add, args.d_model)).to(device=device)
 encoder.bert.embeddings.word_embeddings.weight.data = torch.cat(
@@ -57,7 +59,7 @@ encoder.restore_from(path=args.restore_path, local_rank=args.local_rank)
 
 data_layer_params = {"tokenizer": tokenizer, "batch_size": args.batch_size, "passages": None, "queries": None}
 if args.data_for_eval == "passages":
-    data_layer_params["passages"] = f"{args.data_dir}/collection.{args.chunk_id}.tsv"
+    data_layer_params["passages"] = f"{args.data_dir}/collection_parts/collection_{args.chunk_id}.tsv"
     filename = f"passages.{args.chunk_id}.tsv"
 elif args.data_for_eval == "queries":
     filename = f"queries.{args.eval_datasets[0]}.tsv"

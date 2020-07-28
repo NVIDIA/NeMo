@@ -27,7 +27,7 @@ from nemo.utils.lr_policies import get_lr_policy
 parser = nemo.utils.NemoArgParser(description='Bert for Information Retrieval')
 parser.set_defaults(
     train_dataset="train",
-    eval_datasets=["bm25", "dpr"],
+    eval_datasets=["bm25"],
     work_dir="outputs/bert_ir",
     optimizer="adam_w",
     batch_size=8,
@@ -36,6 +36,7 @@ parser.set_defaults(
     lr=0.00001,
     weight_decay=0.01,
     max_steps=10000,
+    #num_epochs=1,
     iter_per_step=1,
     eval_freq=2500,
 )
@@ -115,18 +116,20 @@ loss_fn_train = nemo_nlp.nm.losses.DensePassageRetrievalLoss(
 )
 loss_fn_eval = nemo_nlp.nm.losses.DensePassageRetrievalLoss(num_negatives=args.num_eval_candidates - 1)
 
-train_passages = f"{args.data_dir}/{args.collection_file}"
+train_passages = f"{args.data_dir}/{args.collection_file}_{args.local_rank}.tsv"
+train_triples = f"{args.data_dir}/{args.train_dataset}_{args.local_rank}.tsv"
 
 # Training pipeline
 train_queries = f"{args.data_dir}/queries.train.tsv"
-train_triples = f"{args.data_dir}/{args.train_dataset}"
-train_data_layer = ir_dl.BertDensePassageRetrievalDataLayerTrain(
+
+train_data_layer = ir_dl.BertDensePassageRetrievalChunkedDataLayerTrain(
     tokenizer=tokenizer,
     passages=train_passages,
     queries=train_queries,
     query_to_passages=train_triples,
     batch_size=args.batch_size,
     num_negatives=args.num_negatives,
+    local_rank=args.local_rank
 )
 q_input_ids, q_input_mask, q_input_type_ids, p_input_ids, p_input_mask, p_input_type_ids = train_data_layer()
 q_input_ids, q_input_mask, q_input_type_ids = batch_reshape(
@@ -153,12 +156,13 @@ callbacks = [train_callback]
 
 def create_eval_pipeline(eval_dataset):
 
-    eval_queries = f"{args.data_dir}/queries.dev.small.tsv"
-    eval_topk_list = f"{args.data_dir}/top100.{eval_dataset}.dev.small.tsv"
+    eval_queries = f"{args.data_dir}/queries.dev.tsv"
+    eval_topk_list = f"{args.data_dir}/top200.{eval_dataset}.dev.small.tsv"
+    eval_passages = f"{args.data_dir}/collection_dev.tsv"
 
     eval_data_layer = ir_dl.BertDensePassageRetrievalDataLayerEval(
         tokenizer=tokenizer,
-        passages=train_passages,
+        passages=eval_passages,
         queries=eval_queries,
         query_to_passages=eval_topk_list,
         num_candidates=args.num_eval_candidates,
@@ -201,7 +205,7 @@ def parse_qrels(qrels):
 
 if args.do_eval:
 
-    query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.small.tsv")
+    query2rel = parse_qrels(f"{args.data_dir}/qrels.dev.tsv")
 
     all_eval_tensors = {}
     for eval_dataset in args.eval_datasets:
@@ -220,17 +224,17 @@ if args.do_eval:
         )
     )
 
-    callbacks.append(
-        nemo.core.EvaluatorCallback(
-            eval_tensors=all_eval_tensors[args.eval_datasets[1]],
-            user_iter_callback=eval_iter_callback,
-            user_epochs_done_callback=lambda x: eval_epochs_done_callback(
-                x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]
-            ),
-            eval_step=args.eval_freq,
-            tb_writer=nf.tb_writer,
-        )
-    )
+#     callbacks.append(
+#         nemo.core.EvaluatorCallback(
+#             eval_tensors=all_eval_tensors[args.eval_datasets[1]],
+#             user_iter_callback=eval_iter_callback,
+#             user_epochs_done_callback=lambda x: eval_epochs_done_callback(
+#                 x, query2rel=query2rel, topk=[1, 10], baseline_name=args.eval_datasets[1]
+#             ),
+#             eval_step=args.eval_freq,
+#             tb_writer=nf.tb_writer,
+#         )
+#     )
 
 # callback which saves checkpoints once in a while
 ckpt_dir = nf.checkpoint_dir

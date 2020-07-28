@@ -100,7 +100,7 @@ def calculate_mrrs(query2passages, query2rel, topk=[10, 100]):
         oracle_rrs.append(0)
         rrs.append(0)
         for i, psg_id in enumerate(sorted_psgs):
-            if psg_id in query2rel[query]:
+            if (query in query2rel) and (psg_id in query2rel[query]):
                 rrs[-1] = 1 / (i + 1)
                 oracle_rrs[-1] = 1
                 break

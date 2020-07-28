@@ -23,11 +23,14 @@ from nemo.collections.nlp.data import (
 from nemo.collections.nlp.nm.data_layers.text_datalayer import TextDataLayer
 from nemo.core import ChannelType, NeuralType
 from nemo.utils.decorators import add_port_docs
+from .chunked_distributed import DistributedSampler
+from torch.utils.data import DataLoader
 
 __all__ = [
     'BertInformationRetrievalDataLayerTrain',
     'BertInformationRetrievalDataLayerEval',
     'BertDensePassageRetrievalDataLayerTrain',
+    'BertDensePassageRetrievalChunkedDataLayerTrain',
     'BertDensePassageRetrievalDataLayerEval',
     'BertDensePassageRetrievalDataLayerInfer',
 ]
@@ -79,6 +82,7 @@ class BertInformationRetrievalDataLayerTrain(TextDataLayer):
         max_query_length=31,
         max_passage_length=190,
         num_negatives=5,
+        local_rank=0,
         shuffle=True,
         dataset_type=BertInformationRetrievalDatasetTrain,
     ):
@@ -90,6 +94,7 @@ class BertInformationRetrievalDataLayerTrain(TextDataLayer):
             'max_query_length': max_query_length,
             'max_passage_length': max_passage_length,
             'num_negatives': num_negatives,
+            'local_rank': local_rank,
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
 
@@ -209,6 +214,7 @@ class BertDensePassageRetrievalDataLayerTrain(TextDataLayer):
         max_query_length=30,
         max_passage_length=190,
         num_negatives=5,
+        local_rank=0,
         shuffle=True,
         dataset_type=BertInformationRetrievalDatasetTrain,
     ):
@@ -220,9 +226,40 @@ class BertDensePassageRetrievalDataLayerTrain(TextDataLayer):
             'max_query_length': max_query_length,
             'max_passage_length': max_passage_length,
             'num_negatives': num_negatives,
+            'local_rank': local_rank,
             'preprocess_fn': "preprocess_dpr",
         }
         super().__init__(dataset_type, dataset_params, batch_size, shuffle=shuffle)
+
+
+class BertDensePassageRetrievalChunkedDataLayerTrain(BertDensePassageRetrievalDataLayerTrain):
+    def __init__(
+        self,
+        tokenizer,
+        passages,
+        queries,
+        query_to_passages,
+        batch_size,
+        max_query_length=30,
+        max_passage_length=190,
+        num_negatives=5,
+        local_rank=0,
+        shuffle=True,
+        dataset_type=BertInformationRetrievalDatasetTrain,
+    ):
+        super().__init__(
+            tokenizer, passages, queries, query_to_passages, batch_size,
+            max_query_length, max_passage_length, num_negatives, local_rank, shuffle, dataset_type)
+        sampler = DistributedSampler(self._dataset)
+        self._dataloader = DataLoader(dataset=self._dataset, batch_size=batch_size, sampler=sampler)
+        
+    @property
+    def dataset(self):
+        return None
+
+    @property
+    def data_iterator(self):
+        return self._dataloader
 
 
 class BertDensePassageRetrievalDataLayerEval(TextDataLayer):
