@@ -316,7 +316,7 @@ pipeline {
       parallel {
         stage('MRPC') {
           steps {
-            sh 'python examples/nlp/glue_benchmark.py \
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.use_cache=false \
             model.task_name=mrpc \
             model.data_dir=/home/TestData/nlp/glue_fake/MRPC \
@@ -330,7 +330,7 @@ pipeline {
 //         parallel {
 //         stage('STS-b') {
 //           steps {
-//             sh 'python examples/nlp/glue_benchmark.py \
+//             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
 //             model.use_cache=false \
 //             model.task_name=sts-b \
 //             model.data_dir=/home/TestData/nlp/glue_fake/STS-B \
@@ -344,7 +344,7 @@ pipeline {
 //         parallel {
 //         stage('MNLI') {
 //           steps {
-//             sh 'python examples/nlp/glue_benchmark.py \
+//             sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
 //             model.use_cache=false \
 //             model.task_name=mnli \
 //             model.data_dir=/home/TestData/nlp/glue_fake/MNLI \
