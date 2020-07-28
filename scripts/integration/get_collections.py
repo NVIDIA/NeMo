@@ -51,6 +51,7 @@ def main():
     # Get collections directory.
     colletions_dir = os.path.dirname(nemo.collections.__file__)
     logging.info('Analysing collections in `{}`'.format(colletions_dir))
+    logging.info("="*80)
 
     # Generate list of NeMo collections - from the list of collection subfolders.
     collections = {}
@@ -76,15 +77,16 @@ def main():
                 module_spec.loader.exec_module(module)
                 # Add to list.
                 output_list.append(process_collection(key, module))
-                logging.info("  * Processed `{}`".format(val))
+                logging.info(" * Processed `{}`".format(val))
             except AttributeError:
-                logging.warning("  * Failed to process `{}`".format(val))
+                logging.warning(" ! Failed to process `{}`".format(val))
 
     # Export to JSON.
     with open(args.filename, 'w') as outfile:
         json.dump(output_list, outfile)
 
-    logging.info('Finshed the analysis, results exported to `{}`.'.format(args.filename))
+    logging.info("="*80)
+    logging.info('Finshed the analysis, found {} collections, results exported to `{}`.'.format(len(output_list), args.filename))
 
 
 if __name__ == '__main__':

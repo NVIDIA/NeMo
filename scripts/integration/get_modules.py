@@ -27,7 +27,7 @@ from nemo.utils import logging
 
 
 
-def process_member(name, obj, module_list) -> bool:
+def process_member(module_name, obj, module_list) -> bool:
     """ Helper function processing the passed object and, if ok, adding a record to the module list.
     
     Args:
@@ -40,37 +40,88 @@ def process_member(name, obj, module_list) -> bool:
     if not inspect.isclass(obj):
         return False
 
-    # Check inheritance - we know that all our datasets/modules/losses inherit from NeuralInterface.
-    if not issubclass(obj, nemo.core.neural_interface.NeuralInterface):
+    # Modules must inherit from datalayer/trainable/losses/nontraineble.
+    parent_classes = {
+        "datalayer": nemo.backends.pytorch.nm.DataLayerNM,
+        "trainable": nemo.backends.pytorch.nm.TrainableNM,
+        "loss": nemo.backends.pytorch.nm.LossNM,
+        "nontrainable": nemo.backends.pytorch.nm.NonTrainableNM,
+    }
+
+    module_type = None
+    # Check the inheritance.
+    for type_name, cls in parent_classes.items():
+        # Skip parent classes.
+        if obj.__name__ == cls.__name__:
+            return False
+        # Check inheritance.
+        if issubclass(obj, cls):
+            module_type = type_name
+            break
+    if module_type is None:
         return False
 
-    logging.info("   * Processing `{}`".format(str(obj)))
+    # Get ID.
+    module_id = ".".join([obj.__module__, obj.__name__])
+    logging.info("   * Processing `{}`".format(module_id))
+
+    # Inspect the arguments.
+    sig = inspect.signature(obj.__init__)
+
+    # Invalid argument names.
+    inv_params = ["*", "*args", "**kwargs"]
+    module_args = []
+
+    #print(str(sig))
+    #import pdb; pdb.set_trace()
+
+    # Iterate over arguments.
+    for name, param in sig.parameters.items():
+        # Skip "self".
+        if name == "self":
+            continue
+        # Skip invalid params.
+        if name in inv_params:
+            logging.warning("     ! Contains invalid argument `{}` - skipping the module".format(name))
+            return False
+        # Add name
+        arg = {"name": name}
+
+        # Get default.
+        if param.default is not inspect.Signature.empty:
+            arg["default"] = param.default
+
+        # Get annotations.
+        if param.annotation is not inspect.Signature.empty:
+            if hasattr(param.annotation, "__name__"):
+                arg["annotation"] = param.annotation.__name__
+            else:
+                arg["annotation"] = str(param.annotation)
+
+        #import pdb; pdb.set_trace()
+        # Add to list.
+        module_args.append(arg)
+
+    #print(module_args)
+    #print ("\n")
+    #import pdb; pdb.set_trace()
 
     module_list.append(
         {
-            "name": name,
-            "id": ".".join([obj.__module__, obj.__name__]),
+            "name": module_name,
+            "id": module_id,
+            "module_type": module_type,
             # Temporary solution: mockup arguments.
-            "arguments": [
-                "jasper",
-                "activation",
-                "feat_in",
-                "normalization_mode",
-                "residual_mode",
-                "norm_groups",
-                "conv_mask",
-                "frame_splicing",
-                "init_mode",
-            ],
+            "arguments": module_args,
             # Temporary solution: mockup input types.
-            "input_types": {
-                "audio_signal": "axes: (batch, dimension, time); elements_type: MelSpectrogramType",
-                "length": "axes: (batch,); elements_type: LengthType",
-            },
+            #"input_types": {
+            #    "audio_signal": "axes: (batch, dimension, time); elements_type: MelSpectrogramType",
+            #    "length": "axes: (batch,); elements_type: LengthType",
+            #},
             # Temporary solution: mockup output types.
-            "output_types": {
-                "encoder_output": "axes: (batch, dimension, time); elements_type: AcousticEncodedRepresentation"
-            },
+            #"output_types": {
+            #    "encoder_output": "axes: (batch, dimension, time); elements_type: AcousticEncodedRepresentation"
+            #},
         }
     )
     # Ok, got a module.
@@ -135,23 +186,35 @@ def main():
 
     # Iterate over the packages in the indicated collection.
     logging.info("Analysing the `{}` collection".format(args.collection))
+    logging.info("="*80)
 
     # Import all submodules.   
     submodules = import_submodules(collections[args.collection])
 
     total_counter = 0
 
-    # Extract list of neural modules/
+    # Extract list of neural modules.
     module_list = []
+    module_names = []
+    # Iterate through submodules one by one.
     for sub_name, submodule in submodules.items():
-        try:  # Datasets in main folder
-            logging.info("* Analysing the {} module".format(sub_name))
+        try:  
+            logging.info("* Analysing the `{}` module".format(sub_name))
 
             counter = 0
+            existing_counter = 0
+            # Iterate throught members of a given submodule.
             for name, obj in inspect.getmembers(submodule):
+                # Skip modules that might be already processed due to improper import scope
+                # (enabling to access the same module by different name scopes).
+                if name in module_names:
+                    existing_counter += 1
+                    continue
+                # Process the member.
                 if process_member(name, obj, module_list):
+                    module_names.append(name)
                     counter +=1
-            logging.info("  * Found {} neural modules".format(counter))
+            logging.info("  * Found {} already processed and {} new neural modules ".format(existing_counter, counter))
         except AttributeError as e:
             logging.info("  * No neural modules were found")
         total_counter += counter
@@ -162,6 +225,7 @@ def main():
     with open(filename, 'w') as outfile:
         json.dump(module_list, outfile)
 
+    logging.info("="*80)
     logging.info(
         'Finished analysis of the `{}` collection, found {} modules, results exported to `{}`.'.format(
             args.collection, total_counter, filename)

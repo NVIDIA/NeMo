@@ -37,6 +37,16 @@ YAML = YAML(typ='safe')
 
 class ModuleType(Enum):
     """ Back-end independent module types """
+    def __str__(self):
+        if self.value == 1:
+            return "datalayer"
+        elif self.value == 2:
+            return "trainable"
+        elif self.value == 3:
+            return "loss"
+        elif self.value == 4:
+            return "nontrainable"
+        return "module"
 
     module = 0
     datalayer = 1
