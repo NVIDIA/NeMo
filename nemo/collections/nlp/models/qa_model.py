@@ -168,7 +168,7 @@ class QAModel(ModelPT):
         self.validation_config = val_data_config
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = SquadDataset(
