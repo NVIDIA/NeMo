@@ -163,7 +163,7 @@ class NERModel(ModelPT):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
+        self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')

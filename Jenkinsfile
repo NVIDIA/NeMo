@@ -271,6 +271,58 @@ pipeline {
       }
     }
 
+    stage('GLUE') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('MRPC') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark.py \
+            model.use_cache=false \
+            model.task_name=mrpc \
+            model.data_dir=/home/TestData/nlp/glue_fake/MRPC \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/nlp/glue_benchmark/mrpc'
+            sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
+          }
+        }
+
+        parallel {
+        stage('STS-b') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark.py \
+            model.use_cache=false \
+            model.task_name=sts-b \
+            model.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/nlp/glue_benchmark/sts-b'
+            sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+          }
+        }
+
+        parallel {
+        stage('MNLI') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark.py \
+            model.use_cache=false \
+            model.task_name=mnli \
+            model.data_dir=/home/TestData/nlp/glue_fake/MNLI \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/nlp/glue_benchmark/mnli'
+            sh 'rm -rf examples/nlp/glue_benchmark/mnli'
+          }
+        }
+      }
+    }
+
     stage('L2: NLP-BERT pretraining BERT on the fly preprocessing') {
       when {
         anyOf{

@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.glue_benchmark_model import GLUEModel
-from nemo.collections.nlp.models.lm_model import BERTLMModel
-from nemo.collections.nlp.models.qa_model import QAModel
-from nemo.collections.nlp.models.text_classification import TextClassificationModel
-from nemo.collections.nlp.models.token_classification import NERModel, PunctuationCapitalizationModel
+import pytorch_lightning as pl
+from omegaconf import DictConfig
+
+from nemo.collections.nlp.models import GLUEModel
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
+
+
+@hydra_runner(config_name="glue_benchmark_config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config: {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
+    model = GLUEModel(cfg.model, trainer=trainer)
+    trainer.fit(model)
+
+
+if __name__ == '__main__':
+    main()
