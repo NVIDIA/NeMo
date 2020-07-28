@@ -29,8 +29,8 @@ class TextClassificationDataDesc:
     def __init__(self, train_file: str, val_files: List[str] = []):
         """A descriptor class that reads all the data and calculates some stats of the data and also calculates the class weights to be used for class balancing
         Args:
-            data_dir: the path to the data folder
-            modes: list of the modes to read, it can be from ["train", "test", "val"] by default. It is going to look for the data files at {data_dir}/{mode}.tsv
+            train_file: path of the train file
+            val_files: list of the paths for the test and validation files
         """
         class_weights_dict = None
         max_label_id = 0
