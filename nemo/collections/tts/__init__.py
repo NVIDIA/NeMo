@@ -24,12 +24,12 @@ from nemo.collections.tts.talknet_modules import *
 from nemo.collections.tts.talknet_modules import __all__ as fasterspeech__all__
 from nemo.collections.tts.waveglow_modules import *
 from nemo.collections.tts.waveglow_modules import __all__ as waveglow__all__
+from nemo.package_info import __version__ as nemo_version
 
 __all__ = (
     ["AudioDataLayer"] + helpers__all__ + tacotron2__all__ + waveglow__all__ + fastspeech__all__ + fasterspeech__all__
 )
 
-from nemo.package_info import __version__ as nemo_version
 
 # Set collection version equal to NeMo version.
 __version__ = nemo_version

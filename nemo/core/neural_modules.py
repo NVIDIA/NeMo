@@ -37,6 +37,7 @@ YAML = YAML(typ='safe')
 
 class ModuleType(Enum):
     """ Back-end independent module types """
+
     def __str__(self):
         if self.value == 1:
             return "datalayer"

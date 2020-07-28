@@ -18,13 +18,12 @@
 import argparse
 import importlib
 import inspect
-import pkgutil
 import json
 import os
+import pkgutil
 
 import nemo
 from nemo.utils import logging
-
 
 
 def process_member(module_name, obj, module_list) -> bool:
@@ -69,11 +68,11 @@ def process_member(module_name, obj, module_list) -> bool:
     sig = inspect.signature(obj.__init__)
 
     # Invalid argument names.
-    inv_params = ["*", "*args", "**kwargs"]
+    inv_params = ["*", "args", "kwargs"]
     module_args = []
 
-    #print(str(sig))
-    #import pdb; pdb.set_trace()
+    # print(str(sig))
+    # import pdb; pdb.set_trace()
 
     # Iterate over arguments.
     for name, param in sig.parameters.items():
@@ -98,13 +97,13 @@ def process_member(module_name, obj, module_list) -> bool:
             else:
                 arg["annotation"] = str(param.annotation)
 
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         # Add to list.
         module_args.append(arg)
 
-    #print(module_args)
-    #print ("\n")
-    #import pdb; pdb.set_trace()
+    # print(module_args)
+    # print ("\n")
+    # import pdb; pdb.set_trace()
 
     module_list.append(
         {
@@ -114,14 +113,14 @@ def process_member(module_name, obj, module_list) -> bool:
             # Temporary solution: mockup arguments.
             "arguments": module_args,
             # Temporary solution: mockup input types.
-            #"input_types": {
+            # "input_types": {
             #    "audio_signal": "axes: (batch, dimension, time); elements_type: MelSpectrogramType",
             #    "length": "axes: (batch,); elements_type: LengthType",
-            #},
+            # },
             # Temporary solution: mockup output types.
-            #"output_types": {
+            # "output_types": {
             #    "encoder_output": "axes: (batch, dimension, time); elements_type: AcousticEncodedRepresentation"
-            #},
+            # },
         }
     )
     # Ok, got a module.
@@ -186,9 +185,9 @@ def main():
 
     # Iterate over the packages in the indicated collection.
     logging.info("Analysing the `{}` collection".format(args.collection))
-    logging.info("="*80)
+    logging.info("=" * 80)
 
-    # Import all submodules.   
+    # Import all submodules.
     submodules = import_submodules(collections[args.collection])
 
     total_counter = 0
@@ -198,7 +197,7 @@ def main():
     module_names = []
     # Iterate through submodules one by one.
     for sub_name, submodule in submodules.items():
-        try:  
+        try:
             logging.info("* Analysing the `{}` module".format(sub_name))
 
             counter = 0
@@ -213,7 +212,7 @@ def main():
                 # Process the member.
                 if process_member(name, obj, module_list):
                     module_names.append(name)
-                    counter +=1
+                    counter += 1
             logging.info("  * Found {} already processed and {} new neural modules ".format(existing_counter, counter))
         except AttributeError as e:
             logging.info("  * No neural modules were found")
@@ -225,10 +224,11 @@ def main():
     with open(filename, 'w') as outfile:
         json.dump(module_list, outfile)
 
-    logging.info("="*80)
+    logging.info("=" * 80)
     logging.info(
         'Finished analysis of the `{}` collection, found {} modules, results exported to `{}`.'.format(
-            args.collection, total_counter, filename)
+            args.collection, total_counter, filename
+        )
     )
 
 

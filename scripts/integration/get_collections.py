@@ -32,9 +32,8 @@ def process_collection(id, col):
         col: a collection (python module).
     """
     return {
-
         "name": id,
-        "id": col.__name__, # Full specification.
+        "id": col.__name__,  # Full specification.
         "description": col.__description__,
         "version": col.__version__,
         "author": col.__author__,
@@ -51,7 +50,7 @@ def main():
     # Get collections directory.
     colletions_dir = os.path.dirname(nemo.collections.__file__)
     logging.info('Analysing collections in `{}`'.format(colletions_dir))
-    logging.info("="*80)
+    logging.info("=" * 80)
 
     # Generate list of NeMo collections - from the list of collection subfolders.
     collections = {}
@@ -85,8 +84,10 @@ def main():
     with open(args.filename, 'w') as outfile:
         json.dump(output_list, outfile)
 
-    logging.info("="*80)
-    logging.info('Finshed the analysis, found {} collections, results exported to `{}`.'.format(len(output_list), args.filename))
+    logging.info("=" * 80)
+    logging.info(
+        'Finshed the analysis, found {} collections, results exported to `{}`.'.format(len(output_list), args.filename)
+    )
 
 
 if __name__ == '__main__':

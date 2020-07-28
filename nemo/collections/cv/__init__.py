@@ -15,7 +15,6 @@
 # =============================================================================
 
 from nemo.collections.cv.modules import *
-
 from nemo.package_info import __version__ as nemo_version
 
 # Set collection version equal to NeMo version.
