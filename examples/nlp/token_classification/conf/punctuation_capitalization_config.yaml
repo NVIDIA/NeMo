@@ -26,6 +26,8 @@ trainer:
   distributed_backend: ddp
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
+  row_log_interval: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 model:
   data_dir: ??? # /path/to/data
@@ -79,27 +81,13 @@ model:
   optim:
     name: adamw
     lr: 1e-5
-    args:
-      name: auto
-      params:
-        weight_decay: 0.01
+    weight_decay: 0.01
 
     sched:
       name: WarmupAnnealing
-      iters_per_batch: null # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
-
-      # pytorch lightning args
-      monitor: val_loss
-      reduce_on_plateau: false
-
-      # scheduler config override
-      args:
-        name: auto
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.1
-          last_epoch: -1
+      warmup_steps: null
+      warmup_ratio: 0.1
+      last_epoch: -1
 
 exp_manager:
   root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
