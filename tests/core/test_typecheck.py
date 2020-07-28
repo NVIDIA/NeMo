@@ -19,6 +19,26 @@ from nemo.core import NeuralModule, Typing, typecheck
 from nemo.core.neural_types import *
 
 
+# Perform recursive shape assert
+def recursive_assert_shape(x, shape):
+    if isinstance(x, list) or isinstance(x, tuple):
+        for xi in x:
+            recursive_assert_shape(xi, shape)
+        return
+
+    assert x.shape == shape
+
+
+# Perform recursive type assert
+def recursive_assert_homogeneous_type(x, type_val):
+    if isinstance(x, list) or isinstance(x, tuple):
+        for xi in x:
+            recursive_assert_homogeneous_type(xi, type_val)
+        return
+
+    assert x.neural_type.compare(type_val) == NeuralTypeComparisonResult.SAME
+
+
 class TestNeuralTypeCheckSystem:
     @pytest.mark.unit
     def test_no_types_passthrough(self):
@@ -164,6 +184,48 @@ class TestNeuralTypeCheckSystem:
                 return x + 1, x - 1
 
         obj = OutputPortDefinitionRejection()
+
+        with pytest.raises(TypeError):
+            _ = obj(x=torch.zeros(10))
+
+    @pytest.mark.unit
+    def test_port_shape_rejection(self):
+        class InputPortShapeRejection(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B', 'T'), ElementType())}  # expect rank 2 matrix
+
+            @property
+            def output_types(self):
+                return {"w": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                x += 1
+                return x
+
+        # Test input port mismatch
+        obj = InputPortShapeRejection()
+
+        with pytest.raises(TypeError):
+            _ = obj(x=torch.zeros(10))
+
+        class OutputPortShapeRejection(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @property
+            def output_types(self):
+                return {
+                    "w": NeuralType(('B', 'T', 'D'), ElementType()),  # expect rank 3 matrix
+                }
+
+            @typecheck()
+            def __call__(self, x):
+                return x + 1
+
+        obj = OutputPortShapeRejection()
 
         with pytest.raises(TypeError):
             _ = obj(x=torch.zeros(10))
@@ -319,14 +381,6 @@ class TestNeuralTypeCheckSystem:
         outB = nodeB(w=outA)
 
         # Perform recursive shape assert
-        def recursive_assert_shape(x, shape):
-            if isinstance(x, list) or isinstance(x, tuple):
-                for xi in x:
-                    recursive_assert_shape(xi, shape)
-                return
-
-            assert x.shape == shape
-
         recursive_assert_shape(outB, torch.Size([10]))
 
         # Assert non-homogeneous type assertions
@@ -433,6 +487,145 @@ class TestNeuralTypeCheckSystem:
 
         with pytest.raises(TypeError):
             # wrong input + wrong mode
+            _ = obj.infer_forward(y=x)
+
+    @pytest.mark.unit
+    def test_input_type_override(self):
+        class InputTypesOverride(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                x += 1
+                return x
+
+            @typecheck(input_types={"y": NeuralType(('B',), CategoricalValuesType())})
+            def forward(self, y):
+                y -= 1
+                return y
+
+        obj = InputTypesOverride()
+        result = obj(x=torch.zeros(10))
+
+        assert result.sum() == torch.tensor(10.0)
+        assert hasattr(result, 'neural_type') is False
+
+        # Test override
+        result2 = obj.forward(y=torch.zeros(10))
+
+        assert result2.sum() == torch.tensor(-10.0)
+        assert hasattr(result2, 'neural_type') is False
+
+    @pytest.mark.unit
+    def test_output_type_override(self):
+        class OutputTypes(Typing):
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x):
+                x += 1
+                return x
+
+            @typecheck(output_types={"z": NeuralType(('B',), CategoricalValuesType())})
+            def forward(self, z):
+                z -= 1
+                return z
+
+        obj = OutputTypes()
+        result = obj(x=torch.zeros(10))
+
+        assert result.sum() == torch.tensor(10.0)
+        assert result.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        # Test passing positional args
+        # Positional args allowed if input types is not set !
+        result = obj(torch.zeros(10))
+        assert result.sum() == torch.tensor(10.0)
+
+        # Test override
+        result2 = obj.forward(z=torch.zeros(10))
+
+        assert result2.sum() == torch.tensor(-10.0)
+        assert hasattr(result2, 'neural_type')
+        assert (
+            result2.neural_type.compare(NeuralType(('B',), CategoricalValuesType())) == NeuralTypeComparisonResult.SAME
+        )
+
+    @pytest.mark.unit
+    def test_multi_type_override(self):
+        class AdaptiveTypeCheck(Typing):
+            @property
+            def input_types(self):
+                # __call__ assumed to be for inference only,
+                # therefore infer types checked at class scope
+                return {"y": NeuralType(('B',), ChannelType())}
+
+            @property
+            def output_types(self):
+                # __call__ assumed to be for inference only,
+                # therefore infer types checked at class scope
+                return {"v": NeuralType(('B',), ChannelType())}
+
+            def __call__(self, **kwargs):
+                # Call should call and forward appropriate method in its own mode
+                # Let default "forward" call be the infer mode (this is upto developer)
+                # Therefore default class level types == infer types
+                return self.infer_forward(y=kwargs['y'])
+
+            @typecheck(
+                input_types={"x": NeuralType(('B',), ElementType())},
+                output_types={"u": NeuralType(('B',), ElementType())},
+            )
+            def train_forward(self, x):
+                return x + 10
+
+            @typecheck(
+                input_types={"x": NeuralType(('B',), ElementType()), "y": NeuralType(('B',), ChannelType())},
+                output_types={"u": NeuralType(('B',), ElementType()), "v": NeuralType(('B',), ChannelType())},
+            )
+            def eval_forward(self, x, y):
+                return x - 1, y - 1
+
+            @typecheck(
+                input_types={"y": NeuralType(('B',), ChannelType())},
+                output_types={"v": NeuralType(('B',), ChannelType())},
+            )
+            def infer_forward(self, y):
+                return y - 10
+
+        obj = AdaptiveTypeCheck()
+
+        x = torch.zeros(10)
+        y = torch.full([10], fill_value=5)
+
+        # infer mode
+        y = obj(y=y)
+
+        assert torch.all(y == -5)
+        assert y.neural_type.compare(NeuralType(('B',), ChannelType())) == NeuralTypeComparisonResult.SAME
+
+        x, y = obj.eval_forward(x=x, y=y)
+
+        assert torch.all(x == -1)
+        assert torch.all(y == -6)
+        assert x.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+        assert y.neural_type.compare(NeuralType(('B',), ChannelType())) == NeuralTypeComparisonResult.SAME
+
+        x = obj.train_forward(x=x)
+
+        assert torch.all(x == 9)
+        assert x.neural_type.compare(NeuralType(('B',), ElementType())) == NeuralTypeComparisonResult.SAME
+
+        # In train func, call eval signature
+        with pytest.raises(TypeError):
+            _ = obj.train_forward(x=x, y=y)
+
+        with pytest.raises(TypeError):
+            # wrong input + wrong mode
             _ = obj.infer_forward(x=x)
 
     @pytest.mark.unit
@@ -464,3 +657,52 @@ class TestNeuralTypeCheckSystem:
 
         # Test passing wrong key for input
         _ = obj(a=torch.zeros(10), x=torch.zeros(5))
+
+        # Re-enable type checking
+        typecheck.set_typecheck_enabled(enabled=True)
+
+    @pytest.mark.pleasefixme
+    @pytest.mark.unit
+    def test_nested_shape_mismatch(self):
+        class NestedShapeMismatch(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('D',), ElementType())}  # Each element of nest will have 4 values
+
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('D',), ElementType())}  # Each element of nest will have 4 values
+
+            @typecheck()
+            def __call__(self, x):
+                # v-- this is to satisfy 1 output constraint, python will otherwise interpret x as a 3 output value
+                return (x,)
+
+        def bb(dim=4):
+            return torch.zeros(dim)
+
+        obj = NestedShapeMismatch()
+
+        # Arbitrary nest 1
+        data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
+        result = obj(x=data)
+
+        recursive_assert_shape(result, torch.Size([4]))
+        recursive_assert_homogeneous_type(result, NeuralType(('D',), ElementType()))
+
+        # Arbitrary nest 2
+        def bb(dim=4):
+            return torch.zeros(dim, dim)
+
+        data = [[bb(), bb(), bb()], [bb()], [bb(), bb()]]
+        # Fails since input shape is incorrect
+        with pytest.raises(TypeError):
+            _ = obj(x=data)
+
+        # Arbitrary nest 3
+        def bb(dim=4):
+            return torch.zeros(dim)
+
+        data = [[[bb(), bb(), bb()]], [[bb()], [bb(), bb()]]]
+        # TODO> THIS FINAL CHECK SHOULD FAIL !
+        result = obj(x=data)
