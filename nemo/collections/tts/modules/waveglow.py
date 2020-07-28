@@ -131,9 +131,9 @@ class WaveGlowModule(NeuralModule):
     def output_types(self):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             return {
-                "pred_normal_dist": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
-                "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+                "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
+                "log_s_list": NeuralType(('B', 'flowgroup', 'T'), VoidType()),  # TODO: Figure out a good typing
+                "log_det_W_list": NeuralType(elements_type=VoidType()),  # TODO: Figure out a good typing
                 "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
             }
         else:

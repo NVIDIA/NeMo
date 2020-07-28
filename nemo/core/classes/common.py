@@ -181,7 +181,7 @@ class Typing(ABC):
                         )
             else:
                 for ind, res in enumerate(out_objects):
-                    self.__attach_neural_type(res, out_types_list[ind][1])
+                    self.__attach_neural_type(res, out_types_list[ind][1], name=out_types_list[ind][0])
 
     def __check_neural_type(self, obj, type_val):
         if isinstance(obj, tuple) or isinstance(obj, list):
@@ -211,10 +211,10 @@ class Typing(ABC):
                     f"Input shape found : {value_shape}"
                 )
 
-    def __attach_neural_type(self, obj, type_val):
+    def __attach_neural_type(self, obj, type_val, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
-                self.__attach_neural_type(elem, type_val)
+                self.__attach_neural_type(elem, type_val, name=name)
             return  # after processing nest, return to avoid argument insertion into nest itself
 
         try:
@@ -229,7 +229,7 @@ class Typing(ABC):
 
             if type_shape is not None and len(value_shape) != len(type_shape):
                 raise TypeError(
-                    f"Output shape mismatch occured : \n"
+                    f"Output shape mismatch occured for {name} in module {str(self)} : \n"
                     f"Output shape expected = {type_shape} | \n"
                     f"Output shape found : {value_shape}"
                 )

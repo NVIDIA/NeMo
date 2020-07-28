@@ -38,9 +38,9 @@ class WaveGlowLoss(Loss):
     @property
     def input_types(self):
         return {
-            "z": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
-            "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
-            "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+            "z": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
+            "log_s_list": NeuralType(('B', 'flowgroup', 'T'), VoidType()),  # TODO: Figure out a good typing
+            "log_det_W_list": NeuralType(elements_type=VoidType()),  # TODO: Figure out a good typing
             "sigma": NeuralType(optional=True),
         }
 
@@ -120,9 +120,9 @@ class WaveGlowModel(ModelPT):
     def output_types(self):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             output_dict = {
-                "z": NeuralType(('B', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
-                "log_det_W_list": NeuralType(('B'), VoidType()),  # TODO: Figure out a good typing
+                "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
+                "log_s_list": NeuralType(('B', 'flowgroup', 'T'), VoidType()),  # TODO: Figure out a good typing
+                "log_det_W_list": NeuralType(elements_type=VoidType()),  # TODO: Figure out a good typing
             }
             if self.mode == OperationMode.validation:
                 output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
