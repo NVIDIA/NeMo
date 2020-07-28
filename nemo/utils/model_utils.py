@@ -40,7 +40,7 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
         A str representing the `key` of the config which hosts the filepath(s),
         or None in case path could not be resolved.
     """
-    if hasattr(cfg, 'ds_name'):
+    if hasattr(cfg, 'ds_name') and cfg.ds_name is not None:
         return 'ds_name'
 
     for key, value in cfg.items():
