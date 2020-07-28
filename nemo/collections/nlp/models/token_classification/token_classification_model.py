@@ -54,36 +54,39 @@ class TokenClassificationModel(ModelPT):
             data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
         )
         self.data_dir = cfg.dataset.data_dir
-        self.model_cfg = cfg
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=cfg.language_model.vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
+            vocab_file=self.register_artifact(
+                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
+            ),
+            tokenizer_model=self.register_artifact(
+                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
+            ),
             do_lower_case=cfg.language_model.do_lower_case,
         )
-
+        # After this line self._cfg == cfg
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            pretrained_model_name=self._cfg.language_model.pretrained_model_name,
+            config_file=self._cfg.language_model.bert_config,
+            checkpoint_file=self._cfg.language_model.bert_checkpoint,
         )
         self.hidden_size = self.bert_model.config.hidden_size
 
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.data_desc.num_classes,
-            num_layers=cfg.head.num_fc_layers,
-            activation=cfg.head.activation,
-            log_softmax=cfg.head.log_softmax,
-            dropout=cfg.head.fc_dropout,
-            use_transformer_init=cfg.head.use_transformer_init,
+            num_layers=self._cfg.head.num_fc_layers,
+            activation=self._cfg.head.activation,
+            log_softmax=self._cfg.head.log_softmax,
+            dropout=self._cfg.head.fc_dropout,
+            use_transformer_init=self._cfg.head.use_transformer_init,
         )
 
-        if cfg.dataset.class_balancing == 'weighted_loss':
+        if self._cfg.dataset.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
         else:
@@ -94,7 +97,7 @@ class TokenClassificationModel(ModelPT):
             self.data_desc.num_classes, label_ids=self.data_desc.label_ids
         )
         # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
+        self.setup_optimization(self._cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -181,14 +184,14 @@ class TokenClassificationModel(ModelPT):
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=self.model_cfg.dataset.max_seq_length,
+            max_seq_length=self._cfg.dataset.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
             label_ids=self.data_desc.label_ids,
-            ignore_extra_tokens=self.model_cfg.dataset.ignore_extra_tokens,
-            ignore_start_end=self.model_cfg.dataset.ignore_start_end,
-            use_cache=self.model_cfg.dataset.use_cache,
+            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
+            ignore_start_end=self._cfg.dataset.ignore_start_end,
+            use_cache=self._cfg.dataset.use_cache,
         )
 
         return torch.utils.data.DataLoader(
