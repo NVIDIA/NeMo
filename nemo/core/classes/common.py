@@ -15,13 +15,17 @@
 
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from typing import Dict, Optional
 
 import hydra
 import wrapt
 from omegaconf import DictConfig, OmegaConf
 
+import nemo
+from nemo import logging
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
+from nemo.utils.cloud import maybe_download_from_cloud
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
@@ -182,12 +186,13 @@ class Serialization(ABC):
     @classmethod
     def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
-        if 'cls' in config and 'params' in config:
+        if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
             instance = cls(cfg=config)
+
         if not hasattr(instance, '_cfg'):
             instance._cfg = config
         return instance
@@ -246,6 +251,9 @@ class FileIO(ABC):
             raise NotImplementedError()
 
 
+PretrainedModelInfo = namedtuple("PretrainedModelInfo", ("pretrained_model_name", "description", "location"),)
+
+
 class Model(Typing, Serialization, FileIO):
     """
     Abstract class offering interface which should be implemented by all NeMo models.
@@ -253,27 +261,45 @@ class Model(Typing, Serialization, FileIO):
 
     @classmethod
     @abstractmethod
-    def list_available_models(cls) -> Optional[Dict[str, str]]:
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
         """
         Should list all pre-trained models available via NVIDIA NGC cloud
 
         Returns:
-            A dictionary of NeMo model key name -> NGC wget URI
+            A list of PretrainedModelInfo entries
         """
         pass
 
     @classmethod
-    @abstractmethod
-    def from_pretrained(cls, name: str):
+    def from_pretrained(cls, model_name: str, refresh_cache: bool = False):
         """
         Instantiates an instance of NeMo from NVIDIA NGC cloud
         Args:
-            name: string key which will be used to find the module. Could be path to local .nemo file.
-
+            model_name: string key which will be used to find the module. Could be path to local .nemo file.
+            refresh_cache: If set to True, then when fetching from cloud, this will re-fetch the file
+                from cloud even if it is already found in a cache locally.
         Returns:
-            A model instance of a class derived from INMModelAPI
+            A model instance of a particular model class
         """
-        pass
+        location_in_the_cloud = None
+        if cls.list_available_models() is not None:
+            for pretrained_model_info in cls.list_available_models():
+                if pretrained_model_info.pretrained_model_name == model_name:
+                    location_in_the_cloud = pretrained_model_info.location
+        if location_in_the_cloud is None:
+            raise FileNotFoundError(
+                f"Model {model_name} was not found. Check cls.list_available_models() for the list of all available models."
+            )
+        filename = location_in_the_cloud.split("/")[-1]
+        url = location_in_the_cloud.replace(filename, "")
+        cache_subfolder = f"NEMO_{nemo.__version__}"
+        # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
+        nemo_model_file_in_cache = maybe_download_from_cloud(
+            url=url, filename=filename, subfolder=cache_subfolder, refresh_cache=refresh_cache
+        )
+        logging.info("Instantiating model from pre-trained checkpoint")
+        instance = cls.restore_from(restore_path=nemo_model_file_in_cache)
+        return instance
 
     @abstractmethod
     def export(self, **kwargs):
