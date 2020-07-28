@@ -68,6 +68,7 @@ class Tacotron2Loss(Loss):
             "mel_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
             "gate_target": NeuralType(('B', 'T'), LogitsType()),
             "target_len": NeuralType(('B'), LengthsType()),
+            "pad_value": NeuralType(),
         }
 
     @property
@@ -77,9 +78,7 @@ class Tacotron2Loss(Loss):
         }
 
     @typecheck()
-    def forward(
-        self, *, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len,
-    ):
+    def forward(self, *, mel_out, mel_out_postnet, gate_out, mel_target, gate_target, target_len, pad_value):
         mel_target.requires_grad = False
         gate_target.requires_grad = False
         gate_target = gate_target.view(-1, 1)
@@ -95,16 +94,16 @@ class Tacotron2Loss(Loss):
         elif max_len > mel_out.shape[2]:
             # Need to do padding
             pad_amount = max_len - mel_out.shape[2]
-            mel_out = pad(mel_out, (0, pad_amount), value=self.pad_value)
-            mel_out_postnet = pad(mel_out_postnet, (0, pad_amount), value=self.pad_value)
+            mel_out = pad(mel_out, (0, pad_amount), value=pad_value)
+            mel_out_postnet = pad(mel_out_postnet, (0, pad_amount), value=pad_value)
             gate_out = pad(gate_out, (0, pad_amount), value=1e3)
             max_len = mel_out.shape[2]
 
         mask = ~get_mask_from_lengths(target_len, max_len=max_len)
         mask = mask.expand(mel_target.shape[1], mask.size(0), mask.size(1))
         mask = mask.permute(1, 0, 2)
-        mel_out.data.masked_fill_(mask, self.pad_value)
-        mel_out_postnet.data.masked_fill_(mask, self.pad_value)
+        mel_out.data.masked_fill_(mask, pad_value)
+        mel_out_postnet.data.masked_fill_(mask, pad_value)
         gate_out.data.masked_fill_(mask[:, 0, :], 1e3)
 
         gate_out = gate_out.view(-1, 1)
@@ -196,6 +195,7 @@ class Tacotron2Model(ModelPT):
             mel_target=spec,
             gate_target=gate_padded,
             target_len=spec_len,
+            pad_value=self.pad_value,
         )
 
         output = {
@@ -218,6 +218,7 @@ class Tacotron2Model(ModelPT):
             mel_target=spec,
             gate_target=gate_padded,
             target_len=spec_len,
+            pad_value=self.pad_value,
         )
         return {
             "loss": loss,
