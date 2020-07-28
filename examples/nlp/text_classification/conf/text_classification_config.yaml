@@ -56,7 +56,7 @@ model:
   language_model:
     pretrained_model_name: roberta-base
     tokenizer: nemobert # 'nemobert' or 'sentencepiece'
-    checkpoint_file: null # the path of a checkpoint file of a BERT-like model if a customized checkpoint is supposed to be used
+    bert_checkpoint file: null # the path of a checkpoint file of a BERT-like model if a customized checkpoint is supposed to be used
     bert_config: null
     vocab_file: null
     tokenizer_model: null # only used if tokenizer is sentencepiece

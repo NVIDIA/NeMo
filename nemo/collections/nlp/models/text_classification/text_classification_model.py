@@ -69,7 +69,7 @@ class TextClassificationModel(ModelPT):
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.checkpoint_file,
+            checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
         self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = SequenceClassifier(
@@ -167,7 +167,7 @@ class TextClassificationModel(ModelPT):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         input_file = cfg.file_name  # os.path.join(self.dataset_cfg.data_dir, f"{cfg.file_name}")
