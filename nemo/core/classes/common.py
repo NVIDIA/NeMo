@@ -16,7 +16,8 @@
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Dict, Optional
+from enum import Enum
+from typing import Dict, Optional, Union
 
 import hydra
 import wrapt
@@ -55,7 +56,7 @@ class Typing(ABC):
         """Define these to enable output neural type checks"""
         return None
 
-    def _validate_input_types(self, **kwargs):
+    def _validate_input_types(self, input_types=None, **kwargs):
         """
         This function does a few things.
         1) It ensures that len(kwargs) == len(self.input_types).
@@ -70,49 +71,63 @@ class Typing(ABC):
                 of the nested structure, recursively.
 
         Args:
+            input_types: Either the `input_types` defined at class level, or the local function
+                overridden type definition.
             kwargs: Dictionary of argument_name:argument_value pairs passed to the wrapped
                 function upon call.
         """
         # TODO: Properly implement this
-        if self.input_types is not None:
-            total_input_types = len(self.input_types)
+        if input_types is not None:
+            total_input_types = len(input_types)
             mandatory_input_types = len(
-                [type_val for type_key, type_val in self.input_types.items() if not type_val.optional]
+                [type_val for type_key, type_val in input_types.items() if not type_val.optional]
             )
 
             if len(kwargs) != total_input_types:
                 if len(kwargs) != mandatory_input_types:
                     raise TypeError(
                         "Number of input arguments provided ({}) is not as expected ({})".format(
-                            len(kwargs), len(self.input_types)
+                            len(kwargs), len(input_types)
                         )
                     )
 
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
-                if key not in self.input_types:
+                if key not in input_types:
                     raise TypeError(
                         f"Input argument {key} has no corresponding input_type match. "
-                        f"Existing input_types = {self.input_types.keys()}"
+                        f"Existing input_types = {input_types.keys()}"
                     )
 
                 # Perform neural type check
-                if hasattr(value, 'neural_type') and not self.input_types[key].compare(value.neural_type) in (
+                if hasattr(value, 'neural_type') and not input_types[key].compare(value.neural_type) in (
                     NeuralTypeComparisonResult.SAME,
                     NeuralTypeComparisonResult.GREATER,
                 ):
                     raise TypeError(
-                        f"{self.input_types[key].compare(value.neural_type)} : \n"
-                        f"Input type expected = {self.input_types[key]} | \n"
+                        f"{input_types[key].compare(value.neural_type)} : \n"
+                        f"Input type expected = {input_types[key]} | \n"
                         f"Input type found : {value.neural_type}"
                     )
+
+                # Perform input ndim check
+                if hasattr(value, 'shape'):
+                    value_shape = value.shape
+                    type_shape = input_types[key].axes
+
+                    if type_shape is not None and len(value_shape) != len(type_shape):
+                        raise TypeError(
+                            f"Input shape mismatch occured : \n"
+                            f"Input shape expected = {input_types[key].axes} | \n"
+                            f"Input shape found : {value_shape}"
+                        )
 
                 # Perform recursive neural type check for homogeneous elements
                 elif isinstance(value, list) or isinstance(value, tuple):
                     for ind, val in enumerate(value):
-                        self.__check_neural_type(val, self.input_types[key])
+                        self.__check_neural_type(val, input_types[key])
 
-    def _attach_and_validate_output_types(self, out_objects):
+    def _attach_and_validate_output_types(self, out_objects, output_types=None):
         """
         This function does a few things.
         1) It ensures that len(out_object) == len(self.output_types).
@@ -125,11 +140,13 @@ class Typing(ABC):
             called prior to forward().
 
         Args:
+            output_types: Either the `output_types` defined at class level, or the local function
+                overridden type definition.
             out_objects: The outputs of the wrapped function.
         """
         # TODO: Properly implement this
-        if self.output_types is not None:
-            out_types_list = list(self.output_types.items())
+        if output_types is not None:
+            out_types_list = list(output_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
             if type(out_objects) in (list, tuple):
@@ -137,10 +154,10 @@ class Typing(ABC):
             else:
                 out_container = [out_objects]
 
-            if len(self.output_types) != len(out_container):
+            if len(output_types) != len(out_container):
                 raise TypeError(
                     "Number of output arguments provided ({}) is not as expected ({})".format(
-                        len(out_container), len(self.output_types)
+                        len(out_container), len(output_types)
                     )
                 )
 
@@ -150,6 +167,18 @@ class Typing(ABC):
                     out_objects.neural_type = out_types_list[0][1]
                 except Exception:
                     pass
+
+                # Perform output ndim check
+                if hasattr(out_objects, 'shape'):
+                    value_shape = out_objects.shape
+                    type_shape = out_types_list[0][1].axes
+
+                    if type_shape is not None and len(value_shape) != len(type_shape):
+                        raise TypeError(
+                            f"Output shape mismatch occured : \n"
+                            f"Output shape expected = {type_shape} | \n"
+                            f"Output shape found : {value_shape}"
+                        )
             else:
                 for ind, res in enumerate(out_objects):
                     self.__attach_neural_type(res, out_types_list[ind][1])
@@ -170,6 +199,18 @@ class Typing(ABC):
                 f"Input type found : {obj.neural_type}"
             )
 
+        # Perform input ndim check
+        if hasattr(obj, 'shape'):
+            value_shape = obj.shape
+            type_shape = type_val.axes
+
+            if type_shape is not None and len(value_shape) != len(type_shape):
+                raise TypeError(
+                    f"Input shape mismatch occured : \n"
+                    f"Input shape expected = {type_shape} | \n"
+                    f"Input shape found : {value_shape}"
+                )
+
     def __attach_neural_type(self, obj, type_val):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
@@ -180,6 +221,18 @@ class Typing(ABC):
             obj.neural_type = type_val
         except Exception:
             pass
+
+        # Perform output ndim check
+        if hasattr(obj, 'shape'):
+            value_shape = obj.shape
+            type_shape = type_val.axes
+
+            if type_shape is not None and len(value_shape) != len(type_shape):
+                raise TypeError(
+                    f"Output shape mismatch occured : \n"
+                    f"Output shape expected = {type_shape} | \n"
+                    f"Output shape found : {value_shape}"
+                )
 
 
 class Serialization(ABC):
@@ -314,7 +367,20 @@ class Model(Typing, Serialization, FileIO):
 
 
 class typecheck:
-    def __init__(self):
+    class TypeState(Enum):
+        """
+        Placeholder to denote the default value of type information provided.
+        If the constructor of this decorator is used to override the class level type definition,
+        this enum value indicate that types will be overridden.
+        """
+
+        UNINITIALIZED = 0
+
+    def __init__(
+        self,
+        input_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
+        output_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
+    ):
         """
         A decorator which performs input-output neural type checks, and attaches
         neural types to the output of the function that it wraps.
@@ -322,8 +388,13 @@ class typecheck:
         Requires that the class inherit from `nemo.core.Typing` in order to perform
         type checking, and will raise an error if that is not the case.
 
-        # Usage
+        # Usage (Class level type support)
         @typecheck()
+        def fn(self, arg1, arg2, ...):
+            ...
+
+        # Usage (Function level type support)
+        @typecheck(input_types=..., output_types=...)
         def fn(self, arg1, arg2, ...):
             ...
 
@@ -338,6 +409,18 @@ class typecheck:
             When you call this function, all arguments must be passed using kwargs only.
 
         """
+        self.input_types = input_types
+        self.output_types = output_types
+
+        if input_types == self.TypeState.UNINITIALIZED:
+            self.input_override = False
+        else:
+            self.input_override = True
+
+        if output_types == self.TypeState.UNINITIALIZED:
+            self.output_override = False
+        else:
+            self.output_override = True
 
     @wrapt.decorator(enabled=is_typecheck_enabled)
     def __call__(self, wrapped, instance: Typing, args, kwargs):
@@ -353,21 +436,39 @@ class typecheck:
                 "not `input_ports() and `output_ports()`"
             )
 
+        # Preserve type information
+        if self.input_types is typecheck.TypeState.UNINITIALIZED:
+            self.input_types = instance.input_types
+
+        if self.output_types is typecheck.TypeState.UNINITIALIZED:
+            self.output_types = instance.output_types
+
+        # Resolve global type or local overridden type
+        if self.input_override:
+            input_types = self.input_types
+        else:
+            input_types = instance.input_types
+
+        if self.output_override:
+            output_types = self.output_types
+        else:
+            output_types = instance.output_types
+
         # If types are not defined, skip type checks and just call the wrapped method
-        if instance.input_types is None and instance.output_types is None:
+        if input_types is None and output_types is None:
             return wrapped(*args, **kwargs)
 
         # Check that all arguments are kwargs
-        if instance.input_types is not None and len(args) > 0:
+        if input_types is not None and len(args) > 0:
             raise TypeError("All arguments must be passed by kwargs only for typed methods")
 
         # Perform rudimentary input checks here
-        instance._validate_input_types(**kwargs)
+        instance._validate_input_types(input_types=input_types, **kwargs)
 
         # Call the method - this can be forward, or any other callable method
         outputs = wrapped(*args, **kwargs)
 
-        instance._attach_and_validate_output_types(outputs)
+        instance._attach_and_validate_output_types(output_types=output_types, out_objects=outputs)
 
         return outputs
 
