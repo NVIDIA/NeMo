@@ -24,8 +24,6 @@ model:
     labels: *labels
     batch_size: 32
     shuffle: False
-    is_tarred: False
-    tarred_audio_filepaths: null
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
