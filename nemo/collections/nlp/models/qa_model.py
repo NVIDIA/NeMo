@@ -203,9 +203,6 @@ class QAModel(ModelPT):
     def export(self, **kwargs):
         pass
 
-    def save_to(self, save_path: str):
-        pass
-
     def restore_from(self, restore_path: str):
         if restore_path:
             logging.info(f"restore from {restore_path}")

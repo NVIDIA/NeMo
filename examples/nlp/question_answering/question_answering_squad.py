@@ -30,6 +30,7 @@ def main(cfg: DictConfig) -> None:
     question_answering_model = QAModel(cfg.model, trainer=trainer)
     question_answering_model.restore_from(cfg.model.language_model.bert_checkpoint)
     trainer.fit(question_answering_model)
+    question_answering_model.save_to(cfg.exp_manager.root_dir + "/model.nemo")
 
 
 if __name__ == '__main__':
