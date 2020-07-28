@@ -20,6 +20,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
@@ -42,12 +43,6 @@ class EncDecSpeakerLabelModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        # if 'cls' not in cfg:
-        #     # This is for Jarvis service. Adding here for now to avoid effects of decorators
-        #     OmegaConf.set_struct(cfg, False)
-        #     cfg.cls = 'nemo.collections.asr.models.EncDecSpeakerLabelModel'
-        #     OmegaConf.set_struct(cfg, True)
-
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
@@ -55,7 +50,14 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.loss = CELoss()
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+
+        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False),
+        augmentor=augmentor
+        )
         self.dataset = AudioToSpeechLabelDataSet(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],

@@ -13,6 +13,12 @@ model:
     batch_size: 64 
     shuffle: True
     time_length: 8
+    augmentor:
+            noise:
+                    prob: 0.2
+                    manifest_path: '/data/manifests/musan/musan_music_noise_manifest.json'
+                    min_snr_db: 5
+                    max_snr_db: 15
 
   validation_ds:
     manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
