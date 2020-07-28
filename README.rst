@@ -34,7 +34,7 @@ Installation
 
 * Docker container installation from NGC: https://ngc.nvidia.com/catalog/containers/nvidia:nemo
 
-* `Documentation <https://readthedocs.com/projects/nvidia-nemo/badge/?version=v0.11.0/>`_
+* `Documentation <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.11.0/>`_
 
 * NVIDIA `Developer Blog <https://devblogs.nvidia.com/announcing-nemo-fast-development-of-speech-and-language-models/>`_
 
