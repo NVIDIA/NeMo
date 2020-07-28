@@ -129,7 +129,6 @@ pipeline {
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
-
         stage('Speech to Label') {
           steps {
             sh 'python examples/asr/speech_to_label.py \
@@ -159,8 +158,23 @@ pipeline {
         }
       }
     }
-    
 
+    stage('L2: ASR Checkponts tests') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('QuartzNet15x5Base-En') {
+          steps {
+                sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
+          }
+        }
+      }
+    }
 
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
