@@ -434,3 +434,33 @@ class TestNeuralTypeCheckSystem:
         with pytest.raises(TypeError):
             # wrong input + wrong mode
             _ = obj.infer_forward(x=x)
+
+    @pytest.mark.unit
+    def test_disable_typecheck(self):
+        class InputOutputTypes(Typing):
+            @property
+            def input_types(self):
+                return {"x": NeuralType(('B',), ElementType())}
+
+            @property
+            def output_types(self):
+                return {"y": NeuralType(('B',), ElementType())}
+
+            @typecheck()
+            def __call__(self, x, **kwargs):
+                x += 1
+                return x
+
+        # Disable typecheck tests
+        typecheck.set_typecheck_enabled(enabled=False)
+
+        obj = InputOutputTypes()
+
+        # Execute function without kwarg
+        result = obj(torch.zeros(10))
+
+        assert result.sum() == torch.tensor(10.0)
+        assert hasattr(result, 'neural_type') is False
+
+        # Test passing wrong key for input
+        _ = obj(a=torch.zeros(10), x=torch.zeros(5))

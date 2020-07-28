@@ -26,6 +26,16 @@ from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
 
 
+_TYPECHECK_ENABLED = True
+
+
+def is_typecheck_enabled():
+    """
+    Getter method for typechecking state.
+    """
+    return _TYPECHECK_ENABLED
+
+
 class Typing(ABC):
     """
     An interface which endows module with neural types
@@ -303,7 +313,7 @@ class typecheck:
 
         """
 
-    @wrapt.decorator
+    @wrapt.decorator(enabled=is_typecheck_enabled)
     def __call__(self, wrapped, instance: Typing, args, kwargs):
         if instance is None:
             raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
@@ -334,3 +344,8 @@ class typecheck:
         instance._attach_and_validate_output_types(outputs)
 
         return outputs
+
+    @staticmethod
+    def set_typecheck_enabled(enabled: bool = True):
+        global _TYPECHECK_ENABLED
+        _TYPECHECK_ENABLED = enabled
