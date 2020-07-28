@@ -62,10 +62,14 @@ class TextClassificationModel(ModelPT):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.data_desc = TextClassificationDataDesc(train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name])
+        self.data_desc = TextClassificationDataDesc(
+            train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name]
+        )
 
         self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config, checkpoint_file=cfg.language_model.checkpoint_file
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config,
+            checkpoint_file=cfg.language_model.checkpoint_file,
         )
         self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = SequenceClassifier(
@@ -139,7 +143,7 @@ class TextClassificationModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        #if outputs: # TODO: Check why need this?
+        # if outputs: # TODO: Check why need this?
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report
@@ -166,7 +170,7 @@ class TextClassificationModel(ModelPT):
         self._test_dl = self.__setup_dataloader(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = cfg.file_name #os.path.join(self.dataset_cfg.data_dir, f"{cfg.file_name}")
+        input_file = cfg.file_name  # os.path.join(self.dataset_cfg.data_dir, f"{cfg.file_name}")
         if not os.path.exists(input_file):
             raise FileNotFoundError(
                 f'{input_file} not found! The data should be be stored in TAB-separated files \n\
@@ -193,7 +197,7 @@ class TextClassificationModel(ModelPT):
             num_workers=self.dataset_cfg.get("num_workers", 2),
             pin_memory=self.dataset_cfg.get("pin_memory", False),
             drop_last=self.dataset_cfg.get("drop_last", False),
-            collate_fn=dataset.collate_fn, # it is necessary for type checking to be working even if collate_fn is not used
+            collate_fn=dataset.collate_fn,  # it is necessary for type checking to be working even if collate_fn is not used
         )
 
     @classmethod

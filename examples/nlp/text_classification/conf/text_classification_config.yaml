@@ -28,6 +28,7 @@ trainer:
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  row_log_interval: 10
 
 model:
   dataset:
@@ -46,7 +47,7 @@ model:
     num_samples: -1
 
   validation_ds:
-    file_name: ???
+    file_name: null
     batch_size: 32
     shuffle: false
     num_samples: -1
@@ -65,29 +66,25 @@ model:
 
   optim:
     name: adam
+    # cls: nemo.core.optim.optimizers.Novograd
     lr: 2e-5
-    args:
-      name: auto
-      params:
-        weight_decay: 0.01
+    # optimizer arguments
+    betas: [0.9, 0.999]
+    weight_decay: 0.01
 
+    # scheduler setup
     sched:
       name: WarmupAnnealing
-      max_steps: null # computed at runtime or explicitly set here
-      iters_per_batch: null # computed at runtime
+
+      # Scheduler params
+      warmup_steps: null
+      warmup_ratio: 0.1
+      min_lr: 0.0
+      last_epoch: -1
 
       # pytorch lightning args
       monitor: val_loss
       reduce_on_plateau: false
-
-      # scheduler config override
-      args:
-        name: auto
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.1
-          last_epoch: -1
-
 
 exp_manager:
   root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
