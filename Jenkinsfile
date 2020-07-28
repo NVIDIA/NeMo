@@ -225,7 +225,7 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.language_model.do_lower_case=true \
+            model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
             model.version_2_with_negative=false \
             trainer.precision=16 \
@@ -243,7 +243,7 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.do_lower_case=true \
+            model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
             model.version_2_with_negative=true \
             trainer.precision=16 \

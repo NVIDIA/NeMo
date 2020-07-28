@@ -52,7 +52,6 @@ __all__ = [
     'fill_class_weights',
     'calc_class_weights',
     'normalize_answer',
-    'get_tokens',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -104,12 +103,6 @@ def normalize_answer(s):
         return text.lower()
 
     return white_space_fix(remove_articles(remove_punc(lower(s))))
-
-
-def get_tokens(s):
-    if not s:
-        return []
-    return normalize_answer(s).split()
 
 
 def get_label_stats(labels, outfile='stats.tsv'):

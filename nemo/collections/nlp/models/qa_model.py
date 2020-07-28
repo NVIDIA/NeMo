@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from nemo import logging
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.qa_dataset import SquadDataset
+from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
