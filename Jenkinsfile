@@ -169,6 +169,7 @@ pipeline {
       failFast true
       parallel {
         stage('BERT SQUAD 1.1') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
@@ -176,8 +177,8 @@ pipeline {
             model.train_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.validation_ds.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
+            model.train_ds.batch_size=8 \
+            model.validation_ds.batch_size=8 \
             trainer.max_epochs=None \
             +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
@@ -185,21 +186,22 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            +trainer.num_sanity_val_steps=1000 \
+            trainer.num_sanity_val_steps=1000 \
             exp_manager.root_dir=exp_bert_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
           }
         }
         stage('BERT SQUAD 2.0') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.train_ds.use_cache=false \
             model.validation_ds.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
+            model.train_ds.batch_size=8 \
+            model.validation_ds.batch_size=8 \
             trainer.max_epochs=None \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
@@ -208,7 +210,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            +trainer.num_sanity_val_steps=1000 \
+            trainer.num_sanity_val_steps=1000 \
             exp_manager.root_dir=exp_bert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
@@ -227,15 +229,17 @@ pipeline {
       failFast true
       parallel {
         stage('RoBERTa SQUAD 1.1') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.train_ds.use_cache=false \
             model.validation_ds.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            trainer.max_epochs=-1 \
+            model.train_ds.batch_size=8 \
+            model.validation_ds.batch_size=8 \
+            trainer.max_epochs=None \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
@@ -243,22 +247,24 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            +trainer.fast_dev_run=True \
+            trainer.num_sanity_val_steps=1000 \
             exp_manager.root_dir=exp_roberta_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
           }
         }
         stage('RoBERTa SQUAD 2.0') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.train_ds.use_cache=false \
             model.validation_ds.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.validation_ds.batch_size=2 \
-            trainer.max_epochs=-1 \
+            model.train_ds.batch_size=8 \
+            model.validation_ds.batch_size=8 \
+            trainer.max_epochs=None \
+            +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
@@ -266,7 +272,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            +trainer.fast_dev_run=True \
+            trainer.num_sanity_val_steps=1000 \
             exp_manager.root_dir=exp_roberta_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
