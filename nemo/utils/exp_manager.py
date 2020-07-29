@@ -38,6 +38,7 @@ class ExpManagerConfig:
     name: str = MISSING
     root_dir: Optional[str] = None
     create_tensorboard_logger: Optional[bool] = True
+    summary_writter_kwargs: Optional[Dict] = None
     create_checkpoint_callback: Optional[bool] = True
     files_to_copy: Optional[List[str]] = None
     wandb_exp: Optional[str] = None
@@ -106,71 +107,33 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             "You are running multi-gpu without ddp.Please note that this is not tested in NeMo and could result in "
             "errors."
         )
-    # Default root_dir to ./NeMo_experiments if None was passed
-    _root_dir = cfg.root_dir
-    if cfg.root_dir is None:
-        _root_dir = str(Path.cwd() / 'NeMo_experiments')
-    # If the user has already defined a logger for the trainer, use the logger defaults for logging directory
-    if trainer.logger is not None:
-        if trainer.logger.save_dir:
-            if cfg.root_dir:
-                raise ValueError(
-                    "The pytorch lightning trainer that was passed to exp_manager contained a logger, the logger's "
-                    f"save_dir was not None, and root_dir ({cfg.root_dir}) was not None. If trainer.logger.save_dir "
-                    "exists, exp_manager will use trainer.logger.save_dir as the logging directory and root_dir "
-                    "must be None."
-                )
-            _root_dir = trainer.logger.save_dir
-        if cfg.name:
-            raise ValueError(
-                "The pytorch lightning trainer that was passed to exp_manager contained a logger, and name "
-                f"({cfg.name}) was also passed to exp_manager. If the trainer contains a logger, exp_manager will use "
-                "trainer.logger.name, and name that is passed to exp_manager must be None."
-            )
-        if cfg.create_tensorboard_logger:
-            raise ValueError(
-                "The pytorch lightning trainer that was passed to exp_manager contained a logger, and "
-                "create_tensorboard_logger was set to True. create_tensorboard_logger can only be used if trainer "
-                "does not already have a logger."
-            )
-        name = trainer.logger.name
-        version = trainer.logger.version
-    else:
-        version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
-        if trainer.is_slurm_managing_tasks:
-            logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
-        elif is_global_rank_zero():
-            version = time.strftime('%Y-%m-%d_%H-%M-%S')
-            os.environ[NEMO_ENV_VARNAME_DATETIME] = version
 
-        name = cfg.name
-        if name is None:
-            name = "default"
+    _root_dir, name, version = get_log_dir(cfg.root_dir, trainer, cfg.name, cfg.create_tensorboard_logger)
+    log_dir = Path(_root_dir / name / version)
 
-    # Always create TensorBoardLogger, so we can retrieve version if running on slurm
-    tensorboard_logger = TensorBoardLogger(save_dir=_root_dir, name=name, version=version)
+    # Potentially create tensorboard logger and/or WandBLogger
+    logger_list = []
     if cfg.create_tensorboard_logger:
-        # Attach logger to trainer
-        trainer.configure_logger(tensorboard_logger)
-    if version is None:
-        version = tensorboard_logger.version
+        summary_writter_kwargs = {}
+        if cfg.summary_writter_kwargs is not None:
+            summary_writter_kwargs = cfg.summary_writter_kwargs
+        tensorboard_logger = TensorBoardLogger(
+            save_dir=_root_dir, name=name, version=version, **summary_writter_kwargs
+        )
+        logger_list.append(tensorboard_logger)
+        # TODO
 
-    # Potentially create a WandBLogger, if its arguments are provided
-    if hasattr(cfg, 'wandb_exp') and hasattr(cfg, 'wandb_project'):
-        if cfg.wandb_exp is not None and cfg.wandb_project is not None:
-            wandb_logger = WandbLogger(
-                name=cfg.wandb_exp, project=cfg.wandb_project, save_dir=_root_dir, version=version
-            )
+    if cfg.wandb_exp is not None and cfg.wandb_project is not None:
+        wandb_logger = WandbLogger(name=cfg.wandb_exp, project=cfg.wandb_project, save_dir=_root_dir, version=version)
 
-            logger_list = [tensorboard_logger, wandb_logger]
-            logger_list = LoggerList(logger_list)
+        logger_list = [tensorboard_logger, wandb_logger]
+        logger_list = LoggerList(logger_list)
 
-            trainer.configure_logger(logger_list)
+        trainer.configure_logger(logger_list)
 
-            logging.info("WandBLogger has been setup in addition to TensorboardLogger")
+        logging.info("WandBLogger has been setup in addition to TensorboardLogger")
 
     # Create the logging directory if it does not exist
-    log_dir = Path(_root_dir, name, version)
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
     logging.info(f'Experiments will be logged at {log_dir}')
     if cfg.create_checkpoint_callback:
@@ -223,7 +186,66 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     return log_dir
 
 
+def get_log_dir(root_dir, trainer, name, create_tensorboard_logger):
+    """
+    Obtains the log_dir used for exp_manager
+    """
+    # Default root_dir to ./NeMo_experiments if None was passed
+    _root_dir = root_dir
+    if root_dir is None:
+        _root_dir = str(Path.cwd() / 'NeMo_experiments')
+    # If the user has already defined a logger for the trainer, use the logger defaults for logging directory
+    if trainer.logger is not None:
+        if trainer.logger.save_dir:
+            if root_dir:
+                raise ValueError(
+                    "The pytorch lightning trainer that was passed to exp_manager contained a logger, the logger's "
+                    f"save_dir was not None, and root_dir ({root_dir}) was not None. If trainer.logger.save_dir "
+                    "exists, exp_manager will use trainer.logger.save_dir as the logging directory and root_dir "
+                    "must be None."
+                )
+            _root_dir = trainer.logger.save_dir
+        if name:
+            raise ValueError(
+                "The pytorch lightning trainer that was passed to exp_manager contained a logger, and name "
+                f"({name}) was also passed to exp_manager. If the trainer contains a logger, exp_manager will use "
+                "trainer.logger.name, and name that is passed to exp_manager must be None."
+            )
+        if create_tensorboard_logger:
+            raise ValueError(
+                "The pytorch lightning trainer that was passed to exp_manager contained a logger, and "
+                "create_tensorboard_logger was set to True. create_tensorboard_logger can only be used if trainer "
+                "does not already have a logger."
+            )
+        name = trainer.logger.name
+        version = trainer.logger.version
+    else:
+        version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
+        if trainer.is_slurm_managing_tasks:
+            logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
+        elif is_global_rank_zero():
+            version = time.strftime('%Y-%m-%d_%H-%M-%S')
+            os.environ[NEMO_ENV_VARNAME_DATETIME] = version
+
+        if name is None:
+            name = "default"
+
+        # Always create TensorBoardLogger, so we can retrieve version if running on slurm
+        tensorboard_logger = TensorBoardLogger(save_dir=_root_dir, name=name, version=version)
+        if version is None:
+            version = tensorboard_logger.version
+
+    return _root_dir, name, version
+
+
 def get_git_hash():
+    """
+    Helper function that tries to get the commit hash if running inside a git folder
+
+    returns:
+        Bool: Whether the git subprocess ran without error
+        str: git subprocess output or error message
+    """
     try:
         return (
             True,
@@ -234,6 +256,13 @@ def get_git_hash():
 
 
 def get_git_diff():
+    """
+    Helper function that tries to get the git diff if running inside a git folder
+
+    returns:
+        Bool: Whether the git subprocess ran without error
+        str: git subprocess output or error message
+    """
     try:
         return subprocess.check_output(['git', 'diff'], stderr=subprocess.STDOUT).decode()
     except subprocess.CalledProcessError as err:
