@@ -17,10 +17,7 @@
 
 import argparse
 import importlib
-import inspect
 import json
-import os
-import pkgutil
 
 import nemo
 from nemo.utils import logging
@@ -59,7 +56,7 @@ def main():
             exit(-2)
 
     # Instantiate Neural Factory - on CPU.
-    nf = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
+    _ = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
 
     # Get class  and module from the "full specification".
     class_name = input_dict["id"].rsplit('.', 1)[1]
