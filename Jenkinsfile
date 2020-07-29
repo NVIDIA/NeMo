@@ -159,23 +159,6 @@ pipeline {
       }
     }
 
-    stage('L2: ASR Checkponts tests') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-      parallel {
-        stage('QuartzNet15x5Base-En') {
-          steps {
-                sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
-          }
-        }
-      }
-    }
-
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -195,12 +178,13 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=2 \
             model.validation_ds.batch_size=2 \
-            trainer.max_epochs=1 \
+            trainer.max_epochs=-1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
             exp_manager.root_dir=exp_bert_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
@@ -215,13 +199,14 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=2 \
             model.validation_ds.batch_size=2 \
-            trainer.max_epochs=1 \
+            trainer.max_epochs=-1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
             exp_manager.root_dir=exp_bert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
@@ -248,7 +233,7 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=2 \
             model.validation_ds.batch_size=2 \
-            trainer.max_epochs=1 \
+            trainer.max_epochs=-1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
@@ -256,6 +241,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
             exp_manager.root_dir=exp_roberta_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
@@ -270,7 +256,7 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=2 \
             model.validation_ds.batch_size=2 \
-            trainer.max_epochs=1 \
+            trainer.max_epochs=-1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
@@ -278,6 +264,7 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
             exp_manager.root_dir=exp_roberta_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
@@ -313,6 +300,17 @@ pipeline {
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
         }
+        stage ('NER') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python ner.py \
+            model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
+            model.use_cache=false \
+            '
+          }
+        }
       }
     }
 
@@ -342,24 +340,6 @@ pipeline {
           sh 'rm -rf examples/nlp/lightning_logs'
         }
     }
-   stage('L2: NER') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-        steps {
-          sh 'cd examples/nlp/token_classification && \
-          python ner.py \
-          model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-          trainer.gpus=[0] \
-          +trainer.fast_dev_run=true \
-          model.use_cache=false \
-          '
-        }
-    }
 
     stage('L2: Punctuation and capitalization: DistilBert + MultiGPU') {
       when {
@@ -384,15 +364,17 @@ pipeline {
         }
     }
 
-     stage('L2: NER with cased Megatron') {
+     stage('L2: NER: Megatron') {
           when {
             anyOf{
               branch 'candidate'
               changeRequest target: 'candidate'
             }
-          }          
+          }
           failFast true
-          steps {
+          parallel {
+            stage ('NER with cased Megatron') {
+              steps {
                 sh 'cd examples/nlp/token_classification && \
                 python ner.py \
                 model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
@@ -402,29 +384,40 @@ pipeline {
                 model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
                 exp_manager.root_dir=exp_ner_megatron_bert_base_cased'
                 sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
-           }
-    }
-
-    stage('L2: NER with uncased Megatron') {
-          when {
-            anyOf{
-              branch 'candidate'
-              changeRequest target: 'candidate'
+             }
             }
-          }          
-          failFast true
-	  steps {
+            stage ('NER with uncased Megatron') {
+              steps {
                 sh 'cd examples/nlp/token_classification && \
                 python ner.py \
                 model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-                trainer.gpus=[0] \
+                trainer.gpus=[1] \
                 +trainer.fast_dev_run=true \
                 model.use_cache=false \
                 model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
                 exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
                 sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
+              }
+            }
           }
-     }
+    }
+
+    stage('L??: ASR Checkpoints tests') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('QuartzNet15x5Base-En') {
+          steps {
+                sh 'python examples/asr/speech_to_text_infer.py --asr_model=QuartzNet15x5Base-En --dataset=/home/TestData/librispeech/librivox-dev-other.json --wer_tolerance=0.1008'
+          }
+        }
+      }
+    }
   }
   post {
     always {
