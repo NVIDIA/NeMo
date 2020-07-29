@@ -237,7 +237,7 @@ class Tacotron2Model(ModelPT):
 
     def validation_epoch_end(self, outputs):
         tacotron2_log_to_tb_func(
-            self.logger.experiment, outputs[0].values(), self.global_step, tag="eval", log_images=True, add_audio=False
+            self.logger.experiment, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False
         )
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss}
