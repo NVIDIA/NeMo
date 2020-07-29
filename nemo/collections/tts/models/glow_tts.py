@@ -43,7 +43,7 @@ class GlowTTSModel(ModelPT):
 
         self.encoder = glow_tts.modules.TextEncoder(
             self.vocab_len,
-            cfg.data.n_mel_channels,
+            cfg.mel_channels,
             cfg.hidden_channels_enc or cfg.hidden_channels,
             cfg.filter_channels,
             cfg.filter_channels_dp,
@@ -57,7 +57,7 @@ class GlowTTSModel(ModelPT):
         )
 
         self.decoder = glow_tts.modules.FlowSpecDecoder(
-            cfg.data.n_mel_channels,
+            cfg.mel_channels,
             cfg.hidden_channels_dec or cfg.hidden_channels,
             cfg.kernel_size_dec,
             cfg.dilation_rate,
@@ -110,17 +110,12 @@ class GlowTTSModel(ModelPT):
             y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
             y_max_length = None
         else:
-            y, y_lengths = self.preprocessor(
-                input_signal=y, length=y_lengths,
-            )
+            y = self.preprocessor(y, y_lengths)
             # Spec augment is not applied during evaluation/testing
             if self.spec_augmentation is not None and self.training:
                 y = self.spec_augmentation(input_spec=y)
-
-
-
-
             y_max_length = y.size(2)
+
         y, y_lengths, y_max_length = self.preprocess(y, y_lengths, y_max_length)
         y_mask = torch.unsqueeze(
             glow_tts.parts.sequence_mask(y_lengths, y_max_length), 1
@@ -220,7 +215,7 @@ class GlowTTSModel(ModelPT):
             torch.sum(y_logs)
             + 0.5 * torch.sum(torch.exp(-2 * y_logs) * (z - y_m) ** 2)
             - logdet
-        ) / (torch.sum(y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz * self._cfg.data.n_mel_channels)
+        ) / (torch.sum(y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz * self._cfg.mel_channels)
         l_length = torch.sum((logw - logw_) ** 2) / torch.sum(x_lengths)
         return l_mle, l_length, logdet
 

@@ -1,7 +1,13 @@
 name: &name "GlowTTS"
-sample_rate: &sample_rate 22050
+sample_rate: &sr 22050
+n_fft: &n_fft 1024
+n_mels: &n_mels 80
+fmax: &fmax null
+n_stride: &n_window_stride 256
+pad_value: &pad_value -11.52
 
 model:
+  mel_channels: *n_mels
   hidden_channels: 192
   filter_channels: 768
   filter_channels_dp: 256
@@ -25,7 +31,7 @@ model:
 
   train_ds:
     manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_train.json
-    sample_rate: *sample_rate
+    sample_rate: *sr
     batch_size: 8
     trim_silence: True
     max_duration: 16.7
@@ -45,7 +51,7 @@ model:
 
   validation_ds:
     manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_val.json
-    sample_rate: *sample_rate
+    sample_rate: *sr
     batch_size: 8
     trim_silence: True
     max_duration: 16.7
@@ -54,18 +60,27 @@ model:
     cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
 
   preprocessor:
-    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    cls: nemo.collections.asr.parts.features.FilterbankFeatures
     params:
-      normalize: "per_feature"
-      window_size: 0.02
-      sample_rate: *sample_rate
-      window_stride: 0.01
-      window: "hann"
-      features: 80
-      n_fft: 512
+      dither: 0.0
+      nfilt: *n_mels
       frame_splicing: 1
-      dither: 0.00001
-      stft_conv: false
+      highfreq: *fmax
+      log: true
+      log_zero_guard_type: clamp
+      log_zero_guard_value: 1e-05
+      lowfreq: 0
+      mag_power: 1.0
+      n_fft: *n_fft
+      n_window_size: 1024
+      n_window_stride: *n_window_stride
+      normalize: null
+      pad_to: 16
+      pad_value: *pad_value
+      preemph: null
+      sample_rate: *sr
+      stft_conv: true
+      window: hann
 
   spec_augment:
     cls: nemo.collections.asr.modules.SpectrogramAugmentation
@@ -74,21 +89,6 @@ model:
       rect_masks: 5
       rect_time: 120
 
-  data:
-    load_mel_from_disk: false
-    text_cleaners:
-      - english_cleaners
-    max_wav_value: 32768
-    sampling_rate: *sample_rate
-    filter_length: 1024
-    hop_length: 256
-    win_length: 1024
-    n_mel_channels: 80
-    mel_fmin: 0
-    mel_fmax: 8000
-    add_noise: true
-    add_space: false
-    cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
 
   optim:
     name: adam

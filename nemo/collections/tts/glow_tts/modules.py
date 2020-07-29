@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 
-import nemo.collections.tts.glow_tts.parts as parts
+from . import parts
 
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import *
