@@ -19,9 +19,10 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
+from nemo import logging
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.qa_dataset import SquadDataset
+from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
@@ -40,7 +41,7 @@ class QAModel(ModelPT):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
+        return self.bert.input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -51,16 +52,18 @@ class QAModel(ModelPT):
         self.doc_stride = cfg.doc_stride
         self.max_query_length = cfg.max_query_length
         self.max_seq_length = cfg.max_seq_length
-
+        self.do_lower_case = cfg.do_lower_case
         self.tokenizer = get_tokenizer(
             pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
         )
+
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert_model = get_pretrained_lm_model(
+        self.bert = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
         )
-        self.hidden_size = self.bert_model.config.hidden_size
+
+        self.hidden_size = self.bert.config.hidden_size
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -78,9 +81,7 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
+        hidden_states = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 
@@ -89,7 +90,7 @@ class QAModel(ModelPT):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
 
-        tensorboard_logs = {'train_loss': loss}
+        tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
@@ -99,23 +100,75 @@ class QAModel(ModelPT):
             logits=logits, start_positions=start_positions, end_positions=end_positions
         )
 
-        return {'val_loss': loss}
+        eval_tensors = {
+            'unique_ids': unique_ids,
+            'start_logits': start_logits,
+            'end_logits': end_logits,
+        }
+        return {'val_loss': loss, 'eval_tensors': eval_tensors}
 
     def validation_epoch_end(self, outputs):
-        if outputs:
-            avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-            tensorboard_logs = {'val_loss': avg_loss}
-            return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        unique_ids = torch.cat([x['eval_tensors']['unique_ids'] for x in outputs])
+        start_logits = torch.cat([x['eval_tensors']['start_logits'] for x in outputs])
+        end_logits = torch.cat([x['eval_tensors']['end_logits'] for x in outputs])
+
+        all_unique_ids = []
+        all_start_logits = []
+        all_end_logits = []
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            for ind in range(world_size):
+                all_unique_ids.append(torch.empty_like(unique_ids))
+                all_start_logits.append(torch.empty_like(start_logits))
+                all_end_logits.append(torch.empty_like(end_logits))
+            torch.distributed.all_gather(all_unique_ids, unique_ids)
+            torch.distributed.all_gather(all_start_logits, start_logits)
+            torch.distributed.all_gather(all_end_logits, end_logits)
+        else:
+            all_unique_ids.append(unique_ids)
+            all_start_logits.append(start_logits)
+            all_end_logits.append(end_logits)
+
+        exact_match, f1, all_predictions, all_nbest = -1, -1, [], []
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+
+            unique_ids = []
+            start_logits = []
+            end_logits = []
+            for u in all_unique_ids:
+                unique_ids.extend(u.cpu().numpy().tolist())
+            for u in all_start_logits:
+                start_logits.extend(u.cpu().numpy().tolist())
+            for u in all_end_logits:
+                end_logits.extend(u.cpu().numpy().tolist())
+
+            exact_match, f1, all_predictions, all_nbest = self.validation_dataset.evaluate(
+                unique_ids=unique_ids,
+                start_logits=start_logits,
+                end_logits=end_logits,
+                n_best_size=self.validation_config.n_best_size,
+                max_answer_length=self.validation_config.max_answer_length,
+                version_2_with_negative=self.version_2_with_negative,
+                null_score_diff_threshold=self.validation_config.null_score_diff_threshold,
+                do_lower_case=self.do_lower_case,
+            )
+
+        logging.info(f"exact match {exact_match}")
+        logging.info(f"f1 {f1}")
+        tensorboard_logs = {'val_loss': avg_loss, 'exact_match': exact_match, 'f1': f1}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self.validation_config = val_data_config
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self._setup_dataloader(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = SquadDataset(
@@ -128,6 +181,9 @@ class QAModel(ModelPT):
             mode=cfg.mode,
             use_cache=cfg.use_cache,
         )
+        if cfg.mode == "eval":
+            self.validation_dataset = dataset
+
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
@@ -145,12 +201,14 @@ class QAModel(ModelPT):
     def export(self, **kwargs):
         pass
 
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    def restore_from(self, restore_path: str):
+        if restore_path:
+            logging.info(f"restore from {restore_path}")
+            pretrained_dict = torch.load(restore_path)['state_dict']
+            model_dict = self.state_dict()
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+            model_dict.update(pretrained_dict)
+            self.load_state_dict(model_dict)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
