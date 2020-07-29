@@ -261,7 +261,6 @@ pipeline {
         }
       }
     }
-
     stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -323,6 +322,57 @@ pipeline {
         }
       }
     }
+=======
+    // stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
+    //   when {
+    //     anyOf{
+    //       branch 'candidate'
+    //       changeRequest target: 'candidate'
+    //     }
+    //   }
+    //   failFast true
+    //   parallel {
+    //     stage('RoBERTa SQUAD 1.1') {
+    //       steps {
+    //         sh 'cd examples/nlp/question_answering && \
+    //         python question_answering_squad.py \
+    //         model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+    //         model.train_ds.use_cache=false \
+    //         model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+    //         model.language_model.do_lower_case=true \
+    //         model.language_model.pretrained_model_name=roberta-base \
+    //         model.version_2_with_negative=false \
+    //         trainer.precision=16 \
+    //         trainer.amp_level=O1 \
+    //         trainer.gpus=[0] \
+    //         +trainer.fast_dev_run=true \
+    //         exp_manager.root_dir=exp_roberta_squad_1.1 \
+    //         '
+    //         sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
+    //       }
+    //     }
+    //     stage('RoBERTa SQUAD 2.0') {
+    //       steps {
+    //         sh 'cd examples/nlp/question_answering && \
+    //         python question_answering_squad.py \
+    //         model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+    //         model.train_ds.use_cache=false \
+    //         model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+    //         model.language_model.do_lower_case=true \
+    //         model.language_model.pretrained_model_name=roberta-base \
+    //         model.version_2_with_negative=true \
+    //         trainer.precision=16 \
+    //         trainer.amp_level=O1 \
+    //         trainer.gpus=[1] \
+    //         +trainer.fast_dev_run=true \
+    //         exp_manager.root_dir=exp_roberta_squad_2.0 \
+    //         '
+    //         sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
+    //       }
+    //     }
+    //   }
+    // }
+>>>>>>> updated jenkins test
 
     stage('L2: Parallel NLP Examples 1') {
       when {
@@ -365,7 +415,7 @@ pipeline {
       }
     }
 
-    stage('L2: BERT pretraining with on the fly preprocessing') {
+    stage('L2: BERT pretraining from Text') {
       when {
         anyOf{
           branch 'candidate'
@@ -391,27 +441,40 @@ pipeline {
           model.tokenizer.sample_size=10000000 \
           model.mask_prob=0.15 \
           model.short_seq_prob=0.1 \
-          exp_manager.root_dir=PretrainingBERTOnText \
+          exp_manager.root_dir=PretrainingBERTFromText \
           '
           sh 'rm -rf /home/TestData/nlp/wikitext-2/spt'
           sh 'rm -f /home/TestData/nlp/wikitext-2/*.pkl'
-          sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTOnText'
+          sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromText'
           sh 'ls -lha examples/nlp/language_modeling'
         }
     }
-    // stage('L2: Pretraining BERT with offline preprocessing') {
-    //   when {
-    //     anyOf{
-    //       branch 'candidate'
-    //       changeRequest target: 'candidate'
-    //     }
-    //   }
-    //   failFast true
-    //     steps {
-    //       sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 2'
-    //       sh 'rm -rf examples/nlp/lightning_logs'
-    //     }
-    // }
+    stage('L2: Pretraining BERT Pretraining from Preprocessed') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+        steps {
+          sh 'cd examples/nlp/language_modeling && \
+          python bert_pretraining_from_preprocessed.py \
+          trainer.precision=16 \
+          trainer.amp_level=O1 \
+          +trainer.fast_dev_run=true \
+          model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
+          model.train_ds.batch_size=8 \
+          model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
+          model.optim.lr=0.875e-4 \
+          model.optim.weight_decay=0.01 \
+          model.optim.sched.warmup_ratio=0.01 \
+          exp_manager.root_dir=PretrainingBERTFromPreprocessed \
+          '
+          sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed'
+          sh 'ls -lha examples/nlp/language_modeling'
+        }
+    }
    stage('L2: NER') {
       when {
         anyOf{
