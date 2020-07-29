@@ -1,4 +1,5 @@
 name: &name "GlowTTS"
+sample_rate: &sample_rate 22050
 
 model:
   hidden_channels: 192
@@ -14,6 +15,8 @@ model:
   kernel_size_dec: 5
   n_block_layers: 4
   n_sqz: 2
+  n_split: 4
+  sigmoid_scale: false
   prenet: true
   mean_only: true
   hidden_channels_enc: 192
@@ -21,23 +24,62 @@ model:
   window_size: 4
 
   train_ds:
+    manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_train.json
+    sample_rate: *sample_rate
     batch_size: 8
+    trim_silence: True
+    max_duration: 16.7
     shuffle: True
     num_workers: 8
-    files_list: /home/samuel/Data/ljspeech/filelists/ljs_audio_text_train_filelist.txt
+    cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
+    augmentor:
+      shift:
+        prob: 0.3
+        min_shift_ms: -5.0
+        max_shift_ms: 5.0
+      white_noise:
+        prob: 0.3
+        min_level: -90
+        max_level: -46
+
 
   validation_ds:
+    manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_val.json
+    sample_rate: *sample_rate
     batch_size: 8
+    trim_silence: True
+    max_duration: 16.7
     shuffle: False
     num_workers: 8
-    files_list: /home/samuel/Data/ljspeech/filelists/ljs_audio_text_val_filelist.txt
+    cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
+
+  preprocessor:
+    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    params:
+      normalize: "per_feature"
+      window_size: 0.02
+      sample_rate: *sample_rate
+      window_stride: 0.01
+      window: "hann"
+      features: 80
+      n_fft: 512
+      frame_splicing: 1
+      dither: 0.00001
+      stft_conv: false
+
+  spec_augment:
+    cls: nemo.collections.asr.modules.SpectrogramAugmentation
+    params:
+      rect_freq: 50
+      rect_masks: 5
+      rect_time: 120
 
   data:
     load_mel_from_disk: false
     text_cleaners:
       - english_cleaners
     max_wav_value: 32768
-    sampling_rate: 22050
+    sampling_rate: *sample_rate
     filter_length: 1024
     hop_length: 256
     win_length: 1024
@@ -46,7 +88,7 @@ model:
     mel_fmax: 8000
     add_noise: true
     add_space: false
-    cmudict_path: /home/samuel/Data/cmudict/cmu_dictionary
+    cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
 
   optim:
     name: adam

@@ -2,11 +2,11 @@ import math
 import torch
 from torch import nn
 
-from . import parts
+import nemo.collections.tts.glow_tts.parts as parts
+
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
-
 from nemo.utils.decorators import experimental
 
 @experimental
@@ -40,7 +40,7 @@ class DurationPredictor(NeuralModule):
     @property
     def output_types(self):
         return {
-            "durs": NeuralType(('B', 'T'), LengthsType()),
+            "durs": NeuralType(('B', 'T'), TokenLogDurationType()),
         }
 
     @typecheck()
@@ -67,7 +67,7 @@ class DurationPredictor(NeuralModule):
         pass
 
 
-class TextEncoder(nn.Module):
+class TextEncoder(NeuralModule):
     def __init__(
         self,
         n_vocab,
@@ -137,18 +137,19 @@ class TextEncoder(nn.Module):
     def input_types(self):
         return {
             "x": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "x_lengths": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "x_lengths": NeuralType(('B',), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "x_m": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "x_logs": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "logw": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "x_mask": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "x_m": NeuralType(('B', 'D', 'T'), NormalDistributionMeanType()),
+            "x_logs": NeuralType(('B', 'D', 'T'), NormalDistributionLogVarianceType()),
+            "logw": NeuralType(('B', 'D', 'T'), TokenLogDurationType()),
+            "x_mask": NeuralType(('B', 'D', 'T'), MaskType()),
         }
 
+    #@typecheck()
     def forward(self, x, x_lengths, g=None):
 
         x = self.emb(x) * math.sqrt(self.hidden_channels)  # [b, t, h]
@@ -175,10 +176,20 @@ class TextEncoder(nn.Module):
             x_logs = torch.zeros_like(x_m)
 
         logw = self.proj_w(spect=x_dp, mask=x_mask)
+
         return x_m, x_logs, logw, x_mask
 
+    def save_to(self, save_path: str):
+        """TODO: Implement"""
+        pass
 
-class FlowSpecDecoder(nn.Module):
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """TODO: Implement"""
+        pass
+
+
+class FlowSpecDecoder(NeuralModule):
     def __init__(
         self,
         in_channels,
@@ -226,6 +237,21 @@ class FlowSpecDecoder(nn.Module):
                 )
             )
 
+    @property
+    def input_types(self):
+        return {
+            "x": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "x_mask": NeuralType(('B', 'D', 'T'), MaskType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "z": NeuralType(('B', 'D', 'T'), NormalDistributionSamplesType()),
+            "logdet_tot": NeuralType(('B', 'D', 'T'), VoidType()),
+        }
+
+    #@typecheck()
     def forward(self, x, x_mask, g=None, reverse=False):
         if not reverse:
             flows = self.flows
@@ -233,6 +259,7 @@ class FlowSpecDecoder(nn.Module):
         else:
             flows = reversed(self.flows)
             logdet_tot = None
+
 
         if self.n_sqz > 1:
             x, x_mask = parts.squeeze(x, x_mask, self.n_sqz)
@@ -250,3 +277,12 @@ class FlowSpecDecoder(nn.Module):
     def store_inverse(self):
         for f in self.flows:
             f.store_inverse()
+
+    def save_to(self, save_path: str):
+        """TODO: Implement"""
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        """TODO: Implement"""
+        pass

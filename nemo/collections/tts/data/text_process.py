@@ -1,14 +1,71 @@
 from unidecode import unidecode
 import inflect
 import re
-from .cmudict import CMUDict
+from typing import List, Optional
 
+
+
+class CMUDict:
+    """Thin wrapper around CMUDict data. http://www.speech.cs.cmu.edu/cgi-bin/cmudict"""
+
+    def __init__(self, file_or_path, keep_ambiguous=True):
+
+        self.valid_symbols = [
+          'AA', 'AA0', 'AA1', 'AA2', 'AE', 'AE0', 'AE1', 'AE2', 'AH', 'AH0', 'AH1', 'AH2',
+          'AO', 'AO0', 'AO1', 'AO2', 'AW', 'AW0', 'AW1', 'AW2', 'AY', 'AY0', 'AY1', 'AY2',
+          'B', 'CH', 'D', 'DH', 'EH', 'EH0', 'EH1', 'EH2', 'ER', 'ER0', 'ER1', 'ER2', 'EY',
+          'EY0', 'EY1', 'EY2', 'F', 'G', 'HH', 'IH', 'IH0', 'IH1', 'IH2', 'IY', 'IY0', 'IY1',
+          'IY2', 'JH', 'K', 'L', 'M', 'N', 'NG', 'OW', 'OW0', 'OW1', 'OW2', 'OY', 'OY0',
+          'OY1', 'OY2', 'P', 'R', 'S', 'SH', 'T', 'TH', 'UH', 'UH0', 'UH1', 'UH2', 'UW',
+          'UW0', 'UW1', 'UW2', 'V', 'W', 'Y', 'Z', 'ZH'
+        ]
+
+        self._valid_symbol_set = set(self.valid_symbols)
+
+        if isinstance(file_or_path, str):
+            with open(file_or_path, encoding="latin-1") as f:
+                entries = self._parse_cmudict(f)
+        else:
+            entries = self._parse_cmudict(file_or_path)
+        if not keep_ambiguous:
+            entries = {word: pron for word, pron in entries.items() if len(pron) == 1}
+        self._entries = entries
+
+    def __len__(self):
+        return len(self._entries)
+
+    def lookup(self, word):
+        """Returns list of ARPAbet pronunciations of the given word."""
+        return self._entries.get(word.upper())
+
+    def _get_pronunciation(self, s):
+        parts = s.strip().split(" ")
+        for part in parts:
+            if part not in self._valid_symbol_set:
+                return None
+        return " ".join(parts)
+
+    def _parse_cmudict(self, file):
+        _alt_re = re.compile(r"\([0-9]+\)")
+
+        cmudict = {}
+        for line in file:
+            if len(line) and (line[0] >= "A" and line[0] <= "Z" or line[0] == "'"):
+                parts = line.split("  ")
+                word = re.sub(_alt_re, "", parts[0])
+                pronunciation = self._get_pronunciation(parts[1])
+                if pronunciation:
+                    if word in cmudict:
+                        cmudict[word].append(pronunciation)
+                    else:
+                        cmudict[word] = [pronunciation]
+        return cmudict
 
 class TextProcess:
-    def __init__(self, hps):
+    def __init__(self, cmu_dict_path = None):
 
-        if getattr(hps, "cmudict_path", None) is not None:
-            self.cmu_dict = CMUDict(hps.cmudict_path)
+        if cmu_dict_path is not None:
+            self.cmu_dict = CMUDict(cmu_dict_path)
 
         _pad = "_"
         _punctuation = "!'(),.:;? "
@@ -65,6 +122,9 @@ class TextProcess:
         self._dollars_re = re.compile(r"\$([0-9.,]*[0-9]+)")
         self._ordinal_re = re.compile(r"[0-9]+(st|nd|rd|th)")
         self._number_re = re.compile(r"[0-9]+")
+
+    def __call__(self, text: str) -> Optional[List[int]]:
+        return self.text_to_sequence(text, ["english_cleaners"])
 
     def _expand_ordinal(self, m):
         return self._inflect.number_to_words(m.group(0))
@@ -151,8 +211,6 @@ class TextProcess:
           Returns:
             List of integers corresponding to the symbols in the text
         """
-        # print(text)
-        # text = text.lower()
 
         sequence = []
 
@@ -172,13 +230,13 @@ class TextProcess:
                         if t.startswith("{"):
                             sequence += self._arpabet_to_sequence(t[1:-1])
                         else:
-                            sequence += self._symbols_to_sequence(t, keep_punct)
+                            sequence += self._symbols_to_sequence(t)
                         sequence += space
                 else:
-                    sequence += self._symbols_to_sequence(clean_text, keep_punct)
+                    sequence += self._symbols_to_sequence(clean_text)
                 break
             sequence += self._symbols_to_sequence(
-                self._clean_text(m.group(1), cleaner_names), keep_punct
+                self._clean_text(m.group(1), cleaner_names)
             )
             sequence += self._arpabet_to_sequence(m.group(2))
             text = m.group(3)
@@ -209,7 +267,7 @@ class TextProcess:
             text = cleaner(text)
         return text
 
-    def _symbols_to_sequence(self, symbols, keep_punct=True):
+    def _symbols_to_sequence(self, symbols):
         return [self._symbol_to_id[s] for s in symbols if self._should_keep_symbol(s)]
 
     def _arpabet_to_sequence(self, text):

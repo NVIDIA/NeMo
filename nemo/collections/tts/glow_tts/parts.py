@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
+from typing import Tuple
 
 
 def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
@@ -299,6 +300,7 @@ class WN(torch.nn.Module):
             torch.nn.utils.remove_weight_norm(l)
 
 
+
 class ActNorm(nn.Module):
     def __init__(self, channels, ddi=False, **kwargs):
         super().__init__()
@@ -401,7 +403,6 @@ class InvConvNear(nn.Module):
 
     def store_inverse(self):
         self.weight_inv = torch.inverse(self.weight.float()).to(dtype=self.weight.dtype)
-
 
 class Encoder(nn.Module):
     def __init__(
@@ -506,9 +507,7 @@ class CouplingBlock(nn.Module):
             hidden_channels,
             kernel_size,
             dilation_rate,
-            n_layers,
-            gin_channels,
-            p_dropout,
+            n_layers
         )
 
     def forward(self, x, x_mask=None, reverse=False, g=None, **kwargs):

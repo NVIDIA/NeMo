@@ -21,6 +21,13 @@ from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 
+import torch.utils.data
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
+from nemo.collections.tts.data.text_process import TextProcess
+from nemo.core.neural_types.elements import *
+from nemo.utils.decorators import experimental
+
+from nemo.collections.asr.parts import features
 
 class AudioDataset(Dataset):
     @property
@@ -119,3 +126,49 @@ class AudioDataset(Dataset):
     def __len__(self):
         return len(self.collection)
 
+        return text_padded, input_lengths, mel_padded, output_lengths
+
+
+@experimental
+class AudioToPhonemesDataset(_AudioTextDataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        cmu_dict_path: str,
+        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        load_audio: bool = True,
+        add_misc: bool = False
+    ):
+        self.parser = TextProcess(cmu_dict_path)
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            featurizer=featurizer,
+            parser=self.parser,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            load_audio=load_audio,
+            add_misc=add_misc,
+        )

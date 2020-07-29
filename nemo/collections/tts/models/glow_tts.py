@@ -19,21 +19,30 @@ from .. import data, glow_tts
 from nemo.core.classes import ModelPT
 from typing import Dict, Optional
 from omegaconf import DictConfig
-from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
+from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
+from nemo.collections.asr.parts.features import WaveformFeaturizer
+from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils.decorators import experimental
 from pytorch_lightning import Trainer
+
+import matplotlib.pyplot as plt
 
 @experimental
 class GlowTTSModel(ModelPT):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
-        self.text_process = data.text_process.TextProcess(cfg.data)
-
         super().__init__(cfg=cfg, trainer=trainer)
 
+        self.preprocessor = GlowTTSModel.from_config_dict(self._cfg.preprocessor)
+
+        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+            self.spec_augmentation = GlowTTSModel.from_config_dict(self._cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
+
         self.encoder = glow_tts.modules.TextEncoder(
-            len(self.text_process.symbols),
+            self.vocab_len,
             cfg.data.n_mel_channels,
             cfg.hidden_channels_enc or cfg.hidden_channels,
             cfg.filter_channels,
@@ -56,8 +65,8 @@ class GlowTTSModel(ModelPT):
             cfg.n_block_layers,
             p_dropout=cfg.p_dropout_dec,
             n_sqz=cfg.n_sqz,
-            n_split=4,
-            sigmoid_scale=False,
+            n_split=cfg.n_split,
+            sigmoid_scale=cfg.sigmoid_scale,
         )
 
         self.setup_optimization()
@@ -88,6 +97,7 @@ class GlowTTSModel(ModelPT):
         length_scale=1.0,
     ):
 
+
         if g is not None:
             g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h]
 
@@ -100,6 +110,16 @@ class GlowTTSModel(ModelPT):
             y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
             y_max_length = None
         else:
+            y, y_lengths = self.preprocessor(
+                input_signal=y, length=y_lengths,
+            )
+            # Spec augment is not applied during evaluation/testing
+            if self.spec_augmentation is not None and self.training:
+                y = self.spec_augmentation(input_spec=y)
+
+
+
+
             y_max_length = y.size(2)
         y, y_lengths, y_max_length = self.preprocess(y, y_lengths, y_max_length)
         y_mask = torch.unsqueeze(
@@ -168,7 +188,7 @@ class GlowTTSModel(ModelPT):
 
     def training_step(self, batch, batch_idx):
 
-        x, x_lengths, y, y_lengths = batch
+        y, y_lengths, x, x_lengths = batch
 
         z, y_m, y_logs, logdet, logw, logw_ = self(
             x, x_lengths, y, y_lengths, gen=False
@@ -205,7 +225,7 @@ class GlowTTSModel(ModelPT):
         return l_mle, l_length, logdet
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        dataset = data.datalayers.TextMelLoader(
+        """dataset = data.datalayers.TextMelLoader(
             cfg.files_list, self.text_process, self._cfg.data
         )
         collate_fn = data.datalayers.TextMelCollate(1)
@@ -216,6 +236,36 @@ class GlowTTSModel(ModelPT):
             batch_size=cfg.batch_size,
             drop_last=True,
             collate_fn=collate_fn,
+        )"""
+        if 'augmentor' in cfg:
+            augmentor = process_augmentations(cfg['augmentor'])
+        else:
+            augmentor = None
+
+        featurizer = WaveformFeaturizer(
+            sample_rate=cfg['sample_rate'], int_values=cfg.get('int_values', False), augmentor=augmentor
+        )
+        dataset = AudioToPhonemesDataset(
+            manifest_filepath=cfg['manifest_filepath'],
+            cmu_dict_path=cfg.get('cmu_dict_path', None),
+            featurizer=featurizer,
+            max_duration=cfg.get('max_duration', None),
+            min_duration=cfg.get('min_duration', None),
+            max_utts=cfg.get('max_utts', 0),
+            trim=cfg.get('trim_silence', True),
+            load_audio=cfg.get('load_audio', True),
+            add_misc=cfg.get('add_misc', False),
+        )
+
+        self.vocab_len = len(dataset.parser.symbols)
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=cfg['batch_size'],
+            collate_fn=dataset.collate_fn,
+            drop_last=cfg.get('drop_last', False),
+            shuffle=cfg['shuffle'],
+            num_workers=cfg.get('num_workers', 0),
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
