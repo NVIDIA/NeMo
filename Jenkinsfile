@@ -377,7 +377,7 @@ pipeline {
             steps {
               sh 'cd examples/nlp/language_modeling && \
               python bert_pretraining_from_text.py \
-              trainer.gpus=[0]
+              trainer.gpus=[0] \
               trainer.precision=16 \
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
@@ -405,7 +405,7 @@ pipeline {
             steps {
               sh 'cd examples/nlp/language_modeling && \
               python bert_pretraining_from_preprocessed.py \
-              train.gpus=[1]
+              train.gpus=[1] \
               trainer.precision=16 \
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
