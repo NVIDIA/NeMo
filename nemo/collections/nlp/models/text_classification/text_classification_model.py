@@ -47,6 +47,9 @@ class TextClassificationModel(ModelPT):
         """Initializes the BERTTextClassifier model.
         """
 
+        # shared params for dataset and data loaders
+        self.dataset_cfg = cfg.dataset
+
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -54,10 +57,6 @@ class TextClassificationModel(ModelPT):
             tokenizer_model=cfg.language_model.tokenizer_model,
             do_lower_case=cfg.dataset.do_lower_case,
         )
-
-        self.model_cfg = cfg
-        # shared params for dataset and data loaders
-        self.dataset_cfg = cfg.dataset
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
