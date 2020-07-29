@@ -197,7 +197,7 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        print(embs[0, :10])
+        # print(embs[0, :10])
         return {'embs': embs, 'labels': labels}
 
     def test_epoch_end(self, outputs):
@@ -224,5 +224,6 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         name = os.path.join(embedding_dir, prefix)
         np.save(name + '.npy', embs)
         np.save(name + '_labels.npy', np.asarray(labels))
+        logging.info("Saved embedding files to {}".format(embedding_dir))
 
         return {}
