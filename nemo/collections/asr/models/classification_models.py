@@ -171,21 +171,21 @@ class EncDecClassificationModel(ASRModel):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
         return {'val_loss': loss_value, 'val_correct_counts': correct_counts, 'val_total_counts': total_counts}
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
         correct_counts, total_counts = self._accuracy(logits=logits, labels=labels)
         return {'test_loss': loss_value, 'test_correct_counts': correct_counts, 'test_total_counts': total_counts}
 
-    def validation_epoch_end(self, outputs):
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['val_correct_counts'] for x in outputs])
         total_counts = torch.stack([x['val_total_counts'] for x in outputs])
@@ -198,7 +198,7 @@ class EncDecClassificationModel(ASRModel):
 
         return {'log': tensorboard_log}
 
-    def test_epoch_end(self, outputs):
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         correct_counts = torch.stack([x['test_correct_counts'].unsqueeze(0) for x in outputs])
         total_counts = torch.stack([x['test_total_counts'].unsqueeze(0) for x in outputs])
