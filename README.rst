@@ -56,7 +56,7 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 
 **Resources** 
 
-* Watch `this video <https://drive.google.com/file/d/1hrd4FYM3m45JvtGGEgPosozOamq5hBgq/preview>`_ for a quick walk-through.
+* Watch `this video <https://drive.google.com/file/d/1tht2BZUZjG3_Jt8i8KGTclupcBhTYbiM/view?usp=sharing>`_ for a quick walk-through.
 
 * NVIDIA `Developer Blog to learn how to develop speech recognition models for different languages <https://devblogs.nvidia.com/jump-start-training-for-speech-recognition-models-with-nemo/>`_
 
