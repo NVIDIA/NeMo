@@ -16,6 +16,7 @@
 """Interfaces common to all Neural Modules and Models."""
 from abc import ABC, abstractmethod
 from collections import namedtuple
+from contextlib import contextmanager
 from enum import Enum
 from typing import Dict, Optional, Union
 
@@ -476,3 +477,12 @@ class typecheck:
     def set_typecheck_enabled(enabled: bool = True):
         global _TYPECHECK_ENABLED
         _TYPECHECK_ENABLED = enabled
+
+    @staticmethod
+    @contextmanager
+    def disable_checks():
+        typecheck.set_typecheck_enabled(enabled=False)
+        try:
+            yield
+        finally:
+            typecheck.set_typecheck_enabled(enabled=True)

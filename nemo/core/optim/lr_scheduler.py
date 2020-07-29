@@ -295,11 +295,10 @@ class PolynomialDecayAnnealing(WarmupPolicy):
 
 class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
-        self.min_lr = min_lr
         self.power = power
         self.cycle = cycle
 
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [

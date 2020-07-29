@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.core import NeuralModule, Typing, typecheck
+from nemo.core import Typing, typecheck
 from nemo.core.neural_types import *
 
 
@@ -645,21 +645,17 @@ class TestNeuralTypeCheckSystem:
                 return x
 
         # Disable typecheck tests
-        typecheck.set_typecheck_enabled(enabled=False)
+        with typecheck.disable_checks():
+            obj = InputOutputTypes()
 
-        obj = InputOutputTypes()
+            # Execute function without kwarg
+            result = obj(torch.zeros(10))
 
-        # Execute function without kwarg
-        result = obj(torch.zeros(10))
+            assert result.sum() == torch.tensor(10.0)
+            assert hasattr(result, 'neural_type') is False
 
-        assert result.sum() == torch.tensor(10.0)
-        assert hasattr(result, 'neural_type') is False
-
-        # Test passing wrong key for input
-        _ = obj(a=torch.zeros(10), x=torch.zeros(5))
-
-        # Re-enable type checking
-        typecheck.set_typecheck_enabled(enabled=True)
+            # Test passing wrong key for input
+            _ = obj(a=torch.zeros(10), x=torch.zeros(5))
 
     @pytest.mark.pleasefixme
     @pytest.mark.unit
