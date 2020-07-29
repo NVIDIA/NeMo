@@ -86,7 +86,7 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
     if hasattr(cfg, _VAL_TEST_FASTPATH_KEY) and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
         fastpath_key = cfg[_VAL_TEST_FASTPATH_KEY]
 
-        if hasattr(cfg, fastpath_key):
+        if isinstance(fastpath_key, str) and hasattr(cfg, fastpath_key):
             return cfg[fastpath_key]
         else:
             return _VAL_TEST_FASTPATH_KEY
