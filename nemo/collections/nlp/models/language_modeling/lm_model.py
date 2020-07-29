@@ -52,12 +52,15 @@ class BERTLMModel(ModelPT):
         }
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.max_seq_length = cfg.max_seq_length
-        self.tokenizer = None
         if cfg.language_model.bert_config_file is not None:
-            cfg.tokenizer.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
-        # if using preprocessed data we don't need to setup tokenizer
-        self._setup_tokenizer(cfg.tokenizer)
+            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+
+        if cfg.tokenizer is not None:
+            cfg.tokenizer.vocab_size = self.vocab_size
+            self._setup_tokenizer(cfg.tokenizer)
+        else:
+            self.tokenizer = None
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         # TODO: this method name should be changed since it not only
@@ -163,41 +166,39 @@ class BERTLMModel(ModelPT):
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
             return {'val_loss': avg_loss}
 
-    def setup_training_data(self, cfg: Optional[DictConfig]):
-        if 'shuffle' not in cfg:
-            cfg['shuffle'] = True
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (
-            self._setup_preprocessed_dataloader(cfg) if self.tokenizer is None else self._setup_dataloader(cfg)
+            self._setup_preprocessed_dataloader(train_data_config) 
+            if self.tokenizer is None
+            else self._setup_dataloader(train_data_config)
         )
 
-    def setup_validation_data(self, val_data_config: Optional[Dict]):
-        if 'shuffle' not in val_data_config:
-            val_data_config['shuffle'] = False
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = (
             self._setup_preprocessed_dataloader(val_data_config)
             if self.tokenizer is None
             else self._setup_dataloader(val_data_config)
         )
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
         pass
 
-    def _setup_preprocessed_dataloader(self, data_layer_params):
-        raise NotImplementedError
-        # TODO: can we merge the two scripts?
-        # dataset = data_layer_params['train_data']
-        # max_predictions_per_seq = data_layer_params['max_predictions_per_seq']
-        # batch_size = data_layer_params['batch_size']
+    def _setup_preprocessed_dataloader(self, cfg: Optional[DictConfig]):
+        dataset = cfg.data_file
+        max_predictions_per_seq = cfg.max_predictions_per_seq
+        batch_size = cfg.batch_size
 
-        # if os.path.isdir(dataset):
-        #     files = [os.path.join(dataset, f) for f in os.listdir(dataset) if os.path.isfile(os.path.join(dataset, f))]
-        # else:
-        #     files = [dataset]
-        # files.sort()
-        # dl = BertPretrainingPreprocessedDataloader(
-        #     data_files=files, max_predictions_per_seq=max_predictions_per_seq, batch_size=batch_size
-        # )
-        # return dl
+        if os.path.isdir(dataset):
+            files = [os.path.join(dataset, f) for f in os.listdir(dataset) if os.path.isfile(os.path.join(dataset, f))]
+        else:
+            files = [dataset]
+        files.sort()
+        dl = BertPretrainingPreprocessedDataloader(
+            data_files=files,
+            max_predictions_per_seq=max_predictions_per_seq,
+            batch_size=batch_size
+        )
+        return dl
 
     def _setup_tokenizer(self, cfg: DictConfig):
         tokenizer = get_tokenizer(**cfg)

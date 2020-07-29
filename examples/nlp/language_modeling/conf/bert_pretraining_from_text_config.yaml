@@ -1,4 +1,4 @@
-# BERT Pretraining
+# BERT Pretraining from Text
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
@@ -23,7 +23,6 @@ model:
   # Probability of masking a token in the input text during data processing.
   short_seq_prob: 0.1
   # Probability of having a sequence shorter than the maximum sequence length `max_seq_length` in data processing.",
-  batch_size: 16 # per GPU
 
   language_model:
     pretrained_model_name: ${model.pretrained_model_name}
@@ -58,7 +57,7 @@ model:
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
-    batch_size: ${model.batch_size}
+    batch_size: 16 # per GPU
     shuffle: true
     num_samples: -1
     num_workers: 2
@@ -71,7 +70,7 @@ model:
     max_seq_length: ${model.max_seq_length}
     mask_prob: ${model.mask_prob}
     short_seq_prob: ${model.short_seq_prob}
-    batch_size: ${model.batch_size}
+    batch_size: 16 # per GPU
     shuffle: false
     num_samples: -1
     num_workers: 2
@@ -94,7 +93,7 @@ model:
   
 exp_manager:
   root_dir: NeMo_experiments # where to store logs and checkpoints
-  name: PretrainingBERT # name of experiment
+  name: PretrainingBERTFromText # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
 
