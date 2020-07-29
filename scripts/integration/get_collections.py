@@ -42,9 +42,9 @@ def process_collection(id, col):
 
 def main():
     """ Main function generating a JSON file with list of NeMo collections. """
-    # Parse filename.
+    # Parse arguments.
     parser = argparse.ArgumentParser()
-    parser.add_argument('--filename', help='Name of the output JSON file', type=str, default="collections.json")
+    parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="collections.json")
     args = parser.parse_args()
 
     # Get collections directory.
@@ -81,12 +81,14 @@ def main():
                 logging.warning(" ! Failed to process `{}`".format(val))
 
     # Export to JSON.
-    with open(args.filename, 'w') as outfile:
+    with open(args.output_filename, 'w') as outfile:
         json.dump(output_list, outfile)
 
     logging.info("=" * 80)
     logging.info(
-        'Finshed the analysis, found {} collections, results exported to `{}`.'.format(len(output_list), args.filename)
+        'Finshed the analysis, found {} collections, results exported to `{}`.'.format(
+            len(output_list), args.output_filename
+        )
     )
 
 

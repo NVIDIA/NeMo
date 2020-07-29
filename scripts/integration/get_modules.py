@@ -39,6 +39,10 @@ def process_member(module_name, obj, module_list) -> bool:
     if not inspect.isclass(obj):
         return False
 
+    # Skip abstract classes.
+    if inspect.isabstract(obj):
+        return False
+
     # Modules must inherit from datalayer/trainable/losses/nontraineble.
     parent_classes = {
         "datalayer": nemo.backends.pytorch.nm.DataLayerNM,
@@ -173,10 +177,10 @@ def import_submodules(package, recursive=True):
 
 def main():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
-    # Parse filename.
+    # Parse arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument('--collection', help='ID of the collection', type=str)
-    parser.add_argument('--filename', help='Name of the output JSON file', type=str, default="modules.json")
+    parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="modules.json")
     args = parser.parse_args()
 
     # Get collections directory.
@@ -214,16 +218,15 @@ def main():
     # Import all submodules.
     submodules = import_submodules(collections[args.collection])
 
-    total_counter = 0
-
     # Extract list of neural modules.
+    total_counter = 0
     module_list = []
     module_names = []
     # Iterate through submodules one by one.
     for sub_name, submodule in submodules.items():
         try:
             logging.info("* Analysing the `{}` module".format(sub_name))
-
+            # Reset internal counters.
             counter = 0
             existing_counter = 0
             # Iterate throught members of a given submodule.
@@ -237,21 +240,25 @@ def main():
                 if process_member(name, obj, module_list):
                     module_names.append(name)
                     counter += 1
-            logging.info("  * Found {} already processed and {} new neural modules ".format(existing_counter, counter))
+            logging.info("  * Found {} already processed and {} new neural modules".format(existing_counter, counter))
         except AttributeError as e:
             logging.info("  * No neural modules were found")
         total_counter += counter
 
     # Add prefix - only for default name.
-    filename = args.filename if args.filename != "modules.json" else args.collection + "_" + args.filename
+    output_filename = (
+        args.output_filename
+        if args.output_filename != "modules.json"
+        else args.collection + "_" + args.output_filename
+    )
     # Export to JSON.
-    with open(filename, 'w') as outfile:
+    with open(output_filename, 'w') as outfile:
         json.dump(module_list, outfile)
 
     logging.info("=" * 80)
     logging.info(
         'Finished analysis of the `{}` collection, found {} modules, results exported to `{}`.'.format(
-            args.collection, total_counter, filename
+            args.collection, total_counter, output_filename
         )
     )
 
