@@ -85,7 +85,7 @@ def main():
                 input_signal=test_batch[0], input_signal_length=test_batch[1]
             )
         hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
-        for batch_ind in range(args.batch_size):
+        for batch_ind in range(greedy_predictions.shape[0]):
             reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
             references.append(reference)
         del test_batch
