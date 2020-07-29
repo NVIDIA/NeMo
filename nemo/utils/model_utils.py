@@ -28,7 +28,48 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
     Parses items of the provided sub-config to find the first potential key that
     resolves to an existing file or directory.
 
-    NOTE:
+    # Fast-path Resolution
+    In order to handle cases where we need to resolve items that are not paths, a fastpath
+    key can be provided as defined in the global `_VAL_TEST_FASTPATH_KEY`.
+
+    This key can be used in two ways :
+
+    ## _VAL_TEST_FASTPATH_KEY points to another key in the config
+
+    If this _VAL_TEST_FASTPATH_KEY points to another key in this config itself,
+    then we assume we want to loop through the values of that key.
+
+    This allows for any key in the config to become a fastpath key.
+
+    Example:
+    validation_ds:
+        splits: "val"
+        ...
+        <_VAL_TEST_FASTPATH_KEY>: "splits"  <-- this points to the key name "splits"
+
+    Then we can write the following when overriding in hydra:
+    ```python
+    python train_file.py ... \
+        model.validation_ds.splits=[val1, val2, dev1, dev2] ...
+    ```
+
+    ## _VAL_TEST_FASTPATH_KEY itself acts as the resolved key
+
+    If this _VAL_TEST_FASTPATH_KEY does not point to another key in the config, then
+    it is assumed that the items of this key itself are used for resolution.
+
+    Example:
+    validation_ds:
+        ...
+        <_VAL_TEST_FASTPATH_KEY>: "val"  <-- this points to the key name "splits"
+
+    Then we can write the following when overriding in hydra:
+    ```python
+    python train_file.py ... \
+        model.validation_ds.<_VAL_TEST_FASTPATH_KEY>=[val1, val2, dev1, dev2] ...
+    ```
+
+    # IMPORTANT NOTE:
     It <can> potentially mismatch if there exist more than 2 valid paths, and the
     first path does *not* resolve the the path of the data file (but does resolve to
     some other valid path).
@@ -43,7 +84,12 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
         or None in case path could not be resolved.
     """
     if hasattr(cfg, _VAL_TEST_FASTPATH_KEY) and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
-        return _VAL_TEST_FASTPATH_KEY
+        fastpath_key = cfg[_VAL_TEST_FASTPATH_KEY]
+
+        if hasattr(cfg, fastpath_key):
+            return cfg[fastpath_key]
+        else:
+            return _VAL_TEST_FASTPATH_KEY
 
     for key, value in cfg.items():
         if type(value) in [list, tuple, ListConfig]:
