@@ -198,7 +198,6 @@ pipeline {
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
@@ -210,13 +209,13 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.train_ds.use_cache=false \
+            model.validation_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
@@ -240,14 +239,14 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.train_ds.use_cache=false \
+            model.validation_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.language_model.do_lower_case=true \
+            model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
             model.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
-            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_roberta_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
@@ -259,14 +258,14 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.train_ds.use_cache=false \
+            model.validation_ds.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.do_lower_case=true \
+            model.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
             model.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_roberta_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'

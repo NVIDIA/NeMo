@@ -76,9 +76,7 @@ class NemoBertTokenizer(TokenizerSpec):
             logging.info(f'Deriving bert model type from pretrained model name.')
         if bert_derivative in TOKENIZERS:
             tokenizer_cls = TOKENIZERS[bert_derivative]
-            logging.info(
-                f'Using {tokenizer_cls.__name__} tokenizer for {bert_derivative}, lower_case: {do_lower_case}'
-            )
+            logging.info(f'Using {tokenizer_cls.__name__} tokenizer for {bert_derivative}')
         else:
             raise ValueError(
                 f"Bert_derivative value {bert_derivative} is not currently supported"
@@ -88,6 +86,7 @@ class NemoBertTokenizer(TokenizerSpec):
         if pretrained_model:
             self.tokenizer = tokenizer_cls.from_pretrained(pretrained_model)
         elif vocab_file:
+            logging.info(f'Using vocab file: {vocab_file}, lower_case: {do_lower_case}')
             self.tokenizer = tokenizer_cls(vocab_file=vocab_file, do_lower_case=do_lower_case)
         else:
             raise ValueError("either 'vocab_file' or 'pretrained_model' has to be specified")

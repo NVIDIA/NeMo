@@ -14,10 +14,12 @@ trainer:
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
   checkpoint_callback: false # provided by exp_manager
   logger: false # provided by exp_manager
+  num_sanity_val_steps: 0
   row_log_interval: 1  # Interval of logging.
 
 model:
 
+  checkpoint: null # model checkpoint path to restore weights 
   version_2_with_negative: false
   # If true, the examples contain some that do not have an answer.
 
@@ -35,6 +37,8 @@ model:
   # WordPiece tokenization. Sequences longer than this
   # will be truncated, and sequences shorter than this
   # will be padded.
+
+  do_lower_case: true # true for uncased models, false for cased models
 
   train_ds:
     mode: train
@@ -83,6 +87,7 @@ model:
     # If null_score - best_non_null is greater than the threshold predict null.
     n_best_size: 20
     # The total number of n-best predictions to generate at testing.
+    
   
   optim:
     name: adamw
@@ -106,7 +111,7 @@ model:
         name: auto
         params:
           warmup_steps: null
-          warmup_ratio: 0.1
+          warmup_ratio: 0.0
           last_epoch: -1
 
 
@@ -117,7 +122,6 @@ model:
     tokenizer: nemobert # only used if using custom checkpoint
     tokenizer_model: null # only used if tokenizer is sentencepiece
     vocab_file: null
-    do_lower_case: true # true for uncased models, false for cased models
   
   token_classifier:
     num_layers: 1
