@@ -7,7 +7,7 @@ n_filters: &n_filters 512
 
 model:
   train_ds:
-    manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
+    manifest_filepath: '/data/an4_speaker/train.json'
     sample_rate: 16000
     labels: null
     batch_size: 64 
@@ -21,9 +21,17 @@ model:
                     max_snr_db: 15
 
   validation_ds:
-    manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
+    manifest_filepath: '/data/an4_speaker/dev.json'
     sample_rate: 16000
-    labels: None
+    labels: null
+    batch_size: 128
+    shuffle: False
+    time_length: 8
+
+  test_ds:
+    manifest_filepath: '/data/an4_speaker/test.json'
+    sample_rate: 16000
+    labels: null
     batch_size: 128
     shuffle: False
     time_length: 8
@@ -101,7 +109,7 @@ model:
       feat_in: *enc_feat_out
       num_classes: 1211
       pool_mode: 'xvector'
-      emb_sizes: 1024,1024
+      emb_sizes: 512,512
 
   optim:
     name: novograd

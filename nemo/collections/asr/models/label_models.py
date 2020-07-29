@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
 from typing import Dict, Optional, Union
 
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-import json
-import os
-import numpy as np
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
 from nemo.collections.asr.parts.features import WaveformFeaturizer
@@ -31,7 +31,7 @@ from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-__all__ = ['EncDecSpeakerLabelModel','GetSpeakerEmbeddings']
+__all__ = ['EncDecSpeakerLabelModel', 'ExtractSpeakerEmbeddingsModel']
 
 
 @experimental
@@ -58,8 +58,8 @@ class EncDecSpeakerLabelModel(ModelPT):
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False),
-        augmentor=augmentor
+        featurizer = WaveformFeaturizer(
+            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
         )
         self.dataset = AudioToSpeechLabelDataSet(
             manifest_filepath=config['manifest_filepath'],
@@ -95,7 +95,7 @@ class EncDecSpeakerLabelModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
-        self.test_manifest = test_data_layer_params.get('manifest_filepath',None)
+        self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
     @classmethod
@@ -106,12 +106,15 @@ class EncDecSpeakerLabelModel(ModelPT):
     def from_pretrained(cls, name: str):
         pass
 
-    def save_to(self, save_path: str):
+    def export(self, **kwargs):
         pass
 
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
+    # def save_to(self, save_path: str):
+    #     pass
+
+    # @classmethod
+    # def restore_from(cls, restore_path: str):
+    #     pass
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -158,7 +161,7 @@ class EncDecSpeakerLabelModel(ModelPT):
         logging.info("training accuracy {:.3f}".format(train_acc))
 
         return {}
-    
+
     def validation_step(self, batch, batch_idx):
         self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
@@ -177,27 +180,34 @@ class EncDecSpeakerLabelModel(ModelPT):
 
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
+    def test_step(self, batch, batch_ix):
+        self.eval()
+        audio_signal, audio_signal_len, labels, _ = batch
+        _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        print(embs[0, :10])
+        return {'embs': embs, 'labels': labels}
 
 
-class GetSpeakerEmbeddings(EncDecSpeakerLabelModel):
+class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None, root_dir='.'):
         super().__init__(cfg=cfg, trainer=trainer)
         self.dir = root_dir
 
     def test_step(self, batch, batch_ix):
         self.eval()
-        audio_signal, audio_signal_len, labels, _ = batch 
+        audio_signal, audio_signal_len, labels, _ = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        
+        print(embs[0, :10])
         return {'embs': embs, 'labels': labels}
-    
-    def test_epoch_end(self,outputs):
-        embs = torch.stack([x['embs'] for x in outputs])
+
+    def test_epoch_end(self, outputs):
+        embs = torch.cat([x['embs'] for x in outputs])
+        # print(embs)
         emb_shape = embs.shape[-1]
-        embs = embs.view(-1,emb_shape).cpu().numpy()
+        embs = embs.view(-1, emb_shape).cpu().numpy()
         labels = []
 
-        with open(self.test_manifest,'r') as manifest:
+        with open(self.test_manifest, 'r') as manifest:
             for line in manifest.readlines():
                 line = line.strip()
                 dic = json.loads(line)
@@ -205,14 +215,14 @@ class GetSpeakerEmbeddings(EncDecSpeakerLabelModel):
                 uniq_name = '@'.join(structure)
                 labels.append(uniq_name)
 
-        embedding_dir = os.path.join(self.dir,'embeddings')
+        embedding_dir = os.path.join(self.dir, 'embeddings')
         if not os.path.exists(embedding_dir):
             os.mkdir(embedding_dir)
 
         prefix = self.test_manifest.split('/')[-1].split('.')[-2]
 
-        name = os.path.join(embedding_dir,prefix)
+        name = os.path.join(embedding_dir, prefix)
         np.save(name + '.npy', embs)
-        np.save(name + '_labels.npy', np.asarray(labels)) 
-        import ipdb; ipdb.set_trace()
-        
+        np.save(name + '_labels.npy', np.asarray(labels))
+
+        return {}
