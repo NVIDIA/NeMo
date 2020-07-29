@@ -22,10 +22,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(
-    config_path="conf",
-    config_name="bert_pretraining_from_preprocessed_config"
-)
+@hydra_runner(config_path="conf", config_name="bert_pretraining_from_preprocessed_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config:\n {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)

@@ -168,7 +168,7 @@ class BERTLMModel(ModelPT):
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (
-            self._setup_preprocessed_dataloader(train_data_config) 
+            self._setup_preprocessed_dataloader(train_data_config)
             if self.tokenizer is None
             else self._setup_dataloader(train_data_config)
         )
@@ -194,9 +194,7 @@ class BERTLMModel(ModelPT):
             files = [dataset]
         files.sort()
         dl = BertPretrainingPreprocessedDataloader(
-            data_files=files,
-            max_predictions_per_seq=max_predictions_per_seq,
-            batch_size=batch_size
+            data_files=files, max_predictions_per_seq=max_predictions_per_seq, batch_size=batch_size
         )
         return dl
 
