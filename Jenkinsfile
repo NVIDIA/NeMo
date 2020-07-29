@@ -179,7 +179,7 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
-            trainer.max_epochs=None \
+            trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
             model.version_2_with_negative=false \
@@ -202,7 +202,7 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
-            trainer.max_epochs=None \
+            trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
@@ -238,7 +238,7 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
-            trainer.max_epochs=None \
+            trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
             model.do_lower_case=false \
@@ -263,7 +263,7 @@ pipeline {
             model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
-            trainer.max_epochs=None \
+            trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.do_lower_case=false \
