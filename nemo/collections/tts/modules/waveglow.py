@@ -25,7 +25,6 @@ from nemo.core.neural_types.elements import (
     VoidType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils.decorators import experimental
 
 
 class OperationMode(Enum):
@@ -36,7 +35,6 @@ class OperationMode(Enum):
     infer = 2
 
 
-@experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
 class WaveGlowModule(NeuralModule):
     def __init__(
         self,
@@ -212,12 +210,3 @@ class WaveGlowModule(NeuralModule):
                 )
                 audio = torch.cat((z, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
-
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""
-        pass
