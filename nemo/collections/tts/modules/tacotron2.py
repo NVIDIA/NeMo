@@ -30,7 +30,6 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-
 _NATIVE_AMP = False
 try:
     from torch.cuda.amp import autocast
