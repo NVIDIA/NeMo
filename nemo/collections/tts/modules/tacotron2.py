@@ -39,7 +39,7 @@ except ImportError:
     pass
 
 
-@experimental()  # TODO: Implement save_to() and restore_from()
+@experimental  # TODO: Implement save_to() and restore_from()
 class Encoder(NeuralModule):
     def __init__(
         self, encoder_n_convolutions: int, encoder_embedding_dim: int, encoder_kernel_size: int,
@@ -122,7 +122,7 @@ class Encoder(NeuralModule):
         pass
 
 
-@experimental()  # TODO: Implement save_to() and restore_from()
+@experimental  # TODO: Implement save_to() and restore_from()
 class Decoder(NeuralModule):
     def __init__(
         self,
@@ -394,7 +394,7 @@ class Decoder(NeuralModule):
         pass
 
 
-@experimental()  # TODO: Implement save_to() and restore_from()
+@experimental  # TODO: Implement save_to() and restore_from()
 class Postnet(NeuralModule):
     def __init__(
         self,

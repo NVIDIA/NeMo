@@ -36,7 +36,7 @@ class OperationMode(Enum):
     infer = 2
 
 
-@experimental()  # TODO: Implement save_to() and restore_from()
+@experimental  # TODO: Implement save_to() and restore_from()
 class WaveGlowModule(NeuralModule):
     def __init__(
         self,
