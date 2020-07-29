@@ -299,13 +299,13 @@ pipeline {
           steps {
             sh 'cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
+            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
+            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.language_model.max_seq_length=50 \
-            model.data_dir=/home/TestData/nlp/retail/ \
-            model.validation_ds.prefix=dev \
             model.train_ds.batch_size=10 \
-            model.train_ds.use_cache=false \
-            model.language_model.do_lower_case=true \
+            model.dataset.max_seq_length=50 \
+            model.dataset.use_cache=false \
+            model.dataset.do_lower_case=true \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_base_uncased \
