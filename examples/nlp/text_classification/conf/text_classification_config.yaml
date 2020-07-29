@@ -35,8 +35,10 @@ model:
   dataset:
     do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
     max_seq_length: 36
-    class_balancing: null # or weighted_loss
-    use_cache: false
+    class_balancing: null # null or weighted_loss
+
+    # parameters shared among all data loaders
+    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
     num_workers: 2 # number of workers for data loaders
     drop_last: false # drops the last last batch if it is smaller than the batch size
     pin_memory: false # enables pin_memory feature of the data loaders
@@ -45,13 +47,13 @@ model:
     file_name: ???
     batch_size: 32
     shuffle: true
-    num_samples: -1
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   validation_ds:
     file_name: null
     batch_size: 32
     shuffle: false
-    num_samples: -1
+    num_samples: -1 # number of samples to be considered, -1 means all the dataset
 
   language_model:
     pretrained_model_name: roberta-base
