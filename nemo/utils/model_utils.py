@@ -20,6 +20,8 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo import logging
 
+_VAL_TEST_FASTPATH_KEY = 'ds_item'
+
 
 def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
     """
@@ -40,8 +42,8 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
         A str representing the `key` of the config which hosts the filepath(s),
         or None in case path could not be resolved.
     """
-    if hasattr(cfg, 'ds_name') and cfg.ds_name is not None:
-        return 'ds_name'
+    if hasattr(cfg, _VAL_TEST_FASTPATH_KEY) and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
+        return _VAL_TEST_FASTPATH_KEY
 
     for key, value in cfg.items():
         if type(value) in [list, tuple, ListConfig]:
@@ -102,7 +104,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     Helper method that operates on the ModelPT class to automatically support
     multiple dataloaders for the validation set.
 
-    It does so by first resolving the path to one/more data files via `resolve_filepath_from_cfg()`.
+    It does so by first resolving the path to one/more data files via `resolve_dataset_name_from_cfg()`.
     If this resolution fails, it assumes the data loader is prepared to manually support / not support
     multiple data loaders and simply calls the appropriate setup method.
 
@@ -173,7 +175,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     Helper method that operates on the ModelPT class to automatically support
     multiple dataloaders for the test set.
 
-    It does so by first resolving the path to one/more data files via `resolve_filepath_from_cfg()`.
+    It does so by first resolving the path to one/more data files via `resolve_dataset_name_from_cfg()`.
     If this resolution fails, it assumes the data loader is prepared to manually support / not support
     multiple data loaders and simply calls the appropriate setup method.
 
