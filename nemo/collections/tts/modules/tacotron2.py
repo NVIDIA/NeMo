@@ -112,15 +112,6 @@ class Encoder(NeuralModule):
 
         return outputs
 
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""
-        pass
-
 
 @experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
 class Decoder(NeuralModule):
@@ -222,34 +213,16 @@ class Decoder(NeuralModule):
 
     @typecheck()
     def forward(self, *args, **kwargs):
-        """ TODO
-        """
         if self.training:
             return self.train_forward(**kwargs)
         return self.infer(**kwargs)
 
     def get_go_frame(self, memory):
-        """ Gets all zeros frames to use as first decoder input
-        PARAMS
-        ------
-        memory: decoder outputs
-        RETURNS
-        -------
-        decoder_input: all zeros frames
-        """
         B = memory.size(0)
         decoder_input = Variable(memory.data.new(B, self.n_mel_channels * self.n_frames_per_step).zero_())
         return decoder_input
 
     def initialize_decoder_states(self, memory, mask):
-        """ Initializes attention rnn states, decoder rnn states, attention
-        weights, attention cumulative weights, attention context, stores memory
-        and stores processed memory
-        PARAMS
-        ------
-        memory: Encoder outputs
-        mask: Mask for padded data if training, expects None for inference
-        """
         B = memory.size(0)
         MAX_TIME = memory.size(1)
 
@@ -268,14 +241,6 @@ class Decoder(NeuralModule):
         self.mask = mask
 
     def parse_decoder_inputs(self, decoder_inputs):
-        """ Prepares decoder inputs, i.e. mel outputs
-        PARAMS
-        ------
-        decoder_inputs: inputs used for teacher-forced training, i.e. mel-specs
-        RETURNS
-        -------
-        inputs: processed decoder inputs
-        """
         # (B, n_mel_channels, T_out) -> (B, T_out, n_mel_channels)
         decoder_inputs = decoder_inputs.transpose(1, 2)
         decoder_inputs = decoder_inputs.view(
@@ -286,18 +251,6 @@ class Decoder(NeuralModule):
         return decoder_inputs
 
     def parse_decoder_outputs(self, mel_outputs, gate_outputs, alignments):
-        """ Prepares decoder outputs for output
-        PARAMS
-        ------
-        mel_outputs:
-        gate_outputs: gate output energies
-        alignments:
-        RETURNS
-        -------
-        mel_outputs:
-        gate_outpust: gate output energies
-        alignments:
-        """
         # (T_out, B) -> (B, T_out)
         alignments = torch.stack(alignments).transpose(0, 1)
         # (T_out, B) -> (B, T_out)
@@ -315,16 +268,6 @@ class Decoder(NeuralModule):
         return mel_outputs, gate_outputs, alignments
 
     def decode(self, decoder_input):
-        """ Decoder step using stored states, attention and memory
-        PARAMS
-        ------
-        decoder_input: previous mel output
-        RETURNS
-        -------
-        mel_output:
-        gate_output: gate output energies
-        attention_weights:
-        """
         cell_input = torch.cat((decoder_input, self.attention_context), -1)
 
         # TODO: Pytorch 1.6 has issues with rnns and amp, so cast to float until fixed
@@ -368,18 +311,6 @@ class Decoder(NeuralModule):
         return decoder_output, gate_prediction, self.attention_weights
 
     def train_forward(self, *, memory, decoder_inputs, memory_lengths):
-        """ Decoder forward pass for training
-        PARAMS
-        ------
-        memory: Encoder outputs
-        decoder_inputs: Decoder inputs for teacher forcing. i.e. mel-specs
-        memory_lengths: Encoder output lengths for attention masking.
-        RETURNS
-        -------
-        mel_outputs: mel outputs from the decoder
-        gate_outputs: gate outputs from the decoder
-        alignments: sequence of attention weights from the decoder
-        """
         decoder_input = self.get_go_frame(memory).unsqueeze(0)
         decoder_inputs = self.parse_decoder_inputs(decoder_inputs)
         decoder_inputs = torch.cat((decoder_input, decoder_inputs), dim=0)
@@ -400,16 +331,6 @@ class Decoder(NeuralModule):
         return mel_outputs, gate_outputs, alignments
 
     def infer(self, *, memory, memory_lengths):
-        """ Decoder inference
-        PARAMS
-        ------
-        memory: Encoder outputs
-        RETURNS
-        -------
-        mel_outputs: mel outputs from the decoder
-        gate_outputs: gate outputs from the decoder
-        alignments: sequence of attention weights from the decoder
-        """
         decoder_input = self.get_go_frame(memory)
 
         if memory.size(0) > 1:
@@ -453,15 +374,6 @@ class Decoder(NeuralModule):
         mel_outputs, gate_outputs, alignments = self.parse_decoder_outputs(mel_outputs, gate_outputs, alignments)
 
         return mel_outputs, gate_outputs, alignments, mel_lengths
-
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""
-        pass
 
 
 @experimental  # TODO: Need to implement abstratct methods: save_to, restore_from, but how?
@@ -557,12 +469,3 @@ class Postnet(NeuralModule):
         mel_spec_out = F.dropout(self.convolutions[-1](mel_spec_out), self.p_dropout, self.training)
 
         return mel_spec + mel_spec_out
-
-    def save_to(self, save_path: str):
-        """TODO: Implement"""
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """TODO: Implement"""
-        pass

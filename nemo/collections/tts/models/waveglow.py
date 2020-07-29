@@ -35,6 +35,9 @@ from nemo.utils.decorators import experimental
 
 
 class WaveGlowLoss(Loss):
+    """ A Loss module that computes loss for WaveGlow
+    """
+
     @property
     def input_types(self):
         return {
@@ -83,8 +86,11 @@ class WaveglowConfig:
     validation_ds: Optional[Dict] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
+@experimental  # TODO: Need to implement abstract methods: list_available_models
 class WaveGlowModel(ModelPT):
+    """ Tacotron 2 Model that is used to generate audio conditioned on text
+    """
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
@@ -218,14 +224,5 @@ class WaveGlowModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        """TODO: Implement me!"""
-        pass
-
-    def export(self, **kwargs):
         """TODO: Implement me!"""
         pass

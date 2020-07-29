@@ -59,6 +59,9 @@ class Tacotron2Config:
 
 
 class Tacotron2Loss(Loss):
+    """ A Loss module that computes loss for Tacotron2
+    """
+
     @property
     def input_types(self):
         return {
@@ -112,8 +115,11 @@ class Tacotron2Loss(Loss):
         return mel_loss + gate_loss
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models, from_pretrained, export but how?
+@experimental  # TODO: Need to implement abstract methods: list_available_models
 class Tacotron2Model(ModelPT):
+    """ Tacotron 2 Model that is used to generate mel spectrograms from text
+    """
+
     # TODO: tensorboard for training
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):
@@ -269,14 +275,5 @@ class Tacotron2Model(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        """TODO: Implement me!"""
-        pass
-
-    def export(self, **kwargs):
         """TODO: Implement me!"""
         pass
