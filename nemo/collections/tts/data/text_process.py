@@ -124,7 +124,7 @@ class TextProcess:
         self._number_re = re.compile(r"[0-9]+")
 
     def __call__(self, text: str) -> Optional[List[int]]:
-        return self.text_to_sequence(text, ["english_cleaners"])
+        return self.text_to_sequence(text, ["english_cleaners"], self.cmu_dict)
 
     def _expand_ordinal(self, m):
         return self._inflect.number_to_words(m.group(0))
@@ -197,7 +197,7 @@ class TextProcess:
         else:
             return word
 
-    def text_to_sequence(self, text, cleaner_names, dictionary=None, keep_punct=True):
+    def text_to_sequence(self, text, cleaner_names, dictionary=None):
         """Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
 
           The text can optionally have ARPAbet sequences enclosed in curly braces embedded
