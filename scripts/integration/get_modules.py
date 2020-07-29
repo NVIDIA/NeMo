@@ -88,13 +88,24 @@ def process_member(module_name, obj, module_list) -> bool:
 
         # Get default.
         if param.default is not inspect.Signature.empty:
-            arg["default"] = param.default
+            # Check what is pased.
+            if inspect.isclass(param.default):
+                logging.warning(
+                    "     ! Argument `{}` has invalid `default` set to `{}` - skipping the module".format(
+                        name, param.default
+                    )
+                )
+                return False
+            else:
+                arg["default"] = param.default
 
         # Get annotations.
         if param.annotation is not inspect.Signature.empty:
+            # Check if the annotation is a "single type" or Union.
             if hasattr(param.annotation, "__name__"):
                 arg["annotation"] = param.annotation.__name__
             else:
+                # Handle Union.
                 arg["annotation"] = str(param.annotation)
 
         # import pdb; pdb.set_trace()
@@ -136,14 +147,27 @@ def import_submodules(package, recursive=True):
     Returns:
         dict[str, types.ModuleType]
     """
+    # Check whether this is module or string describing the module that needs to be evaluated/imported.
     if isinstance(package, str):
+        # Skip cache.
+        if package == "__pycache__":
+            return {}
+        # Import module.
         package = importlib.import_module(package)
     results = {}
+    # Walk through the subpackages.
     for loader, name, is_pkg in pkgutil.walk_packages(package.__path__):
         full_name = package.__name__ + '.' + name
-        results[full_name] = importlib.import_module(full_name)
-        if recursive and is_pkg:
-            results.update(import_submodules(full_name))
+        # Try to import  the module.
+        try:
+            results[full_name] = importlib.import_module(full_name)
+            # Dive into recursion.
+            if recursive and is_pkg:
+                results.update(import_submodules(full_name))
+        except ModuleNotFoundError:
+            # Simply skip it.
+            continue
+
     return results
 
 
