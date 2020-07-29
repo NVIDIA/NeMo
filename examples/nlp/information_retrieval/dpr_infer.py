@@ -59,7 +59,7 @@ encoder.restore_from(path=args.restore_path, local_rank=args.local_rank)
 
 data_layer_params = {"tokenizer": tokenizer, "batch_size": args.batch_size, "passages": None, "queries": None}
 if args.data_for_eval == "passages":
-    data_layer_params["passages"] = f"{args.data_dir}/collection_parts/collection_{args.chunk_id}.tsv"
+    data_layer_params["passages"] = f"{args.data_dir}/collection_{args.chunk_id}.tsv"
     filename = f"passages.{args.chunk_id}.tsv"
 elif args.data_for_eval == "queries":
     filename = f"queries.{args.eval_datasets[0]}.tsv"
