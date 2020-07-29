@@ -114,12 +114,7 @@ def process_member(module_name, obj, module_list) -> bool:
 
     # Append "module" to list.
     module_list.append(
-        {
-            "name": module_name,
-            "id": module_id,
-            "module_type": module_type,
-            "arguments": module_args,
-        }
+        {"name": module_name, "id": module_id, "module_type": module_type, "arguments": module_args,}
     )
     # Ok, got a module.
     return True
@@ -162,7 +157,7 @@ def main():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
     # Parse arguments.
     parser = argparse.ArgumentParser()
-    parser.add_argument('--collection', help='ID of the collection', type=str)
+    parser.add_argument('--collection', help='ID of the collection', type=str, required=True)
     parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="modules.json")
     args = parser.parse_args()
 
