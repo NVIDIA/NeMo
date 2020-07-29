@@ -75,9 +75,6 @@ def process_member(module_name, obj, module_list) -> bool:
     inv_params = ["*", "args", "kwargs"]
     module_args = []
 
-    # print(str(sig))
-    # import pdb; pdb.set_trace()
-
     # Iterate over arguments.
     for name, param in sig.parameters.items():
         # Skip "self".
@@ -112,30 +109,16 @@ def process_member(module_name, obj, module_list) -> bool:
                 # Handle Union.
                 arg["annotation"] = str(param.annotation)
 
-        # import pdb; pdb.set_trace()
         # Add to list.
         module_args.append(arg)
 
-    # print(module_args)
-    # print ("\n")
-    # import pdb; pdb.set_trace()
-
+    # Append "module" to list.
     module_list.append(
         {
             "name": module_name,
             "id": module_id,
             "module_type": module_type,
-            # Temporary solution: mockup arguments.
             "arguments": module_args,
-            # Temporary solution: mockup input types.
-            # "input_types": {
-            #    "audio_signal": "axes: (batch, dimension, time); elements_type: MelSpectrogramType",
-            #    "length": "axes: (batch,); elements_type: LengthType",
-            # },
-            # Temporary solution: mockup output types.
-            # "output_types": {
-            #    "encoder_output": "axes: (batch, dimension, time); elements_type: AcousticEncodedRepresentation"
-            # },
         }
     )
     # Ok, got a module.
