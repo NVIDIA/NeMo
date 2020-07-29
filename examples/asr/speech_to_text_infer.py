@@ -90,7 +90,8 @@ def main():
             references.append(reference)
         del test_batch
     wer_value = word_error_rate(hypotheses=hypotheses, references=references)
-    assert wer_value < args.wer_tolerance
+    if wer_value > args.wer_tolerance:
+        raise ValueError(f"Got WER of {wer_value}. It was higher than {args.wer_tolerance}")
     logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
 
 
