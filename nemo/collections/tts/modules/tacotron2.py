@@ -28,6 +28,8 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
+
 
 _NATIVE_AMP = False
 try:
@@ -38,6 +40,7 @@ except ImportError:
     pass
 
 
+@experimental()  # TODO: Implement save_to() and restore_from()
 class Encoder(NeuralModule):
     def __init__(
         self, encoder_n_convolutions: int, encoder_embedding_dim: int, encoder_kernel_size: int,
@@ -110,7 +113,17 @@ class Encoder(NeuralModule):
 
         return outputs
 
+    def save_to(self, save_path: str):
+        # TODO: Implement me!!!
+        pass
 
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        # TODO: Implement me!!!
+        pass
+
+
+@experimental()  # TODO: Implement save_to() and restore_from()
 class Decoder(NeuralModule):
     def __init__(
         self,
@@ -372,7 +385,17 @@ class Decoder(NeuralModule):
 
         return mel_outputs, gate_outputs, alignments, mel_lengths
 
+    def save_to(self, save_path: str):
+        # TODO: Implement me!!!
+        pass
 
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        # TODO: Implement me!!!
+        pass
+
+
+@experimental()  # TODO: Implement save_to() and restore_from()
 class Postnet(NeuralModule):
     def __init__(
         self,
@@ -465,3 +488,12 @@ class Postnet(NeuralModule):
         mel_spec_out = F.dropout(self.convolutions[-1](mel_spec_out), self.p_dropout, self.training)
 
         return mel_spec + mel_spec_out
+
+    def save_to(self, save_path: str):
+        # TODO: Implement me!!!
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        # TODO: Implement me!!!
+        pass
