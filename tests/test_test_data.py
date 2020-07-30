@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from os.path import join, exists
+from os.path import exists, join
 
 import pytest
+
 
 class TestData:
     @pytest.mark.unit
@@ -24,4 +25,3 @@ class TestData:
         # test_dir contains the absolute path to nemo -> tests/.data
         assert exists(test_dir)
         assert exists(join(test_dir, "test_data.tar.gz"))
-        

@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import mkdir
-from os.path import dirname, join, getsize, exists
-from  shutil import rmtree
-import urllib.request
 import tarfile
+import urllib.request
+from os import mkdir
+from os.path import dirname, exists, getsize, join
+from shutil import rmtree
 
 import pytest
 
-# Those variables should go to main NeMo configuration file (config.yaml).
+# Those variables probably should go to main NeMo configuration file (config.yaml).
 __TEST_DATA_FILENAME = "test_data.tar.gz"
 __TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v0.11.0/"
 __TEST_DATA_SUBDIR = ".data"
@@ -74,11 +74,9 @@ def pytest_configure(config):
     # Get size of local test_data archive.
     try:
         test_data_local_size = getsize(test_data_archive)
-    except: 
+    except:
         # File does not exist.
         test_data_local_size = -1
-
-    #print("! test_data_local_size: ", test_data_local_size)
 
     # Get size of remote test_data archive.
     url = __TEST_DATA_URL + __TEST_DATA_FILENAME
@@ -87,11 +85,11 @@ def pytest_configure(config):
     meta = u.info()
     test_data_remote_size = int(meta["Content-Length"])
 
-    #print("! test_data_remote_size:", test_data_remote_size)
-
     # Compare sizes.
     if test_data_local_size != test_data_remote_size:
-        print("Downloading the `{}` test archive from `{}`, please wait...".format(__TEST_DATA_FILENAME, __TEST_DATA_URL))
+        print(
+            "Downloading the `{}` test archive from `{}`, please wait...".format(__TEST_DATA_FILENAME, __TEST_DATA_URL)
+        )
         # Remove .data folder.
         if exists(test_dir):
             rmtree(test_dir)
@@ -103,7 +101,10 @@ def pytest_configure(config):
         print("Extracting the `{}` test archive, please wait...".format(test_data_archive))
         tar = tarfile.open(test_data_archive)
         tar.extractall(path=test_dir)
-        tar.close()        
+        tar.close()
     else:
-        print("A valid `{}` test archive ({}B) found in the `{}` folder.".format(__TEST_DATA_FILENAME, test_data_local_size, test_dir))
-
+        print(
+            "A valid `{}` test archive ({}B) found in the `{}` folder.".format(
+                __TEST_DATA_FILENAME, test_data_local_size, test_dir
+            )
+        )
