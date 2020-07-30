@@ -3,7 +3,6 @@ sample_rate: &sr 22050
 n_fft: &n_fft 1024
 n_mels: &n_mels 80
 fmax: &fmax null
-n_stride: &n_window_stride 256
 pad_value: &pad_value -11.52
 
 model:
@@ -33,8 +32,9 @@ model:
     manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_train.json
     sample_rate: *sr
     batch_size: 8
-    trim_silence: True
-    max_duration: 16.7
+    max_duration: null
+    min_duration: 0.1
+    trim: false
     shuffle: True
     num_workers: 8
     cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
@@ -53,8 +53,9 @@ model:
     manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_val.json
     sample_rate: *sr
     batch_size: 8
-    trim_silence: True
-    max_duration: 16.7
+    max_duration: null
+    min_duration: 0.1
+    trim: false
     shuffle: False
     num_workers: 8
     cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
@@ -83,13 +84,6 @@ model:
       window: hann
       window_size: null
       window_stride: null
-
-  spec_augment:
-    cls: nemo.collections.asr.modules.SpectrogramAugmentation
-    params:
-      rect_freq: 50
-      rect_masks: 5
-      rect_time: 120
 
 
   optim:
