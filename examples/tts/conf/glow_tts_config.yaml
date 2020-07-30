@@ -60,10 +60,10 @@ model:
     cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
 
   preprocessor:
-    cls: nemo.collections.asr.parts.features.FilterbankFeatures
+    cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     params:
       dither: 0.0
-      nfilt: *n_mels
+      features: *n_mels
       frame_splicing: 1
       highfreq: *fmax
       log: true
@@ -73,7 +73,7 @@ model:
       mag_power: 1.0
       n_fft: *n_fft
       n_window_size: 1024
-      n_window_stride: *n_window_stride
+      n_window_stride: 256
       normalize: null
       pad_to: 16
       pad_value: *pad_value
@@ -81,6 +81,8 @@ model:
       sample_rate: *sr
       stft_conv: true
       window: hann
+      window_size: null
+      window_stride: null
 
   spec_augment:
     cls: nemo.collections.asr.modules.SpectrogramAugmentation
@@ -106,14 +108,14 @@ model:
       # reduce_on_plateau: false
 
       # Scheduler params
-      warmup_steps: 4000
+      warmup_steps: 100
       min_lr: 1e-5
       last_epoch: -1
 
 trainer:
   gpus: -1 # number of gpus
   max_epochs: 500
-  max_steps: 20000
+  max_steps: 1000
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1

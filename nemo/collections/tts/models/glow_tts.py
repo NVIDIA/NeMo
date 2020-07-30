@@ -22,11 +22,62 @@ from omegaconf import DictConfig
 from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils.decorators import experimental
 from pytorch_lightning import Trainer
+from nemo.core.classes import Loss, typecheck
+from nemo.core.neural_types import *
 
-import matplotlib.pyplot as plt
+@experimental
+class GlowTTSLoss(Loss):
+    """
+    GlowTTSLoss
+    Loss for the GlowTTS model
+    """
+
+    def save_to(self, save_path: str):
+        pass
+
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
+
+    @property
+    def input_types(self):
+        return {
+            "z": NeuralType(('B', 'D', 'T'), NormalDistributionSamplesType()),
+            "y_m": NeuralType(('B', 'D', 'T'), NormalDistributionMeanType()),
+            "y_logs": NeuralType(('B', 'D', 'T'), NormalDistributionLogVarianceType()),
+            "logdet": NeuralType(('B',), VoidType()),
+            "logw": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "logw_": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "x_lengths": NeuralType(('B',), LengthsType()),
+            "y_lengths": NeuralType(('B',), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        return {"l_mle": NeuralType(elements_type=LossType()),
+                "l_length": NeuralType(elements_type=LossType()),
+                "logdet": NeuralType(elements_type=VoidType())}
+
+    def __init__(self):
+        super().__init__()
+
+
+    @typecheck()
+    def forward(self, z, y_m, y_logs, logdet, logw, logw_, x_lengths, y_lengths):
+
+
+        logdet = torch.sum(logdet)
+        l_mle = 0.5 * math.log(2 * math.pi) + (
+            torch.sum(y_logs)
+            + 0.5 * torch.sum(torch.exp(-2 * y_logs) * (z - y_m) ** 2)
+            - logdet
+        ) / (torch.sum(y_lengths) * z.shape[1])
+
+        l_length = torch.sum((logw - logw_) ** 2) / torch.sum(x_lengths)
+        return l_mle, l_length, logdet
+
 
 @experimental
 class GlowTTSModel(ModelPT):
@@ -71,6 +122,8 @@ class GlowTTSModel(ModelPT):
 
         self.setup_optimization()
 
+        self.loss = GlowTTSLoss()
+
 
     def train_dataloader(self):
         return self._train_dl
@@ -110,13 +163,19 @@ class GlowTTSModel(ModelPT):
             y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
             y_max_length = None
         else:
-            y = self.preprocessor(y, y_lengths)
+            y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
+
             # Spec augment is not applied during evaluation/testing
             if self.spec_augmentation is not None and self.training:
                 y = self.spec_augmentation(input_spec=y)
+
             y_max_length = y.size(2)
 
-        y, y_lengths, y_max_length = self.preprocess(y, y_lengths, y_max_length)
+            y_max_length = (y_max_length // self._cfg.n_sqz) * self._cfg.n_sqz
+            y = y[:, :, :y_max_length]
+
+        y_lengths = (y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz
+
         y_mask = torch.unsqueeze(
             glow_tts.parts.sequence_mask(y_lengths, y_max_length), 1
         ).to(x_mask.dtype)
@@ -179,18 +238,20 @@ class GlowTTSModel(ModelPT):
             logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
             # logw_ is durations from monotonic alignment
 
-            return z, y_m, y_logs, logdet, logw, logw_
+            return z, y_m, y_logs, logdet, logw, logw_, y_lengths
 
     def training_step(self, batch, batch_idx):
 
         y, y_lengths, x, x_lengths = batch
 
-        z, y_m, y_logs, logdet, logw, logw_ = self(
+
+        z, y_m, y_logs, logdet, logw, logw_, y_lengths = self(
             x, x_lengths, y, y_lengths, gen=False
         )
 
         l_mle, l_length, logdet = self.loss(
-            z, y_m, y_logs, logdet, logw, logw_, x_lengths, y_lengths
+            z=z, y_m=y_m, y_logs=y_logs, logdet=logdet, logw=logw,
+            logw_=logw_, x_lengths=x_lengths, y_lengths=y_lengths
         )
 
         loss = sum([l_mle, l_length])
@@ -209,15 +270,6 @@ class GlowTTSModel(ModelPT):
 
         return output
 
-    def loss(self, z, y_m, y_logs, logdet, logw, logw_, x_lengths, y_lengths):
-        logdet = torch.sum(logdet)
-        l_mle = 0.5 * math.log(2 * math.pi) + (
-            torch.sum(y_logs)
-            + 0.5 * torch.sum(torch.exp(-2 * y_logs) * (z - y_m) ** 2)
-            - logdet
-        ) / (torch.sum(y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz * self._cfg.mel_channels)
-        l_length = torch.sum((logw - logw_) ** 2) / torch.sum(x_lengths)
-        return l_mle, l_length, logdet
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         """dataset = data.datalayers.TextMelLoader(
@@ -232,6 +284,7 @@ class GlowTTSModel(ModelPT):
             drop_last=True,
             collate_fn=collate_fn,
         )"""
+
         if 'augmentor' in cfg:
             augmentor = process_augmentations(cfg['augmentor'])
         else:
