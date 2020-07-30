@@ -200,24 +200,6 @@ class TextClassificationModel(ModelPT):
         )
 
     @classmethod
-    def save_to(cls, save_path: str):
-        """
-        Saves the module to the specified path.
-        Args:
-            :param save_path: Path to where to save the module.
-        """
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """
-        Restores the module from the specified path.
-        Args:
-            :param restore_path: Path to restore the module from.
-        """
-        pass
-
-    @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
 
