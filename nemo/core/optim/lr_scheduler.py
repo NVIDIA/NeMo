@@ -307,7 +307,7 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
                 step=step - self.hold_steps,
                 decay_steps=self.max_steps - max(self.warmup_steps, self.hold_steps),
                 power=self.power,
-                min_lr=self.min_lr,
+                min_lr=self._min_lr,
                 cycle=self.cycle,
             )
             for initial_lr in self.base_lrs

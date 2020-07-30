@@ -47,23 +47,28 @@ class TextClassificationModel(ModelPT):
         """Initializes the BERTTextClassifier model.
         """
 
-        self.max_seq_length = cfg.language_model.max_seq_length
-        self.data_dir = cfg.data_dir
+        # shared params for dataset and data loaders
+        self.dataset_cfg = cfg.dataset
+
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             vocab_file=cfg.language_model.vocab_file,
             tokenizer_model=cfg.language_model.tokenizer_model,
-            do_lower_case=cfg.language_model.do_lower_case,
+            do_lower_case=cfg.dataset.do_lower_case,
         )
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.data_desc = TextClassificationDataDesc(data_dir=self.data_dir, modes=["train", "test", "dev"])
+        self.data_desc = TextClassificationDataDesc(
+            train_file=cfg.train_ds.file_name, val_files=[cfg.validation_ds.file_name]
+        )
 
         self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config,
+            checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
         self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = SequenceClassifier(
@@ -77,7 +82,7 @@ class TextClassificationModel(ModelPT):
             idx_conditioned_on=0,
         )
 
-        if cfg.class_balancing == 'weighted_loss':
+        if cfg.dataset.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(weight=self.data_desc.class_weights)
         else:
@@ -110,7 +115,6 @@ class TextClassificationModel(ModelPT):
         input_ids, input_type_ids, input_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-        # TODO replace with loss module
         train_loss = self.loss(logits=logits, labels=labels)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
@@ -138,23 +142,22 @@ class TextClassificationModel(ModelPT):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        # TODO: Check why need this?
-        if outputs:
-            avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # if outputs: # TODO: Check why need this?
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
-            # calculate metrics and log classification report
-            tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
-            fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
-            fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
-            precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
+        # calculate metrics and log classification report
+        tp = torch.sum(torch.stack([x['log']['tp'] for x in outputs]), 0)
+        fn = torch.sum(torch.stack([x['log']['fn'] for x in outputs]), 0)
+        fp = torch.sum(torch.stack([x['log']['fp'] for x in outputs]), 0)
+        precision, recall, f1 = self.classification_report.get_precision_recall_f1(tp, fn, fp, mode='micro')
 
-            tensorboard_logs = {
-                'val_loss': avg_loss,
-                'precision': precision,
-                'recall': recall,
-                'f1': f1,
-            }
-            return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        tensorboard_logs = {
+            'val_loss': avg_loss,
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+        }
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
@@ -163,27 +166,37 @@ class TextClassificationModel(ModelPT):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        input_file = os.path.join(self.data_dir, f"{cfg.prefix}.tsv")
-        # TODO: check that file exists
+        input_file = cfg.file_name  # os.path.join(self.dataset_cfg.data_dir, f"{cfg.file_name}")
+        if not os.path.exists(input_file):
+            raise FileNotFoundError(
+                f'{input_file} not found! The data should be be stored in TAB-separated files \n\
+                "validation_ds.file_name" and "train_ds.file_name" for train and evaluation respectively. \n\
+                Each line of the files contains text sequences, where words are separated with spaces. \n\
+                The label of the example is separated with TAB at the end of each line. \n\
+                Each line of the files should follow the format: \n\
+                [WORD][SPACE][WORD][SPACE][WORD][...][TAB][LABEL]'
+            )
+
         dataset = TextClassificationDataset(
             input_file=input_file,
             tokenizer=self.tokenizer,
-            max_seq_length=self.max_seq_length,
-            num_samples=cfg.num_samples,
+            max_seq_length=self.dataset_cfg.max_seq_length,
+            num_samples=cfg.get('num_samples', -1),
             shuffle=cfg.shuffle,
-            use_cache=cfg.use_cache,
+            use_cache=self.dataset_cfg.use_cache,
         )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self.dataset_cfg.get("num_workers", 2),
+            pin_memory=self.dataset_cfg.get("pin_memory", False),
+            drop_last=self.dataset_cfg.get("drop_last", False),
+            collate_fn=dataset.collate_fn,  # it is necessary for type checking to be working even if collate_fn is not used
         )
 
     @classmethod

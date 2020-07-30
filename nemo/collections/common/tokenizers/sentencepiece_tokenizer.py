@@ -35,7 +35,7 @@ class SentencePieceTokenizer(TokenizerSpec):
         """
         Args:
             model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
-            special_tokens: either list of special tokens or dictionary of token name to token value  
+            special_tokens: either list of special tokens or dictionary of token name to token value
         """
         self.tokenizer = sentencepiece.SentencePieceProcessor()
         self.tokenizer.Load(model_path)
@@ -229,7 +229,7 @@ def create_spt_model(
         cmd += " --normalization_rule_name=nmt_nfkc_cf"
 
     if sample_size > 0:
-        cmd += " --input_sentence_size={sample_size}"
+        cmd += f" --input_sentence_size={sample_size}"
 
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
