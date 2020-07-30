@@ -516,7 +516,7 @@ class ModelPT(LightningModule, Model):
 
         # Case where we provide exactly 1 data loader
         if type(outputs[0]) == dict:
-            return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
+            return self.multi_test_epoch_end(outputs, dataloader_idx=0)
 
         else:  # Case where we provide more than 1 data loader
             output_dict = {'log': {}}
