@@ -54,11 +54,11 @@ def pytest_configure(config):
 
 
 @pytest.fixture()
-def test_dir():
-    """ Fixture returns test_dir. """
+def test_data_dir():
+    """ Fixture returns test_data_dir. """
     # Test dir.
-    test_data_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
-    return test_data_dir
+    test_data_dir_ = join(dirname(__file__), __TEST_DATA_SUBDIR)
+    return test_data_dir_
 
 
 def pytest_configure(config):
