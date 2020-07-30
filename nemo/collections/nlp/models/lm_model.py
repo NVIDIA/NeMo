@@ -19,9 +19,11 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
+from nemo import logging
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
+from nemo.collections.nlp.metrics.perplexity import Perplexity
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
@@ -105,7 +107,9 @@ class BERTLMModel(ModelPT):
         ):
             raise ValueError("Final classification layer does not match embedding layer.")
         self.mlm_classifier.mlp.last_linear_layer.weight = self.bert_model.embeddings.word_embeddings.weight
-        # create extra bias
+
+        # setup to track metrics
+        self.perplexity = Perplexity()
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -154,7 +158,7 @@ class BERTLMModel(ModelPT):
 
         loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
-        tensorboard_logs = {'val_loss': loss}
+        perplexity = self.perplexity(mlm_loss)
         return {'val_loss': loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -163,6 +167,9 @@ class BERTLMModel(ModelPT):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
+        logging.info(f"evaluation perplexity {perplexity.item()}")
         return {'val_loss': avg_loss}
 
     def setup_training_data(self, train_data_layer_config: Optional[Dict]):
