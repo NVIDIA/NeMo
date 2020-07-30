@@ -109,7 +109,7 @@ class BERTLMModel(ModelPT):
         self.mlm_classifier.mlp.last_linear_layer.weight = self.bert_model.embeddings.word_embeddings.weight
 
         # setup to track metrics
-        self.perplexity = Perplexity()
+        self.perplexity_metric = Perplexity()
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -158,7 +158,7 @@ class BERTLMModel(ModelPT):
 
         loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
-        perplexity = self.perplexity(mlm_loss)
+        perplexity = self.perplexity_metric(mlm_loss)
         tensorboard_logs = {'val_loss': loss, 'perplexity': perplexity}
         return {'val_loss': loss, 'log': tensorboard_logs}
 

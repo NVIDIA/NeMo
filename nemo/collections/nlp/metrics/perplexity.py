@@ -31,4 +31,4 @@ class Perplexity(TensorMetric):
         super(Perplexity, self).__init__(name="Perplexity")
 
     def forward(self, loss: torch.Tensor) -> torch.Tensor:
-        return torch.exp(loss).to(loss.device)
+        return torch.exp(loss)
