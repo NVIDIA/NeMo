@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 import itertools
+from typing import List
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
@@ -58,7 +57,7 @@ class IntentSlotDataDesc:
              it'll be set to the whatever the None label is.
     """
 
-    def __init__(self, data_dir, none_slot_label='O', pad_label=-1):
+    def __init__(self, data_dir: str, modes: List[str] = ['train', 'test', 'dev'], none_slot_label: str = 'O', pad_label: int = -1):
         if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
             raise FileNotFoundError(
                 "Make sure that your data follows the standard format "
@@ -76,7 +75,7 @@ class IntentSlotDataDesc:
         self.num_slots = len(self.slots_label_ids)
 
         infold = self.data_dir
-        for mode in ['train', 'test', 'dev']:
+        for mode in modes:
             if not if_exist(self.data_dir, [f'{mode}.tsv']):
                 logging.info(f' Stats calculation for {mode} mode' f' is skipped as {mode}.tsv was not found.')
                 continue

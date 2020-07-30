@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 import os
 import re
 import shutil
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import (
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     DATABASE_EXISTS_TMP,
     if_exist,
     write_files,

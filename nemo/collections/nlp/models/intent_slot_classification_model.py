@@ -45,10 +45,9 @@ class IntentSlotClassificationModel(ModelPT):
         """ Initializes BERT Joint Intent and Slot model.
         """
 
-        # init superclass
-        super().__init__(cfg=cfg, trainer=trainer)
-
-        data_desc = IntentSlotDataDesc(data_dir=cfg.data_dir, modes=["train", "test", "dev"])
+        # TODO: All these variables should be initialized before call to super init
+        self.data_dir = cfg.data_dir
+        self.max_seq_length = cfg.language_model.max_seq_length
 
         # initialize Tokenizer
         self.tokenizer = get_tokenizer(
@@ -59,6 +58,11 @@ class IntentSlotClassificationModel(ModelPT):
             do_lower_case=cfg.language_model.do_lower_case,
         )
 
+        # init superclass
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        self.data_desc = IntentSlotDataDesc(data_dir=cfg.data_dir, modes=["train", "test", "dev"])
+
         # initialize Bert model
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -66,14 +70,12 @@ class IntentSlotClassificationModel(ModelPT):
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
-        self.data_dir = cfg.data_dir
-        self.max_seq_length = cfg.language_model.max_seq_length
         self.hidden_size = self.bert_model.config.hidden_size
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.hidden_size,
-            num_intents=data_desc.num_intents,
-            num_slots=data_desc.num_slots,
+            num_intents=self.data_desc.num_intents,
+            num_slots=self.data_desc.num_slots,
             dropout=cfg.head.fc_dropout,
             num_layers=cfg.head.num_output_layers,
             log_softmax=False,
@@ -82,8 +84,8 @@ class IntentSlotClassificationModel(ModelPT):
         # define losses
         if cfg.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=data_desc.intent_weights)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=data_desc.slot_weights)
+            self.intent_loss = CrossEntropyLoss(logits_ndim=2, weight=self.data_desc.intent_weights)
+            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.slot_weights)
         else:
             self.intent_loss = CrossEntropyLoss(logits_ndim=2)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
@@ -91,10 +93,10 @@ class IntentSlotClassificationModel(ModelPT):
         self.total_loss = AggregatorLoss(num_inputs=2, weights=[cfg.intent_loss_weight, 1.0 - cfg.intent_loss_weight])
 
         # setup to track metrics
-        self.intents_classification_report = ClassificationReport(
+        self.intent_classification_report = ClassificationReport(
             self.data_desc.num_intents, self.data_desc.intents_label_ids
         )
-        self.slots_classification_report = ClassificationReport(
+        self.slot_classification_report = ClassificationReport(
             self.data_desc.num_slots, self.data_desc.slots_label_ids
         )
 
@@ -126,7 +128,7 @@ class IntentSlotClassificationModel(ModelPT):
 
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.intent_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+        slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
         train_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
 
         tensorboard_logs = {'train_loss': train_loss, 'lr': self._optimizer.param_groups[0]['lr']}
@@ -144,18 +146,18 @@ class IntentSlotClassificationModel(ModelPT):
 
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.intent_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+        slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
         val_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
 
         # calculate accuracy metrics for intents and slot reporting
         # intents
         preds = torch.argmax(intent_logits, axis=-1)
-        intent_tp, intent_fp, intent_fn = self.classification_report(preds, intent_labels)
+        intent_tp, intent_fp, intent_fn = self.intent_classification_report(preds, intent_labels)
         # slots
         subtokens_mask = subtokens_mask > 0.5
         preds = torch.argmax(slot_logits, axis=-1)[subtokens_mask]
         slot_labels = slot_labels[subtokens_mask]
-        slot_tp, slot_fp, slot_fn = self.classification_report(preds, slot_labels)
+        slot_tp, slot_fp, slot_fn = self.slot_classification_report(preds, slot_labels)
 
         tensorboard_logs = {
             'val_loss': val_loss,
@@ -167,7 +169,7 @@ class IntentSlotClassificationModel(ModelPT):
             'slot_fp': slot_fp,
         }
 
-        return {'loss': val_loss, 'log': tensorboard_logs}
+        return {'val_loss': val_loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
         """
@@ -180,14 +182,14 @@ class IntentSlotClassificationModel(ModelPT):
         tp = torch.sum(torch.stack([x['log']['intent_tp'] for x in outputs]), 0)
         fn = torch.sum(torch.stack([x['log']['intent_fn'] for x in outputs]), 0)
         fp = torch.sum(torch.stack([x['log']['intent_fp'] for x in outputs]), 0)
-        intent_precision, intent_recall, intent_f1 = self.classification_report.get_precision_recall_f1(
+        intent_precision, intent_recall, intent_f1 = self.intent_classification_report.get_precision_recall_f1(
             tp, fn, fp, mode='micro'
         )
 
         tp = torch.sum(torch.stack([x['log']['slot_tp'] for x in outputs]), 0)
         fn = torch.sum(torch.stack([x['log']['slot_fn'] for x in outputs]), 0)
         fp = torch.sum(torch.stack([x['log']['slot_fp'] for x in outputs]), 0)
-        slot_precision, slot_recall, slot_f1 = self.classification_report.get_precision_recall_f1(
+        slot_precision, slot_recall, slot_f1 = self.slot_classification_report.get_precision_recall_f1(
             tp, fn, fp, mode='macro'
         )
 

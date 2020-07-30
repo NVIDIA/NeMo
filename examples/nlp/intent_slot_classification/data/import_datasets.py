@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 import argparse
 import os
@@ -24,14 +22,14 @@ from dialogflow_utils import process_dialogflow
 from mturk_utils import process_mturk
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import (
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     DATABASE_EXISTS_TMP,
     MODE_EXISTS_TMP,
     create_dataset,
     get_dataset,
     if_exist,
+    get_vocab,
 )
-from nemo.collections.nlp.utils import get_vocab
 
 
 def ids2text(ids, vocab):

@@ -1,4 +1,3 @@
-# =============================================================================
 # Copyright 2020 NVIDIA. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,14 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# =============================================================================
 
 import json
 import os
 
 from nemo import logging
-from nemo.collections.nlp.data.datasets.datasets_utils import partition_data, write_files
-from nemo.collections.nlp.data.datasets.datasets_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
+    DATABASE_EXISTS_TMP,
+    if_exist,
+    partition_data,
+    write_files,
+)
 
 __all__ = [
     'get_intent_query_files_dialogflow',
