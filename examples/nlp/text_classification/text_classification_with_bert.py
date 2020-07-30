@@ -30,7 +30,6 @@ def main(cfg: DictConfig) -> None:
 
     text_classification_model = TextClassificationModel(cfg.model, trainer=trainer)
     trainer.fit(text_classification_model)
-    text_classification_model.save_to('test.nemo')
 
 
 if __name__ == '__main__':
