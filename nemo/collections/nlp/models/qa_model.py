@@ -198,9 +198,6 @@ class QAModel(ModelPT):
     def from_pretrained(cls, name: str):
         pass
 
-    def export(self, **kwargs):
-        pass
-
     def restore_from(self, restore_path: str):
         if restore_path:
             logging.info(f"restore from {restore_path}")
