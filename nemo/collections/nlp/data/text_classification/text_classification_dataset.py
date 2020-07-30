@@ -226,7 +226,7 @@ class TextClassificationDataset(Dataset):
 
     def load_cached_features(self, cached_features_file):
         f = h5py.File(cached_features_file, 'r')
-        keys = ['input_ids', 'segment_ids', 'input_mask', 'labels']
+        keys = ['input_ids', 'segment_ids', 'input_mask', 'label']
         self.features = [np.asarray(f[key], dtype=np.long) for key in keys]
         f.close()
         logging.info(f'features restored from {cached_features_file}')
