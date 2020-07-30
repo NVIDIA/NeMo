@@ -15,19 +15,28 @@
 # limitations under the License.
 
 import os
+import random
 
+import numpy as np
 import torch
-from transformers import BertConfig
+import torch.distributed as dist
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
+if dist.is_available():
+    from torch.distributed.distributed_c10d import _get_default_group
+
 try:
-    from megatron.initialize import initialize_megatron
+    from megatron.mpu.initialize import set_model_parallel_rank, get_model_parallel_rank, set_model_parallel_world_size
+    from megatron.mpu.initialize import set_data_parallel_group, set_model_parallel_group
+    from megatron.mpu import model_parallel_cuda_manual_seed, get_cuda_rng_tracker
+    from megatron.initialize import _set_random_seed, _init_autoresume, initialize_megatron
+    from megatron.global_vars import set_global_variables, get_args
     from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-    from megatron.model.language_model import get_language_model
+    from megatron.model.language_model import get_language_model, TransformerLanguageModel
     from megatron.model.utils import init_method_normal, scaled_init_method_normal
 except ModuleNotFoundError as err:
     logging.error(f"Could not import {err.name}. Megatron LM is not available. Make sure you are using NeMo on GPUs.")
@@ -49,52 +58,47 @@ class MegatronBertEncoder(BertModule):
     """
 
     def __init__(
-        self,
-        model_name,
-        vocab_file,
-        hidden_size=1024,
-        num_attention_heads=16,
-        num_layers=24,
-        max_seq_length=512,
-        tokenizer_type='BertWordPieceLowerCase',
-        init_method_std=0.02,
-        num_tokentypes=2,
+        self, model_name, config,
     ):
 
         super().__init__()
 
-        if not os.path.exists(vocab_file):
-            raise ValueError(f'Vocab file not found at {vocab_file}')
+        if not os.path.exists(config["vocab_file"]):
+            raise ValueError(f'Vocab file not found at {config["vocab_file"]}')
 
-        megatron_args = {
-            "num_layers": num_layers,
-            "hidden_size": hidden_size,
-            "num_attention_heads": num_attention_heads,
-            "max_position_embeddings": max_seq_length,
-            "tokenizer_type": tokenizer_type,
-            "vocab_file": vocab_file,
-        }
+        config['tokenizer_type'] = 'BertWordPieceLowerCase'
+        set_global_variables(extra_args_provider=None, args_defaults=config, ignore_unknown_args=True)
+        # read arguments back
+        args = get_args()
 
-        self.config = BertConfig(
-            num_layers=num_layers,
-            hidden_size=hidden_size,
-            num_attention_heads=num_attention_heads,
-            tokenizer_type=tokenizer_type,
-            vocab_file=vocab_file,
-        )
+        # Autoresume.
+        _init_autoresume()
 
-        initialize_megatron(None, megatron_args, ignore_unknown_args=True)
-        init_method = init_method_normal(init_method_std)
+        # Random seeds for reproducibility.
+        if args.rank == 0:
+            seed = args.seed
+            if seed is not None and seed > 0:
+                print('> setting random seeds to {} ...'.format(args.seed))
+                random.seed(seed)
+                np.random.seed(seed)
+                torch.manual_seed(seed)
 
-        self.language_model, self._language_model_key = get_language_model(
+        set_model_parallel_rank(args.rank)
+        set_model_parallel_world_size(args.model_parallel_size)
+
+        self.language_model = TransformerLanguageModel(
             attention_mask_func=bert_attention_mask_func,
-            num_tokentypes=num_tokentypes,
+            mlp_activation_func=torch.nn.functional.gelu,
+            init_method=init_method_normal(args.init_method_std),
+            output_layer_init_method=scaled_init_method_normal(args.init_method_std, args.num_layers),
+            num_tokentypes=2,
             add_pooler=False,
-            init_method=init_method,
-            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
         )
 
+        # key used for checkpoints.
+        self._language_model_key = 'language_model'
         self._hidden_size = self.language_model.hidden_size
+        self._rng_initialized = False
 
     @property
     def hidden_size(self):
@@ -108,6 +112,14 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
+        if not self._rng_initialized:
+            seed = get_args().seed
+            offset = seed + 2718
+            model_parallel_seed = offset + get_model_parallel_rank()
+            get_cuda_rng_tracker().add('model-parallel-rng', model_parallel_seed)
+
+            self._rng_initialized = True
+
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )

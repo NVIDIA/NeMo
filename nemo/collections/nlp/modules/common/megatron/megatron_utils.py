@@ -32,7 +32,7 @@ __all__ = [
 
 MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), 'megatron')
 
-CONFIGS = {'345m': {"hidden-size": 1024, "num-attention-heads": 16, "num-layers": 24, "max-seq-length": 512}}
+CONFIGS = {'345m': {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
 MEGATRON_CONFIG_MAP = {
     'megatron-bert-345m-uncased': {
@@ -80,17 +80,10 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
             config = json.load(f)
 
     checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
-
     vocab = get_megatron_vocab_file(pretrained_model_name)
+    config["vocab_file"] = vocab
 
-    model = MegatronBertEncoder(
-        model_name=pretrained_model_name,
-        vocab_file=vocab,
-        hidden_size=config['hidden-size'],
-        num_attention_heads=config['num-attention-heads'],
-        num_layers=config['num-layers'],
-        max_seq_length=config['max-seq-length'],
-    )
+    model = MegatronBertEncoder(model_name=pretrained_model_name, config=config)
 
     return model, checkpoint_file
 
