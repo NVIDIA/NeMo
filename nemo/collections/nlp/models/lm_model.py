@@ -170,7 +170,7 @@ class BERTLMModel(ModelPT):
         perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
         logging.info(f"evaluation perplexity {perplexity.item()}")
-        return {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_layer_config: Optional[Dict]):
         if 'shuffle' not in train_data_layer_config:
