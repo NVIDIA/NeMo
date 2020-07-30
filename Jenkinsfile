@@ -460,6 +460,43 @@ pipeline {
       }
     }
 
+    stage('L2: TTS Fast dev runs') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      parallel {
+        stage('Tacotron 2') {
+          steps {
+            sh 'python examples/tts/tacotron2.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[0]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=12 \
+            model.validation_ds.dataloader_params.batch_size=12'
+          }
+        }
+        stage('WaveGlow') {
+          steps {
+            sh 'python examples/tts/waveglow.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[1]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.batch_size=4'
+          }
+        }
+      }
+    }
+
     stage('L??: ASR Checkpoints tests') {
       when {
         anyOf{

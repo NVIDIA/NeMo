@@ -155,6 +155,8 @@ tests/.data
 
 # outputs folder
 examples/*/outputs
+examples/*/NeMo_experiments
+examples/*/.hydra
 examples/*/wandb
 examples/*/data
 wandb
