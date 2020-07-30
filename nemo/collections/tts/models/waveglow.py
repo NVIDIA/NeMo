@@ -19,12 +19,12 @@ import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
+from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.modules.waveglow import OperationMode
-from nemo.core.classes import Loss, ModelPT, typecheck
+from nemo.core.classes import ModelPT, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,
-    LossType,
     MelSpectrogramType,
     NormalDistributionSamplesType,
     VoidType,
@@ -32,39 +32,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-
-
-class WaveGlowLoss(Loss):
-    """ A Loss module that computes loss for WaveGlow
-    """
-
-    @property
-    def input_types(self):
-        return {
-            "z": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-            "log_s_list": NeuralType(('B', 'flowgroup', 'T'), VoidType()),  # TODO: Figure out a good typing
-            "log_det_W_list": NeuralType(elements_type=VoidType()),  # TODO: Figure out a good typing
-            "sigma": NeuralType(optional=True),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "loss": NeuralType(elements_type=LossType()),
-        }
-
-    @typecheck()
-    def forward(self, *, z, log_s_list, log_det_W_list, sigma=1.0):
-        for i, log_s in enumerate(log_s_list):
-            if i == 0:
-                log_s_total = torch.sum(log_s)
-                log_det_W_total = log_det_W_list[i]
-            else:
-                log_s_total = log_s_total + torch.sum(log_s)
-                log_det_W_total += log_det_W_list[i]
-
-        loss = torch.sum(z * z) / (2 * sigma * sigma) - log_s_total - log_det_W_total
-        return loss / (z.size(0) * z.size(1) * z.size(2))
 
 
 @dataclass
