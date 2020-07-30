@@ -12,10 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import mkdir
+from os.path import dirname, join, getsize, exists
+from  shutil import rmtree
+import urllib.request
+import tarfile
 
 import pytest
 
-from nemo import logging
+# Those variables should go to main NeMo configuration file (config.yaml).
+__TEST_DATA_FILENAME = "test_data.tar.gz"
+__TEST_DATA_URL = "https://github.com/NVIDIA/NeMo/releases/download/v0.11.0/"
+__TEST_DATA_SUBDIR = ".data"
 
 
 def pytest_addoption(parser):
@@ -43,3 +51,59 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
+
+
+@pytest.fixture()
+def test_dir():
+    """ Fixture returns test_dir. """
+    # Test dir.
+    test_data_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
+    return test_data_dir
+
+
+def pytest_configure(config):
+    """
+    Allows plugins and conftest files to perform initial configuration.
+    This hook is called for every plugin and initial conftest
+    file after command line options have been parsed.
+    """
+    # Test dir and archive filepath.
+    test_dir = join(dirname(__file__), __TEST_DATA_SUBDIR)
+    test_data_archive = join(dirname(__file__), __TEST_DATA_SUBDIR, __TEST_DATA_FILENAME)
+
+    # Get size of local test_data archive.
+    try:
+        test_data_local_size = getsize(test_data_archive)
+    except: 
+        # File does not exist.
+        test_data_local_size = -1
+
+    #print("! test_data_local_size: ", test_data_local_size)
+
+    # Get size of remote test_data archive.
+    url = __TEST_DATA_URL + __TEST_DATA_FILENAME
+    u = urllib.request.urlopen(url)
+    # Get metadata.
+    meta = u.info()
+    test_data_remote_size = int(meta["Content-Length"])
+
+    #print("! test_data_remote_size:", test_data_remote_size)
+
+    # Compare sizes.
+    if test_data_local_size != test_data_remote_size:
+        print("Downloading the `{}` test archive from `{}`, please wait...".format(__TEST_DATA_FILENAME, __TEST_DATA_URL))
+        # Remove .data folder.
+        if exists(test_dir):
+            rmtree(test_dir)
+        # Create one .data folder.
+        mkdir(test_dir)
+        # Download
+        urllib.request.urlretrieve(url, test_data_archive)
+        # Extract tar
+        print("Extracting the `{}` test archive, please wait...".format(test_data_archive))
+        tar = tarfile.open(test_data_archive)
+        tar.extractall(path=test_dir)
+        tar.close()        
+    else:
+        print("A valid `{}` test archive ({}B) found in the `{}` folder.".format(__TEST_DATA_FILENAME, test_data_local_size, test_dir))
+

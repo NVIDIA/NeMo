@@ -150,6 +150,9 @@ dmypy.json
 cifar-10-batches-py
 *.tar.gz
 
+# Test data.
+tests/.data
+
 # outputs folder
 examples/*/outputs
 examples/*/wandb
