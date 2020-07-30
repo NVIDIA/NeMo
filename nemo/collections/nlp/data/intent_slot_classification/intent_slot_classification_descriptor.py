@@ -57,7 +57,13 @@ class IntentSlotDataDesc:
              it'll be set to the whatever the None label is.
     """
 
-    def __init__(self, data_dir: str, modes: List[str] = ['train', 'test', 'dev'], none_slot_label: str = 'O', pad_label: int = -1):
+    def __init__(
+        self,
+        data_dir: str,
+        modes: List[str] = ['train', 'test', 'dev'],
+        none_slot_label: str = 'O',
+        pad_label: int = -1,
+    ):
         if not if_exist(data_dir, ['dict.intents.csv', 'dict.slots.csv']):
             raise FileNotFoundError(
                 "Make sure that your data follows the standard format "

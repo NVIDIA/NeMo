@@ -27,8 +27,8 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     MODE_EXISTS_TMP,
     create_dataset,
     get_dataset,
-    if_exist,
     get_vocab,
+    if_exist,
 )
 
 

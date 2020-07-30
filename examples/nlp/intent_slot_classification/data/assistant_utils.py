@@ -17,11 +17,7 @@ import re
 import shutil
 
 from nemo import logging
-from nemo.collections.nlp.data.data_utils.data_preprocessing import (
-    DATABASE_EXISTS_TMP,
-    if_exist,
-    write_files,
-)
+from nemo.collections.nlp.data.data_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist, write_files
 
 
 def copy_input_files(infold):
