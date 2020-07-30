@@ -159,6 +159,7 @@ class BERTLMModel(ModelPT):
         loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
         perplexity = self.perplexity(mlm_loss)
+        tensorboard_logs = {'val_loss': val_loss, 'perplexity': perplexity}
         return {'val_loss': loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
