@@ -18,9 +18,9 @@ from os.path import exists, join
 import pytest
 
 
-class TestData:
+class TestDir:
     @pytest.mark.unit
-    def test_test_data_download(self, test_dir):
+    def test_test_dir(self, test_dir):
         """" Just a dummy tests showing how to use the test_dir fixture. """
         # test_dir contains the absolute path to nemo -> tests/.data
         assert exists(test_dir)
