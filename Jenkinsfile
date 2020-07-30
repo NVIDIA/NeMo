@@ -161,6 +161,47 @@ pipeline {
       }
     }
 
+    stage('L2: ASR Multi-dataloader dev run') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text multi-dataloader') {
+          steps {
+            sh 'python examples/asr/speech_to_text.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=[/home/TestData/an4_dataset/an4_val.json,/home/TestData/an4_dataset/an4_val.json] \
+            trainer.gpus=[0] \
+            trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
+            +trainer.num_sanity_val_steps=1 \
+            exp_manager.root_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+
+        stage('Speech to Label multi-dataloader') {
+          steps {
+            sh 'python examples/asr/speech_to_label.py \
+            model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
+            model.validation_ds.manifest_filepath=[/home/TestData/speech_commands/test_manifest.json,/home/TestData/speech_commands/test_manifest.json] \
+            trainer.gpus=[1] \
+            trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
+            +trainer.num_sanity_val_steps=1 \
+            model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
+            model.preprocessor.params=null \
+            exp_manager.root_dir=examples/asr/speech_to_label_results'
+            sh 'rm -rf examples/asr/speech_to_label_results'
+          }
+        }
+      }
+    }
+
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -296,13 +337,13 @@ pipeline {
           steps {
             sh 'cd examples/nlp/text_classification && \
             python text_classification_with_bert.py \
+            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
+            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.language_model.max_seq_length=50 \
-            model.data_dir=/home/TestData/nlp/retail/ \
-            model.validation_ds.prefix=dev \
             model.train_ds.batch_size=10 \
-            model.train_ds.use_cache=false \
-            model.language_model.do_lower_case=true \
+            model.dataset.max_seq_length=50 \
+            model.dataset.use_cache=false \
+            model.dataset.do_lower_case=true \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
             exp_manager.root_dir=exp_bert_base_uncased \

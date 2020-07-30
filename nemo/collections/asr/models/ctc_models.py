@@ -165,7 +165,7 @@ class EncDecCTCModel(ASRModel):
         }
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
