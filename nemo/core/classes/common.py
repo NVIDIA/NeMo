@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from contextlib import contextmanager
 from enum import Enum
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import hydra
 import wrapt
@@ -115,10 +115,11 @@ class Typing(ABC):
                 if hasattr(value, 'shape'):
                     value_shape = value.shape
                     type_shape = input_types[key].axes
+                    name = key
 
                     if type_shape is not None and len(value_shape) != len(type_shape):
                         raise TypeError(
-                            f"Input shape mismatch occured : \n"
+                            f"Input shape mismatch occured for {name} in module {self.__class__.__name__} : \n"
                             f"Input shape expected = {input_types[key].axes} | \n"
                             f"Input shape found : {value_shape}"
                         )
@@ -126,7 +127,7 @@ class Typing(ABC):
                 # Perform recursive neural type check for homogeneous elements
                 elif isinstance(value, list) or isinstance(value, tuple):
                     for ind, val in enumerate(value):
-                        self.__check_neural_type(val, input_types[key])
+                        self.__check_neural_type(val, input_types[key], name=key)
 
     def _attach_and_validate_output_types(self, out_objects, output_types=None):
         """
@@ -173,21 +174,22 @@ class Typing(ABC):
                 if hasattr(out_objects, 'shape'):
                     value_shape = out_objects.shape
                     type_shape = out_types_list[0][1].axes
+                    name = out_types_list[0][0]
 
                     if type_shape is not None and len(value_shape) != len(type_shape):
                         raise TypeError(
-                            f"Output shape mismatch occured : \n"
+                            f"Output shape mismatch occured for {name} in module {self.__class__.__name__} : \n"
                             f"Output shape expected = {type_shape} | \n"
                             f"Output shape found : {value_shape}"
                         )
             else:
                 for ind, res in enumerate(out_objects):
-                    self.__attach_neural_type(res, out_types_list[ind][1])
+                    self.__attach_neural_type(res, out_types_list[ind][1], name=out_types_list[ind][0])
 
-    def __check_neural_type(self, obj, type_val):
+    def __check_neural_type(self, obj, type_val, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
-                self.__check_neural_type(elem, type_val)
+                self.__check_neural_type(elem, type_val, name=name)
             return  # after processing nest, return to avoid testing nest itself
 
         if hasattr(obj, 'neural_type') and not type_val.compare(obj.neural_type) in (
@@ -207,15 +209,15 @@ class Typing(ABC):
 
             if type_shape is not None and len(value_shape) != len(type_shape):
                 raise TypeError(
-                    f"Input shape mismatch occured : \n"
+                    f"Input shape mismatch occured for {name} in module {self.__class__.__name__} : \n"
                     f"Input shape expected = {type_shape} | \n"
                     f"Input shape found : {value_shape}"
                 )
 
-    def __attach_neural_type(self, obj, type_val):
+    def __attach_neural_type(self, obj, type_val, name=None):
         if isinstance(obj, tuple) or isinstance(obj, list):
             for elem in obj:
-                self.__attach_neural_type(elem, type_val)
+                self.__attach_neural_type(elem, type_val, name=name)
             return  # after processing nest, return to avoid argument insertion into nest itself
 
         try:
@@ -230,7 +232,7 @@ class Typing(ABC):
 
             if type_shape is not None and len(value_shape) != len(type_shape):
                 raise TypeError(
-                    f"Output shape mismatch occured : \n"
+                    f"Output shape mismatch occured for {name} in module {self.__class__.__name__} : \n"
                     f"Output shape expected = {type_shape} | \n"
                     f"Output shape found : {value_shape}"
                 )
@@ -238,13 +240,14 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig):
+    def from_config_dict(cls, config: DictConfig, *args: Any, **kwargs: Any):
         """Instantiates object using DictConfig-based configuration"""
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
-            instance = hydra.utils.instantiate(config=config)
+            instance = hydra.utils.instantiate(config=config, *args, **kwargs)
         else:
             # models are handled differently for now
+            # TODO: allow passthrough for args, and kwargs too?
             instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
