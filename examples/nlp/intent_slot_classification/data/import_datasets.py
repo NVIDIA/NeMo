@@ -18,8 +18,6 @@ import shutil
 from os.path import exists
 
 from assistant_utils import process_assistant
-from dialogflow_utils import process_dialogflow
-from mturk_utils import process_mturk
 
 from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
@@ -227,10 +225,7 @@ if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo\'s format.")
     parser.add_argument(
-        "--dataset_name",
-        required=True,
-        type=str,
-        choices=['atis', 'snips', 'jarvis', 'dialogflow', 'mturk-processed', 'assistant'],
+        "--dataset_name", required=True, type=str, choices=['atis', 'snips', 'jarvis', 'assistant'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'
@@ -269,10 +264,6 @@ if __name__ == "__main__":
             do_lower_case=args.do_lower_case,
             ignore_prev_intent=args.ignore_prev_intent,
         )
-    elif dataset_name == 'dialogflow':
-        process_dialogflow(infold=source_dir, outfold=target_dir)
-    elif dataset_name == 'mturk-processed':
-        process_mturk(infold=source_dir, outfold=target_dir)
     elif dataset_name == 'assistant':
         process_assistant(infold=source_dir, outfold=target_dir, use_full_dataset=args.use_full_dataset)
     else:
