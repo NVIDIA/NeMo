@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
+from omegaconf import OmegaConf
+
 __all__ = [
     'OptimizerParams',
     'AdamParams',
@@ -238,6 +240,11 @@ def get_optimizer_config(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optim
         )
 
     scheduler_params = AVAILABLE_OPTIMIZER_PARAMS[name]
+
+    if kwargs is not None and len(kwargs) != 0:
+        kwargs = OmegaConf.create(kwargs)
+        OmegaConf.merge(scheduler_params(), kwargs)
+
     scheduler_params = partial(scheduler_params, **kwargs)
     return scheduler_params
 

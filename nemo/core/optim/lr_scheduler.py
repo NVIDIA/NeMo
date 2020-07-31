@@ -430,16 +430,31 @@ def prepare_lr_scheduler(
         logging.info('Scheduler not initialized as no `sched` config supplied to setup_optimizer()')
         return None
 
-    # Get name of the scheduler
-    scheduler_name = scheduler_config['name']
-
     # Try instantiation of scheduler params from config class path
     try:
-        scheduler_conf = hydra.utils.instantiate(scheduler_args)
+        scheduler_args_cfg = OmegaConf.create(scheduler_args)
+        scheduler_conf = hydra.utils.instantiate(scheduler_args_cfg)
         scheduler_args = vars(scheduler_conf)
+
+        # Get name of the scheduler
+        scheduler_name = scheduler_conf.__class__.__name__
+
+        if 'Params' in scheduler_name:
+            scheduler_name = scheduler_name.replace('Params', '')
 
     except Exception:
         # Class path instantiation failed; try resolving "name" component
+
+        # Get name of the scheduler
+        if 'name' in scheduler_config:
+            scheduler_name = scheduler_config['name']
+        else:
+            logging.warning(
+                "Could not resolve classpath for Scheduler Config, and `name` "
+                "was not provided either. \n"
+                "Scheduler cannot be instantiated !"
+            )
+            return None
 
         # If class path was not provided, perhaps `name` is provided for resolution
         if 'name' in scheduler_args:

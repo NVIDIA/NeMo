@@ -583,12 +583,24 @@ class ModelPT(LightningModule, Model):
     def multi_validation_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-        raise NotImplementedError()
+        logging.warning(
+            "Multi data loader support has been enabled, but "
+            "`multi_validation_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
+            "If you require multi data loader support for validation sets, please override this method.\n"
+            "If you do not require multi data loader support, please instead override "
+            "`validation_epoch_end(outputs)."
+        )
 
     def multi_test_epoch_end(
         self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
     ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
-        raise NotImplementedError()
+        logging.warning(
+            "Multi data loader support has been enabled, but "
+            "`multi_test_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
+            "If you require multi data loader support for validation sets, please override this method.\n"
+            "If you do not require multi data loader support, please instead override "
+            "`test_epoch_end(outputs)."
+        )
 
     def get_validation_dataloader_prefix(self, dataloader_idx=0):
         return self._validation_names[dataloader_idx]
