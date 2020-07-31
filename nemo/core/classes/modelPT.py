@@ -77,7 +77,7 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self._trainer = trainer
 
-        if self._cfg is not None:
+        if self._cfg is not None:  # TODO: This check is redundant since we know cfg is an instance of DictConfig
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self.setup_training_data(self._cfg.train_ds)
 
