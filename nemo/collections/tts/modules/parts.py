@@ -300,7 +300,6 @@ class WN(torch.nn.Module):
             torch.nn.utils.remove_weight_norm(l)
 
 
-
 class ActNorm(nn.Module):
     def __init__(self, channels, ddi=False, **kwargs):
         super().__init__()

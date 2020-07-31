@@ -2,7 +2,7 @@ name: &name "GlowTTS"
 sample_rate: &sr 22050
 n_fft: &n_fft 1024
 n_mels: &n_mels 80
-fmax: &fmax null
+fmax: &fmax 8000
 pad_value: &pad_value -11.52
 
 model:
@@ -68,7 +68,7 @@ model:
       frame_splicing: 1
       highfreq: *fmax
       log: true
-      log_zero_guard_type: clamp
+      log_zero_guard_type: add
       log_zero_guard_value: 1e-05
       lowfreq: 0
       mag_power: 1.0
@@ -88,7 +88,7 @@ model:
 
   optim:
     name: adam
-    lr: 1e-3
+    lr: 1e-2
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 0
@@ -102,13 +102,13 @@ model:
       # reduce_on_plateau: false
 
       # Scheduler params
-      warmup_steps: 100
+      warmup_steps: 500
       min_lr: 1e-5
       last_epoch: -1
 
 trainer:
   gpus: -1 # number of gpus
-  max_epochs: 500
+  max_epochs: 1000
   max_steps: 1000
   num_nodes: 1
   distributed_backend: ddp

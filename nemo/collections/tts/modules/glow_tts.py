@@ -2,7 +2,7 @@ import math
 import torch
 from torch import nn
 
-from . import parts
+from nemo.collections.tts.modules import parts
 
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import *
@@ -115,16 +115,36 @@ class TextEncoder(NeuralModule):
                 n_layers=3,
                 p_dropout=0.5,
             )
-        self.encoder = parts.Encoder(
-            hidden_channels,
-            filter_channels,
-            n_heads,
-            n_layers,
-            kernel_size,
-            p_dropout,
-            window_size=window_size,
-            block_length=block_length,
-        )
+
+
+        self.drop = nn.Dropout(p_dropout)
+        self.attn_layers = nn.ModuleList()
+        self.norm_layers_1 = nn.ModuleList()
+        self.ffn_layers = nn.ModuleList()
+        self.norm_layers_2 = nn.ModuleList()
+
+        for i in range(self.n_layers):
+            self.attn_layers.append(
+                parts.MultiHeadAttention(
+                    hidden_channels,
+                    hidden_channels,
+                    n_heads,
+                    window_size=window_size,
+                    p_dropout=p_dropout,
+                    block_length=block_length,
+                )
+            )
+            self.norm_layers_1.append(parts.LayerNorm(hidden_channels))
+            self.ffn_layers.append(
+                parts.FFN(
+                    hidden_channels,
+                    hidden_channels,
+                    filter_channels,
+                    kernel_size,
+                    p_dropout=p_dropout,
+                )
+            )
+            self.norm_layers_2.append(parts.LayerNorm(hidden_channels))
 
         self.proj_m = nn.Conv1d(hidden_channels, out_channels, 1)
         if not mean_only:
@@ -136,8 +156,8 @@ class TextEncoder(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "x_lengths": NeuralType(('B',), LengthsType()),
+            "text": NeuralType(('B', 'T'), TokenIndex()),
+            "text_lengths": NeuralType(('B',), LengthsType()),
         }
 
     @property
@@ -145,29 +165,35 @@ class TextEncoder(NeuralModule):
         return {
             "x_m": NeuralType(('B', 'D', 'T'), NormalDistributionMeanType()),
             "x_logs": NeuralType(('B', 'D', 'T'), NormalDistributionLogVarianceType()),
-            "logw": NeuralType(('B', 'D', 'T'), TokenLogDurationType()),
+            "logw": NeuralType(('B', 'T'), TokenLogDurationType()),
             "x_mask": NeuralType(('B', 'D', 'T'), MaskType()),
         }
 
-    #@typecheck()
-    def forward(self, x, x_lengths, g=None):
+    @typecheck()
+    def forward(self, text, text_lengths):
 
-        x = self.emb(x) * math.sqrt(self.hidden_channels)  # [b, t, h]
+
+        x = self.emb(text) * math.sqrt(self.hidden_channels)  # [b, t, h]
 
         x = torch.transpose(x, 1, -1)  # [b, h, t]
-        x_mask = torch.unsqueeze(parts.sequence_mask(x_lengths, x.size(2)), 1).to(
+        x_mask = torch.unsqueeze(parts.sequence_mask(text_lengths, x.size(2)), 1).to(
             x.dtype
         )
 
         if self.prenet:
             x = self.pre(x, x_mask)
-        x = self.encoder(x, x_mask)
 
-        if g is not None:
-            g_exp = g.expand(-1, -1, x.size(-1))
-            x_dp = torch.cat([torch.detach(x), g_exp], 1)
-        else:
-            x_dp = torch.detach(x)
+        attn_mask = x_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
+        for i in range(self.n_layers):
+            x = x * x_mask
+            y = self.attn_layers[i](x, x, attn_mask)
+            y = self.drop(y)
+            x = self.norm_layers_1[i](x + y)
+
+            y = self.ffn_layers[i](x, x_mask)
+            y = self.drop(y)
+            x = self.norm_layers_2[i](x + y)
+        x = x * x_mask
 
         x_m = self.proj_m(x) * x_mask
         if not self.mean_only:
@@ -175,7 +201,7 @@ class TextEncoder(NeuralModule):
         else:
             x_logs = torch.zeros_like(x_m)
 
-        logw = self.proj_w(spect=x_dp, mask=x_mask)
+        logw = self.proj_w(spect=x.detach(), mask=x_mask)
 
         return x_m, x_logs, logw, x_mask
 
@@ -240,19 +266,20 @@ class FlowSpecDecoder(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "x_mask": NeuralType(('B', 'D', 'T'), MaskType()),
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spect_mask": NeuralType(('B', 'D', 'T'), MaskType()),
+            "reverse": NeuralType(elements_type=IntType(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
             "z": NeuralType(('B', 'D', 'T'), NormalDistributionSamplesType()),
-            "logdet_tot": NeuralType(('B', 'D', 'T'), VoidType()),
+            "logdet_tot": NeuralType(('B',), LogDeterminantType()),
         }
 
-    #@typecheck()
-    def forward(self, x, x_mask, g=None, reverse=False):
+    @typecheck()
+    def forward(self, spect, spect_mask, reverse=False):
         if not reverse:
             flows = self.flows
             logdet_tot = 0
@@ -260,16 +287,17 @@ class FlowSpecDecoder(NeuralModule):
             flows = reversed(self.flows)
             logdet_tot = None
 
+        x = spect
+        x_mask = spect_mask
 
         if self.n_sqz > 1:
             x, x_mask = parts.squeeze(x, x_mask, self.n_sqz)
         for f in flows:
             if not reverse:
-                x, logdet = f(x, x_mask, g=g, reverse=reverse)
-                # print(x.shape)
+                x, logdet = f(x, x_mask, reverse=reverse)
                 logdet_tot += logdet
             else:
-                x, logdet = f(x, x_mask, g=g, reverse=reverse)
+                x, logdet = f(x, x_mask, reverse=reverse)
         if self.n_sqz > 1:
             x, x_mask = parts.unsqueeze(x, x_mask, self.n_sqz)
         return x, logdet_tot
