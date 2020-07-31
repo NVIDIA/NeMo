@@ -623,7 +623,7 @@ class ModelPT(LightningModule, Model):
             return False to guide the user.
         """
         if not hasattr(self._cfg, 'test_ds'):
-            logging.info("No `test_ds` config found within the manifest. " "No modifications are required.")
+            logging.info("No `test_ds` config found within the manifest.")
             return False
 
         # Recompute optimizers if AMP is being used
