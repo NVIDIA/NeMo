@@ -144,6 +144,3 @@ class MNISTLeNet5(ModelPT):
     @classmethod
     def from_pretrained(cls, name: str):
         pass
-
-    def export(self, **kwargs):
-        pass
