@@ -22,13 +22,14 @@ import braceexpand
 import torch
 import webdataset as wd
 
+from nemo import logging
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.features import WaveformFeaturizer
-from nemo.core.classes import Dataset
+from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
 
-__all__ = ['AudioToCharDataset', 'AudioToBPEDataset', 'AudioLabelDataset']
+__all__ = ['AudioToCharDataset', 'AudioToBPEDataset', 'AudioLabelDataset', 'TarredAudioToCharDataset']
 
 
 def _speech_collate_fn(batch, pad_id):
