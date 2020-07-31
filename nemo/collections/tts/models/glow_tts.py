@@ -124,7 +124,7 @@ class GlowTTSModel(ModelPT):
             logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
 
             z = (y_m + torch.exp(y_logs) * torch.randn_like(y_m) * noise_scale) * y_mask
-            y, logdet = self.decoder(z, y_mask, reverse=True)
+            y, logdet = self.decoder(spect=z, spect_mask=y_mask, reverse=True)
             return (y, y_m, y_logs, logdet), attn, logw, logw_, x_m, x_logs
         else:
             z, logdet = self.decoder(spect=y, spect_mask=y_mask, reverse=False)
@@ -191,18 +191,6 @@ class GlowTTSModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        """dataset = data.datalayers.TextMelLoader(
-            cfg.files_list, self.text_process, self._cfg.data
-        )
-        collate_fn = data.datalayers.TextMelCollate(1)
-        return torch.utils.data.DataLoader(
-            dataset,
-            num_workers=cfg.num_workers,
-            shuffle=cfg.shuffle,
-            batch_size=cfg.batch_size,
-            drop_last=True,
-            collate_fn=collate_fn,
-        )"""
 
         if 'augmentor' in cfg:
             augmentor = process_augmentations(cfg['augmentor'])

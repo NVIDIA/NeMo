@@ -38,15 +38,6 @@ model:
     shuffle: True
     num_workers: 8
     cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
-    augmentor:
-      shift:
-        prob: 0.3
-        min_shift_ms: -5.0
-        max_shift_ms: 5.0
-      white_noise:
-        prob: 0.3
-        min_level: -90
-        max_level: -46
 
 
   validation_ds:
