@@ -53,7 +53,7 @@ def pytest_configure(config):
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_data_dir():
     """ Fixture returns test_data_dir. """
     # Test dir.
