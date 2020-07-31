@@ -37,7 +37,7 @@ __all__ = ['BERTLMModel']
 
 
 @experimental
-class BERTLMModel(ModelPT):
+class BERTMLMModel(ModelPT):
     """
     BERT language model pretraining.
     """
