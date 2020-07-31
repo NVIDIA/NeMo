@@ -42,17 +42,18 @@ def add_args(parser):
     )
     parser.add_argument(
         "--gpus",
+        type=int,
         default=1,
         help="Select GPU devices. Could be either int, string or list. See https://pytorch-lightning.readthedocs.io/en/latest/multi_gpu.html#select-gpu-devices",
     )
     parser.add_argument("--num_nodes", default=1, type=int, help="Number Nodes")
-    parser.add_argument("--batch_size", default=1, type=int, help="Batch size per worker for each model pass.")
+    parser.add_argument("--batch_size", default=32, type=int, help="Batch size per worker for each model pass.")
     parser.add_argument(
         "--accumulate_grad_batches", default=1, type=int, help="Accumulates grads every k batches.",
     )
     parser.add_argument(
         "--amp_level",
-        default="O0",
+        default="O1",
         type=str,
         choices=["O0", "O1", "O2"],
         help="Automatic Mixed Precision optimization level.",
@@ -62,7 +63,7 @@ def add_args(parser):
         "--max_steps", default=None, type=int, help="Number of training steps.",
     )
     parser.add_argument(
-        "--precision", default=32, type=int, choices=[16, 32], help="precision.",
+        "--precision", default=16, type=int, choices=[16, 32], help="precision.",
     )
     parser.add_argument(
         "--scheduler",
@@ -71,7 +72,7 @@ def add_args(parser):
         choices=["SquareRootAnnealing", "CosineAnnealing"],
         help="Scheduler.",
     )
-    parser.add_argument("--val_check_interval", default=1.0, type=int, help="validation after this many steps.")
+    parser.add_argument("--val_check_interval", default=0.25, type=int, help="validation after this many steps.")
     args = parser.parse_args()
     return args
 
