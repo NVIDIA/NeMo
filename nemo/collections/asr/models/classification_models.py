@@ -113,9 +113,6 @@ class EncDecClassificationModel(ASRModel):
     def from_pretrained(cls, name: str):
         pass
 
-    def export(self, **kwargs):
-        pass
-
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):

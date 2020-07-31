@@ -358,17 +358,6 @@ class Model(Typing, Serialization, FileIO):
         instance = cls.restore_from(restore_path=nemo_model_file_in_cache)
         return instance
 
-    @abstractmethod
-    def export(self, **kwargs):
-        """
-        Exports model for deployment
-        Args:
-            **kwargs:
-
-        Returns:
-
-        """
-
 
 class typecheck:
     class TypeState(Enum):

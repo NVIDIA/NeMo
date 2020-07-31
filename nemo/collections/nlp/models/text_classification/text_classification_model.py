@@ -206,7 +206,3 @@ class TextClassificationModel(ModelPT):
     @classmethod
     def from_pretrained(cls, name: str):
         pass
-
-    @classmethod
-    def export(cls, **kwargs):
-        pass

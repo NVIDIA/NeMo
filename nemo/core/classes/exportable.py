@@ -28,7 +28,14 @@ __all__ = ['ExportFormat', 'Exportable']
 class ExportFormat(Enum):
     """Which format to use when exporting a Neural Module for deployment"""
 
-    ONNX = 0
+    ONNX = (1,)
+    TORCHSCRIPT = (2,)
+
+
+_EXT_DICT = {
+    ".pt": ExportFormat.TORCHSCRIPT,
+    ".onnx": ExportFormat.ONNX,
+}
 
 
 class Exportable(ABC):
@@ -49,7 +56,12 @@ class Exportable(ABC):
             # Disable typechecks
             typecheck.set_typecheck_enabled(enabled=False)
 
+            filename, file_extension = os.path.splitext(output)
+            if _EXT_DICT[file_extension] != format:
+                raise ValueError(f"Export file {output} extension does not correspond to export format {format}")
+
             _in_example, _out_example = self._prepare_for_export()
+
             if input_example is not None:
                 _in_example = input_example
             if output_example is not None:
@@ -86,33 +98,39 @@ class Exportable(ABC):
             # Set module to eval mode
             self.eval()
 
-            # Attempt export
-            if format == ExportFormat.ONNX:
-                if _in_example is None:
-                    raise ValueError(f'Example input is None, but ONNX tracing was attempted')
-                if _out_example is None:
-                    if isinstance(_in_example, tuple):
-                        _out_example = self.forward(*_in_example)
-                    else:
-                        _out_example = self.forward(_in_example)
-                with torch.jit.optimized_execution(True):
+            with torch.jit.optimized_execution(True):
+                try:
+                    jitted_model = torch.jit.script(self)
+                except Exception as e:
+                    if _in_example is None:
+                        raise ValueError(f'Example input is None, but jit.script() has failed')
                     jitted_model = torch.jit.trace(self, _in_example)
 
-                torch.onnx.export(
-                    jitted_model,
-                    _in_example,
-                    output,
-                    input_names=input_names,
-                    output_names=output_names,
-                    verbose=False,
-                    export_params=True,
-                    do_constant_folding=True,
-                    dynamic_axes=dynamic_axes,
-                    opset_version=onnx_opset_version,
-                    example_outputs=_out_example,
-                )
-            else:
-                raise ValueError(f'Encountered unknown export format {format}.')
+                if format == ExportFormat.TORCHSCRIPT:
+                    jitted_model.save(output)
+                elif format == ExportFormat.ONNX:
+                    if _in_example is None:
+                        raise ValueError(f'Example input is None, but ONNX tracing was attempted')
+                    if _out_example is None:
+                        if isinstance(_in_example, tuple):
+                            _out_example = self.forward(*_in_example)
+                        else:
+                            _out_example = self.forward(_in_example)
+                    torch.onnx.export(
+                        jitted_model,
+                        _in_example,
+                        output,
+                        input_names=input_names,
+                        output_names=output_names,
+                        verbose=False,
+                        export_params=True,
+                        do_constant_folding=True,
+                        dynamic_axes=dynamic_axes,
+                        opset_version=onnx_opset_version,
+                        example_outputs=_out_example,
+                    )
+                else:
+                    raise ValueError(f'Encountered unknown export format {format}.')
         finally:
             typecheck.set_typecheck_enabled(enabled=True)
 
@@ -125,6 +143,11 @@ class Exportable(ABC):
     def disabled_deployment_output_names(self):
         """Implement this method to return a set of output names disabled for export"""
         return set()
+
+    @property
+    def supported_export_formats(self):
+        """Implement this method to return a set of export formats supported. Default is all types."""
+        return set([ExportFormat.ONNX, ExportFormat.TORCHSCRIPT])
 
     @staticmethod
     def _extract_dynamic_axes(name: str, ntype: NeuralType):
@@ -146,7 +169,7 @@ class Exportable(ABC):
         dynamic_axes = defaultdict(list)
         if ntype.axes:
             for ind, axis in enumerate(ntype.axes):
-                if axis.kind == AxisKind.Batch or axis.kind == AxisKind.Time:
+                if axis.kind in [AxisKind.Batch, AxisKind.Time, AxisKind.Width, AxisKind.Height]:
                     dynamic_axes[name].append(ind)
         return dynamic_axes
 
