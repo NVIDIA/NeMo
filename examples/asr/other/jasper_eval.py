@@ -101,30 +101,23 @@ def main():
 
     eval_datasets = args.eval_datasets
 
-    eval_dl_params = copy.deepcopy(jasper_params["AudioToTextDataLayer"])
-    eval_dl_params.update(jasper_params["AudioToTextDataLayer"]["eval"])
-    del eval_dl_params["train"]
-    del eval_dl_params["eval"]
-    data_layer = nemo_asr.AudioToTextDataLayer(
-        manifest_filepath=eval_datasets,
-        sample_rate=sample_rate,
-        labels=vocab,
-        batch_size=batch_size,
-        **eval_dl_params,
+    data_layer = nemo_asr.AudioToTextDataLayer.import_from_config(
+        args.model_config, "AudioToTextDataLayer_eval", overwrite_params={"manifest_filepath": args.eval_datasets},
     )
 
     N = len(data_layer)
     logging.info('Evaluating {0} examples'.format(N))
 
-    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor(
-        sample_rate=sample_rate, **jasper_params["AudioToMelSpectrogramPreprocessor"]
+    data_preprocessor = nemo_asr.AudioToMelSpectrogramPreprocessor.import_from_config(
+        args.model_config, "AudioToMelSpectrogramPreprocessor"
     )
-    jasper_encoder = nemo_asr.JasperEncoder(
-        feat_in=jasper_params["AudioToMelSpectrogramPreprocessor"]["features"], **jasper_params["JasperEncoder"]
+
+    # Instantiate JASPER encoder-decoder modules.
+    jasper_encoder = nemo_asr.JasperEncoder.import_from_config(args.model_config, "JasperEncoder")
+    jasper_decoder = nemo_asr.JasperDecoderForCTC.import_from_config(
+        args.model_config, "JasperDecoderForCTC", overwrite_params={"num_classes": len(vocab)}
     )
-    jasper_decoder = nemo_asr.JasperDecoderForCTC(
-        feat_in=jasper_params["JasperEncoder"]["jasper"][-1]["filters"], num_classes=len(vocab)
-    )
+
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
     logging.info('================================')
