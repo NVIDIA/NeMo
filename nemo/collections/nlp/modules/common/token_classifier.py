@@ -74,7 +74,7 @@ class TokenClassifier(NeuralModule, Exportable):
         self.mlp = MultiLayerPerceptron(
             hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
         )
-        self.__hidden_size = hidden_size
+        self._hidden_size = hidden_size
         self.dropout = nn.Dropout(dropout)
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
@@ -100,7 +100,7 @@ class TokenClassifier(NeuralModule, Exportable):
         """
         bs = 8
         seq = 64
-        input_example = torch.randn(bs, seq, self.__hidden_size).to(next(self.parameters()).device)
+        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
         output_example = self.forward(hidden_states=input_example)
         return input_example, output_example
 
@@ -166,7 +166,7 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__()
-        self.__hidden_size = hidden_size
+        self._hidden_size = hidden_size
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)
@@ -203,7 +203,7 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
         """
         bs = 8
         seq = 64
-        input_example = torch.randn(bs, seq, self.__hidden_size).to(next(self.parameters()).device)
+        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
         output_example = self.forward(hidden_states=input_example)
         return input_example, output_example
 
