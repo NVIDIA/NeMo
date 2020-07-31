@@ -31,9 +31,8 @@ if dist.is_available():
 
 try:
     from megatron.mpu.initialize import set_model_parallel_rank, get_model_parallel_rank, set_model_parallel_world_size
-    from megatron.mpu.initialize import set_data_parallel_group, set_model_parallel_group
     from megatron.mpu import model_parallel_cuda_manual_seed, get_cuda_rng_tracker
-    from megatron.initialize import _set_random_seed, _init_autoresume, initialize_megatron
+    from megatron.initialize import _set_random_seed, _init_autoresume, initialize_megatron, _initialize_distributed
     from megatron.global_vars import set_global_variables, get_args
     from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
     from megatron.model.language_model import get_language_model, TransformerLanguageModel
@@ -71,6 +70,13 @@ class MegatronBertEncoder(BertModule):
         # read arguments back
         args = get_args()
 
+
+        if args.distributed_backend == 'ddp':
+            set_model_parallel_rank(args.rank)
+            set_model_parallel_world_size(args.model_parallel_size)
+        else:
+            _initialize_distributed()
+
         # Autoresume.
         _init_autoresume()
 
@@ -83,9 +89,8 @@ class MegatronBertEncoder(BertModule):
                 np.random.seed(seed)
                 torch.manual_seed(seed)
 
-        set_model_parallel_rank(args.rank)
-        set_model_parallel_world_size(args.model_parallel_size)
-
+        print(f"MegatronBertEncoder.init: rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}")
+            
         self.language_model = TransformerLanguageModel(
             attention_mask_func=bert_attention_mask_func,
             mlp_activation_func=torch.nn.functional.gelu,
