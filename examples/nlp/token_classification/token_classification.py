@@ -15,18 +15,18 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models import NERModel
+from nemo.collections.nlp.models import TokenClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="ner_config")
+@hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = NERModel(cfg.model, trainer=trainer)
+    model = TokenClassificationModel(cfg.model, trainer=trainer)
     trainer.fit(model)
 
 
