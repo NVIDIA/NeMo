@@ -26,4 +26,3 @@ from nemo.core.optim.lr_scheduler import (
 )
 from nemo.core.optim.novograd import Novograd
 from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args, register_optimizer
-from nemo.utils.arguments import add_optimizer_args

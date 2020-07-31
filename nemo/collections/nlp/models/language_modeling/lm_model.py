@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo import logging
@@ -35,9 +37,9 @@ __all__ = ['BERTLMModel']
 
 
 @experimental
-class BERTLMModel(ModelPT):
+class BERTMLMModel(ModelPT):
     """
-    BERT LM model pretraining.
+    BERT language model pretraining.
     """
 
     @property
@@ -51,34 +53,42 @@ class BERTLMModel(ModelPT):
             'nsp_logits': self.nsp_classifier.output_types['logits'],
         }
 
-    def __init__(
-        self,
-        config_file: Optional[str] = None,
-        pretrained_model_name: Optional[str] = 'bert-base-uncased',
-        preprocessing_args: Optional[Dict[str, str]] = None,
-    ):
-        """
-        Args:
-            config_file: model config file
-            pretrained_model_name: BERT model name 
-            preprocessing_args: preprocessing parameters for on the fly data preprocessing
-        """
-        # TODO: This is a workaround - please fix - see text_classification_model or asr for example
-        cfg = DictConfig(
-            {
-                'config_file': config_file,
-                'pretrained_model_name': pretrained_model_name,
-                'preprocessing_args': preprocessing_args,
-            }
-        )
-        super().__init__(cfg=cfg)
-        self.pretrained_model_name = pretrained_model_name
-        self.tokenizer = None
-        if preprocessing_args:
-            self.__setup_tokenizer(preprocessing_args)
-        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        if cfg.language_model.bert_config_file is not None:
+            logging.info(
+                (
+                    f"HuggingFace BERT config file found. "
+                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                )
+            )
+            self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
+        elif cfg.language_model.bert_config.vocab_size is not None:
+            self.vocab_size = cfg.language_model.bert_config.vocab_size
+        else:
+            self.vocab_size = None
+
+        if cfg.tokenizer is not None:
+            cfg.tokenizer.vocab_size = self.vocab_size
+            self._setup_tokenizer(cfg.tokenizer)
+        else:
+            self.tokenizer = None
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+        if cfg.language_model.bert_config_file is not None:
+            self.bert_model = get_pretrained_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_file=cfg.language_model.bert_config_file,
+            )
+        else:
+            self.bert_model = get_pretrained_lm_model(
+                pretrained_model_name=cfg.language_model.pretrained_model_name,
+                config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
+            )
+
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
+
         self.mlm_classifier = BertPretrainingTokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.vocab_size,
@@ -107,9 +117,12 @@ class BERTLMModel(ModelPT):
         ):
             raise ValueError("Final classification layer does not match embedding layer.")
         self.mlm_classifier.mlp.last_linear_layer.weight = self.bert_model.embeddings.word_embeddings.weight
+        # create extra bias
 
         # setup to track metrics
         self.perplexity_metric = Perplexity()
+
+        self.setup_optimization(cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -157,47 +170,47 @@ class BERTLMModel(ModelPT):
         nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
 
         loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-
         perplexity = self.perplexity_metric(mlm_loss)
         tensorboard_logs = {'val_loss': loss, 'perplexity': perplexity}
         return {'val_loss': loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
-        """
-        Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
-        """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
-        logging.info(f"evaluation perplexity {perplexity.item()}")
-        return {'val_loss': avg_loss, 'log': tensorboard_logs}
+        """Called at the end of validation to aggregate outputs.
 
-    def setup_training_data(self, train_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in train_data_layer_config:
-            train_data_layer_config['shuffle'] = True
+        Args:
+            outputs (list): The individual outputs of each validation step.
+
+        Returns:
+            dict: Validation loss and tensorboard logs.
+        """
+        if outputs:
+            avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+            perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
+            tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
+            logging.info(f"evaluation perplexity {perplexity.item()}")
+            return {'val_loss': avg_loss, 'log': tensorboard_logs}
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (
-            self.__setup_preprocessed_dataloader(train_data_layer_config)
+            self._setup_preprocessed_dataloader(train_data_config)
             if self.tokenizer is None
-            else self.__setup_text_dataloader(train_data_layer_config)
+            else self._setup_dataloader(train_data_config)
         )
 
-    def setup_validation_data(self, val_data_layer_config: Optional[Dict]):
-        if 'shuffle' not in val_data_layer_config:
-            val_data_layer_config['shuffle'] = False
+    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = (
-            self.__setup_preprocessed_dataloader(val_data_layer_config)
+            self._setup_preprocessed_dataloader(val_data_config)
             if self.tokenizer is None
-            else self.__setup_text_dataloader(val_data_layer_config)
+            else self._setup_dataloader(val_data_config)
         )
 
-    def setup_test_data(self, test_data_layer_params: Optional[Dict]):
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
         pass
 
-    def __setup_preprocessed_dataloader(self, data_layer_params):
-        dataset = data_layer_params['train_data']
-        max_predictions_per_seq = data_layer_params['max_predictions_per_seq']
-        batch_size = data_layer_params['batch_size']
+    def _setup_preprocessed_dataloader(self, cfg: Optional[DictConfig]):
+        dataset = cfg.data_file
+        max_predictions_per_seq = cfg.max_predictions_per_seq
+        batch_size = cfg.batch_size
 
         if os.path.isdir(dataset):
             files = [os.path.join(dataset, f) for f in os.listdir(dataset) if os.path.isfile(os.path.join(dataset, f))]
@@ -209,30 +222,33 @@ class BERTLMModel(ModelPT):
         )
         return dl
 
-    def __setup_tokenizer(self, preprocessing_args):
-        tok = get_tokenizer(**preprocessing_args)
-        self.tokenizer = tok
+    def _setup_tokenizer(self, cfg: DictConfig):
+        tokenizer = get_tokenizer(**cfg)
+        self.tokenizer = tokenizer
 
-    def __setup_text_dataloader(self, data_layer_params):
+    def _setup_dataloader(self, cfg: DictConfig):
         dataset = BertPretrainingDataset(
             tokenizer=self.tokenizer,
-            dataset=data_layer_params['dataset'],
-            max_seq_length=data_layer_params['max_seq_length'],
-            mask_probability=data_layer_params['mask_probability'],
-            short_seq_prob=data_layer_params['short_seq_prob'],
+            data_file=cfg.data_file,
+            max_seq_length=cfg.max_seq_length,
+            mask_prob=cfg.mask_prob,
+            short_seq_prob=cfg.short_seq_prob,
         )
         dl = torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=data_layer_params['batch_size'],
+            batch_size=cfg.batch_size,
             collate_fn=dataset.collate_fn,
-            drop_last=data_layer_params.get('drop_last', False),
-            shuffle=data_layer_params['shuffle'],
-            num_workers=data_layer_params.get('num_workers', 0),
+            drop_last=cfg.get('drop_last', False),
+            shuffle=cfg.shuffle,
+            num_workers=cfg.get('num_workers', 0),
         )
         return dl
 
     @classmethod
     def from_pretrained(cls, name: str):
+        pass
+
+    def export(self, **kwargs):
         pass
 
     def save_to(self, save_path: str):

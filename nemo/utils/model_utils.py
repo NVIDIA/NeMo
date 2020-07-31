@@ -83,10 +83,10 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
         A str representing the `key` of the config which hosts the filepath(s),
         or None in case path could not be resolved.
     """
-    if hasattr(cfg, _VAL_TEST_FASTPATH_KEY) and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
+    if _VAL_TEST_FASTPATH_KEY in cfg and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
         fastpath_key = cfg[_VAL_TEST_FASTPATH_KEY]
 
-        if isinstance(fastpath_key, str) and hasattr(cfg, fastpath_key):
+        if isinstance(fastpath_key, str) and fastpath_key in cfg:
             return cfg[fastpath_key]
         else:
             return _VAL_TEST_FASTPATH_KEY
@@ -171,7 +171,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     # process val_loss_idx
-    if hasattr(cfg.validation_ds, 'val_loss_idx'):
+    if 'val_loss_idx' in cfg.validation_ds:
         cfg = OmegaConf.to_container(cfg)
         val_loss_idx = cfg['validation_ds'].pop('val_loss_idx')
         cfg = OmegaConf.create(cfg)
@@ -242,7 +242,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     # process test_loss_idx
-    if hasattr(cfg.test_ds, 'test_loss_idx'):
+    if 'test_loss_idx' in cfg.test_ds:
         cfg = OmegaConf.to_container(cfg)
         test_loss_idx = cfg['test_ds'].pop('test_loss_idx')
         cfg = OmegaConf.create(cfg)
