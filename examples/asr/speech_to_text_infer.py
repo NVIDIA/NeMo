@@ -27,6 +27,16 @@ from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
+try:
+    from torch.cuda.amp import autocast
+except ImportError:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def autocast(enabled=None):
+        yield
+
+
 can_gpu = torch.cuda.is_available()
 
 
@@ -43,6 +53,7 @@ def main():
         "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
     )
     args = parser.parse_args()
+    torch.set_grad_enabled(False)
 
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
@@ -69,16 +80,18 @@ def main():
     for test_batch in asr_model.test_dataloader():
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
-        log_probs, encoded_len, greedy_predictions = asr_model(
-            input_signal=test_batch[0], input_signal_length=test_batch[1]
-        )
+        with autocast():
+            log_probs, encoded_len, greedy_predictions = asr_model(
+                input_signal=test_batch[0], input_signal_length=test_batch[1]
+            )
         hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
-        for batch_ind in range(args.batch_size):
+        for batch_ind in range(greedy_predictions.shape[0]):
             reference = ''.join([labels_map[c] for c in test_batch[2][batch_ind].cpu().detach().numpy()])
             references.append(reference)
         del test_batch
     wer_value = word_error_rate(hypotheses=hypotheses, references=references)
-    assert wer_value < args.wer_tolerance
+    if wer_value > args.wer_tolerance:
+        raise ValueError(f"Got WER of {wer_value}. It was higher than {args.wer_tolerance}")
     logging.info(f'Got WER of {wer_value}. Tolerance was {args.wer_tolerance}')
 
 

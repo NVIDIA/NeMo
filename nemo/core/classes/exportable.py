@@ -28,13 +28,15 @@ __all__ = ['ExportFormat', 'Exportable']
 class ExportFormat(Enum):
     """Which format to use when exporting a Neural Module for deployment"""
 
-    ONNX = 1,
-    TORCHSCRIPT = 2,
+    ONNX = (1,)
+    TORCHSCRIPT = (2,)
+
 
 _EXT_DICT = {
-    ".pt"   : ExportFormat.TORCHSCRIPT,
-    ".onnx" : ExportFormat.ONNX,
+    ".pt": ExportFormat.TORCHSCRIPT,
+    ".onnx": ExportFormat.ONNX,
 }
+
 
 class Exportable(ABC):
     """
@@ -56,7 +58,7 @@ class Exportable(ABC):
 
             filename, file_extension = os.path.splitext(output)
             if _EXT_DICT[file_extension] != format:
-                raise ValueError( f"Export file {output} extension does not correspond to export format {format}")
+                raise ValueError(f"Export file {output} extension does not correspond to export format {format}")
 
             _in_example, _out_example = self._prepare_for_export()
 

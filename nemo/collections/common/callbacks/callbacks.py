@@ -11,16 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import time
 
-import nemo.collections.common.callbacks
-from nemo.collections.common import losses, parts, tokenizers
-from nemo.package_info import __version__
+from pytorch_lightning.callbacks.base import Callback
 
-# Set collection version equal to NeMo version.
-__version = __version__
 
-# Authorship.
-__author__ = "NVIDIA Corporation"
+class LogEpochTimeCallback(Callback):
+    """Simple callback that logs how long each epoch takes, in seconds, to a pytorch lightning log
+    """
 
-# Set collection name.
-__description__ = "Common collection"
+    def on_epoch_start(self, trainer, pl_module):
+        self.epoch_start = time.time()
+
+    def on_epoch_end(self, trainer, pl_module):
+        curr_time = time.time()
+        duration = curr_time - self.epoch_start
+        trainer.logger.log_metrics({"epoch_time": duration}, step=trainer.global_step)

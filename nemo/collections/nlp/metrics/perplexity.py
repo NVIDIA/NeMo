@@ -12,15 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.common.callbacks
-from nemo.collections.common import losses, parts, tokenizers
-from nemo.package_info import __version__
+from typing import Dict
 
-# Set collection version equal to NeMo version.
-__version = __version__
+import torch
+from pytorch_lightning.metrics import TensorMetric
 
-# Authorship.
-__author__ = "NVIDIA Corporation"
+from nemo.utils import logging
 
-# Set collection name.
-__description__ = "Common collection"
+__all__ = ['Perplexity']
+
+
+class Perplexity(TensorMetric):
+    """
+    This metric computes the perplexity given the language model loss.
+    """
+
+    def __init__(self):
+        super(Perplexity, self).__init__(name="Perplexity")
+
+    def forward(self, loss: torch.Tensor) -> torch.Tensor:
+        return torch.exp(loss)

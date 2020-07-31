@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nemo.collections.common.callbacks
-from nemo.collections.common import losses, parts, tokenizers
-from nemo.package_info import __version__
 
-# Set collection version equal to NeMo version.
-__version = __version__
+from os.path import exists, join
 
-# Authorship.
-__author__ = "NVIDIA Corporation"
+import pytest
 
-# Set collection name.
-__description__ = "Common collection"
+
+class TestDataDir:
+    @pytest.mark.unit
+    def test_test_data_dir(self, test_data_dir):
+        """" Just a dummy tests showing how to use the test_data_dir fixture. """
+        # test_data_dir contains the absolute path to nemo -> tests/.data
+        assert exists(test_data_dir)
+        assert exists(join(test_data_dir, "test_data.tar.gz"))
