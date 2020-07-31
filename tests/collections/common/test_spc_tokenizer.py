@@ -21,18 +21,18 @@ from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOK
 
 
 class TestSentencePieceTokenizer(TestCase):
-    model_path = "./tests/data/m_common.model"
+    MODEL_NAME = "/m_common.model"
 
     @pytest.mark.unit
-    def test_add_special_tokens(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_add_special_tokens(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
         self.assertTrue(tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values())))
 
     @pytest.mark.unit
-    def test_text_to_tokens(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_text_to_tokens(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -45,8 +45,8 @@ class TestSentencePieceTokenizer(TestCase):
         self.assertTrue(tokens.count("[SEP]") == 2)
 
     @pytest.mark.unit
-    def test_tokens_to_text(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_tokens_to_text(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
 
         text = "[CLS] a b c [MASK] e f [SEP] g h i [SEP]"
         tokens = tokenizer.text_to_tokens(text)
@@ -55,8 +55,8 @@ class TestSentencePieceTokenizer(TestCase):
         self.assertTrue(text == result)
 
     @pytest.mark.unit
-    def test_text_to_ids(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_text_to_ids(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -69,8 +69,8 @@ class TestSentencePieceTokenizer(TestCase):
         self.assertTrue(ids.count(tokenizer.token_to_id("[SEP]")) == 2)
 
     @pytest.mark.unit
-    def test_ids_to_text(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_ids_to_text(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -81,8 +81,8 @@ class TestSentencePieceTokenizer(TestCase):
         self.assertTrue(text == result)
 
     @pytest.mark.unit
-    def test_tokens_to_ids(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_tokens_to_ids(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
@@ -96,8 +96,8 @@ class TestSentencePieceTokenizer(TestCase):
         self.assertTrue(ids.count(tokenizer.token_to_id("[SEP]")) == 2)
 
     @pytest.mark.unit
-    def test_ids_to_tokens(self):
-        tokenizer = SentencePieceTokenizer(self.model_path)
+    def test_ids_to_tokens(self, test_data_dir):
+        tokenizer = SentencePieceTokenizer(test_data_dir + MODEL_NAME)
         special_tokens = MODEL_SPECIAL_TOKENS['bert']
         tokenizer.add_special_tokens(special_tokens)
 
