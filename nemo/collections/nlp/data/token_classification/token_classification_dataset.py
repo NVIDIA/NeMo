@@ -157,7 +157,6 @@ def get_features(
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
 
 
-@experimental
 class BertTokenClassificationDataset(Dataset):
     """
     Creates dataset to use during training for token classification

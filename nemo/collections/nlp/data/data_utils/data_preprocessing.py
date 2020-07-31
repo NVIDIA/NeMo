@@ -52,6 +52,7 @@ __all__ = [
     'fill_class_weights',
     'calc_class_weights',
     'normalize_answer',
+    'get_labels_to_labels_id_mapping',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -316,6 +317,20 @@ def write_vocab(items, outfile):
             vocab[item] = idx
             idx += 1
     return vocab
+
+
+def get_labels_to_labels_id_mapping(file):
+    '''
+    Reads labels from the file and returns labels to id mapping dictionary
+    Args:
+        file: path to file
+    Returns:
+        labels to id mapping dictionary
+    '''
+    lines = open(file, 'r').readlines()
+    lines = [line.strip() for line in lines if line.strip()]
+    labels = {lines[i]: i for i in range(len(lines))}
+    return labels
 
 
 def if_exist(outfold, files):

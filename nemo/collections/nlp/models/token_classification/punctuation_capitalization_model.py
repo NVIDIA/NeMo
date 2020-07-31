@@ -21,6 +21,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
+from nemo.collections.nlp.data.data_utils.data_preprocessing import get_labels_to_labels_id_mapping
 from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -28,6 +29,7 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['PunctuationCapitalizationModel']
@@ -55,8 +57,12 @@ class PunctuationCapitalizationModel(ModelPT):
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=cfg.language_model.vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
+            vocab_file=self.register_artifact(
+                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
+            ),
+            tokenizer_model=self.register_artifact(
+                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
+            ),
             do_lower_case=cfg.language_model.do_lower_case,
         )
 
@@ -218,13 +224,31 @@ class PunctuationCapitalizationModel(ModelPT):
                    [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
                    [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
             )
+
+        if cfg.prefix == 'train':
+            punct_label_ids_file = os.path.join(self.data_dir, 'punct_label_ids.csv')
+            capit_label_ids_file = os.path.join(self.data_dir, 'capit_label_ids.csv')
+
+            if (
+                self.model_cfg.use_cache
+                and os.path.exists(punct_label_ids_file)
+                and os.path.exists(capit_label_ids_file)
+            ):
+                self.punct_label_ids = get_labels_to_labels_id_mapping(punct_label_ids_file)
+                self.capit_label_ids = get_labels_to_labels_id_mapping(capit_label_ids_file)
+                logging.info(f'punct_label_ids restored from {punct_label_ids_file}')
+                logging.info(f'capit_label_ids restored from {capit_label_ids_file}')
+            else:
+                self.punct_label_ids = None
+                self.capit_label_ids = None
+
         dataset = BertPunctuationCapitalizationDataset(
             tokenizer=self.tokenizer,
             text_file=text_file,
             label_file=label_file,
             pad_label=self.model_cfg.pad_label,
-            punct_label_ids=None if cfg.prefix == 'train' else self.punct_label_ids,
-            capit_label_ids=None if cfg.prefix == 'train' else self.capit_label_ids,
+            punct_label_ids=self.punct_label_ids,
+            capit_label_ids=self.capit_label_ids,
             max_seq_length=self.model_cfg.max_seq_length,
             ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
             ignore_start_end=self.model_cfg.ignore_start_end,

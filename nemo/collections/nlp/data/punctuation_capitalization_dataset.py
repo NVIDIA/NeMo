@@ -242,6 +242,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ignore_extra_tokens=False,
         ignore_start_end=False,
         use_cache=True,
+        get_label_frequencies=False,
     ):
 
         # Cache features
@@ -362,22 +363,28 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.capit_label_ids = features[8]
 
         # save label_ids
-        def get_stats_and_save(all_labels, label_ids, name):
+        def calculate_label_frequencies(all_labels, name):
             infold = text_file[: text_file.rfind('/')]
             merged_labels = itertools.chain.from_iterable(all_labels)
             logging.info('Three most popular labels')
             _, label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
-
-            if master_device:
-                out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
-                labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-                out.write('\n'.join(labels))
-                logging.info(f'Labels: {label_ids}')
-                logging.info(f'Labels mapping saved to : {out.name}')
             return label_frequencies
 
-        self.punct_label_frequencies = get_stats_and_save(self.punct_all_labels, self.punct_label_ids, 'punct')
-        self.capit_label_frequencies = get_stats_and_save(self.capit_all_labels, self.capit_label_ids, 'capit')
+        def save_label_ids(text_file, label_ids, name):
+            infold = text_file[: text_file.rfind('/')]
+            out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
+            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+            out.write('\n'.join(labels))
+            logging.info(f'Labels: {label_ids}')
+            logging.info(f'Labels mapping saved to : {out.name}')
+
+        if get_label_frequencies:
+            self.punct_label_frequencies = calculate_label_frequencies(self.punct_all_labels, 'punct')
+            self.capit_label_frequencies = calculate_label_frequencies(self.capit_all_labels, 'capit')
+
+        if master_device:
+            save_label_ids(text_file, self.punct_label_ids, 'punct')
+            save_label_ids(text_file, self.capit_label_ids, 'capit')
 
     def __len__(self):
         return len(self.all_input_ids)

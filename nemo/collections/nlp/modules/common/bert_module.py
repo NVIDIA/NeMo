@@ -18,6 +18,7 @@ import torch
 
 from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertModule']
@@ -47,7 +48,16 @@ class BertModule(NeuralModule):
         """Saves module/model with weights"""
         pass
 
-    def restore_weights(self, restore_path: str):
+    def restore_weights(self, restore_path: str, prefix='bert.'):
         """Restores module/model's weights"""
-        state_dict = torch.load(restore_path)
-        self.load_state_dict(state_dict)
+        logging.info(f"restore from {restore_path}")
+        pretrained_dict = torch.load(restore_path)
+
+        # remove prefix from pretrained dict
+        if prefix in list(pretrained_dict.keys())[0]:
+            pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
+
+        model_dict = self.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict)
