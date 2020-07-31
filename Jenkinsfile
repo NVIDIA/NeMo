@@ -354,7 +354,7 @@ pipeline {
         stage ('NER') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python token_classification.py \
+            python punctuation_capitalization.py \
             model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
