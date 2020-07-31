@@ -97,8 +97,6 @@ class NERModel(ModelPT):
         self.classification_report = ClassificationReport(
             self.data_desc.num_classes, label_ids=self.data_desc.label_ids
         )
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(self._cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):

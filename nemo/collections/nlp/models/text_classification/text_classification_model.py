@@ -91,9 +91,6 @@ class TextClassificationModel(ModelPT):
         # setup to track metrics
         self.classification_report = ClassificationReport(self.data_desc.num_classes)
 
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
-
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         """
