@@ -75,9 +75,6 @@ class BERTMLMModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # TODO: this method name should be changed since it not only
-        # gets pretrained language models, but also instantiates them
-        # if a config is present
         if cfg.language_model.bert_config_file is not None:
             self.bert_model = get_pretrained_lm_model(
                 pretrained_model_name=cfg.language_model.pretrained_model_name,
