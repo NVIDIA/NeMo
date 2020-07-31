@@ -1,4 +1,5 @@
 numpy>=1.18.2
+onnx
 pytorch-lightning>=0.8.5
 pandas
 python-dateutil
