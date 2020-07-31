@@ -57,8 +57,12 @@ class PunctuationCapitalizationModel(ModelPT):
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
-            vocab_file=cfg.language_model.vocab_file,
-            tokenizer_model=cfg.language_model.tokenizer_model,
+            vocab_file=self.register_artifact(
+                config_path='language_model.vocab_file', src=cfg.language_model.vocab_file
+            ),
+            tokenizer_model=self.register_artifact(
+                config_path='language_model.tokenizer_model', src=cfg.language_model.tokenizer_model
+            ),
             do_lower_case=cfg.language_model.do_lower_case,
         )
 
