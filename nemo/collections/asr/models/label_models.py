@@ -184,7 +184,6 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        print(embs[0, :10])
         return {'embs': embs, 'labels': labels}
 
 
@@ -197,7 +196,6 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        # print(embs[0, :10])
         return {'embs': embs, 'labels': labels}
 
     def test_epoch_end(self, outputs):

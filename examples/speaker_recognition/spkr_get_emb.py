@@ -15,7 +15,6 @@
 import os
 
 import pytorch_lightning as pl
-import torch
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import ExtractSpeakerEmbeddingsModel
@@ -54,10 +53,8 @@ def main(cfg):
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
-    speaker_model = ExtractSpeakerEmbeddingsModel(cfg=cfg.model, trainer=trainer, root_dir=log_dir)
-    # speaker_model.load_state_dict(torch.load('speaker_model.pt'))
-    speaker_model.load_from_checkpoint(checkpoint_path="speaker_model.ckpt")
-    # speaker_model.restore_from('spkr.nemo')
+    # speaker_model = ExtractSpeakerEmbeddingsModel(cfg=cfg.model, trainer=trainer, root_dir=log_dir)
+    speaker_model = ExtractSpeakerEmbeddingsModel.restore_from('spkr.nemo', root_dir=log_dir)
     trainer.test(speaker_model)
 
 
