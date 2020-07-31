@@ -55,9 +55,7 @@ class TestASRDatasets:
     @pytest.mark.unit
     def test_tarred_dataset(self, test_data_dir):
         batch_size = 4
-        manifest_path = os.path.abspath(
-            os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json')
-        )
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
 
         featurizer = WaveformFeaturizer()
 
@@ -73,10 +71,7 @@ class TestASRDatasets:
         assert count == 32
 
         # Test loading via list
-        tarpath = [
-            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{i}.tar'))
-            for i in range(2)
-        ]
+        tarpath = [os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{i}.tar')) for i in range(2)]
         ds_list_load = TarredAudioToCharDataset(
             audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, sample_rate=16000
         )
