@@ -205,8 +205,10 @@ class AudioToCharDataset(_AudioTextDataset):
         manifest_filepath: Path to manifest json as described above. Can
             be comma-separated paths.
         labels: String containing all the possible characters to map to
-        featurizer: Initialized featurizer class that converts paths of
-            audio to feature tensors
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
         max_duration: If audio exceeds this length, do not include in dataset
         min_duration: If audio is less than this length, do not include
             in dataset
@@ -474,8 +476,10 @@ class TarredAudioToCharDataset(IterableDataset):
         labels (list): List of characters that can be output by the ASR model.
             For Jasper, this is the 28 character set {a-z '}. The CTC blank
             symbol is automatically added later for models using ctc.
-        featurizer: Initialized featurizer class that converts paths of
-            audio to feature tensors
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
@@ -531,7 +535,9 @@ class TarredAudioToCharDataset(IterableDataset):
         audio_tar_filepaths,
         manifest_filepath,
         labels,
-        featurizer,
+        sample_rate,
+        int_values=False,
+        augmentor=None,
         shuffle_n=0,
         min_duration=None,
         max_duration=None,
@@ -559,7 +565,7 @@ class TarredAudioToCharDataset(IterableDataset):
             index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
         )
 
-        self.featurizer = featurizer
+        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
         self.eos_id = eos_id
         self.bos_id = bos_id
