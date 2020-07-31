@@ -74,48 +74,48 @@ class TestExportable:
                 # TODO: how to assert that this is a proper .onnx file
                 assert os.path.exists(filename)
 
-    @pytest.mark.unit
-    def test_bert_convasr_decoder_export_to_onnx(self):
-        decoder_params = {
-            'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
-            'params': {
-                'feat_in': 1024,
-                'num_classes': 28,
-                'vocabulary': [
-                    ' ',
-                    'a',
-                    'b',
-                    'c',
-                    'd',
-                    'e',
-                    'f',
-                    'g',
-                    'h',
-                    'i',
-                    'j',
-                    'k',
-                    'l',
-                    'm',
-                    'n',
-                    'o',
-                    'p',
-                    'q',
-                    'r',
-                    's',
-                    't',
-                    'u',
-                    'v',
-                    'w',
-                    'x',
-                    'y',
-                    'z',
-                    "'",
-                ],
-            },
-        }
-        decoder = ConvASRDecoder.from_config_dict(config=DictConfig(decoder_params))
-        with tempfile.TemporaryDirectory() as tmpdir:
-            filename = os.path.join(tmpdir, 'qn_decoder.onnx')
-            decoder.export(output=filename)
-            # TODO: how to assert that this is a proper .onnx file
-            assert os.path.exists(filename)
+    # @pytest.mark.unit
+    # def test_convasr_decoder_export_to_onnx(self):
+    #     decoder_params = {
+    #         'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
+    #         'params': {
+    #             'feat_in': 1024,
+    #             'num_classes': 28,
+    #             'vocabulary': [
+    #                 ' ',
+    #                 'a',
+    #                 'b',
+    #                 'c',
+    #                 'd',
+    #                 'e',
+    #                 'f',
+    #                 'g',
+    #                 'h',
+    #                 'i',
+    #                 'j',
+    #                 'k',
+    #                 'l',
+    #                 'm',
+    #                 'n',
+    #                 'o',
+    #                 'p',
+    #                 'q',
+    #                 'r',
+    #                 's',
+    #                 't',
+    #                 'u',
+    #                 'v',
+    #                 'w',
+    #                 'x',
+    #                 'y',
+    #                 'z',
+    #                 "'",
+    #             ],
+    #         },
+    #     }
+    #     decoder = ConvASRDecoder.from_config_dict(config=DictConfig(decoder_params))
+    #     with tempfile.TemporaryDirectory() as tmpdir:
+    #         filename = os.path.join(tmpdir, 'qn_decoder.onnx')
+    #         decoder.export(output=filename)
+    #         # TODO: how to assert that this is a proper .onnx file
+    #         assert os.path.exists(filename)
