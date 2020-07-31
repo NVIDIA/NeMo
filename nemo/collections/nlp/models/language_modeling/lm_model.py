@@ -163,9 +163,13 @@ class BERTMLMModel(ModelPT):
         return {'val_loss': loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
-        """
-        Called at the end of validation to aggregate outputs.
-        :param outputs: list of individual outputs of each validation step.
+        """Called at the end of validation to aggregate outputs.
+
+        Args:
+            outputs (list): The individual outputs of each validation step.
+
+        Returns:
+            dict: Validation loss and tensorboard logs.
         """
         if outputs:
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
