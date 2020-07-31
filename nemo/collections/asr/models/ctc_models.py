@@ -55,8 +55,7 @@ class EncDecCTCModel(ASRModel):
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization()
+
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 

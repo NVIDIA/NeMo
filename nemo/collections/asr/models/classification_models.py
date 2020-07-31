@@ -49,10 +49,8 @@ class EncDecClassificationModel(ASRModel):
             self.crop_or_pad = EncDecClassificationModel.from_config_dict(self._cfg.crop_or_pad_augment)
         else:
             self.crop_or_pad = None
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization()
-        # Setup metric objects
 
+        # Setup metric objects
         self._accuracy = TopKClassificationAccuracy()
 
     def transcribe(self, path2audio_file: str) -> str:

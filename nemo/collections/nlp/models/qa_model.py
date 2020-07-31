@@ -76,9 +76,6 @@ class QAModel(ModelPT):
 
         self.loss = SpanningLoss()
 
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
-
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         hidden_states = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)

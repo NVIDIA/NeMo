@@ -96,9 +96,6 @@ class PunctuationCapitalizationModel(ModelPT):
         self.punct_class_report = ClassificationReport(len(self.punct_label_ids), label_ids=self.punct_label_ids)
         self.capit_class_report = ClassificationReport(len(self.capit_label_ids), label_ids=self.capit_label_ids)
 
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
-
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
         """
