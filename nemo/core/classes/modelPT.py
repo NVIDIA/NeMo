@@ -189,6 +189,7 @@ class ModelPT(LightningModule, Model):
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             conf = OmegaConf.load(config_yaml)
+            OmegaConf.set_struct(conf, True)
             instance = cls.from_config_dict(config=conf)
             instance.load_state_dict(torch.load(model_weights))
         return instance
