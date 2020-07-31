@@ -66,10 +66,7 @@ class BERTLMModel(ModelPT):
         if preprocessing_args:
             self.__setup_tokenizer(preprocessing_args)
         super().__init__(cfg=cfg)
-        self.bert_model = get_pretrained_lm_model(
-            pretrained_model_name=pretrained_model_name,
-            config_file=config_file
-        )
+        self.bert_model = get_pretrained_lm_model(pretrained_model_name=pretrained_model_name, config_file=config_file)
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
         self.mlm_classifier = BertPretrainingTokenClassifier(
