@@ -112,9 +112,6 @@ class EncDecCTCModel(ASRModel):
             test_data_config['shuffle'] = False
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
-    def export(self, **kwargs):
-        pass
-
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):

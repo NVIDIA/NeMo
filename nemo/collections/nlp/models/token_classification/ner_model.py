@@ -213,9 +213,6 @@ class NERModel(ModelPT):
     def from_pretrained(cls, name: str):
         pass
 
-    def export(self, **kwargs):
-        pass
-
     def save_to(self, save_path: str):
         pass
 
