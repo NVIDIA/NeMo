@@ -79,8 +79,6 @@ class WaveGlowModel(ModelPT):
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()
 
-        self.setup_optimization()
-
     @property
     def input_types(self):
         return {
