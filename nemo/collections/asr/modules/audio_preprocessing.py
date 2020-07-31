@@ -385,8 +385,6 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         return features, seq_len
 
 
-
-
 class SpectrogramAugmentation(NeuralModule):
     """
     Performs time and freq cuts in one of two ways.
