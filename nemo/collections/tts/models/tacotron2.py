@@ -85,9 +85,6 @@ class Tacotron2Model(ModelPT):
         self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
         self.loss = Tacotron2Loss()
 
-        # After defining all torch.modules, create optimizer and scheduler
-        self.setup_optimization()
-
     @property
     def input_types(self):
         return {
