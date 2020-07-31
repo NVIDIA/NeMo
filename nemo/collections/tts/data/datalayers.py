@@ -12,22 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional, Union
 
-import torch
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
 
 import torch.utils.data
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
-from nemo.collections.tts.data.text_process import TextProcess
-from nemo.core.neural_types.elements import *
-from nemo.utils.decorators import experimental
+
+from typing import Dict, Optional, Union
+import torch
+import torch.utils.data
 
 from nemo.collections.asr.parts import features
+from nemo.collections.tts.data.text_process import TextProcess
+from nemo.core.neural_types.elements import *
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils.decorators import experimental
 
 class AudioDataset(Dataset):
     @property
@@ -157,7 +159,7 @@ class AudioToPhonemesDataset(_AudioTextDataset):
         max_utts: int = 0,
         trim: bool = False,
         load_audio: bool = True,
-        add_misc: bool = False
+        add_misc: bool = False,
     ):
         self.parser = TextProcess(cmu_dict_path)
 

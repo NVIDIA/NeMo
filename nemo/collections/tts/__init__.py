@@ -15,3 +15,5 @@
 import nemo.collections.tts.data
 import nemo.collections.tts.helpers
 import nemo.collections.tts.models
+import nemo.collections.tts.losses
+import nemo.collections.tts.modules

@@ -1,8 +1,8 @@
-from unidecode import unidecode
-import inflect
 import re
 from typing import List, Optional
 
+import inflect
+from unidecode import unidecode
 
 
 class CMUDict:
@@ -11,13 +11,90 @@ class CMUDict:
     def __init__(self, file_or_path, keep_ambiguous=True):
 
         self.valid_symbols = [
-          'AA', 'AA0', 'AA1', 'AA2', 'AE', 'AE0', 'AE1', 'AE2', 'AH', 'AH0', 'AH1', 'AH2',
-          'AO', 'AO0', 'AO1', 'AO2', 'AW', 'AW0', 'AW1', 'AW2', 'AY', 'AY0', 'AY1', 'AY2',
-          'B', 'CH', 'D', 'DH', 'EH', 'EH0', 'EH1', 'EH2', 'ER', 'ER0', 'ER1', 'ER2', 'EY',
-          'EY0', 'EY1', 'EY2', 'F', 'G', 'HH', 'IH', 'IH0', 'IH1', 'IH2', 'IY', 'IY0', 'IY1',
-          'IY2', 'JH', 'K', 'L', 'M', 'N', 'NG', 'OW', 'OW0', 'OW1', 'OW2', 'OY', 'OY0',
-          'OY1', 'OY2', 'P', 'R', 'S', 'SH', 'T', 'TH', 'UH', 'UH0', 'UH1', 'UH2', 'UW',
-          'UW0', 'UW1', 'UW2', 'V', 'W', 'Y', 'Z', 'ZH'
+            'AA',
+            'AA0',
+            'AA1',
+            'AA2',
+            'AE',
+            'AE0',
+            'AE1',
+            'AE2',
+            'AH',
+            'AH0',
+            'AH1',
+            'AH2',
+            'AO',
+            'AO0',
+            'AO1',
+            'AO2',
+            'AW',
+            'AW0',
+            'AW1',
+            'AW2',
+            'AY',
+            'AY0',
+            'AY1',
+            'AY2',
+            'B',
+            'CH',
+            'D',
+            'DH',
+            'EH',
+            'EH0',
+            'EH1',
+            'EH2',
+            'ER',
+            'ER0',
+            'ER1',
+            'ER2',
+            'EY',
+            'EY0',
+            'EY1',
+            'EY2',
+            'F',
+            'G',
+            'HH',
+            'IH',
+            'IH0',
+            'IH1',
+            'IH2',
+            'IY',
+            'IY0',
+            'IY1',
+            'IY2',
+            'JH',
+            'K',
+            'L',
+            'M',
+            'N',
+            'NG',
+            'OW',
+            'OW0',
+            'OW1',
+            'OW2',
+            'OY',
+            'OY0',
+            'OY1',
+            'OY2',
+            'P',
+            'R',
+            'S',
+            'SH',
+            'T',
+            'TH',
+            'UH',
+            'UH0',
+            'UH1',
+            'UH2',
+            'UW',
+            'UW0',
+            'UW1',
+            'UW2',
+            'V',
+            'W',
+            'Y',
+            'Z',
+            'ZH',
         ]
 
         self._valid_symbol_set = set(self.valid_symbols)
@@ -61,8 +138,9 @@ class CMUDict:
                         cmudict[word] = [pronunciation]
         return cmudict
 
+
 class TextProcess:
-    def __init__(self, cmu_dict_path = None):
+    def __init__(self, cmu_dict_path=None):
 
         if cmu_dict_path is not None:
             self.cmu_dict = CMUDict(cmu_dict_path)
@@ -76,9 +154,7 @@ class TextProcess:
         _arpabet = ["@" + s for s in self.cmu_dict.valid_symbols]
 
         # Export all symbols:
-        self.symbols = (
-            [_pad] + list(_special) + list(_punctuation) + list(_letters) + _arpabet
-        )
+        self.symbols = [_pad] + list(_special) + list(_punctuation) + list(_letters) + _arpabet
 
         # Mappings from symbol to numeric ID and vice versa:
         self._symbol_to_id = {s: i for i, s in enumerate(self.symbols)}
@@ -139,9 +215,7 @@ class TextProcess:
             elif num % 100 == 0:
                 return self._inflect.number_to_words(num // 100) + " hundred"
             else:
-                return self._inflect.number_to_words(
-                    num, andword="", zero="oh", group=2
-                ).replace(", ", " ")
+                return self._inflect.number_to_words(num, andword="", zero="oh", group=2).replace(", ", " ")
         else:
             return self._inflect.number_to_words(num, andword="")
 
@@ -221,10 +295,7 @@ class TextProcess:
             if not m:
                 clean_text = self._clean_text(text, cleaner_names)
                 if dictionary is not None:
-                    clean_text = [
-                        self.get_arpabet(w, dictionary)
-                        for w in re.findall(r"[\w']+|[.,!?;]", clean_text)
-                    ]
+                    clean_text = [self.get_arpabet(w, dictionary) for w in re.findall(r"[\w']+|[.,!?;]", clean_text)]
                     for i in range(len(clean_text)):
                         t = clean_text[i]
                         if t.startswith("{"):
@@ -235,9 +306,7 @@ class TextProcess:
                 else:
                     sequence += self._symbols_to_sequence(clean_text)
                 break
-            sequence += self._symbols_to_sequence(
-                self._clean_text(m.group(1), cleaner_names)
-            )
+            sequence += self._symbols_to_sequence(self._clean_text(m.group(1), cleaner_names))
             sequence += self._arpabet_to_sequence(m.group(2))
             text = m.group(3)
 

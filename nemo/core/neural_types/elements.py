@@ -48,10 +48,12 @@ __all__ = [
     'StringType',
     'TokenIndex',
     'Length',
+    'IntType',
     'NormalDistributionSamplesType',
     'NormalDistributionMeanType',
     'NormalDistributionLogVarianceType',
-    'TokenLogDurationType'
+    'TokenLogDurationType',
+    'LogDeterminantType',
 ]
 
 
@@ -291,4 +293,8 @@ class NormalDistributionLogVarianceType(ElementType):
 
 class TokenLogDurationType(ElementType):
     """Element for representing the log-duration of a token"""
+
+
+class LogDeterminantType(ElementType):
+    """Element for representing log determinants usually used in flow models"""
 

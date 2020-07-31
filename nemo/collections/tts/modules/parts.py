@@ -1,9 +1,10 @@
 import math
+from typing import Tuple
+
 import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-from typing import Tuple
 
 
 def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
@@ -50,9 +51,7 @@ def maximum_path(value, mask, max_neg_val=-np.inf):
     v = np.zeros((b, t_x), dtype=np.float32)
     x_range = np.arange(t_x, dtype=np.float32).reshape(1, -1)
     for j in range(t_y):
-        v0 = np.pad(v, [[0, 0], [1, 0]], mode="constant", constant_values=max_neg_val)[
-            :, :-1
-        ]
+        v0 = np.pad(v, [[0, 0], [1, 0]], mode="constant", constant_values=max_neg_val)[:, :-1]
         v1 = v
         max_mask = v1 >= v0
         v_max = np.where(max_mask, v1, v0)
@@ -160,13 +159,7 @@ class LayerNorm(nn.Module):
 
 class ConvReluNorm(nn.Module):
     def __init__(
-        self,
-        in_channels,
-        hidden_channels,
-        out_channels,
-        kernel_size,
-        n_layers,
-        p_dropout,
+        self, in_channels, hidden_channels, out_channels, kernel_size, n_layers, p_dropout,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -179,21 +172,12 @@ class ConvReluNorm(nn.Module):
 
         self.conv_layers = nn.ModuleList()
         self.norm_layers = nn.ModuleList()
-        self.conv_layers.append(
-            nn.Conv1d(
-                in_channels, hidden_channels, kernel_size, padding=kernel_size // 2
-            )
-        )
+        self.conv_layers.append(nn.Conv1d(in_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
         self.norm_layers.append(LayerNorm(hidden_channels))
         self.relu_drop = nn.Sequential(nn.ReLU(), nn.Dropout(p_dropout))
         for _ in range(n_layers - 1):
             self.conv_layers.append(
-                nn.Conv1d(
-                    hidden_channels,
-                    hidden_channels,
-                    kernel_size,
-                    padding=kernel_size // 2,
-                )
+                nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size // 2,)
             )
             self.norm_layers.append(LayerNorm(hidden_channels))
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
@@ -212,14 +196,7 @@ class ConvReluNorm(nn.Module):
 
 class WN(torch.nn.Module):
     def __init__(
-        self,
-        in_channels,
-        hidden_channels,
-        kernel_size,
-        dilation_rate,
-        n_layers,
-        gin_channels=0,
-        p_dropout=0,
+        self, in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, p_dropout=0,
     ):
         super(WN, self).__init__()
         assert kernel_size % 2 == 1
@@ -237,20 +214,14 @@ class WN(torch.nn.Module):
         self.drop = nn.Dropout(p_dropout)
 
         if gin_channels != 0:
-            cond_layer = torch.nn.Conv1d(
-                gin_channels, 2 * hidden_channels * n_layers, 1
-            )
+            cond_layer = torch.nn.Conv1d(gin_channels, 2 * hidden_channels * n_layers, 1)
             self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
 
         for i in range(n_layers):
             dilation = dilation_rate ** i
             padding = int((kernel_size * dilation - dilation) / 2)
             in_layer = torch.nn.Conv1d(
-                hidden_channels,
-                2 * hidden_channels,
-                kernel_size,
-                dilation=dilation,
-                padding=padding,
+                hidden_channels, 2 * hidden_channels, kernel_size, dilation=dilation, padding=padding,
             )
             in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             self.in_layers.append(in_layer)
@@ -311,9 +282,7 @@ class ActNorm(nn.Module):
 
     def forward(self, x, x_mask=None, reverse=False, **kwargs):
         if x_mask is None:
-            x_mask = torch.ones(x.size(0), 1, x.size(2)).to(
-                device=x.device, dtype=x.dtype
-            )
+            x_mask = torch.ones(x.size(0), 1, x.size(2)).to(device=x.device, dtype=x.dtype)
         x_len = torch.sum(x_mask, [1, 2])
         if not self.initialized:
             self.initialize(x, x_mask)
@@ -342,9 +311,7 @@ class ActNorm(nn.Module):
             v = m_sq - (m ** 2)
             logs = 0.5 * torch.log(torch.clamp_min(v, 1e-6))
 
-            bias_init = (
-                (-m * torch.exp(-logs)).view(*self.bias.shape).to(dtype=self.bias.dtype)
-            )
+            bias_init = (-m * torch.exp(-logs)).view(*self.bias.shape).to(dtype=self.bias.dtype)
             logs_init = (-logs).view(*self.logs.shape).to(dtype=self.logs.dtype)
 
             self.bias.data.copy_(bias_init)
@@ -374,11 +341,7 @@ class InvConvNear(nn.Module):
             x_len = torch.sum(x_mask, [1, 2])
 
         x = x.view(b, 2, c // self.n_split, self.n_split // 2, t)
-        x = (
-            x.permute(0, 1, 3, 2, 4)
-            .contiguous()
-            .view(b, self.n_split, c // self.n_split, t)
-        )
+        x = x.permute(0, 1, 3, 2, 4).contiguous().view(b, self.n_split, c // self.n_split, t)
 
         if reverse:
             if hasattr(self, "weight_inv"):
@@ -402,6 +365,7 @@ class InvConvNear(nn.Module):
 
     def store_inverse(self):
         self.weight_inv = torch.inverse(self.weight.float()).to(dtype=self.weight.dtype)
+
 
 class Encoder(nn.Module):
     def __init__(
@@ -444,13 +408,7 @@ class Encoder(nn.Module):
             )
             self.norm_layers_1.append(LayerNorm(hidden_channels))
             self.ffn_layers.append(
-                FFN(
-                    hidden_channels,
-                    hidden_channels,
-                    filter_channels,
-                    kernel_size,
-                    p_dropout=p_dropout,
-                )
+                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout,)
             )
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
@@ -501,13 +459,7 @@ class CouplingBlock(nn.Module):
         end.bias.data.zero_()
         self.end = end
 
-        self.wn = WN(
-            in_channels,
-            hidden_channels,
-            kernel_size,
-            dilation_rate,
-            n_layers
-        )
+        self.wn = WN(in_channels, hidden_channels, kernel_size, dilation_rate, n_layers)
 
     def forward(self, x, x_mask=None, reverse=False, g=None, **kwargs):
         b, c, t = x.size()
@@ -575,14 +527,8 @@ class MultiHeadAttention(nn.Module):
         if window_size is not None:
             n_heads_rel = 1 if heads_share else n_heads
             rel_stddev = self.k_channels ** -0.5
-            self.emb_rel_k = nn.Parameter(
-                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
-                * rel_stddev
-            )
-            self.emb_rel_v = nn.Parameter(
-                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
-                * rel_stddev
-            )
+            self.emb_rel_k = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
+            self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
         self.conv_o = nn.Conv1d(channels, out_channels, 1)
         self.drop = nn.Dropout(p_dropout)
 
@@ -612,9 +558,7 @@ class MultiHeadAttention(nn.Module):
 
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.k_channels)
         if self.window_size is not None:
-            assert (
-                t_s == t_t
-            ), "Relative attention is only available for self-attention."
+            assert t_s == t_t, "Relative attention is only available for self-attention."
             key_relative_embeddings = self._get_relative_embeddings(self.emb_rel_k, t_s)
             rel_logits = self._matmul_with_relative_keys(query, key_relative_embeddings)
             rel_logits = self._relative_position_to_absolute_position(rel_logits)
@@ -622,32 +566,20 @@ class MultiHeadAttention(nn.Module):
             scores = scores + scores_local
         if self.proximal_bias:
             assert t_s == t_t, "Proximal bias is only available for self-attention."
-            scores = scores + self._attention_bias_proximal(t_s).to(
-                device=scores.device, dtype=scores.dtype
-            )
+            scores = scores + self._attention_bias_proximal(t_s).to(device=scores.device, dtype=scores.dtype)
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e4)
             if self.block_length is not None:
-                block_mask = (
-                    torch.ones_like(scores)
-                    .triu(-self.block_length)
-                    .tril(self.block_length)
-                )
+                block_mask = torch.ones_like(scores).triu(-self.block_length).tril(self.block_length)
                 scores = scores * block_mask + -1e4 * (1 - block_mask)
         p_attn = F.softmax(scores, dim=-1)  # [b, n_h, t_t, t_s]
         p_attn = self.drop(p_attn)
         output = torch.matmul(p_attn, value)
         if self.window_size is not None:
             relative_weights = self._absolute_position_to_relative_position(p_attn)
-            value_relative_embeddings = self._get_relative_embeddings(
-                self.emb_rel_v, t_s
-            )
-            output = output + self._matmul_with_relative_values(
-                relative_weights, value_relative_embeddings
-            )
-        output = (
-            output.transpose(2, 3).contiguous().view(b, d, t_t)
-        )  # [b, n_h, t_t, d_k] -> [b, d, t_t]
+            value_relative_embeddings = self._get_relative_embeddings(self.emb_rel_v, t_s)
+            output = output + self._matmul_with_relative_values(relative_weights, value_relative_embeddings)
+        output = output.transpose(2, 3).contiguous().view(b, d, t_t)  # [b, n_h, t_t, d_k] -> [b, d, t_t]
         return output, p_attn
 
     def _matmul_with_relative_values(self, x, y):
@@ -676,14 +608,11 @@ class MultiHeadAttention(nn.Module):
         slice_end_position = slice_start_position + 2 * length - 1
         if pad_length > 0:
             padded_relative_embeddings = F.pad(
-                relative_embeddings,
-                convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
+                relative_embeddings, convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
             )
         else:
             padded_relative_embeddings = relative_embeddings
-        used_relative_embeddings = padded_relative_embeddings[
-            :, slice_start_position:slice_end_position
-        ]
+        used_relative_embeddings = padded_relative_embeddings[:, slice_start_position:slice_end_position]
         return used_relative_embeddings
 
     def _relative_position_to_absolute_position(self, x):
@@ -700,9 +629,7 @@ class MultiHeadAttention(nn.Module):
         x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [0, length - 1]]))
 
         # Reshape and slice out the padded elements.
-        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[
-            :, :, :length, length - 1 :
-        ]
+        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1 :]
         return x_final
 
     def _absolute_position_to_relative_position(self, x):
@@ -733,13 +660,7 @@ class MultiHeadAttention(nn.Module):
 
 class FFN(nn.Module):
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        filter_channels,
-        kernel_size,
-        p_dropout=0.0,
-        activation=None,
+        self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0, activation=None,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -749,12 +670,8 @@ class FFN(nn.Module):
         self.p_dropout = p_dropout
         self.activation = activation
 
-        self.conv_1 = nn.Conv1d(
-            in_channels, filter_channels, kernel_size, padding=kernel_size // 2
-        )
-        self.conv_2 = nn.Conv1d(
-            filter_channels, out_channels, kernel_size, padding=kernel_size // 2
-        )
+        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_2 = nn.Conv1d(filter_channels, out_channels, kernel_size, padding=kernel_size // 2)
         self.drop = nn.Dropout(p_dropout)
 
     def forward(self, x, x_mask):

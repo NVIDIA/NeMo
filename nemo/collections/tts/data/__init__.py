@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import nemo.collections.tts.data.text_process
 import nemo.collections.tts.data.datalayers
+import nemo.collections.tts.data.text_process
+import nemo.collections.tts.data.utils

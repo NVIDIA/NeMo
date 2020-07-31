@@ -1,13 +1,14 @@
 import math
+
 import torch
 from torch import nn
 
 from nemo.collections.tts.modules import parts
-
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
+
 
 @experimental
 class DurationPredictor(NeuralModule):
@@ -20,13 +21,9 @@ class DurationPredictor(NeuralModule):
         self.p_dropout = p_dropout
 
         self.drop = nn.Dropout(p_dropout)
-        self.conv_1 = nn.Conv1d(
-            in_channels, filter_channels, kernel_size, padding=kernel_size // 2
-        )
+        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
         self.norm_1 = parts.LayerNorm(filter_channels)
-        self.conv_2 = nn.Conv1d(
-            filter_channels, filter_channels, kernel_size, padding=kernel_size // 2
-        )
+        self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size // 2)
         self.norm_2 = parts.LayerNorm(filter_channels)
         self.proj = nn.Conv1d(filter_channels, 1, 1)
 
@@ -108,14 +105,8 @@ class TextEncoder(NeuralModule):
 
         if prenet:
             self.pre = parts.ConvReluNorm(
-                hidden_channels,
-                hidden_channels,
-                hidden_channels,
-                kernel_size=5,
-                n_layers=3,
-                p_dropout=0.5,
+                hidden_channels, hidden_channels, hidden_channels, kernel_size=5, n_layers=3, p_dropout=0.5,
             )
-
 
         self.drop = nn.Dropout(p_dropout)
         self.attn_layers = nn.ModuleList()
@@ -136,22 +127,14 @@ class TextEncoder(NeuralModule):
             )
             self.norm_layers_1.append(parts.LayerNorm(hidden_channels))
             self.ffn_layers.append(
-                parts.FFN(
-                    hidden_channels,
-                    hidden_channels,
-                    filter_channels,
-                    kernel_size,
-                    p_dropout=p_dropout,
-                )
+                parts.FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout,)
             )
             self.norm_layers_2.append(parts.LayerNorm(hidden_channels))
 
         self.proj_m = nn.Conv1d(hidden_channels, out_channels, 1)
         if not mean_only:
             self.proj_s = nn.Conv1d(hidden_channels, out_channels, 1)
-        self.proj_w = DurationPredictor(
-            hidden_channels + gin_channels, filter_channels_dp, kernel_size, p_dropout
-        )
+        self.proj_w = DurationPredictor(hidden_channels + gin_channels, filter_channels_dp, kernel_size, p_dropout)
 
     @property
     def input_types(self):
@@ -172,13 +155,10 @@ class TextEncoder(NeuralModule):
     @typecheck()
     def forward(self, text, text_lengths):
 
-
         x = self.emb(text) * math.sqrt(self.hidden_channels)  # [b, t, h]
 
         x = torch.transpose(x, 1, -1)  # [b, h, t]
-        x_mask = torch.unsqueeze(parts.sequence_mask(text_lengths, x.size(2)), 1).to(
-            x.dtype
-        )
+        x_mask = torch.unsqueeze(parts.sequence_mask(text_lengths, x.size(2)), 1).to(x.dtype)
 
         if self.prenet:
             x = self.pre(x, x_mask)
@@ -247,9 +227,7 @@ class FlowSpecDecoder(NeuralModule):
         self.flows = nn.ModuleList()
         for b in range(n_blocks):
             self.flows.append(parts.ActNorm(channels=in_channels * n_sqz))
-            self.flows.append(
-                parts.InvConvNear(channels=in_channels * n_sqz, n_split=n_split)
-            )
+            self.flows.append(parts.InvConvNear(channels=in_channels * n_sqz, n_split=n_split))
             self.flows.append(
                 parts.CouplingBlock(
                     in_channels * n_sqz,

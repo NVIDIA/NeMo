@@ -12,71 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+from typing import Dict, Optional
+
 import torch
 import torch.utils.data
-import math
-from .. import data, glow_tts
-from nemo.core.classes import ModelPT
-from typing import Dict, Optional
 from omegaconf import DictConfig
-from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
+from pytorch_lightning import Trainer
+
+import nemo
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
+from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
+from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
+from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
-from pytorch_lightning import Trainer
-from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import *
-
-@experimental
-class GlowTTSLoss(Loss):
-    """
-    GlowTTSLoss
-    Loss for the GlowTTS model
-    """
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
-    @property
-    def input_types(self):
-        return {
-            "z": NeuralType(('B', 'D', 'T'), NormalDistributionSamplesType()),
-            "y_m": NeuralType(('B', 'D', 'T'), NormalDistributionMeanType()),
-            "y_logs": NeuralType(('B', 'D', 'T'), NormalDistributionLogVarianceType()),
-            "logdet": NeuralType(('B',), VoidType()),
-            "logw": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "logw_": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "x_lengths": NeuralType(('B',), LengthsType()),
-            "y_lengths": NeuralType(('B',), LengthsType()),
-        }
-
-    @property
-    def output_types(self):
-        return {"l_mle": NeuralType(elements_type=LossType()),
-                "l_length": NeuralType(elements_type=LossType()),
-                "logdet": NeuralType(elements_type=VoidType())}
-
-    def __init__(self):
-        super().__init__()
-
-
-    @typecheck()
-    def forward(self, z, y_m, y_logs, logdet, logw, logw_, x_lengths, y_lengths):
-
-
-        logdet = torch.sum(logdet)
-        l_mle = 0.5 * math.log(2 * math.pi) + (
-            torch.sum(y_logs)
-            + 0.5 * torch.sum(torch.exp(-2 * y_logs) * (z - y_m) ** 2)
-            - logdet
-        ) / (torch.sum(y_lengths) * z.shape[1])
-
-        l_length = torch.sum((logw - logw_) ** 2) / torch.sum(x_lengths)
-        return l_mle, l_length, logdet
 
 
 @experimental
@@ -92,7 +42,7 @@ class GlowTTSModel(ModelPT):
         else:
             self.spec_augmentation = None
 
-        self.encoder = glow_tts.modules.TextEncoder(
+        self.encoder = nemo.collections.tts.modules.glow_tts.TextEncoder(
             self.vocab_len,
             cfg.mel_channels,
             cfg.hidden_channels_enc or cfg.hidden_channels,
@@ -107,7 +57,7 @@ class GlowTTSModel(ModelPT):
             prenet=cfg.prenet,
         )
 
-        self.decoder = glow_tts.modules.FlowSpecDecoder(
+        self.decoder = nemo.collections.tts.modules.glow_tts.FlowSpecDecoder(
             cfg.mel_channels,
             cfg.hidden_channels_dec or cfg.hidden_channels,
             cfg.kernel_size_dec,
@@ -124,37 +74,17 @@ class GlowTTSModel(ModelPT):
 
         self.loss = GlowTTSLoss()
 
-
     def train_dataloader(self):
         return self._train_dl
 
     def val_dataloader(self):
         return self._val_dl
 
-    def preprocess(self, y, y_lengths, y_max_length):
-        if y_max_length is not None:
-            y_max_length = (y_max_length // self._cfg.n_sqz) * self._cfg.n_sqz
-            y = y[:, :, :y_max_length]
-        y_lengths = (y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz
-        return y, y_lengths, y_max_length
-
     def forward(
-        self,
-        x,
-        x_lengths,
-        y=None,
-        y_lengths=None,
-        g=None,
-        gen=False,
-        noise_scale=1.0,
-        length_scale=1.0,
+        self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=1.0, length_scale=1.0,
     ):
 
-
-        if g is not None:
-            g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h]
-
-        x_m, x_logs, logw, x_mask = self.encoder(x, x_lengths, g=g)
+        x_m, x_logs, logw, x_mask = self.encoder(text=x, text_lengths=x_lengths)
 
         # logw is predicted durations by encoder
         if gen:
@@ -176,63 +106,45 @@ class GlowTTSModel(ModelPT):
 
         y_lengths = (y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz
 
-        y_mask = torch.unsqueeze(
-            glow_tts.parts.sequence_mask(y_lengths, y_max_length), 1
-        ).to(x_mask.dtype)
+        y_mask = torch.unsqueeze(nemo.collections.tts.modules.parts.sequence_mask(y_lengths, y_max_length), 1).to(
+            x_mask.dtype
+        )
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
         if gen:
-            attn = glow_tts.parts.generate_path(
-                w_ceil.squeeze(1), attn_mask.squeeze(1)
-            ).unsqueeze(1)
-            y_m = torch.matmul(
-                attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)
-            ).transpose(
+            attn = nemo.collections.tts.modules.parts.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(
+                1
+            )
+            y_m = torch.matmul(attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)).transpose(
                 1, 2
             )  # [b, t', t], [b, t, d] -> [b, d, t']
-            y_logs = torch.matmul(
-                attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)
-            ).transpose(
+            y_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(
                 1, 2
             )  # [b, t', t], [b, t, d] -> [b, d, t']
             logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
 
             z = (y_m + torch.exp(y_logs) * torch.randn_like(y_m) * noise_scale) * y_mask
-            y, logdet = self.decoder(z, y_mask, g=g, reverse=True)
+            y, logdet = self.decoder(z, y_mask, reverse=True)
             return (y, y_m, y_logs, logdet), attn, logw, logw_, x_m, x_logs
         else:
-            z, logdet = self.decoder(y, y_mask, g=g, reverse=False)
+            z, logdet = self.decoder(spect=y, spect_mask=y_mask, reverse=False)
 
             with torch.no_grad():
                 x_s_sq_r = torch.exp(-2 * x_logs)
-                logp1 = torch.sum(-0.5 * math.log(2 * math.pi) - x_logs, [1]).unsqueeze(
-                    -1
-                )  # [b, t, 1]
-                logp2 = torch.matmul(
-                    x_s_sq_r.transpose(1, 2), -0.5 * (z ** 2)
-                )  # [b, t, d] x [b, d, t'] = [b, t, t']
-                logp3 = torch.matmul(
-                    (x_m * x_s_sq_r).transpose(1, 2), z
-                )  # [b, t, d] x [b, d, t'] = [b, t, t']
-                logp4 = torch.sum(-0.5 * (x_m ** 2) * x_s_sq_r, [1]).unsqueeze(
-                    -1
-                )  # [b, t, 1]
+                logp1 = torch.sum(-0.5 * math.log(2 * math.pi) - x_logs, [1]).unsqueeze(-1)  # [b, t, 1]
+                logp2 = torch.matmul(x_s_sq_r.transpose(1, 2), -0.5 * (z ** 2))  # [b, t, d] x [b, d, t'] = [b, t, t']
+                logp3 = torch.matmul((x_m * x_s_sq_r).transpose(1, 2), z)  # [b, t, d] x [b, d, t'] = [b, t, t']
+                logp4 = torch.sum(-0.5 * (x_m ** 2) * x_s_sq_r, [1]).unsqueeze(-1)  # [b, t, 1]
                 logp = logp1 + logp2 + logp3 + logp4  # [b, t, t']
 
                 attn = (
-                    glow_tts.parts.maximum_path(logp, attn_mask.squeeze(1))
-                    .unsqueeze(1)
-                    .detach()
+                    nemo.collections.tts.modules.parts.maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()
                 )
 
-            y_m = torch.matmul(
-                attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)
-            ).transpose(
+            y_m = torch.matmul(attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)).transpose(
                 1, 2
             )  # [b, t', t], [b, t, d] -> [b, d, t']
-            y_logs = torch.matmul(
-                attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)
-            ).transpose(
+            y_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(
                 1, 2
             )  # [b, t', t], [b, t, d] -> [b, d, t']
             logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
@@ -244,14 +156,17 @@ class GlowTTSModel(ModelPT):
 
         y, y_lengths, x, x_lengths = batch
 
-
-        z, y_m, y_logs, logdet, logw, logw_, y_lengths = self(
-            x, x_lengths, y, y_lengths, gen=False
-        )
+        z, y_m, y_logs, logdet, logw, logw_, y_lengths = self(x, x_lengths, y, y_lengths, gen=False)
 
         l_mle, l_length, logdet = self.loss(
-            z=z, y_m=y_m, y_logs=y_logs, logdet=logdet, logw=logw,
-            logw_=logw_, x_lengths=x_lengths, y_lengths=y_lengths
+            z=z,
+            y_m=y_m,
+            y_logs=y_logs,
+            logdet=logdet,
+            logw=logw,
+            logw_=logw_,
+            x_lengths=x_lengths,
+            y_lengths=y_lengths,
         )
 
         loss = sum([l_mle, l_length])
@@ -270,6 +185,10 @@ class GlowTTSModel(ModelPT):
 
         return output
 
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         """dataset = data.datalayers.TextMelLoader(
