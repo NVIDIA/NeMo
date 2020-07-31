@@ -30,6 +30,8 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
+from nemo import logging
+from nemo.collections.nlp.metrics.perplexity import Perplexity
 
 __all__ = ['BERTLMModel']
 
@@ -105,6 +107,9 @@ class BERTLMModel(ModelPT):
         self.mlm_classifier.mlp.last_linear_layer.weight = self.bert_model.embeddings.word_embeddings.weight
         # create extra bias
 
+        # setup to track metrics
+        self.perplexity_metric = Perplexity()
+
         self.setup_optimization(cfg.optim)
 
     @typecheck()
@@ -153,8 +158,8 @@ class BERTLMModel(ModelPT):
         nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
 
         loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
-
-        tensorboard_logs = {'val_loss': loss}
+        perplexity = self.perplexity_metric(mlm_loss)
+        tensorboard_logs = {'val_loss': loss, 'perplexity': perplexity}
         return {'val_loss': loss, 'log': tensorboard_logs}
 
     def validation_epoch_end(self, outputs):
@@ -164,7 +169,10 @@ class BERTLMModel(ModelPT):
         """
         if outputs:
             avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-            return {'val_loss': avg_loss}
+            perplexity = torch.stack([x['log']['perplexity'] for x in outputs]).mean()
+            tensorboard_logs = {'val_loss': avg_loss, 'perplexity': perplexity}
+            logging.info(f"evaluation perplexity {perplexity.item()}")
+            return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = (
