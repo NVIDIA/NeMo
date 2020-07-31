@@ -59,6 +59,9 @@ class EncDecClassificationModel(ASRModel):
         raise NotImplementedError("Classification models do not transcribe audio.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        if config.get('manifest_filepath') is None:
+            return
+
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:

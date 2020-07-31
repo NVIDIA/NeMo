@@ -366,6 +366,8 @@ class ModelPT(LightningModule, Model):
         return self._optimizer, self._scheduler
 
     def configure_optimizers(self):
+        self.setup_optimization()
+
         if self._scheduler is None:
             return self._optimizer
         else:
@@ -608,14 +610,14 @@ class ModelPT(LightningModule, Model):
     def get_test_dataloader_prefix(self, dataloader_idx=0):
         return self._test_names[dataloader_idx]
 
-    def prepare_test(self) -> bool:
+    def prepare_test(self, trainer: 'Trainer') -> bool:
         """
         Helper method to check whether the model can safely be tested
         on a dataset after training (or loading a checkpoint).
 
         # Usage:
-        if model.prepare_test():
-            trainer = Trainer()
+        trainer = Trainer()
+        if model.prepare_test(trainer):
             trainer.test(model)
 
         Returns:
@@ -626,31 +628,16 @@ class ModelPT(LightningModule, Model):
             logging.info("No `test_ds` config found within the manifest.")
             return False
 
-        # Recompute optimizers if AMP is being used
-        if hasattr(self._cfg, 'trainer'):
-            precision = 32
-            if hasattr(self._cfg.trainer, 'precision'):
-                precision = int(self._cfg.trainer.precision)
-
-            amp_level = 'O0'
-            if hasattr(self._cfg.trainer, 'amp_level'):
-                amp_level = self._cfg.trainer.amp_level
-
-            # AMP requires optimizers to pass amp.initialize() at maximum one time
-            # Therefore reconstruct the optimizers
-            if precision == 16 or amp_level != 'O0':
-                self.configure_optimizers()
-
         # Replace ddp multi-gpu until PTL has a fix
-        DDP_WARN = """During testing, it is currently advisable to construct a new Trainer "
+        DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
                     "with single GPU and no DDP.\n"
                     "Following pattern should be used: \n"
-                    "if model.prepare_test():\n"
-                    "  trainer = Trainer()\n"
-                    "  trainer.test(model)\n"""
+                    "trainer = Trainer()\n"
+                    "if model.prepare_test(trainer):\n"
+                    "  trainer.test(model)\n\n"""
 
-        if hasattr(self, '_trainer') and self._trainer is not None:
-            if self._trainer.num_gpus > 1:
+        if trainer is not None:
+            if trainer.num_gpus > 1:
                 logging.warning(DDP_WARN)
                 return False
 
