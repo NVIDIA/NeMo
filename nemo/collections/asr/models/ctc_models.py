@@ -22,7 +22,6 @@ from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
@@ -64,19 +63,19 @@ class EncDecCTCModel(ASRModel):
     def transcribe(self, path2audio_file: str) -> str:
         pass
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    @staticmethod
+    def _setup_dataloader_from_config(config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
-        )
         dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
-            featurizer=featurizer,
+            sample_rate=config['sample_rate'],
+            int_values=config.get('int_values', False),
+            augmentor=augmentor,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
             max_utts=config.get('max_utts', 0),
@@ -112,9 +111,6 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
-
-    def export(self, **kwargs):
-        pass
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -165,7 +161,7 @@ class EncDecCTCModel(ASRModel):
         }
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len
