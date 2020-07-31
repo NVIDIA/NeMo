@@ -27,10 +27,15 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.logging import WandbLogger
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
+
+class NotFoundError(Exception):
+    pass
 
 
 @dataclass
@@ -120,22 +125,21 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer.default_root_dir = log_dir
 
-    if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
-        configure_loggers(
-            trainer,
-            log_dir,
-            cfg.name,
-            cfg.create_tensorboard_logger,
-            cfg.summary_writter_kwargs,
-            cfg.create_wandb_logger,
-            cfg.wandb_logger_kwargs,
-        )
-
-    if cfg.create_checkpoint_callback:
-        configure_checkpointing(trainer, cfg.name)
-
-    # Move files_to_copy to folder and add git information if present
     if is_global_rank_zero():
+        if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
+            configure_loggers(
+                trainer,
+                log_dir,
+                cfg.create_tensorboard_logger,
+                cfg.summary_writter_kwargs,
+                cfg.create_wandb_logger,
+                cfg.wandb_logger_kwargs,
+            )
+
+        if cfg.create_checkpoint_callback:
+            configure_checkpointing(trainer, cfg.name)
+
+        # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
             for _file in cfg.files_to_copy:
                 copyfile(Path(_file), log_dir)
@@ -203,8 +207,29 @@ def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, ve
             f"{root_dir}, name: {name}, or version: {version}. Please note that "
             "explicit_log_dir, root_dir, name, and version will be ignored."
         )
-    # TODO: Ensure that checkpoint and log_dir exists
-    # TODO: Move some files
+
+    checkpoint_dir = Path(Path(previous_log_dir) / "checkpoints")
+    if not checkpoint_dir.exists():
+        raise NotFoundError(f"There was no checkpoint folder at previous_log_dir :{previous_log_dir}. Cannot resume.")
+    elif checkpoint_dir.match("*end.ckpt"):
+        raise ValueError(
+            f"Found {checkpoint_dir.match('*end.ckpt')} indicating that the last training run has already completed."
+        )
+    elif not checkpoint_dir.match("*last.ckpt"):
+        raise NotFoundError(f"There were no checkpoints found in {previous_log_dir}. Is the folder correct?")
+
+    if is_global_rank_zero():
+        # Move old files to a new folder
+        other_run_dirs = checkpoint_dir.glob("run_*")
+        run_count = 0
+        for fold in other_run_dirs:
+            if fold.is_dir():
+                run_count += 1
+        new_run_dir = Path(checkpoint_dir / f"run_{run_count}")
+        new_run_dir.mkdir()
+        for child in checkpoint_dir.iterdir():
+            if child.is_file():
+                copyfile(child, new_run_dir)
     return previous_log_dir
 
 
@@ -220,7 +245,8 @@ def check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version):
             f"name: {name}, or version: {version}. Please note that root_dir, "
             "name, and version will be ignored."
         )
-    # TODO: Raise warning if log_dir not empty
+    if is_global_rank_zero() and Path(explicit_log_dir).exists():
+        logging.warning("Exp_manager is logging to {explicit_log_dir}, but it already exists.")
     return explicit_log_dir
 
 
@@ -343,7 +369,7 @@ class LoggerList(_LoggerCollection):
 
 
 def configure_loggers(
-    trainer, log_dir, name, create_tensorboard_logger, summary_writter_kwargs, create_wandb_logger, wandb_kwargs
+    trainer, log_dir, create_tensorboard_logger, summary_writter_kwargs, create_wandb_logger, wandb_kwargs
 ):
     # Potentially create tensorboard logger and/or WandBLogger
     logger_list = []
@@ -367,7 +393,7 @@ def configure_loggers(
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")
 
-    logger_list = LoggerList(logger_list, nemo_name=name, nemo_version="") if len(logger_list) > 1 else logger_list[0]
+    logger_list = LoggerList(logger_list, nemo_name="", nemo_version="") if len(logger_list) > 1 else logger_list[0]
     trainer.configure_logger(logger_list)
 
 
@@ -385,7 +411,16 @@ def configure_checkpointing(trainer, name):
         logging.warning("trainer had a weights_save_path of cwd(). This was ignored.")
     trainer.weights_save_path = trainer.default_root_dir
     # Create the callback and attach it to trainer
-    checkpoint_callback = ModelCheckpoint(save_top_k=3, save_last=True, prefix=name + "--")
+    class NeMoModelCheckpoint(ModelCheckpoint):
+        @rank_zero_only
+        def on_train_end(self, trainer, pl_module):
+            filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
+            try:
+                self._save_model(filepath)
+            except TypeError:
+                self._save_model(filepath, trainer, pl_module)
+
+    checkpoint_callback = NeMoModelCheckpoint(save_top_k=3, save_last=True, prefix=name + "--")
     trainer.configure_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
