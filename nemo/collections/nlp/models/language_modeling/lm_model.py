@@ -57,8 +57,8 @@ class BERTMLMModel(ModelPT):
         if cfg.language_model.bert_config_file is not None:
             logging.info(
                 (
-                f"HuggingFace BERT config file found. "
-                f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
+                    f"HuggingFace BERT config file found. "
+                    f"LM will be instantiated from: {cfg.language_model.bert_config_file}"
                 )
             )
             self.vocab_size = json.load(open(cfg.language_model.bert_config_file))['vocab_size']
