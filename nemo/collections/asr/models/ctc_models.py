@@ -159,8 +159,7 @@ class EncDecCTCModel(ASRModel):
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
-    @staticmethod
-    def _setup_dataloader_from_config(config: Optional[Dict]):
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
