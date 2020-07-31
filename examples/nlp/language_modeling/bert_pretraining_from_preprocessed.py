@@ -12,7 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+import pytorch_lightning as pl
+from omegaconf import DictConfig
+
 from nemo.collections.nlp.models.language_modeling.lm_model import BERTMLMModel
-from nemo.collections.nlp.models.qa_model import QAModel
-from nemo.collections.nlp.models.text_classification import TextClassificationModel
-from nemo.collections.nlp.models.token_classification import NERModel, PunctuationCapitalizationModel
+from nemo.core.config import hydra_runner
+from nemo.utils import logging
+from nemo.utils.exp_manager import exp_manager
+
+
+@hydra_runner(config_path="conf", config_name="bert_pretraining_from_preprocessed_config")
+def main(cfg: DictConfig) -> None:
+    logging.info(f'Config:\n {cfg.pretty()}')
+    trainer = pl.Trainer(**cfg.trainer)
+    exp_manager(trainer, cfg.get("exp_manager", None))
+    bert_model = BERTMLMModel(cfg.model, trainer=trainer)
+    trainer.fit(bert_model)
+
+
+if __name__ == '__main__':
+    main()
