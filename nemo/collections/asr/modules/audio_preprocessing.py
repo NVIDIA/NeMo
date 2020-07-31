@@ -380,7 +380,9 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         )
 
     def get_features(self, input_signal, length):
-        return self.featurizer(input_signal)
+        features = self.featurizer(input_signal)
+        seq_len = torch.ceil(length.to(torch.float32) / self.hop_length).to(dtype=torch.long)
+        return features, seq_len
 
 
 class SpectrogramAugmentation(NeuralModule):

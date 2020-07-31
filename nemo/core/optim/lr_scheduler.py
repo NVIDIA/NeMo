@@ -40,7 +40,7 @@ class WarmupPolicy(_LRScheduler):
             infinite training
     """
 
-    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, last_epoch=-1):
+    def __init__(self, optimizer, *, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1):
         assert not (
             warmup_steps is not None and warmup_ratio is not None
         ), "Either use particular number of step or ratio"
@@ -55,6 +55,8 @@ class WarmupPolicy(_LRScheduler):
             self.warmup_steps = int(warmup_ratio * max_steps)
         else:
             self.warmup_steps = 0
+
+        self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)
 
     def get_lr(self):
@@ -70,7 +72,7 @@ class WarmupPolicy(_LRScheduler):
             return [initial_lr * lr_val for initial_lr in self.base_lrs]
 
         if step > self.max_steps:
-            return [0.0 for _ in self.base_lrs]
+            return [self.min_lr for _ in self.base_lrs]
 
         return self._get_lr(step)
 
@@ -106,7 +108,7 @@ class WarmupHoldPolicy(WarmupPolicy):
         assert not (hold_steps is not None and hold_ratio is not None), "Either use particular number of step or ratio"
         assert hold_ratio is None or max_steps is not None, "If there is a ratio, there should be a total steps"
 
-        self._min_lr = min_lr
+        self.min_lr = min_lr
         self._last_warmup_lr = 0.0
 
         # Necessary to duplicate as class attributes are hidden in inner class
@@ -131,6 +133,7 @@ class WarmupHoldPolicy(WarmupPolicy):
             warmup_ratio=warmup_ratio,
             max_steps=max_steps,
             last_epoch=last_epoch,
+            min_lr=min_lr,
         )
 
     def get_lr(self):
@@ -151,7 +154,7 @@ class WarmupHoldPolicy(WarmupPolicy):
             return self.base_lrs
 
         if step > self.max_steps:
-            return [0.0 for _ in self.base_lrs]
+            return [self.min_lr for _ in self.base_lrs]
 
         return self._get_lr(step)
 
@@ -190,9 +193,7 @@ def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
 
 class SquareAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=1e-5, last_epoch=-1, **kwargs):
-        self.min_lr = min_lr
-
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
@@ -209,9 +210,7 @@ class SquareAnnealing(WarmupPolicy):
 
 class SquareRootAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
-        self.min_lr = min_lr
-
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
@@ -223,9 +222,7 @@ class SquareRootAnnealing(WarmupPolicy):
 
 class CosineAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0, last_epoch=-1, **kwargs):
-        self.min_lr = min_lr
-
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         for initial_lr in self.base_lrs:
@@ -247,8 +244,8 @@ class CosineAnnealing(WarmupPolicy):
 
 
 class WarmupAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, max_steps, last_epoch=-1, **kwargs):
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         progress = float(step / self.max_steps)
@@ -261,8 +258,8 @@ class WarmupAnnealing(WarmupPolicy):
 
 
 class InverseSquareRootAnnealing(WarmupPolicy):
-    def __init__(self, optimizer, *, max_steps, last_epoch=-1, **kwargs):
-        super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch)
+    def __init__(self, optimizer, *, max_steps, last_epoch=-1, min_lr=0.0, **kwargs):
+        super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
 
     def _get_lr(self, step):
         denom = ((step + 1) / (self.warmup_steps + 1)) ** 0.5
@@ -272,11 +269,10 @@ class InverseSquareRootAnnealing(WarmupPolicy):
 
 class PolynomialDecayAnnealing(WarmupPolicy):
     def __init__(self, optimizer, *, max_steps, min_lr=0.0, power=1.0, cycle=False, last_epoch=-1, **kwargs):
-        self.min_lr = min_lr
         self.power = power
         self.cycle = cycle
 
-        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, **kwargs)
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
 
     def _get_lr(self, step):
         new_lrs = [
@@ -307,7 +303,7 @@ class PolynomialHoldDecayAnnealing(WarmupHoldPolicy):
                 step=step - self.hold_steps,
                 decay_steps=self.max_steps - max(self.warmup_steps, self.hold_steps),
                 power=self.power,
-                min_lr=self._min_lr,
+                min_lr=self.min_lr,
                 cycle=self.cycle,
             )
             for initial_lr in self.base_lrs
@@ -434,16 +430,31 @@ def prepare_lr_scheduler(
         logging.info('Scheduler not initialized as no `sched` config supplied to setup_optimizer()')
         return None
 
-    # Get name of the scheduler
-    scheduler_name = scheduler_config['name']
-
     # Try instantiation of scheduler params from config class path
     try:
-        scheduler_conf = hydra.utils.instantiate(scheduler_args)
+        scheduler_args_cfg = OmegaConf.create(scheduler_args)
+        scheduler_conf = hydra.utils.instantiate(scheduler_args_cfg)
         scheduler_args = vars(scheduler_conf)
+
+        # Get name of the scheduler
+        scheduler_name = scheduler_conf.__class__.__name__
+
+        if 'Params' in scheduler_name:
+            scheduler_name = scheduler_name.replace('Params', '')
 
     except Exception:
         # Class path instantiation failed; try resolving "name" component
+
+        # Get name of the scheduler
+        if 'name' in scheduler_config:
+            scheduler_name = scheduler_config['name']
+        else:
+            logging.warning(
+                "Could not resolve classpath for Scheduler Config, and `name` "
+                "was not provided either. \n"
+                "Scheduler cannot be instantiated !"
+            )
+            return None
 
         # If class path was not provided, perhaps `name` is provided for resolution
         if 'name' in scheduler_args:
@@ -503,10 +514,12 @@ def prepare_lr_scheduler(
         max_steps = round(num_samples * iters_per_batch / float(batch_size))
 
     else:
-        raise ValueError(
+        logging.warning(
             "Neither `max_steps` nor `iters_per_batch` were provided to `optim.sched`, "
-            "cannot compute effective `max_steps` !"
+            "cannot compute effective `max_steps` !\n"
+            "Scheduler will not be instantiated !"
         )
+        return None
 
     # Inject max_steps (effective or provided) into the scheduler config
     scheduler_args['max_steps'] = max_steps
