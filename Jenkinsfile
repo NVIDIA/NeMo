@@ -355,7 +355,7 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             python token_classification.py \
-            model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            # model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
             model.use_cache=false \
@@ -428,7 +428,7 @@ pipeline {
       steps {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         model.use_cache=false \
@@ -450,7 +450,7 @@ pipeline {
       steps {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         model.use_cache=false \
