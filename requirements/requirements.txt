@@ -1,14 +1,10 @@
 numpy>=1.18.2
-onnx
+onnx>=1.7.0
 pytorch-lightning>=0.8.5
-pandas
 python-dateutil
-tensorboardX
-tensorboard
 torch
 wget
 wrapt
 ruamel.yaml
 scikit-learn
-scipy
 hydra-core==1.0.0rc2
