@@ -13,23 +13,20 @@
 # limitations under the License.
 
 
-
-from nemo.collections.asr.parts import collections, parsers
-from nemo.collections.asr.parts.segment import AudioSegment
-from nemo.core.classes import Dataset
-
-import torch.utils.data
-from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
-
 from typing import Dict, Optional, Union
+
 import torch
 import torch.utils.data
 
-from nemo.collections.asr.parts import features
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
+from nemo.collections.asr.parts import collections, features, parsers
+from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.collections.tts.data.text_process import TextProcess
+from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
+
 
 class AudioDataset(Dataset):
     @property
@@ -153,7 +150,9 @@ class AudioToPhonemesDataset(_AudioTextDataset):
         self,
         manifest_filepath: str,
         cmu_dict_path: str,
-        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -165,7 +164,9 @@ class AudioToPhonemesDataset(_AudioTextDataset):
 
         super().__init__(
             manifest_filepath=manifest_filepath,
-            featurizer=featurizer,
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
             parser=self.parser,
             max_duration=max_duration,
             min_duration=min_duration,

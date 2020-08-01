@@ -52,7 +52,7 @@ class DurationPredictor(NeuralModule):
         x = self.drop(x)
         x = self.proj(x * mask)
         durs = x * mask
-        return durs
+        return durs.squeeze(1)
 
     def save_to(self, save_path: str):
         """TODO: Implement"""

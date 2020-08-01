@@ -283,6 +283,7 @@ class SequenceToSequenceAlignmentType(ElementType):
     """Class to represent the alignment from seq-to-seq attention outputs. Generally a mapping from endcoder time steps
     to decoder time steps."""
 
+
 class NormalDistributionMeanType(ElementType):
     """Element to represent the mean of a normal distribution"""
 
@@ -297,4 +298,3 @@ class TokenLogDurationType(ElementType):
 
 class LogDeterminantType(ElementType):
     """Element for representing log determinants usually used in flow models"""
-

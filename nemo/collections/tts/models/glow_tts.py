@@ -24,6 +24,7 @@ import nemo
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
+from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
@@ -35,12 +36,9 @@ class GlowTTSModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.preprocessor = GlowTTSModel.from_config_dict(self._cfg.preprocessor)
+        self.vocab_len = len(self.train_dataloader().dataset.parser.symbols)
 
-        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = GlowTTSModel.from_config_dict(self._cfg.spec_augment)
-        else:
-            self.spec_augmentation = None
+        self.preprocessor = GlowTTSModel.from_config_dict(self._cfg.preprocessor)
 
         self.encoder = nemo.collections.tts.modules.glow_tts.TextEncoder(
             self.vocab_len,
@@ -84,23 +82,15 @@ class GlowTTSModel(ModelPT):
         self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=1.0, length_scale=1.0,
     ):
 
-        x_m, x_logs, logw, x_mask = self.encoder(text=x, text_lengths=x_lengths)
+        x_m, x_logs, log_durs_predicted, x_mask = self.encoder(text=x, text_lengths=x_lengths)
 
-        # logw is predicted durations by encoder
         if gen:
-            w = torch.exp(logw) * x_mask * length_scale
+            w = torch.exp(log_durs_predicted) * x_mask.squeeze() * length_scale
             w_ceil = torch.ceil(w)
-            y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
+            y_lengths = torch.clamp_min(torch.sum(w_ceil, [1]), 1).long()
             y_max_length = None
         else:
-            y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
-
-            # Spec augment is not applied during evaluation/testing
-            if self.spec_augmentation is not None and self.training:
-                y = self.spec_augmentation(input_spec=y)
-
             y_max_length = y.size(2)
-
             y_max_length = (y_max_length // self._cfg.n_sqz) * self._cfg.n_sqz
             y = y[:, :, :y_max_length]
 
@@ -112,6 +102,7 @@ class GlowTTSModel(ModelPT):
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
         if gen:
+
             attn = nemo.collections.tts.modules.parts.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(
                 1
             )
@@ -121,11 +112,10 @@ class GlowTTSModel(ModelPT):
             y_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(
                 1, 2
             )  # [b, t', t], [b, t, d] -> [b, d, t']
-            logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
 
             z = (y_m + torch.exp(y_logs) * torch.randn_like(y_m) * noise_scale) * y_mask
-            y, logdet = self.decoder(spect=z, spect_mask=y_mask, reverse=True)
-            return (y, y_m, y_logs, logdet), attn, logw, logw_, x_m, x_logs
+            y, _ = self.decoder(spect=z, spect_mask=y_mask, reverse=True)
+            return y, attn
         else:
             z, logdet = self.decoder(spect=y, spect_mask=y_mask, reverse=False)
 
@@ -147,16 +137,14 @@ class GlowTTSModel(ModelPT):
             y_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(
                 1, 2
             )  # [b, t', t], [b, t, d] -> [b, d, t']
-            logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
-            # logw_ is durations from monotonic alignment
+            log_durs_extracted = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
+            log_durs_extracted = log_durs_extracted.squeeze(1)
 
-            return z, y_m, y_logs, logdet, logw, logw_, y_lengths
+            return z, y_m, y_logs, logdet, log_durs_predicted, log_durs_extracted, y_lengths, attn
 
-    def training_step(self, batch, batch_idx):
+    def step(self, y, y_lengths, x, x_lengths):
 
-        y, y_lengths, x, x_lengths = batch
-
-        z, y_m, y_logs, logdet, logw, logw_, y_lengths = self(x, x_lengths, y, y_lengths, gen=False)
+        z, y_m, y_logs, logdet, logw, logw_, y_lengths, attn = self(x, x_lengths, y, y_lengths, gen=False)
 
         l_mle, l_length, logdet = self.loss(
             z=z,
@@ -171,9 +159,19 @@ class GlowTTSModel(ModelPT):
 
         loss = sum([l_mle, l_length])
 
+        return l_mle, l_length, logdet, loss, attn
+
+    def training_step(self, batch, batch_idx):
+
+        y, y_lengths, x, x_lengths = batch
+
+        y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
+
+        l_mle, l_length, logdet, loss, _ = self.step(y, y_lengths, x, x_lengths)
+
         output = {
             "loss": loss,  # required
-            "progress_bar": {"l_mle": l_mle, "l_length": l_length, "logdet": logdet},  # optional (MUST ALL BE TENSORS)
+            "progress_bar": {"l_mle": l_mle, "l_length": l_length, "logdet": logdet},
             "log": {"loss": loss, "l_mle": l_mle, "l_length": l_length, "logdet": logdet},
         }
 
@@ -181,13 +179,67 @@ class GlowTTSModel(ModelPT):
 
     def validation_step(self, batch, batch_idx):
 
-        output = self.training_step(batch, batch_idx)
+        y, y_lengths, x, x_lengths = batch
 
-        return output
+        y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
+
+        l_mle, l_length, logdet, loss, attn = self.step(y, y_lengths, x, x_lengths)
+
+        y_gen, attn_gen = self(x, x_lengths, gen=True)
+
+        return {
+            "loss": loss,
+            "l_mle": l_mle,
+            "l_length": l_length,
+            "logdet": logdet,
+            "y": y,
+            "y_gen": y_gen,
+            "x": x,
+            "attn": attn,
+            "attn_gen": attn_gen,
+            "progress_bar": {"l_mle": l_mle, "l_length": l_length, "logdet": logdet},
+        }
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
+        avg_mle = torch.stack([x['l_mle'] for x in outputs]).mean()
+        avg_length_loss = torch.stack([x['l_length'] for x in outputs]).mean()
+        avg_logdet = torch.stack([x['logdet'] for x in outputs]).mean()
+        tensorboard_logs = {
+            'val_loss': avg_loss,
+            'val_mle': avg_mle,
+            'val_length_loss': avg_length_loss,
+            'val_logdet': avg_logdet,
+        }
+        parser = self.val_dataloader().dataset.parser
+        separated_phonemes = "|".join([parser.symbols[c] for c in outputs[0]['x'][0]])
+        self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
+        self.logger.experiment.add_image(
+            "real_spectrogram",
+            plot_spectrogram_to_numpy(outputs[0]['y'][0].data.cpu().numpy()),
+            self.global_step,
+            dataformats="HWC",
+        )
+        self.logger.experiment.add_image(
+            "generated_spectrogram",
+            plot_spectrogram_to_numpy(outputs[0]['y_gen'][0].data.cpu().numpy()),
+            self.global_step,
+            dataformats="HWC",
+        )
+        self.logger.experiment.add_image(
+            "alignment_for_real_sp",
+            plot_alignment_to_numpy(outputs[0]['attn'][0, 0].data.cpu().numpy()),
+            self.global_step,
+            dataformats="HWC",
+        )
+        self.logger.experiment.add_image(
+            "alignment_for_generated_sp",
+            plot_alignment_to_numpy(outputs[0]['attn_gen'][0, 0].data.cpu().numpy()),
+            self.global_step,
+            dataformats="HWC",
+        )
+        log_audio_to_tb(self.logger.experiment, outputs[0]['y'][0], "true_audio_gf", self.global_step)
+        log_audio_to_tb(self.logger.experiment, outputs[0]['y_gen'][0], "generated_audio_gf", self.global_step)
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
@@ -197,13 +249,12 @@ class GlowTTSModel(ModelPT):
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(
-            sample_rate=cfg['sample_rate'], int_values=cfg.get('int_values', False), augmentor=augmentor
-        )
         dataset = AudioToPhonemesDataset(
             manifest_filepath=cfg['manifest_filepath'],
             cmu_dict_path=cfg.get('cmu_dict_path', None),
-            featurizer=featurizer,
+            sample_rate=cfg['sample_rate'],
+            int_values=cfg.get('int_values', False),
+            augmentor=augmentor,
             max_duration=cfg.get('max_duration', None),
             min_duration=cfg.get('min_duration', None),
             max_utts=cfg.get('max_utts', 0),
@@ -211,8 +262,6 @@ class GlowTTSModel(ModelPT):
             load_audio=cfg.get('load_audio', True),
             add_misc=cfg.get('add_misc', False),
         )
-
-        self.vocab_len = len(dataset.parser.symbols)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -231,10 +280,6 @@ class GlowTTSModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
         pass
 
     def export(self, **kwargs):

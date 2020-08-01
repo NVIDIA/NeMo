@@ -79,7 +79,7 @@ model:
 
   optim:
     name: adam
-    lr: 1e-2
+    lr: 1e-3
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 0
