@@ -17,6 +17,7 @@ from collections import defaultdict
 from enum import Enum
 from typing import Optional
 
+import onnx
 import torch
 
 from nemo.core.classes import typecheck
@@ -45,20 +46,17 @@ class Exportable(ABC):
     """
 
     def export(
-        self,
-        output: str,
-        input_example=None,
-        output_example=None,
-        format: ExportFormat = ExportFormat.ONNX,
-        onnx_opset_version=11,
+        self, output: str, input_example=None, output_example=None, onnx_opset_version=11, try_script=False,
     ):
         try:
             # Disable typechecks
             typecheck.set_typecheck_enabled(enabled=False)
 
             filename, file_extension = os.path.splitext(output)
-            if _EXT_DICT[file_extension] != format:
-                raise ValueError(f"Export file {output} extension does not correspond to export format {format}")
+            if file_extension not in _EXT_DICT.keys():
+                raise ValueError(f"Export file {output} extension does not correspond to any export format!")
+
+            format = _EXT_DICT[file_extension]
 
             _in_example, _out_example = self._prepare_for_export()
 
@@ -99,18 +97,22 @@ class Exportable(ABC):
             self.eval()
 
             with torch.jit.optimized_execution(True):
-                try:
-                    jitted_model = torch.jit.script(self)
-                except Exception as e:
-                    if _in_example is None:
-                        raise ValueError(f'Example input is None, but jit.script() has failed')
+                jitted_model = None
+                if try_script:
+                    try:
+                        jitted_model = torch.jit.script(self)
+                    except Exception as e:
+                        print("jit.script() failed!", e)
+                if _in_example is None:
+                    raise ValueError(f'Example input is None, but jit.script() has failed or not tried')
+
+                if jitted_model is None:
                     jitted_model = torch.jit.trace(self, _in_example)
 
                 if format == ExportFormat.TORCHSCRIPT:
                     jitted_model.save(output)
+                    assert os.path.exists(output)
                 elif format == ExportFormat.ONNX:
-                    if _in_example is None:
-                        raise ValueError(f'Example input is None, but ONNX tracing was attempted')
                     if _out_example is None:
                         if isinstance(_in_example, tuple):
                             _out_example = self.forward(*_in_example)
@@ -129,6 +131,10 @@ class Exportable(ABC):
                         opset_version=onnx_opset_version,
                         example_outputs=_out_example,
                     )
+                    # Verify the model can be read, and is valid
+                    onnx_model = onnx.load(output)
+                    onnx.checker.check_model(onnx_model, full_check=True)
+
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:

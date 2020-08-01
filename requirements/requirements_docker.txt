@@ -1,4 +1,6 @@
+# core
 numpy>=1.18.2
+onnx
 pytorch-lightning>=0.8.5
 pandas
 python-dateutil
@@ -11,13 +13,13 @@ ruamel.yaml
 scikit-learn
 scipy
 hydra-core==1.0.0rc2
+
 # test
 black
 isort[requirements] < 5
 parameterized
 pytest
 pytest-runner
-
 sphinx
 sphinxcontrib-bibtex
 
@@ -30,6 +32,7 @@ sphinx_rtd_theme
 # cv
 pillow
 torchvision
+
 # asr
 braceexpand
 editdistance
@@ -40,13 +43,13 @@ librosa
 marshmallow
 packaging
 num2words
-
 soundfile
 sox
 torch-stft
 unidecode
 webdataset
 kaldi-python-io
+
 # nlp
 boto3
 h5py
@@ -54,14 +57,12 @@ matplotlib
 sentencepiece
 torchtext
 transformers>=2.11.0
-
 youtokentome
 tqdm>=4.41.0
 rapidfuzz
 gdown
 megatron-lm==1.1
-# inflect
-# tts
 
+# tts
 pypinyin
 attrdict
