@@ -15,7 +15,6 @@
 import os
 
 import pytorch_lightning as pl
-import torch
 from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
@@ -53,12 +52,11 @@ def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
-    torch.save(speaker_model.state_dict(), 'speaker_model.pt')
-    trainer.save_checkpoint("speaker_model.ckpt")
-    speaker_model.save_to('spkr.nemo')
+    model_path = os.path.join(log_dir, '..', 'spkr.nemo')
+    speaker_model.save_to(model_path)
     trainer.test(speaker_model)
 
 
