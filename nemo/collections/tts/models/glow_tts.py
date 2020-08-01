@@ -36,37 +36,10 @@ class GlowTTSModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.vocab_len = len(self.train_dataloader().dataset.parser.symbols)
-
         self.preprocessor = GlowTTSModel.from_config_dict(self._cfg.preprocessor)
 
-        self.encoder = nemo.collections.tts.modules.glow_tts.TextEncoder(
-            self.vocab_len,
-            cfg.mel_channels,
-            cfg.hidden_channels_enc or cfg.hidden_channels,
-            cfg.filter_channels,
-            cfg.filter_channels_dp,
-            cfg.n_heads,
-            cfg.n_layers_enc,
-            cfg.kernel_size,
-            cfg.p_dropout,
-            window_size=cfg.window_size,
-            mean_only=cfg.mean_only,
-            prenet=cfg.prenet,
-        )
-
-        self.decoder = nemo.collections.tts.modules.glow_tts.FlowSpecDecoder(
-            cfg.mel_channels,
-            cfg.hidden_channels_dec or cfg.hidden_channels,
-            cfg.kernel_size_dec,
-            cfg.dilation_rate,
-            cfg.n_blocks_dec,
-            cfg.n_block_layers,
-            p_dropout=cfg.p_dropout_dec,
-            n_sqz=cfg.n_sqz,
-            n_split=cfg.n_split,
-            sigmoid_scale=cfg.sigmoid_scale,
-        )
+        self.encoder = GlowTTSModel.from_config_dict(self._cfg.encoder)
+        self.decoder = GlowTTSModel.from_config_dict(self._cfg.decoder)
 
         self.setup_optimization()
 
@@ -91,10 +64,10 @@ class GlowTTSModel(ModelPT):
             y_max_length = None
         else:
             y_max_length = y.size(2)
-            y_max_length = (y_max_length // self._cfg.n_sqz) * self._cfg.n_sqz
+            y_max_length = (y_max_length // self.decoder.n_sqz) * self.decoder.n_sqz
             y = y[:, :, :y_max_length]
 
-        y_lengths = (y_lengths // self._cfg.n_sqz) * self._cfg.n_sqz
+        y_lengths = (y_lengths // self.decoder.n_sqz) * self.decoder.n_sqz
 
         y_mask = torch.unsqueeze(nemo.collections.tts.modules.parts.sequence_mask(y_lengths, y_max_length), 1).to(
             x_mask.dtype
