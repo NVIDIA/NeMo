@@ -4,8 +4,12 @@ n_fft: &n_fft 1024
 n_mels: &n_mels 80
 fmax: &fmax 8000
 pad_value: &pad_value -11.52
+gin_channels: &gin_channels 0
 
 model:
+
+  n_speakers: 1
+  gin_channels: *gin_channels
 
   train_ds:
     manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_train.json
@@ -70,6 +74,7 @@ model:
       window_size: 4
       prenet: true
       mean_only: true
+      gin_channels: *gin_channels
 
   decoder:
     cls: nemo.collections.tts.modules.glow_tts.FlowSpecDecoder
@@ -84,6 +89,7 @@ model:
       sigmoid_scale: false
       p_dropout: 0.05
       dilation_rate: 1
+      gin_channels: *gin_channels
 
   optim:
     name: adam
@@ -96,10 +102,6 @@ model:
     sched:
       name: CosineAnnealing
 
-      # pytorch lightning args
-      # monitor: val_loss
-      # reduce_on_plateau: false
-
       # Scheduler params
       warmup_steps: 500
       min_lr: 1e-5
@@ -108,7 +110,6 @@ model:
 trainer:
   gpus: -1 # number of gpus
   max_epochs: 1000
-  max_steps: 1000
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1

@@ -7,25 +7,10 @@ from torch import nn
 from torch.nn import functional as F
 
 
-def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
-    n_channels_int = n_channels[0]
-    in_act = input_a + input_b
-    t_act = torch.tanh(in_act[:, :n_channels_int, :])
-    s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
-    acts = t_act * s_act
-    return acts
-
-
 def convert_pad_shape(pad_shape):
     l = pad_shape[::-1]
     pad_shape = [item for sublist in l for item in sublist]
     return pad_shape
-
-
-def shift_1d(x):
-    x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [1, 0]]))[:, :, :-1]
-    return x
-
 
 def sequence_mask(length, max_length=None):
     if max_length is None:
@@ -90,50 +75,14 @@ def generate_path(duration, mask):
     path = path * mask
     return path
 
-
-def clip_grad_value_(parameters, clip_value, norm_type=2):
-    if isinstance(parameters, torch.Tensor):
-        parameters = [parameters]
-    parameters = list(filter(lambda p: p.grad is not None, parameters))
-    norm_type = float(norm_type)
-    clip_value = float(clip_value)
-
-    total_norm = 0
-    for p in parameters:
-        param_norm = p.grad.data.norm(norm_type)
-        total_norm += param_norm.item() ** norm_type
-
-        p.grad.data.clamp_(min=-clip_value, max=clip_value)
-    total_norm = total_norm ** (1.0 / norm_type)
-    return total_norm
-
-
-def squeeze(x, x_mask=None, n_sqz=2):
-    b, c, t = x.size()
-
-    t = (t // n_sqz) * n_sqz
-    x = x[:, :, :t]
-    x_sqz = x.view(b, c, t // n_sqz, n_sqz)
-    x_sqz = x_sqz.permute(0, 3, 1, 2).contiguous().view(b, c * n_sqz, t // n_sqz)
-
-    if x_mask is not None:
-        x_mask = x_mask[:, :, n_sqz - 1 :: n_sqz]
-    else:
-        x_mask = torch.ones(b, 1, t // n_sqz).to(device=x.device, dtype=x.dtype)
-    return x_sqz * x_mask, x_mask
-
-
-def unsqueeze(x, x_mask=None, n_sqz=2):
-    b, c, t = x.size()
-
-    x_unsqz = x.view(b, n_sqz, c // n_sqz, t)
-    x_unsqz = x_unsqz.permute(0, 2, 3, 1).contiguous().view(b, c // n_sqz, t * n_sqz)
-
-    if x_mask is not None:
-        x_mask = x_mask.unsqueeze(-1).repeat(1, 1, 1, n_sqz).view(b, 1, t * n_sqz)
-    else:
-        x_mask = torch.ones(b, 1, t * n_sqz).to(device=x.device, dtype=x.dtype)
-    return x_unsqz * x_mask, x_mask
+@torch.jit.script
+def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
+  n_channels_int = n_channels[0]
+  in_act = input_a + input_b
+  t_act = torch.tanh(in_act[:, :n_channels_int, :])
+  s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
+  acts = t_act * s_act
+  return acts
 
 
 class LayerNorm(nn.Module):
@@ -196,18 +145,14 @@ class ConvReluNorm(nn.Module):
 
 class WN(torch.nn.Module):
     def __init__(
-        self, in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, p_dropout=0,
+        self, hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=0, gin_channels=0
     ):
         super(WN, self).__init__()
         assert kernel_size % 2 == 1
         assert hidden_channels % 2 == 0
-        self.in_channels = in_channels
+
         self.hidden_channels = hidden_channels
-        self.kernel_size = (kernel_size,)
-        self.dilation_rate = dilation_rate
         self.n_layers = n_layers
-        self.gin_channels = gin_channels
-        self.p_dropout = p_dropout
 
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
@@ -215,7 +160,7 @@ class WN(torch.nn.Module):
 
         if gin_channels != 0:
             cond_layer = torch.nn.Conv1d(gin_channels, 2 * hidden_channels * n_layers, 1)
-            self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
+            self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
 
         for i in range(n_layers):
             dilation = dilation_rate ** i
@@ -263,8 +208,6 @@ class WN(torch.nn.Module):
         return output * x_mask
 
     def remove_weight_norm(self):
-        if self.gin_channels != 0:
-            torch.nn.utils.remove_weight_norm(self.cond_layer)
         for l in self.in_layers:
             torch.nn.utils.remove_weight_norm(l)
         for l in self.res_skip_layers:
@@ -367,66 +310,6 @@ class InvConvNear(nn.Module):
         self.weight_inv = torch.inverse(self.weight.float()).to(dtype=self.weight.dtype)
 
 
-class Encoder(nn.Module):
-    def __init__(
-        self,
-        hidden_channels,
-        filter_channels,
-        n_heads,
-        n_layers,
-        kernel_size=1,
-        p_dropout=0.0,
-        window_size=None,
-        block_length=None,
-        **kwargs
-    ):
-        super().__init__()
-        self.hidden_channels = hidden_channels
-        self.filter_channels = filter_channels
-        self.n_heads = n_heads
-        self.n_layers = n_layers
-        self.kernel_size = kernel_size
-        self.p_dropout = p_dropout
-        self.window_size = window_size
-        self.block_length = block_length
-
-        self.drop = nn.Dropout(p_dropout)
-        self.attn_layers = nn.ModuleList()
-        self.norm_layers_1 = nn.ModuleList()
-        self.ffn_layers = nn.ModuleList()
-        self.norm_layers_2 = nn.ModuleList()
-        for i in range(self.n_layers):
-            self.attn_layers.append(
-                MultiHeadAttention(
-                    hidden_channels,
-                    hidden_channels,
-                    n_heads,
-                    window_size=window_size,
-                    p_dropout=p_dropout,
-                    block_length=block_length,
-                )
-            )
-            self.norm_layers_1.append(LayerNorm(hidden_channels))
-            self.ffn_layers.append(
-                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout,)
-            )
-            self.norm_layers_2.append(LayerNorm(hidden_channels))
-
-    def forward(self, x, x_mask):
-        attn_mask = x_mask.unsqueeze(2) * x_mask.unsqueeze(-1)
-        for i in range(self.n_layers):
-            x = x * x_mask
-            y = self.attn_layers[i](x, x, attn_mask)
-            y = self.drop(y)
-            x = self.norm_layers_1[i](x + y)
-
-            y = self.ffn_layers[i](x, x_mask)
-            y = self.drop(y)
-            x = self.norm_layers_2[i](x + y)
-        x = x * x_mask
-        return x
-
-
 class CouplingBlock(nn.Module):
     def __init__(
         self,
@@ -459,7 +342,7 @@ class CouplingBlock(nn.Module):
         end.bias.data.zero_()
         self.end = end
 
-        self.wn = WN(in_channels, hidden_channels, kernel_size, dilation_rate, n_layers)
+        self.wn = WN(hidden_channels, kernel_size, dilation_rate, n_layers)
 
     def forward(self, x, x_mask=None, reverse=False, g=None, **kwargs):
         b, c, t = x.size()
@@ -494,7 +377,7 @@ class CouplingBlock(nn.Module):
         self.wn.remove_weight_norm()
 
 
-class MultiHeadAttention(nn.Module):
+class AttentionBlock(nn.Module):
     def __init__(
         self,
         channels,
@@ -538,6 +421,7 @@ class MultiHeadAttention(nn.Module):
             self.conv_k.weight.data.copy_(self.conv_q.weight.data)
             self.conv_k.bias.data.copy_(self.conv_q.bias.data)
         nn.init.xavier_uniform_(self.conv_v.weight)
+
 
     def forward(self, x, c, attn_mask=None):
         q = self.conv_q(x)
@@ -658,7 +542,7 @@ class MultiHeadAttention(nn.Module):
         return torch.unsqueeze(torch.unsqueeze(-torch.log1p(torch.abs(diff)), 0), 0)
 
 
-class FFN(nn.Module):
+class FeedForwardNetwork(nn.Module):
     def __init__(
         self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0, activation=None,
     ):
@@ -683,3 +567,42 @@ class FFN(nn.Module):
         x = self.drop(x)
         x = self.conv_2(x * x_mask)
         return x * x_mask
+
+
+class DurationPredictor(nn.Module):
+    def __init__(self, in_channels, filter_channels, kernel_size, p_dropout):
+        """
+        Token duration predictor for the GlowTTS model.
+        Takes in embeddings of the input tokens and predicts how many frames of
+        mel-spectrogram are aligned to each text token.
+        Architecture is the same as the duration predictor in FastSpeech.
+
+        Args:
+            in_channels: Number of channels for the token embeddings
+            filter_channels: Number of channels in the intermediate layers
+            kernel_size: Kernels size for the convolution layers
+            p_dropout: Dropout probability
+        """
+
+        super().__init__()
+
+        self.drop = nn.Dropout(p_dropout)
+        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.norm_1 = LayerNorm(filter_channels)
+        self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.norm_2 = LayerNorm(filter_channels)
+        self.proj = nn.Conv1d(filter_channels, 1, 1)
+
+
+    def forward(self, spect, mask):
+        x = self.conv_1(spect * mask)
+        x = torch.relu(x)
+        x = self.norm_1(x)
+        x = self.drop(x)
+        x = self.conv_2(x * mask)
+        x = torch.relu(x)
+        x = self.norm_2(x)
+        x = self.drop(x)
+        x = self.proj(x * mask)
+        durs = x * mask
+        return durs.squeeze(1)

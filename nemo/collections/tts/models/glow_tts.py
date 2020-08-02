@@ -20,26 +20,33 @@ import torch.utils.data
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-import nemo
-from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
-
+from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 
 @experimental
 class GlowTTSModel(ModelPT):
+    """
+    GlowTTS model used to generate spectrograms from text
+    Consists of a text encoder and an invertible spectrogram decoder
+    """
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.preprocessor = GlowTTSModel.from_config_dict(self._cfg.preprocessor)
 
-        self.encoder = GlowTTSModel.from_config_dict(self._cfg.encoder)
-        self.decoder = GlowTTSModel.from_config_dict(self._cfg.decoder)
+        encoder = GlowTTSModel.from_config_dict(self._cfg.encoder)
+        decoder = GlowTTSModel.from_config_dict(self._cfg.decoder)
+
+        self.glow_tts = GlowTTSModule(encoder,
+                                      decoder,
+                                      n_speakers=cfg.n_speakers,
+                                      gin_channels=cfg.gin_channels)
 
         self.setup_optimization()
 
@@ -52,68 +59,20 @@ class GlowTTSModel(ModelPT):
         return self._val_dl
 
     def forward(
-        self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=1.0, length_scale=1.0,
+        self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.
     ):
 
-        x_m, x_logs, log_durs_predicted, x_mask = self.encoder(text=x, text_lengths=x_lengths)
 
         if gen:
-            w = torch.exp(log_durs_predicted) * x_mask.squeeze() * length_scale
-            w_ceil = torch.ceil(w)
-            y_lengths = torch.clamp_min(torch.sum(w_ceil, [1]), 1).long()
-            y_max_length = None
+            return self.glow_tts.generate_spect(text=x,
+                                                text_lengths=x_lengths,
+                                                noise_scale=noise_scale,
+                                                length_scale=length_scale)
         else:
-            y_max_length = y.size(2)
-            y_max_length = (y_max_length // self.decoder.n_sqz) * self.decoder.n_sqz
-            y = y[:, :, :y_max_length]
-
-        y_lengths = (y_lengths // self.decoder.n_sqz) * self.decoder.n_sqz
-
-        y_mask = torch.unsqueeze(nemo.collections.tts.modules.parts.sequence_mask(y_lengths, y_max_length), 1).to(
-            x_mask.dtype
-        )
-        attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
-
-        if gen:
-
-            attn = nemo.collections.tts.modules.parts.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(
-                1
-            )
-            y_m = torch.matmul(attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)).transpose(
-                1, 2
-            )  # [b, t', t], [b, t, d] -> [b, d, t']
-            y_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(
-                1, 2
-            )  # [b, t', t], [b, t, d] -> [b, d, t']
-
-            z = (y_m + torch.exp(y_logs) * torch.randn_like(y_m) * noise_scale) * y_mask
-            y, _ = self.decoder(spect=z, spect_mask=y_mask, reverse=True)
-            return y, attn
-        else:
-            z, logdet = self.decoder(spect=y, spect_mask=y_mask, reverse=False)
-
-            with torch.no_grad():
-                x_s_sq_r = torch.exp(-2 * x_logs)
-                logp1 = torch.sum(-0.5 * math.log(2 * math.pi) - x_logs, [1]).unsqueeze(-1)  # [b, t, 1]
-                logp2 = torch.matmul(x_s_sq_r.transpose(1, 2), -0.5 * (z ** 2))  # [b, t, d] x [b, d, t'] = [b, t, t']
-                logp3 = torch.matmul((x_m * x_s_sq_r).transpose(1, 2), z)  # [b, t, d] x [b, d, t'] = [b, t, t']
-                logp4 = torch.sum(-0.5 * (x_m ** 2) * x_s_sq_r, [1]).unsqueeze(-1)  # [b, t, 1]
-                logp = logp1 + logp2 + logp3 + logp4  # [b, t, t']
-
-                attn = (
-                    nemo.collections.tts.modules.parts.maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()
-                )
-
-            y_m = torch.matmul(attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)).transpose(
-                1, 2
-            )  # [b, t', t], [b, t, d] -> [b, d, t']
-            y_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(
-                1, 2
-            )  # [b, t', t], [b, t, d] -> [b, d, t']
-            log_durs_extracted = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
-            log_durs_extracted = log_durs_extracted.squeeze(1)
-
-            return z, y_m, y_logs, logdet, log_durs_predicted, log_durs_extracted, y_lengths, attn
+            return self.glow_tts(text=x,
+                                 text_lengths=x_lengths,
+                                 spect=y,
+                                 spect_lengths=y_lengths)
 
     def step(self, y, y_lengths, x, x_lengths):
 
@@ -201,13 +160,13 @@ class GlowTTSModel(ModelPT):
         )
         self.logger.experiment.add_image(
             "alignment_for_real_sp",
-            plot_alignment_to_numpy(outputs[0]['attn'][0, 0].data.cpu().numpy()),
+            plot_alignment_to_numpy(outputs[0]['attn'][0].data.cpu().numpy()),
             self.global_step,
             dataformats="HWC",
         )
         self.logger.experiment.add_image(
             "alignment_for_generated_sp",
-            plot_alignment_to_numpy(outputs[0]['attn_gen'][0, 0].data.cpu().numpy()),
+            plot_alignment_to_numpy(outputs[0]['attn_gen'][0].data.cpu().numpy()),
             self.global_step,
             dataformats="HWC",
         )

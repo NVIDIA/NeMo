@@ -139,7 +139,11 @@ class CMUDict:
         return cmudict
 
 
-class TextProcess:
+class GlowTTSParser:
+    """
+    Parser for the glow tts model.
+    Converts characters to phonemes where possible.
+    """
     def __init__(self, cmu_dict_path=None):
 
         if cmu_dict_path is not None:
