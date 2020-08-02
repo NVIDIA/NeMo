@@ -54,7 +54,7 @@ __all__ = [
     'NormalDistributionLogVarianceType',
     'TokenLogDurationType',
     'LogDeterminantType',
-    'SequenceToSequenceAlignmentType'
+    'SequenceToSequenceAlignmentType',
 ]
 
 

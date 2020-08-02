@@ -12,6 +12,7 @@ def convert_pad_shape(pad_shape):
     pad_shape = [item for sublist in l for item in sublist]
     return pad_shape
 
+
 def sequence_mask(length, max_length=None):
     if max_length is None:
         max_length = length.max()
@@ -75,14 +76,15 @@ def generate_path(duration, mask):
     path = path * mask
     return path
 
+
 @torch.jit.script
 def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
-  n_channels_int = n_channels[0]
-  in_act = input_a + input_b
-  t_act = torch.tanh(in_act[:, :n_channels_int, :])
-  s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
-  acts = t_act * s_act
-  return acts
+    n_channels_int = n_channels[0]
+    in_act = input_a + input_b
+    t_act = torch.tanh(in_act[:, :n_channels_int, :])
+    s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
+    acts = t_act * s_act
+    return acts
 
 
 class LayerNorm(nn.Module):
@@ -144,9 +146,7 @@ class ConvReluNorm(nn.Module):
 
 
 class WN(torch.nn.Module):
-    def __init__(
-        self, hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=0, gin_channels=0
-    ):
+    def __init__(self, hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=0, gin_channels=0):
         super(WN, self).__init__()
         assert kernel_size % 2 == 1
         assert hidden_channels % 2 == 0
@@ -422,7 +422,6 @@ class AttentionBlock(nn.Module):
             self.conv_k.bias.data.copy_(self.conv_q.bias.data)
         nn.init.xavier_uniform_(self.conv_v.weight)
 
-
     def forward(self, x, c, attn_mask=None):
         q = self.conv_q(x)
         k = self.conv_k(c)
@@ -592,7 +591,6 @@ class DurationPredictor(nn.Module):
         self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size // 2)
         self.norm_2 = LayerNorm(filter_channels)
         self.proj = nn.Conv1d(filter_channels, 1, 1)
-
 
     def forward(self, spect, mask):
         x = self.conv_1(spect * mask)

@@ -1,14 +1,25 @@
 import math
 
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 from nemo.collections.tts.parts import glow_tts
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types.elements import TokenIndex, TokenLogDurationType, SequenceToSequenceAlignmentType, \
-    MelSpectrogramType, LengthsType, NormalDistributionSamplesType, NormalDistributionMeanType, \
-    NormalDistributionLogVarianceType, LogDeterminantType, IntType, MaskType, AcousticEncodedRepresentation
+from nemo.core.neural_types.elements import (
+    AcousticEncodedRepresentation,
+    IntType,
+    LengthsType,
+    LogDeterminantType,
+    MaskType,
+    MelSpectrogramType,
+    NormalDistributionLogVarianceType,
+    NormalDistributionMeanType,
+    NormalDistributionSamplesType,
+    SequenceToSequenceAlignmentType,
+    TokenIndex,
+    TokenLogDurationType,
+)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils.decorators import experimental
 
@@ -29,7 +40,7 @@ class TextEncoder(NeuralModule):
         window_size,
         mean_only=False,
         prenet=False,
-        gin_channels=0
+        gin_channels=0,
     ):
         """
         GlowTTS text encoder. Takes in the input text tokens and produces prior distribution statistics for the latent
@@ -74,30 +85,30 @@ class TextEncoder(NeuralModule):
         for i in range(self.n_layers):
             self.attn_layers.append(
                 glow_tts.AttentionBlock(
-                    hidden_channels,
-                    hidden_channels,
-                    n_heads,
-                    window_size=window_size,
-                    p_dropout=p_dropout,
+                    hidden_channels, hidden_channels, n_heads, window_size=window_size, p_dropout=p_dropout,
                 )
             )
             self.norm_layers_1.append(glow_tts.LayerNorm(hidden_channels))
             self.ffn_layers.append(
-                glow_tts.FeedForwardNetwork(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout)
+                glow_tts.FeedForwardNetwork(
+                    hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout
+                )
             )
             self.norm_layers_2.append(glow_tts.LayerNorm(hidden_channels))
 
         self.proj_m = nn.Conv1d(hidden_channels, out_channels, 1)
         if not mean_only:
             self.proj_s = nn.Conv1d(hidden_channels, out_channels, 1)
-        self.proj_w = glow_tts.DurationPredictor(hidden_channels + gin_channels, filter_channels_dp, kernel_size, p_dropout)
+        self.proj_w = glow_tts.DurationPredictor(
+            hidden_channels + gin_channels, filter_channels_dp, kernel_size, p_dropout
+        )
 
     @property
     def input_types(self):
         return {
             "text": NeuralType(('B', 'T'), TokenIndex()),
             "text_lengths": NeuralType(('B',), LengthsType()),
-            "speaker_embeddings": NeuralType(('B', 'D'), AcousticEncodedRepresentation(), optional=True)
+            "speaker_embeddings": NeuralType(('B', 'D'), AcousticEncodedRepresentation(), optional=True),
         }
 
     @property
@@ -157,6 +168,7 @@ class TextEncoder(NeuralModule):
         """TODO: Implement"""
         pass
 
+
 @experimental
 class FlowSpecDecoder(NeuralModule):
     def __init__(
@@ -171,7 +183,7 @@ class FlowSpecDecoder(NeuralModule):
         n_split=4,
         n_sqz=2,
         sigmoid_scale=False,
-        gin_channels=0
+        gin_channels=0,
     ):
         """
         Flow-based invertible decoder for GlowTTS. Converts spectrograms to latent representations and back.
@@ -204,7 +216,7 @@ class FlowSpecDecoder(NeuralModule):
                     n_layers=n_layers,
                     p_dropout=p_dropout,
                     sigmoid_scale=sigmoid_scale,
-                    gin_channels=gin_channels
+                    gin_channels=gin_channels,
                 )
             )
 
@@ -257,7 +269,7 @@ class FlowSpecDecoder(NeuralModule):
         x_sqz = x_sqz.permute(0, 3, 1, 2).contiguous().view(b, c * n_sqz, t // n_sqz)
 
         if x_mask is not None:
-            x_mask = x_mask[:, :, n_sqz - 1:: n_sqz]
+            x_mask = x_mask[:, :, n_sqz - 1 :: n_sqz]
         else:
             x_mask = torch.ones(b, 1, t // n_sqz).to(device=x.device, dtype=x.dtype)
         return x_sqz * x_mask, x_mask
@@ -289,13 +301,7 @@ class FlowSpecDecoder(NeuralModule):
 
 
 class GlowTTSModule(NeuralModule):
-    def __init__(
-            self,
-            encoder_module,
-            decoder_module,
-            n_speakers=1,
-            gin_channels=0
-    ):
+    def __init__(self, encoder_module, decoder_module, n_speakers=1, gin_channels=0):
         super().__init__()
 
         self.encoder = encoder_module
@@ -334,7 +340,9 @@ class GlowTTSModule(NeuralModule):
         if g is not None:
             g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h]
 
-        x_m, x_logs, log_durs_predicted, x_mask = self.encoder(text=text, text_lengths=text_lengths, speaker_embeddings=g)
+        x_m, x_logs, log_durs_predicted, x_mask = self.encoder(
+            text=text, text_lengths=text_lengths, speaker_embeddings=g
+        )
 
         y_max_length = spect.size(2)
         y_max_length = (y_max_length // self.decoder.n_sqz) * self.decoder.n_sqz
@@ -342,9 +350,7 @@ class GlowTTSModule(NeuralModule):
 
         spect_lengths = (spect_lengths // self.decoder.n_sqz) * self.decoder.n_sqz
 
-        y_mask = torch.unsqueeze(glow_tts.sequence_mask(spect_lengths, y_max_length), 1).to(
-            x_mask.dtype
-        )
+        y_mask = torch.unsqueeze(glow_tts.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
         z, logdet = self.decoder(spect=spect, spect_mask=y_mask, speaker_embeddings=g, reverse=False)
@@ -357,9 +363,7 @@ class GlowTTSModule(NeuralModule):
             logp4 = torch.sum(-0.5 * (x_m ** 2) * x_s_sq_r, [1]).unsqueeze(-1)  # [b, t, 1]
             logp = logp1 + logp2 + logp3 + logp4  # [b, t, t']
 
-            attn = (
-                glow_tts.maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()
-            ).squeeze(1)
+            attn = (glow_tts.maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()).squeeze(1)
 
         y_m = torch.matmul(x_m, attn)
         y_logs = torch.matmul(x_logs, attn)
@@ -379,7 +383,9 @@ class GlowTTSModule(NeuralModule):
         if g is not None:
             g = F.normalize(self.emb_g(g)).unsqueeze(-1)  # [b, h]
 
-        x_m, x_logs, log_durs_predicted, x_mask = self.encoder(text=text, text_lengths=text_lengths, speaker_embeddings=g)
+        x_m, x_logs, log_durs_predicted, x_mask = self.encoder(
+            text=text, text_lengths=text_lengths, speaker_embeddings=g
+        )
 
         w = torch.exp(log_durs_predicted) * x_mask.squeeze() * length_scale
         w_ceil = torch.ceil(w)
@@ -388,9 +394,7 @@ class GlowTTSModule(NeuralModule):
 
         spect_lengths = (spect_lengths // self.decoder.n_sqz) * self.decoder.n_sqz
 
-        y_mask = torch.unsqueeze(glow_tts.sequence_mask(spect_lengths, y_max_length), 1).to(
-            x_mask.dtype
-        )
+        y_mask = torch.unsqueeze(glow_tts.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
         attn = glow_tts.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1))

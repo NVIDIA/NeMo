@@ -24,9 +24,10 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
+from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.modules.glow_tts import GlowTTSModule
+
 
 @experimental
 class GlowTTSModel(ModelPT):
@@ -34,6 +35,7 @@ class GlowTTSModel(ModelPT):
     GlowTTS model used to generate spectrograms from text
     Consists of a text encoder and an invertible spectrogram decoder
     """
+
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -43,10 +45,7 @@ class GlowTTSModel(ModelPT):
         encoder = GlowTTSModel.from_config_dict(self._cfg.encoder)
         decoder = GlowTTSModel.from_config_dict(self._cfg.decoder)
 
-        self.glow_tts = GlowTTSModule(encoder,
-                                      decoder,
-                                      n_speakers=cfg.n_speakers,
-                                      gin_channels=cfg.gin_channels)
+        self.glow_tts = GlowTTSModule(encoder, decoder, n_speakers=cfg.n_speakers, gin_channels=cfg.gin_channels)
 
         self.setup_optimization()
 
@@ -58,21 +57,14 @@ class GlowTTSModel(ModelPT):
     def val_dataloader(self):
         return self._val_dl
 
-    def forward(
-        self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.
-    ):
-
+    def forward(self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
 
         if gen:
-            return self.glow_tts.generate_spect(text=x,
-                                                text_lengths=x_lengths,
-                                                noise_scale=noise_scale,
-                                                length_scale=length_scale)
+            return self.glow_tts.generate_spect(
+                text=x, text_lengths=x_lengths, noise_scale=noise_scale, length_scale=length_scale
+            )
         else:
-            return self.glow_tts(text=x,
-                                 text_lengths=x_lengths,
-                                 spect=y,
-                                 spect_lengths=y_lengths)
+            return self.glow_tts(text=x, text_lengths=x_lengths, spect=y, spect_lengths=y_lengths)
 
     def step(self, y, y_lengths, x, x_lengths):
 
