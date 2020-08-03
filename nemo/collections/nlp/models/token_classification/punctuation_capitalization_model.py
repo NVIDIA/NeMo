@@ -52,8 +52,7 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self.data_dir = cfg.data_dir
-        self.model_cfg = cfg
+        self.data_dir = cfg.dataset.data_dir
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -230,14 +229,14 @@ class PunctuationCapitalizationModel(ModelPT):
             capit_label_ids_file = os.path.join(self.data_dir, 'capit_label_ids.csv')
 
             if (
-                self.model_cfg.use_cache
+                self._cfg.dataset.use_cache
                 and os.path.exists(punct_label_ids_file)
                 and os.path.exists(capit_label_ids_file)
             ):
+                logging.info(f'Restoring punct_label_ids from {punct_label_ids_file}')
                 self.punct_label_ids = get_labels_to_labels_id_mapping(punct_label_ids_file)
+                logging.info(f'Restoring capit_label_ids from {capit_label_ids_file}')
                 self.capit_label_ids = get_labels_to_labels_id_mapping(capit_label_ids_file)
-                logging.info(f'punct_label_ids restored from {punct_label_ids_file}')
-                logging.info(f'capit_label_ids restored from {capit_label_ids_file}')
             else:
                 self.punct_label_ids = None
                 self.capit_label_ids = None
@@ -246,18 +245,20 @@ class PunctuationCapitalizationModel(ModelPT):
             tokenizer=self.tokenizer,
             text_file=text_file,
             label_file=label_file,
-            pad_label=self.model_cfg.pad_label,
+            pad_label=self._cfg.dataset.pad_label,
             punct_label_ids=self.punct_label_ids,
             capit_label_ids=self.capit_label_ids,
-            max_seq_length=self.model_cfg.max_seq_length,
-            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
-            ignore_start_end=self.model_cfg.ignore_start_end,
-            use_cache=self.model_cfg.use_cache,
+            max_seq_length=self._cfg.dataset.max_seq_length,
+            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
+            ignore_start_end=self._cfg.dataset.ignore_start_end,
+            use_cache=self._cfg.dataset.use_cache,
             num_samples=cfg.num_samples,
         )
         if cfg.prefix == 'train':
             self.punct_label_ids = dataset.punct_label_ids
             self.capit_label_ids = dataset.capit_label_ids
+            self.register_artifact('punct_label_ids.csv', punct_label_ids_file)
+            self.register_artifact('capit_label_ids.csv', capit_label_ids_file)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -271,15 +272,4 @@ class PunctuationCapitalizationModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass

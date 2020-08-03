@@ -351,14 +351,14 @@ pipeline {
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
         }
-        stage ('NER') {
+        stage ('NER with BERT') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
-            model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            python token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
-            model.use_cache=false \
+            model.dataset.use_cache=false \
             '
           }
         }
@@ -428,7 +428,7 @@ pipeline {
       }
     }
 
-   stage('L2: NER') {
+   stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
       when {
         anyOf{
           branch 'candidate'
@@ -439,9 +439,9 @@ pipeline {
       steps {
         sh 'cd examples/nlp/token_classification && \
         python punctuation_capitalization.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=distilbert-base-uncased \
-        model.use_cache=false \
+        model.dataset.use_cache=false \
         trainer.gpus=[0,1] \
         trainer.distributed_backend=ddp \
         +trainer.fast_dev_run=true \
