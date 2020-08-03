@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Dict, Optional, Union
+import copy
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -25,6 +25,7 @@ from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -59,7 +60,22 @@ class EncDecCTCModel(ASRModel):
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
+    def change_vocabulary(self, new_vocabulary: List[str]):
+        if self.decoder.vocabulary == new_vocabulary:
+            logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+        else:
+            if new_vocabulary is None or len(new_vocabulary) == 0:
+                raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            new_decoder_config['params']['vocabulary'] = new_vocabulary
+            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            del self.decoder
+            self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
+
     def transcribe(self, path2audio_file: str) -> str:
+        logging.warning("This method is not implemented yet.")
         pass
 
     @staticmethod
