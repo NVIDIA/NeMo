@@ -31,5 +31,6 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
 
+
 if __name__ == '__main__':
     main()
