@@ -16,7 +16,6 @@
 Converts BERT NeMo0.* checkpoints to NeMo1.0 format.
 """
 
-import os
 from argparse import ArgumentParser
 
 import torch
