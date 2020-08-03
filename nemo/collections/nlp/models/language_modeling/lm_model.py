@@ -79,11 +79,13 @@ class BERTMLMModel(ModelPT):
             self.bert_model = get_pretrained_lm_model(
                 pretrained_model_name=cfg.language_model.pretrained_model_name,
                 config_file=cfg.language_model.bert_config_file,
+                checkpoint_file=cfg.language_model.bert_checkpoint,
             )
         else:
             self.bert_model = get_pretrained_lm_model(
                 pretrained_model_name=cfg.language_model.pretrained_model_name,
                 config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
+                checkpoint_file=cfg.language_model.bert_checkpoint,
             )
 
         self.hidden_size = self.bert_model.config.hidden_size

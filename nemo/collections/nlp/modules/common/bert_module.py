@@ -48,10 +48,10 @@ class BertModule(NeuralModule):
         """Saves module/model with weights"""
         pass
 
-    def restore_weights(self, restore_path: str, prefix='bert.'):
+    def restore_weights(self, restore_path: str, prefix='bert_model.'):
         """Restores module/model's weights"""
         logging.info(f"restore from {restore_path}")
-        pretrained_dict = torch.load(restore_path)
+        pretrained_dict = torch.load(restore_path)["state_dict"]
 
         # remove prefix from pretrained dict
         if prefix in list(pretrained_dict.keys())[0]:
@@ -59,5 +59,6 @@ class BertModule(NeuralModule):
 
         model_dict = self.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
