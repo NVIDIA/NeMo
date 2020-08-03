@@ -354,7 +354,7 @@ pipeline {
         stage ('NER') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization.py \
+            python ner.py \
             model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
@@ -459,11 +459,11 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        python ner.py \
+        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
+        model.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
         exp_manager.root_dir=exp_ner_megatron_bert_base_cased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
@@ -481,11 +481,11 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/token_classification && \
-        python token_classification.py \
-        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        python ner.py \
+        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
-        model.dataset.use_cache=false \
+        model.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
         exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
@@ -524,6 +524,19 @@ pipeline {
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4'
+          }
+        }
+        stage('GlowTTS') {
+          steps {
+            sh 'python examples/tts/glow_tts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[1]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4'
           }
         }
       }
