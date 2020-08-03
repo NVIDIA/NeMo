@@ -15,6 +15,7 @@ trainer:
   logger: false # provided by exp_manager
 
 model:
+  only_mlm_loss: false # only use masked language model without next sentence prediction
   pretrained_model_name: bert-base-uncased # huggingface model name
   max_seq_length: 128
   # The maximum total input sequence length after tokenization. Sequences longer than this

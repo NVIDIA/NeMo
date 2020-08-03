@@ -16,6 +16,7 @@ trainer:
   logger: false # provided by exp_manager
 
 model:
+  only_mlm_loss: false # only use masked language model without next sentence prediction
   language_model:
     pretrained_model_name: bert-base-uncased # huggingface model name
     bert_checkpoint: null

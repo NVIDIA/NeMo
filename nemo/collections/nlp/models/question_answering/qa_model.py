@@ -195,14 +195,9 @@ class QAModel(ModelPT):
     def from_pretrained(cls, name: str):
         pass
 
-    def restore_from(self, restore_path: str):
-        if restore_path:
-            logging.info(f"restore from {restore_path}")
-            pretrained_dict = torch.load(restore_path)['state_dict']
-            model_dict = self.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            model_dict.update(pretrained_dict)
-            self.load_state_dict(model_dict)
+    @classmethod
+    def restore_from(cls, restore_path: str):
+        pass
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
