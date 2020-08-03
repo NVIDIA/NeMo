@@ -188,15 +188,15 @@ class FlowSpecDecoder(NeuralModule):
         """
         Flow-based invertible decoder for GlowTTS. Converts spectrograms to latent representations and back.
         Args:
-            in_channels:
-            hidden_channels:
-            kernel_size:
-            dilation_rate:
-            n_blocks:
-            n_layers:
-            p_dropout:
-            n_split:
-            n_sqz:
+            in_channels: Number of channels in the input spectrogram
+            hidden_channels: Number of channels in the intermediate representations
+            kernel_size: Kernel size in the coupling blocks
+            dilation_rate: Dilation rate in the WaveNet-like blocks
+            n_blocks: Number of flow blocks
+            n_layers: Number of layers within each coupling block
+            p_dropout: Dropout probability
+            n_split: Group size for the invertible convolution
+            n_sqz: The rate by which the spectrograms are squeezed before applying the flows
             sigmoid_scale:
         """
         super().__init__()
@@ -302,6 +302,14 @@ class FlowSpecDecoder(NeuralModule):
 
 class GlowTTSModule(NeuralModule):
     def __init__(self, encoder_module, decoder_module, n_speakers=1, gin_channels=0):
+        """
+        Main GlowTTS module. Contains the encoder and decoder.
+        Args:
+            encoder_module (NeuralModule): Text encoder for predicting latent distribution statistics
+            decoder_module (NeuralModule): Invertible spectrogram decoder
+            n_speakers (int): Number of speakers
+            gin_channels (int): Channels in speaker embeddings
+        """
         super().__init__()
 
         self.encoder = encoder_module
