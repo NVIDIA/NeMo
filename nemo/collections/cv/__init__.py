@@ -15,6 +15,13 @@
 # =============================================================================
 
 from nemo.collections.cv.modules import *
+from nemo.package_info import __version__ as nemo_version
 
-# __version__ = "0.1"
-# __name__ = "nemo.collections.cv"
+# Set collection version equal to NeMo version.
+__version__ = nemo_version
+
+# Authorship.
+__author__ = "NVIDIA Corporation"
+
+# Set collection name.
+__description__ = "Computer Vision collection"
