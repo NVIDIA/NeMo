@@ -1,5 +1,5 @@
  
-|status| |v0110| |license| |lgtm_grade| |lgtm_alerts| |black| 
+|status| |license| |lgtm_grade| |lgtm_alerts| |black|
 
 .. |status| image:: http://www.repostatus.org/badges/latest/active.svg
   :target: http://www.repostatus.org/#active
@@ -26,17 +26,6 @@
 ===============
 Train State of the Art AI Models
 --------------------------------
-
-Installation
-~~~~~~~~~~~~
-
-* ``pip install nemo_toolkit[all]==version``
-
-* `Documentation <https://provide_me>`_
-
-* NVIDIA `Developer Blog <https://devblogs.nvidia.com/announcing-nemo-fast-development-of-speech-and-language-models/>`_
-
-* Pretrained models on NVIDIA `NGC Model repository <https://ngc.nvidia.com/catalog/models?orderBy=modifiedDESC&query=nemo&quickFilter=models&filters=>`_
 
 **Introduction**
 
