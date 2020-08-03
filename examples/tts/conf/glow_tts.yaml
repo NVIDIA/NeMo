@@ -5,6 +5,9 @@ n_mels: &n_mels 80
 fmax: &fmax 8000
 pad_value: &pad_value -11.52
 gin_channels: &gin_channels 0
+train_dataset: ???
+validation_datasets: ???
+cmu_dict_path: &cmu_dict_path ???
 
 model:
 
@@ -12,7 +15,7 @@ model:
   gin_channels: *gin_channels
 
   train_ds:
-    manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_train.json
+    manifest_filepath: ${train_dataset}
     sample_rate: *sr
     batch_size: 8
     max_duration: null
@@ -20,11 +23,11 @@ model:
     trim: false
     shuffle: True
     num_workers: 8
-    cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
+    cmu_dict_path: *cmu_dict_path
 
 
   validation_ds:
-    manifest_filepath: /home/samuel/Data/ljspeech/filelists/nvidia_ljspeech_val.json
+    manifest_filepath: ${validation_datasets}
     sample_rate: *sr
     batch_size: 8
     max_duration: null
@@ -32,7 +35,7 @@ model:
     trim: false
     shuffle: False
     num_workers: 8
-    cmu_dict_path: /home/samuel/Data/cmudict/cmu_dictionary
+    cmu_dict_path: *cmu_dict_path
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -103,18 +106,23 @@ model:
       name: CosineAnnealing
 
       # Scheduler params
-      warmup_steps: 500
-      min_lr: 1e-5
+      warmup_steps: 3000
+      min_lr: 1e-4
       last_epoch: -1
 
 trainer:
   gpus: -1 # number of gpus
-  max_epochs: 1000
+  max_epochs: 350
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
+  gradient_clip_val: 1.0
+  log_save_interval: 1000
+  row_log_interval: 200
+  check_val_every_n_epoch: 25
+  precision: 16
 
 exp_manager:
   root_dir: null
