@@ -1,3 +1,40 @@
+# MIT License
+#
+# Copyright (c) 2020 Jaehyeon Kim
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# Copyright 2020 NVIDIA. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import math
 
 import torch
@@ -48,18 +85,18 @@ class TextEncoder(NeuralModule):
          this module).
         Architecture is similar to Transformer TTS with slight modifications.
         Args:
-            n_vocab: Number of tokens in the vocabulary
-            out_channels: Latent representation channels
-            hidden_channels: Number of channels in the intermediate representations
-            filter_channels: Number of channels for the representations in the feed-forward layer
-            filter_channels_dp: Number of channels for the representations in the duration predictor
-            n_heads: Number of attention heads
-            n_layers: Number of transformer layers
-            kernel_size: Kernels size for the feed-forward layer
-            p_dropout: Dropout probability
-            mean_only: Return zeros for logs if true
-            prenet: Use an additional network before the transformer modules
-            gin_channels: Number of channels in speaker embeddings
+            n_vocab (int): Number of tokens in the vocabulary
+            out_channels (int): Latent representation channels
+            hidden_channels (int): Number of channels in the intermediate representations
+            filter_channels (int): Number of channels for the representations in the feed-forward layer
+            filter_channels_dp (int): Number of channels for the representations in the duration predictor
+            n_heads (int): Number of attention heads
+            n_layers (int): Number of transformer layers
+            kernel_size (int): Kernels size for the feed-forward layer
+            p_dropout (float): Dropout probability
+            mean_only (bool): Return zeros for logs if true
+            prenet (bool): Use an additional network before the transformer modules
+            gin_channels (int): Number of channels in speaker embeddings
         """
         super().__init__()
 
@@ -188,16 +225,16 @@ class FlowSpecDecoder(NeuralModule):
         """
         Flow-based invertible decoder for GlowTTS. Converts spectrograms to latent representations and back.
         Args:
-            in_channels: Number of channels in the input spectrogram
-            hidden_channels: Number of channels in the intermediate representations
-            kernel_size: Kernel size in the coupling blocks
-            dilation_rate: Dilation rate in the WaveNet-like blocks
-            n_blocks: Number of flow blocks
-            n_layers: Number of layers within each coupling block
-            p_dropout: Dropout probability
-            n_split: Group size for the invertible convolution
-            n_sqz: The rate by which the spectrograms are squeezed before applying the flows
-            sigmoid_scale:
+            in_channels (int): Number of channels in the input spectrogram
+            hidden_channels (int): Number of channels in the intermediate representations
+            kernel_size (int): Kernel size in the coupling blocks
+            dilation_rate (int): Dilation rate in the WaveNet-like blocks
+            n_blocks (int): Number of flow blocks
+            n_layers (int): Number of layers within each coupling block
+            p_dropout (float): Dropout probability
+            n_split (int): Group size for the invertible convolution
+            n_sqz (int): The rate by which the spectrograms are squeezed before applying the flows
+            sigmoid_scale (bool): Apply sigmoid to logs in the coupling blocks
         """
         super().__init__()
 

@@ -492,7 +492,7 @@ pipeline {
       }
     }
 
-    stage('L2: TTS Fast dev runs') {
+    stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
           branch 'candidate'
@@ -526,6 +526,18 @@ pipeline {
             model.validation_ds.dataloader_params.batch_size=4'
           }
         }
+      }
+    }
+
+    stage('L2: TTS Fast dev runs 2') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+
+      parallel {
         stage('GlowTTS') {
           steps {
             sh 'python examples/tts/glow_tts.py \

@@ -158,6 +158,27 @@ class AudioToPhonemesDataset(_AudioTextDataset):
         load_audio: bool = True,
         add_misc: bool = False,
     ):
+        """
+        Dataset that loads tensors via a json file containing paths to audio files, transcripts, and
+        durations (in seconds). If a phoneme dictionary path is provided, the words in the transcript are replaced
+        with corresponding phonemes if they are found in the dictionary.
+
+        Args:
+            manifest_filepath (str): Path to manifest json as described above. Can be comma-separated paths
+                such as "train_1.json,train_2.json" which is treated as two separate json files.
+            cmu_dict_path (str): Path to cmu phoneme dictionary.
+            sample_rate (int): Sample rate to resample loaded audio to
+            int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+            augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor):
+                An AudioAugmentor object used to augment loaded audio
+            max_duration: If audio exceeds this length, do not include in dataset
+            min_duration: If audio is less than this length, do not include in dataset
+            max_utts: Limit number of utterances
+            trim (bool): Boolean flag whether to trim the audio
+            load_audio (bool): Boolean flag indicate whether do or not load audio
+            add_misc (bool): True if add additional info dict.
+        """
+
         self.parser = GlowTTSParser(cmu_dict_path)
 
         super().__init__(
