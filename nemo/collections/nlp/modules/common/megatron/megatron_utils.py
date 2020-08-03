@@ -136,14 +136,13 @@ def get_megatron_checkpoint(pretrained_model_name):
         path (str): path to model checkpoint
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['checkpoint']
-    cache_dir = os.path.join(MEGATRON_CACHE, pretrained_model_name)
-    path = os.path.join(cache_dir, 'model_optim_rng.pt')
+    path = os.path.join(MEGATRON_CACHE, pretrained_model_name)
 
     if not os.path.exists(path):
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         if not os.path.exists(path):
             if master_device:
-                os.makedirs(cache_dir, exist_ok=True)
+                os.makedirs(MEGATRON_CACHE, exist_ok=True)
                 wget.download(url, path)
             # wait until the master process downloads the file and writes it to the cache dir
             if torch.distributed.is_initialized():
