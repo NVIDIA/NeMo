@@ -33,6 +33,8 @@ NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/
 
 NeMo toolkit makes it possible for researchers to easily compose complex neural network architectures for conversational AI using reusable components - Neural Modules.
 **Neural Modules** are conceptual blocks of neural networks that take *typed* inputs and produce *typed* outputs. Such modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
+
+
 The toolkit comes with extendable collections of pre-built modules and ready-to-use models for automatic speech recognition (ASR), natural language processing (NLP) and text synthesis (TTS).
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
@@ -40,7 +42,7 @@ Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training t
 Requirements
 ------------
 
-NeMo's main requirements are:
+NeMo's works with:
 
 1) Python 3.6 or 3.7
 2) Pytorch 1.6 or above
