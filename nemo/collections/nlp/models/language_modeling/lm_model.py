@@ -257,9 +257,5 @@ class BERTLMModel(ModelPT):
         return dl
 
     @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
