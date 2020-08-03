@@ -8,7 +8,7 @@ gin_channels: &gin_channels 0
 
 train_dataset: ???
 validation_datasets: ???
-cmu_dict_path: ???
+cmu_dict_path: null
 
 model:
 
