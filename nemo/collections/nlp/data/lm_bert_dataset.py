@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import array
-import glob
-import itertools
 import os
 import pickle
 import random
@@ -21,12 +19,10 @@ from typing import Dict, List, Optional
 
 import h5py
 import numpy as np
-import torch
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
 from nemo.core.classes import Dataset
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']

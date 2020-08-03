@@ -103,13 +103,13 @@ class Logger(metaclass=Singleton):
                 # Add memoryhandlers: Error messages is only logged on rank 0
                 if is_global_rank_zero():
                     # Add a memoryhandler for error messages
-                    self._handlers["memory_err"] = _logging.handlers.MemoryHandler(-1)
+                    self._handlers["memory_err"] = MemoryHandler(-1)
                     self._handlers["memory_err"].addFilter(lambda record: record.levelno > _logging.INFO)
                     formatter = BaseNeMoFormatter
                     self._handlers["memory_err"].setFormatter(formatter())
                     self._logger.addHandler(self._handlers["memory_err"])
                 # Add a memoryhandler for all messages on all ranks
-                self._handlers["memory_all"] = _logging.handlers.MemoryHandler(-1)
+                self._handlers["memory_all"] = MemoryHandler(-1)
                 formatter = BaseNeMoFormatter
                 self._handlers["memory_all"].setFormatter(formatter())
                 self._logger.addHandler(self._handlers["memory_all"])
@@ -174,7 +174,6 @@ class Logger(metaclass=Singleton):
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
         self._handlers["file"] = _logging.FileHandler(log_file)
-
         formatter = BaseNeMoFormatter
         self._handlers["file"].setFormatter(formatter())
         self._logger.addHandler(self._handlers["file"])

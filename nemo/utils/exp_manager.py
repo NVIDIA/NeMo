@@ -22,7 +22,7 @@ from shutil import copyfile
 from typing import Dict, List, Optional, Union
 
 from hydra.utils import get_original_cwd
-from omegaconf import MISSING, DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -32,6 +32,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 
 
 class NotFoundError(Exception):
@@ -164,6 +165,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
         # Add err_file logging to global_rank zero
         logging.add_err_file_handler(log_dir / 'nemo_error_log.txt')
+
+        # Add lightning file logging to global_rank zero
+        add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
 
     return log_dir
 
@@ -419,9 +423,9 @@ def configure_checkpointing(trainer, name):
         def on_train_end(self, trainer, pl_module):
             filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
             try:  # Try lightning master signature
-                self._save_model(filepath, trainer, pl_module)
+                self._save_model(filepath, trainer, pl_module)  # noqa pylint: disable=too-many-function-args
             except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
-                self._save_model(filepath)
+                self._save_model(filepath)  # noqa
 
     checkpoint_callback = NeMoModelCheckpoint(save_top_k=3, save_last=True, prefix=name + "--")
     trainer.configure_checkpoint_callback(checkpoint_callback)
