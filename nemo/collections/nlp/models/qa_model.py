@@ -19,7 +19,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo import logging
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import SquadDataset
@@ -28,6 +27,7 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['QAModel']
