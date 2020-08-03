@@ -5,9 +5,10 @@ n_mels: &n_mels 80
 fmax: &fmax 8000
 pad_value: &pad_value -11.52
 gin_channels: &gin_channels 0
+
 train_dataset: ???
 validation_datasets: ???
-cmu_dict_path: &cmu_dict_path ???
+cmu_dict_path: ???
 
 model:
 
@@ -23,7 +24,7 @@ model:
     trim: false
     shuffle: True
     num_workers: 8
-    cmu_dict_path: *cmu_dict_path
+    cmu_dict_path: ${cmu_dict_path}
 
 
   validation_ds:
@@ -35,7 +36,7 @@ model:
     trim: false
     shuffle: False
     num_workers: 8
-    cmu_dict_path: *cmu_dict_path
+    cmu_dict_path: ${cmu_dict_path}
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -122,7 +123,7 @@ trainer:
   log_save_interval: 1000
   row_log_interval: 200
   check_val_every_n_epoch: 25
-  precision: 16
+  precision: 32
 
 exp_manager:
   root_dir: null

@@ -147,7 +147,9 @@ class GlowTTSParser:
 
     def __init__(self, cmu_dict_path=None):
 
-        if cmu_dict_path is not None:
+        self.cmu_dict = None
+
+        if cmu_dict_path:
             self.cmu_dict = CMUDict(cmu_dict_path)
 
         _pad = "_"
@@ -155,11 +157,13 @@ class GlowTTSParser:
         _special = "-"
         _letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-        # Prepend "@" to ARPAbet symbols to ensure uniqueness (some are the same as uppercase letters):
-        _arpabet = ["@" + s for s in self.cmu_dict.valid_symbols]
+        self.symbols = [_pad] + list(_special) + list(_punctuation) + list(_letters)
 
-        # Export all symbols:
-        self.symbols = [_pad] + list(_special) + list(_punctuation) + list(_letters) + _arpabet
+        if self.cmu_dict:
+            # Prepend "@" to ARPAbet symbols to ensure uniqueness (some are the same as uppercase letters):
+            _arpabet = ["@" + s for s in self.cmu_dict.valid_symbols]
+
+            self.symbols = self.symbols + _arpabet
 
         # Mappings from symbol to numeric ID and vice versa:
         self._symbol_to_id = {s: i for i, s in enumerate(self.symbols)}
