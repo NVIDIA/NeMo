@@ -21,6 +21,7 @@ from pathlib import Path
 from shutil import copyfile
 from typing import Dict, List, Optional, Union
 
+from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -33,10 +34,19 @@ from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
+from nemo.utils.nemo_exceptions import NeMoBaseException
 
 
-class NotFoundError(Exception):
-    pass
+class NotFoundError(NeMoBaseException):
+    """ Raised when a file or folder is not found"""
+
+
+class LoggerMisconfigurationError(NeMoBaseException):
+    """ Raised when a mismatch between trainer.logger and exp_manager occurs"""
+
+
+class CheckpointMisconfigurationError(NeMoBaseException):
+    """ Raised when a mismatch between trainer.callbacks and exp_manager occurs"""
 
 
 @dataclass
@@ -110,7 +120,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     error_checks(trainer, cfg)  # Ensures that trainer options are compliant with NeMo and exp_manager arguments
 
-    log_dir = get_log_dir(
+    log_dir, root_dir, name, version = get_log_dir(
         trainer=trainer,
         root_dir=cfg.root_dir,
         name=cfg.name,
@@ -120,6 +130,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         resume=cfg.resume,
         previous_log_dir=cfg.previous_log_dir,
     )
+    cfg.name = name
+    cfg.version = version
 
     # Create the logging directory if it does not exist
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
@@ -137,7 +149,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
             configure_loggers(
                 trainer,
-                log_dir,
+                root_dir,
+                cfg.name,
+                cfg.version,
                 cfg.create_tensorboard_logger,
                 cfg.summary_writter_kwargs,
                 cfg.create_wandb_logger,
@@ -145,7 +159,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             )
 
         if cfg.create_checkpoint_callback:
-            configure_checkpointing(trainer, cfg.name)
+            configure_checkpointing(trainer, log_dir, cfg.name)
 
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
@@ -179,15 +193,15 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         - Throws error when trainer has loggers defined but create_tensorboard_logger or create_WandB_logger is True
         - Prints error messages when 1) run on multi-node and not slurm, and 2) run on multi-gpu without DDP
     """
-    if get_original_cwd() != os.getcwd():
+    if HydraConfig.initialized() and get_original_cwd() != os.getcwd():
         raise ValueError(
             "Hydra changed the working directory. This interferes with ExpManger's functionality. Please pass "
             "hydra.run.dir=. to your python script."
         )
-    if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_WandB_logger):
-        raise ValueError(
-            "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either"
-            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_WandB_logger: {cfg.create_WandB_logger} "
+    if trainer.logger is not None and (cfg.create_tensorboard_logger or cfg.create_wandb_logger):
+        raise LoggerMisconfigurationError(
+            "The pytorch lightning trainer that was passed to exp_manager contained a logger, and either "
+            f"create_tensorboard_logger: {cfg.create_tensorboard_logger} or create_wandb_logger: {cfg.create_wandb_logger} "
             "was set to True. These can only be used if trainer does not already have a logger."
         )
     if trainer.num_nodes > 1 and not trainer.is_slurm_managing_tasks:
@@ -202,9 +216,9 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
 
 
-def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, version):
+def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, version, resume_past_end=False):
     if trainer.logger is not None:
-        raise ValueError(
+        raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger and resume was set to "
             "True. Please remove the logger from the lightning trainer."
         )
@@ -216,14 +230,30 @@ def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, ve
         )
 
     checkpoint_dir = Path(Path(previous_log_dir) / "checkpoints")
+    checkpoint = None
     if not checkpoint_dir.exists():
         raise NotFoundError(f"There was no checkpoint folder at previous_log_dir :{previous_log_dir}. Cannot resume.")
     elif checkpoint_dir.match("*end.ckpt"):
-        raise ValueError(
-            f"Found {checkpoint_dir.match('*end.ckpt')} indicating that the last training run has already completed."
-        )
+        if resume_past_end:
+            if len(checkpoint_dir.glob('*end.ckpt')) > 1:
+                raise ValueError(
+                    f"Multiple multiple checkpoints {checkpoint_dir.glob('*end.ckpt')} that matches *end.ckpt."
+                )
+            logging.info(f"Resuming from {checkpoint_dir.glob('*end.ckpt')}")
+            checkpoint = list(checkpoint_dir.glob('*end.ckpt'))[0]
+        else:
+            raise ValueError(
+                f"Found {checkpoint_dir.glob('*end.ckpt')} indicating that the last training run has already "
+                "completed."
+            )
     elif not checkpoint_dir.match("*last.ckpt"):
         raise NotFoundError(f"There were no checkpoints found in {previous_log_dir}. Is the folder correct?")
+    elif len(checkpoint_dir.glob("*last.ckpt")) > 1:
+        raise ValueError(f"Multiple multiple checkpoints {checkpoint_dir.glob('*last.ckpt')} that matches *last.ckpt.")
+    else:
+        checkpoint = list(checkpoint_dir.glob('*last.ckpt'))[0]
+
+    trainer.resume_from_checkpoint = checkpoint
 
     if is_global_rank_zero():
         # Move old files to a new folder
@@ -237,12 +267,12 @@ def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, ve
         for child in checkpoint_dir.iterdir():
             if child.is_file():
                 copyfile(child, new_run_dir)
-    return previous_log_dir
+    return Path(previous_log_dir), previous_log_dir, "", ""
 
 
 def check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version):
     if trainer.logger is not None:
-        raise ValueError(
+        raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger and explicit_log_dir: "
             f"{explicit_log_dir} was pass to exp_manager. Please remove the logger from the lightning trainer."
         )
@@ -254,7 +284,7 @@ def check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version):
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
         logging.warning("Exp_manager is logging to {explicit_log_dir}, but it already exists.")
-    return explicit_log_dir
+    return Path(explicit_log_dir), explicit_log_dir, "", ""
 
 
 def get_log_dir(
@@ -291,7 +321,7 @@ def get_log_dir(
     if trainer.logger is not None:
         if trainer.logger.save_dir:
             if root_dir:
-                raise ValueError(
+                raise LoggerMisconfigurationError(
                     "The pytorch lightning trainer that was passed to exp_manager contained a logger, the logger's "
                     f"save_dir was not None, and root_dir ({root_dir}) was not None. If trainer.logger.save_dir "
                     "exists, exp_manager will use trainer.logger.save_dir as the logging directory and root_dir "
@@ -299,7 +329,7 @@ def get_log_dir(
                 )
             _root_dir = trainer.logger.save_dir
         if name:
-            raise ValueError(
+            raise LoggerMisconfigurationError(
                 "The pytorch lightning trainer that was passed to exp_manager contained a logger, and name: "
                 f"{name} was also passed to exp_manager. If the trainer contains a "
                 "logger, exp_manager will use trainer.logger.name, and name passed to exp_manager must be None."
@@ -325,8 +355,8 @@ def get_log_dir(
         if version is None:
             version = tensorboard_logger.version
 
-    log_dir = Path(_root_dir) / Path(name) / Path(version)
-    return log_dir
+    log_dir = Path(_root_dir) / Path(str(name)) / Path(str(version))
+    return log_dir, _root_dir, name, version
 
 
 def get_git_hash():
@@ -376,7 +406,14 @@ class LoggerList(_LoggerCollection):
 
 
 def configure_loggers(
-    trainer, log_dir, create_tensorboard_logger, summary_writter_kwargs, create_wandb_logger, wandb_kwargs
+    trainer,
+    root_dir,
+    name,
+    version,
+    create_tensorboard_logger,
+    summary_writter_kwargs,
+    create_wandb_logger,
+    wandb_kwargs,
 ):
     # Potentially create tensorboard logger and/or WandBLogger
     logger_list = []
@@ -388,35 +425,38 @@ def configure_loggers(
                 "You cannot pass `log_dir` as part of `summary_writter_kwargs`. `log_dir` is handled by lightning's "
                 "TensorBoardLogger logger."
             )
-        tensorboard_logger = TensorBoardLogger(save_dir=log_dir, name="", version="", **summary_writter_kwargs)
+        tensorboard_logger = TensorBoardLogger(save_dir=root_dir, name=name, version=version, **summary_writter_kwargs)
         logger_list.append(tensorboard_logger)
         logging.info("TensorboardLogger has been set up")
 
     if create_wandb_logger:
         if "name" not in wandb_kwargs and "project" not in wandb_kwargs:
             raise ValueError("name and project are required for wandb_logger")
-        wandb_logger = WandbLogger(save_dir=log_dir, version="", **wandb_kwargs)
+        wandb_logger = WandbLogger(save_dir=root_dir, version=version, **wandb_kwargs)
 
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")
 
-    logger_list = LoggerList(logger_list, nemo_name="", nemo_version="") if len(logger_list) > 1 else logger_list[0]
+    logger_list = (
+        LoggerList(logger_list, nemo_name=name, nemo_version=version) if len(logger_list) > 1 else logger_list[0]
+    )
     trainer.configure_logger(logger_list)
 
 
-def configure_checkpointing(trainer, name):
+def configure_checkpointing(trainer, log_dir, name):
     for callback in trainer.callbacks:
         if isinstance(callback, ModelCheckpoint):
-            raise ValueError(
+            raise CheckpointMisconfigurationError(
                 "The pytorch lightning trainer that was passed to exp_manager contained a ModelCheckpoint "
                 "and create_checkpoint_callback was set to True. Please either set create_checkpoint_callback "
                 "to False, or remove ModelCheckpoint from the lightning trainer"
             )
     if Path(trainer.weights_save_path) != Path.cwd():
-        raise ValueError("The pytorch lightning was passed weights_save_path. This variable is ignored by exp_manager")
+        raise CheckpointMisconfigurationError(
+            "The pytorch lightning was passed weights_save_path. This variable is ignored by exp_manager"
+        )
     else:
         logging.warning("trainer had a weights_save_path of cwd(). This was ignored.")
-    trainer.weights_save_path = trainer.default_root_dir
     # Create the callback and attach it to trainer
     class NeMoModelCheckpoint(ModelCheckpoint):
         @rank_zero_only
@@ -427,7 +467,37 @@ def configure_checkpointing(trainer, name):
             except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
                 self._save_model(filepath)  # noqa
 
-    checkpoint_callback = NeMoModelCheckpoint(save_top_k=3, save_last=True, prefix=name + "--")
+    checkpoint_callback = NeMoModelCheckpoint(
+        filepath=Path(log_dir / 'checkpoints' / '{val_loss:.2f}-{epoch}'),
+        save_top_k=3,
+        save_last=True,
+        prefix=name + "--",
+    )
     trainer.configure_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
+
+
+def find_last_checkpoint(log_dir, resume_past_end=False):
+    checkpoint_dir = Path(Path(log_dir) / "checkpoints")
+    if not checkpoint_dir.exists():
+        raise NotFoundError(f"There was no checkpoint folder at log_dir :{log_dir}. Cannot resume.")
+    elif checkpoint_dir.match("*end.ckpt"):
+        if resume_past_end:
+            if len(checkpoint_dir.glob('*end.ckpt')) > 1:
+                raise ValueError(
+                    f"Multiple multiple checkpoints {checkpoint_dir.glob('*end.ckpt')} that matches *end.ckpt."
+                )
+            logging.info(f"Resuming from {checkpoint_dir.glob('*end.ckpt')}")
+            return list(checkpoint_dir.glob('*end.ckpt'))[0]
+        else:
+            raise ValueError(
+                f"Found {checkpoint_dir.glob('*end.ckpt')} indicating that the last training run has already "
+                "completed."
+            )
+    elif not checkpoint_dir.match("*last.ckpt"):
+        raise NotFoundError(f"There were no checkpoints found in {log_dir}. Is the folder correct?")
+
+    if len(checkpoint_dir.glob("*last.ckpt")) > 1:
+        raise ValueError(f"Multiple multiple checkpoints {checkpoint_dir.glob('*last.ckpt')} that matches *last.ckpt.")
+    return list(checkpoint_dir.glob('*last.ckpt'))[0]
