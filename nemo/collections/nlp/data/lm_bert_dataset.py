@@ -25,8 +25,8 @@ import torch
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
-from nemo.utils import logging
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
