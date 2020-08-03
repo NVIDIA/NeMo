@@ -18,7 +18,13 @@ import pytest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
-from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, TokenClassifier
+from nemo.collections.nlp.modules.common import (
+    BertEncoder,
+    BertPretrainingTokenClassifier,
+    MegatronBertEncoder,
+    TokenClassifier,
+    get_pretrained_lm_model,
+)
 
 
 class TestExportable:
@@ -67,6 +73,40 @@ class TestExportable:
             with tempfile.TemporaryDirectory() as tmpdir:
                 filename = os.path.join(tmpdir, 'bptclassifier.onnx')
                 bptclassifier.export(output=filename)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    def test_hf_bert(self):
+        """ Tests BERT Encoder export.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+        """
+        bert = get_pretrained_lm_model('bert-base-uncased')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Generate filename in the temporary directory.
+            tmp_file_name = os.path.join(tmpdir, "hf_bert.onnx")
+            # Test export.
+            bert.export(tmp_file_name)
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    def test_megatron_lm(self):
+        """ Tests Megatron export.
+
+            Args:
+                tmpdir: Fixture which will provide a temporary directory.
+
+                df_type: Parameter denoting type of export to be tested.
+        """
+        model_name = "megatron-bert-345m-uncased"
+        megatron = get_pretrained_lm_model(model_name)
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            # Generate filename in the temporary directory.
+            tmp_file_name = os.path.join("megatron-bert.onnx")
+            # Test export.
+            megatron.export(tmp_file_name)
 
     @pytest.mark.unit
     def test_convasr_decoder_export_to_onnx(self):

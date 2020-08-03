@@ -65,10 +65,6 @@ class Exportable(ABC):
             if output_example is not None:
                 _out_example = output_example
 
-            # Check if output already exists
-            if os.path.exists(output):
-                raise FileExistsError(f"Destination {output} already exists. " f"Aborting export.")
-
             if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
                 raise NotImplementedError('For export to work you must define input and output types')
             input_names = list(self.input_types.keys())
@@ -179,7 +175,7 @@ class Exportable(ABC):
                     dynamic_axes[name].append(ind)
         return dynamic_axes
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         """
         Implement this method to prepare module for export. Do all necessary changes on module pre-export here.
         Also, return a pair in input, output examples for tracing.
