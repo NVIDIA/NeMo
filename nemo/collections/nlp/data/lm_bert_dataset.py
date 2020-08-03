@@ -25,8 +25,8 @@ import torch
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
-from nemo import logging
 from nemo.core.classes import Dataset
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
@@ -59,7 +59,7 @@ class BertPretrainingDataset(Dataset):
             max_seq_length: maximum sequence length of input tensors
             mask_probability: proability to mask token
             short_seq_prob: probability to create a sequence shorter than max_seq_length
-            seq_a_ratio: ratio between lengths of first and second sequence 
+            seq_a_ratio: ratio between lengths of first and second sequence
             sentence_idx_file: sentence indices file for caching
         """
         self.tokenizer = tokenizer

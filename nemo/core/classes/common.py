@@ -25,8 +25,8 @@ import wrapt
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
-from nemo import logging
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
+from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']

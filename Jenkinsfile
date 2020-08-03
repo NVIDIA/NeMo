@@ -377,7 +377,8 @@ pipeline {
         stage('L2: Pretraining BERT pretraining from Text') {
             steps {
               sh 'cd examples/nlp/language_modeling && \
-              python bert_pretraining_from_text.py \
+              python bert_pretraining.py \
+              --config-name=bert_pretraining_from_text_config.yaml \
               trainer.gpus=[0] \
               trainer.precision=16 \
               trainer.amp_level=O1 \
@@ -405,13 +406,15 @@ pipeline {
         stage('L2: Pretraining BERT from Preprocessed') {
             steps {
               sh 'cd examples/nlp/language_modeling && \
-              python bert_pretraining_from_preprocessed.py \
+              python bert_pretraining.py \
+              --config-name=bert_pretraining_from_preprocessed_config.yaml \
               trainer.gpus=[1] \
               trainer.precision=16 \
               trainer.amp_level=O1 \
               +trainer.fast_dev_run=true \
               model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
               model.train_ds.batch_size=8 \
+              model.language_model.bert_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
               model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
               model.optim.lr=0.875e-4 \
               model.optim.weight_decay=0.01 \
