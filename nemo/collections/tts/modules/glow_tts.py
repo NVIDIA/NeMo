@@ -65,19 +65,19 @@ from nemo.utils.decorators import experimental
 class TextEncoder(NeuralModule):
     def __init__(
         self,
-        n_vocab,
-        out_channels,
-        hidden_channels,
-        filter_channels,
-        filter_channels_dp,
-        n_heads,
-        n_layers,
-        kernel_size,
-        p_dropout,
-        window_size,
-        mean_only=False,
-        prenet=False,
-        gin_channels=0,
+        n_vocab: int,
+        out_channels: int,
+        hidden_channels: int,
+        filter_channels: int,
+        filter_channels_dp: int,
+        n_heads: int,
+        n_layers: int,
+        kernel_size: int,
+        p_dropout: float,
+        window_size: int,
+        mean_only: bool = False,
+        prenet: bool = False,
+        gin_channels: int = 0,
     ):
         """
         GlowTTS text encoder. Takes in the input text tokens and produces prior distribution statistics for the latent
@@ -210,17 +210,17 @@ class TextEncoder(NeuralModule):
 class FlowSpecDecoder(NeuralModule):
     def __init__(
         self,
-        in_channels,
-        hidden_channels,
-        kernel_size,
-        dilation_rate,
-        n_blocks,
-        n_layers,
-        p_dropout=0.0,
-        n_split=4,
-        n_sqz=2,
-        sigmoid_scale=False,
-        gin_channels=0,
+        in_channels: int,
+        hidden_channels: int,
+        kernel_size: int,
+        dilation_rate: int,
+        n_blocks: int,
+        n_layers: int,
+        p_dropout: float = 0.0,
+        n_split: int = 4,
+        n_sqz: int = 2,
+        sigmoid_scale: bool = False,
+        gin_channels: int = 0,
     ):
         """
         Flow-based invertible decoder for GlowTTS. Converts spectrograms to latent representations and back.
@@ -338,7 +338,9 @@ class FlowSpecDecoder(NeuralModule):
 
 
 class GlowTTSModule(NeuralModule):
-    def __init__(self, encoder_module, decoder_module, n_speakers=1, gin_channels=0):
+    def __init__(
+        self, encoder_module: NeuralModule, decoder_module: NeuralModule, n_speakers: int = 1, gin_channels: int = 0
+    ):
         """
         Main GlowTTS module. Contains the encoder and decoder.
         Args:
