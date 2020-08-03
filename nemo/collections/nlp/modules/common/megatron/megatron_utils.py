@@ -142,6 +142,7 @@ def get_megatron_checkpoint(pretrained_model_name):
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         if not os.path.exists(path):
             if master_device:
+                os.makedirs(MEGATRON_CACHE, exist_ok=True)
                 wget.download(url, path)
             # wait until the master process downloads the file and writes it to the cache dir
             if torch.distributed.is_initialized():
