@@ -19,7 +19,6 @@ trainer:
 
 model:
 
-  checkpoint: null # model checkpoint path to restore weights 
   version_2_with_negative: false
   # If true, the examples contain some that do not have an answer.
 

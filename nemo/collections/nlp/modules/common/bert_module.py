@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import Dict, Optional
 
 import torch
@@ -48,16 +49,22 @@ class BertModule(NeuralModule):
         """Saves module/model with weights"""
         pass
 
-    def restore_weights(self, restore_path: str, prefix='bert.'):
+    def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
         logging.info(f"restore from {restore_path}")
         pretrained_dict = torch.load(restore_path)
 
-        # remove prefix from pretrained dict
-        if prefix in list(pretrained_dict.keys())[0]:
-            pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
+        # backward compatibility with NeMo0.11
+        if "state_dict" in pretrained_dict.keys():
+            pretrained_dict = pretrained_dict["state_dict"]
 
+        # remove prefix from pretrained dict
+        m = re.match("^bert.+?\.", list(pretrained_dict.keys())[0])
+        if m:
+            prefix = m.group(0)
+            pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
         model_dict = self.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
