@@ -53,7 +53,7 @@ def pytest_configure(config):
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_data_dir():
     """ Fixture returns test_data_dir. """
     # Test dir.
@@ -80,8 +80,21 @@ def pytest_configure(config):
         test_data_local_size = -1
 
     # Get size of remote test_data archive.
-    url = __TEST_DATA_URL + __TEST_DATA_FILENAME
-    u = urllib.request.urlopen(url)
+    try:
+        url = __TEST_DATA_URL + __TEST_DATA_FILENAME
+        u = urllib.request.urlopen(url)
+    except:
+        # Couldn't access remote archive.
+        if test_data_local_size == -1:
+            pytest.exit("Test data not present in the system and cannot access the '{}' URL".format(url))
+        else:
+            print(
+                "Cannot access the '{}' URL, using the test data ({}B) found in the `{}` folder.".format(
+                    url, test_data_local_size, test_dir
+                )
+            )
+            return
+
     # Get metadata.
     meta = u.info()
     test_data_remote_size = int(meta["Content-Length"])

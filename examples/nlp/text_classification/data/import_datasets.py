@@ -32,7 +32,7 @@ from os.path import exists
 
 import tqdm
 
-from nemo import logging
+from nemo.utils import logging
 
 
 def process_imdb(infold, outfold, uncased, modes=['train', 'test']):

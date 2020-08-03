@@ -287,7 +287,7 @@ class TestNeuralTypeCheckSystem:
         assert result.sum() == torch.tensor(10.0)
         assert hasattr(result, 'neural_type') is False
 
-        result2 = obj(x=torch.zeros(10), y=torch.full([10], fill_value=5))
+        result2 = obj(x=torch.zeros(10), y=torch.full([10], fill_value=5, dtype=torch.int32))
 
         assert result2.sum() == torch.tensor(10 * 5)
         assert hasattr(result, 'neural_type') is False
@@ -456,7 +456,7 @@ class TestNeuralTypeCheckSystem:
         obj = AdaptiveTypeCheck()
 
         x = torch.zeros(10)
-        y = torch.full([10], fill_value=5)
+        y = torch.full([10], fill_value=5, dtype=torch.int32)
 
         obj.mode = 'train'
         x = obj(x=x)
@@ -600,7 +600,7 @@ class TestNeuralTypeCheckSystem:
         obj = AdaptiveTypeCheck()
 
         x = torch.zeros(10)
-        y = torch.full([10], fill_value=5)
+        y = torch.full([10], fill_value=5, dtype=torch.int32)
 
         # infer mode
         y = obj(y=y)

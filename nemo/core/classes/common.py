@@ -25,8 +25,8 @@ import wrapt
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
-from nemo import logging
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
+from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
 
 __all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck']
@@ -357,17 +357,6 @@ class Model(Typing, Serialization, FileIO):
         logging.info("Instantiating model from pre-trained checkpoint")
         instance = cls.restore_from(restore_path=nemo_model_file_in_cache)
         return instance
-
-    @abstractmethod
-    def export(self, **kwargs):
-        """
-        Exports model for deployment
-        Args:
-            **kwargs:
-
-        Returns:
-
-        """
 
 
 class typecheck:

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from functools import partial
 from typing import Any, Dict, List, Optional, Union
 
@@ -65,11 +66,17 @@ def parse_optimizer_args(
     if optimizer_kwargs is None:
         return kwargs
 
+    optimizer_kwargs = copy.deepcopy(optimizer_kwargs)
+
+    if isinstance(optimizer_kwargs, DictConfig):
+        optimizer_kwargs = OmegaConf.to_container(optimizer_kwargs, resolve=True)
+
     # If it is a dictionary, perform stepwise resolution
     if hasattr(optimizer_kwargs, 'keys'):
         # Attempt class path resolution
         try:
-            optimizer_instance = hydra.utils.instantiate(optimizer_kwargs)  # type: DictConfig
+            optimizer_kwargs_config = OmegaConf.create(optimizer_kwargs)
+            optimizer_instance = hydra.utils.instantiate(optimizer_kwargs_config)  # type: DictConfig
             optimizer_instance = vars(optimizer_instance)
             return optimizer_instance
         except Exception:
@@ -81,8 +88,9 @@ def parse_optimizer_args(
             # then lookup optimizer name and resolve its parameter config
             if optimizer_kwargs['name'] == 'auto':
                 optimizer_params_name = "{}_params".format(optimizer_name)
+                optimizer_kwargs.pop('name')
             else:
-                optimizer_params_name = optimizer_kwargs['name']
+                optimizer_params_name = optimizer_kwargs.pop('name')
 
             # Override arguments provided in the config yaml file
             if 'params' in optimizer_kwargs:

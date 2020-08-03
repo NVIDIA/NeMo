@@ -12,24 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict
 
-import os
+import torch
+from pytorch_lightning.metrics import TensorMetric
 
-from .package_info import (
-    __contact_emails__,
-    __contact_names__,
-    __description__,
-    __download_url__,
-    __homepage__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __repository_url__,
-    __shortversion__,
-    __version__,
-)
+from nemo.utils import logging
 
-if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo import core
-    from nemo import utils
-    from nemo import collections
+__all__ = ['Perplexity']
+
+
+class Perplexity(TensorMetric):
+    """
+    This metric computes the perplexity given the language model loss.
+    """
+
+    def __init__(self):
+        super(Perplexity, self).__init__(name="Perplexity")
+
+    def forward(self, loss: torch.Tensor) -> torch.Tensor:
+        return torch.exp(loss)
