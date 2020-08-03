@@ -125,8 +125,6 @@ class AudioDataset(Dataset):
     def __len__(self):
         return len(self.collection)
 
-        return text_padded, input_lengths, mel_padded, output_lengths
-
 
 @experimental
 class AudioToPhonemesDataset(_AudioTextDataset):
