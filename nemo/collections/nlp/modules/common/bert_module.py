@@ -53,11 +53,8 @@ class BertModule(NeuralModule):
         logging.info(f"restore from {restore_path}")
         pretrained_dict = torch.load(restore_path)
 
-        # remove prefix from pretrained dict
+        # remove prefix from pretrained dict - for backward compatibility with NeMo 0.11 checkpoints
         if prefix in list(pretrained_dict.keys())[0]:
             pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
 
-        model_dict = self.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict)
+        self.load_state_dict(pretrained_dict)
