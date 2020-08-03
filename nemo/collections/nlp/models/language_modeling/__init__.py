@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.language_modeling.lm_model import BERTMLMModel
+from nemo.collections.nlp.models.language_modeling.lm_model import BERTLMModel

@@ -200,9 +200,5 @@ class QAModel(ModelPT):
         pass
 
     @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
-
-    @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass

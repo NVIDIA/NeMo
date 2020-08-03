@@ -27,7 +27,7 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config:\n {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    bert_model = BERTMLMModel(cfg.model, trainer=trainer)
+    bert_model = BERTLMModel(cfg.model, trainer=trainer)
     trainer.fit(bert_model)
 
 

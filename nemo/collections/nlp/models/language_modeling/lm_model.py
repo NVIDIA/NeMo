@@ -48,10 +48,10 @@ class BERTLMModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        d = {'mlm_logits': self.mlm_classifier.output_types['logits']}
+        output_types_dict = {'mlm_logits': self.mlm_classifier.output_types['logits']}
         if not self.only_mlm_loss:
-            d['nsp_logits'] = self.nsp_classifier.output_types['logits']
-        return d
+            output_types_dict['nsp_logits'] = self.nsp_classifier.output_types['logits']
+        return output_types_dict
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if cfg.language_model.bert_config_file is not None:
@@ -258,16 +258,6 @@ class BERTLMModel(ModelPT):
 
     @classmethod
     def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass
 
     @classmethod
