@@ -21,7 +21,7 @@ import torch.utils.data
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
-from nemo.collections.tts.parts.text_process import GlowTTSParser
+from nemo.collections.tts.parts.glow_tts_parser import GlowTTSParser
 from nemo.core.classes import Dataset
 from nemo.core.neural_types.elements import *
 from nemo.core.neural_types.neural_type import NeuralType

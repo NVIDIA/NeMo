@@ -8,12 +8,18 @@ from torch.nn import functional as F
 
 
 def convert_pad_shape(pad_shape):
+    """
+    Used to get arguments for F.pad
+    """
     l = pad_shape[::-1]
     pad_shape = [item for sublist in l for item in sublist]
     return pad_shape
 
 
 def sequence_mask(length, max_length=None):
+    """
+    Get masks for given lengths
+    """
     if max_length is None:
         max_length = length.max()
     x = torch.arange(max_length, dtype=length.dtype, device=length.device)
@@ -21,7 +27,9 @@ def sequence_mask(length, max_length=None):
 
 
 def maximum_path(value, mask, max_neg_val=-np.inf):
-    """ Numpy-friendly version. It's about 4 times faster than torch version.
+    """
+    Monotonic alignment search algorithm
+    Numpy-friendly version. It's about 4 times faster than torch version.
     value: [b, t_x, t_y]
     mask: [b, t_x, t_y]
     """
@@ -60,14 +68,13 @@ def maximum_path(value, mask, max_neg_val=-np.inf):
 
 def generate_path(duration, mask):
     """
+    Generate alignment based on predicted durations
     duration: [b, t_x]
     mask: [b, t_x, t_y]
     """
-    device = duration.device
 
     b, t_x, t_y = mask.shape
     cum_duration = torch.cumsum(duration, 1)
-    path = torch.zeros(b, t_x, t_y, dtype=mask.dtype).to(device=device)
 
     cum_duration_flat = cum_duration.view(b * t_x)
     path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)

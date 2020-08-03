@@ -367,12 +367,6 @@ class GlowTTSModule(NeuralModule):
 
         y_m = torch.matmul(x_m, attn)
         y_logs = torch.matmul(x_logs, attn)
-        """ y_m = torch.matmul(attn.transpose(1, 2), x_m.transpose(1, 2)).transpose(
-            1, 2
-        )  # [b, t', t], [b, t, d] -> [b, d, t']
-        y_logs = torch.matmul(attn.transpose(1, 2), x_logs.transpose(1, 2)).transpose(
-            1, 2
-        )  # [b, t', t], [b, t, d] -> [b, d, t']"""
 
         log_durs_extracted = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask.squeeze()
 
@@ -399,12 +393,8 @@ class GlowTTSModule(NeuralModule):
 
         attn = glow_tts.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1))
 
-        y_m = torch.matmul(attn.transpose(1, 2), x_m.transpose(1, 2)).transpose(
-            1, 2
-        )  # [b, t', t], [b, t, d] -> [b, d, t']
-        y_logs = torch.matmul(attn.transpose(1, 2), x_logs.transpose(1, 2)).transpose(
-            1, 2
-        )  # [b, t', t], [b, t, d] -> [b, d, t']
+        y_m = torch.matmul(x_m, attn)
+        y_logs = torch.matmul(x_logs, attn)
 
         z = (y_m + torch.exp(y_logs) * torch.randn_like(y_m) * noise_scale) * y_mask
         y, _ = self.decoder(spect=z, spect_mask=y_mask, speaker_embeddings=g, reverse=True)
