@@ -125,6 +125,13 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer.default_root_dir = log_dir
 
+    # Handle Loggers by creating file and handle DEBUG statements
+    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
+    global_rank = trainer.node_rank * trainer.num_gpus + trainer.local_rank
+    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
+    logging.add_file_handler(log_file)
+    logging.rank = global_rank
+
     if is_global_rank_zero():
         if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
             configure_loggers(
@@ -155,12 +162,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 _file.write(f'commit hash: {git_hash}')
                 _file.write(get_git_diff())
 
-    # Handle Loggers by creating file and handle DEBUG statements
-    # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
-    global_rank = trainer.node_rank * trainer.num_processes + trainer.local_rank
-    log_file = log_dir / f'log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
-    logging.add_file_handler(log_file)
-    logging.rank = global_rank
+        # Add err_file logging to global_rank zero
+        logging.add_err_file_handler(log_dir / 'nemo_error_log.txt')
 
     return log_dir
 
@@ -415,10 +418,10 @@ def configure_checkpointing(trainer, name):
         @rank_zero_only
         def on_train_end(self, trainer, pl_module):
             filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
-            try:
-                self._save_model(filepath)
-            except TypeError:
+            try:  # Try lightning master signature
                 self._save_model(filepath, trainer, pl_module)
+            except TypeError:  # Fall back to lightning == 0.8.5 signature if failed
+                self._save_model(filepath)
 
     checkpoint_callback = NeMoModelCheckpoint(save_top_k=3, save_last=True, prefix=name + "--")
     trainer.configure_checkpoint_callback(checkpoint_callback)
