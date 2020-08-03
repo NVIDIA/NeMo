@@ -18,8 +18,8 @@ from typing import Optional
 
 from transformers import GPT2Tokenizer
 
-from nemo import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.utils import logging
 
 __all__ = ['NemoGPT2Tokenizer']
 

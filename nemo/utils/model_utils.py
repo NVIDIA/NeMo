@@ -18,7 +18,7 @@ from pathlib import Path
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo import logging
+from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
