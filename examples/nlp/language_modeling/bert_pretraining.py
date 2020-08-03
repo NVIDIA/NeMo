@@ -29,6 +29,8 @@ def main(cfg: DictConfig) -> None:
     exp_manager(trainer, cfg.get("exp_manager", None))
     bert_model = BERTLMModel(cfg.model, trainer=trainer)
     trainer.fit(bert_model)
+    if cfg.model.nemo_path:
+        model.save_to(cfg.model.nemo_path)
 
 
 if __name__ == '__main__':
