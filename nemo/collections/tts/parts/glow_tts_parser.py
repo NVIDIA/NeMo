@@ -354,13 +354,13 @@ class GlowTTSParser:
     def _should_keep_symbol(self, s):
         return s in self._symbol_to_id and s is not "_" and s is not "~"
 
-    def _remove_commas(m):
+    def _remove_commas(self, m):
         return m.group(1).replace(",", "")
 
-    def _expand_decimal_point(m):
+    def _expand_decimal_point(self, m):
         return m.group(1).replace(".", " point ")
 
-    def _expand_dollars(m):
+    def _expand_dollars(self, m):
         match = m.group(1)
         parts = match.split(".")
         if len(parts) > 2:
