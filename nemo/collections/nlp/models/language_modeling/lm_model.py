@@ -93,6 +93,7 @@ class BERTMLMModel(ModelPT):
         self.mlm_classifier = BertPretrainingTokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.vocab_size,
+            num_layers=cfg.num_tok_classification_layers,
             activation='gelu',
             log_softmax=True,
             use_transformer_init=True,
@@ -104,7 +105,7 @@ class BERTMLMModel(ModelPT):
             self.nsp_classifier = SequenceClassifier(
                 hidden_size=self.hidden_size,
                 num_classes=2,
-                num_layers=2,
+                num_layers=cfg.num_seq_classification_layers,
                 log_softmax=False,
                 activation='tanh',
                 use_transformer_init=True,
