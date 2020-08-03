@@ -436,9 +436,9 @@ pipeline {
       steps {
         sh 'cd examples/nlp/token_classification && \
         python punctuation_capitalization.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=distilbert-base-uncased \
-        model.use_cache=false \
+        model.dataset.use_cache=false \
         trainer.gpus=[0,1] \
         trainer.distributed_backend=ddp \
         +trainer.fast_dev_run=true \
