@@ -18,7 +18,7 @@ trainer:
   row_log_interval: 1  # Interval of logging.
 
 model:
-
+  nemo_path: null # exported .nemo path
   version_2_with_negative: false
   # If true, the examples contain some that do not have an answer.
 

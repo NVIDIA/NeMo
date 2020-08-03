@@ -59,7 +59,7 @@ class BertModule(NeuralModule):
             pretrained_dict = pretrained_dict["state_dict"]
 
         # remove prefix from pretrained dict
-        m = re.match("^bert.+?\.", list(pretrained_dict.keys())[0])
+        m = re.match("^bert.*?\.", list(pretrained_dict.keys())[0])
         if m:
             prefix = m.group(0)
             pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}

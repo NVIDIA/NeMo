@@ -16,6 +16,7 @@ trainer:
   logger: false # provided by exp_manager
 
 model:
+  nemo_path: null # exported .nemo path
   only_mlm_loss: true # only use masked language model without next sentence prediction
   num_tok_classification_layers: 1 # number of token classification head output layers
   num_seq_classification_layers: 2 # number of sequence classification head output layers
