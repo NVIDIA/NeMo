@@ -8,7 +8,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from scipy import signal
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 

@@ -19,7 +19,7 @@ from typing import Dict, Optional
 import torch
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel

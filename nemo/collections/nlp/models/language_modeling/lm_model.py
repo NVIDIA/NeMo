@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader

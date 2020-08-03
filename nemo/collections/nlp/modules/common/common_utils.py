@@ -16,7 +16,7 @@
 
 from typing import List, Optional
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_lm_models_list,

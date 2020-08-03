@@ -24,7 +24,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.data_utils import normalize_answer
 from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (

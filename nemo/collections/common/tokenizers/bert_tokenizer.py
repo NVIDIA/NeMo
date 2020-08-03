@@ -14,7 +14,7 @@
 
 import re
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.common.tokenizers.tokenizer_utils import MODEL_SPECIAL_TOKENS, TOKENIZERS
 

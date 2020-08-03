@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 import torch
 from packaging import version
 
-from nemo import logging
+from nemo.utils import logging
 from nemo.collections.asr.parts.features import FilterbankFeatures
 from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck

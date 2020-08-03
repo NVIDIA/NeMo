@@ -23,7 +23,7 @@ from collections import Counter
 
 import numpy as np
 
-from nemo import logging
+from nemo.utils import logging
 
 __all__ = [
     'DataProcessor',
