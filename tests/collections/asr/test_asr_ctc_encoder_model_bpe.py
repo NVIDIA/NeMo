@@ -80,16 +80,15 @@ class TestEncDecCTCModel:
         assert isinstance(instance2, EncDecCTCModelBPE)
 
     @pytest.mark.unit
-    def test_vocab_change(self, asr_model):
-        old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
-        nw1 = asr_model.num_weights
-        asr_model.change_vocabulary(new_vocabulary=old_vocab)
-        # No change
-        assert nw1 == asr_model.num_weights
-        new_vocab = copy.deepcopy(old_vocab)
-        new_vocab.append('!')
-        new_vocab.append('$')
-        new_vocab.append('@')
-        asr_model.change_vocabulary(new_vocabulary=new_vocab)
-        # fully connected + bias
-        assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
+    def test_save_restore_artifact(self, asr_model):
+        asr_model.train()
+        asr_model.save_to('./ctc_bpe.nemo')
+
+        new_model = EncDecCTCModelBPE.restore_from('./ctc_bpe.nemo')
+        assert isinstance(new_model, type(asr_model))
+        assert new_model.vocab_path == 'vocab.txt'
+
+        assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
+
+        if os.path.exists('./ctc_bpe.nemo'):
+            os.remove('./ctc_bpe.nemo')
