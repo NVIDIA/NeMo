@@ -246,7 +246,7 @@ def get_modules():
     # Iterate through submodules one by one.
     for sub_name, submodule in submodules.items():
         try:
-            logging.info("* Analysing the `{}` module".format(sub_name))
+            logging.info("* Analysing the `{}` folder".format(sub_name))
             # Reset internal counters.
             counter = 0
             existing_counter = 0
