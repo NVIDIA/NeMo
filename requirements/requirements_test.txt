@@ -9,3 +9,4 @@ sphinx
 sphinxcontrib-bibtex
 wrapt
 wget
+frozendict
