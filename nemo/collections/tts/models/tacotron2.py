@@ -57,7 +57,7 @@ class Tacotron2Config:
     validation_ds: Optional[Dict] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models, export()
+@experimental  # TODO: Need to implement abstract methods: list_available_models
 class Tacotron2Model(ModelPT):
     """ Tacotron 2 Model that is used to generate mel spectrograms from text
     """
@@ -84,9 +84,6 @@ class Tacotron2Model(ModelPT):
         self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
         self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
         self.loss = Tacotron2Loss()
-
-        # After defining all torch.modules, create optimizer and scheduler
-        self.setup_optimization()
 
     @property
     def input_types(self):
@@ -217,9 +214,5 @@ class Tacotron2Model(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
-
-    def export(self):
         """TODO: Implement me!"""
         pass

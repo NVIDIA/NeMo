@@ -27,10 +27,10 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
@@ -157,7 +157,6 @@ def get_features(
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_labels)
 
 
-@experimental
 class BertTokenClassificationDataset(Dataset):
     """
     Creates dataset to use during training for token classification

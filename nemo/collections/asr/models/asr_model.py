@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
+from typing import Dict, List
 
 import torch
 
@@ -22,14 +23,14 @@ __all__ = ['ASRModel']
 
 class ASRModel(ModelPT, ABC):
     @abstractmethod
-    def transcribe(self, path2audio_file: str) -> str:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         """
-        Takes path to audio file and returns text transcription
+        Takes paths to audio files and returns text transcription
         Args:
-            path2audio_file: path to audio fragment to be transcribed
+            paths2audio_files: paths to audio fragment to be transcribed
 
         Returns:
-            transcription text
+            transcription texts
         """
         pass
 

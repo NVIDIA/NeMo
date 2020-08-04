@@ -27,8 +27,20 @@ __TEST_DATA_SUBDIR = ".data"
 
 
 def pytest_addoption(parser):
-    """ Additional command-line arguments passed to pytest. For now: --cpu """
-    parser.addoption('--cpu', action='store_true', help="pass that argument to use CPU during testing (default: GPU)")
+    """
+    Additional command-line arguments passed to pytest.
+    For now: 
+        --cpu: use CPU during testing (DEFAULT: GPU)
+        --use_local_test_data: use local test data/skip downloading from URL/GitHub (DEFAULT: False)
+    """
+    parser.addoption(
+        '--cpu', action='store_true', help="pass that argument to use CPU during testing (DEFAULT: False = GPU)"
+    )
+    parser.addoption(
+        '--use_local_test_data',
+        action='store_true',
+        help="pass that argument to use local test data/skip downloading from URL/GitHub (DEFAULT: False)",
+    )
 
 
 @pytest.fixture
@@ -53,7 +65,7 @@ def pytest_configure(config):
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_data_dir():
     """ Fixture returns test_data_dir. """
     # Test dir.
@@ -79,9 +91,33 @@ def pytest_configure(config):
         # File does not exist.
         test_data_local_size = -1
 
+    if config.option.use_local_test_data:
+        if test_data_local_size == -1:
+            pytest.exit("Test data `{}` is not present in the system".format(test_data_archive))
+        else:
+            print(
+                "Using the local `{}` test archive ({}B) found in the `{}` folder.".format(
+                    __TEST_DATA_FILENAME, test_data_local_size, test_dir
+                )
+            )
+            return
+
     # Get size of remote test_data archive.
-    url = __TEST_DATA_URL + __TEST_DATA_FILENAME
-    u = urllib.request.urlopen(url)
+    try:
+        url = __TEST_DATA_URL + __TEST_DATA_FILENAME
+        u = urllib.request.urlopen(url)
+    except:
+        # Couldn't access remote archive.
+        if test_data_local_size == -1:
+            pytest.exit("Test data not present in the system and cannot access the '{}' URL".format(url))
+        else:
+            print(
+                "Cannot access the '{}' URL, using the test data ({}B) found in the `{}` folder.".format(
+                    url, test_data_local_size, test_dir
+                )
+            )
+            return
+
     # Get metadata.
     meta = u.info()
     test_data_remote_size = int(meta["Content-Length"])

@@ -35,13 +35,13 @@ model:
     shuffle: False
     val_loss_idx: 0
 
-#  test_ds:
-#    manifest_filepath: ???
-#    sample_rate: *sample_rate
-#    labels: *labels
-#    batch_size: 128
-#    shuffle: False
-#    test_loss_idx: 0
+  test_ds:
+    manifest_filepath: null
+    sample_rate: *sample_rate
+    labels: *labels
+    batch_size: 128
+    shuffle: False
+    test_loss_idx: 0
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMFCCPreprocessor

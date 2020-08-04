@@ -17,7 +17,7 @@ import re
 import inflect
 from unidecode import unidecode
 
-from nemo import logging
+from nemo.utils import logging
 
 NUM_CHECK = re.compile(r'([$]?)(^|\s)(\S*[0-9]\S*)(?=(\s|$)((\S*)(\s|$))?)')
 
