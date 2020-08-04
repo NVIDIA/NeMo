@@ -31,5 +31,5 @@ class AlbertEncoder(AlbertModel, BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        res = super().forward(input_ids, attention_mask, token_type_ids)[0]
+        res = super().forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)[0]
         return res

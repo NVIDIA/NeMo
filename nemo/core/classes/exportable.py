@@ -15,7 +15,7 @@ import os
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Dict
 
 import onnx
 import torch

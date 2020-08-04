@@ -114,7 +114,10 @@ class MegatronBertEncoder(BertModule):
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(
-            input_ids, position_ids, extended_attention_mask, tokentype_ids=token_type_ids
+            input_ids=input_ids,
+            position_ids=position_ids,
+            attention_mask=extended_attention_mask,
+            tokentype_ids=token_type_ids,
         )
         return sequence_output
 

@@ -35,5 +35,5 @@ class DistilBertEncoder(DistilBertModel, BertModule):
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
         # distilBert does not use token_type_ids as the most of the other Bert models
-        res = super().forward(input_ids, attention_mask)[0]
+        res = super().forward(input_ids=input_ids, attention_mask=attention_mask)[0]
         return res
