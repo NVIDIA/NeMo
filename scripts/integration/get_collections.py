@@ -15,8 +15,11 @@
 
 """ Script responsible for generation of a JSON file with list of NeMo collections.
 
+Exemplary call:
+    nemo-get-collections
+
 Returns:
-    Format of the output JSON file (indicated  as --output_filename):
+    Format of the output JSON file (indicated  as -o, --output_filename):
 
 [
     {

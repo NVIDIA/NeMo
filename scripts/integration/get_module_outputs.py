@@ -16,8 +16,11 @@
 
 """ Script responsible for processing of module inputs and generating outputs.
 
+Exemplary call:
+    nemo-get-module-outputs -i module_def_inputs.json
+
 Args:
-    Format of the input JSON file (passed as --input_filename):
+    Format of the input JSON file (passed as -i, --input_filename):
     {
         "name": "my_lenet",
         "id": "nemo.collections.cv.modules.trainables.feed_forward_network.FeedForwardNetwork",
@@ -44,7 +47,7 @@ Args:
 Required fields: "id", "name", "arguments", "inputs"
 
 Returns:
-    Format of the output JSON file (indicated  as --output_filename):
+    Format of the output JSON file (indicated  as -o, --output_filename):
     [
         {"name": "outputs", "value": [1.3470189571380615, 0.06865233182907104], "type": "Tensor"}
     ]

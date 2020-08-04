@@ -16,8 +16,11 @@
 
 """ Script responsible for retrieving module input/output ports.
 
+Exemplary call:
+    nemo-get-module-ports -i module_def.json
+
 Args:
-    Format of the input JSON file (passed as --input_filename):
+    Format of the input JSON file (passed as -i, --input_filename):
     {
         "name": "my_image_encoder",
         "id": "nemo.collections.cv.modules.trainables.image_encoder.ImageEncoder",
@@ -41,7 +44,7 @@ Args:
 Required fields: "id", "name", "arguments"
 
 Returns:
-    Format of the output JSON file (indicated  as --output_filename):
+    Format of the output JSON file (indicated  as -o, --output_filename):
     {
         "input_ports": {
             "inputs": "axes: (batch, dimension:3, height:224, width:224); elements_type: ImageValue"

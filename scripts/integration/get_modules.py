@@ -15,11 +15,14 @@
 
 """ Script responsible for generation of a JSON file containing list of modules of a given collection. 
 
+Exemplary call:
+    nemo-get-modules -c cv
+
 Args:
-    Name of the collection (--c, --collection)
+    Name of the collection (-c, --collection)
 
 Returns:
-    Format of the output JSON file (indicated  as --output_filename):
+    Format of the output JSON file (indicated  as -o, --output_filename):
 
 [
     {

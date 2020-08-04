@@ -15,8 +15,11 @@
 
 """ Script responsible for analysis the provided graph (modules and connections) and returning their status. 
 
+Exemplary call:
+    nemo-validate-connections --i connections_input.json
+
 Args:
-    Format of the input JSON file (passed as --input_filename):
+    Format of the input JSON file (passed as -i, --input_filename):
     {
         "modules": [
             {
@@ -63,7 +66,7 @@ Args:
 Required fields: "modules", "connections"
 
 Returns:
-    Format of the output JSON file (indicated  as --output_filename):
+    Format of the output JSON file (indicated  as -o, --output_filename):
     {
         "cifar100_dl.images->my_image_encoder.inputs": "NeuralTypeComparisonResult.SAME",
         "cifar100_dl.coarse_labels->my_image_encoder.inputs": "NeuralTypeComparisonResult.INCOMPATIBLE"
