@@ -71,14 +71,15 @@ class MegatronBertEncoder(BertModule):
         args = get_args()
 
 
-        if args.distributed_backend == 'ddp':
+        if args.distributed_backend == 'null':
+            # No Lightning
+            _initialize_distributed()
+        else:
             set_model_parallel_rank(args.rank)
             set_model_parallel_world_size(args.model_parallel_size)
-        else:
-            _initialize_distributed()
 
         # Autoresume.
-        _init_autoresume()
+#        _init_autoresume()
 
         # Random seeds for reproducibility.
         if args.rank == 0:
@@ -89,7 +90,7 @@ class MegatronBertEncoder(BertModule):
                 np.random.seed(seed)
                 torch.manual_seed(seed)
 
-        print(f"MegatronBertEncoder.init: rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}")
+        print(f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}")
             
         self.language_model = TransformerLanguageModel(
             attention_mask_func=bert_attention_mask_func,
