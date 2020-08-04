@@ -160,8 +160,16 @@ pipeline {
           }
         }
       }
+    }
 
-      stage('Speech to Text WPE') {
+    stage('Speech to Text WPE') {
+        when {
+            anyOf{
+              branch 'candidate'
+              changeRequest target: 'candidate'
+            }
+        }
+        failFast true
         steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
             --config-path="experimental/configs/" --config-name="config_bpe" \
@@ -174,8 +182,7 @@ pipeline {
             exp_manager.root_dir=examples/asr/speech_to_text_wpe_results'
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
           }
-      }
-    }
+     }
 
     stage('L2: ASR Multi-dataloader dev run') {
       when {
