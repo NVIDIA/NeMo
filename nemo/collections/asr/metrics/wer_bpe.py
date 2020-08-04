@@ -63,7 +63,7 @@ class WERBPE(TensorMetric):
         self.use_cer = use_cer
         self.ctc_decode = ctc_decode
 
-    def __ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
         Decodes a sequence of labels to words
         """
