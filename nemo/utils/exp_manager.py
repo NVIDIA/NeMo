@@ -18,7 +18,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import copyfile
+from shutil import copy
 from typing import Dict, List, Optional, Union
 
 from hydra.core.hydra_config import HydraConfig
@@ -171,7 +171,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         # Move files_to_copy to folder and add git information if present
         if cfg.files_to_copy:
             for _file in cfg.files_to_copy:
-                copyfile(Path(_file), log_dir)
+                copy(Path(_file), log_dir)
 
         # Create files for cmd args and git info
         with open(log_dir / 'cmd-args.log', 'w') as _file:
@@ -235,30 +235,32 @@ def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, ve
             f"{root_dir}, name: {name}, or version: {version}. Please note that "
             "explicit_log_dir, root_dir, name, and version will be ignored."
         )
+    if not previous_log_dir:
+        raise ValueError(f"Resuming requires the previous_log_dir {previous_log_dir} to be passed to exp_manager")
 
     checkpoint_dir = Path(Path(previous_log_dir) / "checkpoints")
     checkpoint = None
+    end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
+    last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
     if not checkpoint_dir.exists():
-        raise NotFoundError(f"There was no checkpoint folder at previous_log_dir :{previous_log_dir}. Cannot resume.")
-    elif checkpoint_dir.match("*end.ckpt"):
+        raise NotFoundError(f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume.")
+    elif len(end_checkpoints) > 0:
         if resume_past_end:
-            if len(checkpoint_dir.glob('*end.ckpt')) > 1:
-                raise ValueError(
-                    f"Multiple multiple checkpoints {checkpoint_dir.glob('*end.ckpt')} that matches *end.ckpt."
-                )
-            logging.info(f"Resuming from {checkpoint_dir.glob('*end.ckpt')}")
-            checkpoint = list(checkpoint_dir.glob('*end.ckpt'))[0]
+            if len(end_checkpoints) > 1:
+                raise ValueError(f"Multiple multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
+            logging.info(f"Resuming from {end_checkpoints[0]}")
+            checkpoint = end_checkpoints[0]
         else:
             raise ValueError(
-                f"Found {checkpoint_dir.glob('*end.ckpt')} indicating that the last training run has already "
-                "completed."
+                f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
             )
-    elif not checkpoint_dir.match("*last.ckpt"):
-        raise NotFoundError(f"There were no checkpoints found in {previous_log_dir}. Is the folder correct?")
-    elif len(checkpoint_dir.glob("*last.ckpt")) > 1:
-        raise ValueError(f"Multiple multiple checkpoints {checkpoint_dir.glob('*last.ckpt')} that matches *last.ckpt.")
+    elif not len(last_checkpoints) > 0:
+        raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Is the folder correct?")
+    elif len(last_checkpoints) > 1:
+        raise ValueError(f"Multiple multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
-        checkpoint = list(checkpoint_dir.glob('*last.ckpt'))[0]
+        logging.info(f"Resuming from {last_checkpoints[0]}")
+        checkpoint = last_checkpoints[0]
 
     trainer.resume_from_checkpoint = checkpoint
 
@@ -273,7 +275,7 @@ def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, ve
         new_run_dir.mkdir()
         for child in checkpoint_dir.iterdir():
             if child.is_file():
-                copyfile(child, new_run_dir)
+                copy(child, new_run_dir)
     return Path(previous_log_dir), previous_log_dir, "", ""
 
 
@@ -342,11 +344,10 @@ def get_log_dir(
                 "logger, exp_manager will use trainer.logger.name, and name passed to exp_manager must be None."
             )
         name = trainer.logger.name
-        version = trainer.logger.version
+        version = f"version_{trainer.logger.version}"
     # Use user-defined root_dir, project_name, exp_name, and versioning options
     else:
-        version = None
-        if use_datetime_version:
+        if version is None and use_datetime_version:
             version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
             if trainer.is_slurm_managing_tasks:
                 logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
@@ -355,12 +356,11 @@ def get_log_dir(
                 os.environ[NEMO_ENV_VARNAME_DATETIME] = version
 
         name = name or "default"
-        log_dir_wo_version = Path(_root_dir) / name
 
         # Always create TensorBoardLogger, so we can retrieve version if running on slurm
-        tensorboard_logger = TensorBoardLogger(save_dir=log_dir_wo_version, version=version)
+        tensorboard_logger = TensorBoardLogger(save_dir=Path(_root_dir), name=name, version=version)
         if version is None:
-            version = tensorboard_logger.version
+            version = f"version_{tensorboard_logger.version}"
 
     log_dir = Path(_root_dir) / Path(str(name)) / Path(str(version))
     return log_dir, _root_dir, name, version
@@ -437,6 +437,8 @@ def configure_loggers(
         logging.info("TensorboardLogger has been set up")
 
     if create_wandb_logger:
+        if wandb_kwargs is None:
+            wandb_kwargs = {}
         if "name" not in wandb_kwargs and "project" not in wandb_kwargs:
             raise ValueError("name and project are required for wandb_logger")
         wandb_logger = WandbLogger(save_dir=root_dir, version=version, **wandb_kwargs)
@@ -486,26 +488,26 @@ def configure_checkpointing(trainer, log_dir, name):
     trainer.checkpoint_callback = checkpoint_callback
 
 
-def find_last_checkpoint(log_dir, resume_past_end=False):
-    checkpoint_dir = Path(Path(log_dir) / "checkpoints")
-    if not checkpoint_dir.exists():
-        raise NotFoundError(f"There was no checkpoint folder at log_dir :{log_dir}. Cannot resume.")
-    elif checkpoint_dir.match("*end.ckpt"):
-        if resume_past_end:
-            if len(checkpoint_dir.glob('*end.ckpt')) > 1:
-                raise ValueError(
-                    f"Multiple multiple checkpoints {checkpoint_dir.glob('*end.ckpt')} that matches *end.ckpt."
-                )
-            logging.info(f"Resuming from {checkpoint_dir.glob('*end.ckpt')}")
-            return list(checkpoint_dir.glob('*end.ckpt'))[0]
-        else:
-            raise ValueError(
-                f"Found {checkpoint_dir.glob('*end.ckpt')} indicating that the last training run has already "
-                "completed."
-            )
-    elif not checkpoint_dir.match("*last.ckpt"):
-        raise NotFoundError(f"There were no checkpoints found in {log_dir}. Is the folder correct?")
+# def find_last_checkpoint(log_dir, resume_past_end=False):
+#     checkpoint_dir = Path(Path(log_dir) / "checkpoints")
+#     if not checkpoint_dir.exists():
+#         raise NotFoundError(f"There was no checkpoint folder at log_dir :{log_dir}. Cannot resume.")
+#     elif checkpoint_dir.match("*end.ckpt"):
+#         if resume_past_end:
+#             if len(checkpoint_dir.glob('*end.ckpt')) > 1:
+#                 raise ValueError(
+#                     f"Multiple multiple checkpoints {checkpoint_dir.glob('*end.ckpt')} that matches *end.ckpt."
+#                 )
+#             logging.info(f"Resuming from {checkpoint_dir.glob('*end.ckpt')}")
+#             return list(checkpoint_dir.glob('*end.ckpt'))[0]
+#         else:
+#             raise ValueError(
+#                 f"Found {checkpoint_dir.glob('*end.ckpt')} indicating that the last training run has already "
+#                 "completed."
+#             )
+#     elif not checkpoint_dir.match("*last.ckpt"):
+#         raise NotFoundError(f"There were no checkpoints found in {log_dir}. Is the folder correct?")
 
-    if len(checkpoint_dir.glob("*last.ckpt")) > 1:
-        raise ValueError(f"Multiple multiple checkpoints {checkpoint_dir.glob('*last.ckpt')} that matches *last.ckpt.")
-    return list(checkpoint_dir.glob('*last.ckpt'))[0]
+#     if len(checkpoint_dir.glob("*last.ckpt")) > 1:
+#         raise ValueError(f"Multiple multiple checkpoints {checkpoint_dir.glob('*last.ckpt')} that matches *last.ckpt.")
+#     return list(checkpoint_dir.glob('*last.ckpt'))[0]

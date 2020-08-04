@@ -21,7 +21,12 @@ import pytorch_lightning as pl
 from omegaconf.errors import OmegaConfBaseException
 
 from nemo.utils import logging
-from nemo.utils.exp_manager import exp_manager, LoggerMisconfigurationError, CheckpointMisconfigurationError
+from nemo.utils.exp_manager import (
+    exp_manager,
+    LoggerMisconfigurationError,
+    CheckpointMisconfigurationError,
+    NotFoundError,
+)
 
 
 @pytest.fixture
@@ -46,7 +51,7 @@ class TestExpManager:
             exp_manager(None, {"unused": 1})
 
     @pytest.mark.unit
-    def test_trainer_default_logger(self, cleanup_local_folder, tmp_path):
+    def test_trainer_loggers(self, cleanup_local_folder, tmp_path):
         """ Test that a trainer with logger errors out with a number of arguments. Test that it works with
         create_tensorboard_logger set to False
         """
@@ -59,11 +64,45 @@ class TestExpManager:
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
             exp_manager(test_trainer, {"resume": True})
 
-        # Check that exp_manager uses trainer.logger
+        # Check that exp_manager uses trainer.logger, it's root_dir, name, and version
         log_dir = exp_manager(test_trainer, {"create_tensorboard_logger": False, "create_checkpoint_callback": False})
-        assert log_dir.resolve() == Path("./lightning_logs/0").resolve()
+        assert log_dir.resolve() == Path("./lightning_logs/version_0").resolve()
         assert Path("./lightning_logs").exists()
-        assert Path("./lightning_logs/0").exists()
+        assert Path("./lightning_logs/version_0").exists()
+
+        # Check that a trainer without a logger gets a logger attached to it
+        test_trainer = pl.Trainer(logger=False)
+        log_dir = exp_manager(
+            test_trainer,
+            {"create_tensorboard_logger": True, "create_checkpoint_callback": False, "root_dir": str(tmp_path)},
+        )
+        assert isinstance(test_trainer.logger, pl.loggers.TensorBoardLogger)
+
+        test_trainer = pl.Trainer(logger=False)
+        # Check that a create_wandb_logger=True errors out unless wandb_logger_kwargs is passed.
+        with pytest.raises(ValueError):
+            log_dir = exp_manager(
+                test_trainer,
+                {
+                    "create_tensorboard_logger": False,
+                    "create_checkpoint_callback": False,
+                    "root_dir": str(tmp_path),
+                    "create_wandb_logger": True,
+                },
+            )
+        # Check that a WandbLogger is attached to logger if create_wandb_logger=True and wandb_logger_kwargs has name
+        # and project
+        log_dir = exp_manager(
+            test_trainer,
+            {
+                "create_tensorboard_logger": False,
+                "create_checkpoint_callback": False,
+                "root_dir": str(tmp_path),
+                "create_wandb_logger": True,
+                "wandb_logger_kwargs": {"name": "", "project": ""},
+            },
+        )
+        assert isinstance(test_trainer.logger, pl.loggers.WandbLogger)
 
     @pytest.mark.unit
     def test_checkpoint_configurations(self, cleanup_local_folder):
@@ -75,11 +114,11 @@ class TestExpManager:
         with pytest.raises(CheckpointMisconfigurationError):  # Fails because both try to create modelcheckpoint
             exp_manager(test_trainer, disable_tb_logger)
 
-        # Should success without error
+        # Should succeed without error
         exp_manager(test_trainer, {"create_checkpoint_callback": False, "create_tensorboard_logger": False})
 
         test_trainer_2 = pl.Trainer(checkpoint_callback=False)
-        exp_manager(test_trainer_2, disable_tb_logger)  # Should success without error
+        exp_manager(test_trainer_2, disable_tb_logger)  # Should succeed without error
 
     @pytest.mark.unit
     def test_default_log_dir(self, cleanup_local_folder):
@@ -97,13 +136,92 @@ class TestExpManager:
     @pytest.mark.unit
     def test_log_dir_overrides(self, tmp_path):
         """Check a variety of trainer options with exp_manager"""
+        # Checks that explicit_log_dir ignores root_dir, name, and version
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
-
         log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test_log_dir_overrides")})
         assert log_dir.resolve() == (tmp_path / "test_log_dir_overrides").resolve()
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_log_dir_overrides").exists()
 
-    # Test log dir creation
-    # Test logging
-    # Test find_last_checkpoint
+        # Checks that exp_manager uses root_dir, default name, and explicit version
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        log_dir = exp_manager(test_trainer, {"root_dir": str(tmp_path / "test_no_name"), "version": 957})
+        assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "957").resolve()
+        assert Path(tmp_path).exists()
+        assert Path(tmp_path / "test_no_name" / "default" / "957").exists()
+
+        # Checks that use_datetime_version False toggle works
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        log_dir = exp_manager(
+            test_trainer, {"root_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False}
+        )
+        assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "version_0").resolve()
+        assert Path(tmp_path).exists()
+        assert Path(tmp_path / "test_no_name" / "default" / "version_0").exists()
+
+        # Checks that use_datetime_version False toggle works and version increments
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        log_dir = exp_manager(
+            test_trainer, {"root_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False}
+        )
+        assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "version_1").resolve()
+        assert Path(tmp_path).exists()
+        assert Path(tmp_path / "test_no_name" / "default" / "version_1").exists()
+
+    @pytest.mark.unit
+    def test_resume(self, tmp_path):
+        """ Tests the resume capabilities of exp_manager"""
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        # Error because previous_log_dir was not passed
+        with pytest.raises(ValueError):
+            log_dir = exp_manager(test_trainer, {"root_dir": str(tmp_path / "test_resume"), "resume": True})
+
+        # Error because previous_log_dir does not exist
+        with pytest.raises(NotFoundError):
+            log_dir = exp_manager(
+                test_trainer,
+                {"root_dir": str(tmp_path / "test_resume"), "resume": True, "previous_log_dir": "Does_not_exist"},
+            )
+
+        # Error because checkpoints folder does not exist
+        with pytest.raises(NotFoundError):
+            log_dir = exp_manager(
+                test_trainer,
+                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+            )
+
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
+        # Error because checkpoints do not exist in folder
+        with pytest.raises(NotFoundError):
+            log_dir = exp_manager(
+                test_trainer,
+                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+            )
+
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").touch()
+        test = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints")
+        # Error because *end.ckpt is in folder indicating that training has already finished
+        with pytest.raises(ValueError):
+            log_dir = exp_manager(
+                test_trainer,
+                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+            )
+
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").unlink()
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt").touch()
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last.ckpt").touch()
+        # Error because multiple *last.ckpt is in folder. If more than one, don't know which to restore
+        with pytest.raises(ValueError):
+            log_dir = exp_manager(
+                test_trainer,
+                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),},
+            )
+
+        # Finally succeed
+        Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last.ckpt").unlink()
+        log_dir = exp_manager(
+            test_trainer,
+            {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+        )
+        checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
+        assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()

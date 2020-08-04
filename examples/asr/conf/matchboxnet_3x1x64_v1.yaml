@@ -179,8 +179,10 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
-  wandb_exp: null
-  wandb_project: null
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    name: null
+    project: null
 
 hydra:
   run:
