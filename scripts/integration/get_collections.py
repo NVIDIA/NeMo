@@ -40,7 +40,7 @@ def process_collection(id, col):
     }
 
 
-def main():
+def get_collections():
     """ Main function generating a JSON file with list of NeMo collections. """
     # Parse arguments.
     parser = argparse.ArgumentParser()
@@ -93,4 +93,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    get_collections()

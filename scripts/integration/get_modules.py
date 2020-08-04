@@ -153,7 +153,7 @@ def import_submodules(package, recursive=True):
     return results
 
 
-def main():
+def get_modules():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
     # Parse arguments.
     parser = argparse.ArgumentParser()
@@ -242,4 +242,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    get_modules()

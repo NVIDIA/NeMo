@@ -23,7 +23,7 @@ import nemo
 from nemo.utils import logging
 
 
-def main():
+def get_module_ports():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
     # Parse filename.
     parser = argparse.ArgumentParser()
@@ -109,4 +109,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    get_module_ports()
