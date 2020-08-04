@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -22,7 +22,6 @@ from nemo import logging
 from nemo.collections.nlp.data.data_utils import get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
-from nemo.utils.decorators import experimental
 
 
 def get_features(
@@ -125,7 +124,6 @@ def get_features(
     return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
 
 
-@experimental
 class IntentSlotClassificationDataset(Dataset):
     """
     Creates dataset to use for the task of joint intent
@@ -138,17 +136,16 @@ class IntentSlotClassificationDataset(Dataset):
     IntentSlotDataset.
 
     Args:
-        input_file (str): file to sequence + label.
-            the first line is header (sentence [tab] label)
+        input_file: file to sequence + label. the first line is header (sentence [tab] label)
             each line should be [sentence][tab][label]
-        slot_file (str): file to slot labels, each line corresponding to
-            slot labels for a sentence in input_file. No header.
-        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as NemoBertTokenizer
-        num_samples (int): number of samples you want to use for the dataset.
-            If -1, use all dataset. Useful for testing.
-        pad_label (int): pad value use for slot labels.
-            by default, it's the neutral label.
+        slot_file: file to slot labels, each line corresponding to slot labels for a sentence in input_file. No header.
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        num_samples: number of samples you want to use for the dataset. If -1, use all dataset. Useful for testing.
+        pad_label: pad value use for slot labels. by default, it's the neutral label.
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask.
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask.
+        do_lower_case: convert query to lower case or not
     """
 
     @property
@@ -167,15 +164,15 @@ class IntentSlotClassificationDataset(Dataset):
 
     def __init__(
         self,
-        input_file,
-        slot_file,
-        max_seq_length,
-        tokenizer,
-        num_samples=-1,
-        pad_label=128,
-        ignore_extra_tokens=False,
-        ignore_start_end=False,
-        do_lower_case=False,
+        input_file: str,
+        slot_file: str,
+        max_seq_length: int,
+        tokenizer: Any,
+        num_samples: int = -1,
+        pad_label: int = 128,
+        ignore_extra_tokens: bool = False,
+        ignore_start_end: bool = False,
+        do_lower_case: bool = False,
     ):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)

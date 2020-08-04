@@ -50,11 +50,10 @@ class IntentSlotDataDesc:
             corresponding to the 1 slot label, and so on.
 
     Args:
-        data_dir (str): the directory of the dataset
-        none_slot_label (str): the label for slots that aren't identified
-            defaulted to 'O'
-        pad_label (int): the int used for padding. If set to -1,
-             it'll be set to the whatever the None label is.
+        data_dir: the directory of the dataset
+        modes: ['train', 'test', 'dev'],
+        none_slot_label: the label for slots that aren't identified defaulted to 'O'
+        pad_label: the int used for padding. If set to -1, it'll be set to the whatever the None label is.
     """
 
     def __init__(
