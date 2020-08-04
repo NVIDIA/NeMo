@@ -56,20 +56,19 @@ class MegatronBertEncoder(BertModule):
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
-    def __init__(
-        self, model_name, config,
-    ):
+    def __init__(self, model_name, config, vocab_file):
 
         super().__init__()
 
-        if not os.path.exists(config["vocab_file"]):
-            raise ValueError(f'Vocab file not found at {config["vocab_file"]}')
+        if not os.path.exists(vocab_file):
+            raise ValueError(f'Vocab file not found at {vocab_file}')
+
+        config["vocab_file"] = vocab_file
 
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
         set_global_variables(extra_args_provider=None, args_defaults=config, ignore_unknown_args=True)
         # read arguments back
         args = get_args()
-
 
         if args.distributed_backend == 'null':
             # No Lightning
@@ -79,7 +78,7 @@ class MegatronBertEncoder(BertModule):
             set_model_parallel_world_size(args.model_parallel_size)
 
         # Autoresume.
-#        _init_autoresume()
+        #        _init_autoresume()
 
         # Random seeds for reproducibility.
         if args.rank == 0:
@@ -90,8 +89,10 @@ class MegatronBertEncoder(BertModule):
                 np.random.seed(seed)
                 torch.manual_seed(seed)
 
-        print(f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}")
-            
+        print(
+            f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}"
+        )
+
         self.language_model = TransformerLanguageModel(
             attention_mask_func=bert_attention_mask_func,
             mlp_activation_func=torch.nn.functional.gelu,

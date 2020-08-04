@@ -7,7 +7,7 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
-  distributed_backend: null
+  distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   row_log_interval: 1  # Interval of logging.

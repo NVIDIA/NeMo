@@ -54,7 +54,6 @@ class NERModel(ModelPT):
             data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.pad_label
         )
         self.data_dir = cfg.data_dir
-        # self.model_cfg = cfg
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,

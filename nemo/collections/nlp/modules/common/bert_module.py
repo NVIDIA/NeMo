@@ -51,3 +51,14 @@ class BertModule(NeuralModule):
         """Restores module/model's weights"""
         state_dict = torch.load(restore_path)
         self.load_state_dict(state_dict)
+
+    @property
+    def hidden_size(self):
+        """
+            Property returning hidden size.
+
+            Returns:
+                Hidden size
+            Default implementation relay to BERT config property..
+        """
+        return self.config._hidden_size
