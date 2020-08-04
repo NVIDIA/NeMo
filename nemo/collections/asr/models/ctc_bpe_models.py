@@ -90,11 +90,6 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
-        # Remove special tokens
-        for special_token in self.tokenizer.tokenizer.all_special_tokens:
-            if special_token in vocabulary:
-                vocabulary.pop(special_token)
-
         # Set the new vocabulary
         cfg.decoder.params.vocabulary = ListConfig(list(vocabulary.values()))
 
