@@ -180,7 +180,11 @@ def remove_weightnorm(model):
     waveglow = model
     for wavenet in waveglow.wavenet:
         wavenet.start = torch.nn.utils.remove_weight_norm(wavenet.start)
-        wavenet.in_layers = remove(wavenet.in_layers)
+        # SqueezeWave doesn't have weight norm in in_layers
+        try:
+            wavenet.in_layers = remove(wavenet.in_layers)
+        except ValueError:
+            pass
         wavenet.cond_layer = torch.nn.utils.remove_weight_norm(wavenet.cond_layer)
         wavenet.res_skip_layers = remove(wavenet.res_skip_layers)
     return waveglow
