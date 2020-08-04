@@ -30,7 +30,6 @@ from .package_info import (
 )
 
 if "NEMO_PACKAGE_BUILDING" not in os.environ:
-    from nemo.utils import logging, logging_mode
     from nemo import core
     from nemo import utils
     from nemo import collections

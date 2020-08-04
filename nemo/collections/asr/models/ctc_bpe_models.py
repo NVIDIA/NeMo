@@ -14,12 +14,11 @@
 
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 
-from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -27,6 +26,7 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']
@@ -113,7 +113,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Setup metric objects
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-    def transcribe(self, path2audio_file: str) -> str:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         pass
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):

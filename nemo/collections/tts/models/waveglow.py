@@ -53,7 +53,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict] = None
 
 
-@experimental  # TODO: Need to implement abstract methods: list_available_models, export()
+@experimental  # TODO: Need to implement abstract methods: list_available_models
 class WaveGlowModel(ModelPT):
     """ Tacotron 2 Model that is used to generate audio conditioned on text
     """
@@ -78,8 +78,6 @@ class WaveGlowModel(ModelPT):
         self.waveglow = WaveGlowModel.from_config_dict(self._cfg.waveglow)
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()
-
-        self.setup_optimization()
 
     @property
     def input_types(self):
@@ -191,9 +189,5 @@ class WaveGlowModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
-        """TODO: Implement me!"""
-        pass
-
-    def export(self):
         """TODO: Implement me!"""
         pass

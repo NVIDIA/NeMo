@@ -18,7 +18,6 @@ from abc import ABC, abstractmethod
 import torch
 from packaging import version
 
-from nemo import logging
 from nemo.collections.asr.parts.features import FilterbankFeatures
 from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
@@ -30,6 +29,7 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 try:
@@ -380,7 +380,9 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         )
 
     def get_features(self, input_signal, length):
-        return self.featurizer(input_signal)
+        features = self.featurizer(input_signal)
+        seq_len = torch.ceil(length.to(torch.float32) / self.hop_length).to(dtype=torch.long)
+        return features, seq_len
 
 
 class SpectrogramAugmentation(NeuralModule):
