@@ -13,19 +13,19 @@
 # limitations under the License.
 
 import re
-import pytest
 import shutil
 from pathlib import Path
 
+import pytest
 import pytorch_lightning as pl
 from omegaconf.errors import OmegaConfBaseException
 
 from nemo.utils import logging
 from nemo.utils.exp_manager import (
-    exp_manager,
-    LoggerMisconfigurationError,
     CheckpointMisconfigurationError,
+    LoggerMisconfigurationError,
     NotFoundError,
+    exp_manager,
 )
 
 

@@ -16,9 +16,7 @@ import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
-
 from pytorch_lightning.utilities import rank_zero_only
-
 
 from nemo.utils import logging
 

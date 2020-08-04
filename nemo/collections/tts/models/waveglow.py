@@ -18,7 +18,6 @@ from typing import Dict, Optional
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
-
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.modules.waveglow import OperationMode

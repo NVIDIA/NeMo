@@ -32,9 +32,9 @@ from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
+from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
-from nemo.utils.exceptions import NeMoBaseException
 
 
 class NotFoundError(NeMoBaseException):
