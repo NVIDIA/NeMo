@@ -13,7 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Script responsible for generation of a JSON file with list of NeMo collections. """
+""" Script responsible for generation of a JSON file with list of NeMo collections.
+
+Exemplary call:
+    nemo-get-collections
+
+Returns:
+    Format of the output JSON file (indicated  as -o, --output_filename):
+
+[
+    {
+        "name": "nlp",
+        "id": "nemo.collections.nlp",
+        "description": "Natural Language Processing collection",
+        "version": "0.11.0",
+        "author": "NVIDIA Corporation"
+    },
+...
+]
+"""
 
 import argparse
 import importlib
@@ -40,11 +58,17 @@ def process_collection(id, col):
     }
 
 
-def main():
+def get_collections():
     """ Main function generating a JSON file with list of NeMo collections. """
     # Parse arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="collections.json")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--output_filename',
+        '-o',
+        help='Name of the output JSON file (DEFAULT: collections.json)',
+        type=str,
+        default="collections.json",
+    )
     args = parser.parse_args()
 
     # Get collections directory.
@@ -85,12 +109,10 @@ def main():
         json.dump(output_list, outfile)
 
     logging.info("=" * 80)
-    logging.info(
-        'Finshed the analysis, found {} collections, results exported to `{}`.'.format(
-            len(output_list), args.output_filename
-        )
-    )
+    outputs = "".join("* {} \n".format(o) for o in output_list)
+    logging.info("Finshed the analysis, found {} collections:\n{}".format(len(output_list), outputs))
+    logging.info("Results exported to `{}`.".format(args.output_filename))
 
 
 if __name__ == '__main__':
-    main()
+    get_collections()

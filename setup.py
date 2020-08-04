@@ -250,4 +250,14 @@ setuptools.setup(
     keywords=__keywords__,
     # Custom commands.
     cmdclass={'style': StyleCommand},
+    # Console commands.
+    entry_points={
+        'console_scripts': [
+            'nemo-get-collections=scripts.integration.get_collections:get_collections',
+            'nemo-get-modules=scripts.integration.get_modules:get_modules',
+            'nemo-get-module-outputs=scripts.integration.get_module_outputs:get_module_outputs',
+            'nemo-get-module-ports=scripts.integration.get_module_ports:get_module_ports',
+            'nemo-validate-connections=scripts.integration.validate_connections:validate_connections',
+        ]
+    },
 )

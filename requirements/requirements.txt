@@ -12,4 +12,5 @@ wrapt
 ruamel.yaml
 scikit-learn
 scipy
+frozendict
 

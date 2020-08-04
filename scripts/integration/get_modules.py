@@ -13,7 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Script responsible for generation of a JSON file containing list of modules of a given collection. """
+""" Script responsible for generation of a JSON file containing list of modules of a given collection. 
+
+Exemplary call:
+    nemo-get-modules -c cv
+
+Args:
+    Name of the collection (-c, --collection)
+
+Returns:
+    Format of the output JSON file (indicated  as -o, --output_filename):
+
+[
+    {
+        "name": "CIFAR100DataLayer",
+        "id": "nemo.collections.cv.modules.data_layers.cifar100_datalayer.CIFAR100DataLayer",
+        "module_type": "datalayer",
+        "arguments": [
+            {
+                "name": "height",
+                "default": 32,
+                "annotation": "int"
+            },
+            {
+                "name": "width",
+                "default": 32,
+                "annotation": "int"
+            },
+    ...
+    },
+    {
+        "name": "CIFAR10DataLayer",
+        "id": "nemo.collections.cv.modules.data_layers.cifar10_datalayer.CIFAR10DataLayer",
+    ...
+    },
+...
+]
+"""
+
 
 import argparse
 import importlib
@@ -121,7 +158,7 @@ def process_member(module_name, obj, module_list) -> bool:
 
 
 def import_submodules(package, recursive=True):
-    """ Import all submodules of a module, recursively, including subpackages
+    """ Import all submodules of a module, recursively, including subpackages.
 
     Args:
         package: package (name or actual module) (str | module)
@@ -153,12 +190,18 @@ def import_submodules(package, recursive=True):
     return results
 
 
-def main():
+def get_modules():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
     # Parse arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--collection', help='ID of the collection', type=str, required=True)
-    parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="modules.json")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--collection', '-c', help='ID of the collection', type=str, required=True)
+    parser.add_argument(
+        '--output_filename',
+        '-o',
+        help='Name of the output JSON file (DEFAULT: modules.json)',
+        type=str,
+        default="modules.json",
+    )
     args = parser.parse_args()
 
     # Get collections directory.
@@ -234,12 +277,14 @@ def main():
         json.dump(module_list, outfile)
 
     logging.info("=" * 80)
+    modules = "".join("* {}\n".format(o) for o in module_list)
     logging.info(
-        'Finished analysis of the `{}` collection, found {} modules, results exported to `{}`.'.format(
-            args.collection, total_counter, output_filename
+        "Finished analysis of the `{}` collection, found {} modules: \n{}".format(
+            args.collection, total_counter, modules
         )
     )
+    logging.info('Results exported to `{}`.'.format(output_filename))
 
 
 if __name__ == '__main__':
-    main()
+    get_modules()
