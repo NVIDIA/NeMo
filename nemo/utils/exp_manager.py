@@ -34,7 +34,7 @@ from nemo.constants import NEMO_ENV_VARNAME_DATETIME
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
-from nemo.utils.nemo_exceptions import NeMoBaseException
+from nemo.utils.exceptions import NeMoBaseException
 
 
 class NotFoundError(NeMoBaseException):
@@ -43,6 +43,13 @@ class NotFoundError(NeMoBaseException):
 
 class LoggerMisconfigurationError(NeMoBaseException):
     """ Raised when a mismatch between trainer.logger and exp_manager occurs"""
+
+    def __init__(self, message):
+        message = (
+            message
+            + " You can disable lighning's trainer from creating a logger by passing logger=False to its constructor."
+        )
+        super().__init__(message)
 
 
 class CheckpointMisconfigurationError(NeMoBaseException):

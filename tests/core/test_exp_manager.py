@@ -76,7 +76,7 @@ class TestExpManager:
             exp_manager(test_trainer, disable_tb_logger)
 
         # Should success without error
-        exp_manager(test_trainer, {"create_checkpoint_callback": False}.update(disable_tb_logger))
+        exp_manager(test_trainer, {"create_checkpoint_callback": False, "create_tensorboard_logger": False})
 
         test_trainer_2 = pl.Trainer(checkpoint_callback=False)
         exp_manager(test_trainer_2, disable_tb_logger)  # Should success without error

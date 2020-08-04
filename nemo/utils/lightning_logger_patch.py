@@ -22,6 +22,12 @@ PATCHED = False
 
 
 def add_memory_handlers_to_pl_logger():
+    """
+    It's not strictly necessary. I just want to be able to log all messages from loggers to file even ones logged before
+    the file_handlers are attached. And we want attach file_handlers prior to creating and defining the log_dir in
+    exp_manager. So the work around is just to attach a MemoryHandler, essentially a buffer, until file_handlers are
+    attached.
+    """
     if not HANDLERS:
         HANDLERS["memory_err"] = MemoryHandler(-1)
         HANDLERS["memory_err"].addFilter(lambda record: record.levelno > _logging.INFO)
