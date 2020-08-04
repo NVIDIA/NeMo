@@ -76,8 +76,7 @@ class Logger(metaclass=Singleton):
         self.rank = 0 if is_global_rank_zero() else "UNK"
 
     def _define_logger(self, capture_warnings=True):
-        """ Creates the logger if not already created. Called in init
-        """
+        """ Creates the logger if not already created. Called in init"""
 
         # Use double-checked locking to avoid taking lock unnecessarily.
         if self._logger is not None:
@@ -127,8 +126,7 @@ class Logger(metaclass=Singleton):
         self._logger.propagate = False
 
     def remove_stream_handlers(self):
-        """ Removes screen logging output from the logger.
-        """
+        """ Removes StreamHandler that log to stdout and stderr from the logger."""
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -147,6 +145,10 @@ class Logger(metaclass=Singleton):
             pass
 
     def add_stream_handlers(self, formatter=BaseNeMoFormatter):
+        """Add StreamHandler that log to stdout and stderr to the logger. INFO and lower logs are streamed to stdout
+        while WARNING and higher are streamed to stderr. If the NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR environment
+        variable is set, all logs are sent to stderr instead.
+        """
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -171,10 +173,14 @@ class Logger(metaclass=Singleton):
             pass
 
     def reset_stream_handler(self, formatter=BaseNeMoFormatter):
+        """Removes then adds stream handlers."""
         self.remove_stream_handlers()
         self.add_stream_handlers(formatter=formatter)
 
     def add_file_handler(self, log_file):
+        """Add a FileHandler to logger that logs all messages to a file. If the logger had a MemoryHandler at
+        self._handlers["memory_all"], those buffered messages are flushed to the new file, and the MemoryHandler is
+        closed."""
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -189,6 +195,9 @@ class Logger(metaclass=Singleton):
             del self._handlers["memory_all"]
 
     def add_err_file_handler(self, log_file):
+        """Add a FileHandler to logger that logs all WARNING and higher messages to a file. If the logger had a
+        MemoryHandler at self._handlers["memory_err"], those buffered messages are flushed to the new file, and the
+        MemoryHandler is closed."""
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -210,6 +219,7 @@ class Logger(metaclass=Singleton):
             return self._logger.getEffectiveLevel()
 
     def get_verbosity(self):
+        """See getEffectiveLevel"""
         return self.getEffectiveLevel()
 
     def setLevel(self, verbosity_level):
@@ -221,12 +231,12 @@ class Logger(metaclass=Singleton):
                 handler.setLevel(verbosity_level)
 
     def set_verbosity(self, verbosity_level):
+        """See setLevel"""
         self.setLevel(verbosity_level)
 
     @contextmanager
     def patch_stderr_handler(self, stream):
-        """ Useful for unittests
-        """
+        """ Sends messages that should log to stderr to stream instead. Useful for unittests """
         if self._logger is not None:
             try:
                 old_stream = self._handlers["stream_stderr"].stream
@@ -258,8 +268,7 @@ class Logger(metaclass=Singleton):
 
     @contextmanager
     def patch_stdout_handler(self, stream):
-        """ Useful for unittests
-        """
+        """ Sends messages that should log to stdout to stream instead. Useful for unittests """
         if self._logger is not None:
             try:
                 old_stream = self._handlers["stream_stdout"].stream

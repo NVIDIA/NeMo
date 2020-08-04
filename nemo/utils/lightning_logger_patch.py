@@ -23,10 +23,9 @@ PATCHED = False
 
 def add_memory_handlers_to_pl_logger():
     """
-    It's not strictly necessary. I just want to be able to log all messages from loggers to file even ones logged before
-    the file_handlers are attached. And we want attach file_handlers prior to creating and defining the log_dir in
-    exp_manager. So the work around is just to attach a MemoryHandler, essentially a buffer, until file_handlers are
-    attached.
+    Adds two MemoryHandlers to pytorch_lightning's logger. These two handlers are essentially message buffers. This
+    function is called in nemo.utils.__init__.py. These handlers are used in add_filehandlers_to_pl_logger to flush
+    buffered messages to files.
     """
     if not HANDLERS:
         HANDLERS["memory_err"] = MemoryHandler(-1)
@@ -37,6 +36,12 @@ def add_memory_handlers_to_pl_logger():
 
 
 def add_filehandlers_to_pl_logger(all_log_file, err_log_file):
+    """
+    Adds two filehandlers to pytorch_lightning's logger. Called in nemo.utils.exp_manager(). The first filehandler
+    logs all messages to all_log_file while the second filehandler logs all WARNING and higher messages to err_log_file.
+    If "memory_err" and "memory_all" exist in HANDLERS, then those buffers are flushed to err_log_file and all_log_file
+    respectively, and then closed.
+    """
     HANDLERS["file"] = _logging.FileHandler(all_log_file)
     pl._logger.addHandler(HANDLERS["file"])
     HANDLERS["file_err"] = _logging.FileHandler(err_log_file)
