@@ -41,7 +41,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.tts.parts import glow_tts
+from nemo.collections.tts.modules import glow_tts_submodules
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AcousticEncodedRepresentation,
@@ -109,7 +109,7 @@ class TextEncoder(NeuralModule):
         nn.init.normal_(self.emb.weight, 0.0, hidden_channels ** -0.5)
 
         if prenet:
-            self.pre = glow_tts.ConvReluNorm(
+            self.pre = glow_tts_submodules.ConvReluNorm(
                 hidden_channels, hidden_channels, hidden_channels, kernel_size=5, n_layers=3, p_dropout=0.5,
             )
 
@@ -121,22 +121,22 @@ class TextEncoder(NeuralModule):
 
         for i in range(self.n_layers):
             self.attn_layers.append(
-                glow_tts.AttentionBlock(
+                glow_tts_submodules.AttentionBlock(
                     hidden_channels, hidden_channels, n_heads, window_size=window_size, p_dropout=p_dropout,
                 )
             )
-            self.norm_layers_1.append(glow_tts.LayerNorm(hidden_channels))
+            self.norm_layers_1.append(glow_tts_submodules.LayerNorm(hidden_channels))
             self.ffn_layers.append(
-                glow_tts.FeedForwardNetwork(
+                glow_tts_submodules.FeedForwardNetwork(
                     hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout
                 )
             )
-            self.norm_layers_2.append(glow_tts.LayerNorm(hidden_channels))
+            self.norm_layers_2.append(glow_tts_submodules.LayerNorm(hidden_channels))
 
         self.proj_m = nn.Conv1d(hidden_channels, out_channels, 1)
         if not mean_only:
             self.proj_s = nn.Conv1d(hidden_channels, out_channels, 1)
-        self.proj_w = glow_tts.DurationPredictor(
+        self.proj_w = glow_tts_submodules.DurationPredictor(
             hidden_channels + gin_channels, filter_channels_dp, kernel_size, p_dropout
         )
 
@@ -163,7 +163,7 @@ class TextEncoder(NeuralModule):
         x = self.emb(text) * math.sqrt(self.hidden_channels)  # [b, t, h]
 
         x = torch.transpose(x, 1, -1)  # [b, h, t]
-        x_mask = torch.unsqueeze(glow_tts.sequence_mask(text_lengths, x.size(2)), 1).to(x.dtype)
+        x_mask = torch.unsqueeze(glow_tts_submodules.sequence_mask(text_lengths, x.size(2)), 1).to(x.dtype)
 
         if self.prenet:
             x = self.pre(x, x_mask)
@@ -242,10 +242,10 @@ class FlowSpecDecoder(NeuralModule):
 
         self.flows = nn.ModuleList()
         for b in range(n_blocks):
-            self.flows.append(glow_tts.ActNorm(channels=in_channels * n_sqz))
-            self.flows.append(glow_tts.InvConvNear(channels=in_channels * n_sqz, n_split=n_split))
+            self.flows.append(glow_tts_submodules.ActNorm(channels=in_channels * n_sqz))
+            self.flows.append(glow_tts_submodules.InvConvNear(channels=in_channels * n_sqz, n_split=n_split))
             self.flows.append(
-                glow_tts.CouplingBlock(
+                glow_tts_submodules.CouplingBlock(
                     in_channels * n_sqz,
                     hidden_channels,
                     kernel_size=kernel_size,
@@ -397,7 +397,7 @@ class GlowTTSModule(NeuralModule):
 
         spect_lengths = (spect_lengths // self.decoder.n_sqz) * self.decoder.n_sqz
 
-        y_mask = torch.unsqueeze(glow_tts.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
+        y_mask = torch.unsqueeze(glow_tts_submodules.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
         z, logdet = self.decoder(spect=spect, spect_mask=y_mask, speaker_embeddings=g, reverse=False)
@@ -410,7 +410,7 @@ class GlowTTSModule(NeuralModule):
             logp4 = torch.sum(-0.5 * (x_m ** 2) * x_s_sq_r, [1]).unsqueeze(-1)  # [b, t, 1]
             logp = logp1 + logp2 + logp3 + logp4  # [b, t, t']
 
-            attn = (glow_tts.maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()).squeeze(1)
+            attn = (glow_tts_submodules.maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()).squeeze(1)
 
         y_m = torch.matmul(x_m, attn)
         y_logs = torch.matmul(x_logs, attn)
@@ -435,10 +435,10 @@ class GlowTTSModule(NeuralModule):
 
         spect_lengths = (spect_lengths // self.decoder.n_sqz) * self.decoder.n_sqz
 
-        y_mask = torch.unsqueeze(glow_tts.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
+        y_mask = torch.unsqueeze(glow_tts_submodules.sequence_mask(spect_lengths, y_max_length), 1).to(x_mask.dtype)
         attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)
 
-        attn = glow_tts.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1))
+        attn = glow_tts_submodules.generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1))
 
         y_m = torch.matmul(x_m, attn)
         y_logs = torch.matmul(x_logs, attn)
