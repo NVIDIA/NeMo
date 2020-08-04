@@ -13,7 +13,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Script responsible for generation of a JSON file containing list of modules of a given collection. """
+""" Script responsible for generation of a JSON file containing list of modules of a given collection. 
+
+Args:
+    Name of the collection (--c, --collection)
+
+Returns:
+    Format of the output JSON file (indicated  as --output_filename):
+
+[
+    {
+        "name": "CIFAR100DataLayer",
+        "id": "nemo.collections.cv.modules.data_layers.cifar100_datalayer.CIFAR100DataLayer",
+        "module_type": "datalayer",
+        "arguments": [
+            {
+                "name": "height",
+                "default": 32,
+                "annotation": "int"
+            },
+            {
+                "name": "width",
+                "default": 32,
+                "annotation": "int"
+            },
+    ...
+    },
+    {
+        "name": "CIFAR10DataLayer",
+        "id": "nemo.collections.cv.modules.data_layers.cifar10_datalayer.CIFAR10DataLayer",
+    ...
+    },
+...
+]
+"""
+
 
 import argparse
 import importlib
@@ -156,9 +190,9 @@ def import_submodules(package, recursive=True):
 def get_modules():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
     # Parse arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--collection', help='ID of the collection', type=str, required=True)
-    parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="modules.json")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--collection','-c', help='ID of the collection', type=str, required=True)
+    parser.add_argument('--output_filename','-o', help='Name of the output JSON file (DEFAULT: modules.json)', type=str, default="modules.json")
     args = parser.parse_args()
 
     # Get collections directory.

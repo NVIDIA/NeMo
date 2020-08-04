@@ -13,7 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Script responsible for generation of a JSON file with list of NeMo collections. """
+""" Script responsible for generation of a JSON file with list of NeMo collections.
+
+Returns:
+    Format of the output JSON file (indicated  as --output_filename):
+
+[
+    {
+        "name": "nlp",
+        "id": "nemo.collections.nlp",
+        "description": "Natural Language Processing collection",
+        "version": "0.11.0",
+        "author": "NVIDIA Corporation"
+    },
+...
+]
+"""
 
 import argparse
 import importlib
@@ -43,8 +58,8 @@ def process_collection(id, col):
 def get_collections():
     """ Main function generating a JSON file with list of NeMo collections. """
     # Parse arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--output_filename', help='Name of the output JSON file', type=str, default="collections.json")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output_filename', help='Name of the output JSON file (DEFAULT: collections.json)', type=str, default="collections.json")
     args = parser.parse_args()
 
     # Get collections directory.
