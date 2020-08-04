@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils import get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
@@ -167,7 +168,7 @@ class IntentSlotClassificationDataset(Dataset):
         input_file: str,
         slot_file: str,
         max_seq_length: int,
-        tokenizer: Any,
+        tokenizer: TokenizerSpec,
         num_samples: int = -1,
         pad_label: int = 128,
         ignore_extra_tokens: bool = False,

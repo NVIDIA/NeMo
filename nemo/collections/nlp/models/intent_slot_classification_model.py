@@ -231,6 +231,9 @@ class IntentSlotClassificationModel(ModelPT):
             tokenizer=self.tokenizer,
             max_seq_length=self.max_seq_length,
             num_samples=cfg.num_samples,
+            pad_label=self._cfg.pad_label,
+            ignore_extra_tokens=self._cfg.ignore_extra_tokens,
+            ignore_start_end=self._cfg.ignore_start_end,
         )
 
         return DataLoader(
@@ -244,8 +247,4 @@ class IntentSlotClassificationModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
         pass
