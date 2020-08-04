@@ -162,7 +162,7 @@ pipeline {
       }
     }
 
-    stage('Speech to Text WPE') {
+    stage('L2: Speech to Text WPE') {
         when {
             anyOf{
               branch 'candidate'
