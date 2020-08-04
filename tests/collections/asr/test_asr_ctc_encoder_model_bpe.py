@@ -48,21 +48,18 @@ def asr_model(test_data_dir):
 
     decoder = {
         'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'params': {
-            'feat_in': 1024,
-            'num_classes': -1,
-            'vocabulary': None
-        },
+        'params': {'feat_in': 1024, 'num_classes': -1, 'vocabulary': None},
     }
 
-    tokenizer = {
-        'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
-        'type': 'wpe'
-    }
+    tokenizer = {'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'}
 
     modelConfig = DictConfig(
-        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder),
-         'tokenizer': DictConfig(tokenizer)}
+        {
+            'preprocessor': DictConfig(preprocessor),
+            'encoder': DictConfig(encoder),
+            'decoder': DictConfig(decoder),
+            'tokenizer': DictConfig(tokenizer),
+        }
     )
 
     model_instance = EncDecCTCModelBPE(cfg=modelConfig)
