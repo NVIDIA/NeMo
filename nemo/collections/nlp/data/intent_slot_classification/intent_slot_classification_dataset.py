@@ -18,10 +18,10 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils import get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.utils import logging
 
 
 def get_features(

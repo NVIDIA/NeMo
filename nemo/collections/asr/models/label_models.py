@@ -42,19 +42,17 @@ class EncDecSpeakerLabelModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        if 'cls' not in cfg:
-            # This is for Jarvis service. Adding here for now to avoid effects of decorators
-            OmegaConf.set_struct(cfg, False)
-            cfg.cls = 'nemo.collections.asr.models.EncDecSpeakerLabelModel'
-            OmegaConf.set_struct(cfg, True)
+        # if 'cls' not in cfg:
+        #     # This is for Jarvis service. Adding here for now to avoid effects of decorators
+        #     OmegaConf.set_struct(cfg, False)
+        #     cfg.cls = 'nemo.collections.asr.models.EncDecSpeakerLabelModel'
+        #     OmegaConf.set_struct(cfg, True)
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
         self.loss = CELoss()
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization()
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         featurizer = WaveformFeaturizer(sample_rate=config['sample_rate'], int_values=config.get('int_values', False))
@@ -100,9 +98,6 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     @classmethod
     def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
         pass
 
     def save_to(self, save_path: str):

@@ -99,7 +99,7 @@ class WER(TensorMetric):
         self.use_cer = use_cer
         self.ctc_decode = ctc_decode
 
-    def __ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
+    def ctc_decoder_predictions_tensor(self, predictions: torch.Tensor) -> List[str]:
         """
         Decodes a sequence of labels to words
         """
@@ -136,7 +136,7 @@ class WER(TensorMetric):
                 reference = ''.join([self.labels_map[c] for c in target])
                 references.append(reference)
             if self.ctc_decode:
-                hypotheses = self.__ctc_decoder_predictions_tensor(predictions)
+                hypotheses = self.ctc_decoder_predictions_tensor(predictions)
             else:
                 raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
 

@@ -247,6 +247,10 @@ class StringLabel(StringType):
     """
 
 
+class BoolType(ElementType):
+    """Element type representing a single integer"""
+
+
 class IntType(ElementType):
     """Element type representing a single integer"""
 
@@ -257,3 +261,18 @@ class TokenIndex(IntType):
 
 class Length(IntType):
     """Type representing an element storing a "length" (e.g. length of a list)."""
+
+
+class ProbabilityDistributionSamplesType(ElementType):
+    """Element to represent tensors that meant to be sampled from a valid probability distribution
+    """
+
+
+class NormalDistributionSamplesType(ProbabilityDistributionSamplesType):
+    """Element to represent tensors that meant to be sampled from a valid normal distribution
+    """
+
+
+class SequenceToSequenceAlignmentType(ElementType):
+    """Class to represent the alignment from seq-to-seq attention outputs. Generally a mapping from endcoder time steps
+    to decoder time steps."""

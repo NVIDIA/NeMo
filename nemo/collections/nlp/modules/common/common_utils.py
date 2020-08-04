@@ -16,7 +16,6 @@
 
 from typing import List, Optional
 
-from nemo import logging
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_lm_models_list,
@@ -25,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
+from nemo.utils import logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
@@ -37,7 +37,10 @@ def get_pretrained_lm_models_list() -> List[str]:
 
 
 def get_pretrained_lm_model(
-    pretrained_model_name: str, config_file: Optional[str] = None, checkpoint_file: Optional[str] = None
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
 ):
     '''
     Returns pretrained model
@@ -50,7 +53,9 @@ def get_pretrained_lm_model(
         Pretrained model (NM)
     '''
     if pretrained_model_name in get_huggingface_lm_models_list():
-        model = get_huggingface_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
+        model = get_huggingface_lm_model(
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name
+        )
     else:
         if pretrained_model_name in get_megatron_lm_models_list():
             model, default_checkpoint_file = get_megatron_lm_model(

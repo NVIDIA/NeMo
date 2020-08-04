@@ -44,7 +44,7 @@ class ExpManagerConfig:
     wandb_project: Optional[str] = None
 
 
-def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None):
+def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
     of root_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get root_dir,
@@ -75,6 +75,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - wandb_exp (str): The name of the WandB experiment. Must be provided if set as an argument.
             - wandb_porject (str): The project name of the WandB experiments. Groups together multiple experiments in
                 the WandB dashboard. Must be provided if set as an argument.
+
+    returns:
+        directory (Path): The final logging directory where logging files are saved. Usually the concatenation of
+            root_dir, name, and version.
     """
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -215,6 +219,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     log_file = log_dir / f'log_globalrank-{global_rank}_localrank-{trainer.local_rank}.txt'
     logging.add_file_handler(log_file)
     logging.rank = global_rank
+
+    return log_dir
 
 
 def get_git_hash():

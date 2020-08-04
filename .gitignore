@@ -85,6 +85,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/sources/build
 
 # PyBuilder
 target/
@@ -150,8 +151,13 @@ dmypy.json
 cifar-10-batches-py
 *.tar.gz
 
+# Test data.
+tests/.data
+
 # outputs folder
 examples/*/outputs
+examples/*/NeMo_experiments
+examples/*/.hydra
 examples/*/wandb
 examples/*/data
 wandb

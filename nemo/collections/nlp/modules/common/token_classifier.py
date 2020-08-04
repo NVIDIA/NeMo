@@ -14,10 +14,11 @@
 
 from typing import Dict, Optional
 
+import torch
 from torch import nn as nn
 
 from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
-from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
@@ -27,7 +28,7 @@ ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 
 
 @experimental
-class TokenClassifier(NeuralModule):
+class TokenClassifier(NeuralModule, Exportable):
     """
     A module to perform token level classification tasks such as Named entity recognition.
     """
@@ -73,6 +74,7 @@ class TokenClassifier(NeuralModule):
         self.mlp = MultiLayerPerceptron(
             hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
         )
+        self._hidden_size = hidden_size
         self.dropout = nn.Dropout(dropout)
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
@@ -89,6 +91,18 @@ class TokenClassifier(NeuralModule):
         hidden_states = self.dropout(hidden_states)
         logits = self.mlp(hidden_states)
         return logits
+
+    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+        """
+        Returns a pair in input, output examples for tracing.
+        Returns:
+            A pair of (input, output) examples.
+        """
+        bs = 8
+        seq = 64
+        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
+        output_example = self.forward(hidden_states=input_example)
+        return input_example, output_example
 
     def save_to(self, save_path: str):
         """
@@ -109,7 +123,7 @@ class TokenClassifier(NeuralModule):
 
 
 @experimental
-class BertPretrainingTokenClassifier(NeuralModule):
+class BertPretrainingTokenClassifier(NeuralModule, Exportable):
     """
     A module to perform token level classification tasks for Bert pretraining.
     """
@@ -152,6 +166,7 @@ class BertPretrainingTokenClassifier(NeuralModule):
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__()
+        self._hidden_size = hidden_size
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)
@@ -179,6 +194,18 @@ class BertPretrainingTokenClassifier(NeuralModule):
         transform = self.norm(hidden_states)
         logits = self.mlp(transform)
         return logits
+
+    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+        """
+        Returns a pair in input, output examples for tracing.
+        Returns:
+            A pair of (input, output) examples.
+        """
+        bs = 8
+        seq = 64
+        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
+        output_example = self.forward(hidden_states=input_example)
+        return input_example, output_example
 
     def save_to(self, save_path: str):
         """
