@@ -79,6 +79,7 @@ from scripts.integration.get_module_ports import instantiate_module
 import nemo
 from nemo.utils import logging
 
+
 def get_module_port(module_str: str):
     """ Function returns module name and port. """
     lst = module_str.split(".")
@@ -149,7 +150,7 @@ def validate_connections():
         prod_name, prod_port = get_module_port(producer)
         cons_name, cons_port = get_module_port(consumer)
 
-        print(prod_name, " : ", prod_port,  " -> ", cons_name,  " : ", cons_port)
+        print(prod_name, " : ", prod_port, " -> ", cons_name, " : ", cons_port)
 
         # Compare definitions.
         prod_type = modules[prod_name].output_ports[prod_port]
@@ -166,7 +167,7 @@ def validate_connections():
         json.dump(output_dict, outfile)
 
     logging.info("=" * 80)
-    outputs = "".join("* {}: {}\n".format(k, v) for k,v in output_dict.items())
+    outputs = "".join("* {}: {}\n".format(k, v) for k, v in output_dict.items())
     logging.info('Finished analysis of {} connections:\n{}'.format(len(input_dict["connections"]), outputs))
     logging.info('Results exported to `{}`.'.format(output_filename))
 

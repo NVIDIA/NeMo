@@ -155,7 +155,7 @@ def process_member(module_name, obj, module_list) -> bool:
 
 
 def import_submodules(package, recursive=True):
-    """ Import all submodules of a module, recursively, including subpackages
+    """ Import all submodules of a module, recursively, including subpackages.
 
     Args:
         package: package (name or actual module) (str | module)

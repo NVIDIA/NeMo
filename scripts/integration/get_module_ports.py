@@ -43,8 +43,6 @@ Required fields: "id", "name", "arguments"
 Returns:
     Format of the output JSON file (indicated  as --output_filename):
     {
-        "name": "my_image_encoder",
-        "id": "nemo.collections.cv.modules.trainables.image_encoder.ImageEncoder",
         "input_ports": {
             "inputs": "axes: (batch, dimension:3, height:224, width:224); elements_type: ImageValue"
         },
@@ -99,7 +97,7 @@ def instantiate_module(module_dict):
 
 
 def get_module_ports():
-    """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
+    """ Main function retrieving module input/output ports. """
     # Parse filename.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -138,8 +136,8 @@ def get_module_ports():
     output_ports = {k: str(v) for k, v in module.output_ports.items()}
 
     output_dict = {
-        "name": input_dict["name"],
-        "id": input_dict["id"],
+        # "name": input_dict["name"],
+        # "id": input_dict["id"],
         "input_ports": input_ports,
         "output_ports": output_ports,
     }
