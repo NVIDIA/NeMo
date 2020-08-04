@@ -13,9 +13,9 @@
 # limitations under the License.
 import copy
 import json
-from math import ceil
 import os
 import tempfile
+from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -61,8 +61,8 @@ class EncDecCTCModel(ASRModel):
         self.global_rank = 0
         self.world_size = 0
         if trainer is not None:
-            self.global_rank = (trainer.node_rank * trainer.num_processes) + trainer.local_rank
-            self.world_size = trainer.num_nodes * trainer.num_processes
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
