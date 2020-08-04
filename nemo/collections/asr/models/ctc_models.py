@@ -11,8 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Dict, Optional, Union
+import copy
+import json
+import os
+import tempfile
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -22,10 +25,10 @@ from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -33,10 +36,16 @@ __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 @experimental
 class EncDecCTCModel(ASRModel):
-    """Encoder decoder CTC-based models."""
+    """Base class for encoder decoder CTC-based models."""
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
@@ -56,27 +65,105 @@ class EncDecCTCModel(ASRModel):
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization()
+
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-    def transcribe(self, path2audio_file: str) -> str:
-        pass
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+        """
+        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        Args:
+
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+        Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+        Bigger will result in better throughput performance but would use more memory.
+
+        Returns:
+
+            A list of transcriptions in the same order as paths2audio_files
+        """
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            return {}
+        # We will store transcriptions here
+        hypotheses = []
+        # Model's mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                    for audio_file in paths2audio_files:
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        fp.write(json.dumps(entry) + '\n')
+
+                dl_config = {
+                    'manifest_filepath': os.path.join(tmpdir, 'manifest.json'),
+                    'sample_rate': self.preprocessor._sample_rate,
+                    'labels': self.decoder.vocabulary,
+                    'batch_size': min(batch_size, len(paths2audio_files)),
+                    'trim_silence': True,
+                    'shuffle': False,
+                }
+                temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+                for test_batch in temporary_datalayer:
+                    _, _, greedy_predictions = self.forward(
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    )
+                    hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                    del test_batch
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return hypotheses
+
+    def change_vocabulary(self, new_vocabulary: List[str]):
+        """
+        Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
+        use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
+        model to learn capitalization, punctuation and/or special characters.
+
+        If new_vocabulary == self.decoder.vocabulary then nothing will be changed.
+
+        Args:
+
+            new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
+            this is target alphabet.
+
+        Returns: None
+
+        """
+        if self.decoder.vocabulary == new_vocabulary:
+            logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+        else:
+            if new_vocabulary is None or len(new_vocabulary) == 0:
+                raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            new_decoder_config['params']['vocabulary'] = new_vocabulary
+            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            del self.decoder
+            self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
+
+    @staticmethod
+    def _setup_dataloader_from_config(config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
-        )
         dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
-            featurizer=featurizer,
+            sample_rate=config['sample_rate'],
+            int_values=config.get('int_values', False),
+            augmentor=augmentor,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
             max_utts=config.get('max_utts', 0),
@@ -112,9 +199,6 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
-
-    def export(self, **kwargs):
-        pass
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -165,7 +249,7 @@ class EncDecCTCModel(ASRModel):
         }
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len

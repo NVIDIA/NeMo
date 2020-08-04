@@ -15,7 +15,7 @@
 import pytest
 import torch
 
-from nemo.core import NeuralModule, Typing, typecheck
+from nemo.core import Typing, typecheck
 from nemo.core.neural_types import *
 
 
@@ -287,7 +287,7 @@ class TestNeuralTypeCheckSystem:
         assert result.sum() == torch.tensor(10.0)
         assert hasattr(result, 'neural_type') is False
 
-        result2 = obj(x=torch.zeros(10), y=torch.full([10], fill_value=5))
+        result2 = obj(x=torch.zeros(10), y=torch.full([10], fill_value=5, dtype=torch.int32))
 
         assert result2.sum() == torch.tensor(10 * 5)
         assert hasattr(result, 'neural_type') is False
@@ -456,7 +456,7 @@ class TestNeuralTypeCheckSystem:
         obj = AdaptiveTypeCheck()
 
         x = torch.zeros(10)
-        y = torch.full([10], fill_value=5)
+        y = torch.full([10], fill_value=5, dtype=torch.int32)
 
         obj.mode = 'train'
         x = obj(x=x)
@@ -600,7 +600,7 @@ class TestNeuralTypeCheckSystem:
         obj = AdaptiveTypeCheck()
 
         x = torch.zeros(10)
-        y = torch.full([10], fill_value=5)
+        y = torch.full([10], fill_value=5, dtype=torch.int32)
 
         # infer mode
         y = obj(y=y)
@@ -645,21 +645,17 @@ class TestNeuralTypeCheckSystem:
                 return x
 
         # Disable typecheck tests
-        typecheck.set_typecheck_enabled(enabled=False)
+        with typecheck.disable_checks():
+            obj = InputOutputTypes()
 
-        obj = InputOutputTypes()
+            # Execute function without kwarg
+            result = obj(torch.zeros(10))
 
-        # Execute function without kwarg
-        result = obj(torch.zeros(10))
+            assert result.sum() == torch.tensor(10.0)
+            assert hasattr(result, 'neural_type') is False
 
-        assert result.sum() == torch.tensor(10.0)
-        assert hasattr(result, 'neural_type') is False
-
-        # Test passing wrong key for input
-        _ = obj(a=torch.zeros(10), x=torch.zeros(5))
-
-        # Re-enable type checking
-        typecheck.set_typecheck_enabled(enabled=True)
+            # Test passing wrong key for input
+            _ = obj(a=torch.zeros(10), x=torch.zeros(5))
 
     @pytest.mark.pleasefixme
     @pytest.mark.unit

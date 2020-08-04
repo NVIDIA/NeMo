@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import ABC, abstractmethod
+from typing import Dict, List
 
 import torch
 
@@ -22,18 +23,18 @@ __all__ = ['ASRModel']
 
 class ASRModel(ModelPT, ABC):
     @abstractmethod
-    def transcribe(self, path2audio_file: str) -> str:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         """
-        Takes path to audio file and returns text transcription
+        Takes paths to audio files and returns text transcription
         Args:
-            path2audio_file: path to audio fragment to be transcribed
+            paths2audio_files: paths to audio fragment to be transcribed
 
         Returns:
-            transcription text
+            transcription texts
         """
         pass
 
-    def validation_epoch_end(self, outputs):
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()

@@ -18,7 +18,6 @@ from abc import ABC, abstractmethod
 import torch
 from packaging import version
 
-from nemo import logging
 from nemo.collections.asr.parts.features import FilterbankFeatures
 from nemo.collections.asr.parts.spectr_augment import SpecAugment, SpecCutout
 from nemo.core.classes import NeuralModule, typecheck
@@ -30,6 +29,7 @@ from nemo.core.neural_types import (
     NeuralType,
     SpectrogramType,
 )
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 try:
@@ -76,8 +76,7 @@ class AudioPreprocessor(NeuralModule, ABC):
     @typecheck()
     @torch.no_grad()
     def forward(self, input_signal, length):
-        processed_signal = self.get_features(input_signal, length)
-        processed_length = self.get_seq_len(length.float())
+        processed_signal, processed_length = self.get_features(input_signal, length)
 
         return processed_signal, processed_length
 
@@ -85,10 +84,6 @@ class AudioPreprocessor(NeuralModule, ABC):
     def get_features(self, input_signal, length):
         # Called by forward(). Subclasses should implement this.
         pass
-
-    def get_seq_len(self, length):
-        # Called by forward()
-        return torch.ceil(length / self.hop_length).to(dtype=torch.long)
 
 
 class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
@@ -247,9 +242,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal, length)
 
-    def get_seq_len(self, seq_len):
-        return self.featurizer.get_seq_len(seq_len)
-
     @property
     def filter_banks(self):
         return self.featurizer.filter_banks
@@ -388,7 +380,9 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         )
 
     def get_features(self, input_signal, length):
-        return self.featurizer(input_signal)
+        features = self.featurizer(input_signal)
+        seq_len = torch.ceil(length.to(torch.float32) / self.hop_length).to(dtype=torch.long)
+        return features, seq_len
 
 
 class SpectrogramAugmentation(NeuralModule):

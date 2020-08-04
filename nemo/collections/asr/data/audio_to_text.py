@@ -15,7 +15,8 @@ from typing import Callable, Dict, List, Optional, Union
 
 import torch
 
-from nemo.collections.asr.parts import collections, features, parsers
+from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import *
 from nemo.utils.decorators import experimental
@@ -63,26 +64,23 @@ def _speech_collate_fn(batch, pad_id):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-class _AudioDataset(Dataset):
+class _AudioTextDataset(Dataset):
     """
-    Dataset that loads tensors via a json file containing paths to audio
-    files, transcripts, and durations (in seconds). Each new line is a
-    different sample. Example below:
-    {"audio_filepath": "/path/to/audio.wav", "text_filepath":
-    "/path/to/audio.txt", "duration": 23.147}
+    Dataset that loads tensors via a json file containing paths to audio files, transcripts, and durations (in seconds).
+    Each new line is a different sample. Example below:
+    {"audio_filepath": "/path/to/audio.wav", "text_filepath": "/path/to/audio.txt", "duration": 23.147}
     ...
-    {"audio_filepath": "/path/to/audio.wav", "text": "the
-    transcription", "offset": 301.75, "duration": 0.82, "utt":
+    {"audio_filepath": "/path/to/audio.wav", "text": "the transcription", "offset": 301.75, "duration": 0.82, "utt":
     "utterance_id", "ctm_utt": "en_4156", "side": "A"}
     Args:
-        manifest_filepath: Path to manifest json as described above. Can
-            be comma-separated paths.
+        manifest_filepath: Path to manifest json as described above. Can be comma-separated paths.
         labels: String containing all the possible characters to map to
-        featurizer: Initialized featurizer class that converts paths of
-            audio to feature tensors
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor object used to augment loaded
+            audio
         max_duration: If audio exceeds this length, do not include in dataset
-        min_duration: If audio is less than this length, do not include
-            in dataset
+        min_duration: If audio is less than this length, do not include in dataset
         max_utts: Limit number of utterances
         blank_index: blank character index, default = -1
         unk_index: unk_character index, default = -1
@@ -93,11 +91,29 @@ class _AudioDataset(Dataset):
         add_misc: True if add additional info dict.
     """
 
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)  # TODO: self._sample_rate is not defined anywhere
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'transcripts': NeuralType(('B', 'T'), LabelsType()),
+            'transcript_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
     def __init__(
         self,
         manifest_filepath: str,
-        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
         parser: Union[str, Callable],
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -117,7 +133,7 @@ class _AudioDataset(Dataset):
             max_number=max_utts,
         )
 
-        self.featurizer = featurizer
+        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
         self.eos_id = eos_id
         self.bos_id = bos_id
@@ -174,7 +190,7 @@ class _AudioDataset(Dataset):
 
 
 @experimental
-class AudioToCharDataset(_AudioDataset):
+class AudioToCharDataset(_AudioTextDataset):
     """
     Dataset that loads tensors via a json file containing paths to audio
     files, transcripts, and durations (in seconds). Each new line is a
@@ -224,7 +240,9 @@ class AudioToCharDataset(_AudioDataset):
         self,
         manifest_filepath: str,
         labels: List[str],
-        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
         max_utts: int = 0,
@@ -247,8 +265,10 @@ class AudioToCharDataset(_AudioDataset):
 
         super().__init__(
             manifest_filepath=manifest_filepath,
-            featurizer=featurizer,
             parser=parser,
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
             max_duration=max_duration,
             min_duration=min_duration,
             max_utts=max_utts,
@@ -262,7 +282,7 @@ class AudioToCharDataset(_AudioDataset):
 
 
 @experimental
-class AudioToBPEDataset(_AudioDataset):
+class AudioToBPEDataset(_AudioTextDataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports.
@@ -283,7 +303,9 @@ class AudioToBPEDataset(_AudioDataset):
         self,
         manifest_filepath: str,
         tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
-        featurizer: Union[features.WaveformFeaturizer, features.FilterbankFeatures],
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -316,8 +338,10 @@ class AudioToBPEDataset(_AudioDataset):
 
         super().__init__(
             manifest_filepath=manifest_filepath,
-            featurizer=featurizer,
             parser=TokenizerWrapper(tokenizer),
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
             max_duration=max_duration,
             min_duration=min_duration,
             max_utts=max_utts,

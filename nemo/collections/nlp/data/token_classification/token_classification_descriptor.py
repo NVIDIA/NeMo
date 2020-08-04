@@ -15,12 +15,12 @@
 import os
 from typing import List
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights,
     get_freq_weights,
     get_label_stats,
 )
+from nemo.utils import logging
 
 __all__ = ['TokenClassificationDataDesc']
 
@@ -60,7 +60,8 @@ class TokenClassificationDataDesc:
                 self.pad_label = pad_label
                 self.label_ids = label_ids
                 logging.info(f'Labels: {label_ids}')
-                out = open(os.path.join(data_dir, 'label_ids.csv'), 'w')
+                self.label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
+                out = open(self.label_ids_filename, 'w')
                 labels, _ = zip(*sorted(self.label_ids.items(), key=lambda x: x[1]))
                 out.write('\n'.join(labels))
                 logging.info(f'Labels mapping saved to : {out.name}')

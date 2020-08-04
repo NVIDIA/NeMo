@@ -20,7 +20,7 @@ import tarfile
 import tempfile
 from abc import abstractmethod
 from os import path
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import hydra
 import torch
@@ -30,7 +30,7 @@ from pytorch_lightning import LightningModule, Trainer
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.optim import prepare_lr_scheduler
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 __all__ = ['ModelPT']
 
@@ -46,13 +46,15 @@ class ModelPT(LightningModule, Model):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Base class from which all NeMo models should inherit
+
         Args:
             cfg (DictConfig):  configuration object.
                 The cfg object should have (optionally) the following sub-configs:
-                    * train_ds - to instantiate training dataset
-                    * validation_ds - to instantiate validation dataset
-                    * test_ds - to instantiate testing dataset
-                    * optim - to instantiate optimizer with learning rate scheduler
+
+                * train_ds - to instantiate training dataset
+                * validation_ds - to instantiate validation dataset
+                * test_ds - to instantiate testing dataset
+                * optim - to instantiate optimizer with learning rate scheduler
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
@@ -77,13 +79,33 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self._trainer = trainer
 
-        if self._cfg is not None:
+        if self._cfg is not None:  # TODO: This check is redundant since we know cfg is an instance of DictConfig
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self.setup_training_data(self._cfg.train_ds)
+
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_validation_data(self._cfg.validation_ds)
+                # Set some placeholder overriden by helper method
+                self._validation_loss_idx = 0
+                self._validation_names = None
+                self._validation_dl = None  # type: torch.utils.data.DataLoader
+
+                model_utils.resolve_validation_dataloaders(model=self)
+
+                if self._validation_names is None:
+                    if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
+                        self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_test_data(self._cfg.test_ds)
+                # Set some placeholder overriden by helper method
+                self._test_loss_idx = 0
+                self._test_names = None
+                self._test_dl = None  # type: torch.utils.data.DataLoader
+
+                model_utils.resolve_test_dataloaders(model=self)
+
+                if self._test_names is None:
+                    if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
+                        self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -169,6 +191,7 @@ class ModelPT(LightningModule, Model):
             config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
             model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
             conf = OmegaConf.load(config_yaml)
+            OmegaConf.set_struct(conf, True)
             instance = cls.from_config_dict(config=conf)
             instance.load_state_dict(torch.load(model_weights))
         return instance
@@ -177,6 +200,7 @@ class ModelPT(LightningModule, Model):
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """
         Setups data loader to be used in training
+
         Args:
             train_data_layer_config: training data layer parameters.
         Returns:
@@ -189,6 +213,7 @@ class ModelPT(LightningModule, Model):
         """
         (Optionally) Setups data loader to be used in validation
         Args:
+
             val_data_layer_config: validation data layer parameters.
         Returns:
 
@@ -198,6 +223,7 @@ class ModelPT(LightningModule, Model):
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in test
+
         Args:
             test_data_layer_config: test data layer parameters.
         Returns:
@@ -210,16 +236,14 @@ class ModelPT(LightningModule, Model):
         Prepares an optimizer from a string name and its optional config parameters.
 
         Args:
-            optim_config: a dictionary containing the following keys.
-                - "lr": mandatory key for learning rate. Will raise ValueError
-                if not provided.
+            optim_config: A dictionary containing the following keys:
 
-                - "optimizer": string name pointing to one of the available
-                optimizers in the registry. If not provided, defaults to "adam".
-
-                - "opt_args": Optional list of strings, in the format "arg_name=arg_value".
-                The list of "arg_value" will be parsed and a dictionary of optimizer
-                kwargs will be built and supplied to instantiate the optimizer.
+                * "lr": mandatory key for learning rate. Will raise ValueError if not provided.
+                * "optimizer": string name pointing to one of the available optimizers in the registry. \
+                If not provided, defaults to "adam".
+                * "opt_args": Optional list of strings, in the format "arg_name=arg_value". \
+                The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
+                will be built and supplied to instantiate the optimizer.
         """
         # If config was not explicitly passed to us
         if optim_config is None:
@@ -346,6 +370,8 @@ class ModelPT(LightningModule, Model):
         return self._optimizer, self._scheduler
 
     def configure_optimizers(self):
+        self.setup_optimization()
+
         if self._scheduler is None:
             return self._optimizer
         else:
@@ -371,6 +397,255 @@ class ModelPT(LightningModule, Model):
 
     def test_step(self, batch, batch_ix):
         pass
+
+    def validation_epoch_end(
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """
+        Default DataLoader for Validation set which automatically supports multiple data loaders
+        via `multi_validation_epoch_end`.
+
+        If multi dataset support is not required, override this method entirely in base class.
+        In such a case, there is no need to implement `multi_validation_epoch_end` either.
+
+        Note:
+            If more than one data loader exists, and they all provide `val_loss`,
+            only the `val_loss` of the first data loader will be used by default.
+            This default can be changed by passing the special key `val_loss_idx: int`
+            inside the `validation_ds` config.
+
+        Args:
+            outputs: Single or nested list of tensor outputs from one or more data loaders.
+
+        Returns:
+            A dictionary containing the union of all items from individual data_loaders,
+            along with merged logs from all data loaders.
+        """
+        # Case where we dont provide data loaders
+        if outputs is not None and len(outputs) == 0:
+            return
+
+        # Case where we provide exactly 1 data loader
+        if type(outputs[0]) == dict:
+            return self.multi_validation_epoch_end(outputs, dataloader_idx=0)
+
+        else:  # Case where we provide more than 1 data loader
+            output_dict = {'log': {}}
+
+            # The output is a list of list of dicts, outer list corresponds to dataloader idx
+            for dataloader_idx, val_outputs in enumerate(outputs):
+                # Get prefix and dispatch call to multi epoch end
+                dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
+                dataloader_logs = self.multi_validation_epoch_end(val_outputs, dataloader_idx=dataloader_idx)
+
+                # If result was not provided, generate empty dict
+                dataloader_logs = dataloader_logs or {}
+
+                # Perform `val_loss` resolution first (if provided outside logs)
+                if 'val_loss' in dataloader_logs:
+                    if 'val_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                        output_dict['val_loss'] = dataloader_logs['val_loss']
+
+                # For every item in the result dictionary
+                for k, v in dataloader_logs.items():
+                    # If the key is `log`
+                    if k == 'log':
+                        # Parse every element of the log, and attach the prefix name of the data loader
+                        log_dict = {}
+
+                        for k_log, v_log in v.items():
+                            # If we are logging the loss, but dont provide it at result level,
+                            # store it twice - once in log and once in result level.
+                            # Also mark log with prefix name to avoid log level clash with other data loaders
+                            if (
+                                k_log == 'val_loss'
+                                and 'val_loss' not in output_dict['log']
+                                and dataloader_idx == self._validation_loss_idx
+                            ):
+                                new_k_log = 'val_loss'
+
+                                # Also insert duplicate key with prefix for ease of comparison / avoid name clash
+                                log_dict[dataloader_prefix + k_log] = v_log
+
+                            elif k_log == 'val_loss' and dataloader_idx != self._validation_loss_idx:
+                                # replace all other "val_loss" with <prefix> + loss
+                                # this avoid duplication of the word <prefix> + "val_loss" which causes confusion
+                                new_k_log = dataloader_prefix + 'loss'
+
+                            else:
+                                # Simply prepend prefix to key and save
+                                new_k_log = dataloader_prefix + k_log
+
+                            # Store log value
+                            log_dict[new_k_log] = v_log
+
+                        # Update log storage of individual data loader
+                        output_logs = output_dict['log']
+                        output_logs.update(log_dict)
+
+                        # Update global log storage
+                        output_dict['log'] = output_logs
+
+                    else:
+                        # If any values are stored outside 'log', simply prefix name and store
+                        new_k = dataloader_prefix + k
+                        output_dict[new_k] = v
+
+            return output_dict
+
+    def test_epoch_end(
+        self, outputs: Union[List[Dict[str, torch.Tensor]], List[List[Dict[str, torch.Tensor]]]]
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        """
+        Default DataLoader for Test set which automatically supports multiple data loaders
+        via `multi_test_epoch_end`.
+
+        If multi dataset support is not required, override this method entirely in base class.
+        In such a case, there is no need to implement `multi_test_epoch_end` either.
+
+        Note:
+            If more than one data loader exists, and they all provide `test_loss`,
+            only the `test_loss` of the first data loader will be used by default.
+            This default can be changed by passing the special key `test_loss_idx: int`
+            inside the `test_ds` config.
+
+        Args:
+            outputs: Single or nested list of tensor outputs from one or more data loaders.
+
+        Returns:
+            A dictionary containing the union of all items from individual data_loaders,
+            along with merged logs from all data loaders.
+        """
+        # Case where we dont provide data loaders
+        if outputs is not None and len(outputs) == 0:
+            return
+
+        # Case where we provide exactly 1 data loader
+        if type(outputs[0]) == dict:
+            return self.multi_test_epoch_end(outputs, dataloader_idx=0)
+
+        else:  # Case where we provide more than 1 data loader
+            output_dict = {'log': {}}
+
+            # The output is a list of list of dicts, outer list corresponds to dataloader idx
+            for dataloader_idx, test_outputs in enumerate(outputs):
+                # Get prefix and dispatch call to multi epoch end
+                dataloader_prefix = self.get_test_dataloader_prefix(dataloader_idx)
+                dataloader_logs = self.multi_test_epoch_end(test_outputs, dataloader_idx=dataloader_idx)
+
+                # If result was not provided, generate empty dict
+                dataloader_logs = dataloader_logs or {}
+
+                # Perform `test_loss` resolution first (if provided outside logs)
+                if 'test_loss' in dataloader_logs:
+                    if 'test_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                        output_dict['test_loss'] = dataloader_logs['test_loss']
+
+                # For every item in the result dictionary
+                for k, v in dataloader_logs.items():
+                    # If the key is `log`
+                    if k == 'log':
+                        # Parse every element of the log, and attach the prefix name of the data loader
+                        log_dict = {}
+                        for k_log, v_log in v.items():
+                            # If we are logging the loss, but dont provide it at result level,
+                            # store it twice - once in log and once in result level.
+                            # Also mark log with prefix name to avoid log level clash with other data loaders
+                            if (
+                                k_log == 'test_loss'
+                                and 'test_loss' not in output_dict['log']
+                                and dataloader_idx == self._test_loss_idx
+                            ):
+                                new_k_log = 'test_loss'
+
+                                # Also insert duplicate key with prefix for ease of comparison
+                                log_dict[dataloader_prefix + k_log] = v_log
+
+                            elif k_log == 'test_loss' and dataloader_idx != self._test_loss_idx:
+                                # replace all other "test_loss" with <prefix> + loss
+                                # this avoid duplication of the word <prefix> + "test_loss" which causes confusion
+                                new_k_log = dataloader_prefix + 'loss'
+
+                            else:
+                                # Simply prepend prefix to key and save
+                                new_k_log = dataloader_prefix + k_log
+
+                            log_dict[new_k_log] = v_log
+
+                        # Update log storage of individual data loader
+                        output_logs = output_dict.get('log', {})
+                        output_logs.update(log_dict)
+
+                        # Update global log storage
+                        output_dict['log'] = output_logs
+
+                    else:
+                        # If any values are stored outside 'log', simply prefix name and store
+                        new_k = dataloader_prefix + k
+                        output_dict[new_k] = v
+
+            return output_dict
+
+    def multi_validation_epoch_end(
+        self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        logging.warning(
+            "Multi data loader support has been enabled, but "
+            "`multi_validation_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
+            "If you require multi data loader support for validation sets, please override this method.\n"
+            "If you do not require multi data loader support, please instead override "
+            "`validation_epoch_end(outputs)."
+        )
+
+    def multi_test_epoch_end(
+        self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0
+    ) -> Optional[Dict[str, Dict[str, torch.Tensor]]]:
+        logging.warning(
+            "Multi data loader support has been enabled, but "
+            "`multi_test_epoch_end(outputs, dataloader_idx) has not been implemented.\n"
+            "If you require multi data loader support for validation sets, please override this method.\n"
+            "If you do not require multi data loader support, please instead override "
+            "`test_epoch_end(outputs)."
+        )
+
+    def get_validation_dataloader_prefix(self, dataloader_idx=0):
+        return self._validation_names[dataloader_idx]
+
+    def get_test_dataloader_prefix(self, dataloader_idx=0):
+        return self._test_names[dataloader_idx]
+
+    def prepare_test(self, trainer: 'Trainer') -> bool:
+        """
+        Helper method to check whether the model can safely be tested
+        on a dataset after training (or loading a checkpoint).
+
+        # Usage:
+        trainer = Trainer()
+        if model.prepare_test(trainer):
+            trainer.test(model)
+
+        Returns:
+            bool which declares the model safe to test. Provides warnings if it has to
+            return False to guide the user.
+        """
+        if not hasattr(self._cfg, 'test_ds'):
+            logging.info("No `test_ds` config found within the manifest.")
+            return False
+
+        # Replace ddp multi-gpu until PTL has a fix
+        DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
+                    "with single GPU and no DDP.\n"
+                    "Following pattern should be used: \n"
+                    "trainer = Trainer()\n"
+                    "if model.prepare_test(trainer):\n"
+                    "  trainer.test(model)\n\n"""
+
+        if trainer is not None:
+            if trainer.num_gpus > 1:
+                logging.warning(DDP_WARN)
+                return False
+
+        return True
 
     @property
     def num_weights(self):

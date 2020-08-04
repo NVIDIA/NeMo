@@ -7,9 +7,9 @@ import torch
 import torch.nn as nn
 from torch_stft import STFT
 
-from nemo import logging
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.utils import logging
 
 CONSTANT = 1e-5
 
@@ -310,4 +310,4 @@ class FilterbankFeatures(nn.Module):
             pad_amt = x.size(-1) % pad_to
             if pad_amt != 0:
                 x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
-        return x
+        return x, seq_len
