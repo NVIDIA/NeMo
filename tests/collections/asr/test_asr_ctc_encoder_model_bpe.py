@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 
 import pytest
 from omegaconf import DictConfig
@@ -20,7 +21,7 @@ from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 
 
 @pytest.fixture()
-def asr_model():
+def asr_model(test_data_dir):
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
     encoder = {
         'cls': 'nemo.collections.asr.modules.ConvASREncoder',
@@ -55,7 +56,7 @@ def asr_model():
     }
 
     tokenizer = {
-        'dir': '',
+        'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
         'type': 'wpe'
     }
 
