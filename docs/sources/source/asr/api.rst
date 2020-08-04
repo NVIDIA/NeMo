@@ -7,7 +7,7 @@ Model Classes
 
 .. autoclass:: nemo.collections.asr.models.EncDecCTCModel
     :show-inheritance:
-    :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
+    :members: transcribe, change_vocabulary, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
 
 
 .. autoclass:: nemo.collections.asr.models.EncDecClassificationModel

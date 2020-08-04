@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import json
+import os
+import tempfile
 from typing import Dict, List, Optional, Union
 
 import torch
@@ -24,7 +27,7 @@ from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -33,10 +36,16 @@ __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 @experimental
 class EncDecCTCModel(ASRModel):
-    """Encoder decoder CTC-based models."""
+    """Base class for encoder decoder CTC-based models."""
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
@@ -60,7 +69,75 @@ class EncDecCTCModel(ASRModel):
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+        """
+        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
+
+        Args:
+
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+        Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+        Bigger will result in better throughput performance but would use more memory.
+
+        Returns:
+
+            A list of transcriptions in the same order as paths2audio_files
+        """
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            return {}
+        # We will store transcriptions here
+        hypotheses = []
+        # Model's mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                    for audio_file in paths2audio_files:
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        fp.write(json.dumps(entry) + '\n')
+
+                dl_config = {
+                    'manifest_filepath': os.path.join(tmpdir, 'manifest.json'),
+                    'sample_rate': self.preprocessor._sample_rate,
+                    'labels': self.decoder.vocabulary,
+                    'batch_size': min(batch_size, len(paths2audio_files)),
+                    'trim_silence': True,
+                    'shuffle': False,
+                }
+                temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+                for test_batch in temporary_datalayer:
+                    _, _, greedy_predictions = self.forward(
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    )
+                    hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                    del test_batch
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return hypotheses
+
     def change_vocabulary(self, new_vocabulary: List[str]):
+        """
+        Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
+        use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
+        model to learn capitalization, punctuation and/or special characters.
+
+        If new_vocabulary == self.decoder.vocabulary then nothing will be changed.
+
+        Args:
+
+            new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
+            this is target alphabet.
+
+        Returns: None
+
+        """
         if self.decoder.vocabulary == new_vocabulary:
             logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
         else:
@@ -73,10 +150,6 @@ class EncDecCTCModel(ASRModel):
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
-
-    def transcribe(self, path2audio_file: str) -> str:
-        logging.warning("This method is not implemented yet.")
-        pass
 
     @staticmethod
     def _setup_dataloader_from_config(config: Optional[Dict]):
