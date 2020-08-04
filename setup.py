@@ -28,8 +28,6 @@ from itertools import chain
 
 import setuptools
 
-import scripts
-
 
 def is_build_action():
     if len(sys.argv) <= 1:

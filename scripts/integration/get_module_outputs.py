@@ -51,7 +51,6 @@ Returns:
 """
 
 import argparse
-import importlib
 import json
 
 import torch

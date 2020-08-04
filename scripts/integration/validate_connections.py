@@ -71,7 +71,6 @@ Returns:
 """
 
 import argparse
-import importlib
 import json
 
 from scripts.integration.get_module_ports import instantiate_module
