@@ -29,11 +29,11 @@ from typing import Any, Dict, Optional
 import h5py
 import numpy as np
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.utils import logging
 
 __all__ = ['TextClassificationDataset']
 
@@ -61,7 +61,7 @@ class TextClassificationDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'label': NeuralType(('B', 'T'), LabelsType()),
+            'label': NeuralType(('B'), LabelsType()),
         }
 
     def __init__(
@@ -226,7 +226,7 @@ class TextClassificationDataset(Dataset):
 
     def load_cached_features(self, cached_features_file):
         f = h5py.File(cached_features_file, 'r')
-        keys = ['input_ids', 'segment_ids', 'input_masks', 'labels']
+        keys = ['input_ids', 'segment_ids', 'input_mask', 'label']
         self.features = [np.asarray(f[key], dtype=np.long) for key in keys]
         f.close()
         logging.info(f'features restored from {cached_features_file}')

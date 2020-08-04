@@ -16,7 +16,7 @@ from typing import Optional, Tuple
 
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
-from nemo.core.neural_types.elements import *
+from nemo.core.neural_types.elements import ElementType, VoidType
 
 __all__ = [
     'NeuralType',

@@ -19,7 +19,6 @@ from typing import Dict, Optional
 import torch
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 
-from nemo import logging
 from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
@@ -27,6 +26,7 @@ from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common import tokenizers
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModelBPE', 'JasperNetBPE', 'QuartzNetBPE']

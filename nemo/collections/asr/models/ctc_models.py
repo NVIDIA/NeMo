@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Dict, Optional, Union
+import copy
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
@@ -22,10 +22,10 @@ from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -56,27 +56,41 @@ class EncDecCTCModel(ASRModel):
             self.spec_augmentation = EncDecCTCModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization()
+
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
+    def change_vocabulary(self, new_vocabulary: List[str]):
+        if self.decoder.vocabulary == new_vocabulary:
+            logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+        else:
+            if new_vocabulary is None or len(new_vocabulary) == 0:
+                raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            new_decoder_config['params']['vocabulary'] = new_vocabulary
+            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            del self.decoder
+            self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
+
     def transcribe(self, path2audio_file: str) -> str:
+        logging.warning("This method is not implemented yet.")
         pass
 
-    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+    @staticmethod
+    def _setup_dataloader_from_config(config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
 
-        featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
-        )
         dataset = AudioToCharDataset(
             manifest_filepath=config['manifest_filepath'],
             labels=config['labels'],
-            featurizer=featurizer,
+            sample_rate=config['sample_rate'],
+            int_values=config.get('int_values', False),
+            augmentor=augmentor,
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
             max_utts=config.get('max_utts', 0),
@@ -112,9 +126,6 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
-
-    def export(self, **kwargs):
-        pass
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -165,7 +176,7 @@ class EncDecCTCModel(ASRModel):
         }
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         audio_signal, audio_signal_len, transcript, transcript_len = batch
         log_probs, encoded_len, predictions = self.forward(
             input_signal=audio_signal, input_signal_length=audio_signal_len

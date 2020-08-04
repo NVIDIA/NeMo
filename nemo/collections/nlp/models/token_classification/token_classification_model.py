@@ -32,11 +32,11 @@ from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils.decorators import experimental
 
-__all__ = ['NERModel']
+__all__ = ['TokenClassificationModel']
 
 
 @experimental
-class NERModel(ModelPT):
+class TokenClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -51,9 +51,11 @@ class NERModel(ModelPT):
         """
 
         self.data_desc = TokenClassificationDataDesc(
-            data_dir=cfg.data_dir, modes=["train", "test", "dev"], pad_label=cfg.pad_label
+            data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
         )
-        self.data_dir = cfg.data_dir
+
+        self.data_dir = cfg.dataset.data_dir
+        self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
@@ -86,7 +88,7 @@ class NERModel(ModelPT):
             use_transformer_init=self._cfg.head.use_transformer_init,
         )
 
-        if self._cfg.class_balancing == 'weighted_loss':
+        if self._cfg.dataset.class_balancing == 'weighted_loss':
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
         else:
@@ -96,8 +98,6 @@ class NERModel(ModelPT):
         self.classification_report = ClassificationReport(
             self.data_desc.num_classes, label_ids=self.data_desc.label_ids
         )
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(self._cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -184,14 +184,14 @@ class NERModel(ModelPT):
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=label_file,
-            max_seq_length=self._cfg.max_seq_length,
+            max_seq_length=self._cfg.dataset.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
             pad_label=self.data_desc.pad_label,
             label_ids=self.data_desc.label_ids,
-            ignore_extra_tokens=self._cfg.ignore_extra_tokens,
-            ignore_start_end=self._cfg.ignore_start_end,
-            use_cache=self._cfg.use_cache,
+            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
+            ignore_start_end=self._cfg.dataset.ignore_start_end,
+            use_cache=self._cfg.dataset.use_cache,
         )
 
         return torch.utils.data.DataLoader(
@@ -206,18 +206,4 @@ class NERModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass

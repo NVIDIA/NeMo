@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from typing import Dict, Optional
 
 import torch
 
 from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['BertModule']
@@ -49,8 +51,23 @@ class BertModule(NeuralModule):
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
-        state_dict = torch.load(restore_path)
-        self.load_state_dict(state_dict)
+        logging.info(f"restore from {restore_path}")
+        pretrained_dict = torch.load(restore_path)
+
+        # backward compatibility with NeMo0.11
+        if "state_dict" in pretrained_dict.keys():
+            pretrained_dict = pretrained_dict["state_dict"]
+
+        # remove prefix from pretrained dict
+        m = re.match("^bert.*?\.", list(pretrained_dict.keys())[0])
+        if m:
+            prefix = m.group(0)
+            pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
+        model_dict = self.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        assert len(pretrained_dict) == len(model_dict)
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict)
 
     @property
     def hidden_size(self):
@@ -61,4 +78,4 @@ class BertModule(NeuralModule):
                 Hidden size
             Default implementation relay to BERT config property..
         """
-        return self.config._hidden_size
+        return self.config.hidden_size
