@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Dict, Optional
 
 import torch
@@ -67,7 +68,7 @@ class IntentSlotClassificationModel(ModelPT):
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config,
-            checkpoint_file=cfg.language_model.bert_checkpoint,
+            checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
 
         self.hidden_size = self.bert_model.config.hidden_size
@@ -190,7 +191,7 @@ class IntentSlotClassificationModel(ModelPT):
         fn = torch.sum(torch.stack([x['log']['slot_fn'] for x in outputs]), 0)
         fp = torch.sum(torch.stack([x['log']['slot_fp'] for x in outputs]), 0)
         slot_precision, slot_recall, slot_f1 = self.slot_classification_report.get_precision_recall_f1(
-            tp, fn, fp, mode='macro'
+            tp, fn, fp, mode='micro'
         )
 
         tensorboard_logs = {
@@ -217,6 +218,12 @@ class IntentSlotClassificationModel(ModelPT):
         input_file = f'{self.data_dir}/{cfg.prefix}.tsv'
         slot_file = f'{self.data_dir}/{cfg.prefix}_slots.tsv'
 
+        if not (os.path.exists(input_file) and os.path.exists(slot_file)):
+            raise FileNotFoundError(
+                f'{input_file} or {slot_file} not found. Please refer to the documentation for the right format \
+                 of Intents and Slots files.'
+            )
+
         # TODO: check that file exists
         dataset = IntentSlotClassificationDataset(
             input_file=input_file,
@@ -236,31 +243,9 @@ class IntentSlotClassificationModel(ModelPT):
         )
 
     @classmethod
-    def save_to(self, save_path: str):
-        """
-        Saves the module to the specified path.
-        Args:
-            :param save_path: Path to where to save the module.
-        """
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """
-        Restores the module from the specified path.
-        Args:
-            :param restore_path: Path to restore the module from.
-        """
-        pass
-
-    @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
 
     @classmethod
     def from_pretrained(cls, name: str):
-        pass
-
-    @classmethod
-    def export(self, **kwargs):
         pass

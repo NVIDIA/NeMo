@@ -34,7 +34,7 @@ class SequenceTokenClassifier(NeuralModule):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "intent_logits": NeuralType(('B', 'D'), LogitsType()),
-            "slot_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
+            "slot_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
         }
 
     def __init__(
