@@ -54,6 +54,7 @@ class TokenClassificationModel(ModelPT):
             data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
         )
         self.data_dir = cfg.dataset.data_dir
+        self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
@@ -204,15 +205,4 @@ class TokenClassificationModel(ModelPT):
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass
