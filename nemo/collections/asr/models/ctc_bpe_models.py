@@ -43,6 +43,9 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
+        # Store the model + vocab dir
+        self.tokenizer_dir = self.register_artifact('tokenizer.dir', self.tokenizer_dir)
+
         if self.tokenizer_type not in ['bpe', 'wpe']:
             raise ValueError(
                 "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
