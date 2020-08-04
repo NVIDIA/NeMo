@@ -16,7 +16,7 @@ model:
         max_duration: null
         min_duration: 0.1
         n_segments: 16000
-        trim: false
+        trim: true
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -31,7 +31,7 @@ model:
         max_duration: null
         min_duration: 0.1
         n_segments: -1
-        trim: false
+        trim: true
     dataloader_params:
       drop_last: false
       shuffle: false
