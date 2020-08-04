@@ -46,13 +46,15 @@ class ModelPT(LightningModule, Model):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Base class from which all NeMo models should inherit
+
         Args:
             cfg (DictConfig):  configuration object.
                 The cfg object should have (optionally) the following sub-configs:
-                    * train_ds - to instantiate training dataset
-                    * validation_ds - to instantiate validation dataset
-                    * test_ds - to instantiate testing dataset
-                    * optim - to instantiate optimizer with learning rate scheduler
+
+                * train_ds - to instantiate training dataset
+                * validation_ds - to instantiate validation dataset
+                * test_ds - to instantiate testing dataset
+                * optim - to instantiate optimizer with learning rate scheduler
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
@@ -198,6 +200,7 @@ class ModelPT(LightningModule, Model):
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """
         Setups data loader to be used in training
+
         Args:
             train_data_layer_config: training data layer parameters.
         Returns:
@@ -210,6 +213,7 @@ class ModelPT(LightningModule, Model):
         """
         (Optionally) Setups data loader to be used in validation
         Args:
+
             val_data_layer_config: validation data layer parameters.
         Returns:
 
@@ -219,6 +223,7 @@ class ModelPT(LightningModule, Model):
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in test
+
         Args:
             test_data_layer_config: test data layer parameters.
         Returns:
@@ -231,16 +236,14 @@ class ModelPT(LightningModule, Model):
         Prepares an optimizer from a string name and its optional config parameters.
 
         Args:
-            optim_config: a dictionary containing the following keys.
-                - "lr": mandatory key for learning rate. Will raise ValueError
-                if not provided.
+            optim_config: A dictionary containing the following keys:
 
-                - "optimizer": string name pointing to one of the available
-                optimizers in the registry. If not provided, defaults to "adam".
-
-                - "opt_args": Optional list of strings, in the format "arg_name=arg_value".
-                The list of "arg_value" will be parsed and a dictionary of optimizer
-                kwargs will be built and supplied to instantiate the optimizer.
+                * "lr": mandatory key for learning rate. Will raise ValueError if not provided.
+                * "optimizer": string name pointing to one of the available optimizers in the registry. \
+                If not provided, defaults to "adam".
+                * "opt_args": Optional list of strings, in the format "arg_name=arg_value". \
+                The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
+                will be built and supplied to instantiate the optimizer.
         """
         # If config was not explicitly passed to us
         if optim_config is None:
