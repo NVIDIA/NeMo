@@ -43,9 +43,6 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
         self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
 
-        # Store the model + vocab dir
-        self.tokenizer_dir = self.register_artifact('tokenizer.dir', self.tokenizer_dir)
-
         if self.tokenizer_type not in ['bpe', 'wpe']:
             raise ValueError(
                 "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
@@ -55,6 +52,8 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         if self.tokenizer_type == 'bpe':
             # This is a BPE Tokenizer
             model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
+            model_path = self.register_artifact('tokenizer.model_path', model_path)
+            self.model_path = model_path
 
             if 'special_tokens' in self.tokenizer_cfg:
                 special_tokens = self.tokenizer_cfg['special_tokens']
@@ -64,8 +63,12 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             # Update special tokens
             self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path, special_tokens=special_tokens)
 
+            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
+            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
+            self.vocab_path = vocab_path
+
             vocabulary = {0: '<unk>'}
-            with open(os.path.join(self.tokenizer_dir, 'vocab.txt')) as f:
+            with open(vocab_path) as f:
                 for i, piece in enumerate(f):
                     piece = piece.replace('\n', '')
                     vocabulary[i + 1] = piece
@@ -81,7 +84,10 @@ class EncDecCTCModelBPE(EncDecCTCModel):
 
         else:
             # This is a WPE Tokenizer
-            self.tokenizer_dir = os.path.join(self.tokenizer_dir, 'vocab.txt')
+            vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
+            self.tokenizer_dir = self.register_artifact('tokenizer.vocab_path', vocab_path)
+            self.vocab_path = self.tokenizer_dir
+
             self.tokenizer = tokenizers.NemoBertTokenizer(vocab_file=self.tokenizer_dir, **self.tokenizer_cfg)
 
         logging.info(
