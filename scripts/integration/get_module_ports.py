@@ -62,17 +62,26 @@ import json
 import nemo
 from nemo.utils import logging
 
-def instantiate_module(name, id, arguments):
+
+def instantiate_module(module_dict):
     """
     Raises: Key error in case 
     """
+    # Check the required keys.
+    for key in ["id", "name", "arguments"]:
+        if not key in module_dict.keys():
+            logging.error("Loaded file doesn't contain the required `{}` key".format(key))
+            exit(-2)
+
+    name = module_dict["name"]
+    id = module_dict["id"]
+    arguments = module_dict["arguments"]
+
     # Get class  and module from the "full specification".
     class_name = id.rsplit('.', 1)[1]
     module_name = id.rsplit('.', 1)[0]
 
-    logging.info(
-        'Trying to instantiace `{}` (`{}`) neural module from `{}`'.format(name, class_name, module_name)
-    )
+    logging.info(' * Trying to instantiace `{}` (`{}`) neural module from `{}`'.format(name, class_name, module_name))
 
     # Import module.
     module_ = importlib.import_module(module_name)
@@ -94,13 +103,15 @@ def get_module_ports():
     # Parse filename.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '--input_filename','-i',
+        '--input_filename',
+        '-i',
         help='Name of the input JSON file containing module description and arguments',
         type=str,
         required=True,
     )
     parser.add_argument(
-        '--output_filename','-o',
+        '--output_filename',
+        '-o',
         help='Name of the output JSON file containing port definitions (DEFAULT: module_ports.json)',
         type=str,
         default="module_ports.json",
@@ -111,6 +122,7 @@ def get_module_ports():
     try:
         with open(args.input_filename) as f:
             input_dict = json.load(f)
+        logging.info('Processing the `{}` input file'.format(args.input_filename))
     except FileNotFoundError:
         logging.error("Failed to open the `{}` file".format(args.input_filename))
         exit(-1)
@@ -118,14 +130,8 @@ def get_module_ports():
     # Instantiate Neural Factory - on CPU.
     _ = nemo.core.NeuralModuleFactory(placement=nemo.core.DeviceType.CPU)
 
-    # Check the required keys.
-    for key in ["id", "name", "arguments"]:
-        if not key in input_dict.keys():
-            logging.error("Loaded file doesn't contain the required `{}` key".format(key))
-            exit(-2)
-            
     # Instantiate module.
-    module = instantiate_module(input_dict["name"], input_dict["id"], input_dict["arguments"])
+    module = instantiate_module(input_dict)
 
     # Retrieve ports.
     input_ports = {k: str(v) for k, v in module.input_ports.items()}
@@ -150,10 +156,9 @@ def get_module_ports():
 
     logging.info("=" * 80)
     logging.info(
-        'Finished analysis of inputs/output ports the `{}` module, results exported to `{}`.'.format(
-            input_dict["name"], output_filename
-        )
+        "Finished analysis of inputs/output ports the `{}` module: \n{}".format(input_dict["name"], output_dict)
     )
+    logging.info("Results exported to `{}`.".format(output_filename))
 
 
 if __name__ == '__main__':

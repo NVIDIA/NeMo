@@ -191,8 +191,14 @@ def get_modules():
     """ Main function analysing the indicated NeMo collection and generating a JSON file with module descriptions. """
     # Parse arguments.
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--collection','-c', help='ID of the collection', type=str, required=True)
-    parser.add_argument('--output_filename','-o', help='Name of the output JSON file (DEFAULT: modules.json)', type=str, default="modules.json")
+    parser.add_argument('--collection', '-c', help='ID of the collection', type=str, required=True)
+    parser.add_argument(
+        '--output_filename',
+        '-o',
+        help='Name of the output JSON file (DEFAULT: modules.json)',
+        type=str,
+        default="modules.json",
+    )
     args = parser.parse_args()
 
     # Get collections directory.
@@ -268,11 +274,13 @@ def get_modules():
         json.dump(module_list, outfile)
 
     logging.info("=" * 80)
+    modules = "".join("* {}\n".format(o) for o in module_list)
     logging.info(
-        'Finished analysis of the `{}` collection, found {} modules, results exported to `{}`.'.format(
-            args.collection, total_counter, output_filename
+        "Finished analysis of the `{}` collection, found {} modules: \n{}".format(
+            args.collection, total_counter, modules
         )
     )
+    logging.info('Results exported to `{}`.'.format(output_filename))
 
 
 if __name__ == '__main__':

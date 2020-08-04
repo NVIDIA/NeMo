@@ -59,7 +59,13 @@ def get_collections():
     """ Main function generating a JSON file with list of NeMo collections. """
     # Parse arguments.
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output_filename', help='Name of the output JSON file (DEFAULT: collections.json)', type=str, default="collections.json")
+    parser.add_argument(
+        '--output_filename',
+        '-o',
+        help='Name of the output JSON file (DEFAULT: collections.json)',
+        type=str,
+        default="collections.json",
+    )
     args = parser.parse_args()
 
     # Get collections directory.
@@ -100,11 +106,9 @@ def get_collections():
         json.dump(output_list, outfile)
 
     logging.info("=" * 80)
-    logging.info(
-        'Finshed the analysis, found {} collections, results exported to `{}`.'.format(
-            len(output_list), args.output_filename
-        )
-    )
+    outputs = "".join("* {} \n".format(o) for o in output_list)
+    logging.info("Finshed the analysis, found {} collections:\n{}".format(len(output_list), outputs))
+    logging.info("Results exported to `{}`.".format(args.output_filename))
 
 
 if __name__ == '__main__':

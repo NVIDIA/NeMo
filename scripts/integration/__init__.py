@@ -17,5 +17,5 @@
 # =============================================================================
 
 from scripts.integration.get_collections import get_collections
-from scripts.integration.get_modules import get_modules
 from scripts.integration.get_module_ports import get_module_ports
+from scripts.integration.get_modules import get_modules
