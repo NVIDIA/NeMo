@@ -107,8 +107,7 @@ class MegatronBertEncoder(BertModule):
         return self._hidden_size
 
     @typecheck()
-    def forward(self, *args, **kwargs):
-        input_ids, attention_mask, token_type_ids = args
+    def forward(self, input_ids, attention_mask, token_type_ids):
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )

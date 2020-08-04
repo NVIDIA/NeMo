@@ -15,7 +15,7 @@ import os
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import onnx
 import torch
@@ -46,7 +46,7 @@ class Exportable(ABC):
     """
 
     def export(
-        self, output: str, input_example=None, output_example=None, onnx_opset_version=11, try_script=False,
+        self, output: str, input_example=None, output_example=None, onnx_opset_version=12, try_script=False,
     ):
         try:
             # Disable typechecks
@@ -101,6 +101,9 @@ class Exportable(ABC):
                         print("jit.script() failed!", e)
                 if _in_example is None:
                     raise ValueError(f'Example input is None, but jit.script() has failed or not tried')
+
+                if isinstance(_in_example, Dict):
+                    _in_example = tuple(_in_example.values())
 
                 if jitted_model is None:
                     jitted_model = torch.jit.trace(self, _in_example)
