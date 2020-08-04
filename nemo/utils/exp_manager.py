@@ -469,6 +469,7 @@ def configure_checkpointing(trainer, log_dir, name):
         @rank_zero_only
         def on_train_end(self, trainer, pl_module):
             filepath = os.path.join(self.dirpath, self.prefix + 'end.ckpt')
+            # TODO: Remove try, except block once lightning's ModelCheckpoint is stable
             try:  # Try lightning master signature
                 self._save_model(filepath, trainer, pl_module)  # noqa pylint: disable=too-many-function-args
             except TypeError:  # Fall back to lightning == 0.8.5 signature if failed

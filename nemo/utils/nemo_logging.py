@@ -76,6 +76,8 @@ class Logger(metaclass=Singleton):
         self.rank = 0 if is_global_rank_zero() else "UNK"
 
     def _define_logger(self, capture_warnings=True):
+        """ Creates the logger if not already created. Called in init
+        """
 
         # Use double-checked locking to avoid taking lock unnecessarily.
         if self._logger is not None:
@@ -100,9 +102,10 @@ class Logger(metaclass=Singleton):
                 elif is_global_rank_zero():
                     self.add_stream_handlers()
 
-                # Add memoryhandlers: Error messages is only logged on rank 0
+                # Add memoryhandlers, essentially buffers. They are used to save messages that we will flush to file
+                # once the appropriate file handlers are added.
                 if is_global_rank_zero():
-                    # Add a memoryhandler for error messages
+                    # Add a memoryhandler for error messages. Only logged on rank 0
                     self._handlers["memory_err"] = MemoryHandler(-1)
                     self._handlers["memory_err"].addFilter(lambda record: record.levelno > _logging.INFO)
                     formatter = BaseNeMoFormatter
@@ -124,6 +127,8 @@ class Logger(metaclass=Singleton):
         self._logger.propagate = False
 
     def remove_stream_handlers(self):
+        """ Removes screen logging output from the logger.
+        """
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
