@@ -42,30 +42,30 @@ exp_manager:
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
   dataset:
-    data_dir: ??? # /path/to/data
+    data_dir: ??? # /path/to/training/data
+    # parameters for dataset preprocessing
     max_seq_length: 128
     pad_label: 'O'
     ignore_extra_tokens: false
     ignore_start_end: false
     use_cache: true
+    # shared among dataloaders
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   train_ds:
     prefix: train
     shuffle: true
     num_samples: -1
     batch_size: 64
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   validation_ds:
+    ds_item: null # provide a list of data_dirs if evaluation on multiple datasets is needed, by default data_dir is used
     prefix: dev
     shuffle: false
     num_samples: -1
     batch_size: 64
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   language_model:
     pretrained_model_name: bert-base-uncased

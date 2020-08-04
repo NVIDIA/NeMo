@@ -130,7 +130,7 @@ class PunctuationCapitalizationModel(ModelPT):
         tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -168,7 +168,7 @@ class PunctuationCapitalizationModel(ModelPT):
             'log': tensorboard_logs,
         }
 
-    def validation_epoch_end(self, outputs):
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
@@ -211,9 +211,13 @@ class PunctuationCapitalizationModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
-        label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
-
+        if cfg.prefix == 'train' or 'ds_item' not in cfg or cfg.ds_item is None:
+            text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
+            label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
+        else:
+            # use data_dir specified in the ds_item to run evaluation on multiple datasets
+            text_file = os.path.join(cfg.ds_item, 'text_' + cfg.prefix + '.txt')
+            label_file = os.path.join(cfg.ds_item, 'labels_' + cfg.prefix + '.txt')
         if not (os.path.exists(text_file) and os.path.exists(label_file)):
             raise FileNotFoundError(
                 f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
@@ -265,9 +269,9 @@ class PunctuationCapitalizationModel(ModelPT):
             collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=self._cfg.dataset.drop_last,
         )
 
     @classmethod
