@@ -14,7 +14,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
@@ -113,7 +113,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Setup metric objects
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-    def transcribe(self, path2audio_file: str) -> str:
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
         pass
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
