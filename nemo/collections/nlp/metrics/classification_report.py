@@ -97,13 +97,13 @@ class ClassificationReport(TensorMetric):
         recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
         f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
 
-        report = '\n{:20s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
+        report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         for id in range(tp.shape[0]):
             label = f'label_id: {id}'
             if self.ids_to_labels and id in self.ids_to_labels:
                 label = f'{self.ids_to_labels[id]} ({label})'
 
-            report += '\n{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+            report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                 label, precision[id], recall[id], f1[id], num_examples_per_class[id]
             )
 
@@ -123,15 +123,15 @@ class ClassificationReport(TensorMetric):
         weighted_recall = torch.sum(recall * num_examples_per_class) / total_examples
         weighted_f1 = torch.sum(f1 * num_examples_per_class) / total_examples
 
-        report += '\n{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+        report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
             'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples
         )
 
-        report += '\n{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+        report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
             'macro avg', macro_precision, macro_recall, macro_f1, total_examples
         )
         report += (
-            '\n{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+            '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                 'weighted avg', weighted_precision, weighted_recall, weighted_f1, total_examples
             )
             + '\n'

@@ -51,7 +51,7 @@ class SequenceTokenClassifier(NeuralModule):
         """
         Initializes the SequenceClassifier module.
         Args:
-            hidden_size: the hidden size of the mlp head on the top of the encoder
+            hidden_size: hidden size of the mlp head on the top of the encoder
             num_intents: number of the intents to predict
             num_slots: number of the slots to predict
             num_layers: number of the linear layers of the mlp head on the top of the encoder
