@@ -112,7 +112,7 @@ class WaveGlowModel(ModelPT):
                 f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.waveglow.mode}"
             )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.waveglow(spect=spec, audio=audio, run_inverse=run_inverse)
+        tensors = self.waveglow(spect=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma)
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
