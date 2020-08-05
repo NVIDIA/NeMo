@@ -1,0 +1,605 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Schema Guided Dialogues Tutorial &mdash; nemo 0.11.0b9 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorial" href="asr-improvement.html" />
+    <link rel="prev" title="TRADE Tutorial" href="dialogue_state_tracking_trade.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0b9
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/intro.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Natural Language Processing</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="intro.html#neural-machine-translation-nmt">Neural Machine Translation (NMT)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#pretraining-bert">Pretraining BERT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#transformer-language-model">Transformer Language Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#megatron-lm-for-downstream-tasks">Megatron-LM for Downstream tasks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#glue-benchmark">GLUE Benchmark</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#intent-and-slot-filling">Intent and Slot filling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#text-classification">Text Classification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#named-entity-recognition">Named Entity Recognition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#punctuation-and-word-capitalization">Punctuation and Word Capitalization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#question-answering">Question Answering</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="intro.html#dialogue-state-tracking">Dialogue State Tracking</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="dialogue_state_tracking_trade.html">TRADE Tutorial</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Schema Guided Dialogues Tutorial</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#the-schema-guided-dialogue-sgd-dataset">The Schema-Guided Dialogue (SGD) Dataset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sgd-baseline-model">SGD Baseline Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fastsgt-model">FastSGT Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#metrics">Metrics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#experimental-results">Experimental Results</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="intro.html#asr-postprocessing-with-bert">ASR Postprocessing with BERT</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Natural Language Processing</a> &raquo;</li>
+        
+      <li>Schema Guided Dialogues Tutorial</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/nlp/dialogue_state_tracking_sgd.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="schema-guided-dialogues-tutorial">
+<span id="sgd-tutorial"></span><h1>Schema Guided Dialogues Tutorial<a class="headerlink" href="#schema-guided-dialogues-tutorial" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>Goal-oriented dialogue systems is a category of dialogue systems designed to solve one or multiple specific goals or tasks (e.g. flight reservation, hotel reservation, food ordering, appointment scheduling). Traditionally, goal-oriented dialogue systems are set up as a pipeline with four main modules: 1-Natural Language Understanding (NLU), 2-Dialogue State Tracking (DST), 3-Dialog Policy Manager, and 4-Response Generator. NLU extracts the semantic information from each dialogue turn which includes e.g. user intents and slot values mentioned by the user or system. DST takes the extracted entities to build the state of the user goal by aggregating and tracking the information across all turns of the dialogue. Dialog Policy Manager is responsible for deciding the next action of the system based on the current state. Finally, Response Generator converts the system action into human natural text understandable by the user.</p>
+<p>Dialog Policy Manager and Response Generator modules are typically very task-dependent and usually rule-based or template-based. On the other hand, NLU and DST modules have shown to be successfully trained using data-driven approaches. In most recent advances in language understanding, due to models like BERT, researchers have successfully combined NLU and DST into a single unified module, called Word-Level Dialog State Tracking (WL-DST). The WL-DST models can take the user or system utterances in natural language format as input and predict the state at each turn. The models introduced and trained in this tutorial takes the current turn as the input and predict the state, therefore they are considered WL-DST models.</p>
+<p>In this tutorial, we are using Schema-Guided Dialogue dataset <a class="bibtex reference internal" href="#nlp-sgd-rastogi2019towards" id="id1">[NLP-SGD2]</a> that contains over 16k multi-domain goal-oriented conversations across 16 domains. We present efficient and flexible models that can be trained and work on datasets with the format of the SGD dataset.</p>
+</div>
+<div class="section" id="the-schema-guided-dialogue-sgd-dataset">
+<h2>The Schema-Guided Dialogue (SGD) Dataset<a class="headerlink" href="#the-schema-guided-dialogue-sgd-dataset" title="Permalink to this headline">¶</a></h2>
+<p>Most of the public datasets such as MultiWOZ use a fixed list of slots for each domain across all dialogues. As a result, the systems developed on these datasets learn to recognize seen slots but fail to understand the semantic similarity between the slots. Such systems might struggle to handle unseen slots and APIs even when the new APIs and slots are similar in functionality to those present in the training data. The Schema-Guided Dialogue (SGD) dataset proposed by <a class="bibtex reference internal" href="#nlp-sgd-rastogi2019towards" id="id2">[NLP-SGD2]</a> is created to overcome this challenge, which includes a schema for every service (or domain).</p>
+<p>A schema can be interpreted as an ontology encompassing representation, naming, and definition of the categories, properties, and relations between the concepts. In other words, schema defines not only the structure of the underlying data, all the services, slots, intents and values, but also provides descriptions of all of those entities expressed in natural language. This enables the dialogue system to use the current power of language understanding of models like BERT to transfer or share knowledge between different services and domains. The recent emergence of SGD dataset has triggered a new line of research on dialogue systems based on schemas.</p>
+<p>The SGD dataset contains conversations between a user and a virtual assistant, and it contains various annotations and can be used for various dialogue management tasks: intent prediction, slot filling, dialogue state tracking, policy imitation learning, language generation. One part of the dialogues in the dataset spans across only a single domain dialogue, use <code class="docutils literal notranslate"><span class="pre">--task_name</span> <span class="pre">dtsc8_single_domain</span></code> as input parameter to the example script to use such dialogues. Another part focuses only on dialogues that span across multiple domains during a single conversation which can be used by <code class="docutils literal notranslate"><span class="pre">--task_name</span> <span class="pre">dstc8_multi_domain</span></code>. The param <code class="docutils literal notranslate"><span class="pre">--task_name</span> <span class="pre">dstc8_all</span></code> will use all the available dialogues for training and evaluation.</p>
+<p>An example of the data format could be found <a class="reference external" href="https://raw.githubusercontent.com/google-research-datasets/dstc8-schema-guided-dialogue/master/train/dialogues_001.json">here</a>.
+Every dialogue contains the following information:</p>
+<ul>
+<li><p><strong>dialogue_id</strong> - a unique dialogue identifier</p></li>
+<li><p><strong>services</strong> - list of services mentioned in the dialogue</p></li>
+<li><p><strong>turns</strong> - a dialogue is comprised of multiple dialogues turns, where a single turn consists of user and systems utterances frames.</p></li>
+<li><p><strong>frames</strong> - each frame contains system or user utterance with associated annotation.</p>
+<blockquote>
+<div><ul>
+<li><p>Each <strong>user</strong> frame containts the following information (values in brackets are from the user frame example in Fig. 1, note some values in the state are coming from the previous dialogue turns):</p>
+<blockquote>
+<div><ul>
+<li><p><strong>actions</strong> - a list with the following values:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>act - user’s intent or act (INFORM)</p></li>
+<li><p>slot - slot names (price_range)</p></li>
+<li><p>values - a list of slot values (moderate)</p></li>
+<li><p>canonical_values (optional) - slot values in their canonicalized form as used by the service</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>service</strong> - service name for the current user utterance (Restaurants_1)</p></li>
+<li><p><strong>slots</strong> - a list of slot spans in the user utterance, only provided for non-categorical slots. Each slot span contains the following fields:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>slot - non-categorical slot name (city)</p></li>
+<li><p>start/exclusive_end - start/end character index of the non-categorical slot value in the current user utterance (113/122)</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>state</strong> - dialogue state:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>active_intent -  name of an active user intent (FindRestaurants)</p></li>
+<li><p>requested_slots - a list of slots requested be the user in the current turn</p></li>
+<li><p>slot_values - dictionary of slot name - slot value pairs ({“city”: [“Palo Alto”], “cuisine”: [“American”], “price_range”: [“moderate”]})</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Each <strong>system</strong> frame containts the following information ((values in brackets are from the system frame example in Fig. 2):</p>
+<blockquote>
+<div><ul>
+<li><p><strong>actions</strong> - a list with the following values:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>act - system act (OFFER)</p></li>
+<li><p>slot - slot names (restaurant_name)</p></li>
+<li><p>values - a list of slot values (Bird Dog)</p></li>
+<li><p>canonical_values (optional) - slot values in their canonicalized form as used by the service</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>service</strong> - service name for the current turn (Restaurants_1)</p></li>
+<li><p><strong>service_call</strong> (optional) - request sent to the service:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>method - a name of the intent or function of the service or API being executed (FindRestaurants)</p></li>
+<li><p>parameters - a dictionary of slot name -slot value pairs in their canonicalized form ({“city”: [“Palo Alto”], “cuisine”: [“American”], “price_range”: [“moderate”]})</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>service_results</strong> - results of a service call:</p>
+<blockquote>
+<div><p>{“city”: “Palo Alto”,
+“cuisine”: “American”,
+“has_live_music”: “False”,
+“phone_number”: “650-688-2614”,
+“price_range”: “moderate”,
+“restaurant_name”: “Bazille”,
+“serves_alcohol”: “True”,
+“street_address”: “550 Stanford Shopping Center”}</p>
+</div></blockquote>
+</li>
+<li><p><strong>slots</strong> - a list of slot spans in the system utterance, only provided for non-categorical slots. Each slot span contains the following fields:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>slot - non-categorical slot name (city)</p></li>
+<li><p>start/exclusive_end - start/end character index of the non-categorical slot value in the current user utterance (113/122)</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p><strong>speaker</strong> - identifies whether a user or a system is speaking</p></li>
+<li><p><strong>utterance</strong> - user or system utterance</p></li>
+</ul>
+<div class="figure align-default" id="id12">
+<img alt="../_images/dst_sgd_user_frame.png" src="../_images/dst_sgd_user_frame.png" />
+<p class="caption"><span class="caption-text">Fig. 1: An example of a user frame (source: <a class="reference external" href="https://raw.githubusercontent.com/google-research-datasets/dstc8-schema-guided-dialogue/master/train/dialogues_001.json">a user frame from one of the dialogues</a>).</span><a class="headerlink" href="#id12" title="Permalink to this image">¶</a></p>
+</div>
+<div class="figure align-default" id="id13">
+<img alt="../_images/dst_sgd_system_frame.png" src="../_images/dst_sgd_system_frame.png" />
+<p class="caption"><span class="caption-text">Fig. 2: An example of a system frame (source: <a class="reference external" href="https://raw.githubusercontent.com/google-research-datasets/dstc8-schema-guided-dialogue/master/train/dialogues_001.json">a system frame from one of the dialogues</a>).</span><a class="headerlink" href="#id13" title="Permalink to this image">¶</a></p>
+</div>
+<p>To find more details and download the dataset, use <a class="reference external" href="https://github.com/google-research-datasets/dstc8-schema-guided-dialogue">this link</a>.</p>
+</div>
+<div class="section" id="sgd-baseline-model">
+<h2>SGD Baseline Model<a class="headerlink" href="#sgd-baseline-model" title="Permalink to this headline">¶</a></h2>
+<p>Our model is based on the SGD Baseline model introduced in <a class="bibtex reference internal" href="#nlp-sgd-rastogi2019towards" id="id3">[NLP-SGD2]</a> for SGD dataset. We have also proposed an improved version of this model (FastSGT) to be explained in the next section.</p>
+<p>The SGD dataset for every dataset split (train, dev, test) provides detailed schema files (see <a class="reference external" href="https://github.com/google-research-datasets/dstc8-schema-guided-dialogue/blob/master/train/schema.json">this for an example here</a>). These files contain information about slots supported by every service, possible values for categorical slots, along with the supported intents. Besides that, the schemas provide a natural language description of the slots, intents, and services; these descriptions are utilized by the model to get schema embeddings. Thus, before starting the model training, the training script will create schema embeddings. By default the schema embedding generation will be performed every time you run the training script, to skip the schema generation step for all subsequent training script runs, use <code class="docutils literal notranslate"><span class="pre">--no_overwrite_schema_emb_files</span></code>. (see <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/nemo/collections/nlp/data/datasets/sgd_dataset/schema_processor.py">nlp/data/datasets/sgd_dataset/schema_processor.py</a> for more implementation details).</p>
+<div class="figure align-default" id="id14">
+<img alt="../_images/dst_sgd_schema_example.png" src="../_images/dst_sgd_schema_example.png" />
+<p class="caption"><span class="caption-text">Fig. 3: A schema example for a digital wallet service, (source: <a class="bibtex reference internal" href="#nlp-sgd-rastogi2019towards" id="id4">[NLP-SGD2]</a>)</span><a class="headerlink" href="#id14" title="Permalink to this image">¶</a></p>
+</div>
+<p>Another preprocessing step that could be done once and skipped for all future training runs (if you’re not changing anything that could affect it) is the dialogues preprocessing step, i.e. breaking dialogues into dialogue turns and collecting labels and features for a particular turn. Use <code class="docutils literal notranslate"><span class="pre">no_overwrite_dial_files</span></code>
+to overwrite the generated dialogues to skip this step (see <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/nemo/collections/nlp/data/datasets/sgd_dataset/data_processor.py">nemo/collections/nlp/data/datasets/sgd_dataset/data_processor.py</a> for implementation details).</p>
+<p>During training, the SGD Baseline model introduced in <a class="bibtex reference internal" href="#nlp-sgd-rastogi2019towards" id="id5">[NLP-SGD2]</a> relies on the current user and system utterances and service schemas, compared to the TRADE model that uses all dialogue history. This model learns to understand and extract from the dialogue the following information:</p>
+<ul class="simple">
+<li><p>active intent</p></li>
+<li><p>list of the requested slots</p></li>
+<li><p>active categorical slots with their values</p></li>
+<li><p>active non-categorical slots with their values</p></li>
+</ul>
+<p>Note that for every above-mentioned slot, the model predicts slot status and slot value. Only if the slot status is predicted to be active, the associated slot value is taken into account.</p>
+<p>The SGD Baseline model is implemented with the following module components:</p>
+<ul class="simple">
+<li><p><strong>SGDEncoder</strong> - uses a BERT model to encode user utterance. By default, the SGD model uses the pre-trained BERT base cased model from <a class="reference external" href="https://huggingface.co/transformers/">Hugging Face Transformers</a> to get embedded representations for schema elements and also to encode user utterance. The SGDEncoder returns encoding of the whole user utterance using ‘CLS’ token and embedded representation of every token in the utterance.</p></li>
+<li><p><strong>SGDDecoder</strong> - returns logits for predicted elements by conditioning on the encoded utterance</p></li>
+</ul>
+</div>
+<div class="section" id="fastsgt-model">
+<h2>FastSGT Model<a class="headerlink" href="#fastsgt-model" title="Permalink to this headline">¶</a></h2>
+<p>We proposed an improved version of the SGD Baseline model called Fast Schema Guided Tracker (FastSGT) which is designed and optimized for seen services.
+It has a significantly higher performance in terms of accuracy compared to the baseline for seen services. FastSGT has the following features:</p>
+<ul class="simple">
+<li><p>Multi-head attention projection layers for decoders</p></li>
+<li><p>In-service slot carry-over mechanism</p></li>
+<li><p>Cross-service slot carry-over mechanism</p></li>
+<li><p>Data augmentation for non-categorical slots</p></li>
+<li><p>Ability to make schema embeddings trainable during the model training</p></li>
+</ul>
+<div class="section" id="attention-based-projections">
+<h3>Attention-based Projections<a class="headerlink" href="#attention-based-projections" title="Permalink to this headline">¶</a></h3>
+<p>We proposed to use multi-head attention projections instead of the linear layers used in the decoders of the SGD Baseline model. In the SGD Baseline model, some linear-based projection layers are used for the all the decoders. These layers try to predict the desire goal for most of the targets by just using the output of the [CLS] token. We propsoed a more powerful projection layer based on multi-head attention mechanism. It uses the schema embedding vector as the query to attend to the token representations of the BERT as outputted by the encoder.</p>
+<p>The idea is that domain-specific and slot-specific information can be extracted more efficiently from the collection of token-level representations than from a single sentence-level encoding. We used these multi-head attention layers just for the slot status detection and the categorical value decoders.</p>
+<p>The attention mechanism can be enabled by passing “–tracker_model=nemotracker” params to the example script.</p>
+</div>
+<div class="section" id="slot-carry-over-mechanisms">
+<h3>Slot Carry-over Mechanisms<a class="headerlink" href="#slot-carry-over-mechanisms" title="Permalink to this headline">¶</a></h3>
+<p>The slot carry-over procedures enable the model to retrieve a value for a slot from the preceding system utterance or even previous turns in the dialogue <a class="bibtex reference internal" href="#nlp-sgd-limiao2019dstc8" id="id6">[NLP-SGD1]</a> and <a class="bibtex reference internal" href="#nlp-sgd-ruan2020fine" id="id7">[NLP-SGD4]</a>. There are many cases where the user is accepting some values offered by the system and the value is not mentioned explicitly in the user utterance.In our system, we have implemented two different carry-over procedures. The value may be offered in the last system utterance, or even in the previous turns. The procedure to retrieve values in these cases is called in-service carry-over. There are also cases where a switch is happening between two services in multi-domain dialogues. A dialogue may contain more than one service and the user may switch between these services. When a switch happens, we may need to carry some values from a slot in the previous service to another slot in the current service. The carry-over procedure to carry values between two services is called cross-service carry-over.</p>
+<p>To support carry-over procedures, we added an status of “carryover” to all the slots which is active when the value of the slot in updated in a turn but it is not explicitly mentioned in the current user utterance. The value for such slots may come from the previous system utterances and offers. We also added an extra value (“#CARRYOVER#”) to all the categorical slots. When a categorical slot has the status of “carryover”, the value of “#CARRYOVER#” should be predicted for that slot. We have explained our proposed carry-over mechanisms in the following.</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>In-service carry-over</strong>: We trigger this procedure in three cases: 1-status of a slot is predicted as “carry_over”, 2-the spanning region found for the non-categorical slots is not in the span of the user utterance, 3-“#CARRYOVER#” value is predicted for a categorical slot with “active” or “carry_over” statuses. The in-service carry-over procedure tries to retrieve a value for a slot from the previous system utterances in the dialogue. We first search the system actions starting from the most recent system utterance and then move backwards for a value mentioned for that slot. The most recent value would be considered for the slot if multiple values are found. If no value could be found, that slot would not get updated in the current state.</p></li>
+<li><p><strong>Cross-service carry-over mechanism</strong>: Carrying values from previous services to the current one when a switch happens in a turn is done by cross-service carry-over procedure. The previous service and slots are called sources, and the new service and slots are called the targets. To perform the carry-over, we need to build a list of candidates for each slot which contains the slots where a carry-over can happen from them. We create this carry-over candidate list from the training data. We process the whole dialogues in the training data, and count the number of times a value from a source slot and service carry-overs to a target service and slot when a switch happens. We look for the values updated in each turn and check if that value is proposed by the system in the preceding turns. These counts are normalized to the number of switches between every two services in the whole training dialogues. This carry-over relation between two slots is considered symmetric and statistics from both sides are aggregated. This candidate list for each slot contains a list of slot candidates from other services that are looked up to find a carry-over value. We normalize the number of carry-overs by the number of switches to have a better estimate of the likelihood of carry-overs. In our experiments, the ones with likelihoods less than 0.1 are ignored.</p></li>
+</ul>
+</div></blockquote>
+<p>When the carry-over procedures are triggered in a turn, we search for the candidates of each slot to find if any value is mentioned for the slots. If multiple values for a slot are found, the most recent one is used. The need and effectiveness of the carry-over mechanisms are shown by some researches <a class="bibtex reference internal" href="#nlp-sgd-limiao2019dstc8" id="id8">[NLP-SGD1]</a> and <a class="bibtex reference internal" href="#nlp-sgd-ruan2020fine" id="id9">[NLP-SGD4]</a>. The carry-over mechanism improves the accuracy of the state tracker for SGD dataset significantly.</p>
+<p>It should be noted that the cross-service carry-over feature does not work for multi-domain dialogues which contain unseen services as
+the candidate list is extracted from the training dialogues which does not contain unseen services.
+To make it work for unseen services, such transfers can get learned by a model based on the descriptions of the slots <a class="bibtex reference internal" href="#nlp-sgd-limiao2019dstc8" id="id10">[NLP-SGD1]</a>.</p>
+<p>The slot carry-over mechanisms can be enabled by passing “–tracker_model=nemotracker” params to the example script.</p>
+</div>
+<div class="section" id="data-augmentation">
+<h3>Data Augmentation<a class="headerlink" href="#data-augmentation" title="Permalink to this headline">¶</a></h3>
+<p>We provide scripts for data augmentation which can be used to mitigate the problem of low-resource annotated training data. The data augmentation is done offline with <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/data/sgd/dialogue_augmentation.py">examples/nlp/dialogue_state_tracking/data /sgd/dialogue_augmentation.py</a>. We used 10x as augmentation factor. It supports modifications on dialogue utterance segments, that are either non-categorical slot values or regular words. When a segment is modified, all future references of the old word in the dialogue are also
+altered along with all affected dialogue meta information, e.g. dialogue states, to preserve dialogue integrity. This is done by first building a tree structure over the dialogue which stores all relevant meta information.
+Augmentation for categorical slots was not possible in the SGD dataset since the dataset does not provide the unique position of the categorical slot value in the dialogue utterance.
+Also, we did not try the augmentation on multi-domain dialogues as switching between services makes it more challenging to maintain the consistency of the dialogue.</p>
+<p>Currently, we provide one function each for changing either a non-categorical slot value or a regular word:
+<code class="docutils literal notranslate"><span class="pre">get_new_noncat_value()</span></code> is used to replace a non-categorical value by a different value from the same service slot.
+<code class="docutils literal notranslate"><span class="pre">num2str()</span></code> is used to replace a regular word that is a number with its string representation, e.g. ‘11’ becomes ‘eleven’.
+The script allows the user to easily extend the set of functions by custom ones, e.g. deleting words could be realized by a function that
+replaces a regular word by the empty string ‘’.
+The input arguments include configuration settings that determine how many augmentation sweeps are done on the dataset and the probability of modifying a word.
+For our experiments we used 9 augmentation sweeps (and concatenated it with the original dataset) at 100% modification rate, resulting in a dataset 10x as large:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/nlp/dialogue_state_tracking/data/sgd
+python dialogue_augmentation.py <span class="se">\</span>
+    --input_dir &lt;sgd/train&gt; <span class="se">\</span>
+    --repeat <span class="m">9</span> <span class="se">\</span>
+    --replace_turn_prob <span class="m">1</span>.0 <span class="se">\</span>
+    --replace_word_prob <span class="m">1</span>.0 <span class="se">\</span>
+    --concat_orig_dialogue
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="training">
+<h2>Training<a class="headerlink" href="#training" title="Permalink to this headline">¶</a></h2>
+<p>In order to train the SGD Baseline model on a single domain task and evaluate on its dev and test data, you may run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span> examples/nlp/dialogue_state_tracking
+python dialogue_state_tracking_sgd.py <span class="se">\</span>
+    --task_name dstc8_single_domain <span class="se">\</span>
+    --data_dir PATH_TO/dstc8-schema-guided-dialogue <span class="se">\</span>
+    --schema_embedding_dir PATH_TO/dstc8-schema-guided-dialogue/embeddings/ <span class="se">\</span>
+    --dialogues_example_dir PATH_TO/dstc8-schema-guided-dialogue/dialogue_example_dir <span class="se">\</span>
+    --eval_dataset dev_test
+    --tracker_model<span class="o">=</span>baseline
+</pre></div>
+</div>
+<p>To train the FastSGT model use “–tracker_model=nemotracker” instead.</p>
+</div>
+<div class="section" id="metrics">
+<h2>Metrics<a class="headerlink" href="#metrics" title="Permalink to this headline">¶</a></h2>
+<p>Metrics used for automatic evaluation of the model <a class="bibtex reference internal" href="#nlp-sgd-rastogi2020schema" id="id11">[NLP-SGD3]</a>:</p>
+<ul class="simple">
+<li><p><strong>Active Intent Accuracy</strong> - the fraction of user turns for which the active intent has been correctly predicted.</p></li>
+<li><p><strong>Requested Slot F1</strong> - the macro-averaged F1 score for requested slots over all eligible turns. Turns with no requested slots in ground truth and predictions are skipped.</p></li>
+<li><p><strong>Average Goal Accuracy</strong> For each turn, we predict a single value for each slot present in the dialogue state. This is the average accuracy of predicting the value of a slot correctly.</p></li>
+<li><p><strong>Joint Goal Accuracy</strong> - the average accuracy of predicting all slot assignments for a given service in a turn correctly.</p></li>
+</ul>
+<p>The evaluation results are shown for seen services (all services seen during model training), Unseen Services (services not seen during training), and All Services (the combination of Seen and Unseen Services).
+Note, during the evaluation, the model first generates predictions and writes them to a file in the same format as the original dialogue files, and then uses these files to compare the predicted dialogue state to the ground truth.</p>
+<p>There were some issues in the original evaluation process of the SGD Baseline which we fixed. First, some services were considered seen services during evaluation for single domain dialogues while they do not actually exist in the training data. In the original version of the single domain task, the evaluation falsely classified two services <code class="docutils literal notranslate"><span class="pre">Travel_1</span></code> and <code class="docutils literal notranslate"><span class="pre">Weather_1</span></code> as seen services although they are never seen in the training data. By fixing this, the Joint Goal Accuracy on seen services increased.</p>
+<p>The other issue was that the turns which come after an unseen service in multi-domain dialogues could be counted as seen by the original evaluation, which means errors from unseen services may propagate through the dialogue and affect some of the metrics for seen services. We fixed it by just considering only turns as by seen services if there are no turns before them in the dialogue by unseen services. These fixes helped to improve the results. To have a fair comparison we also reported the performance of the baseline model and ours with and without these fixes in the results tables.</p>
+</div>
+<div class="section" id="experimental-results">
+<h2>Experimental Results<a class="headerlink" href="#experimental-results" title="Permalink to this headline">¶</a></h2>
+<p>In the following tables 1 and 2 the performance results of the SGD Baseline and FastSGD on seen services are reported. The results on the unseen results are not reported as the focus of FastSGD is to improve seen services. We specified the experiments where the evaluation issue with the original TensorFlow implementation of SGD is fixed. We did all our experiments on systems with 8 V100 GPUs using mixed precision training (“–amp_opt_level=O1”) to make the training process faster. All of the models are trained for 160 epochs to have less variance in the results while most of them already converge in less than 60 epochs. The variation of the main metric which is joint goal accuracy can be significant if not trained more epochs. The reason is that even small errors in predicting some values for some turns may propagate through the whole dialogue and increase the error in joint goal accuracy significantly. We repeated each experiment three times and report the average in all tables.</p>
+<p>We used 16 heads for each of the attention-based projection layers, similar to the BERT-based encoders. We have optimized the model using Adam optimizer with default parameter settings. Batch size was set to 128 per GPU, maximum learning rate to 4e-4 and weight decay to 0.01. Linear decay annealing was used with warm-up of 0.02% of the total steps. Dropout was set to 0.2 to have higher regularization considering we used higher learning rate compared to the recommended learning rate for fine-tuning BERT with smaller batch sizes.</p>
+<div class="line-block">
+<div class="line"><strong>Table 1: The performance results of the models on seen services of the single-domain dialogues</strong></div>
+<div class="line"><strong>(–task_name=dstc8_single_domains)</strong></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 13%" />
+<col style="width: 12%" />
+<col style="width: 0%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head" rowspan="2"><p>Model</p></th>
+<th class="head" colspan="5"><p>Dev/Test</p></th>
+</tr>
+<tr class="row-even"><th class="head"><p>Active Int Acc</p></th>
+<th class="head"><p>Req Slot F1</p></th>
+<th class="head" colspan="2"><p>Aver GA</p></th>
+<th class="head"><p>Joint GA</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-odd"><td><p>SGD Baseline (original implementation w/o eval fixes)</p></td>
+<td><p>99.06/78.73</p></td>
+<td><p>98.67/96.84</p></td>
+<td colspan="2"><p>88.08/92.00</p></td>
+<td><p>68.58/74.49</p></td>
+</tr>
+<tr class="row-even"><td><p>SGD Baseline (NeMo’s implementation w/o eval fixes)</p></td>
+<td><p>99.03/78.22</p></td>
+<td><p>98.74/96.83</p></td>
+<td colspan="2"><p>88.12/92.17</p></td>
+<td><p>68.61/73.94</p></td>
+</tr>
+<tr class="row-odd"><td><p>FastSGT (w/o eval fixes)</p></td>
+<td><p>98.94/77.53</p></td>
+<td><p>98.80/96.89</p></td>
+<td colspan="2"><p>92.98/94.12</p></td>
+<td><p>83.13/80.25</p></td>
+</tr>
+<tr class="row-even"><td><p>FastSGT (with eval fixes)</p></td>
+<td><p>98.86/73.98</p></td>
+<td><p>99.64/99.24</p></td>
+<td colspan="2"><p>96.54/95.31</p></td>
+<td><p>88.03/81.56</p></td>
+</tr>
+<tr class="row-odd"><td><p>FastSGD + Augmentation (with eval fixes)</p></td>
+<td><p>98.74/73.97</p></td>
+<td><p>99.59/99.31</p></td>
+<td colspan="2"><p>96.70/96.31</p></td>
+<td><p>88.66/83.12</p></td>
+</tr>
+</tbody>
+</table>
+<div class="line-block">
+<div class="line"><strong>Table 2: The performance results of the models on seen services of all the dialogues</strong></div>
+<div class="line"><strong>(–task_name=dstc8_all)</strong></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 13%" />
+<col style="width: 12%" />
+<col style="width: 0%" />
+<col style="width: 10%" />
+<col style="width: 10%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head" rowspan="2"><p>Model</p></th>
+<th class="head" colspan="5"><p>Dev/Test</p></th>
+</tr>
+<tr class="row-even"><th class="head"><p>Active Int Acc</p></th>
+<th class="head"><p>Req Slot F1</p></th>
+<th class="head" colspan="2"><p>Aver GA</p></th>
+<th class="head"><p>Joint GA</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-odd"><td><p>SGD Baseline (original implementation w/o eval fixes)</p></td>
+<td><p>-/95.06</p></td>
+<td><p>-/99.55</p></td>
+<td colspan="2"><p>-/67.78</p></td>
+<td><p>-/41.25</p></td>
+</tr>
+<tr class="row-even"><td><p>SGD Baseline (NeMo’s implementation w/o eval fixes)</p></td>
+<td><p>96.44/94.50</p></td>
+<td><p>99.47/99.29</p></td>
+<td colspan="2"><p>79.86/67.77</p></td>
+<td><p>54.68/41.63</p></td>
+</tr>
+<tr class="row-odd"><td><p>FastSGT (w/o eval fixes)</p></td>
+<td><p>96.61/94.18</p></td>
+<td><p>99.66/99.55</p></td>
+<td colspan="2"><p>88.78/76.52</p></td>
+<td><p>71.34/55.23</p></td>
+</tr>
+<tr class="row-even"><td><p>FastSGT (with eval fixes)</p></td>
+<td><p>96.26/91.44</p></td>
+<td><p>99.65/99.64</p></td>
+<td colspan="2"><p>92.33/92.12</p></td>
+<td><p>79.65/78.55</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This tutorial is based on the code from <a class="reference external" href="https://github.com/NVIDIA/NeMo/blob/master/examples/nlp/dialogue_state_tracking/dialogue_state_tracking_sgd.py">examples/nlp/dialogue_state_tracking/dialogue_state_tracking_sgd.py</a></p>
+</div>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p id="bibtex-bibliography-nlp/dialogue_state_tracking_sgd-0"><dl class="citation">
+<dt class="bibtex label" id="nlp-sgd-limiao2019dstc8"><span class="brackets">NLP-SGD1</span><span class="fn-backref">(<a href="#id6">1</a>,<a href="#id8">2</a>,<a href="#id10">3</a>)</span></dt>
+<dd><p>Miao Li, Haoqi Xiong, and Yunbo Cao. The sppd system for schema guided dialogue state tracking challenge. <em>DSTC8 Workshop &#64; AAAI-20</em>, 2019.</p>
+</dd>
+<dt class="bibtex label" id="nlp-sgd-rastogi2019towards"><span class="brackets">NLP-SGD2</span><span class="fn-backref">(<a href="#id1">1</a>,<a href="#id2">2</a>,<a href="#id3">3</a>,<a href="#id4">4</a>,<a href="#id5">5</a>)</span></dt>
+<dd><p>Abhinav Rastogi, Xiaoxue Zang, Srinivas Sunkara, Raghav Gupta, and Pranav Khaitan. Towards scalable multi-domain conversational agents: the schema-guided dialogue dataset. <em>arXiv preprint arXiv:1909.05855</em>, 2019.</p>
+</dd>
+<dt class="bibtex label" id="nlp-sgd-rastogi2020schema"><span class="brackets"><a class="fn-backref" href="#id11">NLP-SGD3</a></span></dt>
+<dd><p>Abhinav Rastogi, Xiaoxue Zang, Srinivas Sunkara, Raghav Gupta, and Pranav Khaitan. Schema-guided dialogue state tracking task at dstc8. <em>arXiv preprint arXiv:2002.01359</em>, 2020.</p>
+</dd>
+<dt class="bibtex label" id="nlp-sgd-ruan2020fine"><span class="brackets">NLP-SGD4</span><span class="fn-backref">(<a href="#id7">1</a>,<a href="#id9">2</a>)</span></dt>
+<dd><p>Yu-Ping Ruan, Zhen-Hua Ling, Jia-Chen Gu, and Quan Liu. Fine-tuning bert for schema-guided zero-shot dialogue state tracking. <em>arXiv preprint arXiv:2002.00181</em>, 2020.</p>
+</dd>
+</dl>
+</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="asr-improvement.html" class="btn btn-neutral float-right" title="Tutorial" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="dialogue_state_tracking_trade.html" class="btn btn-neutral float-left" title="TRADE Tutorial" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

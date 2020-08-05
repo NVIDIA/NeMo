@@ -1,0 +1,387 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Neural Types &mdash; nemo 0.11.0b9 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to build Neural Module" href="custommodules.html" />
+    <link rel="prev" title="Examples" href="examples.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0b9
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Neural Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basics">Basics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#neural-type-comparison">Neural type comparison</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#special-cases">Special cases</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inheritance">Inheritance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#advanced-usage">Advanced usage</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="callbacks.html">Callbacks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_graphs.html">Neural Graphs</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Getting started</a> &raquo;</li>
+        
+      <li>Neural Types</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tutorials/neuraltypes.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="neural-types">
+<h1>Neural Types<a class="headerlink" href="#neural-types" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="basics">
+<h2>Basics<a class="headerlink" href="#basics" title="Permalink to this headline">¶</a></h2>
+<p>All input and output ports of every neural module in NeMo are typed.
+The type system’s goal is check compatibility of connected input/output port pairs.
+The type system’s constraints are checked when the user connects modules with each other and before any training or
+inference is started.</p>
+<p>Neural Types are implemented with the Python class <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> and helper
+classes derived from <code class="xref py py-class docutils literal notranslate"><span class="pre">ElementType</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">AxisType</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">AxisKindAbstract</span></code>.</p>
+<p><strong>A Neural Type contains two categories of information:</strong></p>
+<ul class="simple">
+<li><p><strong>axes</strong> - represents what varying a particular axis means (e.g. batch, time, etc.)</p></li>
+<li><p><strong>elements_type</strong> - represents the semantics and properties of what is stored inside the activations (audio signal,text embedding, logits, etc.)</p></li>
+</ul>
+<p>To instantiate a NeuralType you need to pass it the following arguments: <cite>axes: Optional[Tuple] = None,
+elements_type: ElementType = VoidType(), optional=False</cite>. Typically, the only place where you need to instantiate
+<code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> objects are inside your module’s <cite>input_ports</cite> and
+<cite>output_ports</cite> properties.</p>
+<p>Consider an example below. It represents an (audio) data layer output ports, used in Speech recognition collection.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;audio_signal&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+                                     <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">)),</span>
+                               <span class="n">elements_type</span><span class="o">=</span><span class="n">AudioSignal</span><span class="p">(</span><span class="n">freq</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">)),</span>
+    <span class="s1">&#39;a_sig_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">)),</span>
+                               <span class="n">elements_type</span><span class="o">=</span><span class="n">LengthsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+                                     <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">)),</span>
+                              <span class="n">elements_type</span><span class="o">=</span><span class="n">LabelsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcript_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">)),</span>
+                                    <span class="n">elements_type</span><span class="o">=</span><span class="n">LengthsType</span><span class="p">()),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>A less verbose version of exactly the same output ports looks like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;audio_signal&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">AudioSignal</span><span class="p">(</span><span class="n">freq</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sample_rate</span><span class="p">)),</span>
+    <span class="s1">&#39;a_sig_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">LabelsType</span><span class="p">()),</span>
+    <span class="s1">&#39;transcript_length&#39;</span><span class="p">:</span> <span class="n">NeuralType</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">),</span> <span class="n">LengthsType</span><span class="p">()),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="neural-type-comparison">
+<h2>Neural type comparison<a class="headerlink" href="#neural-type-comparison" title="Permalink to this headline">¶</a></h2>
+<p>Two <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralType</span></code> objects are compared using <code class="docutils literal notranslate"><span class="pre">.compare</span></code> method.
+The result is from the <code class="xref py py-class docutils literal notranslate"><span class="pre">NeuralTypeComparisonResult</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">NeuralTypeComparisonResult</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The result of comparing two neural type objects for compatibility.</span>
+<span class="sd">    When comparing A.compare_to(B):&quot;&quot;&quot;</span>
+
+    <span class="n">SAME</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">LESS</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># A is B</span>
+    <span class="n">GREATER</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># B is A</span>
+    <span class="n">DIM_INCOMPATIBLE</span> <span class="o">=</span> <span class="mi">3</span>  <span class="c1"># Resize connector might fix incompatibility</span>
+    <span class="n">TRANSPOSE_SAME</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># A transpose and/or converting between lists and tensors will make them same</span>
+    <span class="n">CONTAINER_SIZE_MISMATCH</span> <span class="o">=</span> <span class="mi">5</span>  <span class="c1"># A and B contain different number of elements</span>
+    <span class="n">INCOMPATIBLE</span> <span class="o">=</span> <span class="mi">6</span>  <span class="c1"># A and B are incompatible</span>
+    <span class="n">SAME_TYPE_INCOMPATIBLE_PARAMS</span> <span class="o">=</span> <span class="mi">7</span>  <span class="c1"># A and B are of the same type but parametrized differently</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="special-cases">
+<h2>Special cases<a class="headerlink" href="#special-cases" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Void</strong> element types. Sometimes, it is necessary to have a functionality similar to “void*” in C/C++. That, is if we still want to enforce order and axes’ semantics but should be able to accept elements of any type. This can be achieved by using an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">VoidType</span></code> as <code class="docutils literal notranslate"><span class="pre">elements_type</span></code> argument.</p></li>
+<li><p><strong>Big void</strong> this type will effectively disable any type checks. This is how to create such type: <code class="docutils literal notranslate"><span class="pre">NeuralType()</span></code>. The result of its comparison to any other type will always be SAME.</p></li>
+<li><p><strong>AxisKind.Any</strong> this axis kind is used to represent any axis. This is useful, for example, in losses where a specific loss module can be used in difference applications and therefore with different axis kinds</p></li>
+</ul>
+</div>
+<div class="section" id="inheritance">
+<h2>Inheritance<a class="headerlink" href="#inheritance" title="Permalink to this headline">¶</a></h2>
+<p>Type inheritance is a very powerful tool in programming. NeMo’s neural types support inheritance. Consider the
+following example below.</p>
+<p><strong>Example.</strong> We want to represent the following. A module’s A output (out1) produces mel-spectrogram
+signal, while module’s B output produces mffc-spectrogram. We also want to a thrid module C which can perform data
+augmentation with any kind of spectrogram. With NeMo neural types representing this semantics is easy:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nb">input</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">SpectrogramType</span><span class="p">())</span>
+<span class="n">out1</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">MelSpectrogramType</span><span class="p">())</span>
+<span class="n">out2</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">((</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">),</span> <span class="n">MFCCSpectrogramType</span><span class="p">())</span>
+
+<span class="c1"># then the following comparison results will be generated</span>
+<span class="nb">input</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">out1</span><span class="p">)</span> <span class="o">==</span> <span class="n">SAME</span>
+<span class="nb">input</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">out2</span><span class="p">)</span> <span class="o">==</span> <span class="n">SAME</span>
+<span class="n">out1</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span> <span class="o">==</span> <span class="n">INCOMPATIBLE</span>
+<span class="n">out2</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">out1</span><span class="p">)</span> <span class="o">==</span> <span class="n">INCOMPATIBLE</span>
+</pre></div>
+</div>
+<p>This happens because both <code class="docutils literal notranslate"><span class="pre">MelSpectrogramType</span></code> and <code class="docutils literal notranslate"><span class="pre">MFCCSpectrogramType</span></code> inherit from <code class="docutils literal notranslate"><span class="pre">SpectrogramType</span></code> class.
+Notice, that mfcc and mel spectrograms aren’t interchangable, which is why <code class="docutils literal notranslate"><span class="pre">out1.compare(input)</span> <span class="pre">==</span> <span class="pre">INCOMPATIBLE</span></code></p>
+</div>
+<div class="section" id="advanced-usage">
+<h2>Advanced usage<a class="headerlink" href="#advanced-usage" title="Permalink to this headline">¶</a></h2>
+<p><strong>Extending with user-defined types.</strong> If you need to add your own element types, create a new class inheriting from
+<code class="xref py py-class docutils literal notranslate"><span class="pre">ElementType</span></code>. Instead of using built-in axes kinds from
+<code class="xref py py-class docutils literal notranslate"><span class="pre">AxisKind</span></code>, you can define your own
+by creating a new Python enum which should inherit from <code class="xref py py-class docutils literal notranslate"><span class="pre">AxisKindAbstract</span></code>.</p>
+<p><strong>Lists</strong>. Sometimes module’s input or output should be a list (possibly nested) of Tensors. NeMo’s
+<code class="xref py py-class docutils literal notranslate"><span class="pre">AxisType</span></code> class accepts <code class="docutils literal notranslate"><span class="pre">is_list</span></code> argument which could be set to True.
+Consider the example below:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">T1</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">(</span>
+    <span class="n">axes</span><span class="o">=</span><span class="p">(</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Time</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+        <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">elements_type</span><span class="o">=</span><span class="n">ChannelType</span><span class="p">(),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>In this example, first two axes are lists. That is the object are list of lists of rank 3 tensors with dimensions
+(32x128x256). Note that all list axes must come before any tensor axis.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>We strongly recommend this to be avoided, if possible, and tensors used instead (perhaps) with padding.</p>
+</div>
+<p><strong>Named tuples (structures).</strong> To represent struct-like objects, for example, bounding boxes in computer vision, use
+the following syntax:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">BoundingBox</span><span class="p">(</span><span class="n">ElementType</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;bounding box from detection model&quot;</span>
+    <span class="k">def</span> <span class="nf">fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;W&quot;</span><span class="p">,</span> <span class="s2">&quot;H&quot;</span><span class="p">)</span>
+<span class="c1"># ALSO ADD new, user-defined, axis kind</span>
+<span class="k">class</span> <span class="nc">AxisKind2</span><span class="p">(</span><span class="n">AxisKindAbstract</span><span class="p">):</span>
+    <span class="n">Image</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">T1</span> <span class="o">=</span> <span class="n">NeuralType</span><span class="p">(</span><span class="n">elements_type</span><span class="o">=</span><span class="n">BoundingBox</span><span class="p">(),</span>
+                <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind</span><span class="o">.</span><span class="n">Batch</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span>
+                      <span class="n">AxisType</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">AxisKind2</span><span class="o">.</span><span class="n">Image</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">is_list</span><span class="o">=</span><span class="bp">True</span><span class="p">)))</span>
+</pre></div>
+</div>
+<p>In the example above, we create a special “element type” class for BoundingBox which stores exactly 4 values.
+We also, add our own axis kind (Image). So the final Neural Type (T1) represents lists (for batch) of lists (for
+image) of bounding boxes. Under the hood it should be list(lists(4x1 tensors)).</p>
+<p><strong>Neural Types help us to debug models</strong></p>
+<p>There is a large class of errors, which will not produce runtime or compile exception. For example:</p>
+<ol class="arabic simple">
+<li><p>“Rank matches but semantics doesn’t”.</p></li>
+</ol>
+<p>For example, Module A produces data in the format [Batch, Time, Dim] whereas Module B  expects format [Time, Batch, Dim]. A simple axes transpose will solve this error.</p>
+<ol class="arabic simple" start="2">
+<li><p>“Concatenating wrong dimensions”.</p></li>
+</ol>
+<p>For example, module should concatenate (add) two input tensors X and Y along dimension 0. But tensor X is in format [B, T, D] while tensor Y=[T, B, D] and concat . .</p>
+<ol class="arabic simple" start="3">
+<li><p>“Dimensionality mismatch”</p></li>
+</ol>
+<p>A module expects image of size 224x224 but gets 256x256. The type comparison will result in <code class="docutils literal notranslate"><span class="pre">NeuralTypeComparisonResult.DIM_INCOMPATIBLE</span></code> .</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="custommodules.html" class="btn btn-neutral float-right" title="How to build Neural Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="examples.html" class="btn btn-neutral float-left" title="Examples" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

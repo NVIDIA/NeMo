@@ -1,0 +1,418 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Callbacks &mdash; nemo 0.11.0b9 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../_static/jquery.js"></script>
+        <script type="text/javascript" src="../_static/underscore.js"></script>
+        <script type="text/javascript" src="../_static/doctools.js"></script>
+        <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Complex Training Pipelines (GAN Example)" href="complex_training.html" />
+    <link rel="prev" title="Weight Sharing between Modules" href="weightsharing.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> nemo
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.11.0b9
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Introduction</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="intro.html">Getting started</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="program_model.html">Programming Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neuraltypes.html">Neural Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custommodules.html">How to build Neural Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="module_configuration.html">Module Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="weightsharing.html">Weight Sharing between Modules</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Callbacks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#built-in-callbacks">Built-in Callbacks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-your-own-callback">Creating Your Own Callback</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="complex_training.html">Complex Training Pipelines (GAN Example)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="neural_graphs.html">Neural Graphs</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../training.html">Fast Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../asr/intro.html">Speech Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speaker_recognition/intro.html">Speaker Recognition</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../speech_command/intro.html">Speech Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../voice_activity_detection/intro.html">Voice Activity Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../nlp/intro.html">Natural Language Processing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tts/intro.html">Speech Synthesis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../collections/modules.html">NeMo Collections API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-docs/modules.html">NeMo API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../chinese/intro.html">中文支持</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nemo</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="intro.html">Getting started</a> &raquo;</li>
+        
+      <li>Callbacks</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/tutorials/callbacks.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="callbacks">
+<h1>Callbacks<a class="headerlink" href="#callbacks" title="Permalink to this headline">¶</a></h1>
+<p>NeMo has a callback system that can be used to inject user code and logic inside its training loop. NeMo’s callbacks
+defines the following events that users can inject into:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span> <span class="n">on_action_start</span>
+<span class="o">----</span> <span class="n">on_epoch_start</span>
+<span class="o">------</span> <span class="n">on_step_start</span>
+<span class="o">--------</span> <span class="n">on_batch_start</span>
+<span class="o">--------</span> <span class="n">on_batch_end</span>
+<span class="o">------</span> <span class="n">on_step_end</span>
+<span class="o">----</span> <span class="n">on_epoch_end</span>
+<span class="o">--</span> <span class="n">on_action_end</span>
+</pre></div>
+</div>
+<p>At a high level, the NeMo training loop looks like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">train</span><span class="p">():</span>
+    <span class="o">...</span>  <span class="c1"># Do initialization of optimizers, amp, ddp, etc</span>
+    <span class="c1"># Initialize the state passed to callbacks and the tensor state object to be empty</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">TrainingState</span><span class="p">({})</span>
+
+    <span class="n">callbacks</span><span class="o">.</span><span class="n">on_action_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># For all callbacks, trigger the on_action_start event</span>
+    <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_epochs</span><span class="p">):</span>  <span class="c1"># Or until max_steps</span>
+        <span class="n">callbacks</span><span class="o">.</span><span class="n">on_epoch_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_epoch_start event</span>
+        <span class="n">batch_counter</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">dataloader</span><span class="p">:</span>  <span class="c1"># Fetch batches of data</span>
+            <span class="k">if</span> <span class="n">batch_counter</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">callbacks</span><span class="o">.</span><span class="n">on_step_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_step_start event</span>
+            <span class="n">callbacks</span><span class="o">.</span><span class="n">on_batch_start</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_batch_start event</span>
+
+            <span class="o">...</span>  <span class="c1"># Forward pass</span>
+            <span class="n">final_loss</span><span class="o">.</span><span class="n">backwards</span><span class="p">()</span>
+            <span class="c1"># Set the `loss` key inside the tensor state object to be the loss that we call backwards() on</span>
+            <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">][</span><span class="s2">&quot;loss&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">final_loss</span>
+
+            <span class="n">callbacks</span><span class="o">.</span><span class="n">on_batch_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_batch_end event</span>
+            <span class="n">batch_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">batch_counter</span> <span class="o">==</span> <span class="n">gradient_accumulation_steps</span><span class="p">:</span>
+                <span class="n">batch_counter</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Reset batch counter</span>
+                <span class="c1"># By default, gradient_accumulation_steps = 1. Note this is passed to train() as batches_per_step</span>
+                <span class="c1"># and sometimes exposed as args.iter_per_step</span>
+                <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+                <span class="n">callbacks</span><span class="o">.</span><span class="n">on_step_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_step_end event</span>
+
+            <span class="c1"># Clear the tensor state object</span>
+            <span class="n">clear</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span>
+        <span class="n">callbacks</span><span class="o">.</span><span class="n">on_epoch_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_epoch_end event</span>
+    <span class="n">callbacks</span><span class="o">.</span><span class="n">on_action_end</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># Trigger the on_action_end event</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>NeMo’s callbacks were updated in version 0.11. For documentation on the old callbacks, please see
+<a class="reference internal" href="old_callbacks.html#callbacks0-10"><span class="std std-ref">Callbacks V0.10</span></a>. For an update guide from version 0.10 to version 0.11, please see
+<a class="reference internal" href="old_callbacks.html#callbacks0-10update"><span class="std std-ref">Updating to Callbacks to NeMo V0.11</span></a>.</p>
+</div>
+<div class="section" id="built-in-callbacks">
+<h2>Built-in Callbacks<a class="headerlink" href="#built-in-callbacks" title="Permalink to this headline">¶</a></h2>
+<p>NeMo offers the following built-in callbacks that users can use:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.SimpleLogger" title="nemo.core.callbacks.SimpleLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.SimpleLogger</span></code></a> is a simple callback that prints information to screen. By default,
+it logs the training loss every 100 steps.</p></li>
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.TensorboardLogger" title="nemo.core.callbacks.TensorboardLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.TensorboardLogger</span></code></a> is a callback that logs information to tensorboard. Note that the
+<code class="docutils literal notranslate"><span class="pre">TensorboardSummaryWriter</span></code> class needs to be passed to this callback. Be default, it logs the training loss and
+learning rate every 100 steps, the number of epochs completed, and the epoch training time.</p></li>
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.WandBLogger" title="nemo.core.callbacks.WandBLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.WandBLogger</span></code></a> is a callback that logs information to
+<a class="reference external" href="https://docs.wandb.com/">Weights &amp; Biases</a>. Make sure wandb is installed and you did <code class="docutils literal notranslate"><span class="pre">wandb</span> <span class="pre">login</span></code>. It is
+recommended to pass the <code class="docutils literal notranslate"><span class="pre">wandb_name</span></code> and <code class="docutils literal notranslate"><span class="pre">wandb_project</span></code> arguments to the constructor. By default, it logs
+the training loss and learning rate every 100 steps, the number of epochs completed, and the epoch training time.</p></li>
+<li><p><a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.CheckpointCallback" title="nemo.core.callbacks.CheckpointCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.CheckpointCallback</span></code></a> is a callback that saves trainer and module checkpoints every
+<code class="docutils literal notranslate"><span class="pre">step_freq</span></code> or <code class="docutils literal notranslate"><span class="pre">epoch_freq</span></code>. The directory that the callback will save to must be passed as <code class="docutils literal notranslate"><span class="pre">folder</span></code>.</p></li>
+</ul>
+</div></blockquote>
+<p>In order to log additional tensors to screen, and additional tensor scalars to tensorboard and Weights and Biases, one
+can simply add these tensors to the <code class="docutils literal notranslate"><span class="pre">tensors_to_log</span></code> parameters of the relevant callbacks. For example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
+<span class="c1"># Assuming that you have a network defined above that produces a predictions tensor and instantiated</span>
+<span class="c1"># a MyLossModule and a MyMetricModule.</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">MyLossModule</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">predictions</span><span class="o">=</span><span class="n">predictions</span><span class="p">)</span>
+<span class="n">precision</span><span class="p">,</span> <span class="n">recall</span><span class="p">,</span> <span class="n">F1</span> <span class="o">=</span> <span class="n">MyMetricModule</span><span class="p">(</span><span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">predictions</span><span class="o">=</span><span class="n">predictions</span><span class="p">)</span>
+
+<span class="c1"># If desired, users can assign a string name to tensors for easy reference in callbacks</span>
+<span class="n">precision</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">)</span>
+<span class="c1"># Note that the name &quot;loss&quot; is reserved for the training loss</span>
+
+<span class="n">callbacks</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># Create a callback that prints the loss to screen every 10 steps</span>
+    <span class="c1"># By default tensors_to_log is [&quot;loss&quot;], so there is no need to pass that</span>
+    <span class="n">SimpleLogger</span><span class="p">(</span><span class="n">step_freq</span><span class="o">=</span><span class="mi">10</span><span class="p">),</span>
+    <span class="c1"># Create the tensorboard callback by passing the Tensorboard SummaryWriter object, and telling it to log</span>
+    <span class="c1"># loss and precision.</span>
+    <span class="n">TensorboardLogger</span><span class="p">(</span><span class="n">nf</span><span class="o">.</span><span class="n">tb_writer</span><span class="p">,</span> <span class="n">tensors_to_log</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">]),</span>
+    <span class="c1"># Create the Weights and Biases callback by giving it a name and project, and tell it to log the loss, F1</span>
+    <span class="c1"># and recall scores. Note that tensors_to_log also accepts the NmTensors themselves or their unique_names</span>
+    <span class="c1"># in addition to any renaming that users do</span>
+    <span class="n">WandBLogger</span><span class="p">(</span><span class="n">wandb_name</span><span class="o">=</span><span class="s2">&quot;my_exp&quot;</span><span class="p">,</span> <span class="n">wandb_project</span><span class="o">=</span><span class="s2">&quot;my_proj&quot;</span><span class="p">,</span> <span class="n">tensors_to_log</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">,</span> <span class="n">F1</span><span class="p">,</span> <span class="n">recall</span><span class="o">.</span><span class="n">unique_name</span><span class="p">])</span>
+<span class="p">]</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">tensors_to_optimize</span><span class="o">=</span><span class="p">[</span><span class="n">loss</span><span class="p">],</span>
+    <span class="n">callbacks</span><span class="o">=</span><span class="n">callbacks</span><span class="p">,</span>
+    <span class="o">...</span>  <span class="c1"># Other train() parameters</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>For more advanced logging of non-scalars such as images and audio to tensorboard, please take a look at the
+documentation and code for <a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.TensorboardLogger" title="nemo.core.callbacks.TensorboardLogger"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.TensorboardLogger</span></code></a></p>
+</div>
+</div>
+<div class="section" id="creating-your-own-callback">
+<span id="callback-creation"></span><h2>Creating Your Own Callback<a class="headerlink" href="#creating-your-own-callback" title="Permalink to this headline">¶</a></h2>
+<p>For more advanced user-cases where users want to inject their own logic not offered by NeMo’s built-in callbacks, NeMo
+allows users to defined their own callbacks via two methods. The first method is to create a child of the
+<a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.NeMoCallback" title="nemo.core.callbacks.NeMoCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.NeMoCallback</span></code></a> and define any of the methods
+(<code class="docutils literal notranslate"><span class="pre">on_action_start,</span> <span class="pre">on_epoch_start,</span> <span class="pre">...,</span> <span class="pre">on_action_end</span></code>) inside the child class. The second method is to use our
+function decorators for each of those events such as <a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.on_step_start" title="nemo.core.callbacks.on_step_start"><code class="xref py py-meth docutils literal notranslate"><span class="pre">nemo.core.callbacks.on_step_start()</span></code></a>. Regardless of the method
+chosen, both interact with the NeMo trainer through the <code class="docutils literal notranslate"><span class="pre">state</span></code> dictionary. We will first detail the <code class="docutils literal notranslate"><span class="pre">state</span></code>
+dictionary and then provide examples for creating a callback through the decorator method and through the child
+class method.</p>
+<p>NeMo provides callbacks with access to the <code class="docutils literal notranslate"><span class="pre">state</span></code> dictionary as defined in the StateWrapper class inside of
+nemo.backends.pytorch.actions.py. The dictionary contains the following key-value pairs:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>“step” (int): the current step number</p></li>
+<li><p>“epoch” (int): the current epoch</p></li>
+<li><p>“local_rank” (int): the local_rank of the current process. Defaults to None for single-gpu or cpu runs</p></li>
+<li><p>“global_rank” (int): the global_rank of the current process. Defaults to None for single-gpu or cpu runs</p></li>
+<li><p>“optimizers” (list of pytorch.optimizers): a list of the current pytorch optimizers used in the train action.
+In most cases, it is a list of 1 optimizer. Note that the current learning rate can be extracted from the
+optimizer. See the tensorboard callback to see how this is done.</p></li>
+<li><p>“tensors”: a <code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.actions.TrainingState</span></code> instance. This class has the
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">nemo.core.actions.TrainingState.get_tensor()</span></code> function that takes <code class="docutils literal notranslate"><span class="pre">name</span></code>: either the user-renamed string,
+a NmTensor’s unique_name, or a NmTensor and returns the associated pytorch tensor.</p></li>
+</ul>
+</div></blockquote>
+<p>Users can use NeMo’s callback function decorators to easily inject logic inside the training process that doesn’t need
+to keep state. For example, let’s say we want to compute the confusion_matrix every 150 steps using
+<code class="docutils literal notranslate"><span class="pre">sklearn.metrics.confusion_matrix</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Assume &#39;labels&#39; is defined before this</span>
+<span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span> <span class="o">=</span> <span class="n">MyDataLayerNM</span><span class="p">()</span>
+<span class="n">predictions</span> <span class="o">=</span> <span class="n">MyNeuralNetworkNM</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">MyLossNM</span><span class="p">(</span><span class="n">inputs</span><span class="o">=</span><span class="n">inputs</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)</span>
+
+<span class="c1"># Use the callback function decorator</span>
+<span class="nd">@nemo.core.callbacks.on_step_end</span>
+<span class="c1"># Define your function that accepts the input argument &#39;state&#39;</span>
+<span class="k">def</span> <span class="nf">print_confusion_matrix</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;step&quot;</span><span class="p">]</span> <span class="o">%</span> <span class="mi">150</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># Log once every 150 steps</span>
+        <span class="c1"># Use the get_tensor method of state[&quot;tensors&quot;] to get the pytorch tensor associated with the</span>
+        <span class="c1"># `target` NmTensor</span>
+        <span class="n">targets_value</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get_tensor</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+        <span class="n">predictions_value</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="s2">&quot;tensors&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get_tensor</span><span class="p">(</span><span class="n">predictions</span><span class="p">)</span>
+        <span class="n">confusion_matrix</span> <span class="o">=</span> <span class="n">sklearn</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">confusion_matrix</span><span class="p">(</span><span class="n">targets_value</span><span class="p">,</span> <span class="n">predictions_value</span><span class="p">,</span> <span class="n">labels</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">confusion_matrix</span><span class="p">)</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">print_confusion_matrix</span><span class="p">],</span> <span class="o">...</span><span class="p">)</span>  <span class="c1"># Pass the function to the callbacks arg of train()</span>
+</pre></div>
+</div>
+<p>Users can also create a child class of <a class="reference internal" href="../api-docs/nemo.html#nemo.core.callbacks.NeMoCallback" title="nemo.core.callbacks.NeMoCallback"><code class="xref py py-class docutils literal notranslate"><span class="pre">nemo.core.callbacks.NeMoCallback</span></code></a>. This method is useful when users want
+to store state inside a class variable that they can access from multiple callback hooks. For example, here is a
+callback that keeps the exponential moving average of the step time:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">StepTimeTracker</span><span class="p">(</span><span class="n">nemo</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">callbacks</span><span class="o">.</span><span class="n">NeMoCallback</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decay</span><span class="o">=</span><span class="mf">0.99</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span> <span class="o">=</span> <span class="n">decay</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ema_step_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_start_time</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Note that even you do not use state, your functions must accept 1 positional argument</span>
+    <span class="k">def</span> <span class="nf">on_step_start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Store current starting time in `self._step_start_time`</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">on_step_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="c1"># Calculate step duration</span>
+        <span class="n">step_duration</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_start_time</span>
+
+        <span class="c1"># Apply exponential moving average</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ema_step_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ema_step_time</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span><span class="p">)</span> <span class="o">*</span> <span class="n">step_duration</span>
+
+<span class="n">nf</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">StepTimeTracker</span><span class="p">()],</span> <span class="o">...</span><span class="p">)</span>  <span class="c1"># Pass your callback class to train()</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="complex_training.html" class="btn btn-neutral float-right" title="Complex Training Pipelines (GAN Example)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="weightsharing.html" class="btn btn-neutral float-left" title="Weight Sharing between Modules" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018-2020, NVIDIA
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
