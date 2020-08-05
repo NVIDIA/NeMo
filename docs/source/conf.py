@@ -21,7 +21,9 @@ import sys
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
 sys.path.insert(0, os.path.abspath("../.."))
-sys.path.insert(0, os.path.abspath(os.path.join("../..", "nemo")))
+sys.path.insert(0, os.path.abspath("../../nemo"))
+
+from package_info import __version__
 
 
 autodoc_mock_imports = [
@@ -81,14 +83,11 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.githubpages",
     "sphinxcontrib.bibtex",
+    "sphinx.ext.inheritance_diagram",
 ]
 
 # Set default flags for all classes.
-autodoc_default_flags = [
-    'members',
-    'undoc-members',
-    'show-inheritance',
-]
+autodoc_default_options = {'members': None, 'undoc-members': None, 'show-inheritance': True}
 
 locale_dirs = ['locale/']  # path is example but recommended.
 gettext_compact = False  # optional.
@@ -106,15 +105,14 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "nemo"
-copyright = "2018-2020, NVIDIA"
-author = "NVIDIA"
+project = "NVIDIA NeMo"
+copyright = "2018-, NVIDIA CORPORATION"
+author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-from package_info import __version__
 
 # The short X.Y version.
 # version = "0.10.0"
@@ -143,26 +141,35 @@ todo_include_todos = True
 
 # -- Options for HTML output ----------------------------------------------
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-# html_theme = 'alabaster'
-html_theme = "sphinx_rtd_theme"
+# NVIDIA Theme - work in progress.
+html_theme = 'nvidia_theme'
+html_theme_path = ["."]
 html_theme_options = {
-    "canonical_url": "",
-    "analytics_id": "",
-    "logo_only": False,
-    "display_version": True,
-    "prev_next_buttons_location": "bottom",
-    "style_external_links": False,
-    "vcs_pageview_mode": "",
-    # Toc options
-    "collapse_navigation": True,
-    "sticky_navigation": True,
-    "navigation_depth": 4,
-    "includehidden": True,
-    "titles_only": False,
+    'display_version': True,
+    'project_version': __version__,
+    'project_name': 'NVIDIA NeMo',
+    'logo_path': None,
+    'logo_only': True,
 }
+
+# Sphinx RTD theme.
+
+# html_theme = "sphinx_rtd_theme"
+# html_theme_options = {
+#    "canonical_url": "",
+#    "analytics_id": "",
+#    "logo_only": False,
+#    "display_version": True,
+#    "prev_next_buttons_location": "bottom",
+#    "style_external_links": False,
+#    "vcs_pageview_mode": "",
+#    # Toc options
+#    "collapse_navigation": True,
+#    "sticky_navigation": True,
+#    "navigation_depth": 4,
+#    "includehidden": True,
+#    "titles_only": False,
+# }
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -219,13 +226,13 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
-latex_documents = [(master_doc, "nemo.tex", "nemo Documentation", "AI App Design team", "manual",)]
+latex_documents = [(master_doc, "nemo.tex", "NVIDIA NeMo Documentation", "AI Applications Team", "manual",)]
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "nemo", "nemo Documentation", [author], 1)]
+man_pages = [(master_doc, "nemo", "NVIDIA NeMo Documentation", [author], 1)]
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -233,7 +240,15 @@ man_pages = [(master_doc, "nemo", "nemo Documentation", [author], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, "nemo", "nemo Documentation", author, "nemo", "One line description of project.", "Miscellaneous",)
+    (
+        master_doc,
+        "NVIDIA NeMo ",
+        "NeMo Documentation",
+        author,
+        "NVIDIA Corporation",
+        "One line description of project.",
+        "Miscellaneous",
+    )
 ]
 
 autoclass_content = 'both'
