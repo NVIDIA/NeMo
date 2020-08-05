@@ -75,6 +75,8 @@ autodoc_mock_imports = [
     'webdataset',
     'tqdm',
     'numba',
+    'hydra',
+    'pytorch-lightning',
 ]
 
 # -- General configuration ------------------------------------------------
