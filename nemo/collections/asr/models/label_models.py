@@ -109,13 +109,6 @@ class EncDecSpeakerLabelModel(ModelPT):
     def export(self, **kwargs):
         pass
 
-    # def save_to(self, save_path: str):
-    #     pass
-
-    # @classmethod
-    # def restore_from(cls, restore_path: str):
-    #     pass
-
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):
@@ -188,9 +181,14 @@ class EncDecSpeakerLabelModel(ModelPT):
 
 
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None, root_dir='.'):
+    """
+    This Model class facilitates extraction of speaker embeddings from a pretrained model.
+    root_dir: diretory path where embeddings to be saved
+    """
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self.dir = root_dir
+        self.dir = "."
 
     def test_step(self, batch, batch_ix):
         self.eval()
@@ -200,7 +198,6 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
 
     def test_epoch_end(self, outputs):
         embs = torch.cat([x['embs'] for x in outputs])
-        # print(embs)
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
         labels = []

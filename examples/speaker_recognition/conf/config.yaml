@@ -2,7 +2,7 @@ name: &name "Voxnet"
 sample_rate: &sample_rate 16000
 repeat: &rep 1
 dropout: &drop 0.5
-separable: &separable False
+separable: &separable True
 n_filters: &n_filters 512
 
 model:
@@ -101,7 +101,7 @@ model:
     cls: nemo.collections.asr.modules.SpeakerDecoder
     params:
       feat_in: *enc_feat_out
-      num_classes: 1211
+      num_classes: 2
       pool_mode: 'xvector'
       emb_sizes: 512,512
 

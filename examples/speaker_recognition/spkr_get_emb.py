@@ -54,7 +54,8 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
-    speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path, root_dir=log_dir)
+    
+    speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
     trainer.test(speaker_model)
 
     # TODO fix this restoring issue later once sufficient fix is provided
