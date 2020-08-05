@@ -58,13 +58,13 @@ class TestExpManager:
         test_trainer = pl.Trainer()  # Should create logger and modelcheckpoint
 
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
-            exp_manager(test_trainer, {"root_dir": str(tmp_path)})
+            exp_manager(test_trainer, {"exp_dir": str(tmp_path)})
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
             exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path)})
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
             exp_manager(test_trainer, {"resume": True})
 
-        # Check that exp_manager uses trainer.logger, it's root_dir, name, and version
+        # Check that exp_manager uses trainer.logger, it's exp_dir, name, and version
         log_dir = exp_manager(test_trainer, {"create_tensorboard_logger": False, "create_checkpoint_callback": False})
         assert log_dir.resolve() == Path("./lightning_logs/version_0").resolve()
         assert Path("./lightning_logs").exists()
@@ -74,7 +74,7 @@ class TestExpManager:
         test_trainer = pl.Trainer(logger=False)
         log_dir = exp_manager(
             test_trainer,
-            {"create_tensorboard_logger": True, "create_checkpoint_callback": False, "root_dir": str(tmp_path)},
+            {"create_tensorboard_logger": True, "create_checkpoint_callback": False, "exp_dir": str(tmp_path)},
         )
         assert isinstance(test_trainer.logger, pl.loggers.TensorBoardLogger)
 
@@ -86,7 +86,7 @@ class TestExpManager:
                 {
                     "create_tensorboard_logger": False,
                     "create_checkpoint_callback": False,
-                    "root_dir": str(tmp_path),
+                    "exp_dir": str(tmp_path),
                     "create_wandb_logger": True,
                 },
             )
@@ -97,7 +97,7 @@ class TestExpManager:
             {
                 "create_tensorboard_logger": False,
                 "create_checkpoint_callback": False,
-                "root_dir": str(tmp_path),
+                "exp_dir": str(tmp_path),
                 "create_wandb_logger": True,
                 "wandb_logger_kwargs": {"name": "", "project": ""},
             },
@@ -136,34 +136,30 @@ class TestExpManager:
     @pytest.mark.unit
     def test_log_dir_overrides(self, tmp_path):
         """Check a variety of trainer options with exp_manager"""
-        # Checks that explicit_log_dir ignores root_dir, name, and version
+        # Checks that explicit_log_dir ignores exp_dir, name, and version
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test_log_dir_overrides")})
         assert log_dir.resolve() == (tmp_path / "test_log_dir_overrides").resolve()
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_log_dir_overrides").exists()
 
-        # Checks that exp_manager uses root_dir, default name, and explicit version
+        # Checks that exp_manager uses exp_dir, default name, and explicit version
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
-        log_dir = exp_manager(test_trainer, {"root_dir": str(tmp_path / "test_no_name"), "version": 957})
+        log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "version": 957})
         assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "957").resolve()
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "957").exists()
 
         # Checks that use_datetime_version False toggle works
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
-        log_dir = exp_manager(
-            test_trainer, {"root_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False}
-        )
+        log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
         assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "version_0").resolve()
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "version_0").exists()
 
         # Checks that use_datetime_version False toggle works and version increments
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
-        log_dir = exp_manager(
-            test_trainer, {"root_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False}
-        )
+        log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
         assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "version_1").resolve()
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_no_name" / "default" / "version_1").exists()
@@ -177,12 +173,12 @@ class TestExpManager:
         with pytest.raises(NotFoundError):
             log_dir = exp_manager(
                 test_trainer,
-                {"root_dir": str(tmp_path / "test_resume"), "resume": True, "explicit_log_dir": "Does_not_exist"},
+                {"exp_dir": str(tmp_path / "test_resume"), "resume": True, "explicit_log_dir": "Does_not_exist"},
             )
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
-            log_dir = exp_manager(test_trainer, {"resume": True, "root_dir": str(tmp_path / "test_resume")})
+            log_dir = exp_manager(test_trainer, {"resume": True, "exp_dir": str(tmp_path / "test_resume")})
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder

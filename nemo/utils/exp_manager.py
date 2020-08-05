@@ -60,7 +60,7 @@ class CheckpointMisconfigurationError(NeMoBaseException):
 class ExpManagerConfig:
     # Log dir creation parameters
     explicit_log_dir: Optional[str] = None
-    root_dir: Optional[str] = None
+    exp_dir: Optional[str] = None
     name: Optional[str] = None
     version: Optional[str] = None
     use_datetime_version: Optional[bool] = True
@@ -81,8 +81,8 @@ class ExpManagerConfig:
 def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Path:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
-    of root_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get root_dir,
-    name, and version from the logger. Otherwise it will use the root_dir and name arguments to create the logging
+    of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
+    name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
     The version will be a datetime string if running single node, and version will be an integer if running
     on slurm multi-node. Datestime version can be disabled if use_datetime_version is set to False.
@@ -94,10 +94,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
         cfg (DictConfig, dict): Can have the following keys:
-            - explicit_log_dir (str, Path): Can be used to override root_dir/name/version folder creation. Defaults to
-                None, which will use root_dir, name, and version to construct the logging directory.
-            - root_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
-                ./NeMo_experiments.
+            - explicit_log_dir (str, Path): Can be used to override exp_dir/name/version folder creation. Defaults to
+                None, which will use exp_dir, name, and version to construct the logging directory.
+            - exp_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
+                ./nemo_experiments.
             - name (str): The name of the experiment. Defaults to None which turns into "default" via name = name or
                 "default".
             - version (str): The version of the experiment. Defaults to None which uses either a datetime string or
@@ -127,7 +127,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
-            root_dir, name, and version.
+            exp_dir, name, and version.
     """
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -144,9 +144,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     error_checks(trainer, cfg)  # Ensures that trainer options are compliant with NeMo and exp_manager arguments
 
-    log_dir, root_dir, name, version = get_log_dir(
+    log_dir, exp_dir, name, version = get_log_dir(
         trainer=trainer,
-        root_dir=cfg.root_dir,
+        exp_dir=cfg.exp_dir,
         name=cfg.name,
         version=cfg.version,
         explicit_log_dir=cfg.explicit_log_dir,
@@ -174,7 +174,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
             configure_loggers(
                 trainer,
-                root_dir,
+                exp_dir,
                 cfg.name,
                 cfg.version,
                 cfg.create_tensorboard_logger,
@@ -247,7 +247,7 @@ def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past
 
     Returns:
         log_dir (Path): the log_dir
-        root_dir (str): the base root_dir without name nor version
+        exp_dir (str): the base exp_dir without name nor version
         name (str): The name of the experiment
         version (str): The version of the experiment
 
@@ -299,13 +299,13 @@ def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past
 
 
 def check_explicit_log_dir(
-    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], root_dir: str, name: str, version: str
+    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], exp_dir: str, name: str, version: str
 ) -> (Path, str, str, str):
     """ Checks that the passed arguments are compatible with explicit_log_dir.
 
     Returns:
         log_dir (Path): the log_dir
-        root_dir (str): the base root_dir without name nor version
+        exp_dir (str): the base exp_dir without name nor version
         name (str): The name of the experiment
         version (str): The version of the experiment
 
@@ -317,10 +317,10 @@ def check_explicit_log_dir(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger and explicit_log_dir: "
             f"{explicit_log_dir} was pass to exp_manager. Please remove the logger from the lightning trainer."
         )
-    if root_dir or name or version:
+    if exp_dir or name or version:
         logging.error(
-            f"exp_manager received explicit_log_dir: {explicit_log_dir} and at least one of root_dir: {root_dir}, "
-            f"name: {name}, or version: {version}. Please note that root_dir, "
+            f"exp_manager received explicit_log_dir: {explicit_log_dir} and at least one of exp_dir: {exp_dir}, "
+            f"name: {name}, or version: {version}. Please note that exp_dir, "
             "name, and version will be ignored."
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
@@ -330,7 +330,7 @@ def check_explicit_log_dir(
 
 def get_log_dir(
     trainer: 'pytorch_lightning.Trainer',
-    root_dir: str = None,
+    exp_dir: str = None,
     name: str = None,
     version: str = None,
     explicit_log_dir: str = None,
@@ -341,7 +341,7 @@ def get_log_dir(
 
     Returns:
         log_dir (Path): the log_dir
-        root_dir (str): the base root_dir without name nor version
+        exp_dir (str): the base exp_dir without name nor version
         name (str): The name of the experiment
         version (str): The version of the experiment
 
@@ -350,24 +350,24 @@ def get_log_dir(
         ValueError: If resume is True and checkpoints could not be find.
     """
     if explicit_log_dir:  # If explicit log_dir was pass, short circuit
-        return check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version)
+        return check_explicit_log_dir(trainer, explicit_log_dir, exp_dir, name, version)
 
-    # Default root_dir to ./NeMo_experiments if None was passed
-    _root_dir = root_dir
-    if root_dir is None:
-        _root_dir = str(Path.cwd() / 'NeMo_experiments')
+    # Default exp_dir to ./nemo_experiments if None was passed
+    _exp_dir = exp_dir
+    if exp_dir is None:
+        _exp_dir = str(Path.cwd() / 'nemo_experiments')
 
     # If the user has already defined a logger for the trainer, use the logger defaults for logging directory
     if trainer.logger is not None:
         if trainer.logger.save_dir:
-            if root_dir:
+            if exp_dir:
                 raise LoggerMisconfigurationError(
                     "The pytorch lightning trainer that was passed to exp_manager contained a logger, the logger's "
-                    f"save_dir was not None, and root_dir ({root_dir}) was not None. If trainer.logger.save_dir "
-                    "exists, exp_manager will use trainer.logger.save_dir as the logging directory and root_dir "
+                    f"save_dir was not None, and exp_dir ({exp_dir}) was not None. If trainer.logger.save_dir "
+                    "exists, exp_manager will use trainer.logger.save_dir as the logging directory and exp_dir "
                     "must be None."
                 )
-            _root_dir = trainer.logger.save_dir
+            _exp_dir = trainer.logger.save_dir
         if name:
             raise LoggerMisconfigurationError(
                 "The pytorch lightning trainer that was passed to exp_manager contained a logger, and name: "
@@ -376,7 +376,7 @@ def get_log_dir(
             )
         name = trainer.logger.name
         version = f"version_{trainer.logger.version}"
-    # Use user-defined root_dir, project_name, exp_name, and versioning options
+    # Use user-defined exp_dir, project_name, exp_name, and versioning options
     else:
         if version is None and use_datetime_version:
             version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
@@ -389,12 +389,12 @@ def get_log_dir(
         name = name or "default"
 
         # Always create TensorBoardLogger, so we can retrieve version if running on slurm
-        tensorboard_logger = TensorBoardLogger(save_dir=Path(_root_dir), name=name, version=version)
+        tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
         if version is None:
             version = f"version_{tensorboard_logger.version}"
 
-    log_dir = Path(_root_dir) / Path(str(name)) / Path(str(version))
-    return log_dir, str(_root_dir), name, version
+    log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
+    return log_dir, str(_exp_dir), name, version
 
 
 def get_git_hash():
@@ -448,7 +448,7 @@ class LoggerList(_LoggerCollection):
 
 def configure_loggers(
     trainer: 'pytorch_lightning.Trainer',
-    root_dir: [Path, str],
+    exp_dir: [Path, str],
     name: str,
     version: str,
     create_tensorboard_logger: bool,
@@ -469,7 +469,7 @@ def configure_loggers(
                 "You cannot pass `log_dir` as part of `summary_writter_kwargs`. `log_dir` is handled by lightning's "
                 "TensorBoardLogger logger."
             )
-        tensorboard_logger = TensorBoardLogger(save_dir=root_dir, name=name, version=version, **summary_writter_kwargs)
+        tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writter_kwargs)
         logger_list.append(tensorboard_logger)
         logging.info("TensorboardLogger has been set up")
 
@@ -478,7 +478,7 @@ def configure_loggers(
             wandb_kwargs = {}
         if "name" not in wandb_kwargs and "project" not in wandb_kwargs:
             raise ValueError("name and project are required for wandb_logger")
-        wandb_logger = WandbLogger(save_dir=root_dir, version=version, **wandb_kwargs)
+        wandb_logger = WandbLogger(save_dir=exp_dir, version=version, **wandb_kwargs)
 
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")

@@ -173,7 +173,7 @@ trainer:
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
 
 exp_manager:
-  root_dir: null
+  exp_dir: null
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True

@@ -145,7 +145,7 @@ trainer:
   check_val_every_n_epoch: 25
 
 exp_manager:
-  root_dir: null
+  exp_dir: null
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True

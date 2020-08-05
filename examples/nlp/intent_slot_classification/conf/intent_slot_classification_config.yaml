@@ -51,7 +51,7 @@ model:
     vocab_file: null
     tokenizer_model: null # only used if tokenizer is sentencepiece
     do_lower_case: true # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
-  
+
   head:
     num_output_layers: 2
     fc_dropout: 0.1
@@ -82,7 +82,7 @@ model:
           last_epoch: -1
 
 exp_manager:
-  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
+  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: "IntentSlot"  # The name of your model
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
