@@ -50,6 +50,7 @@ autodoc_mock_imports = [
     'torchvision.models',
     'torchtext',
     'torch_stft',
+    'pytorch-lightning',
     'h5py',
     'kaldi_io',
     'transformers',
@@ -76,7 +77,7 @@ autodoc_mock_imports = [
     'tqdm',
     'numba',
     'hydra',
-    'pytorch-lightning',
+    'omegaconf',
 ]
 
 # -- General configuration ------------------------------------------------
