@@ -78,7 +78,7 @@ class TestASRDatasets:
             audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, sample_rate=16000
         )
         count = 0
-        for _ in ds_braceexpand:
+        for _ in ds_list_load:
             count += 1
         assert count == 32
 
@@ -109,6 +109,6 @@ class TestASRDatasets:
             audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, tokenizer=tokenizer, sample_rate=16000
         )
         count = 0
-        for _ in ds_braceexpand:
+        for _ in ds_list_load:
             count += 1
         assert count == 32
