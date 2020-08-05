@@ -191,9 +191,7 @@ class ModelPT(LightningModule, Model):
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-
                 os.chdir(tmpdir)
-
                 config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 conf = OmegaConf.load(config_yaml)

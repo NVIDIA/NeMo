@@ -109,15 +109,9 @@ class EncDecCTCModel(ASRModel):
                         entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
                         fp.write(json.dumps(entry) + '\n')
 
-                dl_config = {
-                    'manifest_filepath': os.path.join(tmpdir, 'manifest.json'),
-                    'sample_rate': self.preprocessor._sample_rate,
-                    'labels': self.decoder.vocabulary,
-                    'batch_size': min(batch_size, len(paths2audio_files)),
-                    'trim_silence': True,
-                    'shuffle': False,
-                }
-                temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+
+                temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in temporary_datalayer:
                     _, _, greedy_predictions = self.forward(
                         input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
@@ -309,6 +303,34 @@ class EncDecCTCModel(ASRModel):
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
+
+    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                stored.
+
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+        """
+        dl_config = {
+            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'sample_rate': self.preprocessor._sample_rate,
+            'labels': self.decoder.vocabulary,
+            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'trim_silence': True,
+            'shuffle': False,
+        }
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer
 
 
 @experimental

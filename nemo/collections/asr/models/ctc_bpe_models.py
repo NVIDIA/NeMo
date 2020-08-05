@@ -215,6 +215,32 @@ class EncDecCTCModelBPE(EncDecCTCModel):
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
         }
 
+    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                stored.
+
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+        """
+        dl_config = {
+            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'sample_rate': self.preprocessor._sample_rate,
+            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'shuffle': False,
+        }
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer
+
 
 @experimental
 class JasperNetBPE(EncDecCTCModelBPE):
