@@ -17,7 +17,6 @@ from torch import nn
 
 from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['CrossEntropyLoss']
 

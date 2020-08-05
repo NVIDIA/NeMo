@@ -1,5 +1,6 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
-# Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
+# Copyright 2018 The Google AI Language Team Authors and
+# The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +21,6 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
