@@ -13,31 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict, List
+
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import f1_score, matthews_corrcoef
 
+__all__ = ['compute_metrics']
 
-def accuracy(preds, labels):
+
+def accuracy(preds: List[int], labels: List[int]):
     return {"acc": (preds == labels).mean()}
 
 
-def acc_and_f1(preds, labels):
+def acc_and_f1(preds: List[int], labels: List[int]):
     accuracy = (preds == labels).mean()
     f1 = f1_score(y_true=labels, y_pred=preds)
     return {"acc": accuracy, "f1": f1}
 
 
-def mcc(preds, labels):
+def mcc(preds: List[int], labels: List[int]):
     return {"mcc": matthews_corrcoef(labels, preds)}
 
 
-def pearson_and_spearman(preds, labels):
+def pearson_and_spearman(preds: List[int], labels: List[int]):
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
     return {"pearson": pearson_corr, "spearmanr": spearman_corr, "pear+spear av": (pearson_corr + spearman_corr) / 2}
 
 
-def compute_metrics(task_name, preds, labels):
+def compute_metrics(task_name: str, preds: List[int], labels: List[int]) -> Dict[str, float]:
+    """
+    Computes metrics for GLUE tasks
+    Args:
+        task_name: GLUE task name
+        preds: model predictions
+        labels: golden labels
+    Returns:
+        metrics
+    """
     if len(preds) != len(labels):
         raise ValueError("Predictions and labels must have the same length")
 

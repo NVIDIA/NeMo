@@ -24,7 +24,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['SpanningLoss']
 
 
-@experimental
 class SpanningLoss(Loss):
     """
     implements start and end loss of a span e.g. for Question Answering.

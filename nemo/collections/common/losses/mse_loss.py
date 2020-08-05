@@ -21,7 +21,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['MSELoss']
 
 
-@experimental
 class MSELoss(nn.MSELoss, Serialization, Typing):
     """
     CrossEntropyLoss

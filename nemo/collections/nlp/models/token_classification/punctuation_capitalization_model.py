@@ -30,12 +30,10 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['PunctuationCapitalizationModel']
 
 
-@experimental
 class PunctuationCapitalizationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

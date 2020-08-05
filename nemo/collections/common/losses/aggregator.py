@@ -21,7 +21,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['AggregatorLoss']
 
 
-@experimental
 class AggregatorLoss(Loss):
     """
     Sums several losses into one.

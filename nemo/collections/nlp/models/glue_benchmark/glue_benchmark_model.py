@@ -34,7 +34,6 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['GLUEModel']
 
@@ -65,7 +64,6 @@ WNLI	Accuracy	                    43.66
 '''
 
 
-@experimental
 class GLUEModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

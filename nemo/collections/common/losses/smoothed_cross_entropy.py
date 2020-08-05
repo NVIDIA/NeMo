@@ -23,7 +23,6 @@ from nemo.utils.decorators import experimental
 __all__ = ['SmoothedCrossEntropyLoss']
 
 
-@experimental
 class SmoothedCrossEntropyLoss(Loss):
     """
     Calculates Cross-entropy loss with label smoothing for a batch of sequences, and it

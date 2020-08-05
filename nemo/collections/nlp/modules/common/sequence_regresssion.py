@@ -19,12 +19,10 @@ from torch import nn
 from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, NeuralType, RegressionValuesType
-from nemo.utils.decorators import experimental
 
 __all__ = ['SequenceRegression']
 
 
-@experimental
 class SequenceRegression(NeuralModule):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
