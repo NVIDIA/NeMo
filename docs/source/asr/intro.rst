@@ -8,3 +8,5 @@ Automatic Speech Recognition (ASR)
    models
    api
 
+
+Speech recognition tutorials can be found under ``<NeMo_Git_root>/tutorials/asr/``
