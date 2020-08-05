@@ -79,6 +79,7 @@ autodoc_mock_imports = [
     'hydra',
     'omegaconf',
     'onnx',
+    'editdistance',
 ]
 
 # -- General configuration ------------------------------------------------

@@ -24,7 +24,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, NovogradParams
 from nemo.core.neural_types import *
-from nemo.utils.decorators import experimental
 
 
 @dataclass
