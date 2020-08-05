@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ from os.path import exists
 
 from assistant_utils import process_assistant
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     DATABASE_EXISTS_TMP,
     MODE_EXISTS_TMP,
@@ -28,6 +27,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     get_vocab,
     if_exist,
 )
+from nemo.utils import logging
 
 
 def ids2text(ids, vocab):
@@ -265,6 +265,7 @@ if __name__ == "__main__":
             ignore_prev_intent=args.ignore_prev_intent,
         )
     elif dataset_name == 'assistant':
+        # TODO: Unexpected keyword argument 'use_full_dataset' in function call
         process_assistant(infold=source_dir, outfold=target_dir, use_full_dataset=args.use_full_dataset)
     else:
         raise ValueError(f'Dataset {dataset_name} is not supported.')

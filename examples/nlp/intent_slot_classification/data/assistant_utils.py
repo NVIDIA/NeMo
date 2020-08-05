@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@ import os
 import re
 import shutil
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import DATABASE_EXISTS_TMP, if_exist, write_files
+from nemo.utils import logging
 
 
 def copy_input_files(infold):

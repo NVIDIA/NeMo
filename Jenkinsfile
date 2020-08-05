@@ -23,6 +23,12 @@ pipeline {
       }
     }
 
+    stage('Copyright Headers check') {
+      steps {
+        sh 'python /home/TestData/check_copyright_header.py --dir .'
+      }
+    }
+
     stage('Code formatting checks') {
       steps {
         sh 'python setup.py style'

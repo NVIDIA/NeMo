@@ -1,4 +1,4 @@
-# Copyright (c) 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -181,7 +181,7 @@ class NovogradParams(OptimizerParams):
     It has been proposed  in "Stochastic Gradient Methods with Layer-wise
     Adaptive Moments for Training of Deep Networks"
     (https://arxiv.org/abs/1905.11286)
-    
+
     Args:
         lr (float, optional): learning rate (default: 1e-3)
         betas (Tuple[float, float], optional): coefficients used for computing
