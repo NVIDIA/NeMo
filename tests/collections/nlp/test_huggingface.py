@@ -12,11 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
 from unittest import TestCase
 
 import pytest
 
 import nemo.collections.nlp as nemo_nlp
+
+
+def do_export(model, name: str):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Generate filename in the temporary directory.
+        tmp_file_name = os.path.join(tmpdir, name + '.onnx')
+        # Test export.
+        model.export(tmp_file_name)
 
 
 class TestHuggingFace(TestCase):
@@ -29,18 +39,22 @@ class TestHuggingFace(TestCase):
     def test_get_pretrained_bert_model(self):
         model = nemo_nlp.modules.get_pretrained_lm_model('bert-base-uncased')
         assert isinstance(model, nemo_nlp.modules.BertEncoder)
+        do_export(model, "bert-base-uncased")
 
     @pytest.mark.unit
     def test_get_pretrained_distilbert_model(self):
         model = nemo_nlp.modules.get_pretrained_lm_model('distilbert-base-uncased')
         assert isinstance(model, nemo_nlp.modules.DistilBertEncoder)
+        do_export(model, "distilbert-base-uncased")
 
     @pytest.mark.unit
     def test_get_pretrained_roberta_model(self):
         model = nemo_nlp.modules.get_pretrained_lm_model('roberta-base')
         assert isinstance(model, nemo_nlp.modules.RobertaEncoder)
+        do_export(model, "roberta-base-uncased")
 
     @pytest.mark.unit
     def test_get_pretrained_albert_model(self):
         model = nemo_nlp.modules.get_pretrained_lm_model('albert-base-v1')
         assert isinstance(model, nemo_nlp.modules.AlbertEncoder)
+        do_export(model, "albert-base-v1")

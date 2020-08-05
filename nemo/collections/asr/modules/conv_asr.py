@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -45,7 +44,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         m_count = 0
         for m in self.modules():
             if type(m).__name__ == "MaskedConv1d":
@@ -223,7 +222,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         """
         Returns a pair in input, output examples for tracing.
         Returns:
