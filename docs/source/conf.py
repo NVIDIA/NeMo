@@ -50,7 +50,7 @@ autodoc_mock_imports = [
     'torchvision.models',
     'torchtext',
     'torch_stft',
-    'pytorch-lightning',
+    'pytorch_lightning',
     'h5py',
     'kaldi_io',
     'transformers',
