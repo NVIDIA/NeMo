@@ -347,6 +347,46 @@ pipeline {
       }
     }
 
+    stage('L2: Parallel NLP Examples 1') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Text Classification with BERT Test') {
+          steps {
+            sh 'cd examples/nlp/text_classification && \
+            python text_classification_with_bert.py \
+            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
+            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.train_ds.batch_size=10 \
+            model.dataset.max_seq_length=50 \
+            model.dataset.use_cache=false \
+            model.dataset.do_lower_case=true \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=true \
+            exp_manager.root_dir=exp_bert_base_uncased \
+            '
+            sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
+          }
+        }
+        stage ('NER with BERT') {
+          steps {
+            sh 'cd examples/nlp/token_classification && \
+            python token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=true \
+            model.dataset.use_cache=false \
+            '
+          }
+        }
+      }
+    }
 
     stage('L2: Parallel GLUE Examples') {
       when {

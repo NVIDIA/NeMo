@@ -77,9 +77,7 @@ class GLUEModel(ModelPT):
         """
         Initializes model to use BERT model for GLUE tasks.
         """
-
         self.data_dir = cfg.dataset.data_dir
-
         if not os.path.exists(self.data_dir):
             raise FileNotFoundError(
                 "GLUE datasets not found. Datasets can be "
@@ -89,7 +87,6 @@ class GLUEModel(ModelPT):
         if cfg.task_name not in cfg.supported_tasks:
             raise ValueError(f'{cfg.task_name} not in supported task. Choose from {cfg.supported_tasks}')
         self.task_name = cfg.task_name
-
         # MNLI task has two separate dev sets: matched and mismatched
         cfg.train_ds.file_name = os.path.join(self.data_dir, cfg.train_ds.file_name)
         if self.task_name == "mnli":
@@ -200,15 +197,15 @@ class GLUEModel(ModelPT):
             tensorboard_logs = compute_metrics(self.task_name, np.array(preds), np.array(labels))
             logging.info(f'{self._validation_names[dataloader_idx].upper()} evaluation: {tensorboard_logs}')
 
-        # writing labels and predictions to a file in output_dir is specified in the config
-        output_dir = self._cfg.output_dir
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-            filename = os.path.join(output_dir, self.task_name + '.txt')
-            logging.info(f'Saving labels and predictions to {filename}')
-            with open(filename, 'w') as f:
-                f.write('labels\t' + list2str(labels) + '\n')
-                f.write('preds\t' + list2str(preds) + '\n')
+            # writing labels and predictions to a file in output_dir is specified in the config
+            output_dir = self._cfg.output_dir
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+                filename = os.path.join(output_dir, self.task_name + '.txt')
+                logging.info(f'Saving labels and predictions to {filename}')
+                with open(filename, 'w') as f:
+                    f.write('labels\t' + list2str(labels) + '\n')
+                    f.write('preds\t' + list2str(preds) + '\n')
 
         tensorboard_logs['val_loss'] = avg_loss
         return {'val_loss': avg_loss, 'log': tensorboard_logs}

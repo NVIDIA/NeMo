@@ -19,7 +19,7 @@
 
 import os
 import pickle
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -166,23 +166,23 @@ class GLUEDataset(Dataset):
 
     def convert_examples_to_features(
         self,
-        examples,
-        label_list,
-        max_seq_length,
-        tokenizer,
-        output_mode,
-        bos_token=None,
-        eos_token='[SEP]',
-        pad_token='[PAD]',
-        cls_token='[CLS]',
-        sep_token_extra=None,
-        cls_token_at_end=False,
-        cls_token_segment_id=0,
-        pad_token_segment_id=0,
-        pad_on_left=False,
-        mask_padding_with_zero=True,
-        sequence_a_segment_id=0,
-        sequence_b_segment_id=1,
+        examples: List[str],
+        label_list: List[int],
+        max_seq_length: int,
+        tokenizer: TokenizerSpec,
+        output_mode: str,
+        bos_token: str = None,
+        eos_token: str = '[SEP]',
+        pad_token: str = '[PAD]',
+        cls_token: str = '[CLS]',
+        sep_token_extra: str = None,
+        cls_token_at_end: bool = False,
+        cls_token_segment_id: int = 0,
+        pad_token_segment_id: int = 0,
+        pad_on_left: bool = False,
+        mask_padding_with_zero: bool = True,
+        sequence_a_segment_id: int = 0,
+        sequence_b_segment_id: int = 1,
     ):
         """
         Loads a data file into a list of `InputBatch`s.

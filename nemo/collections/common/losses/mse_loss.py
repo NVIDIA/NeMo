@@ -22,7 +22,7 @@ __all__ = ['MSELoss']
 
 class MSELoss(nn.MSELoss, Serialization, Typing):
     """
-    CrossEntropyLoss
+    MSELoss
     """
 
     @property
