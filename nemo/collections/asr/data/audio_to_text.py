@@ -748,7 +748,9 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
     ):
         self.labels = labels
 
-        parser = parsers.make_parser(labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize)
+        parser = parsers.make_parser(
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+        )
 
         super().__init__(
             audio_tar_filepaths=audio_tar_filepaths,
