@@ -8,35 +8,36 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
-  precision: 32
-  distributed_backend: ddp
+  precision: 16
+  distributed_backend: null #ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
 
 model:
-  data_dir: ??? # /path/to/data
-  task_name: &task_name "sts-b" # choose from: ["cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"] GLUE task name, MNLI includes both matched and mismatched tasks
+  task_name: &task_name mrpc # choose from: ["cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"] GLUE task name, MNLI includes both matched and mismatched tasks
   supported_tasks: *supported_tasks
-  max_seq_length: 128
-  use_cache: true
+  output_dir: null # dir to write write predictions
+  dataset:
+    data_dir: ??? # /path/to/data
+    max_seq_length: 128
+    use_cache: true
+
+    # shared across dataloaders:
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   train_ds:
     file_name: 'train.tsv'
     shuffle: true
     num_samples: -1
     batch_size: 32
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   validation_ds:
     file_name: 'dev.tsv' # for MNLI 'dev_matched.tsv' and 'dev_mismatched.tsv' will de used
     shuffle: false
     num_samples: -1
     batch_size: 32
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   language_model:
     pretrained_model_name: bert-base-uncased
@@ -50,27 +51,18 @@ model:
   optim:
     name: adam
     lr: 5e-5
-    args:
-      name: auto
-      params:
-        weight_decay: 0.01
+    weight_decay: 0.00
 
     sched:
       name: WarmupAnnealing
-      iters_per_batch: null # computed at runtime
-      max_steps: null # computed at runtime or explicitly set here
+      # Scheduler params
+      warmup_steps: null
+      warmup_ratio: 0.1
+      last_epoch: -1
 
       # pytorch lightning args
       monitor: val_loss
       reduce_on_plateau: false
-
-      # scheduler config override
-      args:
-        name: auto
-        params:
-          warmup_steps: null
-          warmup_ratio: 0.1
-          last_epoch: -1
 
 exp_manager:
   root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"

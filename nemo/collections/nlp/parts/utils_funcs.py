@@ -12,8 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['list2str']
+__all__ = ['list2str', 'tensor2list']
 
 
 def list2str(l):
     return ' '.join([str(x) for x in l])
+
+
+def tensor2list(tensor):
+    return tensor.detach().cpu().tolist()

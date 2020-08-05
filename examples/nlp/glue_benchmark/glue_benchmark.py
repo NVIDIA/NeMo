@@ -25,7 +25,11 @@ from nemo.utils.exp_manager import exp_manager
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    exp_manager_cfg = cfg.get("exp_manager", None)
+    if exp_manager_cfg:
+        exp_manager_cfg.name = cfg.model.task_name
+        logging.info(f'Setting task_name to {exp_manager_cfg.name} in exp_manager')
+    exp_manager(trainer, exp_manager_cfg)
     model = GLUEModel(cfg.model, trainer=trainer)
     trainer.fit(model)
 

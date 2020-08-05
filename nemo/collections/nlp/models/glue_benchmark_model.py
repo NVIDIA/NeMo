@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright 2018 The Google AI Language Team Authors and The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
 import os
 from typing import Dict, Optional
 
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -23,9 +25,11 @@ from torch.utils.data import DataLoader
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
+from nemo.collections.nlp.models.glue_benchmark.metrics_for_glue import compute_metrics
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
 from nemo.collections.nlp.modules.common.sequence_regresssion import SequenceRegression
+from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
@@ -76,7 +80,7 @@ class GLUEModel(ModelPT):
         Initializes model to use BERT model for GLUE tasks.
         """
 
-        self.data_dir = cfg.data_dir
+        self.data_dir = cfg.dataset.data_dir
 
         if not os.path.exists(self.data_dir):
             raise FileNotFoundError(
@@ -87,7 +91,17 @@ class GLUEModel(ModelPT):
         if cfg.task_name not in cfg.supported_tasks:
             raise ValueError(f'{cfg.task_name} not in supported task. Choose from {cfg.supported_tasks}')
         self.task_name = cfg.task_name
-        self.model_cfg = cfg
+
+        # MNLI task has two separate dev sets: matched and mismatched
+        cfg.train_ds.file_name = os.path.join(self.data_dir, cfg.train_ds.file_name)
+        if self.task_name == "mnli":
+            cfg.validation_ds.file_name = [
+                os.path.join(self.data_dir, 'dev_matched.tsv'),
+                os.path.join(self.data_dir, 'dev_mismatched.tsv'),
+            ]
+        else:
+            cfg.validation_ds.file_name = os.path.join(self.data_dir, cfg.validation_ds.file_name)
+        logging.info(f'Using {cfg.validation_ds.file_name} for model evaluation.')
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
@@ -98,13 +112,6 @@ class GLUEModel(ModelPT):
         )
 
         super().__init__(cfg=cfg, trainer=trainer)
-        """
-        Prepare GLUE task
-        MNLI task has two separate dev sets: matched and mismatched
-        """
-        if cfg.task_name == "mnli":
-            cfg.validation_ds.file_name = 'dev_matched.tsv'
-            # TODO add eval for mismathced dev set
 
         num_labels = GLUE_TASKS_NUM_LABELS[self.task_name]
 
@@ -122,9 +129,6 @@ class GLUEModel(ModelPT):
         else:
             self.pooler = SequenceClassifier(hidden_size=self.hidden_size, num_classes=num_labels, log_softmax=False)
             self.loss = CrossEntropyLoss()
-
-        # # setup to track metrics
-        # TODO setup metrics
 
         # Optimizer setup needs to happen after all model weights are ready
         self.setup_optimization(cfg.optim)
@@ -148,7 +152,7 @@ class GLUEModel(ModelPT):
         tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         input_ids, input_type_ids, input_mask, labels = batch
         model_output = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
@@ -157,17 +161,58 @@ class GLUEModel(ModelPT):
         else:
             val_loss = self.loss(logits=model_output, labels=labels)
 
-        tensorboard_logs = {'val_loss': val_loss}
-        return {'val_loss': val_loss, 'log': tensorboard_logs}
+        if self.task_name != 'sts-b':
+            model_output = torch.argmax(model_output, 1)
 
-    def validation_epoch_end(self, outputs):
+        eval_tensors = {'preds': model_output, 'labels': labels}
+        tensorboard_logs = {'val_loss': val_loss}
+        return {'val_loss': val_loss, 'log': tensorboard_logs, 'eval_tensors': eval_tensors}
+
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        preds = torch.cat([x['eval_tensors']['preds'] for x in outputs])
+        labels = torch.cat([x['eval_tensors']['labels'] for x in outputs])
 
-        tensorboard_logs = {'val_loss': avg_loss}
+        all_preds = []
+        all_labels = []
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            for ind in range(world_size):
+                all_preds.append(torch.empty_like(preds))
+                all_labels.append(torch.empty_like(labels))
+            torch.distributed.all_gather(all_preds, preds)
+            torch.distributed.all_gather(all_labels, labels)
+        else:
+            all_preds.append(preds)
+            all_labels.append(labels)
+
+        tensorboard_logs = {}
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            preds = []
+            labels = []
+            for p in all_preds:
+                preds.extend(tensor2list(p))
+            for l in all_labels:
+                labels.extend(tensor2list(l))
+
+            tensorboard_logs = compute_metrics(self.task_name, np.array(preds), np.array(labels))
+            logging.info(f'{self._validation_names[dataloader_idx].upper()} evaluation: {tensorboard_logs}')
+
+        # writing labels and predictions to a file in output_dir is specified in the config
+        output_dir = self._cfg.output_dir
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            filename = os.path.join(output_dir, self.task_name + '.txt')
+            logging.info(f'Saving labels and predictions to {filename}')
+            with open(filename, 'w') as f:
+                f.write('labels\t' + list2str(labels) + '\n')
+                f.write('preds\t' + list2str(preds) + '\n')
+
+        tensorboard_logs['val_loss'] = avg_loss
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -181,11 +226,11 @@ class GLUEModel(ModelPT):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         dataset = GLUEDataset(
-            file_name=os.path.join(self.data_dir, cfg.file_name),
+            file_name=cfg.file_name,
             task_name=self.task_name,
             tokenizer=self.tokenizer,
-            max_seq_length=self.model_cfg.max_seq_length,
-            use_cache=self.model_cfg.use_cache,
+            max_seq_length=self._cfg.dataset.max_seq_length,
+            use_cache=self._cfg.dataset.use_cache,
         )
 
         return torch.utils.data.DataLoader(
@@ -193,25 +238,11 @@ class GLUEModel(ModelPT):
             collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=self._cfg.dataset.drop_last,
         )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass

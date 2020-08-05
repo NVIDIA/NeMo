@@ -106,6 +106,7 @@ class GLUEDataset(Dataset):
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             use_cache: whether to use data cache
         """
+        logging.info(f'Processing {file_name}')
         data_dir, file_name = os.path.split(file_name)
         file_name = file_name[:-4]
         self.tokenizer = tokenizer
