@@ -20,6 +20,7 @@ import torch.utils.data
 
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.collections.tts.modules.glow_tts_parser import GlowTTSParser
 from nemo.core.classes import Dataset
@@ -150,7 +151,7 @@ class AudioToPhonemesDataset(_AudioTextDataset):
         cmu_dict_path: str,
         sample_rate: int,
         int_values: bool = False,
-        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
+        augmentor: AudioAugmentor = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
