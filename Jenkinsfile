@@ -159,18 +159,9 @@ pipeline {
             sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
           }
         }
-      }
-    }
 
-    stage('L2: Speech to Text WPE') {
-        when {
-            anyOf{
-              branch 'candidate'
-              changeRequest target: 'candidate'
-            }
-        }
-        failFast true
-        steps {
+        stage('L2: Speech to Text WPE') {
+          steps {
             sh 'python examples/asr/speech_to_text_bpe.py \
             --config-path="experimental/configs/" --config-name="config_bpe" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
@@ -182,7 +173,11 @@ pipeline {
             exp_manager.root_dir=examples/asr/speech_to_text_wpe_results'
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
           }
-     }
+        }
+      }
+    }
+
+
 
     stage('L2: ASR Multi-dataloader dev run') {
       when {
