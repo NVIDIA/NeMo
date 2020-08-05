@@ -172,30 +172,24 @@ class TestExpManager:
     def test_resume(self, tmp_path):
         """ Tests the resume capabilities of exp_manager"""
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
-        # Error because previous_log_dir was not passed
-        with pytest.raises(ValueError):
-            log_dir = exp_manager(test_trainer, {"root_dir": str(tmp_path / "test_resume"), "resume": True})
 
-        # Error because previous_log_dir does not exist
+        # Error because explicit_log_dir does not exist
         with pytest.raises(NotFoundError):
             log_dir = exp_manager(
                 test_trainer,
-                {"root_dir": str(tmp_path / "test_resume"), "resume": True, "previous_log_dir": "Does_not_exist"},
+                {"root_dir": str(tmp_path / "test_resume"), "resume": True, "explicit_log_dir": "Does_not_exist"},
             )
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
-            log_dir = exp_manager(
-                test_trainer,
-                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
-            )
+            log_dir = exp_manager(test_trainer, {"resume": True, "root_dir": str(tmp_path / "test_resume")})
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
             log_dir = exp_manager(
                 test_trainer,
-                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+                {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
             )
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").touch()
@@ -204,7 +198,7 @@ class TestExpManager:
         with pytest.raises(ValueError):
             log_dir = exp_manager(
                 test_trainer,
-                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+                {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
             )
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").unlink()
@@ -214,14 +208,25 @@ class TestExpManager:
         with pytest.raises(ValueError):
             log_dir = exp_manager(
                 test_trainer,
-                {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),},
+                {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),},
             )
 
         # Finally succeed
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last.ckpt").unlink()
         log_dir = exp_manager(
             test_trainer,
-            {"resume": True, "previous_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+            {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
         assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()
+
+        # Succeed again and make sure that run_0 exists
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        log_dir = exp_manager(
+            test_trainer,
+            {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+        )
+        checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
+        assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()
+        prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "run_0")
+        assert prev_run_dir.exists()

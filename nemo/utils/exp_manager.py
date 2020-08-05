@@ -103,11 +103,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - version (str): The version of the experiment. Defaults to None which uses either a datetime string or
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
-            - resume (bool): Whether this experiment is resuming from a previous run. If True, previous_log_dir must
-                be set. If True, it sets trainer.resume_from_checkpoint so that the trainer should auto-resume.
-                exp_manager will move files under previous_log_dir to previous_log_dir/run_{int}.Defaults to False.
-            - previous_log_dir (bool): Used when resume = True to find previous checkpoints under
-                previous_log_dir/checkpoints. Defaults to None.
+            - resume (bool): Whether this experiment is resuming from a previous run. If True, it sets
+                trainer.resume_from_checkpoint so that the trainer should auto-resume. exp_manager will move files
+                under previous_log_dir to previous_log_dir/run_{int}. Defaults to False.
             - resume_past_end (bool): exp_manager errors out if resume is True and a checkpoint matching *end.ckpt
                 indicating a previous training run fully completed. This behaviour can be disabled, in which case the
                 *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
@@ -152,10 +150,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         version=cfg.version,
         explicit_log_dir=cfg.explicit_log_dir,
         use_datetime_version=cfg.use_datetime_version,
-        resume=cfg.resume,
-        previous_log_dir=cfg.previous_log_dir,
-        resume_past_end=cfg.resume_past_end,
     )
+    if cfg.resume:
+        check_resume(trainer, log_dir, cfg.resume_past_end)
+
     cfg.name = name
     cfg.version = version
 
@@ -242,16 +240,9 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
 
 
-def check_resume(
-    trainer: 'pytorch_lightning.Trainer',
-    previous_log_dir: str,
-    explicit_log_dir: str,
-    root_dir: str,
-    name: str,
-    version: str,
-    resume_past_end: bool = False,
-) -> (Path, str, str, str):
-    """Checks that resume=True was used correctly with the arguments pass to exp_manager.
+def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past_end: bool = False):
+    """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
+    trainer.resume_from_checkpoint as necessary.
 
     Returns:
         log_dir (Path): the log_dir
@@ -263,21 +254,10 @@ def check_resume(
         LoggerMisconfigurationError: If trainer is incompatible with arguments
         ValueError: If resume is True and checkpoints could not be find.
     """
-    if trainer.logger is not None:
-        raise LoggerMisconfigurationError(
-            "The pytorch lightning trainer that was passed to exp_manager contained a logger and resume was set to "
-            "True. Please remove the logger from the lightning trainer."
-        )
-    if explicit_log_dir or root_dir or name or version:
-        logging.error(
-            f"exp_manager received resume == True, and at least one of explicit_log_dir: {explicit_log_dir}, root_dir: "
-            f"{root_dir}, name: {name}, or version: {version}. Please note that "
-            "explicit_log_dir, root_dir, name, and version will be ignored."
-        )
-    if not previous_log_dir:
-        raise ValueError(f"Resuming requires the previous_log_dir {previous_log_dir} to be passed to exp_manager")
+    if not log_dir:
+        raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
 
-    checkpoint_dir = Path(Path(previous_log_dir) / "checkpoints")
+    checkpoint_dir = Path(Path(log_dir) / "checkpoints")
     checkpoint = None
     end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
     last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
@@ -315,7 +295,6 @@ def check_resume(
         for child in checkpoint_dir.iterdir():
             if child.is_file():
                 copy(child, new_run_dir)
-    return Path(previous_log_dir), str(previous_log_dir), "", ""
 
 
 def check_explicit_log_dir(
@@ -355,9 +334,6 @@ def get_log_dir(
     version: str = None,
     explicit_log_dir: str = None,
     use_datetime_version: bool = True,
-    resume: bool = False,
-    previous_log_dir: str = None,
-    resume_past_end: bool = False,
 ) -> (Path, str, str, str):
     """
     Obtains the log_dir used for exp_manager.
@@ -372,11 +348,6 @@ def get_log_dir(
         LoggerMisconfigurationError: If trainer is incompatible with arguments
         ValueError: If resume is True and checkpoints could not be find.
     """
-    if resume:  # If resuming from another checkpoint, short circuit
-        return check_resume(
-            trainer, previous_log_dir, explicit_log_dir, root_dir, name, version, resume_past_end=resume_past_end
-        )
-
     if explicit_log_dir:  # If explicit log_dir was pass, short circuit
         return check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version)
 
