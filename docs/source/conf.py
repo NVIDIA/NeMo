@@ -78,6 +78,7 @@ autodoc_mock_imports = [
     'numba',
     'hydra',
     'omegaconf',
+    'onnx',
 ]
 
 # -- General configuration ------------------------------------------------
