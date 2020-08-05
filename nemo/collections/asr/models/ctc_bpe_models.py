@@ -124,7 +124,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         shuffle = config['shuffle']
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if 'is_tarred' in config and config.get('is_tarred', False):
+        if config.get('is_tarred', False):
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
             dataset = TarredAudioToBPEDataset(
                 audio_tar_filepaths=config['tarred_audio_filepaths'],
