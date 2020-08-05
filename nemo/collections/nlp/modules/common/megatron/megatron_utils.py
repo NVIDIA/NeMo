@@ -1,5 +1,5 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2020 The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ def get_megatron_vocab_file(pretrained_model_name):
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
-        path (str): path to the vocab file 
+        path (str): path to the vocab file
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['vocab']
     path = cached_path(url, cache_dir=MEGATRON_CACHE)

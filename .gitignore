@@ -153,6 +153,7 @@ cifar-10-batches-py
 
 # Test data.
 tests/.data
+tests/data
 
 # outputs folder
 examples/*/outputs
