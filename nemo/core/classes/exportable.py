@@ -15,7 +15,7 @@ import os
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from typing import Optional
+from typing import Dict
 
 import onnx
 import torch
@@ -46,7 +46,7 @@ class Exportable(ABC):
     """
 
     def export(
-        self, output: str, input_example=None, output_example=None, onnx_opset_version=11, try_script=False,
+        self, output: str, input_example=None, output_example=None, onnx_opset_version=12, try_script=False,
     ):
         try:
             # Disable typechecks
@@ -64,10 +64,6 @@ class Exportable(ABC):
                 _in_example = input_example
             if output_example is not None:
                 _out_example = output_example
-
-            # Check if output already exists
-            if os.path.exists(output):
-                raise FileExistsError(f"Destination {output} already exists. " f"Aborting export.")
 
             if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
                 raise NotImplementedError('For export to work you must define input and output types')
@@ -105,6 +101,9 @@ class Exportable(ABC):
                         print("jit.script() failed!", e)
                 if _in_example is None:
                     raise ValueError(f'Example input is None, but jit.script() has failed or not tried')
+
+                if isinstance(_in_example, Dict):
+                    _in_example = tuple(_in_example.values())
 
                 if jitted_model is None:
                     jitted_model = torch.jit.trace(self, _in_example)
@@ -179,7 +178,7 @@ class Exportable(ABC):
                     dynamic_axes[name].append(ind)
         return dynamic_axes
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         """
         Implement this method to prepare module for export. Do all necessary changes on module pre-export here.
         Also, return a pair in input, output examples for tracing.
