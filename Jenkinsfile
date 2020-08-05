@@ -359,7 +359,7 @@ pipeline {
       parallel {
         stage('MRPC') {
           steps {
-            sh 'python examples/nlp/glue_benchmark.py \
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.dataset.use_cache=false \
             model.task_name=mrpc \
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
@@ -371,7 +371,7 @@ pipeline {
         }
         stage('STS-b') {
           steps {
-            sh 'python examples/nlp/glue_benchmark.py \
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
             model.dataset.use_cache=false \
             model.task_name=sts-b \
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
