@@ -117,56 +117,6 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Setup metric objects
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
-        """
-        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
-
-        Args:
-
-            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
-        Recommended length per file is between 5 and 25 seconds.
-            batch_size: (int) batch size to use during inference. \
-        Bigger will result in better throughput performance but would use more memory.
-
-        Returns:
-
-            A list of transcriptions in the same order as paths2audio_files
-        """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
-            return {}
-        # We will store transcriptions here
-        hypotheses = []
-        # Model's mode and device
-        mode = self.training
-        device = next(self.parameters()).device
-        try:
-            # Switch model to evaluation mode
-            self.eval()
-            # Work in tmp directory - will store manifest file there
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
-                    for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
-                        fp.write(json.dumps(entry) + '\n')
-
-                dl_config = {
-                    'manifest_filepath': os.path.join(tmpdir, 'manifest.json'),
-                    'sample_rate': self.preprocessor._sample_rate,
-                    'batch_size': min(batch_size, len(paths2audio_files)),
-                    'shuffle': False,
-                }
-                temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
-                for test_batch in temporary_datalayer:
-                    _, _, greedy_predictions = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
-                    )
-                    hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
-                    del test_batch
-        finally:
-            # set mode back to its original value
-            self.train(mode=mode)
-        return hypotheses
-
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
