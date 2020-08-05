@@ -12,6 +12,8 @@ model:
     trim_silence: True
     max_duration: 16.7
     shuffle: True
+    is_tarred: False
+    tarred_audio_filepaths: null
 
   validation_ds:
     manifest_filepath: ???
