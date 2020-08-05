@@ -96,7 +96,7 @@ class WaveGlowModule(NeuralModule):
         self.n_remaining_channels = n_remaining_channels
 
     @typecheck()
-    def forward(self, *, spect, audio=None, run_inverse=True):
+    def forward(self, *, spect, audio=None, run_inverse=True, sigma=1.0):
         """ TODO
         """
         if self.training and self.mode != OperationMode.training:
@@ -111,7 +111,7 @@ class WaveGlowModule(NeuralModule):
         if run_inverse:
             # norm_dist_to_audio is used to predict audio from spectrogram so only used in val or infer mode
             # Could also log train audio but currently not done
-            audio_pred = self.norm_dist_to_audio(spect=spect)
+            audio_pred = self.norm_dist_to_audio(spect=spect, sigma=sigma)
 
         # Return the necessary tensors
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
@@ -124,7 +124,7 @@ class WaveGlowModule(NeuralModule):
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
             "run_inverse": NeuralType(elements_type=IntType(), optional=True),
-            # "sigma": NeuralType(elements_type=BoolType(), optional=True),  # TODO: Add to forward
+            "sigma": NeuralType(optional=True),
         }
 
     @property

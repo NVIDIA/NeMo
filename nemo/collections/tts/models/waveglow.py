@@ -51,6 +51,7 @@ class WaveglowConfig:
     preprocessor: Preprocessor = Preprocessor()
     train_ds: Optional[Dict] = None
     validation_ds: Optional[Dict] = None
+    sigma: int = MISSING
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
@@ -73,7 +74,7 @@ class WaveGlowModel(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.sigma = 1.0
+        self.sigma = self._cfg.sigma
         self.audio_to_melspec_precessor = WaveGlowModel.from_config_dict(self._cfg.preprocessor)
         self.waveglow = WaveGlowModel.from_config_dict(self._cfg.waveglow)
         self.mode = OperationMode.infer
