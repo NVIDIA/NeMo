@@ -33,10 +33,7 @@ class DistilBertEncoder(DistilBertModel, BertModule):
     logging.info("DistilBert doesn’t use token_type_ids, and it will be ignored.")
 
     @typecheck()
-    def forward(self, **kwargs):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         # distilBert does not use token_type_ids as the most of the other Bert models
-        if 'token_type_ids' in kwargs:
-            del kwargs['token_type_ids']
-
-        res = super().forward(**kwargs)[0]
+        res = super().forward(input_ids=input_ids, attention_mask=attention_mask)[0]
         return res
