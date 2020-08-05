@@ -66,6 +66,7 @@ class ExpManagerConfig:
     use_datetime_version: Optional[bool] = True
     resume: Optional[bool] = False
     previous_log_dir: Optional[str] = None
+    resume_past_end: Optional[bool] = False
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
     summary_writter_kwargs: Optional[Dict] = None
@@ -82,35 +83,52 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch lightning paradigm
     of root_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get root_dir,
     name, and version from the logger. Otherwise it will use the root_dir and name arguments to create the logging
-    directory. The version will be a datetime string if running single node, and version will be an integer if running
-    on slurm multi-node.
-    It optionally creates TensorBoardLogger, and ModelCheckpoint objects from pytorch lightning. It copies sys.argv,
-    and git information if available to the logging directory. It creates a log file for each process to log their
-    output into.
+    directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
+    The version will be a datetime string if running single node, and version will be an integer if running
+    on slurm multi-node. Datestime version can be disabled if use_datetime_version is set to False.
+    It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
+    sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
+    their output into.
+    exp_manager additionally has a resume feature which can be used to continuing training from a previous_log_dir.
 
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
         cfg (DictConfig, dict): Can have the following keys:
-            - name (str): The name of the experiment. Required argument.
+            - explicit_log_dir (str, Path): Can be used to override root_dir/name/version folder creation. Defaults to
+                None, which will use root_dir, name, and version to construct the logging directory.
             - root_dir (str, Path): The base directory to create the logging directory. Defaults to None, which logs to
                 ./NeMo_experiments.
+            - name (str): The name of the experiment. Defaults to None which turns into "default" via name = name or
+                "default".
+            - version (str): The version of the experiment. Defaults to None which uses either a datetime string or
+                lightning's TensorboardLogger system of using version_{int}.
+            - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
+            - resume (bool): Whether this experiment is resuming from a previous run. If True, previous_log_dir must
+                be set. If True, it sets trainer.resume_from_checkpoint so that the trainer should auto-resume.
+                exp_manager will move files under previous_log_dir to previous_log_dir/run_{int}.Defaults to False.
+            - previous_log_dir (bool): Used when resume = True to find previous checkpoints under
+                previous_log_dir/checkpoints. Defaults to None.
+            - resume_past_end (bool): exp_manager errors out if resume is True and a checkpoint matching *end.ckpt
+                indicating a previous training run fully completed. This behaviour can be disabled, in which case the
+                *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
+            - summary_writter_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
+                class. Note that log_dir is passed by exp_manager and cannot exist in this dict. Defaults to None.
+            - create_wandb_logger (bool): Whether to create a Weights and Baises logger and attach it to the pytorch
+                lightning trainer. Defaults to False.
+            - wandb_logger_kwargs (dict): A dictionary of kwargs that can be passed to lightning's WandBLogger
+                class. Note that name and project are required parameters if create_wandb_logger is True.
+                Defaults to None.
             - create_checkpoint_callback (bool): Whether to create a ModelCheckpoint callback and attach it to the
-                pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss" as well
-                 as the most recent model. Defaults to True.
+                pytorch lightning trainer. The ModelCheckpoint saves the top 3 models with the best "val_loss", the most
+                recent checkpoint under *last.ckpt, and the final checkpoint after training completes under *end.ckpt.
+                Defaults to True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
 
-            Following are optional values that can be provided to exp_manager inside cfg
-
-            WandB support - Both arguments must be provided to optionally add WandB logging.
-            - wandb_exp (str): The name of the WandB experiment. Must be provided if set as an argument.
-            - wandb_porject (str): The project name of the WandB experiments. Groups together multiple experiments in
-                the WandB dashboard. Must be provided if set as an argument.
-
     returns:
-        directory (Path): The final logging directory where logging files are saved. Usually the concatenation of
+        log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
             root_dir, name, and version.
     """
     if cfg is None:
@@ -136,6 +154,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         use_datetime_version=cfg.use_datetime_version,
         resume=cfg.resume,
         previous_log_dir=cfg.previous_log_dir,
+        resume_past_end=cfg.resume_past_end,
     )
     cfg.name = name
     cfg.version = version
@@ -223,7 +242,27 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
 
 
-def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, version, resume_past_end=False):
+def check_resume(
+    trainer: 'pytorch_lightning.Trainer',
+    previous_log_dir: str,
+    explicit_log_dir: str,
+    root_dir: str,
+    name: str,
+    version: str,
+    resume_past_end: bool = False,
+) -> (Path, str, str, str):
+    """Checks that resume=True was used correctly with the arguments pass to exp_manager.
+
+    Returns:
+        log_dir (Path): the log_dir
+        root_dir (str): the base root_dir without name nor version
+        name (str): The name of the experiment
+        version (str): The version of the experiment
+
+    Raises:
+        LoggerMisconfigurationError: If trainer is incompatible with arguments
+        ValueError: If resume is True and checkpoints could not be find.
+    """
     if trainer.logger is not None:
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger and resume was set to "
@@ -276,10 +315,23 @@ def check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, ve
         for child in checkpoint_dir.iterdir():
             if child.is_file():
                 copy(child, new_run_dir)
-    return Path(previous_log_dir), previous_log_dir, "", ""
+    return Path(previous_log_dir), str(previous_log_dir), "", ""
 
 
-def check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version):
+def check_explicit_log_dir(
+    trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], root_dir: str, name: str, version: str
+) -> (Path, str, str, str):
+    """ Checks that the passed arguments are compatible with explicit_log_dir.
+
+    Returns:
+        log_dir (Path): the log_dir
+        root_dir (str): the base root_dir without name nor version
+        name (str): The name of the experiment
+        version (str): The version of the experiment
+
+    Raise:
+        LoggerMisconfigurationError
+    """
     if trainer.logger is not None:
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger and explicit_log_dir: "
@@ -293,7 +345,7 @@ def check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version):
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
         logging.warning("Exp_manager is logging to {explicit_log_dir}, but it already exists.")
-    return Path(explicit_log_dir), explicit_log_dir, "", ""
+    return Path(explicit_log_dir), str(explicit_log_dir), "", ""
 
 
 def get_log_dir(
@@ -305,18 +357,25 @@ def get_log_dir(
     use_datetime_version: bool = True,
     resume: bool = False,
     previous_log_dir: str = None,
-) -> Path:
+    resume_past_end: bool = False,
+) -> (Path, str, str, str):
     """
     Obtains the log_dir used for exp_manager.
 
     Returns:
-        Path
+        log_dir (Path): the log_dir
+        root_dir (str): the base root_dir without name nor version
+        name (str): The name of the experiment
+        version (str): The version of the experiment
 
     Raise:
-        ValueError: If trainer is incompatible with arguments
+        LoggerMisconfigurationError: If trainer is incompatible with arguments
+        ValueError: If resume is True and checkpoints could not be find.
     """
     if resume:  # If resuming from another checkpoint, short circuit
-        return check_resume(trainer, previous_log_dir, explicit_log_dir, root_dir, name, version)
+        return check_resume(
+            trainer, previous_log_dir, explicit_log_dir, root_dir, name, version, resume_past_end=resume_past_end
+        )
 
     if explicit_log_dir:  # If explicit log_dir was pass, short circuit
         return check_explicit_log_dir(trainer, explicit_log_dir, root_dir, name, version)
@@ -363,7 +422,7 @@ def get_log_dir(
             version = f"version_{tensorboard_logger.version}"
 
     log_dir = Path(_root_dir) / Path(str(name)) / Path(str(version))
-    return log_dir, _root_dir, name, version
+    return log_dir, str(_root_dir), name, version
 
 
 def get_git_hash():
@@ -398,6 +457,9 @@ def get_git_diff():
 
 
 class LoggerList(_LoggerCollection):
+    """ A thin wrapper on Lightning's LoggerCollection such that name and version are better aligned with exp_manager
+    """
+
     def __init__(self, _logger_iterable, nemo_name=None, nemo_version=""):
         super().__init__(_logger_iterable)
         self._nemo_name = nemo_name
@@ -413,15 +475,18 @@ class LoggerList(_LoggerCollection):
 
 
 def configure_loggers(
-    trainer,
-    root_dir,
-    name,
-    version,
-    create_tensorboard_logger,
-    summary_writter_kwargs,
-    create_wandb_logger,
-    wandb_kwargs,
+    trainer: 'pytorch_lightning.Trainer',
+    root_dir: [Path, str],
+    name: str,
+    version: str,
+    create_tensorboard_logger: bool,
+    summary_writter_kwargs: dict,
+    create_wandb_logger: bool,
+    wandb_kwargs: dict,
 ):
+    """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
+    summary_writter_kwargs or wandb_kwargs are misconfigured.
+    """
     # Potentially create tensorboard logger and/or WandBLogger
     logger_list = []
     if create_tensorboard_logger:
@@ -452,7 +517,10 @@ def configure_loggers(
     trainer.configure_logger(logger_list)
 
 
-def configure_checkpointing(trainer, log_dir, name):
+def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
+    """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
+    callback or if trainer.weights_save_path was passed to Trainer.
+    """
     for callback in trainer.callbacks:
         if isinstance(callback, ModelCheckpoint):
             raise CheckpointMisconfigurationError(
@@ -486,28 +554,3 @@ def configure_checkpointing(trainer, log_dir, name):
     trainer.configure_checkpoint_callback(checkpoint_callback)
     trainer.callbacks.append(checkpoint_callback)
     trainer.checkpoint_callback = checkpoint_callback
-
-
-# def find_last_checkpoint(log_dir, resume_past_end=False):
-#     checkpoint_dir = Path(Path(log_dir) / "checkpoints")
-#     if not checkpoint_dir.exists():
-#         raise NotFoundError(f"There was no checkpoint folder at log_dir :{log_dir}. Cannot resume.")
-#     elif checkpoint_dir.match("*end.ckpt"):
-#         if resume_past_end:
-#             if len(checkpoint_dir.glob('*end.ckpt')) > 1:
-#                 raise ValueError(
-#                     f"Multiple multiple checkpoints {checkpoint_dir.glob('*end.ckpt')} that matches *end.ckpt."
-#                 )
-#             logging.info(f"Resuming from {checkpoint_dir.glob('*end.ckpt')}")
-#             return list(checkpoint_dir.glob('*end.ckpt'))[0]
-#         else:
-#             raise ValueError(
-#                 f"Found {checkpoint_dir.glob('*end.ckpt')} indicating that the last training run has already "
-#                 "completed."
-#             )
-#     elif not checkpoint_dir.match("*last.ckpt"):
-#         raise NotFoundError(f"There were no checkpoints found in {log_dir}. Is the folder correct?")
-
-#     if len(checkpoint_dir.glob("*last.ckpt")) > 1:
-#         raise ValueError(f"Multiple multiple checkpoints {checkpoint_dir.glob('*last.ckpt')} that matches *last.ckpt.")
-#     return list(checkpoint_dir.glob('*last.ckpt'))[0]
