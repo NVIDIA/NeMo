@@ -151,6 +151,7 @@ class EncDecCTCModel(ASRModel):
             new_decoder_config['params']['num_classes'] = len(new_vocabulary)
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
