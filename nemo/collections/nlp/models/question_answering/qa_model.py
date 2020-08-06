@@ -28,12 +28,10 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['QAModel']
 
 
-@experimental
 class QAModel(ModelPT):
     """
     BERT encoder with QA head training.

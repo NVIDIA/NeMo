@@ -30,12 +30,10 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['TokenClassificationModel']
 
 
-@experimental
 class TokenClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -159,17 +157,17 @@ class TokenClassificationModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, prefix='train')
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, prefix='dev')
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self.__setup_dataloader(cfg=test_data_config)
+        self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config, prefix='test')
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig):
-        text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
-        label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
+    def _setup_dataloader_from_config(self, cfg: DictConfig, prefix: str):
+        text_file = os.path.join(self.data_dir, 'text_' + prefix + '.txt')
+        label_file = os.path.join(self.data_dir, 'labels_' + prefix + '.txt')
 
         if not (os.path.exists(text_file) and os.path.exists(label_file)):
             raise FileNotFoundError(
