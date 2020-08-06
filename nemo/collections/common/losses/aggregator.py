@@ -16,12 +16,10 @@ import torch
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LossType, NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['AggregatorLoss']
 
 
-@experimental
 class AggregatorLoss(Loss):
     """
     Sums several losses into one.
