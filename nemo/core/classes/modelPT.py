@@ -93,10 +93,10 @@ class ModelPT(LightningModule, Model):
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.prepare_validation_data()
+                self.prepare_validation_data(val_data_config=None)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.prepare_test_data()
+                self.prepare_test_data(test_data_config=None)
 
     def register_artifact(self, config_path: str, src: str):
         """
