@@ -12,19 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-
-import torch
 from torch import nn
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, LossType, NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['SpanningLoss']
 
 
-@experimental
 class SpanningLoss(Loss):
     """
     implements start and end loss of a span e.g. for Question Answering.
