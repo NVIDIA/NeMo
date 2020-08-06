@@ -50,7 +50,6 @@ model:
     use_cache: true
 
   train_ds:
-    prefix: train
     shuffle: true
     num_samples: -1
     batch_size: 64
@@ -59,7 +58,6 @@ model:
     drop_last: false
 
   validation_ds:
-    prefix: dev
     shuffle: false
     num_samples: -1
     batch_size: 64

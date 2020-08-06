@@ -158,8 +158,26 @@ def get_features(
 class BertTokenClassificationDataset(Dataset):
     """
     Creates dataset to use during training for token classification tasks with a pretrained model.
+
     Converts from raw data to an instance that can be used by Dataloader.
     For dataset to use during inference without labels, see BertTokenClassificationInferDataset.
+
+    Args:
+        text_file: file to sequences, each line should a sentence, no header.
+        label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        num_samples: number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
+        pad_label: pad value use for labels. By default, it's the neutral label.
+        label_ids: label_ids (dict): dict to map labels to label ids.
+            Starts with pad_label->0 and then increases in alphabetical order
+            For dev set use label_ids generated during training to support
+            cases when not all labels are present in the dev set.
+            For training set label_ids should be None.
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
+        use_cache: whether to use processed data cache or not
     """
 
     @property
@@ -188,25 +206,7 @@ class BertTokenClassificationDataset(Dataset):
         ignore_start_end: bool = False,
         use_cache: bool = True,
     ):
-        """
-        Initializes BertTokenClassificationDataset
-        Args:
-            text_file: file to sequences, each line should a sentence, no header.
-            label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
-            max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-            tokenizer: such as NemoBertTokenizer
-            num_samples: number of samples you want to use for the dataset.
-                If -1, use all dataset. Useful for testing.
-            pad_label: pad value use for labels. By default, it's the neutral label.
-            label_ids: label_ids (dict): dict to map labels to label ids.
-                Starts with pad_label->0 and then increases in alphabetical order
-                For dev set use label_ids generated during training to support
-                cases when not all labels are present in the dev set.
-                For training set label_ids should be None.
-            ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
-            ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
-            use_cache: whether to use processed data cache or not
-        """
+        """ Initializes BertTokenClassificationDataset. """
 
         data_dir = os.path.dirname(text_file)
         filename = os.path.basename(text_file)

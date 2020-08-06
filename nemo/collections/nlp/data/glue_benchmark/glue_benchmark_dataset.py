@@ -19,7 +19,7 @@
 
 import os
 import pickle
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -323,7 +323,7 @@ class GLUEDataset(Dataset):
             )
         return features
 
-    def _truncate_seq_pair(self, tokens_a, tokens_b, max_length):
+    def _truncate_seq_pair(self, tokens_a: str, tokens_b: str, max_length: int):
         """Truncates a sequence pair in place to the maximum length.
 
         This will always truncate the longer sequence one token at a time.
@@ -342,9 +342,19 @@ class GLUEDataset(Dataset):
 
 
 class InputFeatures(object):
-    """A single set of features of data."""
+    """A single set of features of data.
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id):
+    Args:
+        input_ids: input/token ids
+        input_mask: masks out subword tokens
+        segment_ids: distinguish one sentence from the other one (if present)
+        label_ids: label for the current example
+    """
+
+    def __init__(
+        self, input_ids: List[int], input_mask: List[int], segment_ids: List[int], label_id: Union[float, int]
+    ):
+        """Initialized InputFeatures."""
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids

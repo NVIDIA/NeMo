@@ -17,6 +17,7 @@ model:
   task_name: &task_name mrpc # choose from: ["cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"] GLUE task name, MNLI includes both matched and mismatched tasks
   supported_tasks: *supported_tasks
   output_dir: null # dir to write write predictions
+  nemo_path: null # filename to save the model and associated artifacts to .nemo file
   dataset:
     data_dir: ??? # /path/to/data
     max_seq_length: 128

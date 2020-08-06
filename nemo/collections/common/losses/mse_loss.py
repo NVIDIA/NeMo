@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch import nn
+from torch import Tensor, nn
 
 from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import LabelsType, LossType, NeuralType, RegressionValuesType
@@ -42,15 +42,15 @@ class MSELoss(nn.MSELoss, Serialization, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, reduction='mean'):
+    def __init__(self, reduction: str = 'mean'):
         """
         Args:
-            reduction (str): type of the reduction over the batch
+            reduction: type of the reduction over the batch
         """
         super().__init__(reduction=reduction)
 
     @typecheck()
-    def forward(self, preds, labels):
+    def forward(self, preds: Tensor, labels: Tensor) -> Tensor:
         """
         Args:
             preds: output of the classifier

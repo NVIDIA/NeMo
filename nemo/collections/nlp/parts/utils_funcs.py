@@ -14,10 +14,16 @@
 
 __all__ = ['list2str', 'tensor2list']
 
+from typing import List, Union
 
-def list2str(l):
+from torch import Tensor
+
+
+def list2str(l: List[int]) -> str:
+    """ Converts list to a string"""
     return ' '.join([str(x) for x in l])
 
 
-def tensor2list(tensor):
+def tensor2list(tensor: Tensor) -> List[Union[int, float]]:
+    """ Converts tensor to a list """
     return tensor.detach().cpu().tolist()

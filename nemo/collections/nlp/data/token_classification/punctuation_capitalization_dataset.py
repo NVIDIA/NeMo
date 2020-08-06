@@ -181,12 +181,31 @@ class BertPunctuationCapitalizationDataset(Dataset):
     """
     Creates dataset to use during training for punctuaion and capitalization tasks with a pretrained model.
     For dataset to use during inference without labels, see BertPunctuationCapitalizationInferDataset.
+
+    Args:
+        text_file: file to sequences, each line should a sentence, no header.
+        label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        num_samples: number of samples you want to use for the dataset.
+            If -1, use all dataset. Useful for testing.
+        pad_label: pad value use for labels.
+            by default, it's the neutral label.
+        punct_label_ids and capit_label_ids (dict):
+            dict to map labels to label ids.
+            Starts with pad_label->0 and then increases in alphabetical order
+            For dev set use label_ids generated during training to support
+            cases when not all labels are present in the dev set.
+            For training set label_ids should be None or loaded from cache
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
+        use_cache: whether to use processed data cache or not
+        get_label_frequencies: whether to generate label frequencies
     """
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports. """
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -212,29 +231,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_cache: bool = True,
         get_label_frequencies: bool = False,
     ):
-        """
-        Initializes BertPunctuationCapitalizationDataset
-
-        Args:
-            text_file: file to sequences, each line should a sentence, no header.
-            label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
-            max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-            tokenizer: such as NemoBertTokenizer
-            num_samples: number of samples you want to use for the dataset.
-                If -1, use all dataset. Useful for testing.
-            pad_label: pad value use for labels.
-                by default, it's the neutral label.
-            punct_label_ids and capit_label_ids (dict):
-                dict to map labels to label ids.
-                Starts with pad_label->0 and then increases in alphabetical order
-                For dev set use label_ids generated during training to support
-                cases when not all labels are present in the dev set.
-                For training set label_ids should be None or loaded from cache
-            ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
-            ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
-            use_cache: whether to use processed data cache or not
-            get_label_frequencies: whether to generate label frequencies
-        """
+        """ Initializes BertPunctuationCapitalizationDataset. """
         # Cache features
         data_dir = os.path.dirname(text_file)
         filename = os.path.basename(text_file)
@@ -395,6 +392,11 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
     """
     Creates dataset to use during inference for punctuation and capitalization tasks with a pretrained model.
     For dataset to use during training with labels, see BertPunctuationCapitalizationDataset.
+
+    Args:
+        queries file to sequences, each line should a sentence, no header.
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
     """
 
     @property
@@ -410,14 +412,7 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
         }
 
     def __init__(self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec):
-        """
-        Initializes BertPunctuationCapitalizationInferDataset
-
-        Args:
-            queries file to sequences, each line should a sentence, no header.
-            max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
-            tokenizer: such as NemoBertTokenizer
-        """
+        """ Initializes BertPunctuationCapitalizationInferDataset. """
         features = get_features(queries, max_seq_length, tokenizer)
 
         self.all_input_ids = features[0]
