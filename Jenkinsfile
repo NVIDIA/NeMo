@@ -548,7 +548,10 @@ pipeline {
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+        model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
+        trainer.distributed_backend=null \
         exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
       }
