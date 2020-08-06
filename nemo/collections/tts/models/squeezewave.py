@@ -77,7 +77,7 @@ class SqueezeWaveModel(ModelPT):
         self.audio_to_melspec_precessor = SqueezeWaveModel.from_config_dict(self._cfg.preprocessor)
         self.squeezewave = SqueezeWaveModel.from_config_dict(self._cfg.squeezewave)
         self.mode = OperationMode.infer
-        self.loss = WaveGlowLoss()
+        self.loss = WaveGlowLoss()  # Same loss as WaveGlow
 
         self.setup_optimization()
 
@@ -151,6 +151,7 @@ class SqueezeWaveModel(ModelPT):
         }
 
     def validation_epoch_end(self, outputs):
+        # Same as WaveGlow log_to_tb
         waveglow_log_to_tb_func(
             self.logger.experiment,
             outputs[0].values(),
