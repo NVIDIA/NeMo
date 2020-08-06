@@ -34,6 +34,7 @@ def cleanup_local_folder():
     # Asserts in fixture are not recommended, but I'd rather stop users from deleting expensive training runs
     assert not Path("./lightning_logs").exists()
     assert not Path("./NeMo_experiments").exists()
+    assert not Path("./nemo_experiments").exists()
 
     yield
 
@@ -41,6 +42,8 @@ def cleanup_local_folder():
         shutil.rmtree('./lightning_logs')
     if Path("./NeMo_experiments").exists():
         shutil.rmtree('./NeMo_experiments')
+    if Path("./nemo_experiments").exists():
+        shutil.rmtree('./nemo_experiments')
 
 
 class TestExpManager:
@@ -122,14 +125,14 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_default_log_dir(self, cleanup_local_folder):
-        """Check the default of ./NeMo_experiments/default/datetime works as intended"""
+        """Check the default of ./nemo_experiments/default/datetime works as intended"""
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
 
         log_dir = exp_manager(test_trainer, {"create_tensorboard_logger": False, "create_checkpoint_callback": False})
-        assert (log_dir / "..").resolve() == Path("./NeMo_experiments/default/").resolve()
-        assert Path("./NeMo_experiments").exists()
-        assert Path("./NeMo_experiments/default/").exists()
-        sub_dirs = [x for x in Path("./NeMo_experiments/default/").iterdir() if x.is_dir()]
+        assert (log_dir / "..").resolve() == Path("./nemo_experiments/default/").resolve()
+        assert Path("./nemo_experiments").exists()
+        assert Path("./nemo_experiments/default/").exists()
+        sub_dirs = [x for x in Path("./nemo_experiments/default/").iterdir() if x.is_dir()]
         assert len(sub_dirs) == 1
         assert re.match(r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}", sub_dirs[0].name)
 
