@@ -93,10 +93,10 @@ class ModelPT(LightningModule, Model):
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.prepare_validation_data(val_data_config=None)
+                self.setup_multiple_validation_data(val_data_config=None)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.prepare_test_data(test_data_config=None)
+                self.setup_multiple_test_data(test_data_config=None)
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -230,7 +230,7 @@ class ModelPT(LightningModule, Model):
         """
         raise NotImplementedError()
 
-    def prepare_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in validation, with support for multiple data loaders.
 
@@ -259,11 +259,11 @@ class ModelPT(LightningModule, Model):
             logging.warning(
                 "Unable to load the validation data loader(s) with the provided config \n"
                 f"{self._cfg.validation_ds}\n"
-                f"Please call the ModelPT.prepare_validation_data() method "
+                f"Please call the ModelPT.setup_multiple_validation_data() method "
                 f"and provide a valid configuration file."
             )
 
-    def prepare_test_data(self, test_data_config: Union[DictConfig, Dict]):
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in test, with support for multiple data loaders.
 
@@ -292,7 +292,7 @@ class ModelPT(LightningModule, Model):
             logging.warning(
                 "Unable to load the test data loader(s) with the provided config \n"
                 f"{self._cfg.test_ds}\n"
-                f"Please call the ModelPT.prepare_test_data() method "
+                f"Please call the ModelPT.setup_multiple_test_data() method "
                 f"and provide a valid configuration file."
             )
 
