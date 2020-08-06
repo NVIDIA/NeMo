@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.models.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.language_modeling.lm_model import BERTLMModel
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel

@@ -18,6 +18,7 @@ from typing import Dict, Optional
 import torch
 
 from nemo.core.classes import NeuralModule
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -26,7 +27,7 @@ __all__ = ['BertModule']
 
 
 @experimental
-class BertModule(NeuralModule):
+class BertModule(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -79,3 +80,18 @@ class BertModule(NeuralModule):
             Default implementation relay to BERT config property..
         """
         return self.config.hidden_size
+
+    def _prepare_for_export(self):
+        """
+        Returns a pair in input, output examples for tracing.
+        Returns:
+            A pair of (input, output) examples.
+        """
+        input_ids = torch.randint(low=0, high=16, size=(2, 16))
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16))
+        ins = tuple([input_ids, attention_mask, attention_mask])
+        output_example = self.forward(
+            input_ids=input_ids, attention_mask=attention_mask, token_type_ids=attention_mask
+        )
+        return ins, output_example
+
