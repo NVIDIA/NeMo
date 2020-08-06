@@ -186,14 +186,22 @@ class ModelPT(LightningModule, Model):
         if not path.exists(restore_path):
             raise FileExistsError(f"Can't find {restore_path}")
 
+        cwd = os.getcwd()
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-            conf = OmegaConf.load(config_yaml)
-            OmegaConf.set_struct(conf, True)
-            instance = cls.from_config_dict(config=conf)
-            instance.load_state_dict(torch.load(model_weights))
+            try:
+                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                os.chdir(tmpdir)
+                config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                conf = OmegaConf.load(config_yaml)
+                OmegaConf.set_struct(conf, True)
+                instance = cls.from_config_dict(config=conf)
+                instance.load_state_dict(torch.load(model_weights))
+
+            finally:
+                os.chdir(cwd)
+
         return instance
 
     @abstractmethod
