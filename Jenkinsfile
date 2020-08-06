@@ -388,6 +388,26 @@ pipeline {
       }
     }
 
+   stage('L2: Intent and Slot Classification') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      steps {
+        sh 'cd examples/nlp/intent_slot_classification && \
+        python intent_slot_classification.py \
+        model.data_dir=/home/TestData/nlp/retail/ \
+        trainer.gpus=[1] \
+        +trainer.fast_dev_run=true \
+        exp_manager.root_dir=logs \
+        '
+        sh 'rm -rf examples/nlp/intent_slot_classification/logs'
+      }
+    }
+
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
