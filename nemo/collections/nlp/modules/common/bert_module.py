@@ -94,4 +94,3 @@ class BertModule(NeuralModule, Exportable):
             input_ids=input_ids, attention_mask=attention_mask, token_type_ids=attention_mask
         )
         return ins, output_example
-

@@ -20,22 +20,14 @@ import random
 import numpy as np
 import torch
 import torch.distributed as dist
+from megatron import get_args, initialize_megatron
+from megatron.model import get_language_model
+from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-
-try:
-    from megatron.mpu.initialize import set_model_parallel_rank, get_model_parallel_rank, set_model_parallel_world_size
-    from megatron.initialize import _initialize_distributed
-    from megatron.global_vars import set_global_variables, get_args
-    from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-    from megatron.model.language_model import get_language_model, TransformerLanguageModel
-    from megatron.model.utils import init_method_normal, scaled_init_method_normal
-except ModuleNotFoundError as err:
-    logging.error(f"Could not import {err.name}. Megatron LM is not available. Make sure you are using NeMo on GPUs.")
-
 
 __all__ = ['MegatronBertEncoder']
 
@@ -63,34 +55,30 @@ class MegatronBertEncoder(BertModule):
 
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
 
+        config['lazy_mpu_init'] = True
 
-        set_global_variables(extra_args_provider=None, args_defaults=config, ignore_unknown_args=True)
-        # read arguments back
+        self._lazy_init_fn = initialize_megatron(
+            extra_args_provider=None, args_defaults=config, ignore_unknown_args=True
+        )
+
+        # read Megatron arguments back
         args = get_args()
 
         # Initialize part of Megatron global state that is needed for its constructor.
         # The rest will be initialized on forward()
 
-        set_model_parallel_rank(args.rank)
-        set_model_parallel_world_size(args.model_parallel_size)
-
         print(
-            f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}"
+            f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank},"
+            " model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}"
         )
 
-        self.language_model = TransformerLanguageModel(
-            attention_mask_func=bert_attention_mask_func,
-            mlp_activation_func=torch.nn.functional.gelu,
-            init_method=init_method_normal(args.init_method_std),
-            output_layer_init_method=scaled_init_method_normal(args.init_method_std, args.num_layers),
-            num_tokentypes=2,
-            add_pooler=False,
+        self.language_model, self._language_model_key = get_language_model(
+            attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
         )
 
         # key used for checkpoints.
-        self._language_model_key = 'language_model'
+        #        = 'language_model'
         self._hidden_size = self.language_model.hidden_size
-        self._rng_initialized = False
 
     @property
     def hidden_size(self):
@@ -104,16 +92,9 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        if not self._rng_initialized:
-             _initialize_distributed()
-             self._rng_initialized = True
-             _set_random_seed(get_args().seed)
-
-#            seed = get_args().seed
-#            offset = seed + 2718
-#            model_parallel_seed = offset + get_model_parallel_rank()
-#            get_cuda_rng_tracker().add('model-parallel-rng', model_parallel_seed)
-#
+        if self._lazy_init_fn is not None:
+            self._lazy_init_fn()
+            self._lazy_init_fn = None
 
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
