@@ -1,6 +1,6 @@
 # MIT License
 
-# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue, 
+# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue,
 # Daniel Rothchild, Bichen Wu, Joseph E. Gonzalez, Kurt Keutzer
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -74,9 +74,8 @@ class SqueezeWaveNet(torch.nn.Module):
             self.in_layers.append(
                 torch.nn.Sequential(
                     torch.nn.BatchNorm1d(n_channels),
-                    torch.nn.Conv1d(n_channels, n_channels, kernel_size,
-                                    padding=padding, groups=n_channels),
-                    torch.nn.Conv1d(n_channels, 2*n_channels, 1)
+                    torch.nn.Conv1d(n_channels, n_channels, kernel_size, padding=padding, groups=n_channels),
+                    torch.nn.Conv1d(n_channels, 2 * n_channels, 1),
                 )
             )
 
@@ -93,23 +92,16 @@ class SqueezeWaveNet(torch.nn.Module):
 
         for i in range(self.n_layers):
             spect_offset = i * 2 * self.n_channels
-            spec = spect[:, spect_offset:spect_offset+2*self.n_channels, :]
+            spec = spect[:, spect_offset : spect_offset + 2 * self.n_channels, :]
 
             if audio.size(2) > spec.size(2):
-                cond = F.interpolate(
-                    spec, size=audio.size(2), mode='nearest',
-                    recompute_scale_factor=True
-                )
+                cond = F.interpolate(spec, size=audio.size(2), mode='nearest', recompute_scale_factor=True)
             else:
                 cond = spec
 
-            acts = fused_add_tanh_sigmoid_multiply(
-                self.in_layers[i](audio),
-                cond,
-                n_channels_tensor
-            )
+            acts = fused_add_tanh_sigmoid_multiply(self.in_layers[i](audio), cond, n_channels_tensor)
 
             res_skip_acts = self.res_skip_layers[i](acts)
             audio = audio + res_skip_acts
-            
+
         return self.end(audio)

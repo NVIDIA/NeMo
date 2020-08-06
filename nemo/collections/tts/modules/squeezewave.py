@@ -1,6 +1,6 @@
 # MIT License
 
-# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue, 
+# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue,
 # Daniel Rothchild, Bichen Wu, Joseph E. Gonzalez, Kurt Keutzer
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -38,8 +38,8 @@ from enum import Enum
 
 import torch
 
-from nemo.collections.tts.modules.submodules import Invertible1x1Conv
 from nemo.collections.tts.modules.squeezewave_submodules import SqueezeWaveNet
+from nemo.collections.tts.modules.submodules import Invertible1x1Conv
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -109,11 +109,7 @@ class SqueezeWaveModule(NeuralModule):
             self.convinv.append(Invertible1x1Conv(n_remaining_channels))
             self.wavenet.append(
                 SqueezeWaveNet(
-                    n_half,
-                    n_mel_channels,
-                    n_layers=n_wn_layers,
-                    n_channels=n_wn_channels,
-                    kernel_size=wn_kernel_size,
+                    n_half, n_mel_channels, n_layers=n_wn_layers, n_channels=n_wn_channels, kernel_size=wn_kernel_size,
                 )
             )
         self.n_remaining_channels = n_remaining_channels
@@ -196,9 +192,7 @@ class SqueezeWaveModule(NeuralModule):
     def norm_dist_to_audio(self, *, spect, sigma: float = 1.0):
         # Note: hard-coded 256 is hop_length for computing mel-spectrogram
         l = 256 * spect.size(2) // self.n_group
-        audio = sigma * torch.randn(spect.size(0), self.n_remaining_channels, l, device=spect.device).to(
-            spect.dtype
-        )
+        audio = sigma * torch.randn(spect.size(0), self.n_remaining_channels, l, device=spect.device).to(spect.dtype)
 
         for k in reversed(range(self.n_flows)):
             n_half = int(audio.size(1) / 2)
@@ -213,9 +207,7 @@ class SqueezeWaveModule(NeuralModule):
 
             audio = self.convinv[k](audio, reverse=True)
             if k % self.n_early_every == 0 and k > 0:
-                z = sigma * torch.randn(spect.size(0), self.n_early_size, l, device=spect.device).to(
-                    spect.dtype
-                )
+                z = sigma * torch.randn(spect.size(0), self.n_early_size, l, device=spect.device).to(spect.dtype)
                 audio = torch.cat((z, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
 
