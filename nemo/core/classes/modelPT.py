@@ -18,6 +18,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import traceback
 from abc import abstractmethod
 from os import path
 from typing import Dict, List, Optional, Union
@@ -84,13 +85,15 @@ class ModelPT(LightningModule, Model):
                 if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                     self.setup_training_data(self._cfg.train_ds)
 
-            except Exception:
+            except Exception as e:
                 logging.warning(
                     "Unable to load the train data loader with the provided config \n"
                     f"{self._cfg.train_ds}\n"
                     f"Please call the ModelPT.setup_training_data() method "
                     f"and provide a valid configuration file."
                 )
+
+                logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
                 self.setup_multiple_validation_data(val_data_config=None)
@@ -255,13 +258,15 @@ class ModelPT(LightningModule, Model):
                 if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
                     self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
 
-        except Exception:
+        except Exception as e:
             logging.warning(
                 "Unable to load the validation data loader(s) with the provided config \n"
                 f"{self._cfg.validation_ds}\n"
-                f"Please call the ModelPT.setup_multiple_validation_data() method "
+                f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
                 f"and provide a valid configuration file."
             )
+
+            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
@@ -288,13 +293,15 @@ class ModelPT(LightningModule, Model):
                 if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
                     self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
-        except Exception:
+        except Exception as e:
             logging.warning(
                 "Unable to load the test data loader(s) with the provided config \n"
                 f"{self._cfg.test_ds}\n"
-                f"Please call the ModelPT.setup_multiple_test_data() method "
+                f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
                 f"and provide a valid configuration file."
             )
+
+            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
 
     def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
         """
