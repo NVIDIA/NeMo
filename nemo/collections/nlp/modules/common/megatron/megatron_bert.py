@@ -26,13 +26,9 @@ from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-if dist.is_available():
-    from torch.distributed.distributed_c10d import _get_default_group
-
 try:
     from megatron.mpu.initialize import set_model_parallel_rank, get_model_parallel_rank, set_model_parallel_world_size
-    from megatron.mpu import model_parallel_cuda_manual_seed, get_cuda_rng_tracker
-    from megatron.initialize import _set_random_seed, _init_autoresume, initialize_megatron, _initialize_distributed
+    from megatron.initialize import _initialize_distributed
     from megatron.global_vars import set_global_variables, get_args
     from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
     from megatron.model.language_model import get_language_model, TransformerLanguageModel
@@ -66,30 +62,17 @@ class MegatronBertEncoder(BertModule):
         config["vocab_file"] = vocab_file
 
         config['tokenizer_type'] = 'BertWordPieceLowerCase'
+
+
         set_global_variables(extra_args_provider=None, args_defaults=config, ignore_unknown_args=True)
         # read arguments back
         args = get_args()
 
+        # Initialize part of Megatron global state that is needed for its constructor.
+        # The rest will be initialized on forward()
+
         set_model_parallel_rank(args.rank)
         set_model_parallel_world_size(args.model_parallel_size)
-
-#        if args.distributed_backend == 'ddp':
-# No Lightning
-#        else:
-#           _initialize_distributed()
-
-
-        # Autoresume.
-        #        _init_autoresume()
-
-        # Random seeds for reproducibility.
-#        if args.rank == 0:
-#            seed = args.seed
-#            if seed is not None and seed > 0:
-#                print('> setting random seeds to {} ...'.format(args.seed))
-#                random.seed(seed)
-#                np.random.seed(seed)
-#                torch.manual_seed(seed)
 
         print(
             f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}"
@@ -124,6 +107,7 @@ class MegatronBertEncoder(BertModule):
         if not self._rng_initialized:
              _initialize_distributed()
              self._rng_initialized = True
+             _set_random_seed(get_args().seed)
 
 #            seed = get_args().seed
 #            offset = seed + 2718
