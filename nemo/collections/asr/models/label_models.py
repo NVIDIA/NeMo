@@ -152,7 +152,6 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     def training_epoch_end(self, outputs):
         train_acc = (sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)) * 100
-        logging.info("training accuracy {:.3f}".format(train_acc))
         tensorboard_logs = {'train_acc': train_acc}
 
         return {'train_acc': train_acc, 'log': tensorboard_logs}
