@@ -22,8 +22,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 """
 Basic run (on CPU for 50 epochs):
     python examples/speaker_recognition/speaker_reco.py \
@@ -57,7 +55,6 @@ def main(cfg):
     trainer.fit(speaker_model)
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model.save_to(model_path)
-    trainer.test(speaker_model)
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@
 
 import json
 import os
+import pickle as pkl
 from typing import Dict, Optional, Union
 
 import numpy as np
@@ -95,6 +96,7 @@ class EncDecSpeakerLabelModel(ModelPT):
     def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in test_data_layer_params:
             test_data_layer_params['shuffle'] = False
+        self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
 
@@ -139,7 +141,6 @@ class EncDecSpeakerLabelModel(ModelPT):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        self.train()
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
@@ -152,11 +153,11 @@ class EncDecSpeakerLabelModel(ModelPT):
     def training_epoch_end(self, outputs):
         train_acc = (sum([x['n_correct_pred'] for x in outputs]) / sum(x['n_pred'] for x in outputs)) * 100
         logging.info("training accuracy {:.3f}".format(train_acc))
+        tensorboard_logs = {'train_acc': train_acc}
 
-        return {}
+        return {'train_acc': train_acc, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
-        self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
         logits, _ = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
@@ -174,7 +175,6 @@ class EncDecSpeakerLabelModel(ModelPT):
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     def test_step(self, batch, batch_ix):
-        self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         return {'embs': embs, 'labels': labels}
@@ -188,10 +188,8 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
-        self.dir = "."
 
     def test_step(self, batch, batch_ix):
-        self.eval()
         audio_signal, audio_signal_len, labels, _ = batch
         _, embs = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         return {'embs': embs, 'labels': labels}
@@ -200,25 +198,26 @@ class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
         embs = torch.cat([x['embs'] for x in outputs])
         emb_shape = embs.shape[-1]
         embs = embs.view(-1, emb_shape).cpu().numpy()
-        labels = []
+        out_embeddings = {}
 
         with open(self.test_manifest, 'r') as manifest:
-            for line in manifest.readlines():
+            for idx, line in enumerate(manifest.readlines()):
                 line = line.strip()
                 dic = json.loads(line)
                 structure = dic['audio_filepath'].split('/')[-3:]
                 uniq_name = '@'.join(structure)
-                labels.append(uniq_name)
+                if uniq_name in out_embeddings:
+                    raise KeyError("Embeddings for label {} already present in emb dictionary".format(uniq_name))
+                out_embeddings[uniq_name] = embs[idx]
 
-        embedding_dir = os.path.join(self.dir, 'embeddings')
+        embedding_dir = os.path.join(self.embedding_dir, 'embeddings')
         if not os.path.exists(embedding_dir):
             os.mkdir(embedding_dir)
 
         prefix = self.test_manifest.split('/')[-1].split('.')[-2]
 
         name = os.path.join(embedding_dir, prefix)
-        np.save(name + '.npy', embs)
-        np.save(name + '_labels.npy', np.asarray(labels))
+        pkl.dump(out_embeddings, open(name + '_embeddings.pkl', 'wb'))
         logging.info("Saved embedding files to {}".format(embedding_dir))
 
         return {}

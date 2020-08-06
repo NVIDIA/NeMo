@@ -51,16 +51,13 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    trainer = pl.Trainer(**cfg.trainer)
+    trainer = pl.Trainer()
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
-    
     speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)
-    trainer.test(speaker_model)
+    speaker_model.setup_test_data(cfg.model.test_ds)
 
-    # TODO fix this restoring issue later once sufficient fix is provided
-    # speaker_model = ExtractSpeakerEmbeddingsModel(cfg=cfg.model, trainer=trainer, root_dir= log_dir)
-    # speaker_model.restore_from(model_path)
+    trainer.test(speaker_model)
 
 
 if __name__ == '__main__':

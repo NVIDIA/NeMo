@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import argparse
-import json
+import os
+import pickle as pkl
 import sys
 
 import numpy as np
@@ -29,81 +30,60 @@ for Voxceleb dataset.
 
 Args:
     trial_file str: path to voxceleb trial file
-    emb : path to numpy file of embeddings (generated from spkr_get_emb.py)
-    manifest: path to test manifest file that contains path of audio files which is used in spkr_get_emb.py
+    emb : path to pickle file of embeddings dictionary (generated from spkr_get_emb.py)
+    save_kaldi_emb: if required pass this argument to save kaldi embeddings for KALDI PLDA training later
     Note: order of audio files in manifest file should match the embeddings
 """
 
 
-def get_labels(manifest):
-    lines = open(manifest, 'r').readlines()
-    test_list = {}
-    for idx, line in enumerate(lines):
-        line = line.strip()
-        dic = json.loads(line)
-        structure = dic['audio_filepath'].split('/')[-3:]
-        uniq_name = '@'.join(structure)
-        if uniq_name in test_list:
-            raise KeyError("uniq name is already present")
-        test_list[uniq_name] = idx
-    return test_list
+def get_acc(trial_file='', emb='', save_kaldi_emb=False):
 
-
-def get_acc(trial_file='', emb='', manifest=''):
-
-    X_test = np.load(emb)
-    manifest_lines = open(manifest, 'r').readlines()
-    assert len(X_test) == len(manifest_lines)
-
-    test_list = get_labels(manifest)
-
-    tmp_file = open(trial_file, 'r').readlines()
-    trail_score = open('trial_score.txt', 'w')
-
+    trial_score = open('trial_score.txt', 'w')
+    dirname = os.path.dirname(trial_file)
+    emb = pkl.load(open(emb, 'rb'))
     trial_embs = []
     keys = []
     all_scores = []
     all_keys = []
 
-    # for each of trails in trial file
-    for line in tqdm(tmp_file):
-        line = line.strip()
-        truth, x_speaker, y_speaker = line.split()
+    # for each trials in trial file
+    with open(trial_file, 'r') as f:
+        tmp_file = f.readlines()
+        for line in tqdm(tmp_file):
+            line = line.strip()
+            truth, x_speaker, y_speaker = line.split()
 
-        x_speaker = x_speaker.split('/')
-        x_speaker = '@'.join(x_speaker)
+            x_speaker = x_speaker.split('/')
+            x_speaker = '@'.join(x_speaker)
 
-        y_speaker = y_speaker.split('/')
-        y_speaker = '@'.join(y_speaker)
+            y_speaker = y_speaker.split('/')
+            y_speaker = '@'.join(y_speaker)
 
-        x_idx = test_list[x_speaker]
-        y_idx = test_list[y_speaker]
+            X = emb[x_speaker]
+            Y = emb[y_speaker]
 
-        X = X_test[x_idx]
-        Y = X_test[y_idx]
+            if save_kaldi_emb and x_speaker not in keys:
+                keys.append(x_speaker)
+                trial_embs.extend([X])
 
-        if x_speaker not in keys:
-            keys.append(x_speaker)
-            trial_embs.extend([X])
+            if save_kaldi_emb and y_speaker not in keys:
+                keys.append(y_speaker)
+                trial_embs.extend([Y])
 
-        if y_speaker not in keys:
-            keys.append(y_speaker)
-            trial_embs.extend([Y])
+            score = (X @ Y.T) / (((X @ X.T) * (Y @ Y.T)) ** 0.5)
+            score = (score + 1) / 2
 
-        # X=Y
-        score = (X @ Y.T) / (((X @ X.T) * (Y @ Y.T)) ** 0.5)
-        score = (score + 1) / 2
+            all_scores.append(score)
+            trial_score.write(str(score) + "\t" + truth)
+            truth = int(truth)
+            all_keys.append(truth)
 
-        all_scores.append(score)
-        trail_score.write(str(score) + "\t" + truth)
-        truth = int(truth)
-        all_keys.append(truth)
+            trial_score.write('\n')
 
-        trail_score.write('\n')
-
-    # uncomment this if you need embeddings to train KALDI PLDA
-    # np.save(basename + '/all_embs_voxceleb.npy', np.asarray(trial_embs))
-    # np.save(basename + '/all_ids_voxceleb.npy', np.asarray(keys))
+    if save_kaldi_emb:
+        np.save(dirname + '/all_embs_voxceleb.npy', np.asarray(trial_embs))
+        np.save(dirname + '/all_ids_voxceleb.npy', np.asarray(keys))
+        print("Saved KALDI PLDA related embeddings to {}".format(dirname))
 
     return np.asarray(all_scores), np.asarray(all_keys)
 
@@ -113,15 +93,17 @@ if __name__ == "__main__":
     parser.add_argument("--trial_file", help="path to voxceleb trial file", type=str, required=True)
     parser.add_argument("--emb", help="path to numpy file of embeddings", type=str, required=True)
     parser.add_argument(
-        "--manifest", help="path to test manifest file that contains path of audio files", type=str, required=True
+        "--save_kaldi_emb",
+        help=":save kaldi embeddings for KALDI PLDA training later",
+        required=False,
+        action='store_true',
     )
 
     args = parser.parse_args()
-    trial_file, emb, manifest = args.trial_file, args.emb, args.manifest
+    trial_file, emb, save_kaldi_emb = args.trial_file, args.emb, args.save_kaldi_emb
 
-    y_score, y = get_acc(trial_file=trial_file, emb=emb, manifest=manifest)
+    y_score, y = get_acc(trial_file=trial_file, emb=emb, save_kaldi_emb=save_kaldi_emb)
     fpr, tpr, thresholds = roc_curve(y, y_score, pos_label=1)
 
     eer = brentq(lambda x: 1.0 - x - interp1d(fpr, tpr)(x), 0.0, 1.0)
-    # print("EER: {:.2f}%".format(eer * 100))
     sys.stdout.write("{0:.2f}\n".format(eer * 100))

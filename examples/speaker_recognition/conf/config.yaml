@@ -7,7 +7,7 @@ n_filters: &n_filters 512
 
 model:
   train_ds:
-    manifest_filepath: '/data/an4_speaker/train.json'
+    manifest_filepath: ???
     sample_rate: 16000
     labels: null
     batch_size: 64 
@@ -15,7 +15,7 @@ model:
     time_length: 8
 
   validation_ds:
-    manifest_filepath: '/data/an4_speaker/dev.json'
+    manifest_filepath: ???
     sample_rate: 16000
     labels: null
     batch_size: 128
@@ -23,12 +23,13 @@ model:
     time_length: 8
 
   test_ds:
-    manifest_filepath: '/data/an4_speaker/test.json'
+    manifest_filepath: null
     sample_rate: 16000
     labels: null
     batch_size: 128
     shuffle: False
     time_length: 8
+    embedding_dir: './'
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -153,7 +154,7 @@ trainer:
 exp_manager:
   root_dir: null
   name: *name
-  create_tensorboard_logger: True
+  create_tensorboard_logger: False
   create_checkpoint_callback: True
 
 hydra:
