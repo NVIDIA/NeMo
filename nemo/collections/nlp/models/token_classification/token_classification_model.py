@@ -52,7 +52,6 @@ class TokenClassificationModel(ModelPT):
             data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
         )
         self.data_dir = cfg.dataset.data_dir
-        self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
@@ -191,6 +190,7 @@ class TokenClassificationModel(ModelPT):
             use_cache=self._cfg.dataset.use_cache,
         )
 
+        self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
