@@ -154,7 +154,7 @@ trainer:
 exp_manager:
   root_dir: null
   name: *name
-  create_tensorboard_logger: False
+  create_tensorboard_logger: True
   create_checkpoint_callback: True
 
 hydra:

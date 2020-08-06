@@ -51,7 +51,7 @@ seed_everything(42)
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
-    trainer = pl.Trainer()
+    trainer = pl.Trainer(logger=False, checkpoint_callback=False)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     model_path = os.path.join(log_dir, '..', 'spkr.nemo')
     speaker_model = ExtractSpeakerEmbeddingsModel.restore_from(model_path)

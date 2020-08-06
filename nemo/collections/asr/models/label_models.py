@@ -183,7 +183,7 @@ class EncDecSpeakerLabelModel(ModelPT):
 class ExtractSpeakerEmbeddingsModel(EncDecSpeakerLabelModel):
     """
     This Model class facilitates extraction of speaker embeddings from a pretrained model.
-    root_dir: diretory path where embeddings to be saved
+    Respective embedding file is saved in self.embedding dir passed through cfg
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
