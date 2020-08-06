@@ -14,3 +14,4 @@
 
 import nemo.collections.tts.modules.tacotron2
 import nemo.collections.tts.modules.waveglow
+import nemo.collections.tts.modules.squeezewave

@@ -136,6 +136,7 @@ pipeline {
             sh 'python examples/asr/speech_to_label.py \
             model.train_ds.manifest_filepath=/home/TestData/speech_commands/train_manifest.json \
             model.validation_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
+            model.test_ds.manifest_filepath=/home/TestData/speech_commands/test_manifest.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
@@ -261,7 +262,6 @@ pipeline {
         }
       }
     }
-
     stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -351,21 +351,21 @@ pipeline {
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
         }
-        stage ('NER') {
+        stage ('NER with BERT') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python ner.py \
-            model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+            python token_classification.py \
+            model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=true \
-            model.use_cache=false \
+            model.dataset.use_cache=false \
             '
           }
         }
       }
     }
 
-    stage('L2: NLP-BERT pretraining BERT on the fly preprocessing') {
+    stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
           branch 'candidate'
@@ -373,27 +373,62 @@ pipeline {
         }
       }
       failFast true
-      steps {
-        sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_text.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wikitext-2/  --batch_size 64 --config_file /home/TestData/nlp/bert_configs/bert_3200.json --lr 0.01 --warmup_ratio 0.05 --max_steps=2 --tokenizer_name=sentencepiece --sample_size 10000000 --mask_probability 0.15 --short_seq_prob 0.1'
-        sh 'rm -rf examples/nlp/lightning_logs'
-      }
-    }
-
-    stage('L2: NLP-BERT pretraining BERT offline preprocessing') {
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
+      parallel {
+        stage('L2: Pretraining BERT pretraining from Text') {
+            steps {
+              sh 'cd examples/nlp/language_modeling && \
+              python bert_pretraining.py \
+              --config-name=bert_pretraining_from_text_config.yaml \
+              trainer.gpus=[0] \
+              trainer.precision=16 \
+              trainer.amp_level=O1 \
+              +trainer.fast_dev_run=true \
+              model.train_ds.data_file=/home/TestData/nlp/wikitext-2/train.txt  \
+              model.train_ds.batch_size=64 \
+              model.validation_ds.data_file=/home/TestData/nlp/wikitext-2/valid.txt  \
+              model.validation_ds.batch_size=64 \
+              model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/bert_3200.json \
+              model.optim.lr=0.01 \
+              model.optim.sched.warmup_ratio=0.1 \
+              model.tokenizer.tokenizer_name=sentencepiece \
+              model.tokenizer.data_file=/home/TestData/nlp/wikitext-2/train.txt \
+              model.tokenizer.sample_size=10000000 \
+              model.mask_prob=0.15 \
+              model.short_seq_prob=0.1 \
+              exp_manager.root_dir=PretrainingBERTFromText \
+              '
+              sh 'rm -rf /home/TestData/nlp/wikitext-2/spt'
+              sh 'rm -f /home/TestData/nlp/wikitext-2/*.pkl'
+              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromText'
+              sh 'ls -lha examples/nlp/language_modeling'
+            }
+        }
+        stage('L2: Pretraining BERT from Preprocessed') {
+            steps {
+              sh 'cd examples/nlp/language_modeling && \
+              python bert_pretraining.py \
+              --config-name=bert_pretraining_from_preprocessed_config.yaml \
+              trainer.gpus=[1] \
+              trainer.precision=16 \
+              trainer.amp_level=O1 \
+              +trainer.fast_dev_run=true \
+              model.train_ds.data_file=/home/TestData/nlp/wiki_book_mini/training \
+              model.train_ds.batch_size=8 \
+              model.language_model.bert_checkpoint=/home/TestData/nlp/bert_ckpts/nemo1.0/bert_base_uncased_mlm_final_1074591_nemo1.0.pt \
+              model.language_model.bert_config_file=/home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json \
+              model.optim.lr=0.875e-4 \
+              model.optim.weight_decay=0.01 \
+              model.optim.sched.warmup_ratio=0.01 \
+              exp_manager.root_dir=PretrainingBERTFromPreprocessed \
+              '
+              sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed'
+              sh 'ls -lha examples/nlp/language_modeling'
+            }
         }
       }
-      failFast true
-      steps {
-        sh 'cd examples/nlp && CUDA_VISIBLE_DEVICES=0 python bert_pretraining_from_preprocessed.py --precision 16 --amp_level=O1 --data_dir /home/TestData/nlp/wiki_book_mini/training --batch_size 8 --config_file /home/TestData/nlp/bert_configs/uncased_L-12_H-768_A-12.json  --gpus 1 --warmup_ratio 0.01 --optimizer adamw  --opt_args weight_decay=0.01  --lr 0.875e-4 --max_steps 2'
-        sh 'rm -rf examples/nlp/lightning_logs'
-      }
     }
 
-    stage('L2: Punctuation and capitalization: DistilBert + MultiGPU') {
+   stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT') {
       when {
         anyOf{
           branch 'candidate'
@@ -404,9 +439,9 @@ pipeline {
       steps {
         sh 'cd examples/nlp/token_classification && \
         python punctuation_capitalization.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         model.language_model.pretrained_model_name=distilbert-base-uncased \
-        model.use_cache=false \
+        model.dataset.use_cache=false \
         trainer.gpus=[0,1] \
         trainer.distributed_backend=ddp \
         +trainer.fast_dev_run=true \
@@ -427,11 +462,11 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/token_classification && \
-        python ner.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
-        model.use_cache=false \
+        model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
         exp_manager.root_dir=exp_ner_megatron_bert_base_cased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
@@ -449,11 +484,11 @@ pipeline {
       failFast true
       steps {
         sh 'cd examples/nlp/token_classification && \
-        python ner.py \
-        model.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
+        python token_classification.py \
+        model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
-        model.use_cache=false \
+        model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
         exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
@@ -484,6 +519,30 @@ pipeline {
         stage('WaveGlow') {
           steps {
             sh 'python examples/tts/waveglow.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[1]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.dataloader_params.batch_size=4 \
+            model.validation_ds.dataloader_params.batch_size=4'
+          }
+        }
+      }
+    }
+
+    stage('L2: TTS Fast dev runs 2') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      parallel {
+        stage('SqueezeWave') {
+          steps {
+            sh 'python examples/tts/squeezewave.py \
             train_dataset=/home/TestData/an4_dataset/an4_train.json \
             validation_datasets=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus="[1]" \
