@@ -70,24 +70,26 @@ class MegatronBertEncoder(BertModule):
         # read arguments back
         args = get_args()
 
-        if args.distributed_backend == 'null':
-            # No Lightning
-            _initialize_distributed()
-        else:
-            set_model_parallel_rank(args.rank)
-            set_model_parallel_world_size(args.model_parallel_size)
+        set_model_parallel_rank(args.rank)
+        set_model_parallel_world_size(args.model_parallel_size)
+
+#        if args.distributed_backend == 'ddp':
+# No Lightning
+#        else:
+#           _initialize_distributed()
+
 
         # Autoresume.
         #        _init_autoresume()
 
         # Random seeds for reproducibility.
-        if args.rank == 0:
-            seed = args.seed
-            if seed is not None and seed > 0:
-                print('> setting random seeds to {} ...'.format(args.seed))
-                random.seed(seed)
-                np.random.seed(seed)
-                torch.manual_seed(seed)
+#        if args.rank == 0:
+#            seed = args.seed
+#            if seed is not None and seed > 0:
+#                print('> setting random seeds to {} ...'.format(args.seed))
+#                random.seed(seed)
+#                np.random.seed(seed)
+#                torch.manual_seed(seed)
 
         print(
             f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank}, model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}"
@@ -120,12 +122,14 @@ class MegatronBertEncoder(BertModule):
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
         if not self._rng_initialized:
-            seed = get_args().seed
-            offset = seed + 2718
-            model_parallel_seed = offset + get_model_parallel_rank()
-            get_cuda_rng_tracker().add('model-parallel-rng', model_parallel_seed)
+             _initialize_distributed()
+             self._rng_initialized = True
 
-            self._rng_initialized = True
+#            seed = get_args().seed
+#            offset = seed + 2718
+#            model_parallel_seed = offset + get_model_parallel_rank()
+#            get_cuda_rng_tracker().add('model-parallel-rng', model_parallel_seed)
+#
 
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype

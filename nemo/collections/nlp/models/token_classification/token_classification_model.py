@@ -53,7 +53,6 @@ class TokenClassificationModel(ModelPT):
         self.data_desc = TokenClassificationDataDesc(
             data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
         )
-
         self.data_dir = cfg.dataset.data_dir
         self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
 
@@ -76,7 +75,7 @@ class TokenClassificationModel(ModelPT):
             config_file=self._cfg.language_model.bert_config,
             checkpoint_file=self._cfg.language_model.bert_checkpoint,
         )
-        self.hidden_size = self.bert_model.hidden_size
+        self.hidden_size = self.bert_model.config.hidden_size
 
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,

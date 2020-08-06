@@ -11,3 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import (
+    IntentSlotClassificationDataset,
+)
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_descriptor import (
+    IntentSlotDataDesc,
+)
