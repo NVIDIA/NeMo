@@ -224,6 +224,7 @@ class AudioToCharDataset(_AudioTextDataset):
         eos_id: Id of end of sequence symbol to append if not None
         load_audio: Boolean flag indicate whether do or not load audio
         add_misc: True if add additional info dict.
+        lexicon_filepath: Path to a lexicon file with phonetic transcriptions.
     """
 
     @property
@@ -262,11 +263,12 @@ class AudioToCharDataset(_AudioTextDataset):
         load_audio: bool = True,
         parser: Union[str, Callable] = 'en',
         add_misc: bool = False,
+        lexicon_filepath = None,
     ):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize, lexicon_filepath=lexicon_filepath,
         )
 
         super().__init__(
