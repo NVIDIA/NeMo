@@ -388,6 +388,25 @@ pipeline {
       }
     }
 
+    stage('L2: Intent and Slot Classification') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+
+      steps {
+        sh 'cd examples/nlp/intent_slot_classification && \
+        python intent_slot_classification.py \
+        model.data_dir=/home/TestData/nlp/retail/ \
+        model.validation_ds.prefix=dev \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true'
+      }
+    }
+
     stage('L2: Parallel GLUE Examples') {
       when {
         anyOf{
@@ -396,6 +415,7 @@ pipeline {
         }
       }
       failFast true
+
       parallel {
         stage('MRPC') {
           steps {
@@ -423,7 +443,7 @@ pipeline {
         }
       }
     }
-
+    
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
