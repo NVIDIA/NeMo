@@ -15,18 +15,14 @@
 # limitations under the License.
 
 import os
-import random
 
-import numpy as np
 import torch
-import torch.distributed as dist
 from megatron import get_args, initialize_megatron
 from megatron.model import get_language_model
 from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['MegatronBertEncoder']
