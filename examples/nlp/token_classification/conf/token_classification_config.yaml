@@ -40,6 +40,7 @@ exp_manager:
 
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  data_desc_pickle: data_desc.p # data descriptor pickle file inside .nemo file
   dataset:
     data_dir: ??? # /path/to/data
     class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes

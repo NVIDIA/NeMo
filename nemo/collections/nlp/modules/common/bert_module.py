@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from typing import Dict, Optional
 
@@ -50,7 +51,12 @@ class BertModule(NeuralModule, Exportable):
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
-        logging.info(f"restore from {restore_path}")
+        logging.info(f"Restoring weights from {restore_path}")
+
+        if not os.path.exists(restore_path):
+            logging.warning(f'Path {restore_path} not found')
+            return
+
         pretrained_dict = torch.load(restore_path)
 
         # backward compatibility with NeMo0.11
@@ -67,6 +73,8 @@ class BertModule(NeuralModule, Exportable):
         assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
+
+        logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
 
     def _prepare_for_export(self):
         """
