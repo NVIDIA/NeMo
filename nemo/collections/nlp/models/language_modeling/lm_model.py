@@ -23,7 +23,10 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
+from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
+    BertPretrainingDataset,
+    BertPretrainingPreprocessedDataloader,
+)
 from nemo.collections.nlp.metrics.perplexity import Perplexity
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
