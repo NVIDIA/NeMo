@@ -405,7 +405,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/nlp/glue_benchmark/mrpc'
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc'
             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
           }
         }
@@ -417,7 +417,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/nlp/glue_benchmark/sts-b'
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
             sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
           }
         }
