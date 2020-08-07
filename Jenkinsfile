@@ -433,6 +433,7 @@ pipeline {
         }
       }
       failFast true
+
       steps {
         sh 'cd examples/nlp/intent_slot_classification && \
         python intent_slot_classification.py \
