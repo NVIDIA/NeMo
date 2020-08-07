@@ -38,6 +38,19 @@
 import torch
 from torch.nn import functional as F
 
+from nemo.collections.tts.modules.submodules import fused_add_tanh_sigmoid_multiply
+
+
+class Upsample1d(torch.nn.Module):
+    def __init__(self, scale=2):
+        super(Upsample1d, self).__init__()
+        self.scale = scale
+
+    def forward(self, x):
+        y = F.interpolate(
+            x, scale_factor=self.scale, mode='nearest')
+        return y
+
 
 class SqueezeWaveNet(torch.nn.Module):
     """
@@ -54,6 +67,7 @@ class SqueezeWaveNet(torch.nn.Module):
         self.n_channels = n_channels
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
+        self.upsample = Upsample1d(2)
 
         start = torch.nn.Conv1d(n_in_channels, n_channels, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
@@ -92,12 +106,7 @@ class SqueezeWaveNet(torch.nn.Module):
 
         for i in range(self.n_layers):
             spect_offset = i * 2 * self.n_channels
-            spec = spect[:, spect_offset : spect_offset + 2 * self.n_channels, :]
-
-            if audio.size(2) > spec.size(2):
-                cond = F.interpolate(spec, size=audio.size(2), mode='nearest', recompute_scale_factor=True)
-            else:
-                cond = spec
+            cond = self.upsample(spect[:, spect_offset : spect_offset + 2 * self.n_channels, :])
 
             acts = fused_add_tanh_sigmoid_multiply(self.in_layers[i](audio), cond, n_channels_tensor)
 
