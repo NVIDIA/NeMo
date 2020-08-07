@@ -207,7 +207,7 @@ class ModelPT(LightningModule, Model):
 
         Args:
             config: model config
-            artifacts_dir: path to temp directory with restored artifacts
+            artifacts_dir: path to directory with artifacts restored from .nemo file
         Returns:
             config: model config
         """

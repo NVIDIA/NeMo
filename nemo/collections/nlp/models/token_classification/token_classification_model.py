@@ -56,6 +56,7 @@ class TokenClassificationModel(ModelPT):
         """Initializes Token Classification Model."""
 
         self.data_dir = cfg.dataset.data_dir
+
         modes = ["train", "test", "dev"]
         if not os.path.exists(cfg.data_desc_pickle):
             # process the data and extract label_ids and class weights if the model is not restored from .nemo file
@@ -215,6 +216,7 @@ class TokenClassificationModel(ModelPT):
             use_cache=self._cfg.dataset.use_cache,
         )
 
+        self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
