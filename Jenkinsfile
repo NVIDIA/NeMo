@@ -159,6 +159,7 @@ pipeline {
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
