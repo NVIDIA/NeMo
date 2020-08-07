@@ -151,8 +151,8 @@ model:
       name: CosineAnnealing
 
       # pytorch lightning args
-      # monitor: val_loss
-      # reduce_on_plateau: false
+      monitor: val_loss
+      reduce_on_plateau: false
 
       # Scheduler params
       warmup_steps: null
@@ -177,6 +177,8 @@ exp_manager:
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  wandb_exp: null
+  wandb_project: null
 
 hydra:
   run:

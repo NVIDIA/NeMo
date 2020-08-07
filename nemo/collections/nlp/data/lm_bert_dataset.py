@@ -134,7 +134,7 @@ class BertPretrainingDataset(Dataset):
             del sentence_indices[filename]
 
         self.corpus_size = corpus_size
-        self.dataset = data_dir
+        self.dataset = data_file
         self.filenames = list(sentence_indices.keys())
         self.mask_probability = mask_prob
         self.max_seq_length = max_seq_length
