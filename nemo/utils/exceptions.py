@@ -13,9 +13,7 @@
 # limitations under the License.
 
 
-from nemo.utils.nemo_logging import Logger as _Logger
-from nemo.utils.nemo_logging import LogMode as logging_mode
-from nemo.utils.lightning_logger_patch import add_memory_handlers_to_pl_logger
+class NeMoBaseException(Exception):
+    """ NeMo Base Exception. All exceptions created in NeMo should inherit from this class"""
 
-logging = _Logger()
-add_memory_handlers_to_pl_logger()
+    pass

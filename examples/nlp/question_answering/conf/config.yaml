@@ -8,7 +8,7 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
-  amp_level: O1 # O1 or O2 if using AMP 
+  amp_level: O1 # O1 or O2 if using AMP
   distributed_backend: ddp
   gradient_clip_val: 0.0
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
@@ -50,7 +50,7 @@ model:
     drop_last: false
     pin_memory: false
     max_answer_length: null
-    # The maximum length of an answer that can be 
+    # The maximum length of an answer that can be
     # generated. This is needed because the start
     # and end predictions are not conditioned
     # on one another.
@@ -74,7 +74,7 @@ model:
     drop_last: false
     pin_memory: false
     max_answer_length: 30
-    # The maximum length of an answer that can be 
+    # The maximum length of an answer that can be
     # generated. This is needed because the start
     # and end predictions are not conditioned
     # on one another.
@@ -86,8 +86,8 @@ model:
     # If null_score - best_non_null is greater than the threshold predict null.
     n_best_size: 20
     # The total number of n-best predictions to generate at testing.
-    
-  
+
+
   optim:
     name: adamw
     lr: 3e-5
@@ -121,7 +121,7 @@ model:
     tokenizer: nemobert # only used if using custom checkpoint
     tokenizer_model: null # only used if tokenizer is sentencepiece
     vocab_file: null
-  
+
   token_classifier:
     num_layers: 1
     dropout: 0.0
@@ -132,7 +132,7 @@ model:
 
 
 exp_manager:
-  root_dir: null # where to store logs and checkpoints
+  exp_dir: null # where to store logs and checkpoints
   name: *name # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
