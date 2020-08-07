@@ -20,7 +20,6 @@ import pytest
 import pytorch_lightning as pl
 from omegaconf.errors import OmegaConfBaseException
 
-from nemo.utils import logging
 from nemo.utils.exp_manager import (
     CheckpointMisconfigurationError,
     LoggerMisconfigurationError,
@@ -65,7 +64,7 @@ class TestExpManager:
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
             exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path)})
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
-            exp_manager(test_trainer, {"resume": True})
+            exp_manager(test_trainer, {"resume_if_exists": True})
 
         # Check that exp_manager uses trainer.logger, it's exp_dir, name, and version
         log_dir = exp_manager(test_trainer, {"create_tensorboard_logger": False, "create_checkpoint_callback": False})
@@ -174,30 +173,49 @@ class TestExpManager:
 
         # Error because explicit_log_dir does not exist
         with pytest.raises(NotFoundError):
-            log_dir = exp_manager(
+            exp_manager(
                 test_trainer,
-                {"exp_dir": str(tmp_path / "test_resume"), "resume": True, "explicit_log_dir": "Does_not_exist"},
+                {
+                    "exp_dir": str(tmp_path / "test_resume"),
+                    "resume_if_exists": True,
+                    "explicit_log_dir": "Does_not_exist",
+                },
             )
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
-            log_dir = exp_manager(test_trainer, {"resume": True, "exp_dir": str(tmp_path / "test_resume")})
+            log_dir = exp_manager(test_trainer, {"resume_if_exists": True, "exp_dir": str(tmp_path / "test_resume")})
+
+        # No error because we tell exp_manager to ignore notfounderror
+        log_dir = exp_manager(
+            test_trainer,
+            {
+                "resume_if_exists": True,
+                "exp_dir": str(tmp_path / "test_resume_2"),
+                "resume_ignore_no_checkpoint": True,
+            },
+        )
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
             log_dir = exp_manager(
                 test_trainer,
-                {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+                {
+                    "resume_if_exists": True,
+                    "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),
+                },
             )
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").touch()
-        test = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints")
         # Error because *end.ckpt is in folder indicating that training has already finished
         with pytest.raises(ValueError):
             log_dir = exp_manager(
                 test_trainer,
-                {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+                {
+                    "resume_if_exists": True,
+                    "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),
+                },
             )
 
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").unlink()
@@ -207,14 +225,17 @@ class TestExpManager:
         with pytest.raises(ValueError):
             log_dir = exp_manager(
                 test_trainer,
-                {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),},
+                {
+                    "resume_if_exists": True,
+                    "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0"),
+                },
             )
 
         # Finally succeed
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last.ckpt").unlink()
         log_dir = exp_manager(
             test_trainer,
-            {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+            {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
         assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()
@@ -223,7 +244,7 @@ class TestExpManager:
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         log_dir = exp_manager(
             test_trainer,
-            {"resume": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
+            {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
         assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()

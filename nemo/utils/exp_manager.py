@@ -64,9 +64,9 @@ class ExpManagerConfig:
     name: Optional[str] = None
     version: Optional[str] = None
     use_datetime_version: Optional[bool] = True
-    resume: Optional[bool] = False
-    previous_log_dir: Optional[str] = None
+    resume_if_exists: Optional[bool] = False
     resume_past_end: Optional[bool] = False
+    resume_ignore_no_checkpoint: Optional[bool] = False
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
     summary_writter_kwargs: Optional[Dict] = None
@@ -89,7 +89,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
     sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
     their output into.
-    exp_manager additionally has a resume feature which can be used to continuing training from a previous_log_dir.
+    exp_manager additionally has a resume feature which can be used to continuing training from the constructed log_dir.
 
     Args:
         trainer (pytorch_lightning.Trainer): The lightning trainer.
@@ -103,12 +103,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             - version (str): The version of the experiment. Defaults to None which uses either a datetime string or
                 lightning's TensorboardLogger system of using version_{int}.
             - use_datetime_version (bool): Whether to use a datetime string for version. Defaults to True.
-            - resume (bool): Whether this experiment is resuming from a previous run. If True, it sets
+            - resume_if_exists (bool): Whether this experiment is resuming from a previous run. If True, it sets
                 trainer.resume_from_checkpoint so that the trainer should auto-resume. exp_manager will move files
-                under previous_log_dir to previous_log_dir/run_{int}. Defaults to False.
-            - resume_past_end (bool): exp_manager errors out if resume is True and a checkpoint matching *end.ckpt
-                indicating a previous training run fully completed. This behaviour can be disabled, in which case the
-                *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
+                under log_dir to log_dir/run_{int}. Defaults to False.
+            - resume_past_end (bool): exp_manager errors out if resume_if_exists is True and a checkpoint matching
+                *end.ckpt indicating a previous training run fully completed. This behaviour can be disabled, in which
+                case the *end.ckpt will be loaded by setting resume_past_end to True. Defaults to False.
+            - resume_ignore_no_checkpoint (bool): exp_manager errors out if resume_if_exists is True and no checkpoint
+                could be found. This behaviour can be disabled, in which case exp_manager will print a message and
+                continue without restoring, by setting resume_ignore_no_checkpoint to True. Defaults to False.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
             - summary_writter_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
@@ -152,8 +155,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         explicit_log_dir=cfg.explicit_log_dir,
         use_datetime_version=cfg.use_datetime_version,
     )
-    if cfg.resume:
-        check_resume(trainer, log_dir, cfg.resume_past_end)
+    if cfg.resume_if_exists:
+        check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
     cfg.name = name
     cfg.version = version
@@ -241,7 +244,12 @@ def error_checks(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictC
         )
 
 
-def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past_end: bool = False):
+def check_resume(
+    trainer: 'pytorch_lightning.Trainer',
+    log_dir: str,
+    resume_past_end: bool = False,
+    resume_ignore_no_checkpoint: bool = False,
+):
     """Checks that resume=True was used correctly with the arguments pass to exp_manager. Sets
     trainer.resume_from_checkpoint as necessary.
 
@@ -252,8 +260,8 @@ def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past
         version (str): The version of the experiment
 
     Raises:
-        LoggerMisconfigurationError: If trainer is incompatible with arguments
-        ValueError: If resume is True and checkpoints could not be find.
+        NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
+        ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
     if not log_dir:
         raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
@@ -263,7 +271,12 @@ def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past
     end_checkpoints = list(checkpoint_dir.glob("*end.ckpt"))
     last_checkpoints = list(checkpoint_dir.glob("*last.ckpt"))
     if not checkpoint_dir.exists():
-        raise NotFoundError(f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume.")
+        if resume_ignore_no_checkpoint:
+            logging.warning(
+                f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Training from scratch."
+            )
+        else:
+            raise NotFoundError(f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume.")
     elif len(end_checkpoints) > 0:
         if resume_past_end:
             if len(end_checkpoints) > 1:
@@ -275,7 +288,10 @@ def check_resume(trainer: 'pytorch_lightning.Trainer', log_dir: str, resume_past
                 f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
             )
     elif not len(last_checkpoints) > 0:
-        raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Is the folder correct?")
+        if resume_ignore_no_checkpoint:
+            logging.warning(f"There were no checkpoints found in {checkpoint_dir}. Training from scratch.")
+        else:
+            raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
         raise ValueError(f"Multiple multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
     else:
@@ -347,7 +363,8 @@ def get_log_dir(
 
     Raise:
         LoggerMisconfigurationError: If trainer is incompatible with arguments
-        ValueError: If resume is True and checkpoints could not be find.
+        NotFoundError: If resume is True, resume_ignore_no_checkpoint is False, and checkpoints could not be found.
+        ValueError: If resume is True, and there were more than 1 checkpoint could found.
     """
     if explicit_log_dir:  # If explicit log_dir was pass, short circuit
         return check_explicit_log_dir(trainer, explicit_log_dir, exp_dir, name, version)
