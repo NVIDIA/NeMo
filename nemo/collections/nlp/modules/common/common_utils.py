@@ -68,6 +68,5 @@ def get_pretrained_lm_model(
 
     if checkpoint_file:
         model.restore_weights(restore_path=checkpoint_file)
-        logging.info(f"{pretrained_model_name} weights restored from {checkpoint_file}")
 
     return model
