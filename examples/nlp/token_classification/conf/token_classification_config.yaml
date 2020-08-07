@@ -33,7 +33,7 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 exp_manager:
-  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
+  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: token_classification_model  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
@@ -50,7 +50,6 @@ model:
     use_cache: true
 
   train_ds:
-    prefix: train
     shuffle: true
     num_samples: -1
     batch_size: 64
@@ -59,7 +58,6 @@ model:
     drop_last: false
 
   validation_ds:
-    prefix: dev
     shuffle: false
     num_samples: -1
     batch_size: 64
@@ -94,6 +92,10 @@ model:
       warmup_steps: null
       warmup_ratio: 0.1
       last_epoch: -1
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
 
 hydra:
   run:

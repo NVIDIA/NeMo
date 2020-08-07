@@ -1,5 +1,5 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2020 The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
+from nemo.utils import logging
 
 __all__ = [
     'get_megatron_lm_model',
@@ -74,16 +75,18 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
     if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
         if not (config_file):
             raise ValueError(f'Config file is required for {pretrained_model_name}')
+        default_checkpoint = None
+    else:
+        # get default config and checkpoint
+        default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
+        config = get_megatron_config(pretrained_model_name)
 
-    config = get_megatron_config(pretrained_model_name)
     if config_file:
         with open(config_file) as f:
             config = json.load(f)
-
-    checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
+    logging.info(f'Megatron config: {config}')
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
-
     model = MegatronBertEncoder(
         model_name=pretrained_model_name,
         vocab_file=vocab,
@@ -92,8 +95,7 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
         num_layers=config['num-layers'],
         max_seq_length=config['max-seq-length'],
     )
-
-    return model, checkpoint_file
+    return model, default_checkpoint
 
 
 def get_megatron_lm_models_list() -> List[str]:
@@ -120,7 +122,7 @@ def get_megatron_vocab_file(pretrained_model_name):
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
-        path (str): path to the vocab file 
+        path (str): path to the vocab file
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['vocab']
     path = cached_path(url, cache_dir=MEGATRON_CACHE)

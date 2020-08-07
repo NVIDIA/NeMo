@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
 
 from transformers import RobertaModel
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-from nemo.utils.decorators import experimental
 
 __all__ = ['RobertaEncoder']
 
 
-@experimental
 class RobertaEncoder(RobertaModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.

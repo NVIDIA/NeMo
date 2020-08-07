@@ -8,3 +8,4 @@ sphinx
 sphinxcontrib-bibtex
 wrapt
 wget
+wandb

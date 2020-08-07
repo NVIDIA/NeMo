@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from transformers import (
     ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,

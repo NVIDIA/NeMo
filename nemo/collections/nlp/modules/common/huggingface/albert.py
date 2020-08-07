@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,19 +17,17 @@
 from transformers import AlbertModel
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.utils.decorators import experimental
+from nemo.core.classes import typecheck
 
 __all__ = ['AlbertEncoder']
 
 
-@experimental
 class AlbertEncoder(AlbertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
     @typecheck()
-    def forward(self, **kwargs):
-        res = super().forward(**kwargs)[0]
+    def forward(self, input_ids, attention_mask, token_type_ids):
+        res = super().forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)[0]
         return res

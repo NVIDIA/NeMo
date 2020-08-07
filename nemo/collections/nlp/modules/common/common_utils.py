@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ def get_pretrained_lm_models_list() -> List[str]:
     '''
     Returns the list of support pretrained models
     '''
-    return get_huggingface_lm_models_list() + get_megatron_lm_models_list()
+    return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
 
 
 def get_pretrained_lm_model(

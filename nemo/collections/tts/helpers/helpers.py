@@ -16,6 +16,7 @@ import librosa
 import matplotlib.pylab as plt
 import numpy as np
 import torch
+from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.utils import logging
 
@@ -46,6 +47,7 @@ def griffin_lim(magnitudes, n_iters=50, n_fft=1024):
     return signal
 
 
+@rank_zero_only
 def tacotron2_log_to_tb_func(
     swriter,
     tensors,
@@ -154,6 +156,7 @@ def save_figure_to_numpy(fig):
     return data
 
 
+@rank_zero_only
 def waveglow_log_to_tb_func(
     swriter, tensors, step, tag="train", n_fft=1024, hop_length=256, window="hann", mel_fb=None,
 ):

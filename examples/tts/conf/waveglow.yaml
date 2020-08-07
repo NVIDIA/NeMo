@@ -95,7 +95,7 @@ trainer:
   precision: 16
 
 exp_manager:
-  root_dir: null
+  exp_dir: null
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True

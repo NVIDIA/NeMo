@@ -20,14 +20,12 @@ from torch import nn as nn
 from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
 from nemo.core.classes import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
 
 ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 
 
-@experimental
 class TokenClassifier(NeuralModule, Exportable):
     """
     A module to perform token level classification tasks such as Named entity recognition.
@@ -92,7 +90,7 @@ class TokenClassifier(NeuralModule, Exportable):
         logits = self.mlp(hidden_states)
         return logits
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         """
         Returns a pair in input, output examples for tracing.
         Returns:
@@ -122,7 +120,6 @@ class TokenClassifier(NeuralModule, Exportable):
         pass
 
 
-@experimental
 class BertPretrainingTokenClassifier(NeuralModule, Exportable):
     """
     A module to perform token level classification tasks for Bert pretraining.
@@ -195,7 +192,7 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
         logits = self.mlp(transform)
         return logits
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         """
         Returns a pair in input, output examples for tracing.
         Returns:
