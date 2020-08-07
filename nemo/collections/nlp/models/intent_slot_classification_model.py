@@ -224,7 +224,6 @@ class IntentSlotClassificationModel(ModelPT):
                  of Intents and Slots files.'
             )
 
-        # TODO: check that file exists
         dataset = IntentSlotClassificationDataset(
             input_file=input_file,
             slot_file=slot_file,
