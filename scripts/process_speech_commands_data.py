@@ -184,7 +184,7 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
                 for i in range(0, len(y) - sampling_rate, silence_stride):
                     file_path = "silence/{}_{}.wav".format(file[:-4], i)
-                    y_slice = y[i:i + sampling_rate]
+                    y_slice = y[i : i + sampling_rate]
                     magnitude = rng.uniform(0.0, 1.0)
                     y_slice *= magnitude
                     out_file_path = os.path.join(data_folder, file_path)
