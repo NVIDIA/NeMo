@@ -98,8 +98,6 @@ exp_manager:
   name: PretrainingBERTFromText # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
-  wandb_exp: null
-  wandb_project: null
 
 hydra:
   run:
