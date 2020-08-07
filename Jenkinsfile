@@ -438,11 +438,8 @@ pipeline {
         sh 'cd examples/nlp/intent_slot_classification && \
         python intent_slot_classification.py \
         model.data_dir=/home/TestData/nlp/retail/ \
-        trainer.gpus=[1] \
-        +trainer.fast_dev_run=true \
-        exp_manager.root_dir=logs \
-        '
-        sh 'rm -rf examples/nlp/intent_slot_classification/logs'
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true'
       }
     }
     
