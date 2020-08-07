@@ -19,6 +19,7 @@ import sys
 import threading
 import warnings
 from contextlib import contextmanager
+from logging.handlers import MemoryHandler
 
 from nemo.constants import NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, NEMO_ENV_VARNAME_TESTING
 from nemo.utils.env_var_parsing import get_envbool
@@ -63,24 +64,19 @@ class Logger(metaclass=Singleton):
         50: "CRITICAL",
     }
 
-    def __init__(self):
+    def __init__(self, capture_warnings=True):
 
         self._logger = None
-
         # Multi-GPU runs run in separate processes, thread locks shouldn't be needed
         self._logger_lock = threading.Lock()
-
         self._handlers = dict()
-
         self.old_warnings_showwarning = None
-
-        self._define_logger()
-
+        self._define_logger(capture_warnings)
         self.once_logged = set()
-
         self.rank = 0 if is_global_rank_zero() else "UNK"
 
-    def _define_logger(self):
+    def _define_logger(self, capture_warnings=True):
+        """ Creates the logger if not already created. Called in init"""
 
         # Use double-checked locking to avoid taking lock unnecessarily.
         if self._logger is not None:
@@ -91,6 +87,7 @@ class Logger(metaclass=Singleton):
                 self._logger = _logging.getLogger("nemo_logger")
                 # By default, silence all loggers except the logger for rank 0
                 self.remove_stream_handlers()
+                # If NEMO_TESTING is set, add a streamhandler to all ranks
                 if get_envbool(NEMO_ENV_VARNAME_TESTING, False):
                     old_factory = _logging.getLogRecordFactory()
 
@@ -104,15 +101,32 @@ class Logger(metaclass=Singleton):
                 elif is_global_rank_zero():
                     self.add_stream_handlers()
 
+                # Add memoryhandlers, essentially buffers. They are used to save messages that we will flush to file
+                # once the appropriate file handlers are added.
+                if is_global_rank_zero():
+                    # Add a memoryhandler for error messages. Only logged on rank 0
+                    self._handlers["memory_err"] = MemoryHandler(-1)
+                    self._handlers["memory_err"].addFilter(lambda record: record.levelno > _logging.INFO)
+                    formatter = BaseNeMoFormatter
+                    self._handlers["memory_err"].setFormatter(formatter())
+                    self._logger.addHandler(self._handlers["memory_err"])
+                # Add a memoryhandler for all messages on all ranks
+                self._handlers["memory_all"] = MemoryHandler(-1)
+                formatter = BaseNeMoFormatter
+                self._handlers["memory_all"].setFormatter(formatter())
+                self._logger.addHandler(self._handlers["memory_all"])
+
             finally:
                 level = Logger.INFO
                 if get_envbool(NEMO_ENV_VARNAME_TESTING, False):
                     level = Logger.DEBUG
                 self.set_verbosity(verbosity_level=level)
+                self.captureWarnings(capture_warnings)
 
         self._logger.propagate = False
 
     def remove_stream_handlers(self):
+        """ Removes StreamHandler that log to stdout and stderr from the logger."""
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -120,15 +134,21 @@ class Logger(metaclass=Singleton):
 
         try:
             self._logger.removeHandler(self._handlers["stream_stdout"])
+            del self._handlers["stream_stdout"]
         except KeyError:
             pass
 
         try:
             self._logger.removeHandler(self._handlers["stream_stderr"])
+            del self._handlers["stream_stderr"]
         except KeyError:
             pass
 
     def add_stream_handlers(self, formatter=BaseNeMoFormatter):
+        """Add StreamHandler that log to stdout and stderr to the logger. INFO and lower logs are streamed to stdout
+        while WARNING and higher are streamed to stderr. If the NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR environment
+        variable is set, all logs are sent to stderr instead.
+        """
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
@@ -153,18 +173,45 @@ class Logger(metaclass=Singleton):
             pass
 
     def reset_stream_handler(self, formatter=BaseNeMoFormatter):
+        """Removes then adds stream handlers."""
         self.remove_stream_handlers()
         self.add_stream_handlers(formatter=formatter)
 
     def add_file_handler(self, log_file):
+        """Add a FileHandler to logger that logs all messages to a file. If the logger had a MemoryHandler at
+        self._handlers["memory_all"], those buffered messages are flushed to the new file, and the MemoryHandler is
+        closed."""
         if self._logger is None:
             raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
 
         self._handlers["file"] = _logging.FileHandler(log_file)
-
         formatter = BaseNeMoFormatter
         self._handlers["file"].setFormatter(formatter())
         self._logger.addHandler(self._handlers["file"])
+
+        if self._handlers.get("memory_all", None):
+            self._handlers["memory_all"].setTarget(self._handlers["file"])
+            self._handlers["memory_all"].close()  # flush and remove
+            del self._handlers["memory_all"]
+
+    def add_err_file_handler(self, log_file):
+        """Add a FileHandler to logger that logs all WARNING and higher messages to a file. If the logger had a
+        MemoryHandler at self._handlers["memory_err"], those buffered messages are flushed to the new file, and the
+        MemoryHandler is closed."""
+        if self._logger is None:
+            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+
+        self._handlers["file_err"] = _logging.FileHandler(log_file)
+        self._handlers["file_err"].addFilter(lambda record: record.levelno > _logging.INFO)
+
+        formatter = BaseNeMoFormatter
+        self._handlers["file_err"].setFormatter(formatter())
+        self._logger.addHandler(self._handlers["file_err"])
+
+        if self._handlers.get("memory_err", None):
+            self._handlers["memory_err"].setTarget(self._handlers["file_err"])
+            self._handlers["memory_err"].close()  # flush and remove
+            del self._handlers["memory_err"]
 
     def getEffectiveLevel(self):
         """Return how much logging output will be produced."""
@@ -172,6 +219,7 @@ class Logger(metaclass=Singleton):
             return self._logger.getEffectiveLevel()
 
     def get_verbosity(self):
+        """See getEffectiveLevel"""
         return self.getEffectiveLevel()
 
     def setLevel(self, verbosity_level):
@@ -183,12 +231,12 @@ class Logger(metaclass=Singleton):
                 handler.setLevel(verbosity_level)
 
     def set_verbosity(self, verbosity_level):
+        """See setLevel"""
         self.setLevel(verbosity_level)
 
     @contextmanager
     def patch_stderr_handler(self, stream):
-        """ Useful for unittests
-        """
+        """ Sends messages that should log to stderr to stream instead. Useful for unittests """
         if self._logger is not None:
             try:
                 old_stream = self._handlers["stream_stderr"].stream
@@ -220,8 +268,7 @@ class Logger(metaclass=Singleton):
 
     @contextmanager
     def patch_stdout_handler(self, stream):
-        """ Useful for unittests
-        """
+        """ Sends messages that should log to stdout to stream instead. Useful for unittests """
         if self._logger is not None:
             try:
                 old_stream = self._handlers["stream_stdout"].stream
@@ -292,7 +339,7 @@ class Logger(metaclass=Singleton):
                 warnings.showwarning = self.old_warnings_showwarning
                 self.old_warnings_showwarning = None
 
-    def _showwarning(self, message, category, filename, lineno, line=None):
+    def _showwarning(self, message, category, filename, lineno, file=None, line=None):
         """
         Implementation of showwarnings which redirects to logging.
         It will call warnings.formatwarning and will log the resulting string
