@@ -184,10 +184,10 @@ class TestExpManager:
 
         # Error because checkpoints folder does not exist
         with pytest.raises(NotFoundError):
-            log_dir = exp_manager(test_trainer, {"resume_if_exists": True, "exp_dir": str(tmp_path / "test_resume")})
+            exp_manager(test_trainer, {"resume_if_exists": True, "exp_dir": str(tmp_path / "test_resume")})
 
         # No error because we tell exp_manager to ignore notfounderror
-        log_dir = exp_manager(
+        exp_manager(
             test_trainer,
             {
                 "resume_if_exists": True,
@@ -196,10 +196,11 @@ class TestExpManager:
             },
         )
 
+        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
-            log_dir = exp_manager(
+            exp_manager(
                 test_trainer,
                 {
                     "resume_if_exists": True,
@@ -210,7 +211,7 @@ class TestExpManager:
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--end.ckpt").touch()
         # Error because *end.ckpt is in folder indicating that training has already finished
         with pytest.raises(ValueError):
-            log_dir = exp_manager(
+            exp_manager(
                 test_trainer,
                 {
                     "resume_if_exists": True,
@@ -223,7 +224,7 @@ class TestExpManager:
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel2--last.ckpt").touch()
         # Error because multiple *last.ckpt is in folder. If more than one, don't know which to restore
         with pytest.raises(ValueError):
-            log_dir = exp_manager(
+            exp_manager(
                 test_trainer,
                 {
                     "resume_if_exists": True,
@@ -242,10 +243,7 @@ class TestExpManager:
 
         # Succeed again and make sure that run_0 exists
         test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
-        log_dir = exp_manager(
-            test_trainer,
-            {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
-        )
+        exp_manager(test_trainer, {"resume_if_exists": True, "explicit_log_dir": str(log_dir)})
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
         assert Path(test_trainer.resume_from_checkpoint).resolve() == checkpoint.resolve()
         prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "run_0")

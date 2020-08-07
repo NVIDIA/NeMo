@@ -275,6 +275,7 @@ def check_resume(
             logging.warning(
                 f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Training from scratch."
             )
+            return
         else:
             raise NotFoundError(f"There was no checkpoint folder at checkpoint_dir :{checkpoint_dir}. Cannot resume.")
     elif len(end_checkpoints) > 0:
@@ -290,6 +291,7 @@ def check_resume(
     elif not len(last_checkpoints) > 0:
         if resume_ignore_no_checkpoint:
             logging.warning(f"There were no checkpoints found in {checkpoint_dir}. Training from scratch.")
+            return
         else:
             raise NotFoundError(f"There were no checkpoints found in {checkpoint_dir}. Cannot resume.")
     elif len(last_checkpoints) > 1:
