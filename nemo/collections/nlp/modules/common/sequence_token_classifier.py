@@ -16,8 +16,10 @@ from typing import Dict, Optional
 
 from torch import nn
 
-from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
+from .classifier import Classifier
+from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.core.classes import NeuralModule, typecheck
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
@@ -25,11 +27,7 @@ __all__ = ['SequenceTokenClassifier']
 
 
 @experimental
-class SequenceTokenClassifier(NeuralModule):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
-
+class SequenceTokenClassifier(Classifier):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -60,7 +58,7 @@ class SequenceTokenClassifier(NeuralModule):
             dropout: the dropout used for the mlp head
             use_transformer_init: initializes the weights with the same approach used in Transformer
         """
-        super().__init__()
+        super().__init__(hidden_size=hidden_size, dropout=dropout)
         self.intent_mlp = MultiLayerPerceptron(
             hidden_size=hidden_size,
             num_classes=num_intents,
@@ -75,9 +73,7 @@ class SequenceTokenClassifier(NeuralModule):
             activation=activation,
             log_softmax=log_softmax,
         )
-        self.dropout = nn.Dropout(dropout)
-        if use_transformer_init:
-            self.apply(lambda module: transformer_weights_init(module, xavier=False))
+        self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
     def forward(self, hidden_states):
@@ -86,11 +82,3 @@ class SequenceTokenClassifier(NeuralModule):
         intent_logits = self.intent_mlp(hidden_states[:, 0])
         slot_logits = self.slot_mlp(hidden_states)
         return intent_logits, slot_logits
-
-    @classmethod
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass

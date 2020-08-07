@@ -16,18 +16,15 @@ from typing import Dict, Optional
 
 from torch import nn
 
-from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
+from .classifier import Classifier
+from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
 
 __all__ = ['SequenceClassifier']
 
 
-class SequenceClassifier(NeuralModule):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
-
+class SequenceClassifier(Classifier):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"logits": NeuralType(('B', 'D'), LogitsType())}
@@ -55,7 +52,7 @@ class SequenceClassifier(NeuralModule):
             use_transformer_init: initializes the weights with the same approach used in Transformer
             idx_conditioned_on: index of the token to use as the sequence representation for the classification task, default is the first token
         """
-        super().__init__()
+        super().__init__(hidden_size=hidden_size, dropout=dropout)
         self._idx_conditioned_on = idx_conditioned_on
         self.mlp = MultiLayerPerceptron(
             hidden_size=hidden_size,
@@ -64,20 +61,10 @@ class SequenceClassifier(NeuralModule):
             activation=activation,
             log_softmax=log_softmax,
         )
-        self.dropout = nn.Dropout(dropout)
-        if use_transformer_init:
-            self.apply(lambda module: transformer_weights_init(module, xavier=False))
+        self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
     def forward(self, hidden_states):
         hidden_states = self.dropout(hidden_states)
         logits = self.mlp(hidden_states[:, self._idx_conditioned_on])
         return logits
-
-    @classmethod
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass

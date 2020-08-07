@@ -24,5 +24,6 @@ from nemo.collections.nlp.modules.common.huggingface import (
 )
 from nemo.collections.nlp.modules.common.megatron import MegatronBertEncoder
 from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
+from nemo.collections.nlp.modules.common.sequence_regression import SequenceRegression
 from nemo.collections.nlp.modules.common.sequence_token_classifier import SequenceTokenClassifier
 from nemo.collections.nlp.modules.common.token_classifier import BertPretrainingTokenClassifier, TokenClassifier
