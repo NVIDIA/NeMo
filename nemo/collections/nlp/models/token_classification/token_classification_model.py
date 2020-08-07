@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import os
+import pickle
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
@@ -30,11 +31,14 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 
 __all__ = ['TokenClassificationModel']
 
 
 class TokenClassificationModel(ModelPT):
+    """Token Classification Model with BERT, applicable for tasks such as Named Entity Recognition"""
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.bert_model.input_types
@@ -43,15 +47,27 @@ class TokenClassificationModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """
-        Initializes BERT Named Entity Recognition model.
-        """
+    @classmethod
+    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
+        config.data_desc_pickle = os.path.join(artifacts_dir, config.data_desc_pickle)
+        return config
 
-        self.data_desc = TokenClassificationDataDesc(
-            data_dir=cfg.dataset.data_dir, modes=["train", "test", "dev"], pad_label=cfg.dataset.pad_label
-        )
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        """Initializes Token Classification Model."""
+
         self.data_dir = cfg.dataset.data_dir
+
+        modes = ["train", "test", "dev"]
+        if not os.path.exists(cfg.data_desc_pickle):
+            # process the data and extract label_ids and class weights if the model is not restored from .nemo file
+            self.data_desc = TokenClassificationDataDesc(
+                data_dir=self.data_dir, modes=modes, pad_label=cfg.dataset.pad_label
+            )
+            if not self.data_desc.data_found:
+                raise ValueError(f'No {modes} data found at {self.data_dir}.')
+        else:
+            self.data_desc = pickle.load(open(cfg.data_desc_pickle, "rb"))
+            logging.info(f'Data descriptor restored from {cfg.data_desc_pickle}')
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
@@ -157,6 +173,16 @@ class TokenClassificationModel(ModelPT):
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, prefix='train')
+
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
+
+            if self._cfg.data_desc_pickle is None:
+                self._cfg.data_desc_pickle = 'data_desc.p'
+
+            data_desc_file = os.path.join('/tmp', self._cfg.data_desc_pickle)
+            pickle.dump(self.data_desc, open(data_desc_file, 'wb'))
+            self.register_artifact(config_path='model.data_desc_pickle', src=data_desc_file)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, prefix='dev')
