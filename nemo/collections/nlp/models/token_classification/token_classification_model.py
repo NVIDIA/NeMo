@@ -48,7 +48,7 @@ class TokenClassificationModel(ModelPT):
         return self.classifier.output_types
 
     @classmethod
-    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str = None) -> OmegaConf:
+    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
         config.data_desc_pickle = os.path.join(artifacts_dir, config.data_desc_pickle)
         return config
 

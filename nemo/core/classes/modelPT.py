@@ -190,7 +190,7 @@ class ModelPT(LightningModule, Model):
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 conf = OmegaConf.load(config_yaml)
                 OmegaConf.set_struct(conf, True)
-                cls.update_config_with_specific_artifacts(config=conf, artifacts_dir=tmpdir)
+                conf = cls.update_config_with_specific_artifacts(config=conf, artifacts_dir=tmpdir)
                 instance = cls.from_config_dict(config=conf)
                 instance.load_state_dict(torch.load(model_weights))
 
@@ -201,7 +201,7 @@ class ModelPT(LightningModule, Model):
         return instance
 
     @classmethod
-    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str = None) -> OmegaConf:
+    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
         """
         Updates config with model specific artifacts
 
