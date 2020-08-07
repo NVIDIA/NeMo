@@ -26,7 +26,13 @@ from nemo.core.neural_types import *
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
-__all__ = ['AudioToCharDataset', 'AudioToBPEDataset', 'AudioLabelDataset', 'TarredAudioToCharDataset']
+__all__ = [
+    'AudioToCharDataset',
+    'AudioToBPEDataset',
+    'AudioLabelDataset',
+    'TarredAudioToCharDataset',
+    'TarredAudioToBPEDataset',
+]
 
 
 def _speech_collate_fn(batch, pad_id):
@@ -239,7 +245,7 @@ class AudioToCharDataset(_AudioTextDataset):
     def __init__(
         self,
         manifest_filepath: str,
-        labels: List[str],
+        labels: Union[str, List[str]],
         sample_rate: int,
         int_values: bool = False,
         augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
@@ -441,11 +447,11 @@ class AudioLabelDataset(Dataset):
 
 
 @experimental
-class TarredAudioToCharDataset(IterableDataset):
+class _TarredAudioToTextDataset(IterableDataset):
     """
-    A similar Dataset to the AudioToCharDataset, but which loads tarred audio files.
+    A similar Dataset to the AudioToCharDataset/AudioToBPEDataset, but which loads tarred audio files.
 
-    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset),
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset/AudioToBPEDataset),
     as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
     contain the information for one audio file, including at least the transcript and name of the audio
     file within the tarball.
@@ -471,9 +477,7 @@ class TarredAudioToCharDataset(IterableDataset):
         audio_tar_filepaths: Either a list of audio tarball filepaths, or a
             string (can be brace-expandable).
         manifest_filepath (str): Path to the manifest.
-        labels (list): List of characters that can be output by the ASR model.
-            For Jasper, this is the 28 character set {a-z '}. The CTC blank
-            symbol is automatically added later for models using ctc.
+        parser (callable): A callable which is used to pre-process the text output.
         sample_rate (int): Sample rate to resample loaded audio to
         int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
         augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
@@ -512,51 +516,29 @@ class TarredAudioToCharDataset(IterableDataset):
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """
 
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
-        return {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
-                AudioSignal(freq=self._sample_rate)
-                if self is not None and hasattr(self, '_sample_rate')
-                else AudioSignal(),
-            ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-        }
-
     def __init__(
         self,
-        audio_tar_filepaths,
-        manifest_filepath,
-        labels,
-        sample_rate,
-        int_values=False,
-        augmentor=None,
-        shuffle_n=0,
-        min_duration=None,
-        max_duration=None,
-        max_utts=0,
-        blank_index=-1,
-        unk_index=-1,
-        normalize=True,
-        trim=False,
-        bos_id=None,
-        eos_id=None,
-        parser='en',
-        add_misc=False,
-        pad_id=0,
-        global_rank=0,
-        world_size=0,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: str,
+        parser: Callable,
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        shuffle_n: int = 0,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        add_misc: bool = False,
+        pad_id: int = 0,
+        global_rank: int = 0,
+        world_size: int = 0,
     ):
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath.split(','),
-            parser=parsers.make_parser(
-                labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
-            ),
+            parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
             max_number=max_utts,
@@ -666,3 +648,247 @@ class TarredAudioToCharDataset(IterableDataset):
 
     def __len__(self):
         return len(self.collection)
+
+
+@experimental
+class TarredAudioToCharDataset(_TarredAudioToTextDataset):
+    """
+    A similar Dataset to the AudioToCharDataset, but which loads tarred audio files.
+
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToCharDataset),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the transcript and name of the audio
+    file within the tarball.
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+    In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
+    is applied. We currently do not check for this, but your program may hang if the shards are uneven!
+
+    Notice that a few arguments are different from the AudioToCharDataset; for example, shuffle (bool) has been
+    replaced by shuffle_n (int).
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
+    after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
+
+    Args:
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
+        labels (list): List of characters that can be output by the ASR model.
+            For Jasper, this is the 28 character set {a-z '}. The CTC blank
+            symbol is automatically added later for models using ctc.
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        max_utts (int): Limit number of utterances. 0 means no maximum.
+        blank_index (int): Blank character index, defaults to -1.
+        unk_index (int): Unknown character index, defaults to -1.
+        normalize (bool): Dataset parameter.
+            Whether to use automatic text cleaning.
+            It is highly recommended to manually clean text for best results.
+            Defaults to True.
+        trim (bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        bos_id (id): Dataset parameter.
+            Beginning of string symbol id used for seq2seq models.
+            Defaults to None.
+        eos_id (id): Dataset parameter.
+            End of string symbol id used for seq2seq models.
+            Defaults to None.
+        pad_id (id): Token used to pad when collating samples in batches.
+            If this is None, pads using 0s.
+            Defaults to None.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: str,
+        labels: List[str],
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        shuffle_n: int = 0,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_utts: int = 0,
+        blank_index: int = -1,
+        unk_index: int = -1,
+        normalize: bool = True,
+        trim: bool = False,
+        bos_id: Optional[int] = None,
+        eos_id: Optional[int] = None,
+        parser: Optional[str] = 'en',
+        add_misc: bool = False,
+        pad_id: int = 0,
+        global_rank: int = 0,
+        world_size: int = 0,
+    ):
+        self.labels = labels
+
+        parser = parsers.make_parser(
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+        )
+
+        super().__init__(
+            audio_tar_filepaths=audio_tar_filepaths,
+            manifest_filepath=manifest_filepath,
+            parser=parser,
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
+            shuffle_n=shuffle_n,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_utts=max_utts,
+            trim=trim,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            add_misc=add_misc,
+            pad_id=pad_id,
+            global_rank=global_rank,
+            world_size=world_size,
+        )
+
+
+@experimental
+class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
+    """
+    A similar Dataset to the AudioToBPEDataset, but which loads tarred audio files.
+
+    Accepts a single comma-separated JSON manifest file (in the same style as for the AudioToBPEDataset),
+    as well as the path(s) to the tarball(s) containing the wav files. Each line of the manifest should
+    contain the information for one audio file, including at least the transcript and name of the audio
+    file within the tarball.
+
+    Valid formats for the audio_tar_filepaths argument include:
+    (1) a single string that can be brace-expanded, e.g. 'path/to/audio.tar' or 'path/to/audio_{1..100}.tar.gz', or
+    (2) a list of file paths that will not be brace-expanded, e.g. ['audio_1.tar', 'audio_2.tar', ...].
+
+    See the WebDataset documentation for more information about accepted data and input formats.
+
+    If using multiple processes the number of shards should be divisible by the number of workers to ensure an
+    even split among workers. If it is not divisible, logging will give a warning but training will proceed.
+    In addition, if using mutiprocessing, each shard MUST HAVE THE SAME NUMBER OF ENTRIES after filtering
+    is applied. We currently do not check for this, but your program may hang if the shards are uneven!
+
+    Notice that a few arguments are different from the AudioToBPEDataset; for example, shuffle (bool) has been
+    replaced by shuffle_n (int).
+
+    Additionally, please note that the len() of this DataLayer is assumed to be the length of the manifest
+    after filtering. An incorrect manifest length may lead to some DataLoader issues down the line.
+
+    Args:
+        audio_tar_filepaths: Either a list of audio tarball filepaths, or a
+            string (can be brace-expandable).
+        manifest_filepath (str): Path to the manifest.
+        tokenizer (TokenizerSpec): Either a Word Piece Encoding tokenizer (BERT),
+            or a Sentence Piece Encoding tokenizer (BPE). The CTC blank
+            symbol is automatically added later for models using ctc.
+        sample_rate (int): Sample rate to resample loaded audio to
+        int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+        augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor): An AudioAugmentor
+            object used to augment loaded audio
+        shuffle_n (int): How many samples to look ahead and load to be shuffled.
+            See WebDataset documentation for more details.
+            Defaults to 0.
+        min_duration (float): Dataset parameter.
+            All training files which have a duration less than min_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to 0.1.
+        max_duration (float): Dataset parameter.
+            All training files which have a duration more than max_duration
+            are dropped. Note: Duration is read from the manifest JSON.
+            Defaults to None.
+        max_utts (int): Limit number of utterances. 0 means no maximum.
+        trim (bool): Whether to use trim silence from beginning and end
+            of audio signal using librosa.effects.trim().
+            Defaults to False.
+        pad_id (id): Token used to pad when collating samples in batches.
+            If this is None, pads using 0s.
+            Defaults to None.
+        global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
+        world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
+    """
+
+    def __init__(
+        self,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: str,
+        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        shuffle_n: int = 0,
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        add_misc: bool = False,
+        global_rank: int = 0,
+        world_size: int = 0,
+    ):
+        if hasattr(tokenizer, 'bos_token'):
+            bos_id = tokenizer.bos_id
+        else:
+            bos_id = None
+
+        if hasattr(tokenizer, 'eos_token'):
+            eos_id = tokenizer.eos_id
+        else:
+            eos_id = None
+
+        if hasattr(tokenizer, 'pad_token'):
+            pad_id = tokenizer.pad_id
+        else:
+            pad_id = 0
+
+        class TokenizerWrapper:
+            def __init__(self, tokenizer):
+                self._tokenizer = tokenizer
+
+            def __call__(self, text):
+                t = self._tokenizer.text_to_ids(text)
+                return t
+
+        super().__init__(
+            audio_tar_filepaths=audio_tar_filepaths,
+            manifest_filepath=manifest_filepath,
+            parser=TokenizerWrapper(tokenizer),
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
+            shuffle_n=shuffle_n,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            max_utts=max_utts,
+            trim=trim,
+            bos_id=bos_id,
+            eos_id=eos_id,
+            add_misc=add_misc,
+            pad_id=pad_id,
+            global_rank=global_rank,
+            world_size=world_size,
+        )

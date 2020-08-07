@@ -8,6 +8,7 @@ NVIDIA NeMo Developer Guide
    Introduction <self>
    core
    asr/intro
+   cv/intro
    nlp/intro
    tts/intro
    api-docs/nemo

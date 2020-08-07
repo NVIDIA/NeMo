@@ -151,6 +151,7 @@ class EncDecCTCModel(ASRModel):
             new_decoder_config['params']['num_classes'] = len(new_vocabulary)
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -162,7 +163,8 @@ class EncDecCTCModel(ASRModel):
         shuffle = config['shuffle']
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if 'is_tarred' in config and config.get('is_tarred', False):
+        if config.get('is_tarred', False):
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
             dataset = TarredAudioToCharDataset(
                 audio_tar_filepaths=config['tarred_audio_filepaths'],
                 manifest_filepath=config['manifest_filepath'],
@@ -170,7 +172,7 @@ class EncDecCTCModel(ASRModel):
                 sample_rate=config['sample_rate'],
                 int_values=config.get('int_values', False),
                 augmentor=augmentor,
-                shuffle_n=config.get('shuffle_n', 50),
+                shuffle_n=shuffle_n,
                 max_duration=config.get('max_duration', None),
                 min_duration=config.get('min_duration', None),
                 max_utts=config.get('max_utts', 0),

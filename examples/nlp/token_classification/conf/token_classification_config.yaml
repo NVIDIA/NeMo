@@ -50,7 +50,6 @@ model:
     use_cache: true
 
   train_ds:
-    prefix: train
     shuffle: true
     num_samples: -1
     batch_size: 64
@@ -59,7 +58,6 @@ model:
     drop_last: false
 
   validation_ds:
-    prefix: dev
     shuffle: false
     num_samples: -1
     batch_size: 64
@@ -94,6 +92,10 @@ model:
       warmup_steps: null
       warmup_ratio: 0.1
       last_epoch: -1
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
 
 hydra:
   run:

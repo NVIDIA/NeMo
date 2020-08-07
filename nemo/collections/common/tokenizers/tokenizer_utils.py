@@ -96,8 +96,14 @@ def get_tokenizer(
     special_tokens: dict of special tokens
     vocab_file: path to vocab file
     vocab_size: vocab size for building sentence piece
-    do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with sentencepiece
+    do_lower_case: (whether to apply lower cased) - only applicable when tokenizer is build with vocab file or with
+        sentencepiece
     '''
+    pretrained_lm_models_list = nemo.collections.nlp.modules.common.common_utils.get_pretrained_lm_models_list()
+    if pretrained_model_name not in pretrained_lm_models_list:
+        raise ValueError(
+            f'Provided pretrained_model_name: "{pretrained_model_name}" is not supported, choose from {pretrained_lm_models_list}'
+        )
     if pretrained_model_name:
         model_type = pretrained_model_name.split('-')[0]
 

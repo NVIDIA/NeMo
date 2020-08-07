@@ -18,6 +18,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import traceback
 from abc import abstractmethod
 from os import path
 from typing import Dict, List, Optional, Union
@@ -80,32 +81,25 @@ class ModelPT(LightningModule, Model):
         self._trainer = trainer
 
         if self._cfg is not None:  # TODO: This check is redundant since we know cfg is an instance of DictConfig
-            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
-                self.setup_training_data(self._cfg.train_ds)
+            try:
+                if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                    self.setup_training_data(self._cfg.train_ds)
+
+            except Exception as e:
+                logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+
+                logging.warning(
+                    "Unable to load the train data loader with the provided config \n"
+                    f"{self._cfg.train_ds}\n"
+                    f"Please call the ModelPT.setup_training_data() method "
+                    f"and provide a valid configuration file."
+                )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                # Set some placeholder overriden by helper method
-                self._validation_loss_idx = 0
-                self._validation_names = None
-                self._validation_dl = None  # type: torch.utils.data.DataLoader
-
-                model_utils.resolve_validation_dataloaders(model=self)
-
-                if self._validation_names is None:
-                    if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
-                        self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+                self.setup_multiple_validation_data(val_data_config=None)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                # Set some placeholder overriden by helper method
-                self._test_loss_idx = 0
-                self._test_names = None
-                self._test_dl = None  # type: torch.utils.data.DataLoader
-
-                model_utils.resolve_test_dataloaders(model=self)
-
-                if self._test_names is None:
-                    if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
-                        self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
+                self.setup_multiple_test_data(test_data_config=None)
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -238,6 +232,76 @@ class ModelPT(LightningModule, Model):
 
         """
         raise NotImplementedError()
+
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        """
+        (Optionally) Setups data loader to be used in validation, with support for multiple data loaders.
+
+        Args:
+            val_data_layer_config: validation data layer parameters.
+        """
+        try:
+            # Set some placeholder overriden by helper method
+            self._validation_loss_idx = 0
+            self._validation_names = None
+            self._validation_dl = None  # type: torch.utils.data.DataLoader
+
+            if val_data_config is not None:
+                if isinstance(val_data_config, dict):
+                    val_data_config = DictConfig(val_data_config)
+
+                self._cfg.validation_ds = val_data_config
+
+            model_utils.resolve_validation_dataloaders(model=self)
+
+            if self._validation_names is None:
+                if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
+                    self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+
+        except Exception as e:
+            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+
+            logging.warning(
+                "Unable to load the validation data loader(s) with the provided config \n"
+                f"{self._cfg.validation_ds}\n"
+                f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
+                f"and provide a valid configuration file."
+            )
+
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        """
+        (Optionally) Setups data loader to be used in test, with support for multiple data loaders.
+
+        Args:
+            test_data_layer_config: test data layer parameters.
+        """
+        try:
+            # Set some placeholder overriden by helper method
+            self._test_loss_idx = 0
+            self._test_names = None
+            self._test_dl = None  # type: torch.utils.data.DataLoader
+
+            if test_data_config is not None:
+                if isinstance(test_data_config, dict):
+                    test_data_config = DictConfig(test_data_config)
+
+                self._cfg.test_ds = test_data_config
+
+            model_utils.resolve_test_dataloaders(model=self)
+
+            if self._test_names is None:
+                if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
+                    self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
+
+        except Exception as e:
+            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+
+            logging.warning(
+                "Unable to load the test data loader(s) with the provided config \n"
+                f"{self._cfg.test_ds}\n"
+                f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
+                f"and provide a valid configuration file."
+            )
 
     def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
         """

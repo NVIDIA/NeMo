@@ -18,19 +18,14 @@ from transformers import DistilBertModel
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['DistilBertEncoder']
 
 
-@experimental
 class DistilBertEncoder(DistilBertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
-
-    logging.info("DistilBert doesn’t use token_type_ids, and it will be ignored.")
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):

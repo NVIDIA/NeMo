@@ -388,6 +388,42 @@ pipeline {
       }
     }
 
+    stage('L2: Parallel GLUE Examples') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage('MRPC') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.task_name=mrpc \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
+            trainer.gpus=[0] \
+            +trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/nlp/glue_benchmark/mrpc'
+            sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
+          }
+        }
+        stage('STS-b') {
+          steps {
+            sh 'python examples/nlp/glue_benchmark/glue_benchmark.py \
+            model.dataset.use_cache=false \
+            model.task_name=sts-b \
+            model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=True \
+            exp_manager.root_dir=examples/nlp/glue_benchmark/sts-b'
+            sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
+          }
+        }
+      }
+    }
+
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
@@ -512,7 +548,10 @@ pipeline {
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-345m-uncased trainer.distributed_backend=null \
+        model.language_model.pretrained_model_name=megatron-bert-uncased \
+        model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
+        model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
+        trainer.distributed_backend=null \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
       }

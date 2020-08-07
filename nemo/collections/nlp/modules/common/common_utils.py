@@ -33,7 +33,7 @@ def get_pretrained_lm_models_list() -> List[str]:
     '''
     Returns the list of support pretrained models
     '''
-    return get_huggingface_lm_models_list() + get_megatron_lm_models_list()
+    return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
 
 
 def get_pretrained_lm_model(
