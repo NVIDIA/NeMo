@@ -76,7 +76,6 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
     if config_file:
         with open(config_file) as f:
             configf = json.load(f)
-            print(configf)
             config = {
                 "hidden_size": configf['hidden-size'],
                 "num_attention_heads": configf['num-attention-heads'],

@@ -54,6 +54,10 @@ class MegatronBertEncoder(BertModule):
 
         config['lazy_mpu_init'] = True
 
+        # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
+        # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
+        # and to return a hook for us to call after PTL has torch.distributed initialized
+        # (that would be on our first forward() call).
         self._lazy_init_fn = initialize_megatron(
             extra_args_provider=None, args_defaults=config, ignore_unknown_args=True
         )
@@ -63,18 +67,11 @@ class MegatronBertEncoder(BertModule):
 
         # Initialize part of Megatron global state that is needed for its constructor.
         # The rest will be initialized on forward()
-
-        print(
-            f"MegatronBertEncoder.init: distributed_backend = {args.distributed_backend} rank={args.rank},"
-            " model_parallel_size = {args.model_parallel_size}, dist={dist.is_initialized()}"
-        )
-
         self.language_model, self._language_model_key = get_language_model(
             attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
         )
 
         # key used for checkpoints.
-        #        = 'language_model'
         self._hidden_size = self.language_model.hidden_size
 
     @property
