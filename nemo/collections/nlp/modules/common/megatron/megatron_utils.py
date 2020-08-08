@@ -71,21 +71,22 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
             for example: bert-base-cased
         config_file: path to model configuration file.
     '''
-
+    config = None
     # get default config and checkpoint
     if config_file:
         with open(config_file) as f:
             configf = json.load(f)
             print(configf)
-        config = {}
-        config.hidden_size = (configf['hidden-size'],)
-        config.num_attention_heads = (configf['num-attention-heads'],)
-        config.num_layers = (configf['num-layers'],)
-        config.max_position_embeddings = configf['max-seq-length']
+            config = {
+                "hidden_size": configf['hidden-size'],
+                "num_attention_heads": configf['num-attention-heads'],
+                "num_layers": configf['num-layers'],
+                "max_position_embeddings": configf['max-seq-length'],
+            }
     else:
         config = get_megatron_config(pretrained_model_name)
-        if config is None:
-            raise ValueError(f'Config file is required for {pretrained_model_name}')
+    if config is None:
+        raise ValueError(f'Config file is required for {pretrained_model_name}')
 
     default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
 
