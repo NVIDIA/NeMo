@@ -159,6 +159,7 @@ pipeline {
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
@@ -241,15 +242,14 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.train_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.version_2_with_negative=false \
+            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
@@ -265,15 +265,14 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.version_2_with_negative=true \
+            model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
@@ -300,16 +299,15 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.do_lower_case=false \
+            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
-            model.version_2_with_negative=false \
+            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
@@ -325,16 +323,15 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.do_lower_case=false \
+            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
-            model.version_2_with_negative=true \
+            model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \

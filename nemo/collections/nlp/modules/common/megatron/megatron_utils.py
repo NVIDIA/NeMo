@@ -22,7 +22,6 @@ import wget
 from transformers import TRANSFORMERS_CACHE, cached_path
 
 from nemo.collections.nlp.modules.common.megatron.megatron_bert import MegatronBertEncoder
-from nemo.utils import logging
 
 __all__ = [
     'get_megatron_lm_model',
@@ -34,7 +33,7 @@ __all__ = [
 
 MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), 'megatron')
 
-CONFIGS = {'345m': {"hidden-size": 1024, "num-attention-heads": 16, "num-layers": 24, "max-seq-length": 512}}
+CONFIGS = {'345m': {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
 MEGATRON_CONFIG_MAP = {
     'megatron-bert-345m-uncased': {
@@ -57,6 +56,7 @@ MEGATRON_CONFIG_MAP = {
     },
     'megatron-bert-cased': {
         'config': None,
+        'checkpoint': None,
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
         'do_lower_case': False,
     },
@@ -71,30 +71,26 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
             for example: bert-base-cased
         config_file: path to model configuration file.
     '''
-
-    if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
-        if not (config_file):
-            raise ValueError(f'Config file is required for {pretrained_model_name}')
-        default_checkpoint = None
-    else:
-        # get default config and checkpoint
-        default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
-        config = get_megatron_config(pretrained_model_name)
-
+    config = None
+    # get default config and checkpoint
     if config_file:
         with open(config_file) as f:
-            config = json.load(f)
-    logging.info(f'Megatron config: {config}')
+            configf = json.load(f)
+            config = {
+                "hidden_size": configf['hidden-size'],
+                "num_attention_heads": configf['num-attention-heads'],
+                "num_layers": configf['num-layers'],
+                "max_position_embeddings": configf['max-seq-length'],
+            }
+    else:
+        config = get_megatron_config(pretrained_model_name)
+    if config is None:
+        raise ValueError(f'Config file is required for {pretrained_model_name}')
+
+    default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
-    model = MegatronBertEncoder(
-        model_name=pretrained_model_name,
-        vocab_file=vocab,
-        hidden_size=config['hidden-size'],
-        num_attention_heads=config['num-attention-heads'],
-        num_layers=config['num-layers'],
-        max_seq_length=config['max-seq-length'],
-    )
+    model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
     return model, default_checkpoint
 
 
@@ -138,6 +134,9 @@ def get_megatron_checkpoint(pretrained_model_name):
         path (str): path to model checkpoint
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['checkpoint']
+    if url is None:
+        return None
+
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name)
 
     if not os.path.exists(path):
