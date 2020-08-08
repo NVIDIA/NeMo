@@ -88,7 +88,7 @@ class TokenClassificationModel(ModelPT):
             config_file=self._cfg.language_model.bert_config,
             checkpoint_file=self._cfg.language_model.bert_checkpoint,
         )
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
 
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
