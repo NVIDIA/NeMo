@@ -12,13 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.data_utils import *
-from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
-    BertPretrainingDataset,
-    BertPretrainingPreprocessedDataloader,
-)
-from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadDataset
-from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
-    BertTokenClassificationDataset,
-    BertTokenClassificationInferDataset,
-)
+
+class NeMoBaseException(Exception):
+    """ NeMo Base Exception. All exceptions created in NeMo should inherit from this class"""
+
+    pass

@@ -33,13 +33,14 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 exp_manager:
-  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
+  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: token_classification_model  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  data_desc_pickle: data_desc.p # data descriptor pickle file inside .nemo file
   dataset:
     data_dir: ??? # /path/to/data
     class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes

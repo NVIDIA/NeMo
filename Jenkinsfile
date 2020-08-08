@@ -133,7 +133,7 @@ pipeline {
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/asr/speech_to_text_results'
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
@@ -147,7 +147,7 @@ pipeline {
             +trainer.fast_dev_run=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
             model.preprocessor.params=null \
-            exp_manager.root_dir=examples/asr/speech_to_label_results'
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
         }
@@ -159,9 +159,10 @@ pipeline {
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/speaker_recognition/speaker_recognition_results'
+            exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
             sh 'rm -rf examples/speaker_recognition/speaker_recognition_results'
           }
         }
@@ -176,7 +177,7 @@ pipeline {
             model.tokenizer.type="wpe" \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/asr/speech_to_text_wpe_results'
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
             sh 'rm -rf examples/asr/speech_to_text_wpe_results'
           }
         }
@@ -203,7 +204,7 @@ pipeline {
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
-            exp_manager.root_dir=examples/asr/speech_to_text_results'
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
             sh 'rm -rf examples/asr/speech_to_text_results'
           }
         }
@@ -219,7 +220,7 @@ pipeline {
             +trainer.num_sanity_val_steps=1 \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
             model.preprocessor.params=null \
-            exp_manager.root_dir=examples/asr/speech_to_label_results'
+            exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
         }
@@ -241,20 +242,19 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.train_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.version_2_with_negative=false \
+            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
             trainer.num_sanity_val_steps=1000 \
-            exp_manager.root_dir=exp_bert_squad_1.1 \
+            exp_manager.exp_dir=exp_bert_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_1.1'
           }
@@ -265,20 +265,19 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.version_2_with_negative=true \
+            model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
             trainer.num_sanity_val_steps=1000 \
-            exp_manager.root_dir=exp_bert_squad_2.0 \
+            exp_manager.exp_dir=exp_bert_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_bert_squad_2.0'
           }
@@ -300,21 +299,20 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.do_lower_case=false \
+            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
-            model.version_2_with_negative=false \
+            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
             trainer.num_sanity_val_steps=1000 \
-            exp_manager.root_dir=exp_roberta_squad_1.1 \
+            exp_manager.exp_dir=exp_roberta_squad_1.1 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_1.1'
           }
@@ -325,21 +323,20 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.do_lower_case=false \
+            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
-            model.version_2_with_negative=true \
+            model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
             trainer.num_sanity_val_steps=1000 \
-            exp_manager.root_dir=exp_roberta_squad_2.0 \
+            exp_manager.exp_dir=exp_roberta_squad_2.0 \
             '
             sh 'rm -rf examples/nlp/question_answering/exp_roberta_squad_2.0'
           }
@@ -369,7 +366,7 @@ pipeline {
             model.dataset.do_lower_case=true \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=true \
-            exp_manager.root_dir=exp_bert_base_uncased \
+            exp_manager.exp_dir=exp_bert_base_uncased \
             '
             sh 'rm -rf examples/nlp/text_classification/exp_bert_base_uncased'
           }
@@ -388,6 +385,25 @@ pipeline {
       }
     }
 
+    stage('L2: Intent and Slot Classification') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+
+      steps {
+        sh 'cd examples/nlp/intent_slot_classification && \
+        python intent_slot_classification.py \
+        model.data_dir=/home/TestData/nlp/retail/ \
+        model.validation_ds.prefix=dev \
+        trainer.gpus=[0] \
+        +trainer.fast_dev_run=true'
+      }
+    }
+
     stage('L2: Parallel GLUE Examples') {
       when {
         anyOf{
@@ -396,6 +412,7 @@ pipeline {
         }
       }
       failFast true
+
       parallel {
         stage('MRPC') {
           steps {
@@ -405,7 +422,7 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/MRPC \
             trainer.gpus=[0] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/nlp/glue_benchmark/mrpc'
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/mrpc'
             sh 'rm -rf examples/nlp/glue_benchmark/mrpc'
           }
         }
@@ -417,13 +434,13 @@ pipeline {
             model.dataset.data_dir=/home/TestData/nlp/glue_fake/STS-B \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
-            exp_manager.root_dir=examples/nlp/glue_benchmark/sts-b'
+            exp_manager.exp_dir=examples/nlp/glue_benchmark/sts-b'
             sh 'rm -rf examples/nlp/glue_benchmark/sts-b'
           }
         }
       }
     }
-
+    
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{
@@ -454,7 +471,7 @@ pipeline {
               model.tokenizer.sample_size=10000000 \
               model.mask_prob=0.15 \
               model.short_seq_prob=0.1 \
-              exp_manager.root_dir=PretrainingBERTFromText \
+              exp_manager.exp_dir=PretrainingBERTFromText \
               '
               sh 'rm -rf /home/TestData/nlp/wikitext-2/spt'
               sh 'rm -f /home/TestData/nlp/wikitext-2/*.pkl'
@@ -478,7 +495,7 @@ pipeline {
               model.optim.lr=0.875e-4 \
               model.optim.weight_decay=0.01 \
               model.optim.sched.warmup_ratio=0.01 \
-              exp_manager.root_dir=PretrainingBERTFromPreprocessed \
+              exp_manager.exp_dir=PretrainingBERTFromPreprocessed \
               '
               sh 'rm -rf examples/nlp/language_modeling/PretrainingBERTFromPreprocessed'
               sh 'ls -lha examples/nlp/language_modeling'
@@ -504,7 +521,7 @@ pipeline {
         trainer.gpus=[0,1] \
         trainer.distributed_backend=ddp \
         +trainer.fast_dev_run=true \
-        exp_manager.root_dir=exp_distilbert_base_uncased \
+        exp_manager.exp_dir=exp_distilbert_base_uncased \
         '
         sh 'rm -rf examples/nlp/token_classification/exp_distilbert_base_uncased'
       }
@@ -527,7 +544,7 @@ pipeline {
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
-        exp_manager.root_dir=exp_ner_megatron_bert_base_cased'
+        exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
       }
     }
@@ -552,7 +569,7 @@ pipeline {
         model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
         model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
         trainer.distributed_backend=null \
-        exp_manager.root_dir=exp_ner_megatron_bert_base_uncased'
+        exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
       }
     }

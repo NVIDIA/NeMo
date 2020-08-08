@@ -89,7 +89,6 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
     default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
-
     model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
     return model, default_checkpoint
 
