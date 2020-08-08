@@ -14,12 +14,12 @@
 
 from typing import Dict, Optional
 
-from torch import Tensor, nn
+from torch import Tensor
 
 from .classifier import Classifier
 from nemo.collections.common.parts import MultiLayerPerceptron
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import ChannelType, NeuralType, RegressionValuesType
+from nemo.core.classes import typecheck
+from nemo.core.neural_types import NeuralType, RegressionValuesType
 
 __all__ = ['SequenceRegression']
 

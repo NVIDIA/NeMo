@@ -14,13 +14,10 @@
 
 from typing import Dict, Optional
 
-from torch import nn
-
 from .classifier import Classifier
 from nemo.collections.common.parts import MultiLayerPerceptron
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
+from nemo.core.classes import typecheck
+from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils.decorators import experimental
 
 __all__ = ['SequenceTokenClassifier']
