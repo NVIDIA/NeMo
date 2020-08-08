@@ -23,8 +23,8 @@ from megatron.model.bert_model import bert_attention_mask_func, bert_extended_at
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-from nemo.utils.decorators import experimental
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 __all__ = ['MegatronBertEncoder']
 
