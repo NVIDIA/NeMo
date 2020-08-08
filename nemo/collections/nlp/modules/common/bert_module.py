@@ -73,8 +73,18 @@ class BertModule(NeuralModule, Exportable):
         assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
-
         logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
+
+    @property
+    def hidden_size(self):
+        """
+            Property returning hidden size.
+
+            Returns:
+                Hidden size
+            Default implementation relay to BERT config property..
+        """
+        return self.config.hidden_size
 
     def _prepare_for_export(self):
         """
