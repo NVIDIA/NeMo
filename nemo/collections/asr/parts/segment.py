@@ -133,7 +133,7 @@ class AudioSegment(object):
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim)
 
     @classmethod
-    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False):
+    def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False, truncate_to=1):
         """Grabs n_segments number of samples from audio_file randomly from the
         file as opposed to at a specified offset.
 
@@ -142,12 +142,24 @@ class AudioSegment(object):
         with sf.SoundFile(audio_file, 'r') as f:
             sample_rate = f.samplerate
             if n_segments > 0 and len(f) > n_segments:
+                # Adjust n_segments to be a multiple of truncate_to if necessary
+                trunc = n_segments % truncate_to
+                if trunc > 0:
+                    n_segments -= trunc
                 max_audio_start = len(f) - n_segments
                 audio_start = random.randint(0, max_audio_start)
                 f.seek(audio_start)
                 samples = f.read(n_segments, dtype='float32')
             else:
-                samples = f.read(dtype='float32')
+                trunc = len(f) % truncate_to
+                if trunc > 0:
+                    n_segments = len(f) - trunc
+                    max_audio_start = len(f) - n_segments
+                    audio_start = random.randint(0, max_audio_start)
+                    f.seek(audio_start)
+                    samples = f.read(n_segments, dtype='float32')
+                else:
+                    samples = f.read(dtype='float32')
 
         samples = samples.transpose()
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim)

@@ -37,6 +37,8 @@ import math
 import librosa
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
 from torch_stft import STFT
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
@@ -141,6 +143,47 @@ class STFTPatch(STFT):
         return super(STFTPatch, self).transform(input_data)[0]
 
 
+# Create helper class for STFT that yields num_frames = num_samples / hop_length
+class STFTExactPad(STFT):
+    """adapted from Prem Seetharaman's https://github.com/pseeth/pytorch-stft"""
+    def __init__(self, *params, **kw_params):
+        super(STFTExactPad, self).__init__(*params, **kw_params)
+        self.pad_amount = (self.filter_length - self.hop_length) // 2
+
+    def inverse(self, magnitude, phase):
+        recombine_magnitude_phase = torch.cat(
+            [magnitude*torch.cos(phase), magnitude*torch.sin(phase)], dim=1)
+
+        inverse_transform = F.conv_transpose1d(
+            recombine_magnitude_phase,
+            Variable(self.inverse_basis, requires_grad=False),
+            stride=self.hop_length,
+            padding=0)
+
+        if self.window is not None:
+            window_sum = window_sumsquare(
+                self.window, magnitude.size(-1), hop_length=self.hop_length,
+                win_length=self.win_length, n_fft=self.filter_length,
+                dtype=np.float32)
+            # remove modulation effects
+            approx_nonzero_indices = torch.from_numpy(
+                np.where(window_sum > tiny(window_sum))[0])
+            window_sum = torch.autograd.Variable(
+                torch.from_numpy(window_sum), requires_grad=False)
+            inverse_transform[:, :, approx_nonzero_indices] /= window_sum[approx_nonzero_indices]
+
+            # scale by hop ratio
+            inverse_transform *= float(self.filter_length) / self.hop_length
+
+        inverse_transform = inverse_transform[:, :, int(self.filter_length/2):]
+        inverse_transform = inverse_transform[:, :, :-int(self.filter_length/2):]
+
+        return inverse_transform
+
+    def forward(self, input_data):
+        return super(STFTExactPad, self).transform(input_data)[0]
+
+
 class FilterbankFeatures(nn.Module):
     """Featurizer that converts wavs to Mel Spectrograms.
     See AudioToMelSpectrogramPreprocessor for args.
@@ -165,6 +208,7 @@ class FilterbankFeatures(nn.Module):
         pad_to=16,
         max_duration=16.7,
         frame_splicing=1,
+        stft_exact_pad=False,
         stft_conv=False,
         pad_value=0,
         mag_power=2.0,
@@ -188,9 +232,14 @@ class FilterbankFeatures(nn.Module):
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
+        self.stft_exact_pad = stft_exact_pad
         self.stft_conv = stft_conv
 
-        if stft_conv:
+        if stft_exact_pad:
+            logging.info("STFT using exact pad")
+            self.stft = STFTExactPad(self.n_fft, self.hop_length, self.win_length, window)
+
+        elif stft_conv:
             logging.info("STFT using conv")
             self.stft = STFTPatch(self.n_fft, self.hop_length, self.win_length, window)
 
@@ -303,7 +352,7 @@ class FilterbankFeatures(nn.Module):
         # get power spectrum
         if self.mag_power != 1.0:
             x = x.pow(self.mag_power)
-        if not self.stft_conv:
+        if not self.stft_conv and not self.stft_exact_pad:
             x = x.sum(-1)
 
         # dot with filterbank energies

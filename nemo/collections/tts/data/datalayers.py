@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Dict, Optional, Union
+import random
 
 import torch
 
@@ -38,6 +39,7 @@ class AudioDataset(Dataset):
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
         trim: Optional[bool] = False,
+        truncate_to: Optional[int] = 1,
     ):
         """
         Mostly compliant with nemo.collections.asr.data.datalayers.AudioToTextDataset except it only returns Audio
@@ -61,6 +63,8 @@ class AudioDataset(Dataset):
             min_duration(float): If audio is less than this length in seconds, it is filtered from the dataset.
                 Defaults to None, which does not filter any audio.
             trim (bool): Whether to use librosa.effects.trim on the audio clip
+            truncate_to (int): Ensures that the audio segment returned is a multiple of truncate_to.
+                Defaults to 1, which does no truncating.
         """
 
         self.collection = collections.ASRAudioText(
@@ -71,6 +75,7 @@ class AudioDataset(Dataset):
         )
         self.trim = trim
         self.n_segments = n_segments
+        self.truncate_to = truncate_to
 
     def _collate_fn(self, batch):
         """
@@ -109,9 +114,15 @@ class AudioDataset(Dataset):
         randomly chosen if the audio is longer than n_segments.
         """
         example = self.collection[index]
-        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim)
+        features = AudioSegment.segment_from_file(example.audio_file, n_segments=self.n_segments, trim=self.trim, truncate_to=self.truncate_to)
         features = torch.tensor(features.samples)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
+
+        trunc = audio_length % self.truncate_to
+        if trunc > 0:
+            audio_length -= trunc.long()
+            audio_start = random.randint(0, trunc)
+            audio = audio[audio_start:audio_start+audio_length]
 
         return audio, audio_length
 

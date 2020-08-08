@@ -162,7 +162,6 @@ class SqueezeWaveModule(NeuralModule):
 
     def audio_to_normal_dist(self, *, spect: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
         audio = audio.unfold(1, self.n_group, self.n_group).permute(0, 2, 1)
-        spect = spect[:, :, :audio.size(2) // 2]
         output_audio = []
         log_s_list = []
         log_det_W_list = []

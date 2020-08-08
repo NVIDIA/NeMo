@@ -20,7 +20,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 128
+      batch_size: 96
       num_workers: 4
 
   validation_ds:
@@ -30,12 +30,14 @@ model:
         manifest_filepath: ${validation_datasets}
         max_duration: null
         min_duration: 0.1
-        n_segments: 16384
+        n_segments: -1
         trim: false
+        # This value is hard-coded to reflect n_window_stride * pad_to
+        truncate_to: 4096
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 128
+      batch_size: 1
       num_workers: 4
 
   preprocessor:
@@ -62,6 +64,7 @@ model:
       pad_value: *pad_value
       preemph: null
       sample_rate: *sr
+      stft_exact_pad: true
       stft_conv: true
       window: hann
 
@@ -91,8 +94,8 @@ trainer:
   logger: False  # Provided by exp_manager
   log_save_interval: 1000
   row_log_interval: 200
-  check_val_every_n_epoch: 25
-  precision: 16
+  check_val_every_n_epoch: 1
+  precision: 32
 
 exp_manager:
   root_dir: null
