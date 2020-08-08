@@ -53,7 +53,11 @@ class QAModel(ModelPT):
         self.do_lower_case = cfg.dataset.do_lower_case
         self.use_cache = cfg.dataset.use_cache
         self.tokenizer = get_tokenizer(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.dataset.do_lower_case,
         )
 
         super().__init__(cfg=cfg, trainer=trainer)
