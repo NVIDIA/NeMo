@@ -240,7 +240,7 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig, *args: Any, **kwargs: Any):
+    def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if isinstance(config, DictConfig):
@@ -250,7 +250,7 @@ class Serialization(ABC):
 
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
-            instance = hydra.utils.instantiate(config=config, *args, **kwargs)
+            instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
             # TODO: allow passthrough for args, and kwargs too?
