@@ -263,12 +263,17 @@ class AudioToCharDataset(_AudioTextDataset):
         load_audio: bool = True,
         parser: Union[str, Callable] = 'en',
         add_misc: bool = False,
-        lexicon_filepath = None,
+        lexicon_filepath=None,
     ):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize, lexicon_filepath=lexicon_filepath,
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
+            lexicon_filepath=lexicon_filepath,
         )
 
         super().__init__(

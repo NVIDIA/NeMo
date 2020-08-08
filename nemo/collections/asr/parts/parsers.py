@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import string
+from collections import defaultdict
 from typing import List, Optional
 
 import frozendict
 import numpy as np
-from collections import defaultdict
 
 from nemo.collections.asr.parts import cleaners
 
@@ -38,7 +38,7 @@ class CharParser:
         blank_id: int = -1,
         do_normalize: bool = True,
         do_lowercase: bool = True,
-        lexicon_filepath = None,
+        lexicon_filepath=None,
     ):
         """Creates simple mapping char parser.
 
