@@ -86,7 +86,8 @@ class ModelPT(LightningModule, Model):
                     self.setup_training_data(self._cfg.train_ds)
 
             except Exception as e:
-                logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+                debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+                logging.debug("Original exception >>> \n" f"{debug_error}")
 
                 logging.warning(
                     "Unable to load the train data loader with the provided config \n"
@@ -259,7 +260,8 @@ class ModelPT(LightningModule, Model):
                     self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
 
         except Exception as e:
-            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+            debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logging.debug("Original exception >>> \n" f"{debug_error}")
 
             logging.warning(
                 "Unable to load the validation data loader(s) with the provided config \n"
@@ -294,7 +296,8 @@ class ModelPT(LightningModule, Model):
                     self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
         except Exception as e:
-            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+            debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logging.debug("Original exception >>> \n" f"{debug_error}")
 
             logging.warning(
                 "Unable to load the test data loader(s) with the provided config \n"
