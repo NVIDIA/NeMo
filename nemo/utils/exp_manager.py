@@ -69,7 +69,7 @@ class ExpManagerConfig:
     resume_ignore_no_checkpoint: Optional[bool] = False
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
-    summary_writter_kwargs: Optional[Dict[Any, Any]] = None
+    summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
@@ -114,7 +114,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 continue without restoring, by setting resume_ignore_no_checkpoint to True. Defaults to False.
             - create_tensorboard_logger (bool): Whether to create a tensorboard logger and attach it to the pytorch
                 lightning trainer. Defaults to True.
-            - summary_writter_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
+            - summary_writer_kwargs (dict): A dictionary of kwargs that can be passed to lightning's TensorboardLogger
                 class. Note that log_dir is passed by exp_manager and cannot exist in this dict. Defaults to None.
             - create_wandb_logger (bool): Whether to create a Weights and Baises logger and attach it to the pytorch
                 lightning trainer. Defaults to False.
@@ -181,7 +181,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 cfg.name,
                 cfg.version,
                 cfg.create_tensorboard_logger,
-                cfg.summary_writter_kwargs,
+                cfg.summary_writer_kwargs,
                 cfg.create_wandb_logger,
                 cfg.wandb_logger_kwargs,
             )
@@ -471,24 +471,24 @@ def configure_loggers(
     name: str,
     version: str,
     create_tensorboard_logger: bool,
-    summary_writter_kwargs: dict,
+    summary_writer_kwargs: dict,
     create_wandb_logger: bool,
     wandb_kwargs: dict,
 ):
     """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
-    summary_writter_kwargs or wandb_kwargs are misconfigured.
+    summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
     # Potentially create tensorboard logger and/or WandBLogger
     logger_list = []
     if create_tensorboard_logger:
-        if summary_writter_kwargs is None:
-            summary_writter_kwargs = {}
-        elif "log_dir" in summary_writter_kwargs:
+        if summary_writer_kwargs is None:
+            summary_writer_kwargs = {}
+        elif "log_dir" in summary_writer_kwargs:
             raise ValueError(
-                "You cannot pass `log_dir` as part of `summary_writter_kwargs`. `log_dir` is handled by lightning's "
+                "You cannot pass `log_dir` as part of `summary_writer_kwargs`. `log_dir` is handled by lightning's "
                 "TensorBoardLogger logger."
             )
-        tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writter_kwargs)
+        tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writer_kwargs)
         logger_list.append(tensorboard_logger)
         logging.info("TensorboardLogger has been set up")
 
