@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -207,9 +208,18 @@ class Tacotron2Model(ModelPT):
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         labels = cfg.dataset.params.labels
-        dataset = Tacotron2Model.from_config_dict(
-            cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2,
-        )
+
+        # Inject tokens
+        dataset_cfg = copy.deepcopy(cfg.dataset)
+        OmegaConf.set_struct(dataset_cfg, False)
+
+        dataset_cfg.params.bos_id = len(labels)
+        dataset_cfg.params.eos_id = len(labels) + 1
+        dataset_cfg.params.pad_id = len(labels) + 2
+
+        OmegaConf.set_struct(dataset_cfg, True)
+
+        dataset = Tacotron2Model.from_config_dict(dataset_cfg)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):

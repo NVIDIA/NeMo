@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 # USAGE: python process_asr_text_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
 #         --data_root="<output directory>" \
 #         --vocab_size=<number of tokens in vocabulary> \
