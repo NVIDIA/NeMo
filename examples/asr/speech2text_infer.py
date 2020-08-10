@@ -34,9 +34,9 @@ def main():
     parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
-    parser.add_argument("--trim_silence", default=True, type=bool, help="trim audio from silence or not")
+    parser.add_argument("--trim_silence", default=True, type=eval, help="trim audio from silence or not")
     parser.add_argument(
-        "--normalize_text", default=True, type=bool, help="Normalize transcripts or not. Set to False for non-English."
+        "--normalize_text", default=True, type=eval, help="Normalize transcripts or not. Set to False for non-English."
     )
     args = parser.parse_args()
 
