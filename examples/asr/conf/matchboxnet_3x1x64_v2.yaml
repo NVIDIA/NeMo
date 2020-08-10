@@ -1,16 +1,17 @@
 name: &name "MatchboxNet-3x1x64-v2"
-sample_rate: &sample_rate 16000
-
-timesteps: &timesteps 128
-repeat: &repeat 1
-dropout: &dropout 0.0
-kernel_size_factor: &kfactor 1.0
-
-labels: &labels ['visual', 'wow', 'learn', 'backward', 'dog', 'two', 'left', 'happy', 'nine', 'go', 'up', 'bed', 'stop',
-                 'one', 'zero', 'tree', 'seven', 'on', 'four', 'bird', 'right', 'eight', 'no', 'six', 'forward', 'house',
-                 'marvin', 'sheila', 'five', 'off', 'three', 'down', 'cat', 'follow', 'yes']
 
 model:
+  sample_rate: &sample_rate 16000
+
+  timesteps: &timesteps 128
+  repeat: &repeat 1
+  dropout: &dropout 0.0
+  kernel_size_factor: &kfactor 1.0
+
+  labels: &labels ['visual', 'wow', 'learn', 'backward', 'dog', 'two', 'left', 'happy', 'nine', 'go', 'up', 'bed', 'stop',
+                   'one', 'zero', 'tree', 'seven', 'on', 'four', 'bird', 'right', 'eight', 'no', 'six', 'forward', 'house',
+                   'marvin', 'sheila', 'five', 'off', 'three', 'down', 'cat', 'follow', 'yes']
+
   train_ds:
     manifest_filepath: ???
     sample_rate: *sample_rate
