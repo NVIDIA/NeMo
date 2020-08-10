@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
@@ -49,12 +49,12 @@ class Preprocessor:
 @dataclass
 class Tacotron2Config:
     preprocessor: Preprocessor = Preprocessor()
-    encoder: Dict = MISSING
-    decoder: Dict = MISSING
-    postnet: Dict = MISSING
+    encoder: Dict[Any, Any] = MISSING
+    decoder: Dict[Any, Any] = MISSING
+    postnet: Dict[Any, Any] = MISSING
     labels: List = MISSING
-    train_ds: Optional[Dict] = None
-    validation_ds: Optional[Dict] = None
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
