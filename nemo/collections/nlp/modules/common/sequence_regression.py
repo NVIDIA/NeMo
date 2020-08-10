@@ -18,6 +18,7 @@ from torch import Tensor
 
 from .classifier import Classifier
 from nemo.collections.common.parts import MultiLayerPerceptron
+from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType, RegressionValuesType
 

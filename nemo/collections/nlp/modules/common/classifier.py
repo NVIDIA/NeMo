@@ -33,28 +33,26 @@ class Classifier(NeuralModule, Exportable):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         """
         Returns definitions of module input ports.
+        We implement it here since all NLP classifiers have the same inputs
         """
         return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     def __init__(self, hidden_size: int, dropout: float = 0.0,) -> None:
-
         """
-        Initializes the Token Classifier module.
+        Initializes the Classifier base module.
 
         Args:
             hidden_size: the size of the hidden dimension
-            num_classes: number of classes
-            num_layers: number of fully connected layers in the multilayer perceptron (MLP)
-            activation: activation to usee between fully connected layers in the MLP
-            log_softmax: whether to apply softmax to the output of the MLP
             dropout: dropout to apply to the input hidden states
-            use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
         super().__init__()
         self._hidden_size = hidden_size
         self.dropout = nn.Dropout(dropout)
 
     def post_init(self, use_transformer_init):
+        """
+        Common post-processing to be called at the end of concrete Classifiers init methods
+        """
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
 

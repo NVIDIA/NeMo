@@ -14,8 +14,8 @@
 
 from typing import Dict, Optional
 
-from .classifier import Classifier
 from nemo.collections.common.parts import MultiLayerPerceptron
+from nemo.collections.nlp.modules.common.classifier import Classifier
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils.decorators import experimental
