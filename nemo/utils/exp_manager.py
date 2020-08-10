@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd

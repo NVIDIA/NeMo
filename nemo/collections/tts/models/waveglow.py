@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
