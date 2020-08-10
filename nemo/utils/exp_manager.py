@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.hydra_config import HydraConfig
 from hydra.utils import get_original_cwd
@@ -69,9 +69,9 @@ class ExpManagerConfig:
     resume_ignore_no_checkpoint: Optional[bool] = False
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
-    summary_writter_kwargs: Optional[Dict] = None
+    summary_writter_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
-    wandb_logger_kwargs: Optional[Dict] = None
+    wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
     # Additional exp_manager arguments
