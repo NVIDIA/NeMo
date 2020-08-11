@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.utils.data
 from dataclasses import dataclass
-from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from hydra.utils import instantiate
 from nemo.collections.asr.parts.perturb import process_augmentations
