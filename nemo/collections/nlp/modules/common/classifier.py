@@ -40,7 +40,6 @@ class Classifier(NeuralModule, Exportable):
     def __init__(self, hidden_size: int, dropout: float = 0.0,) -> None:
         """
         Initializes the Classifier base module.
-
         Args:
             hidden_size: the size of the hidden dimension
             dropout: dropout to apply to the input hidden states
@@ -49,9 +48,11 @@ class Classifier(NeuralModule, Exportable):
         self._hidden_size = hidden_size
         self.dropout = nn.Dropout(dropout)
 
-    def post_init(self, use_transformer_init):
+    def post_init(self, use_transformer_init: bool):
         """
         Common post-processing to be called at the end of concrete Classifiers init methods
+        Args:
+          use_transformer_init : whether or not to apply transformer_weights_init
         """
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
