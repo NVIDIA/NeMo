@@ -285,7 +285,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel MegaBERT SQUAD v1.1 / v2.0') {
+    stage('L2: Parallel MegaBERT Text Classification / SQUAD v2.0') {
       when {
         anyOf{
           branch 'candidate'
@@ -294,28 +294,25 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('MegaBERT SQUAD 1.1') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
+        stage ('Text Classification with MegaBERT') {
           steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            sh 'cd examples/nlp/text_classification && \
+            python text_classification_with_bert.py \
+            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
+            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
+            model.language_model.pretrained_model_name=megatron-bert-345m-cased \
+            model.train_ds.batch_size=10 \
+            model.dataset.max_seq_length=50 \
             model.dataset.use_cache=false \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.train_ds.batch_size=8 \
-            model.validation_ds.batch_size=8 \
+            model.dataset.do_lower_case=false \
 	    trainer.distributed_backend=ddp \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
-            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
-            trainer.num_sanity_val_steps=1000 \
-            exp_manager.exp_dir=exp_megabert_squad_1.1 \
+            +trainer.fast_dev_run=true \
+            exp_manager.exp_dir=exp_megabert_base_uncased \
             '
-            sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_1.1'
+            sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
           }
         }
         stage('MegaBERT SQUAD 2.0') {
@@ -325,6 +322,7 @@ pipeline {
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
+            model.dataset.do_lower_case=true \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
 	    trainer.distributed_backend=ddp \
