@@ -311,7 +311,7 @@ pipeline {
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
-            trainer.gpus=[0] \
+            trainer.gpus=[1] \
             trainer.num_sanity_val_steps=1000 \
             exp_manager.exp_dir=exp_megabert_squad_1.1 \
             '
@@ -335,7 +335,7 @@ pipeline {
             model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
-            trainer.gpus=[1] \
+            trainer.gpus=[0] \
             trainer.num_sanity_val_steps=1000 \
             exp_manager.exp_dir=exp_megabert_squad_2.0 \
             '
