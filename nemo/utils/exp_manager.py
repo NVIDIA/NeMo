@@ -302,7 +302,7 @@ def check_resume(
         logging.info(f"Resuming from {last_checkpoints[0]}")
         checkpoint = last_checkpoints[0]
 
-    trainer.resume_from_checkpoint = checkpoint
+    trainer.resume_from_checkpoint = str(checkpoint)
 
     if is_global_rank_zero():
         # Move old files to a new folder
