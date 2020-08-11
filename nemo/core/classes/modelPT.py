@@ -86,7 +86,8 @@ class ModelPT(LightningModule, Model):
                     self.setup_training_data(self._cfg.train_ds)
 
             except Exception as e:
-                logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+                debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+                logging.debug("Original exception >>> \n" f"{debug_error}")
 
                 logging.warning(
                     "Unable to load the train data loader with the provided config \n"
@@ -190,13 +191,28 @@ class ModelPT(LightningModule, Model):
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 conf = OmegaConf.load(config_yaml)
                 OmegaConf.set_struct(conf, True)
+                conf = cls.update_config_with_specific_artifacts(config=conf, artifacts_dir=tmpdir)
                 instance = cls.from_config_dict(config=conf)
                 instance.load_state_dict(torch.load(model_weights))
 
+                logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
                 os.chdir(cwd)
 
         return instance
+
+    @classmethod
+    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
+        """
+        Updates config with model specific artifacts
+
+        Args:
+            config: model config
+            artifacts_dir: path to directory with artifacts restored from .nemo file
+        Returns:
+            config: model config
+        """
+        return config
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
@@ -259,7 +275,8 @@ class ModelPT(LightningModule, Model):
                     self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
 
         except Exception as e:
-            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+            debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logging.debug("Original exception >>> \n" f"{debug_error}")
 
             logging.warning(
                 "Unable to load the validation data loader(s) with the provided config \n"
@@ -294,7 +311,8 @@ class ModelPT(LightningModule, Model):
                     self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
 
         except Exception as e:
-            logging.debug("Original exception >>> \n" f"{traceback.format_exception(type(e), e, e.__traceback__)}")
+            debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logging.debug("Original exception >>> \n" f"{debug_error}")
 
             logging.warning(
                 "Unable to load the test data loader(s) with the provided config \n"

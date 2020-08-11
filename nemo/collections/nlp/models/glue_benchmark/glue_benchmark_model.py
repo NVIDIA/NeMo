@@ -26,9 +26,8 @@ from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
 from nemo.collections.nlp.models.glue_benchmark.metrics_for_glue import compute_metrics
+from nemo.collections.nlp.modules.common import SequenceClassifier, SequenceRegression
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
-from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
-from nemo.collections.nlp.modules.common.sequence_regresssion import SequenceRegression
 from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
