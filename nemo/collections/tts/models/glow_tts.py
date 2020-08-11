@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import torch
 import torch.utils.data
-from dataclasses import dataclass
+from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from hydra.utils import instantiate
+
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
@@ -27,6 +28,7 @@ from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
+
 
 @dataclass
 class PreprocessorParams:
@@ -47,6 +49,7 @@ class GlowTTSConfig:
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
     test_ds: Optional[Dict[Any, Any]] = None
+
 
 @experimental
 class GlowTTSModel(ModelPT):
