@@ -687,7 +687,7 @@ class ModelPT(LightningModule, Model):
             "`test_epoch_end(outputs)."
         )
 
-    def get_validation_dataloader_prefix(self, dataloader_idx=0) -> str:
+    def get_validation_dataloader_prefix(self, dataloader_idx: int = 0) -> str:
         """
         Get the name of one or more data loaders, which will be prepended to all logs.
 
@@ -699,7 +699,7 @@ class ModelPT(LightningModule, Model):
         """
         return self._validation_names[dataloader_idx]
 
-    def get_test_dataloader_prefix(self, dataloader_idx=0):
+    def get_test_dataloader_prefix(self, dataloader_idx: int = 0) -> str:
         """
         Get the name of one or more data loaders, which will be prepended to all logs.
 
