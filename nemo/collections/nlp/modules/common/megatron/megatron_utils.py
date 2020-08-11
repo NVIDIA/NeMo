@@ -92,7 +92,7 @@ def get_megatron_lm_model(
     else:
         config = get_megatron_config(pretrained_model_name)
     if config is None:
-        raise ValueError(f'Config file is required for {pretrained_model_name}')
+        raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
     if not checkpoint_file:
         checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
