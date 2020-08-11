@@ -110,7 +110,7 @@ def __process_data(text_path: str, dst_folder: str, vocab_size: int, tokenizer_t
         tokenizer = tokenizers.BertWordPieceTokenizer(lowercase=True)
 
         tokenizer.train(text_path, vocab_size=vocab_size)
-        tokenizer.save(tokenizer_dir)
+        tokenizer.save(os.path.join(tokenizer_dir, 'vocab.txt'))
 
     return tokenizer_dir
 
