@@ -74,7 +74,9 @@ def get_megatron_lm_model(
     Args:
         pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
             for example: bert-base-cased
-        config_file: path to model configuration file.
+        config_dict: model configuration parameters
+        config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
+        checkpoint_file: path to checkpoint file.
     '''
     config = None
     # get default config and checkpoint
