@@ -253,7 +253,6 @@ class Serialization(ABC):
             instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
-            # TODO: allow passthrough for args, and kwargs too?
             instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
