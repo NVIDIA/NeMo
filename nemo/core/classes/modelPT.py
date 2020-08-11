@@ -18,7 +18,6 @@ import os
 import shutil
 import tarfile
 import tempfile
-import traceback
 from abc import abstractmethod
 from os import path
 from typing import Dict, List, Optional, Union
