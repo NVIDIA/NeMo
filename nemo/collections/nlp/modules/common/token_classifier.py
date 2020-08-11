@@ -14,29 +14,22 @@
 
 from typing import Dict, Optional
 
-import torch
 from torch import nn as nn
 
-from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
-from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types import ChannelType, LogitsType, NeuralType
+from nemo.collections.common.parts import MultiLayerPerceptron
+from nemo.collections.nlp.modules.common.classifier import Classifier
+from nemo.core.classes import typecheck
+from nemo.core.neural_types import LogitsType, NeuralType
 
 __all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
 
 ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 
 
-class TokenClassifier(NeuralModule, Exportable):
+class TokenClassifier(Classifier):
     """
     A module to perform token level classification tasks such as Named entity recognition.
     """
-
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        """
-        Returns definitions of module input ports.
-        """
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -68,14 +61,11 @@ class TokenClassifier(NeuralModule, Exportable):
             dropout: dropout to apply to the input hidden states
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
-        super().__init__()
+        super().__init__(hidden_size=hidden_size, dropout=dropout)
         self.mlp = MultiLayerPerceptron(
             hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
         )
-        self._hidden_size = hidden_size
-        self.dropout = nn.Dropout(dropout)
-        if use_transformer_init:
-            self.apply(lambda module: transformer_weights_init(module, xavier=False))
+        self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
     def forward(self, hidden_states):
@@ -90,47 +80,11 @@ class TokenClassifier(NeuralModule, Exportable):
         logits = self.mlp(hidden_states)
         return logits
 
-    def _prepare_for_export(self):
-        """
-        Returns a pair in input, output examples for tracing.
-        Returns:
-            A pair of (input, output) examples.
-        """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
-        output_example = self.forward(hidden_states=input_example)
-        return input_example, output_example
 
-    def save_to(self, save_path: str):
-        """
-        Saves the module to the specified path.
-        Args:
-            save_path: Path to where to save the module.
-        """
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """
-        Restores the module from the specified path.
-        Args:
-            restore_path: Path to restore the module from.
-        """
-        pass
-
-
-class BertPretrainingTokenClassifier(NeuralModule, Exportable):
+class BertPretrainingTokenClassifier(Classifier):
     """
     A module to perform token level classification tasks for Bert pretraining.
     """
-
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        """
-        Returns definitions of module input ports.
-        """
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -162,8 +116,8 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
             dropout: dropout to apply to the input hidden states
             use_transformer_init: whether to initialize the weights of the classifier head with the same approach used in Transformer
         """
-        super().__init__()
-        self._hidden_size = hidden_size
+        super().__init__(hidden_size=hidden_size, dropout=dropout)
+
         if activation not in ACT2FN:
             raise ValueError(f'activation "{activation}" not found')
         self.dense = nn.Linear(hidden_size, hidden_size)
@@ -172,9 +126,7 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
         self.mlp = MultiLayerPerceptron(
             hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
         )
-        self.dropout = nn.Dropout(dropout)
-        if use_transformer_init:
-            self.apply(lambda module: transformer_weights_init(module, xavier=False))
+        self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
     def forward(self, hidden_states):
@@ -191,32 +143,3 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
         transform = self.norm(hidden_states)
         logits = self.mlp(transform)
         return logits
-
-    def _prepare_for_export(self):
-        """
-        Returns a pair in input, output examples for tracing.
-        Returns:
-            A pair of (input, output) examples.
-        """
-        bs = 8
-        seq = 64
-        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
-        output_example = self.forward(hidden_states=input_example)
-        return input_example, output_example
-
-    def save_to(self, save_path: str):
-        """
-        Saves the module to the specified path.
-        Args:
-            save_path: Path to where to save the module.
-        """
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """
-        Restores the module from the specified path.
-        Args:
-            restore_path: Path to restore the module from.
-        """
-        pass
