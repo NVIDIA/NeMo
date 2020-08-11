@@ -54,17 +54,15 @@ def get_pretrained_lm_model(
     '''
     if pretrained_model_name in get_huggingface_lm_models_list():
         model = get_huggingface_lm_model(
-            config_dict=config_dict, 
-            config_file=config_file, 
-            pretrained_model_name=pretrained_model_name
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name
         )
     else:
         if pretrained_model_name in get_megatron_lm_models_list():
             model, default_checkpoint_file = get_megatron_lm_model(
-                config_dict=config_dict, 
-                config_file=config_file, 
-                pretrained_model_name=pretrained_model_name, 
-                checkpoint_file=checkpoint_file
+                config_dict=config_dict,
+                config_file=config_file,
+                pretrained_model_name=pretrained_model_name,
+                checkpoint_file=checkpoint_file,
             )
         else:
             raise ValueError(f'{pretrained_model_name} is not supported')

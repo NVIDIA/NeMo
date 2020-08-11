@@ -63,10 +63,12 @@ MEGATRON_CONFIG_MAP = {
 }
 
 
-def get_megatron_lm_model(pretrained_model_name: str, 
-                          config_dict: Optional[dict] = None,
-                          config_file: Optional[str] = None,
-                          checkpoint_file: Optional[str] = None,):
+def get_megatron_lm_model(
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
+):
     '''
     Returns the dict of special tokens associated with the model.
     Args:
@@ -94,7 +96,7 @@ def get_megatron_lm_model(pretrained_model_name: str,
 
     if not checkpoint_file:
         checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
-        
+
     vocab = get_megatron_vocab_file(pretrained_model_name)
     model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
     return model, checkpoint_file

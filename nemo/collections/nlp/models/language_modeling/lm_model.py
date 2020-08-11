@@ -75,7 +75,7 @@ class BERTLMModel(ModelPT):
             self.tokenizer = None
 
         super().__init__(cfg=cfg, trainer=trainer)
-        
+
         self.bert_model = get_pretrained_lm_model(
             pretrained_model_name=cfg.language_model.pretrained_model_name,
             config_file=cfg.language_model.bert_config_file,
