@@ -307,7 +307,7 @@ pipeline {
 	    trainer.distributed_backend=ddp \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
-            model.language_model.pretrained_model_name=megatron-bert-345m-cased  \
+            model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
             model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
