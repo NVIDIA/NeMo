@@ -22,7 +22,9 @@ from pytorch_lightning import Trainer
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_labels_to_labels_id_mapping
-from nemo.collections.nlp.data.punctuation_capitalization_dataset import BertPunctuationCapitalizationDataset
+from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
+    BertPunctuationCapitalizationDataset,
+)
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
@@ -30,12 +32,10 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['PunctuationCapitalizationModel']
 
 
-@experimental
 class PunctuationCapitalizationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -52,8 +52,7 @@ class PunctuationCapitalizationModel(ModelPT):
         """
         Initializes BERT Punctuation and Capitalization model.
         """
-        self.data_dir = cfg.data_dir
-        self.model_cfg = cfg
+        self.data_dir = cfg.dataset.data_dir
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
             pretrained_model_name=cfg.language_model.pretrained_model_name,
@@ -73,6 +72,7 @@ class PunctuationCapitalizationModel(ModelPT):
             config_file=cfg.language_model.bert_config,
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
+
         self.hidden_size = self.bert_model.config.hidden_size
 
         self.punct_classifier = TokenClassifier(
@@ -131,7 +131,7 @@ class PunctuationCapitalizationModel(ModelPT):
         tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
@@ -169,7 +169,7 @@ class PunctuationCapitalizationModel(ModelPT):
             'log': tensorboard_logs,
         }
 
-    def validation_epoch_end(self, outputs):
+    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
@@ -212,9 +212,13 @@ class PunctuationCapitalizationModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
-        label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
-
+        if cfg.prefix == 'train' or 'ds_item' not in cfg or cfg.ds_item is None:
+            text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
+            label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
+        else:
+            # use data_dir specified in the ds_item to run evaluation on multiple datasets
+            text_file = os.path.join(cfg.ds_item, 'text_' + cfg.prefix + '.txt')
+            label_file = os.path.join(cfg.ds_item, 'labels_' + cfg.prefix + '.txt')
         if not (os.path.exists(text_file) and os.path.exists(label_file)):
             raise FileNotFoundError(
                 f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
@@ -230,14 +234,14 @@ class PunctuationCapitalizationModel(ModelPT):
             capit_label_ids_file = os.path.join(self.data_dir, 'capit_label_ids.csv')
 
             if (
-                self.model_cfg.use_cache
+                self._cfg.dataset.use_cache
                 and os.path.exists(punct_label_ids_file)
                 and os.path.exists(capit_label_ids_file)
             ):
+                logging.info(f'Restoring punct_label_ids from {punct_label_ids_file}')
                 self.punct_label_ids = get_labels_to_labels_id_mapping(punct_label_ids_file)
+                logging.info(f'Restoring capit_label_ids from {capit_label_ids_file}')
                 self.capit_label_ids = get_labels_to_labels_id_mapping(capit_label_ids_file)
-                logging.info(f'punct_label_ids restored from {punct_label_ids_file}')
-                logging.info(f'capit_label_ids restored from {capit_label_ids_file}')
             else:
                 self.punct_label_ids = None
                 self.capit_label_ids = None
@@ -246,40 +250,31 @@ class PunctuationCapitalizationModel(ModelPT):
             tokenizer=self.tokenizer,
             text_file=text_file,
             label_file=label_file,
-            pad_label=self.model_cfg.pad_label,
+            pad_label=self._cfg.dataset.pad_label,
             punct_label_ids=self.punct_label_ids,
             capit_label_ids=self.capit_label_ids,
-            max_seq_length=self.model_cfg.max_seq_length,
-            ignore_extra_tokens=self.model_cfg.ignore_extra_tokens,
-            ignore_start_end=self.model_cfg.ignore_start_end,
-            use_cache=self.model_cfg.use_cache,
+            max_seq_length=self._cfg.dataset.max_seq_length,
+            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
+            ignore_start_end=self._cfg.dataset.ignore_start_end,
+            use_cache=self._cfg.dataset.use_cache,
             num_samples=cfg.num_samples,
         )
         if cfg.prefix == 'train':
             self.punct_label_ids = dataset.punct_label_ids
             self.capit_label_ids = dataset.capit_label_ids
+            self.register_artifact('punct_label_ids.csv', punct_label_ids_file)
+            self.register_artifact('capit_label_ids.csv', capit_label_ids_file)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=self._cfg.dataset.drop_last,
         )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
-        pass
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
         pass

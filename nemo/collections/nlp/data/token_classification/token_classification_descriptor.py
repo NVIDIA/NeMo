@@ -15,12 +15,12 @@
 import os
 from typing import List
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights,
     get_freq_weights,
     get_label_stats,
 )
+from nemo.utils import logging
 
 __all__ = ['TokenClassificationDataDesc']
 
@@ -34,9 +34,17 @@ class TokenClassificationDataDesc:
             modes: list of the modes to read, it can be from ["train", "test", "dev"] by default.
             It is going to look for the data files at {data_dir}/{mode}.txt
         """
-        self.data_dir = data_dir
+        if not os.path.exists(data_dir):
+            raise FileNotFoundError(
+                "Dataset not found. For NER, CoNLL-2003 dataset can be obtained at "
+                "https://github.com/kyzhouhzau/BERT-NER/tree/master/data."
+            )
 
+        self.data_dir = data_dir
+        # when the model is restored from .nemo file, data might be missing, and data_desc values should be skipped
+        self.data_found = False
         unique_labels = set()
+
         for mode in modes:
             all_labels = []
             label_file = os.path.join(data_dir, 'labels_' + mode + '.txt')
@@ -44,6 +52,7 @@ class TokenClassificationDataDesc:
                 logging.info(f'Stats calculation for {mode} mode is skipped as {label_file} was not found.')
                 continue
 
+            self.data_found = True
             with open(label_file, 'r') as f:
                 for line in f:
                     line = line.strip().split()
@@ -60,7 +69,8 @@ class TokenClassificationDataDesc:
                 self.pad_label = pad_label
                 self.label_ids = label_ids
                 logging.info(f'Labels: {label_ids}')
-                out = open(os.path.join(data_dir, 'label_ids.csv'), 'w')
+                self.label_ids_filename = os.path.join(data_dir, 'label_ids.csv')
+                out = open(self.label_ids_filename, 'w')
                 labels, _ = zip(*sorted(self.label_ids.items(), key=lambda x: x[1]))
                 out.write('\n'.join(labels))
                 logging.info(f'Labels mapping saved to : {out.name}')

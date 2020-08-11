@@ -23,7 +23,7 @@ from collections import Counter
 
 import numpy as np
 
-from nemo import logging
+from nemo.utils import logging
 
 __all__ = [
     'DataProcessor',
@@ -53,6 +53,7 @@ __all__ = [
     'calc_class_weights',
     'normalize_answer',
     'get_labels_to_labels_id_mapping',
+    'get_vocab',
 ]
 
 DATABASE_EXISTS_TMP = '{} dataset has already been processed and stored at {}'
@@ -421,3 +422,10 @@ def fill_class_weights(weights, max_id=-1):
 def calc_class_weights(label_freq, max_id=-1):
     weights_dict = get_freq_weights(label_freq)
     return fill_class_weights(weights_dict, max_id=max_id)
+
+
+def get_vocab(file):
+    lines = open(file, 'r').readlines()
+    lines = [line.strip() for line in lines if line.strip()]
+    labels = {i: lines[i] for i in range(len(lines))}
+    return labels

@@ -53,7 +53,7 @@ class EncDecClassificationModel(ASRModel):
         # Setup metric objects
         self._accuracy = TopKClassificationAccuracy()
 
-    def transcribe(self, path2audio_file: str) -> str:
+    def transcribe(self, paths2audio_files: str) -> str:
         raise NotImplementedError("Classification models do not transcribe audio.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):

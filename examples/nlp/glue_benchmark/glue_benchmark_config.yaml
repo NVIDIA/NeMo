@@ -1,4 +1,5 @@
-# Named Entity Recognition with pretrained BERT models
+# GLUE Benchmark with pre-trained BERT models
+supported_tasks: &supported_tasks ['cola', 'sst-2', 'mrpc', 'sts-b', 'qqp', 'mnli', 'qnli', 'rte', 'wnli']
 
 trainer:
   gpus: 1 # the number of gpus, 0 for CPU
@@ -7,38 +8,37 @@ trainer:
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   amp_level: O0 # O1/O2 for mixed precision
+  precision: 16
   distributed_backend: ddp
   checkpoint_callback: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
-  row_log_interval: 1  # Interval of logging.
-  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 model:
-  data_dir: ??? # /path/to/data
-  class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
-  max_seq_length: 128
-  pad_label: 'O'
-  ignore_extra_tokens: false
-  ignore_start_end: false
-  use_cache: true
+  task_name: &task_name mrpc # choose from: ["cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte", "wnli"] GLUE task name, MNLI includes both matched and mismatched tasks
+  supported_tasks: *supported_tasks
+  output_dir: null # dir to write write predictions
+  nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  dataset:
+    data_dir: ??? # /path/to/data
+    max_seq_length: 128
+    use_cache: true
+
+    # shared across dataloaders:
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   train_ds:
-    prefix: train
+    file_name: 'train.tsv'
     shuffle: true
     num_samples: -1
     batch_size: 32
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   validation_ds:
-    prefix: dev
+    file_name: 'dev.tsv' # for MNLI 'dev_matched.tsv' and 'dev_mismatched.tsv' will de used
     shuffle: false
     num_samples: -1
     batch_size: 32
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   language_model:
     pretrained_model_name: bert-base-uncased
@@ -49,17 +49,10 @@ model:
     tokenizer_model: null # only used if tokenizer is sentencepiece
     do_lower_case: false # true for uncased models, false for cased models, will be set automatically if pre-trained tokenizer model is used
 
-  head:
-    num_fc_layers: 2
-    fc_dropout: 0.1
-    activation: 'relu'
-    log_softmax: True
-    use_transformer_init: True
-
   optim:
     name: adam
-    lr: 2e-5
-    weight_decay: 0.01
+    lr: 5e-5
+    weight_decay: 0.00
 
     sched:
       name: WarmupAnnealing
@@ -73,8 +66,8 @@ model:
       reduce_on_plateau: false
 
 exp_manager:
-  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
-  name: NamedEntityRecognition  # The name of your model
+  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./NeMo_experiments"
+  name: *task_name # The name of your model
   create_tensorboard_logger: True  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # Whether you want exp_manager to create a modelcheckpoint callback
 

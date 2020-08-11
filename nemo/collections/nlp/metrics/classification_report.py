@@ -97,19 +97,14 @@ class ClassificationReport(TensorMetric):
         recall = torch.where(tp + fn != zeros, tp / (tp + fn) * 100, zeros)
         f1 = torch.where(precision + recall != zeros, 2 * precision * recall / (precision + recall), zeros)
 
-        print("")
-        logging.info(
-            '{:20s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
-        )
+        report = '\n{:50s}   {:10s}   {:10s}   {:10s}   {:10s}'.format('label', 'precision', 'recall', 'f1', 'support')
         for id in range(tp.shape[0]):
             label = f'label_id: {id}'
             if self.ids_to_labels and id in self.ids_to_labels:
                 label = f'{self.ids_to_labels[id]} ({label})'
 
-            logging.info(
-                '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-                    label, precision[id], recall[id], f1[id], num_examples_per_class[id]
-                )
+            report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+                label, precision[id], recall[id], f1[id], num_examples_per_class[id]
             )
 
         micro_precision = torch.where(torch.sum(tp + fp) != zeros, torch.sum(tp) / torch.sum(tp + fp) * 100, zeros)
@@ -128,22 +123,22 @@ class ClassificationReport(TensorMetric):
         weighted_recall = torch.sum(recall * num_examples_per_class) / total_examples
         weighted_f1 = torch.sum(f1 * num_examples_per_class) / total_examples
 
-        logging.info(
-            '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-                'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples
-            )
+        report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+            'micro avg', micro_precision[0], micro_recall[0], micro_f1[0], total_examples
         )
-        logging.info(
-            '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
-                'macro avg', macro_precision, macro_recall, macro_f1, total_examples
-            )
+
+        report += '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+            'macro avg', macro_precision, macro_recall, macro_f1, total_examples
         )
-        logging.info(
-            '{:20s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
+        report += (
+            '\n{:50s}   {:8.2f}   {:8.2f}   {:8.2f}   {:8.0f}'.format(
                 'weighted avg', weighted_precision, weighted_recall, weighted_f1, total_examples
             )
+            + '\n'
         )
-        logging.info('')
+
+        logging.info(report)
+
         if mode == 'macro':
             return macro_precision, macro_recall, macro_f1
         elif mode == 'weighted':

@@ -22,38 +22,50 @@ trainer:
   max_epochs: 3
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
+  gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   distributed_backend: ddp
   checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   row_log_interval: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+
+
+exp_manager:
+  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
+  name: Punctuation_and_Capitalization  # The name of your model
+  create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
+  create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
 
 model:
-  data_dir: ??? # /path/to/data
-  max_seq_length: 128
-  pad_label: 'O'
-  ignore_extra_tokens: false
-  ignore_start_end: false
-  use_cache: true
+  nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  dataset:
+    data_dir: ??? # /path/to/training/data
+    # parameters for dataset preprocessing
+    max_seq_length: 128
+    pad_label: 'O'
+    ignore_extra_tokens: false
+    ignore_start_end: false
+    use_cache: true
+    # shared among dataloaders
+    num_workers:  2
+    pin_memory: false
+    drop_last: false
 
   train_ds:
     prefix: train
     shuffle: true
     num_samples: -1
     batch_size: 64
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   validation_ds:
+    ds_item: null # provide a list of data_dirs if evaluation on multiple datasets is needed, by default data_dir is used
     prefix: dev
     shuffle: false
     num_samples: -1
     batch_size: 64
-    num_workers:  2
-    pin_memory: false
-    drop_last: false
 
   language_model:
     pretrained_model_name: bert-base-uncased
@@ -93,12 +105,6 @@ model:
       # pytorch lightning args
       monitor: val_loss
       reduce_on_plateau: false
-
-exp_manager:
-  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
-  name: Punctuation_and_Capitalization  # The name of your model
-  create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
-  create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
 
 hydra:
   run:

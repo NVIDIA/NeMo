@@ -1,4 +1,4 @@
-# Copyright (c) 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.config import Config, CosineAnnealingParams, DataLoaderConfig, NovogradParams
 from nemo.core.neural_types import *
-from nemo.utils.decorators import experimental
 
 
 @dataclass
@@ -62,14 +61,6 @@ class MNISTOptimizer(Config):
 class MNISTLeNet5Config(Config):
     """
     Structured config for LeNet-5 model class - that also contains parameters of dataset and dataloader.
-
-    (This example shows that we can inherit from other configs.)
-
-    Args:
-        dataset: MNIST dataset config.
-        dataloader: Dataloader config.
-        module: module config (default one).
-        optim: Optimizer + Scheduler config.
     """
 
     dataset: MNISTDatasetConfig = MNISTDatasetConfig(width=32, height=32)
@@ -78,8 +69,11 @@ class MNISTLeNet5Config(Config):
     optim: MNISTOptimizer = MNISTOptimizer()
 
 
-@experimental
 class MNISTLeNet5(ModelPT):
+    """
+    The LeNet-5 convolutional model.
+    """
+
     def __init__(self, cfg: MNISTLeNet5Config = MNISTLeNet5Config()):
         super().__init__(cfg=cfg)
 
@@ -89,18 +83,27 @@ class MNISTLeNet5(ModelPT):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        """
+        Returns:
+            :class:`LeNet5Module` input types.
+        """
         return self.module.input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """
+        Returns:
+            :class:`LeNet5Module` output types.
+        """
         return self.module.output_types
 
     @typecheck()
     def forward(self, images):
+        """ Propagates data by calling the module :class:`LeNet5Module` forward. """
         return self.module.forward(images=images)
 
     def setup_training_data(self, train_data_layer_config: Optional[Dict] = None):
-        """ Create dataset, wrap it with dataloader and return the latter """
+        """ Creates dataset, wrap it with dataloader and return the latter """
         # Instantiate dataset.
         mnist_ds = MNISTDataset(self._cfg.dataset)
         # Configure data loader.
@@ -108,12 +111,15 @@ class MNISTLeNet5(ModelPT):
         self._train_dl = train_dataloader
 
     def setup_validation_data(self, val_data_layer_config: Optional[Dict] = None):
+        """ Not implemented. """
         self._val_dl = None
 
     def setup_test_data(self, test_data_layer_params: Optional[Dict] = None):
+        """ Not implemented. """
         self._test_dl = None
 
     def training_step(self, batch, what_is_this_input):
+        """ Training step, calculate loss. """
         # "Unpack" the batch.
         _, images, targets, _ = batch
 
@@ -128,19 +134,24 @@ class MNISTLeNet5(ModelPT):
         # of course "return loss" doesn't work :]
 
     def train_dataloader(self):
+        """ Not implemented. """
         return self._train_dl
 
     def save_to(self, save_path: str):
+        """ Not implemented. """
         pass
 
     @classmethod
     def restore_from(cls, restore_path: str):
+        """ Not implemented. """
         pass
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
+        """ Not implemented. """
         pass
 
     @classmethod
     def from_pretrained(cls, name: str):
+        """ Not implemented. """
         pass

@@ -2,25 +2,34 @@ name: &name "Voxnet"
 sample_rate: &sample_rate 16000
 repeat: &rep 1
 dropout: &drop 0.5
-separable: &separable False
+separable: &separable True
 n_filters: &n_filters 512
 
 model:
   train_ds:
-    manifest_filepath: '/data/manifests/voxceleb1/train/train_manifest.json'
+    manifest_filepath: ???
     sample_rate: 16000
     labels: null
-    batch_size: 64 
+    batch_size: 64
     shuffle: True
     time_length: 8
 
   validation_ds:
-    manifest_filepath: '/data/manifests/voxceleb1/train/dev_manifest.json'
+    manifest_filepath: ???
     sample_rate: 16000
-    labels: None
+    labels: null
     batch_size: 128
     shuffle: False
     time_length: 8
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: 16000
+    labels: null
+    batch_size: 128
+    shuffle: False
+    time_length: 8
+    embedding_dir: './'
 
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -93,9 +102,9 @@ model:
     cls: nemo.collections.asr.modules.SpeakerDecoder
     params:
       feat_in: *enc_feat_out
-      num_classes: 1211
+      num_classes: 2
       pool_mode: 'xvector'
-      emb_sizes: 1024,1024
+      emb_sizes: 512,512
 
   optim:
     name: novograd
@@ -137,13 +146,13 @@ trainer:
   distributed_backend: ddp
   accumulate_grad_batches: 1
   amp_level: O1
-  checkpoint_callback: False 
+  checkpoint_callback: False
   logger: False
   row_log_interval: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 exp_manager:
-  root_dir: null
+  exp_dir: null
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True

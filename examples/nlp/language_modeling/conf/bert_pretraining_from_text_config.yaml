@@ -5,8 +5,8 @@ trainer:
   max_epochs: 2 # the number of training epochs
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
-  precision: 16 # 16 to use AMP 
-  amp_level: O1 # O1 or O2 if using AMP 
+  precision: 16 # 16 to use AMP
+  amp_level: O1 # O1 or O2 if using AMP
   distributed_backend: ddp
   gradient_clip_val: 0.0
   row_log_interval: 1
@@ -15,6 +15,10 @@ trainer:
   logger: false # provided by exp_manager
 
 model:
+  nemo_path: null # exported .nemo path
+  only_mlm_loss: false # only use masked language model without next sentence prediction
+  num_tok_classification_layers: 1 # number of token classification head output layers
+  num_seq_classification_layers: 2 # number of sequence classification head output layers
   pretrained_model_name: bert-base-uncased # huggingface model name
   max_seq_length: 128
   # The maximum total input sequence length after tokenization. Sequences longer than this
@@ -51,7 +55,7 @@ model:
     sample_size: null # for sentencepiece
     vocab_size: ${model.language_model.bert_config.vocab_size} # vocab size for building sentence piece
     do_lower_case: null # only used when tokenizer is build with vocab file or with sentencepiece
-   
+
   train_ds:
     data_file: null # path to data file
     max_seq_length: ${model.max_seq_length}
@@ -61,7 +65,6 @@ model:
     shuffle: true
     num_samples: -1
     num_workers: 2
-    use_cache: true
     drop_last: false
     pin_memory: false
 
@@ -74,10 +77,9 @@ model:
     shuffle: false
     num_samples: -1
     num_workers: 2
-    use_cache: true
     drop_last: false
     pin_memory: false
-  
+
   optim:
     name: adamw
     lr: 3e-5
@@ -90,9 +92,9 @@ model:
       min_lr: 0.0
       last_epoch: -1
 
-  
+
 exp_manager:
-  root_dir: NeMo_experiments # where to store logs and checkpoints
+  exp_dir: NeMo_experiments # where to store logs and checkpoints
   name: PretrainingBERTFromText # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True

@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2020 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,25 +18,17 @@ from transformers import DistilBertModel
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
-from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['DistilBertEncoder']
 
 
-@experimental
 class DistilBertEncoder(DistilBertModel, BertModule):
     """
     Wraps around the Huggingface transformers implementation repository for easy use within NeMo.
     """
 
-    logging.info("DistilBert doesn’t use token_type_ids, and it will be ignored.")
-
     @typecheck()
-    def forward(self, **kwargs):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         # distilBert does not use token_type_ids as the most of the other Bert models
-        if 'token_type_ids' in kwargs:
-            del kwargs['token_type_ids']
-
-        res = super().forward(**kwargs)[0]
+        res = super().forward(input_ids=input_ids, attention_mask=attention_mask)[0]
         return res

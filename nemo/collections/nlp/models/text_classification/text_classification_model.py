@@ -28,12 +28,10 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationModel']
 
 
-@experimental
 class TextClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:

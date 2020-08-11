@@ -19,7 +19,6 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo import logging
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import SquadDataset
@@ -28,12 +27,11 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
+from nemo.utils import logging
 
 __all__ = ['QAModel']
 
 
-@experimental
 class QAModel(ModelPT):
     """
     BERT encoder with QA head training.
@@ -41,29 +39,36 @@ class QAModel(ModelPT):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert.input_types
+        return self.bert_model.input_types
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.version_2_with_negative = cfg.version_2_with_negative
-        self.doc_stride = cfg.doc_stride
-        self.max_query_length = cfg.max_query_length
-        self.max_seq_length = cfg.max_seq_length
-        self.do_lower_case = cfg.do_lower_case
+        self.version_2_with_negative = cfg.dataset.version_2_with_negative
+        self.doc_stride = cfg.dataset.doc_stride
+        self.max_query_length = cfg.dataset.max_query_length
+        self.max_seq_length = cfg.dataset.max_seq_length
+        self.do_lower_case = cfg.dataset.do_lower_case
+        self.use_cache = cfg.dataset.use_cache
         self.tokenizer = get_tokenizer(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.dataset.do_lower_case,
         )
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.bert = get_pretrained_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, config_file=cfg.language_model.bert_config
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config,
+            checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
-        self.hidden_size = self.bert.config.hidden_size
+        self.hidden_size = self.bert_model.config.hidden_size
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -78,7 +83,9 @@ class QAModel(ModelPT):
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
-        hidden_states = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 
@@ -176,7 +183,7 @@ class QAModel(ModelPT):
             max_seq_length=self.max_seq_length,
             version_2_with_negative=self.version_2_with_negative,
             mode=cfg.mode,
-            use_cache=cfg.use_cache,
+            use_cache=self.use_cache,
         )
         if cfg.mode == "eval":
             self.validation_dataset = dataset
@@ -190,19 +197,6 @@ class QAModel(ModelPT):
             num_workers=cfg.get('num_workers', 0),
         )
         return dl
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def restore_from(self, restore_path: str):
-        if restore_path:
-            logging.info(f"restore from {restore_path}")
-            pretrained_dict = torch.load(restore_path)['state_dict']
-            model_dict = self.state_dict()
-            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-            model_dict.update(pretrained_dict)
-            self.load_state_dict(model_dict)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

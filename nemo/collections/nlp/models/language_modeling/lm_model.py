@@ -21,23 +21,24 @@ from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo import logging
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
+from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
+    BertPretrainingDataset,
+    BertPretrainingPreprocessedDataloader,
+)
 from nemo.collections.nlp.metrics.perplexity import Perplexity
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
+from nemo.utils import logging
 
 __all__ = ['BERTLMModel']
 
 
-@experimental
-class BERTMLMModel(ModelPT):
+class BERTLMModel(ModelPT):
     """
     BERT language model pretraining.
     """
@@ -48,10 +49,10 @@ class BERTMLMModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {
-            'mlm_logits': self.mlm_classifier.output_types['logits'],
-            'nsp_logits': self.nsp_classifier.output_types['logits'],
-        }
+        output_types_dict = {'mlm_logits': self.mlm_classifier.output_types['logits']}
+        if not self.only_mlm_loss:
+            output_types_dict['nsp_logits'] = self.nsp_classifier.output_types['logits']
+        return output_types_dict
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if cfg.language_model.bert_config_file is not None:
@@ -79,36 +80,42 @@ class BERTMLMModel(ModelPT):
             self.bert_model = get_pretrained_lm_model(
                 pretrained_model_name=cfg.language_model.pretrained_model_name,
                 config_file=cfg.language_model.bert_config_file,
+                checkpoint_file=cfg.language_model.bert_checkpoint,
             )
         else:
             self.bert_model = get_pretrained_lm_model(
                 pretrained_model_name=cfg.language_model.pretrained_model_name,
                 config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
+                checkpoint_file=cfg.language_model.bert_checkpoint,
             )
 
         self.hidden_size = self.bert_model.config.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
+        self.only_mlm_loss = cfg.only_mlm_loss
 
         self.mlm_classifier = BertPretrainingTokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.vocab_size,
+            num_layers=cfg.num_tok_classification_layers,
             activation='gelu',
             log_softmax=True,
             use_transformer_init=True,
         )
 
-        self.nsp_classifier = SequenceClassifier(
-            hidden_size=self.hidden_size,
-            num_classes=2,
-            num_layers=2,
-            log_softmax=False,
-            activation='tanh',
-            use_transformer_init=True,
-        )
-
         self.mlm_loss = SmoothedCrossEntropyLoss()
-        self.nsp_loss = CrossEntropyLoss()
-        self.agg_loss = AggregatorLoss(num_inputs=2)
+
+        if not self.only_mlm_loss:
+            self.nsp_classifier = SequenceClassifier(
+                hidden_size=self.hidden_size,
+                num_classes=2,
+                num_layers=cfg.num_seq_classification_layers,
+                log_softmax=False,
+                activation='tanh',
+                use_transformer_init=True,
+            )
+
+            self.nsp_loss = CrossEntropyLoss()
+            self.agg_loss = AggregatorLoss(num_inputs=2)
 
         # # tie weights of MLM softmax layer and embedding layer of the encoder
         if (
@@ -134,6 +141,9 @@ class BERTMLMModel(ModelPT):
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
         mlm_logits = self.mlm_classifier(hidden_states=hidden_states)
+        if self.only_mlm_loss:
+            return (mlm_logits,)
+
         nsp_logits = self.nsp_classifier(hidden_states=hidden_states)
         return mlm_logits, nsp_logits
 
@@ -144,14 +154,15 @@ class BERTMLMModel(ModelPT):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        mlm_logits, nsp_logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        mlm_loss = self.mlm_loss(logits=logits[0], labels=output_ids, output_mask=output_mask)
 
-        mlm_loss = self.mlm_loss(logits=mlm_logits, labels=output_ids, output_mask=output_mask)
-        nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
+        if self.only_mlm_loss:
+            loss = mlm_loss
+        else:
+            nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
 
-        loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
+            loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
 
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
@@ -162,14 +173,16 @@ class BERTMLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        mlm_logits, nsp_logits = self.forward(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
+        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
-        mlm_loss = self.mlm_loss(logits=mlm_logits, labels=output_ids, output_mask=output_mask)
-        nsp_loss = self.nsp_loss(logits=nsp_logits, labels=labels)
+        mlm_loss = self.mlm_loss(logits=logits[0], labels=output_ids, output_mask=output_mask)
 
-        loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
+        if self.only_mlm_loss:
+            loss = mlm_loss
+        else:
+            nsp_loss = self.nsp_loss(logits=logits[1], labels=labels)
+
+            loss = self.agg_loss(loss_1=mlm_loss, loss_2=nsp_loss)
         perplexity = self.perplexity_metric(mlm_loss)
         tensorboard_logs = {'val_loss': loss, 'perplexity': perplexity}
         return {'val_loss': loss, 'log': tensorboard_logs}
@@ -243,20 +256,6 @@ class BERTMLMModel(ModelPT):
             num_workers=cfg.get('num_workers', 0),
         )
         return dl
-
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
-    def export(self, **kwargs):
-        pass
-
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

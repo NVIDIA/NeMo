@@ -84,7 +84,7 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+docs/build
 
 # PyBuilder
 target/
@@ -152,6 +152,7 @@ cifar-10-batches-py
 
 # Test data.
 tests/.data
+tests/data
 
 # outputs folder
 examples/*/outputs

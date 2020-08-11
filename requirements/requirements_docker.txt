@@ -59,7 +59,7 @@ youtokentome
 tqdm>=4.41.0
 rapidfuzz
 gdown
-megatron-lm==1.1
+megatron-lm>=1.1.3
 
 # tts
 pypinyin

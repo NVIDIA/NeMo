@@ -16,7 +16,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models.language_modeling.lm_model import BERTMLMModel
+from nemo.collections.nlp.models.language_modeling.lm_model import BERTLMModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -27,8 +27,10 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config:\n {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    bert_model = BERTMLMModel(cfg.model, trainer=trainer)
+    bert_model = BERTLMModel(cfg.model, trainer=trainer)
     trainer.fit(bert_model)
+    if cfg.model.nemo_path:
+        bert_model.save_to(cfg.model.nemo_path)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# TODO: which part if from HF?
+# TODO: which part is from HF?
 """
 Utility functions for Token Classification NLP tasks
 Some parts of this code were adapted from the HuggingFace library at
@@ -29,11 +28,11 @@ from typing import Any, Dict, Optional
 import h5py
 import numpy as np
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.collections.nlp.parts.utils_funcs import list2str
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.utils import logging
 
 __all__ = ['TextClassificationDataset']
 
@@ -89,7 +88,7 @@ class TextClassificationDataset(Dataset):
                 data_dir,
                 "cached_{}_{}_{}_{}".format(
                     filename[:-4], tokenizer_type, str(max_seq_length), str(vocab_size), '.hdf5'
-                ),
+                ),  # TODO: pylint(too-many-format-args)
             )
 
         if use_cache and os.path.exists(cached_features_file):

@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,45 +22,43 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import pickle
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 
-from nemo import logging
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
-from nemo.utils.decorators import experimental
+from nemo.utils import logging
 
 __all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
 
 
 def get_features(
-    queries,
-    max_seq_length,
-    tokenizer,
-    label_ids=None,
-    pad_label='O',
-    raw_labels=None,
-    ignore_extra_tokens=False,
-    ignore_start_end=False,
+    queries: List[str],
+    max_seq_length: int,
+    tokenizer: TokenizerSpec,
+    label_ids: dict = None,
+    pad_label: str = 'O',
+    raw_labels: List[str] = None,
+    ignore_extra_tokens: bool = False,
+    ignore_start_end: bool = False,
 ):
     """
+    Processes the data and returns features.
     Args:
-    queries (list of str): text sequences
-    max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-    tokenizer (Tokenizer): such as NemoBertTokenizer
-    pad_label (str): pad value use for labels.
-        by default, it's the neutral label.
-    raw_labels (list of str): list of labels for every word in a sequence
-    label_ids (dict): dict to map labels to label ids. Starts
-        with pad_label->0 and then increases in alphabetical order.
-        Required for training and evaluation, not needed for inference.
-    ignore_extra_tokens (bool): whether to ignore extra tokens in
-        the loss_mask,
-    ignore_start_end (bool): whether to ignore bos and eos tokens in
-        the loss_mask
+        queries: text sequences
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        pad_label: pad value use for labels. By default, it's the neutral label.
+        raw_labels: list of labels for every word in a sequence
+        label_ids: dict to map labels to label ids.
+            Starts with pad_label->0 and then increases in alphabetical order.
+            Required for training and evaluation, not needed for inference.
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
     """
     all_subtokens = []
     all_loss_mask = []
@@ -159,36 +157,27 @@ def get_features(
 
 class BertTokenClassificationDataset(Dataset):
     """
-    Creates dataset to use during training for token classification
-    tasks with a pretrained model.
+    Creates dataset to use during training for token classification tasks with a pretrained model.
 
-    Converts from raw data to an instance that can be used by
-    NMDataLayer.
-
-    For dataset to use during inference without labels, see
-    BertTokenClassificationInferDataset.
+    Converts from raw data to an instance that can be used by Dataloader.
+    For dataset to use during inference without labels, see BertTokenClassificationInferDataset.
 
     Args:
-        text_file (str): file to sequences, each line should a sentence,
-            No header.
-        label_file (str): file to labels, each line corresponds to
-            word labels for a sentence in the text_file. No header.
-        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as NemoBertTokenizer
-        num_samples (int): number of samples you want to use for the dataset.
+        text_file: file to sequences, each line should a sentence, no header.
+        label_file: file to labels, each line corresponds to word labels for a sentence in the text_file. No header.
+        max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+        tokenizer: such as NemoBertTokenizer
+        num_samples: number of samples you want to use for the dataset.
             If -1, use all dataset. Useful for testing.
-        pad_label (str): pad value use for labels.
-            by default, it's the neutral label.
-        label_ids (dict): label_ids (dict): dict to map labels to label ids.
+        pad_label: pad value use for labels. By default, it's the neutral label.
+        label_ids: label_ids (dict): dict to map labels to label ids.
             Starts with pad_label->0 and then increases in alphabetical order
             For dev set use label_ids generated during training to support
             cases when not all labels are present in the dev set.
             For training set label_ids should be None.
-        ignore_extra_tokens (bool): whether to ignore extra tokens in
-            the loss_mask,
-        ignore_start_end (bool): whether to ignore bos and eos tokens in
-            the loss_mask
-        use_cache (bool): whether to use the preprocessed files or not
+        ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
+        ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
+        use_cache: whether to use processed data cache or not
     """
 
     @property
@@ -206,17 +195,18 @@ class BertTokenClassificationDataset(Dataset):
 
     def __init__(
         self,
-        text_file,
-        label_file,
-        max_seq_length,
-        tokenizer,
-        label_ids,
-        num_samples=-1,
-        pad_label='O',
-        ignore_extra_tokens=False,
-        ignore_start_end=False,
-        use_cache=True,
+        text_file: str,
+        label_file: str,
+        max_seq_length: int,
+        tokenizer: TokenizerSpec,
+        num_samples: int = -1,
+        pad_label: str = 'O',
+        label_ids: Dict[str, int] = None,
+        ignore_extra_tokens: bool = False,
+        ignore_start_end: bool = False,
+        use_cache: bool = True,
     ):
+        """ Initializes BertTokenClassificationDataset. """
 
         data_dir = os.path.dirname(text_file)
         filename = os.path.basename(text_file)
@@ -297,22 +287,10 @@ class BertTokenClassificationDataset(Dataset):
         )
 
 
-@experimental
 class BertTokenClassificationInferDataset(Dataset):
     """
-    Creates dataset to use during inference for token classification
-    tasks with a pretrained model.
-
-    Converts from raw data to an instance that can be used by
-    NMDataLayer.
-
-    For dataset to use during training with labels, see
-    BertTokenClassificationDataset.
-
-    Args:
-        queries (list): list of queries to run inference on
-        max_seq_length (int): max sequence length minus 2 for [CLS] and [SEP]
-        tokenizer (Tokenizer): such as NemoBertTokenizer
+    Creates dataset to use during inference for token classification tasks with a pretrained model.
+    For dataset to use during training with labels, see BertTokenClassificationDataset.
     """
 
     @property
@@ -327,7 +305,16 @@ class BertTokenClassificationInferDataset(Dataset):
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
         }
 
-    def __init__(self, queries, max_seq_length, tokenizer):
+    def __init__(
+        self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec,
+    ):
+        """
+        Initializes BertTokenClassificationInferDataset
+        Args:
+            queries: list of queries to run inference on
+            max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
+            tokenizer: such as NemoBertTokenizer
+        """
         features = get_features(queries, max_seq_length, tokenizer)
 
         self.all_input_ids = features[0]

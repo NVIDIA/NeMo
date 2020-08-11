@@ -1,4 +1,4 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import array
-import glob
-import itertools
 import os
 import pickle
 import random
@@ -21,13 +19,10 @@ from typing import Dict, List, Optional
 
 import h5py
 import numpy as np
-import torch
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
-from nemo import logging
 from nemo.core.classes import Dataset
-from nemo.utils.decorators import experimental
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
 
@@ -36,7 +31,6 @@ def load_h5(input_file: str):
     return h5py.File(input_file, "r")
 
 
-@experimental
 class BertPretrainingDataset(Dataset):
     """
     Dataset for bert pretraining when using data preprocessing including tokenization
@@ -59,7 +53,7 @@ class BertPretrainingDataset(Dataset):
             max_seq_length: maximum sequence length of input tensors
             mask_probability: proability to mask token
             short_seq_prob: probability to create a sequence shorter than max_seq_length
-            seq_a_ratio: ratio between lengths of first and second sequence 
+            seq_a_ratio: ratio between lengths of first and second sequence
             sentence_idx_file: sentence indices file for caching
         """
         self.tokenizer = tokenizer
@@ -350,7 +344,6 @@ class BertPretrainingDataset(Dataset):
         return masked_ids, output_mask
 
 
-@experimental
 class BertPretrainingPreprocessedDataset(Dataset):
     """
     Dataset for already preprocessed data.
@@ -401,7 +394,6 @@ class BertPretrainingPreprocessedDataset(Dataset):
         return (input_ids, segment_ids, input_mask, output_ids, output_mask, next_sentence_labels)
 
 
-@experimental
 class BertPretrainingPreprocessedDataloader(DataLoader):
     """
     Dataloader for already preprocessed data in hdf5 files that is already in the format expected by BERT model.

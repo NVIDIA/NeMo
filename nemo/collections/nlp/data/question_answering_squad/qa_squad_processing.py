@@ -1,6 +1,6 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ from typing import Dict, List, Optional
 from tqdm import tqdm
 from transformers.tokenization_bert import BasicTokenizer
 
-from nemo import logging
 from nemo.collections.nlp.data.data_utils import DataProcessor, is_whitespace, normalize_answer
+from nemo.utils import logging
 
 
 """
@@ -252,7 +252,7 @@ class SquadProcessor(DataProcessor):
     """
     Processor for the SQuAD data set.
     used by the version 1.1 and version 2.0 of SQuAD, respectively.
-    
+
     Args:
         data_file: data file path
         mode: "train"/"eval" for training/validation mode

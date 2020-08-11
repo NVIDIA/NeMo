@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
@@ -47,10 +47,10 @@ class Preprocessor:
 
 @dataclass
 class WaveglowConfig:
-    waveglow: Dict = MISSING
+    waveglow: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
-    train_ds: Optional[Dict] = None
-    validation_ds: Optional[Dict] = None
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
@@ -149,13 +149,14 @@ class WaveGlowModel(ModelPT):
         }
 
     def validation_epoch_end(self, outputs):
-        waveglow_log_to_tb_func(
-            self.logger.experiment,
-            outputs[0].values(),
-            self.global_step,
-            tag="eval",
-            mel_fb=self.audio_to_melspec_precessor.fb,
-        )
+        if self.logger is not None and self.logger.experiment is not None:
+            waveglow_log_to_tb_func(
+                self.logger.experiment,
+                outputs[0].values(),
+                self.global_step,
+                tag="eval",
+                mel_fb=self.audio_to_melspec_precessor.fb,
+            )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}

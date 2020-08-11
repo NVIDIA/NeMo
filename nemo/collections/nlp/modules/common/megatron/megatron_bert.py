@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,21 +17,14 @@
 import os
 
 import torch
-from transformers import BertConfig
+from megatron import get_args, initialize_megatron
+from megatron.model import get_language_model
+from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.core.classes import typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-
-try:
-    from megatron.initialize import initialize_megatron
-    from megatron.model.bert_model import bert_attention_mask_func, bert_extended_attention_mask, bert_position_ids
-    from megatron.model.language_model import get_language_model
-    from megatron.model.utils import init_method_normal, scaled_init_method_normal
-except ModuleNotFoundError as err:
-    logging.error(f"Could not import {err.name}. Megatron LM is not available. Make sure you are using NeMo on GPUs.")
-
 
 __all__ = ['MegatronBertEncoder']
 
@@ -48,52 +41,36 @@ class MegatronBertEncoder(BertModule):
         tokenizer_type (str): tokenizer type, currently only 'BertWordPieceLowerCase' supported.
     """
 
-    def __init__(
-        self,
-        model_name,
-        vocab_file,
-        hidden_size=1024,
-        num_attention_heads=16,
-        num_layers=24,
-        max_seq_length=512,
-        tokenizer_type='BertWordPieceLowerCase',
-        init_method_std=0.02,
-        num_tokentypes=2,
-    ):
+    def __init__(self, model_name, config, vocab_file):
 
         super().__init__()
 
         if not os.path.exists(vocab_file):
             raise ValueError(f'Vocab file not found at {vocab_file}')
 
-        megatron_args = {
-            "num_layers": num_layers,
-            "hidden_size": hidden_size,
-            "num_attention_heads": num_attention_heads,
-            "max_position_embeddings": max_seq_length,
-            "tokenizer_type": tokenizer_type,
-            "vocab_file": vocab_file,
-        }
+        config["vocab_file"] = vocab_file
 
-        self.config = BertConfig(
-            num_layers=num_layers,
-            hidden_size=hidden_size,
-            num_attention_heads=num_attention_heads,
-            tokenizer_type=tokenizer_type,
-            vocab_file=vocab_file,
+        config['tokenizer_type'] = 'BertWordPieceLowerCase'
+
+        config['lazy_mpu_init'] = True
+
+        # Initialize part of Megatron global state that is needed for its constructor.
+        # We set 'lazy_mpu_init' flag on to make Megatron do only the initialization that does not depend
+        # on ddp be initialized yet (and we don't want Megatron to initialize DDP itself either)
+        # and to return a hook for us to call after PTL has torch.distributed initialized
+        # (that would be on our first forward() call).
+        self._lazy_init_fn = initialize_megatron(
+            extra_args_provider=None, args_defaults=config, ignore_unknown_args=True
         )
 
-        initialize_megatron(None, megatron_args, ignore_unknown_args=True)
-        init_method = init_method_normal(init_method_std)
+        # read Megatron arguments back
+        args = get_args()
 
         self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=bert_attention_mask_func,
-            num_tokentypes=num_tokentypes,
-            add_pooler=False,
-            init_method=init_method,
-            scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+            attention_mask_func=bert_attention_mask_func, num_tokentypes=2, add_pooler=False
         )
 
+        # key used for checkpoints.
         self._hidden_size = self.language_model.hidden_size
 
     @property
@@ -108,13 +85,20 @@ class MegatronBertEncoder(BertModule):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
+        if self._lazy_init_fn is not None:
+            self._lazy_init_fn()
+            self._lazy_init_fn = None
+
         extended_attention_mask = bert_extended_attention_mask(
             attention_mask, next(self.language_model.parameters()).dtype
         )
         position_ids = bert_position_ids(input_ids)
 
         sequence_output = self.language_model(
-            input_ids, position_ids, extended_attention_mask, tokentype_ids=token_type_ids
+            input_ids=input_ids,
+            position_ids=position_ids,
+            attention_mask=extended_attention_mask,
+            tokentype_ids=token_type_ids,
         )
         return sequence_output
 
@@ -127,3 +111,4 @@ class MegatronBertEncoder(BertModule):
             self.language_model.load_state_dict(state_dict['model'][self._language_model_key])
         else:
             self.load_state_dict(state_dict)
+        logging.info(f"weights restored from {restore_path}")

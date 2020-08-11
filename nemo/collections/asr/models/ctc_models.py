@@ -11,20 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Dict, Optional, Union
+import copy
+import json
+import os
+import tempfile
+from math import ceil
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharDataset
+from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import *
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
@@ -32,10 +37,16 @@ __all__ = ['EncDecCTCModel', 'JasperNet', 'QuartzNet']
 
 @experimental
 class EncDecCTCModel(ASRModel):
-    """Encoder decoder CTC-based models."""
+    """Base class for encoder decoder CTC-based models."""
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="QuartzNet15x5Base-En",
@@ -46,6 +57,13 @@ class EncDecCTCModel(ASRModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
+        self.global_rank = 0
+        self.world_size = 0
+        if trainer is not None:
+            self.global_rank = (trainer.node_rank * trainer.num_gpus) + trainer.local_rank
+            self.world_size = trainer.num_nodes * trainer.num_gpus
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = EncDecCTCModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
@@ -59,40 +77,140 @@ class EncDecCTCModel(ASRModel):
         # Setup metric objects
         self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
-    def transcribe(self, path2audio_file: str) -> str:
-        pass
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+        """
+        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
 
-    @staticmethod
-    def _setup_dataloader_from_config(config: Optional[Dict]):
+        Args:
+
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+        Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+        Bigger will result in better throughput performance but would use more memory.
+
+        Returns:
+
+            A list of transcriptions in the same order as paths2audio_files
+        """
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            return {}
+        # We will store transcriptions here
+        hypotheses = []
+        # Model's mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            # Work in tmp directory - will store manifest file there
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                    for audio_file in paths2audio_files:
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        fp.write(json.dumps(entry) + '\n')
+
+                config = {'paths2audio_files': paths2audio_files, 'batch_size': batch_size, 'temp_dir': tmpdir}
+
+                temporary_datalayer = self._setup_transcribe_dataloader(config)
+                for test_batch in temporary_datalayer:
+                    _, _, greedy_predictions = self.forward(
+                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                    )
+                    hypotheses += self._wer.ctc_decoder_predictions_tensor(greedy_predictions)
+                    del test_batch
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return hypotheses
+
+    def change_vocabulary(self, new_vocabulary: List[str]):
+        """
+        Changes vocabulary used during CTC decoding process. Use this method when fine-tuning on from pre-trained model.
+        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
+        use it if you want to use pretrained encoder when fine-tuning on a data in another language, or when you'd need
+        model to learn capitalization, punctuation and/or special characters.
+
+        If new_vocabulary == self.decoder.vocabulary then nothing will be changed.
+
+        Args:
+
+            new_vocabulary: list with new vocabulary. Must contain at least 2 elements. Typically, \
+            this is target alphabet.
+
+        Returns: None
+
+        """
+        if self.decoder.vocabulary == new_vocabulary:
+            logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+        else:
+            if new_vocabulary is None or len(new_vocabulary) == 0:
+                raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+            decoder_config = self.decoder.to_config_dict()
+            new_decoder_config = copy.deepcopy(decoder_config)
+            new_decoder_config['params']['vocabulary'] = new_vocabulary
+            new_decoder_config['params']['num_classes'] = len(new_vocabulary)
+            del self.decoder
+            self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
+            self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+            logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
+
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
         else:
             augmentor = None
 
-        dataset = AudioToCharDataset(
-            manifest_filepath=config['manifest_filepath'],
-            labels=config['labels'],
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            max_utts=config.get('max_utts', 0),
-            blank_index=config.get('blank_index', -1),
-            unk_index=config.get('unk_index', -1),
-            normalize=config.get('normalize_transcripts', False),
-            trim=config.get('trim_silence', True),
-            load_audio=config.get('load_audio', True),
-            parser=config.get('parser', 'en'),
-            add_misc=config.get('add_misc', False),
-        )
+        shuffle = config['shuffle']
+
+        # Instantiate tarred dataset loader or normal dataset loader
+        if config.get('is_tarred', False):
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
+            dataset = TarredAudioToCharDataset(
+                audio_tar_filepaths=config['tarred_audio_filepaths'],
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                sample_rate=config['sample_rate'],
+                int_values=config.get('int_values', False),
+                augmentor=augmentor,
+                shuffle_n=shuffle_n,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                max_utts=config.get('max_utts', 0),
+                blank_index=config.get('blank_index', -1),
+                unk_index=config.get('unk_index', -1),
+                normalize=config.get('normalize_transcripts', False),
+                trim=config.get('trim_silence', True),
+                parser=config.get('parser', 'en'),
+                add_misc=config.get('add_misc', False),
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+            )
+            shuffle = False
+        else:
+            dataset = AudioToCharDataset(
+                manifest_filepath=config['manifest_filepath'],
+                labels=config['labels'],
+                sample_rate=config['sample_rate'],
+                int_values=config.get('int_values', False),
+                augmentor=augmentor,
+                max_duration=config.get('max_duration', None),
+                min_duration=config.get('min_duration', None),
+                max_utts=config.get('max_utts', 0),
+                blank_index=config.get('blank_index', -1),
+                unk_index=config.get('unk_index', -1),
+                normalize=config.get('normalize_transcripts', False),
+                trim=config.get('trim_silence', True),
+                load_audio=config.get('load_audio', True),
+                parser=config.get('parser', 'en'),
+                add_misc=config.get('add_misc', False),
+            )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
             collate_fn=dataset.collate_fn,
             drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
+            shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
         )
 
@@ -100,6 +218,19 @@ class EncDecCTCModel(ASRModel):
         if 'shuffle' not in train_data_config:
             train_data_config['shuffle'] = True
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl) / self.world_size) / train_data_config['batch_size'])
+                )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         if 'shuffle' not in val_data_config:
@@ -174,6 +305,34 @@ class EncDecCTCModel(ASRModel):
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
+
+    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                stored.
+
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+        """
+        dl_config = {
+            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'sample_rate': self.preprocessor._sample_rate,
+            'labels': self.decoder.vocabulary,
+            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'trim_silence': True,
+            'shuffle': False,
+        }
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer
 
 
 @experimental

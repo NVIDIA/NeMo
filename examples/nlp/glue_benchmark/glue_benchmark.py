@@ -12,23 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models.language_modeling.lm_model import BERTMLMModel
+from nemo.collections.nlp.models import GLUEModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="conf", config_name="bert_pretraining_from_preprocessed_config")
+@hydra_runner(config_name="glue_benchmark_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config:\n {cfg.pretty()}')
+    logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
-    bert_model = BERTMLMModel(cfg.model, trainer=trainer)
-    trainer.fit(bert_model)
+    exp_manager_cfg = cfg.get("exp_manager", None)
+    if exp_manager_cfg:
+        exp_manager_cfg.name = cfg.model.task_name
+        logging.info(f'Setting task_name to {exp_manager_cfg.name} in exp_manager')
+    exp_manager(trainer, exp_manager_cfg)
+    model = GLUEModel(cfg.model, trainer=trainer)
+    trainer.fit(model)
+    if cfg.model.nemo_path:
+        model.save_to(cfg.model.nemo_path)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2020 The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from typing import List, Optional
 
@@ -32,7 +33,7 @@ __all__ = [
 
 MEGATRON_CACHE = os.path.join(os.path.dirname(str(TRANSFORMERS_CACHE)), 'megatron')
 
-CONFIGS = {'345m': {"hidden-size": 1024, "num-attention-heads": 16, "num-layers": 24, "max-seq-length": 512}}
+CONFIGS = {'345m': {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
 
 MEGATRON_CONFIG_MAP = {
     'megatron-bert-345m-uncased': {
@@ -55,6 +56,7 @@ MEGATRON_CONFIG_MAP = {
     },
     'megatron-bert-cased': {
         'config': None,
+        'checkpoint': None,
         'vocab': 'https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt',
         'do_lower_case': False,
     },
@@ -69,30 +71,27 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
             for example: bert-base-cased
         config_file: path to model configuration file.
     '''
-
-    if pretrained_model_name == 'megatron-bert-cased' or pretrained_model_name == 'megatron-bert-uncased':
-        if not (config_file):
-            raise ValueError(f'Config file is required for {pretrained_model_name}')
-
-    config = get_megatron_config(pretrained_model_name)
+    config = None
+    # get default config and checkpoint
     if config_file:
         with open(config_file) as f:
-            config = json.load(f)
+            configf = json.load(f)
+            config = {
+                "hidden_size": configf['hidden-size'],
+                "num_attention_heads": configf['num-attention-heads'],
+                "num_layers": configf['num-layers'],
+                "max_position_embeddings": configf['max-seq-length'],
+            }
+    else:
+        config = get_megatron_config(pretrained_model_name)
+    if config is None:
+        raise ValueError(f'Config file is required for {pretrained_model_name}')
 
-    checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
+    default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
-
-    model = MegatronBertEncoder(
-        model_name=pretrained_model_name,
-        vocab_file=vocab,
-        hidden_size=config['hidden-size'],
-        num_attention_heads=config['num-attention-heads'],
-        num_layers=config['num-layers'],
-        max_seq_length=config['max-seq-length'],
-    )
-
-    return model, checkpoint_file
+    model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
+    return model, default_checkpoint
 
 
 def get_megatron_lm_models_list() -> List[str]:
@@ -119,7 +118,7 @@ def get_megatron_vocab_file(pretrained_model_name):
     Args:
         pretrained_model_name (str): pretrained model name
     Returns:
-        path (str): path to the vocab file 
+        path (str): path to the vocab file
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['vocab']
     path = cached_path(url, cache_dir=MEGATRON_CACHE)
@@ -135,12 +134,16 @@ def get_megatron_checkpoint(pretrained_model_name):
         path (str): path to model checkpoint
     '''
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]['checkpoint']
+    if url is None:
+        return None
+
     path = os.path.join(MEGATRON_CACHE, pretrained_model_name)
 
     if not os.path.exists(path):
         master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
         if not os.path.exists(path):
             if master_device:
+                os.makedirs(MEGATRON_CACHE, exist_ok=True)
                 wget.download(url, path)
             # wait until the master process downloads the file and writes it to the cache dir
             if torch.distributed.is_initialized():

@@ -18,6 +18,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import traceback
 from abc import abstractmethod
 from os import path
 from typing import Dict, List, Optional, Union
@@ -46,13 +47,15 @@ class ModelPT(LightningModule, Model):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """
         Base class from which all NeMo models should inherit
+
         Args:
             cfg (DictConfig):  configuration object.
                 The cfg object should have (optionally) the following sub-configs:
-                    * train_ds - to instantiate training dataset
-                    * validation_ds - to instantiate validation dataset
-                    * test_ds - to instantiate testing dataset
-                    * optim - to instantiate optimizer with learning rate scheduler
+
+                * train_ds - to instantiate training dataset
+                * validation_ds - to instantiate validation dataset
+                * test_ds - to instantiate testing dataset
+                * optim - to instantiate optimizer with learning rate scheduler
 
             trainer (Optional): Pytorch Lightning Trainer instance
         """
@@ -78,32 +81,26 @@ class ModelPT(LightningModule, Model):
         self._trainer = trainer
 
         if self._cfg is not None:  # TODO: This check is redundant since we know cfg is an instance of DictConfig
-            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
-                self.setup_training_data(self._cfg.train_ds)
+            try:
+                if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                    self.setup_training_data(self._cfg.train_ds)
+
+            except Exception as e:
+                debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+                logging.debug("Original exception >>> \n" f"{debug_error}")
+
+                logging.warning(
+                    "Unable to load the train data loader with the provided config \n"
+                    f"{self._cfg.train_ds}\n"
+                    f"Please call the ModelPT.setup_training_data() method "
+                    f"and provide a valid configuration file."
+                )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                # Set some placeholder overriden by helper method
-                self._validation_loss_idx = 0
-                self._validation_names = None
-                self._validation_dl = None  # type: torch.utils.data.DataLoader
-
-                model_utils.resolve_validation_dataloaders(model=self)
-
-                if self._validation_names is None:
-                    if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
-                        self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+                self.setup_multiple_validation_data(val_data_config=None)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                # Set some placeholder overriden by helper method
-                self._test_loss_idx = 0
-                self._test_names = None
-                self._test_dl = None  # type: torch.utils.data.DataLoader
-
-                model_utils.resolve_test_dataloaders(model=self)
-
-                if self._test_names is None:
-                    if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
-                        self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
+                self.setup_multiple_test_data(test_data_config=None)
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -184,20 +181,44 @@ class ModelPT(LightningModule, Model):
         if not path.exists(restore_path):
             raise FileExistsError(f"Can't find {restore_path}")
 
+        cwd = os.getcwd()
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-            config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
-            model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
-            conf = OmegaConf.load(config_yaml)
-            OmegaConf.set_struct(conf, True)
-            instance = cls.from_config_dict(config=conf)
-            instance.load_state_dict(torch.load(model_weights))
+            try:
+                cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                os.chdir(tmpdir)
+                config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
+                model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
+                conf = OmegaConf.load(config_yaml)
+                OmegaConf.set_struct(conf, True)
+                conf = cls.update_config_with_specific_artifacts(config=conf, artifacts_dir=tmpdir)
+                instance = cls.from_config_dict(config=conf)
+                instance.load_state_dict(torch.load(model_weights))
+
+                logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
+            finally:
+                os.chdir(cwd)
+
         return instance
+
+    @classmethod
+    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
+        """
+        Updates config with model specific artifacts
+
+        Args:
+            config: model config
+            artifacts_dir: path to directory with artifacts restored from .nemo file
+        Returns:
+            config: model config
+        """
+        return config
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """
         Setups data loader to be used in training
+
         Args:
             train_data_layer_config: training data layer parameters.
         Returns:
@@ -210,6 +231,7 @@ class ModelPT(LightningModule, Model):
         """
         (Optionally) Setups data loader to be used in validation
         Args:
+
             val_data_layer_config: validation data layer parameters.
         Returns:
 
@@ -219,6 +241,7 @@ class ModelPT(LightningModule, Model):
     def setup_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
         (Optionally) Setups data loader to be used in test
+
         Args:
             test_data_layer_config: test data layer parameters.
         Returns:
@@ -226,21 +249,91 @@ class ModelPT(LightningModule, Model):
         """
         raise NotImplementedError()
 
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        """
+        (Optionally) Setups data loader to be used in validation, with support for multiple data loaders.
+
+        Args:
+            val_data_layer_config: validation data layer parameters.
+        """
+        try:
+            # Set some placeholder overriden by helper method
+            self._validation_loss_idx = 0
+            self._validation_names = None
+            self._validation_dl = None  # type: torch.utils.data.DataLoader
+
+            if val_data_config is not None:
+                if isinstance(val_data_config, dict):
+                    val_data_config = DictConfig(val_data_config)
+
+                self._cfg.validation_ds = val_data_config
+
+            model_utils.resolve_validation_dataloaders(model=self)
+
+            if self._validation_names is None:
+                if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
+                    self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+
+        except Exception as e:
+            debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logging.debug("Original exception >>> \n" f"{debug_error}")
+
+            logging.warning(
+                "Unable to load the validation data loader(s) with the provided config \n"
+                f"{self._cfg.validation_ds}\n"
+                f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
+                f"and provide a valid configuration file."
+            )
+
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        """
+        (Optionally) Setups data loader to be used in test, with support for multiple data loaders.
+
+        Args:
+            test_data_layer_config: test data layer parameters.
+        """
+        try:
+            # Set some placeholder overriden by helper method
+            self._test_loss_idx = 0
+            self._test_names = None
+            self._test_dl = None  # type: torch.utils.data.DataLoader
+
+            if test_data_config is not None:
+                if isinstance(test_data_config, dict):
+                    test_data_config = DictConfig(test_data_config)
+
+                self._cfg.test_ds = test_data_config
+
+            model_utils.resolve_test_dataloaders(model=self)
+
+            if self._test_names is None:
+                if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
+                    self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
+
+        except Exception as e:
+            debug_error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logging.debug("Original exception >>> \n" f"{debug_error}")
+
+            logging.warning(
+                "Unable to load the test data loader(s) with the provided config \n"
+                f"{self._cfg.test_ds}\n"
+                f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
+                f"and provide a valid configuration file."
+            )
+
     def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
         """
         Prepares an optimizer from a string name and its optional config parameters.
 
         Args:
-            optim_config: a dictionary containing the following keys.
-                - "lr": mandatory key for learning rate. Will raise ValueError
-                if not provided.
+            optim_config: A dictionary containing the following keys:
 
-                - "optimizer": string name pointing to one of the available
-                optimizers in the registry. If not provided, defaults to "adam".
-
-                - "opt_args": Optional list of strings, in the format "arg_name=arg_value".
-                The list of "arg_value" will be parsed and a dictionary of optimizer
-                kwargs will be built and supplied to instantiate the optimizer.
+                * "lr": mandatory key for learning rate. Will raise ValueError if not provided.
+                * "optimizer": string name pointing to one of the available optimizers in the registry. \
+                If not provided, defaults to "adam".
+                * "opt_args": Optional list of strings, in the format "arg_name=arg_value". \
+                The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
+                will be built and supplied to instantiate the optimizer.
         """
         # If config was not explicitly passed to us
         if optim_config is None:
