@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.utils.data
-from omegaconf import DictConfig
+from dataclasses import dataclass
+from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
-
+from hydra.utils import instantiate
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
@@ -26,6 +27,25 @@ from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.core.classes import ModelPT
 from nemo.utils.decorators import experimental
+
+@dataclass
+class PreprocessorParams:
+    pad_value: float = MISSING
+
+
+@dataclass
+class Preprocessor:
+    cls: str = MISSING
+    params: PreprocessorParams = PreprocessorParams()
+
+
+@dataclass
+class GlowTTSConfig:
+    encoder: Dict[Any, Any] = MISSING
+    decoder: Dict[Any, Any] = MISSING
+    preprocessor: Preprocessor = Preprocessor()
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
 
 
 @experimental
@@ -37,12 +57,23 @@ class GlowTTSModel(ModelPT):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.preprocessor = GlowTTSModel.from_config_dict(self._cfg.preprocessor)
+        schema = OmegaConf.structured(GlowTTSConfig)
+        # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
+        if isinstance(cfg, dict):
+            cfg = OmegaConf.create(cfg)
+        elif not isinstance(cfg, DictConfig):
+            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+        # Ensure passed cfg is compliant with schema
+        OmegaConf.merge(cfg, schema)
 
-        encoder = GlowTTSModel.from_config_dict(self._cfg.encoder)
-        decoder = GlowTTSModel.from_config_dict(self._cfg.decoder)
+        self.preprocessor = instantiate(self._cfg.preprocessor)
+
+        encoder = instantiate(self._cfg.encoder)
+        decoder = instantiate(self._cfg.decoder)
 
         self.glow_tts = GlowTTSModule(encoder, decoder, n_speakers=cfg.n_speakers, gin_channels=cfg.gin_channels)
 
@@ -55,6 +86,9 @@ class GlowTTSModel(ModelPT):
 
     def val_dataloader(self):
         return self._val_dl
+
+    def test_dataloader(self):
+        return self._test_dl
 
     def forward(self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
 
@@ -134,35 +168,36 @@ class GlowTTSModel(ModelPT):
             'val_length_loss': avg_length_loss,
             'val_logdet': avg_logdet,
         }
-        parser = self.val_dataloader().dataset.parser
-        separated_phonemes = "|".join([parser.symbols[c] for c in outputs[0]['x'][0]])
-        self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
-        self.logger.experiment.add_image(
-            "real_spectrogram",
-            plot_spectrogram_to_numpy(outputs[0]['y'][0].data.cpu().numpy()),
-            self.global_step,
-            dataformats="HWC",
-        )
-        self.logger.experiment.add_image(
-            "generated_spectrogram",
-            plot_spectrogram_to_numpy(outputs[0]['y_gen'][0].data.cpu().numpy()),
-            self.global_step,
-            dataformats="HWC",
-        )
-        self.logger.experiment.add_image(
-            "alignment_for_real_sp",
-            plot_alignment_to_numpy(outputs[0]['attn'][0].data.cpu().numpy()),
-            self.global_step,
-            dataformats="HWC",
-        )
-        self.logger.experiment.add_image(
-            "alignment_for_generated_sp",
-            plot_alignment_to_numpy(outputs[0]['attn_gen'][0].data.cpu().numpy()),
-            self.global_step,
-            dataformats="HWC",
-        )
-        log_audio_to_tb(self.logger.experiment, outputs[0]['y'][0], "true_audio_gf", self.global_step)
-        log_audio_to_tb(self.logger.experiment, outputs[0]['y_gen'][0], "generated_audio_gf", self.global_step)
+        if self.logger is not None and self.logger.experiment is not None:
+            parser = self.val_dataloader().dataset.parser
+            separated_phonemes = "|".join([parser.symbols[c] for c in outputs[0]['x'][0]])
+            self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
+            self.logger.experiment.add_image(
+                "real_spectrogram",
+                plot_spectrogram_to_numpy(outputs[0]['y'][0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            self.logger.experiment.add_image(
+                "generated_spectrogram",
+                plot_spectrogram_to_numpy(outputs[0]['y_gen'][0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            self.logger.experiment.add_image(
+                "alignment_for_real_sp",
+                plot_alignment_to_numpy(outputs[0]['attn'][0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            self.logger.experiment.add_image(
+                "alignment_for_generated_sp",
+                plot_alignment_to_numpy(outputs[0]['attn_gen'][0].data.cpu().numpy()),
+                self.global_step,
+                dataformats="HWC",
+            )
+            log_audio_to_tb(self.logger.experiment, outputs[0]['y'][0], "true_audio_gf", self.global_step)
+            log_audio_to_tb(self.logger.experiment, outputs[0]['y_gen'][0], "generated_audio_gf", self.global_step)
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
@@ -200,6 +235,9 @@ class GlowTTSModel(ModelPT):
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._val_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+
+    def setup_test_data(self, test_data_config: Optional[DictConfig]):
+        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
