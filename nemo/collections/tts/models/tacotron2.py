@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import torch
+from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from torch import nn
 
@@ -79,11 +79,11 @@ class Tacotron2Model(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.audio_to_melspec_precessor = Tacotron2Model.from_config_dict(self._cfg.preprocessor)
+        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
-        self.encoder = Tacotron2Model.from_config_dict(self._cfg.encoder)
-        self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
-        self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
+        self.encoder = instantiate(self._cfg.encoder)
+        self.decoder = instantiate(self._cfg.decoder)
+        self.postnet = instantiate(self._cfg.postnet)
         self.loss = Tacotron2Loss()
 
     @property
@@ -209,17 +209,7 @@ class Tacotron2Model(ModelPT):
 
         labels = cfg.dataset.params.labels
 
-        # Inject tokens
-        dataset_cfg = copy.deepcopy(cfg.dataset)
-        OmegaConf.set_struct(dataset_cfg, False)
-
-        dataset_cfg.params.bos_id = len(labels)
-        dataset_cfg.params.eos_id = len(labels) + 1
-        dataset_cfg.params.pad_id = len(labels) + 2
-
-        OmegaConf.set_struct(dataset_cfg, True)
-
-        dataset = Tacotron2Model.from_config_dict(dataset_cfg)
+        dataset = instantiate(cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
