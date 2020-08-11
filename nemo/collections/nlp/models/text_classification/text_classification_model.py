@@ -68,7 +68,7 @@ class TextClassificationModel(ModelPT):
             config_file=cfg.language_model.bert_config,
             checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
         self.classifier = SequenceClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.data_desc.num_classes,
