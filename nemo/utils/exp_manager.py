@@ -173,19 +173,21 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.add_file_handler(log_file)
     logging.rank = global_rank
 
-    if is_global_rank_zero():
-        if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
-            configure_loggers(
-                trainer,
-                exp_dir,
-                cfg.name,
-                cfg.version,
-                cfg.create_tensorboard_logger,
-                cfg.summary_writer_kwargs,
-                cfg.create_wandb_logger,
-                cfg.wandb_logger_kwargs,
-            )
+    # For some reason, LearningRateLogger requires trainer to have a logger. Safer to create logger on all ranks
+    # not just global rank 0.
+    if cfg.create_tensorboard_logger or cfg.create_wandb_logger:
+        configure_loggers(
+            trainer,
+            exp_dir,
+            cfg.name,
+            cfg.version,
+            cfg.create_tensorboard_logger,
+            cfg.summary_writer_kwargs,
+            cfg.create_wandb_logger,
+            cfg.wandb_logger_kwargs,
+        )
 
+    if is_global_rank_zero():
         if cfg.create_checkpoint_callback:
             configure_checkpointing(trainer, log_dir, cfg.name)
 
