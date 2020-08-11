@@ -8,7 +8,7 @@ gin_channels: &gin_channels 0
 
 train_dataset: ???
 validation_datasets: ???
-test_datasets: ???
+test_datasets: null
 cmu_dict_path: ???
 
 model:
@@ -19,12 +19,12 @@ model:
   train_ds:
     manifest_filepath: ${train_dataset}
     sample_rate: *sr
-    batch_size: 64
+    batch_size: 32
     max_duration: null
     min_duration: 0.1
     trim: false
     shuffle: True
-    num_workers: 64
+    num_workers: 8
     cmu_dict_path: ${cmu_dict_path}
 
 

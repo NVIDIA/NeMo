@@ -46,7 +46,7 @@ class GlowTTSConfig:
     preprocessor: Preprocessor = Preprocessor()
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
-
+    test_ds: Optional[Dict[Any, Any]] = None
 
 @experimental
 class GlowTTSModel(ModelPT):
