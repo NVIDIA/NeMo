@@ -205,7 +205,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
         model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         # In fast-dev-run, only one data loader is used
-        if model._trainer.fast_dev_run:
+        if hasattr(model, '_trainer') and model._trainer.fast_dev_run:
             model._validation_dl = model._validation_dl[:1]
             model._validation_names = model._validation_names[:1]
 
@@ -276,7 +276,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
         model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
         # In fast-dev-run, only one data loader is used
-        if model._trainer.fast_dev_run:
+        if hasattr(model, '_trainer') and model._trainer.fast_dev_run:
             model._test_dl = model._test_dl[:1]
             model._test_names = model._test_names[:1]
 
