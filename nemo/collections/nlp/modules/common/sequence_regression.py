@@ -14,16 +14,17 @@
 
 from typing import Dict, Optional
 
-from torch import Tensor, nn
+from torch import Tensor
 
-from nemo.collections.common.parts import MultiLayerPerceptron, transformer_weights_init
-from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import ChannelType, NeuralType, RegressionValuesType
+from nemo.collections.common.parts import MultiLayerPerceptron
+from nemo.collections.nlp.modules.common.classifier import Classifier
+from nemo.core.classes import typecheck
+from nemo.core.neural_types import NeuralType, RegressionValuesType
 
 __all__ = ['SequenceRegression']
 
 
-class SequenceRegression(NeuralModule):
+class SequenceRegression(Classifier):
     """
     Args:
         hidden_size: the hidden size of the mlp head on the top of the encoder
@@ -34,10 +35,6 @@ class SequenceRegression(NeuralModule):
         idx_conditioned_on: index of the token to use as the sequence representation for the classification task,
             default is the first token
     """
-
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -53,14 +50,12 @@ class SequenceRegression(NeuralModule):
         idx_conditioned_on: int = 0,
     ):
         """ Initializes the SequenceRegression module. """
-        super().__init__()
+        super().__init__(hidden_size=hidden_size, dropout=dropout)
         self._idx_conditioned_on = idx_conditioned_on
         self.mlp = MultiLayerPerceptron(
             hidden_size, num_classes=1, num_layers=num_layers, activation=activation, log_softmax=False,
         )
-        self.dropout = nn.Dropout(dropout)
-        if use_transformer_init:
-            self.apply(lambda module: transformer_weights_init(module, xavier=False))
+        self.post_init(use_transformer_init=use_transformer_init)
 
     @typecheck()
     def forward(self, hidden_states: Tensor) -> Tensor:
@@ -72,11 +67,3 @@ class SequenceRegression(NeuralModule):
         hidden_states = self.dropout(hidden_states)
         preds = self.mlp(hidden_states[:, self._idx_conditioned_on])
         return preds.view(-1)
-
-    @classmethod
-    def save_to(self, save_path: str):
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        pass
