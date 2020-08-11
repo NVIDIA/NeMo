@@ -574,7 +574,7 @@ pipeline {
       }
     }
 
-    stage('L2: TTS Fast dev runs') {
+    stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
           branch 'candidate'
@@ -606,6 +606,31 @@ pipeline {
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4'
+          }
+        }
+      }
+    }
+
+    stage('L2: TTS Fast dev runs 2') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+
+      parallel {
+        stage('GlowTTS') {
+          steps {
+            sh 'python examples/tts/glow_tts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[1]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4'
           }
         }
       }

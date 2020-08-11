@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import nemo.collections.tts.modules.glow_tts
 import nemo.collections.tts.modules.tacotron2
 import nemo.collections.tts.modules.waveglow
