@@ -209,7 +209,7 @@ class Tacotron2Model(ModelPT):
 
         labels = cfg.dataset.params.labels
 
-        dataset = intantiate(cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2)
+        dataset = instantiate(cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
