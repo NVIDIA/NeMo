@@ -71,7 +71,13 @@ class ModelPT(LightningModule, Model):
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
-        self._cfg = cfg
+
+        config = OmegaConf.to_container(cfg, resolve=True)
+        config = OmegaConf.create(config)
+        OmegaConf.set_struct(config, True)
+
+        self._cfg = config
+
         self.save_hyperparameters(self._cfg)
         self._train_dl = None
         self._validation_dl = None
