@@ -308,17 +308,23 @@ def check_resume(
     trainer.resume_from_checkpoint = str(checkpoint)
 
     if is_global_rank_zero():
-        # Move old files to a new folder
-        other_run_dirs = Path(log_dir).glob("run_*")
-        run_count = 0
-        for fold in other_run_dirs:
-            if fold.is_dir():
-                run_count += 1
-        new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
-        new_run_dir.mkdir()
+        # Check to see if any files exist that need to be moved
+        files_to_move = []
         for child in Path(log_dir).iterdir():
             if child.is_file():
-                copy(child, new_run_dir)
+                files_to_move.append(child)
+
+        if len(files_to_move) > 0:
+            # Move old files to a new folder
+            other_run_dirs = Path(log_dir).glob("run_*")
+            run_count = 0
+            for fold in other_run_dirs:
+                if fold.is_dir():
+                    run_count += 1
+            new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
+            new_run_dir.mkdir()
+            for file in files_to_move:
+                copy(file, new_run_dir)
 
 
 def check_explicit_log_dir(
@@ -346,7 +352,7 @@ def check_explicit_log_dir(
             f"name: {name}, or version: {version}. Please note that exp_dir, name, and version will be ignored."
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
-        logging.warning("Exp_manager is logging to {explicit_log_dir}, but it already exists.")
+        logging.warning(f"Exp_manager is logging to {explicit_log_dir}, but it already exists.")
     return Path(explicit_log_dir), str(explicit_log_dir), "", ""
 
 
