@@ -18,7 +18,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import copy
+from shutil import copy, move
 from typing import Any, Dict, List, Optional, Union
 
 from hydra.core.hydra_config import HydraConfig
@@ -324,7 +324,7 @@ def check_resume(
             new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
             new_run_dir.mkdir()
             for file in files_to_move:
-                copy(file, new_run_dir)
+                move(file, new_run_dir)
 
 
 def check_explicit_log_dir(
