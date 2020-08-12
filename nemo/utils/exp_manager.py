@@ -323,8 +323,8 @@ def check_resume(
                     run_count += 1
             new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
             new_run_dir.mkdir()
-            for file in files_to_move:
-                move(file, new_run_dir)
+            for _file in files_to_move:
+                move(str(_file), str(new_run_dir))
 
 
 def check_explicit_log_dir(
