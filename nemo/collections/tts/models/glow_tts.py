@@ -207,7 +207,7 @@ class GlowTTSModel(ModelPT):
     def _setup_dataloader_from_config(self, cfg: DictConfig):
 
         if 'manifest_filepath' in cfg and cfg['manifest_filepath'] is None:
-            logging.info(f"Could not load dataset as `manifest_filepath` was None. Provided config : {cfg}")
+            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {cfg}")
             return None
 
         if 'augmentor' in cfg:

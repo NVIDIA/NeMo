@@ -98,21 +98,21 @@ class ModelPT(LightningModule, Model):
 
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
-                logging.info(
+                logging.warning(
                     f"Please call the ModelPT.setup_training_data() method "
                     f"and provide a valid configuration file to setup the train data loader.\n"
                     f"Train config : \n{self._cfg.train_ds}"
                 )
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                logging.info(
+                logging.warning(
                     f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
                     f"and provide a valid configuration file to setup the validation data loader(s). \n"
                     f"Validation config : \n{self._cfg.validation_ds}"
                 )
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                logging.info(
+                logging.warning(
                     f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
                     f"and provide a valid configuration file to setup the test data loader(s).\n"
                     f"Test config : \n{self._cfg.test_ds}"

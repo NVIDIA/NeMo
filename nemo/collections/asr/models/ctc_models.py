@@ -197,7 +197,7 @@ class EncDecCTCModel(ASRModel):
             shuffle = False
         else:
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.info(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
 
             dataset = AudioToCharDataset(

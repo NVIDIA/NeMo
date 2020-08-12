@@ -158,7 +158,7 @@ def unique_names_check(name_list: Optional[List[str]]):
         return
 
     # Name uniqueness checks
-    names = {}
+    names = set()
     for name in name_list:
         if name in names:
             logging.warning(
@@ -168,7 +168,7 @@ def unique_names_check(name_list: Optional[List[str]]):
                 f"Resolved name : {name}"
             )
         else:
-            names[name] = True  # we need just hash key check, value is just a placeholder
+            names.add(name)  # we need just hash key check, value is just a placeholder
 
 
 def resolve_validation_dataloaders(model: 'ModelPT'):
