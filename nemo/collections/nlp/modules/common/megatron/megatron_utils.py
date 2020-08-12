@@ -63,13 +63,20 @@ MEGATRON_CONFIG_MAP = {
 }
 
 
-def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str] = None):
+def get_megatron_lm_model(
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
+):
     '''
     Returns the dict of special tokens associated with the model.
     Args:
         pretrained_mode_name ('str'): name of the pretrained model from the hugging face list,
             for example: bert-base-cased
-        config_file: path to model configuration file.
+        config_dict: model configuration parameters
+        config_file: path to model configuration file. Takes precedence over config_dict if both supplied.
+        checkpoint_file: path to checkpoint file.
     '''
     config = None
     # get default config and checkpoint
@@ -82,16 +89,19 @@ def get_megatron_lm_model(pretrained_model_name: str, config_file: Optional[str]
                 "num_layers": configf['num-layers'],
                 "max_position_embeddings": configf['max-seq-length'],
             }
+    elif config_dict:
+        config = config_dict
     else:
         config = get_megatron_config(pretrained_model_name)
     if config is None:
-        raise ValueError(f'Config file is required for {pretrained_model_name}')
+        raise ValueError(f'config_file or config_dict is required for {pretrained_model_name}')
 
-    default_checkpoint = get_megatron_checkpoint(pretrained_model_name)
+    if not checkpoint_file:
+        checkpoint_file = get_megatron_checkpoint(pretrained_model_name)
 
     vocab = get_megatron_vocab_file(pretrained_model_name)
     model = MegatronBertEncoder(model_name=pretrained_model_name, config=config, vocab_file=vocab)
-    return model, default_checkpoint
+    return model, checkpoint_file
 
 
 def get_megatron_lm_models_list() -> List[str]:
