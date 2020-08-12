@@ -27,6 +27,7 @@ from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.core.classes import ModelPT
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 
@@ -204,6 +205,10 @@ class GlowTTSModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
+
+        if 'manifest_filepath' in cfg and cfg['manifest_filepath'] is None:
+            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {cfg}")
+            return None
 
         if 'augmentor' in cfg:
             augmentor = process_augmentations(cfg['augmentor'])
