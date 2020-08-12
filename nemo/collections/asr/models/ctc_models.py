@@ -167,7 +167,7 @@ class EncDecCTCModel(ASRModel):
             if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
                 'manifest_filepath' in config and config['manifest_filepath'] is None
             ):
-                logging.info(
+                logging.warning(
                     "Could not load dataset as `manifest_filepath` was None or "
                     f"`tarred_audio_filepaths` is None. Provided config : {config}"
                 )
