@@ -159,7 +159,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
         check_resume(trainer, log_dir, cfg.resume_past_end, cfg.resume_ignore_no_checkpoint)
 
     checkpoint_name = name
-    if not checkpoint_name:  # If name returned from get_log_dir is "", use cfg.name for checkpointing
+    # If name returned from get_log_dir is "", use cfg.name for checkpointing
+    if checkpoint_name is None or checkpoint_name == '':
         checkpoint_name = cfg.name or "default"
     cfg.name = name  # Used for configure_loggers so that the log_dir is properly set even if name is ""
     cfg.version = version

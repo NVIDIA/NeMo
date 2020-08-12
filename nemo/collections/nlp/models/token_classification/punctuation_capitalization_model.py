@@ -73,7 +73,7 @@ class PunctuationCapitalizationModel(ModelPT):
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
 
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
