@@ -159,6 +159,7 @@ pipeline {
             model.validation_ds.batch_size=2 \
             model.train_ds.manifest_filepath=/home/TestData/an4_speaker/train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_speaker/dev.json \
+            model.test_ds.manifest_filepath=/home/TestData/an4_speaker/test.json \
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             exp_manager.exp_dir=examples/speaker_recognition/speaker_recognition_results'
@@ -241,15 +242,14 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.train_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.validation_ds.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.version_2_with_negative=false \
+            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
@@ -265,15 +265,14 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
             model.language_model.pretrained_model_name=bert-base-uncased \
-            model.version_2_with_negative=true \
+            model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
@@ -285,6 +284,65 @@ pipeline {
         }
       }
     }
+
+    stage('L2: Parallel MegaBERT Text Classification / SQUAD v2.0') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+      failFast true
+      parallel {
+        stage ('Text Classification with MegaBERT') {
+          steps {
+            sh 'cd examples/nlp/text_classification && \
+            python text_classification_with_bert.py \
+            model.train_ds.file_name=/home/TestData/nlp/retail/train.tsv \
+            model.validation_ds.file_name=/home/TestData/nlp/retail/dev.tsv \
+            model.language_model.pretrained_model_name=megatron-bert-345m-cased \
+            model.train_ds.batch_size=10 \
+            model.dataset.max_seq_length=50 \
+            model.dataset.use_cache=false \
+            model.dataset.do_lower_case=false \
+	    trainer.distributed_backend=ddp \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[1] \
+            +trainer.fast_dev_run=true \
+            exp_manager.exp_dir=exp_megabert_base_uncased \
+            '
+            sh 'rm -rf examples/nlp/text_classification/exp_megabert_base_uncased'
+          }
+        }
+        stage('MegaBERT SQUAD 2.0') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'cd examples/nlp/question_answering && \
+            python question_answering_squad.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.dataset.use_cache=false \
+            model.dataset.do_lower_case=true \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4 \
+	    trainer.distributed_backend=ddp \
+            trainer.max_epochs=1 \
+            +trainer.max_steps=1 \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.pretrained_model_name=megatron-bert-345m-uncased  \
+            model.dataset.version_2_with_negative=true \
+            trainer.precision=16 \
+            trainer.amp_level=O1 \
+            trainer.gpus=[0] \
+            trainer.num_sanity_val_steps=1000 \
+            exp_manager.exp_dir=exp_megabert_squad_2.0 \
+            '
+            sh 'rm -rf examples/nlp/question_answering/exp_megabert_squad_2.0'
+          }
+        }
+      }
+    }
+
     stage('L2: Parallel RoBERTa SQUAD v1.1 / v2.0') {
       when {
         anyOf{
@@ -300,16 +358,15 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.do_lower_case=false \
+            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
-            model.version_2_with_negative=false \
+            model.dataset.version_2_with_negative=false \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[0] \
@@ -325,16 +382,15 @@ pipeline {
             sh 'cd examples/nlp/question_answering && \
             python question_answering_squad.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.train_ds.use_cache=false \
-            model.validation_ds.use_cache=false \
+            model.dataset.use_cache=false \
             model.train_ds.batch_size=8 \
             model.validation_ds.batch_size=8 \
             trainer.max_epochs=1 \
             +trainer.max_steps=1 \
             model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.do_lower_case=false \
+            model.dataset.do_lower_case=false \
             model.language_model.pretrained_model_name=roberta-base \
-            model.version_2_with_negative=true \
+            model.dataset.version_2_with_negative=true \
             trainer.precision=16 \
             trainer.amp_level=O1 \
             trainer.gpus=[1] \
@@ -530,54 +586,49 @@ pipeline {
       }
     }
 
-    stage('L2: NER with cased Megatron') {
-      // Megatron uses all GPUs under the hood, cannot parallel
-      when {
+    stage('L2: Parallel NER with Megatron') {
+     when {
         anyOf{
           branch 'candidate'
           changeRequest target: 'candidate'
         }
-      }
-      failFast true
-      steps {
+     }
+     failFast true
+     parallel {
+      stage('L2: NER with cased Megatron') {
+       steps {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
         trainer.gpus=[0] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
-        model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=null \
+        model.language_model.pretrained_model_name=megatron-bert-345m-cased trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_cased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_cased'
+       }
       }
-    }
 
-    stage('L2: NER with uncased Megatron') {
-      // Megatron uses all GPUs under the hood, cannot parallel
-      when {
-        anyOf{
-          branch 'candidate'
-          changeRequest target: 'candidate'
-        }
-      }
-      failFast true
-      steps {
+      stage('L2: NER with uncased Megatron') {
+       steps {
         sh 'cd examples/nlp/token_classification && \
         python token_classification.py \
         model.dataset.data_dir=/home/TestData/nlp/token_classification_punctuation/ \
-        trainer.gpus=[0] \
+        trainer.gpus=[1] \
         +trainer.fast_dev_run=true \
         model.dataset.use_cache=false \
         model.language_model.pretrained_model_name=megatron-bert-uncased \
         model.language_model.bert_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
         model.language_model.bert_config=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
-        trainer.distributed_backend=null \
+        trainer.distributed_backend=ddp \
         exp_manager.exp_dir=exp_ner_megatron_bert_base_uncased'
         sh 'rm -rf examples/nlp/token_classification/exp_ner_megatron_bert_base_uncased'
+        }
+       }
       }
     }
 
-    stage('L2: TTS Fast dev runs') {
+    stage('L2: TTS Fast dev runs 1') {
       when {
         anyOf{
           branch 'candidate'
@@ -609,6 +660,31 @@ pipeline {
             trainer.max_epochs=-1 \
             model.train_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.batch_size=4'
+          }
+        }
+      }
+    }
+
+    stage('L2: TTS Fast dev runs 2') {
+      when {
+        anyOf{
+          branch 'candidate'
+          changeRequest target: 'candidate'
+        }
+      }
+
+      parallel {
+        stage('GlowTTS') {
+          steps {
+            sh 'python examples/tts/glow_tts.py \
+            train_dataset=/home/TestData/an4_dataset/an4_train.json \
+            validation_datasets=/home/TestData/an4_dataset/an4_val.json \
+            trainer.gpus="[1]" \
+            +trainer.fast_dev_run=True \
+            trainer.distributed_backend=null \
+            trainer.max_epochs=-1 \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4'
           }
         }
       }

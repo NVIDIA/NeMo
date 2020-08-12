@@ -65,7 +65,6 @@ model:
     shuffle: true
     num_samples: -1
     num_workers: 2
-    use_cache: true
     drop_last: false
     pin_memory: false
 
@@ -78,7 +77,6 @@ model:
     shuffle: false
     num_samples: -1
     num_workers: 2
-    use_cache: true
     drop_last: false
     pin_memory: false
 

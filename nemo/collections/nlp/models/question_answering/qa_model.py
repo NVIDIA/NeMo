@@ -46,13 +46,18 @@ class QAModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.version_2_with_negative = cfg.version_2_with_negative
-        self.doc_stride = cfg.doc_stride
-        self.max_query_length = cfg.max_query_length
-        self.max_seq_length = cfg.max_seq_length
-        self.do_lower_case = cfg.do_lower_case
+        self.version_2_with_negative = cfg.dataset.version_2_with_negative
+        self.doc_stride = cfg.dataset.doc_stride
+        self.max_query_length = cfg.dataset.max_query_length
+        self.max_seq_length = cfg.dataset.max_seq_length
+        self.do_lower_case = cfg.dataset.do_lower_case
+        self.use_cache = cfg.dataset.use_cache
         self.tokenizer = get_tokenizer(
-            pretrained_model_name=cfg.language_model.pretrained_model_name, tokenizer_name="nemobert"
+            tokenizer_name=cfg.language_model.tokenizer,
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            vocab_file=cfg.language_model.vocab_file,
+            tokenizer_model=cfg.language_model.tokenizer_model,
+            do_lower_case=cfg.dataset.do_lower_case,
         )
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -63,7 +68,7 @@ class QAModel(ModelPT):
             checkpoint_file=cfg.language_model.bert_checkpoint,
         )
 
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -178,7 +183,7 @@ class QAModel(ModelPT):
             max_seq_length=self.max_seq_length,
             version_2_with_negative=self.version_2_with_negative,
             mode=cfg.mode,
-            use_cache=cfg.use_cache,
+            use_cache=self.use_cache,
         )
         if cfg.mode == "eval":
             self.validation_dataset = dataset

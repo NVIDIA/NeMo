@@ -11,14 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
 from typing import Dict, Optional, Union
 
 import torch
+import torch.utils.data
 
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.parts import collections, parsers
+from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
+from nemo.collections.tts.modules.glow_tts_parser import GlowTTSParser
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
+from nemo.core.neural_types.elements import *
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.utils.decorators import experimental
 
 
 class AudioDataset(Dataset):
@@ -27,13 +35,13 @@ class AudioDataset(Dataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     def __init__(
         self,
-        manifest_filepath: Union[str, 'pathlib.Path'],
+        manifest_filepath: Union[str, "pathlib.Path"],
         n_segments: int,
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
@@ -64,7 +72,7 @@ class AudioDataset(Dataset):
         """
 
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath.split(","),
             parser=parsers.make_parser(),
             min_duration=min_duration,
             max_duration=max_duration,
@@ -117,3 +125,73 @@ class AudioDataset(Dataset):
 
     def __len__(self):
         return len(self.collection)
+
+
+@experimental
+class AudioToPhonemesDataset(_AudioTextDataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "audio_signal": NeuralType(
+                ("B", "T"),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, "_sample_rate")
+                else AudioSignal(),
+            ),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: str,
+        cmu_dict_path: str,
+        sample_rate: int,
+        int_values: bool = False,
+        augmentor: AudioAugmentor = None,
+        max_duration: Optional[int] = None,
+        min_duration: Optional[int] = None,
+        max_utts: int = 0,
+        trim: bool = False,
+        load_audio: bool = True,
+        add_misc: bool = False,
+    ):
+        """
+        Dataset that loads tensors via a json file containing paths to audio files, transcripts, and
+        durations (in seconds). If a phoneme dictionary path is provided, the words in the transcript are replaced
+        with corresponding phonemes if they are found in the dictionary.
+
+        Args:
+            manifest_filepath (str): Path to manifest json as described above. Can be comma-separated paths
+                such as "train_1.json,train_2.json" which is treated as two separate json files.
+            cmu_dict_path (str): Path to cmu phoneme dictionary.
+            sample_rate (int): Sample rate to resample loaded audio to
+            int_values (bool): If true, load samples as 32-bit integers. Defauts to False.
+            augmentor (nemo.collections.asr.parts.perturb.AudioAugmentor):
+                An AudioAugmentor object used to augment loaded audio
+            max_duration: If audio exceeds this length, do not include in dataset
+            min_duration: If audio is less than this length, do not include in dataset
+            max_utts: Limit number of utterances
+            trim (bool): Boolean flag whether to trim the audio
+            load_audio (bool): Boolean flag indicate whether do or not load audio
+            add_misc (bool): True if add additional info dict.
+        """
+
+        self.parser = GlowTTSParser(cmu_dict_path)
+
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            sample_rate=sample_rate,
+            int_values=int_values,
+            augmentor=augmentor,
+            parser=self.parser,
+            max_duration=max_duration,
+            min_duration=min_duration,
+            max_utts=max_utts,
+            trim=trim,
+            load_audio=load_audio,
+            add_misc=add_misc,
+        )

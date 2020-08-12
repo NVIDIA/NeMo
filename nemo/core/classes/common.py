@@ -240,14 +240,19 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig, *args: Any, **kwargs: Any):
+    def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
+        # Resolve the config dict
+        if isinstance(config, DictConfig):
+            config = OmegaConf.to_container(config, resolve=True)
+            config = OmegaConf.create(config)
+            OmegaConf.set_struct(config, True)
+
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
-            instance = hydra.utils.instantiate(config=config, *args, **kwargs)
+            instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
-            # TODO: allow passthrough for args, and kwargs too?
             instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
@@ -257,6 +262,13 @@ class Serialization(ABC):
     def to_config_dict(self) -> DictConfig:
         """Returns object's configuration to config dictionary"""
         if hasattr(self, '_cfg') and self._cfg is not None and isinstance(self._cfg, DictConfig):
+            # Resolve the config dict
+            config = OmegaConf.to_container(self._cfg, resolve=True)
+            config = OmegaConf.create(config)
+            OmegaConf.set_struct(config, True)
+
+            self._cfg = config
+
             return self._cfg
         else:
             raise NotImplementedError(

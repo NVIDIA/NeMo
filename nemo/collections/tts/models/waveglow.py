@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import torch
+from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
@@ -47,10 +48,10 @@ class Preprocessor:
 
 @dataclass
 class WaveglowConfig:
-    waveglow: Dict = MISSING
+    waveglow: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
-    train_ds: Optional[Dict] = None
-    validation_ds: Optional[Dict] = None
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
@@ -74,8 +75,8 @@ class WaveGlowModel(ModelPT):
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = 1.0
-        self.audio_to_melspec_precessor = WaveGlowModel.from_config_dict(self._cfg.preprocessor)
-        self.waveglow = WaveGlowModel.from_config_dict(self._cfg.waveglow)
+        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
+        self.waveglow = instantiate(self._cfg.waveglow)
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()
 
@@ -179,7 +180,7 @@ class WaveGlowModel(ModelPT):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        dataset = WaveGlowModel.from_config_dict(cfg.dataset)
+        dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):

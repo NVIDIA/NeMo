@@ -71,7 +71,7 @@ class IntentSlotClassificationModel(ModelPT):
             checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
 
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.hidden_size,
