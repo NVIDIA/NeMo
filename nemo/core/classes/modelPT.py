@@ -284,6 +284,7 @@ class ModelPT(LightningModule, Model):
                 f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
                 f"and provide a valid configuration file."
             )
+            raise e
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
         """
