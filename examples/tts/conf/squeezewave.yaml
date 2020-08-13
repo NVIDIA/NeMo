@@ -20,7 +20,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: true
-      batch_size: 96
+      batch_size: 256
       num_workers: 4
 
   validation_ds:
@@ -81,8 +81,9 @@ model:
       wn_kernel_size: 3
 
   optim:
-    name: adam
+    name: novograd
     lr: 4e-4
+    weight_decay: 1e-5
 
 trainer:
   gpus: 1 # number of gpus
@@ -94,8 +95,8 @@ trainer:
   logger: False  # Provided by exp_manager
   log_save_interval: 1000
   row_log_interval: 200
-  check_val_every_n_epoch: 1
-  precision: 32
+  check_val_every_n_epoch: 25
+  precision: 16
 
 exp_manager:
   root_dir: null
