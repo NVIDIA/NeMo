@@ -34,7 +34,9 @@ def main():
     parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
-    parser.add_argument("--do_not_trim_silence", action="store_false", help="Add this flag to disable silence trimming")
+    parser.add_argument(
+        "--do_not_trim_silence", action="store_false", help="Add this flag to disable silence trimming"
+    )
     parser.add_argument(
         "--do_not_normalize_text", action="store_false", help="Add this flag to set to False for non-English."
     )

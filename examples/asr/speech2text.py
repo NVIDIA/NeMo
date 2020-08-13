@@ -59,7 +59,9 @@ def main():
     parser.add_argument("--wandb_exp_name", default=None, type=str)
     parser.add_argument("--wandb_project", default=None, type=str)
     parser.add_argument("--max_train_audio_len", default=16.7, type=float, help="max audio length")
-    parser.add_argument("--do_not_trim_silence", action="store_false", help="Add this flag to disable silence trimming")
+    parser.add_argument(
+        "--do_not_trim_silence", action="store_false", help="Add this flag to disable silence trimming"
+    )
     parser.add_argument(
         "--do_not_normalize_text", action="store_false", help="Add this flag to set to False for non-English."
     )
