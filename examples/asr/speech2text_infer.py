@@ -35,7 +35,9 @@ def main():
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument("--do_not_trim_silence", type="store_false", help="Add this flag to disable silence trimming")
-    parser.add_argument("--do_not_normalize_text", type="store_false", help="Add this flag to set to False for non-English.")
+    parser.add_argument(
+        "--do_not_normalize_text", type="store_false", help="Add this flag to set to False for non-English."
+    )
     args = parser.parse_args()
 
     # Setup NeuralModuleFactory to control training

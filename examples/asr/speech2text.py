@@ -60,7 +60,9 @@ def main():
     parser.add_argument("--wandb_project", default=None, type=str)
     parser.add_argument("--max_train_audio_len", default=16.7, type=float, help="max audio length")
     parser.add_argument("--do_not_trim_silence", type="store_false", help="Add this flag to disable silence trimming")
-    parser.add_argument("--do_not_normalize_text", type="store_false", help="Add this flag to set to False for non-English.")
+    parser.add_argument(
+        "--do_not_normalize_text", type="store_false", help="Add this flag to set to False for non-English."
+    )
     args = parser.parse_args()
 
     # Setup NeuralModuleFactory to control training
