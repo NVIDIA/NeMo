@@ -34,10 +34,8 @@ def main():
     parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size to use for evaluation")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
-    parser.add_argument("--trim_silence", default=True, type=eval, help="trim audio from silence or not")
-    parser.add_argument(
-        "--normalize_text", default=True, type=eval, help="Normalize transcripts or not. Set to False for non-English."
-    )
+    parser.add_argument("--do_not_trim_silence", type="store_false", help="Add this flag to disable silence trimming")
+    parser.add_argument("--do_not_normalize_text", type="store_false", help="Add this flag to set to False for non-English.")
     args = parser.parse_args()
 
     # Setup NeuralModuleFactory to control training
@@ -58,9 +56,9 @@ def main():
         manifest_filepath=args.dataset,
         labels=asr_model.vocabulary,
         batch_size=args.eval_batch_size,
-        trim_silence=args.trim_silence,
+        trim_silence=args.do_not_trim_silence,
         shuffle=False,
-        normalize_transcripts=args.normalize_text,
+        normalize_transcripts=args.do_not_normalize_text,
     )
     greedy_decoder = nemo_asr.GreedyCTCDecoder()
 
