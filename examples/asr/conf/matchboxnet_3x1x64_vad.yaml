@@ -1,7 +1,7 @@
 name: &name "MatchboxNet-3x1x64-vad"
-sample_rate: &sample_rate 16000
 
 model:
+  sample_rate: &sample_rate 16000
   timesteps: &timesteps 64
   repeat: &repeat 1
   dropout: &dropout 0.0
@@ -61,11 +61,6 @@ model:
       rect_masks: 5
       rect_time: 25
       rect_freq: 15
-
-#   crop_or_pad_augment:
-#     cls: nemo.collections.asr.modules.CropOrPadSpectrogramAugmentation
-#     params:
-#       audio_length: *timesteps
 
   encoder:
     cls: nemo.collections.asr.modules.ConvASREncoder
