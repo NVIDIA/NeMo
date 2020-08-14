@@ -166,6 +166,20 @@ class GlowTTSParser:
             ]
         ]
 
+        # List of other replacement pairs:
+        self._replace = [
+            (re.compile("\\b%s\\b" % x[0], re.IGNORECASE), x[1])
+            for x in [
+                ("_", "underscore"),
+                ("src", "source"),
+                ("dll", "d l l"),
+                ("btw", "by the way"),
+                ("http", "h t t p"),
+                ("www", "w w w"),
+                ("c\+\+", "c plus plus"),
+            ]
+        ]
+
         self._inflect = inflect.engine()
         self._comma_number_re = re.compile(r"([0-9][0-9,]+[0-9])")
         self._decimal_number_re = re.compile(r"([0-9]+\.[0-9]+)")
@@ -200,11 +214,14 @@ class GlowTTSParser:
         text = re.sub(self._dollars_re, self._expand_dollars, text)
         text = re.sub(self._decimal_number_re, self._expand_decimal_point, text)
         text = re.sub(self._ordinal_re, self._expand_ordinal, text)
+        text = " ".join(re.split('(\d+)', text))
         text = re.sub(self._number_re, self._expand_number, text)
         return text
 
-    def expand_abbreviations(self, text):
+    def replace(self, text):
         for regex, replacement in self._abbreviations:
+            text = re.sub(regex, replacement, text)
+        for regex, replacement in self._replace:
             text = re.sub(regex, replacement, text)
         return text
 
@@ -235,7 +252,7 @@ class GlowTTSParser:
         text = self.convert_to_ascii(text)
         text = self.lowercase(text)
         text = self.expand_numbers(text)
-        text = self.expand_abbreviations(text)
+        text = self.replace(text)
         text = self.collapse_whitespace(text)
         return text
 

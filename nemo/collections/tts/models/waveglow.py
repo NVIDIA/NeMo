@@ -189,6 +189,15 @@ class WaveGlowModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
+    def convert_spectrogram_to_audio(self, spect):
+        self.eval()
+        self.waveglow.mode = OperationMode.infer
+
+        with torch.no_grad():
+            audio = self.waveglow(spect=spect.unsqueeze(0), run_inverse=True, audio=None)
+
+        return audio.squeeze(0)
+
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         """TODO: Implement me!"""
