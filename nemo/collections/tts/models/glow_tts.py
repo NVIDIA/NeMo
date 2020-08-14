@@ -21,8 +21,8 @@ from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
-from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
+from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
@@ -252,7 +252,7 @@ class GlowTTSModel(ModelPT):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def generate_spectrogram(self, text, noise_scale=0., length_scale=1.):
+    def generate_spectrogram(self, text, noise_scale=0.0, length_scale=1.0):
 
         self.eval()
 
