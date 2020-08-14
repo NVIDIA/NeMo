@@ -289,7 +289,7 @@ model:
 
         - filters: 384
           repeat: ${model.model_defaults.repeat}
-          kernel: [51
+          kernel: [51]
           stride: [1]
           dilation: [1]
           dropout: ${model.model_defaults.dropout}
