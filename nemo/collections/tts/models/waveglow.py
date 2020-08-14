@@ -56,7 +56,7 @@ class WaveglowConfig:
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
 class WaveGlowModel(ModelPT):
-    """ Tacotron 2 Model that is used to generate audio conditioned on text
+    """ Waveglow model used to convert betweeen spectrograms and audio
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
@@ -189,8 +189,9 @@ class WaveGlowModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
-    def convert_spectrogram_to_audio(self, spect):
+    def convert_spectrogram_to_audio(self, spect: torch.Tensor) -> torch.Tensor:
         self.eval()
+        self.mode = OperationMode.infer
         self.waveglow.mode = OperationMode.infer
 
         with torch.no_grad():

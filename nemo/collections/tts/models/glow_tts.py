@@ -252,7 +252,7 @@ class GlowTTSModel(ModelPT):
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def generate_spectrogram(self, text, noise_scale=0.0, length_scale=1.0):
+    def generate_spectrogram(self, text: str, noise_scale: float = 0.0, length_scale: float = 1.0) -> torch.Tensor:
 
         self.eval()
 
@@ -262,8 +262,6 @@ class GlowTTSModel(ModelPT):
             text = text + "."
 
         text_seq = text_parser(text)
-
-        text_seq = [11] + text_seq + [11]
 
         x = torch.Tensor(text_seq).unsqueeze(0).cuda().long()
         x_lengths = torch.tensor([x.shape[1]]).cuda()
