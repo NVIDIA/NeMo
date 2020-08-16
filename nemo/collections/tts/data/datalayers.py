@@ -15,6 +15,8 @@ from typing import Dict, Optional, Union
 import random
 
 import torch
+import soundfile as sf
+import numpy as np
 
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
@@ -128,3 +130,81 @@ class AudioDataset(Dataset):
 
     def __len__(self):
         return len(self.collection)
+
+
+class SplicedAudioDataset(Dataset):
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+    def __init__(
+        self,
+        manifest_filepath: Union[str, 'pathlib.Path'],
+        n_segments: int,
+        max_duration: Optional[float] = None,
+        min_duration: Optional[float] = None,
+        trim: Optional[bool] = False,
+        truncate_to: Optional[int] = 1,
+    ):
+        """
+        Mostly compliant with nemo.collections.asr.data.datalayers.AudioToTextDataset except it only returns Audio
+        without text. Dataset that loads tensors via a json file containing paths to audio files, transcripts, and
+        durations (in seconds). Each new line is a different sample. Note that text is required, but is ignored for
+        AudioDataset. Example below:
+        {"audio_filepath": "/path/to/audio.wav", "text_filepath":
+        "/path/to/audio.txt", "duration": 23.147}
+        ...
+        {"audio_filepath": "/path/to/audio.wav", "text": "the
+        transcription", "offset": 301.75, "duration": 0.82, "utt":
+        "utterance_id", "ctm_utt": "en_4156", "side": "A"}
+        Args:
+            manifest_filepath (str, Path): Path to manifest json as described above. Can be comma-separated paths
+                such as "train_1.json,train_2.json" which is treated as two separate json files.
+            n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
+                n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
+                be randomly sampled everytime the audio is batched. Can be set to -1 to load the entire audio.
+            max_duration (float): If audio exceeds this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            min_duration(float): If audio is less than this length in seconds, it is filtered from the dataset.
+                Defaults to None, which does not filter any audio.
+            trim (bool): Whether to use librosa.effects.trim on the audio clip
+            truncate_to (int): Ensures that the audio segment returned is a multiple of truncate_to.
+                Defaults to 1, which does no truncating.
+        """
+
+        collection = collections.ASRAudioText(
+            manifests_files=manifest_filepath.split(','),
+            parser=parsers.make_parser(),
+            min_duration=min_duration,
+            max_duration=max_duration,
+        )
+        self.trim = trim
+        self.n_segments = n_segments
+        self.truncate_to = truncate_to
+
+        self.samples = []
+        for index in range(len(collection)):
+            example = collection[index]
+            with sf.SoundFile(example.audio_file, 'r') as f:
+                samples = f.read(dtype='float32').transpose()
+                self.samples.append(samples)
+        self.samples = np.concatenate(self.samples, axis=0)
+        self.samples = self.samples[:self.samples.shape[0] - (self.samples.shape[0] % self.n_segments), ...]
+
+    def __getitem__(self, index):
+        """
+        Given a index, returns audio and audio_length of the corresponding element. Audio clips of n_segments are
+        randomly chosen if the audio is longer than n_segments.
+        """
+        audio_index = index * self.n_segments
+        audio = self.samples[audio_index:audio_index+self.n_segments]
+
+        return audio, self.n_segments
+
+    def __len__(self):
+        return self.samples.shape[0] // self.n_segments
