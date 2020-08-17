@@ -118,6 +118,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
         if r:
             testset.add(r.group(3))
 
+    logging.info("Validation and test set lists extracted")
+
     label_count = {}
     label_filepaths = {}
     unknown_val_filepaths = []
