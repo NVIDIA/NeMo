@@ -164,8 +164,12 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
             else:
                 train.append(sample)
 
+    logging.info("Prepared filepaths for dataset")
+
     # Add silence and unknown class label samples
     if class_split == "sub":
+        logging.info("Perforiming 10+2 class subsplit")
+
         silence_path = os.path.join(data_folder, "silence")
         if not os.path.exists(silence_path):
             os.mkdir(silence_path)
@@ -229,6 +233,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
         train.extend(label_filepaths['unknown'])
 
+        logging.info("Train set prepared")
+
         # val set silence
         num_val_samples = len(val)
         num_silence_samples = int(np.ceil(silence_split * num_val_samples))
@@ -243,6 +249,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
         val.extend(unknown_val_filepaths[:unknown_size])
 
+        logging.info("Validation set prepared")
+
         # test set silence
         num_test_samples = len(test)
         num_silence_samples = int(np.ceil(silence_split * num_test_samples))
@@ -256,6 +264,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
         unknown_size = int(np.ceil(unknown_split * num_test_samples))
 
         test.extend(unknown_test_filepaths[:unknown_size])
+
+        logging.info("Test set prepared")
 
     max_command = None
     max_count = -1
@@ -301,6 +311,12 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
     for manifest_filename, dataset in manifests:
         with open(os.path.join(dst_folder, manifest_filename), 'w') as fout:
+            num_files = len(dataset)
+            pct_file = num_files // 100
+            file_count = 0
+
+            logging.info(f"Preparing manifest : {manifest_filename} with #{num_files} files")
+
             for label, audio_path in dataset:
                 duration = librosa.core.get_duration(filename=audio_path)
 
@@ -313,6 +329,10 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
                 json.dump(metadata, fout)
                 fout.write('\n')
                 fout.flush()
+
+                file_count += 1
+                if file_count % pct_file == 0:
+                    logging.info(f"Finished serializing {file_count} / {num_files} into {manifest_filename}")
 
         logging.info(f"Finished construction of manifest : {manifest_filename}")
 
