@@ -48,12 +48,16 @@ def speech_classification_model():
 
     decoder = {
         'cls': 'nemo.collections.asr.modules.ConvASRDecoderClassification',
-        'params': {'feat_in': 32, 'num_classes': 30, },
+        'params': {'feat_in': 32, 'num_classes': 30,},
     }
 
     modelConfig = DictConfig(
-        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder),
-         'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)])}
+        {
+            'preprocessor': DictConfig(preprocessor),
+            'encoder': DictConfig(encoder),
+            'decoder': DictConfig(decoder),
+            'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)]),
+        }
     )
     model = EncDecClassificationModel(cfg=modelConfig)
     return model
