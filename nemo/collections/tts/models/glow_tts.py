@@ -21,8 +21,8 @@ from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
+from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.parts.perturb import process_augmentations
-from nemo.collections.tts.data.datalayers import AudioToPhonemesDataset
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
@@ -46,6 +46,7 @@ class Preprocessor:
 class GlowTTSConfig:
     encoder: Dict[Any, Any] = MISSING
     decoder: Dict[Any, Any] = MISSING
+    parser: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
@@ -60,9 +61,10 @@ class GlowTTSModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
+
+        self.parser = instantiate(cfg.parser)
         super().__init__(cfg=cfg, trainer=trainer)
 
         schema = OmegaConf.structured(GlowTTSConfig)
@@ -93,6 +95,9 @@ class GlowTTSModel(ModelPT):
 
     def test_dataloader(self):
         return self._test_dl
+
+    def get_parser(self):
+        return self.parser
 
     def forward(self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
 
@@ -173,7 +178,7 @@ class GlowTTSModel(ModelPT):
             'val_logdet': avg_logdet,
         }
         if self.logger is not None and self.logger.experiment is not None:
-            parser = self.val_dataloader().dataset.parser
+            parser = self.get_parser()
             separated_phonemes = "|".join([parser.symbols[c] for c in outputs[0]['x'][0]])
             self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
             self.logger.experiment.add_image(
@@ -215,9 +220,9 @@ class GlowTTSModel(ModelPT):
         else:
             augmentor = None
 
-        dataset = AudioToPhonemesDataset(
+        dataset = _AudioTextDataset(
             manifest_filepath=cfg['manifest_filepath'],
-            cmu_dict_path=cfg.get('cmu_dict_path', None),
+            parser=self.parser,
             sample_rate=cfg['sample_rate'],
             int_values=cfg.get('int_values', False),
             augmentor=augmentor,
@@ -246,6 +251,25 @@ class GlowTTSModel(ModelPT):
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
+
+    def generate_spectrogram(self, text: str, noise_scale: float = 0.0, length_scale: float = 1.0) -> torch.Tensor:
+
+        self.eval()
+
+        text_parser = self.get_parser()
+
+        if text[-1] != ".":
+            text = text + "."
+
+        text_seq = text_parser(text)
+
+        x = torch.Tensor(text_seq).unsqueeze(0).cuda().long()
+        x_lengths = torch.tensor([x.shape[1]]).cuda()
+
+        with torch.no_grad():
+            spect, _ = self(x, x_lengths, gen=True, noise_scale=noise_scale, length_scale=length_scale)
+
+        return spect[0]
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
