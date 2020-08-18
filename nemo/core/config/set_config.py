@@ -15,7 +15,7 @@
 import functools
 from typing import Any, Callable, Optional
 
-from hydra._internal.utils import get_args_parser, _run_hydra
+from hydra._internal.utils import _run_hydra, get_args_parser
 from hydra.core.config_store import ConfigStore
 from hydra.types import TaskFunction
 from omegaconf import DictConfig
