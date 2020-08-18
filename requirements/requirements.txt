@@ -7,4 +7,5 @@ wget
 wrapt
 ruamel.yaml
 scikit-learn
-hydra-core==1.0.0rc2
+omegaconf==2.0.1rc11
+hydra-core==1.0.0rc3
