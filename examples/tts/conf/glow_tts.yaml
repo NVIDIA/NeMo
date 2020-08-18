@@ -50,6 +50,11 @@ model:
     num_workers: 8
     cmu_dict_path: ${cmu_dict_path}
 
+  parser:
+    cls: nemo.collections.tts.modules.glow_tts_parser.GlowTTSParser
+    params:
+      cmu_dict_path: ${cmu_dict_path}
+
   preprocessor:
     cls: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     params:
