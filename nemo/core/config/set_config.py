@@ -65,7 +65,7 @@ def hydra_runner(
 
                 # no return value from run_hydra() as it may sometime actually run the task_function
                 # multiple times (--multirun)
-                run_hydra(
+                _run_hydra(
                     args_parser=_argparse_wrapper(args),
                     task_function=task_function,
                     config_path=config_path,
@@ -103,7 +103,7 @@ def set_config(config: Config) -> Callable[[TaskFunction], Any]:
 
                 # no return value from run_hydra() as it may sometime actually run the task_function
                 # multiple times (--multirun)
-                run_hydra(
+                _run_hydra(
                     args_parser=args,
                     task_function=task_function,
                     config_path=None,
