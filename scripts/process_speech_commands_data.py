@@ -76,7 +76,9 @@ def extract_file(filepath: str, data_dir: str):
         logging.info('Not extracting. Maybe already there?')
 
 
-def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, class_split: str = "all"):
+def __process_data(
+    data_folder: str, dst_folder: str, rebalance: bool = False, class_split: str = "all", skip_duration: bool = False
+):
     """
     To generate manifest
 
@@ -86,6 +88,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
         rebalance: rebalance the classes to have same number of samples.
         class_split: whether to use all classes as distinct labels, or to use
             10 classes subset and rest of the classes as noise or background.
+        skip_duration: Bool whether to skip duration computation. Use this only for
+            colab notebooks where knowing duration is not necessary for demonstration.
 
     Returns:
 
@@ -117,6 +121,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
         r = re.match(pattern, entry)
         if r:
             testset.add(r.group(3))
+
+    logging.info("Validation and test set lists extracted")
 
     label_count = {}
     label_filepaths = {}
@@ -164,8 +170,12 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
             else:
                 train.append(sample)
 
+    logging.info("Prepared filepaths for dataset")
+
     # Add silence and unknown class label samples
     if class_split == "sub":
+        logging.info("Perforiming 10+2 class subsplit")
+
         silence_path = os.path.join(data_folder, "silence")
         if not os.path.exists(silence_path):
             os.mkdir(silence_path)
@@ -229,6 +239,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
         train.extend(label_filepaths['unknown'])
 
+        logging.info("Train set prepared")
+
         # val set silence
         num_val_samples = len(val)
         num_silence_samples = int(np.ceil(silence_split * num_val_samples))
@@ -243,6 +255,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
         val.extend(unknown_val_filepaths[:unknown_size])
 
+        logging.info("Validation set prepared")
+
         # test set silence
         num_test_samples = len(test)
         num_silence_samples = int(np.ceil(silence_split * num_test_samples))
@@ -256,6 +270,8 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
         unknown_size = int(np.ceil(unknown_split * num_test_samples))
 
         test.extend(unknown_test_filepaths[:unknown_size])
+
+        logging.info("Test set prepared")
 
     max_command = None
     max_count = -1
@@ -301,8 +317,17 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
 
     for manifest_filename, dataset in manifests:
         with open(os.path.join(dst_folder, manifest_filename), 'w') as fout:
+            num_files = len(dataset)
+            pct_file = num_files // 100
+            file_count = 0
+
+            logging.info(f"Preparing manifest : {manifest_filename} with #{num_files} files")
+
             for label, audio_path in dataset:
-                duration = librosa.core.get_duration(filename=audio_path)
+                if not skip_duration:
+                    duration = librosa.core.get_duration(filename=audio_path)
+                else:
+                    duration = 0.0
 
                 # Write the metadata to the manifest
                 metadata = {
@@ -314,7 +339,19 @@ def __process_data(data_folder: str, dst_folder: str, rebalance: bool = False, c
                 fout.write('\n')
                 fout.flush()
 
+                file_count += 1
+                if file_count % pct_file == 0:
+                    if not skip_duration:
+                        logging.info(f"Finished serializing {file_count} / {num_files} into {manifest_filename}")
+
         logging.info(f"Finished construction of manifest : {manifest_filename}")
+
+        if skip_duration:
+            logging.info(
+                f"\n<<NOTE>> Duration computation was skipped for demonstration purposes on Colaboratory.\n"
+                f"In order to replicate paper results and properly perform data augmentation, \n"
+                f"please recompute the manifest file without the `--skip_duration` flag !\n"
+            )
 
 
 def main():
@@ -323,8 +360,9 @@ def main():
     parser.add_argument('--data_version', required=True, default=1, type=int, choices=[1, 2])
     parser.add_argument('--class_split', required=False, default='all', type=str, choices=['all', 'sub'])
     parser.add_argument('--rebalance', required=False, action='store_true')
+    parser.add_argument('--skip_duration', required=False, action='store_true')
     parser.add_argument('--log', required=False, action='store_true')
-    parser.set_defaults(log=False, rebalance=False)
+    parser.set_defaults(log=False, rebalance=False, skip_duration=False)
     args = parser.parse_args()
 
     if args.log:
@@ -350,7 +388,13 @@ def main():
         __extract_all_files(file_path, data_root, data_folder)
 
     logging.info(f"Processing {data_set}")
-    __process_data(data_folder, data_folder, rebalance=args.rebalance, class_split=args.class_split)
+    __process_data(
+        data_folder,
+        data_folder,
+        rebalance=args.rebalance,
+        class_split=args.class_split,
+        skip_duration=args.skip_duration,
+    )
     logging.info('Done!')
 
 

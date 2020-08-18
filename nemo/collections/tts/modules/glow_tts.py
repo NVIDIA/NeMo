@@ -110,7 +110,7 @@ class TextEncoder(NeuralModule):
 
         if prenet:
             self.pre = glow_tts_submodules.ConvReluNorm(
-                hidden_channels, hidden_channels, hidden_channels, kernel_size=5, n_layers=3, p_dropout=0.5,
+                hidden_channels, hidden_channels, hidden_channels, kernel_size=5, n_layers=3, p_dropout=0.1,
             )
 
         self.drop = nn.Dropout(p_dropout)
