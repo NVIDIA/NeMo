@@ -347,9 +347,11 @@ def __process_data(
         logging.info(f"Finished construction of manifest : {manifest_filename}")
 
         if skip_duration:
-            logging.info(f"\n<<NOTE>> Duration computation was skipped for demonstration purposes on Colaboratory.\n"
-                         f"In order to replicate paper results and properly perform data augmentation, \n"
-                         f"please recompute the manifest file without the `--skip_duration` flag !\n")
+            logging.info(
+                f"\n<<NOTE>> Duration computation was skipped for demonstration purposes on Colaboratory.\n"
+                f"In order to replicate paper results and properly perform data augmentation, \n"
+                f"please recompute the manifest file without the `--skip_duration` flag !\n"
+            )
 
 
 def main():
