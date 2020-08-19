@@ -65,7 +65,8 @@ class Classifier(NeuralModule, Exportable):
         """
         bs = 8
         seq = 64
-        input_example = torch.randn(bs, seq, self._hidden_size).to(next(self.parameters()).device)
+        sample = next(self.parameters())
+        input_example = torch.randn(bs, seq, self._hidden_size).to(sample.device).to(sample.dtype)
         output_example = self.forward(hidden_states=input_example)
         return input_example, output_example
 
