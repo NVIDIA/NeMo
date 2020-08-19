@@ -17,8 +17,10 @@
 """Pytorch Dataset for training left-to-right language models."""
 import os
 import re
+
 import numpy as np
 from torch.utils.data import Dataset
+
 from nemo.collections.nlp.data.data_utils import dataset_to_ids
 
 __all__ = ['L2RLanguageModelingDataset']

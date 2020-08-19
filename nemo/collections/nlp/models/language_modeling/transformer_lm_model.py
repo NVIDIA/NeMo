@@ -21,6 +21,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.common.tokenizers import CharTokenizer, WordTokenizer
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data import L2RLanguageModelingDataset
 from nemo.collections.nlp.modules.common import TokenClassifier
@@ -29,7 +30,6 @@ from nemo.collections.nlp.modules.common.transformer import (
     TransformerEncoder,
     transformer_weights_init,
 )
-from nemo.collections.common.tokenizers import WordTokenizer, CharTokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.utils.decorators import experimental
@@ -45,10 +45,8 @@ class TransformerLMModel(ModelPT):
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset
-        
-        self.tokenizer = globals()[cfg.language_model.tokenizer](
-            vocab_file=cfg.language_model.vocab_file
-        )
+
+        self.tokenizer = globals()[cfg.language_model.tokenizer](vocab_file=cfg.language_model.vocab_file)
 
         # make vocabulary size divisible by 8 for fast fp16 training
         vocab_size = 8 * math.ceil(self.tokenizer.vocab_size / 8)
