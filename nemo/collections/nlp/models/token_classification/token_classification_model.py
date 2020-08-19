@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import pickle
 from typing import Dict, Optional
 
 import torch
@@ -31,7 +30,6 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils import logging
 
 __all__ = ['TokenClassificationModel']
 
@@ -47,27 +45,15 @@ class TokenClassificationModel(ModelPT):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return self.classifier.output_types
 
-    @classmethod
-    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
-        config.data_desc_pickle = os.path.join(artifacts_dir, config.data_desc_pickle)
-        return config
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes Token Classification Model."""
 
         self.data_dir = cfg.dataset.data_dir
 
         modes = ["train", "test", "dev"]
-        if not os.path.exists(cfg.data_desc_pickle):
-            # process the data and extract label_ids and class weights if the model is not restored from .nemo file
-            self.data_desc = TokenClassificationDataDesc(
-                data_dir=self.data_dir, modes=modes, pad_label=cfg.dataset.pad_label
-            )
-            if not self.data_desc.data_found:
-                raise ValueError(f'No {modes} data found at {self.data_dir}.')
-        else:
-            self.data_desc = pickle.load(open(cfg.data_desc_pickle, "rb"))
-            logging.info(f'Data descriptor restored from {cfg.data_desc_pickle}')
+        self.data_desc = TokenClassificationDataDesc(
+            data_dir=self.data_dir, modes=modes, pad_label=cfg.dataset.pad_label
+        )
 
         self.tokenizer = get_tokenizer(
             tokenizer_name=cfg.language_model.tokenizer,
@@ -92,7 +78,7 @@ class TokenClassificationModel(ModelPT):
 
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=self.data_desc.num_classes,
+            num_classes=len(self._cfg.label_ids),
             num_layers=self._cfg.head.num_fc_layers,
             activation=self._cfg.head.activation,
             log_softmax=self._cfg.head.log_softmax,
@@ -100,16 +86,14 @@ class TokenClassificationModel(ModelPT):
             use_transformer_init=self._cfg.head.use_transformer_init,
         )
 
-        if self._cfg.dataset.class_balancing == 'weighted_loss':
+        if self._cfg.dataset.class_balancing == 'weighted_loss' and self.data_desc:
             # You may need to increase the number of epochs for convergence when using weighted_loss
             self.loss = CrossEntropyLoss(logits_ndim=3, weight=self.data_desc.class_weights)
         else:
             self.loss = CrossEntropyLoss(logits_ndim=3)
 
         # setup to track metrics
-        self.classification_report = ClassificationReport(
-            self.data_desc.num_classes, label_ids=self.data_desc.label_ids
-        )
+        self.classification_report = ClassificationReport(len(self._cfg.label_ids), label_ids=self._cfg.label_ids)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -172,40 +156,41 @@ class TokenClassificationModel(ModelPT):
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, prefix='train')
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
-
-            if self._cfg.data_desc_pickle is None:
-                self._cfg.data_desc_pickle = 'data_desc.p'
-
-            data_desc_file = os.path.join('/tmp', self._cfg.data_desc_pickle)
-            pickle.dump(self.data_desc, open(data_desc_file, 'wb'))
-            self.register_artifact(config_path='model.data_desc_pickle', src=data_desc_file)
+            # save label maps to the config
+            self._cfg.label_ids = OmegaConf.create(self.data_desc.label_ids)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, prefix='dev')
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config, prefix='test')
+        self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig, prefix: str):
-        text_file = os.path.join(self.data_dir, 'text_' + prefix + '.txt')
-        label_file = os.path.join(self.data_dir, 'labels_' + prefix + '.txt')
-
-        if not (os.path.exists(text_file) and os.path.exists(label_file)):
+    def _setup_dataloader_from_config(self, cfg: DictConfig):
+        if not os.path.exists(self.data_dir):
             raise FileNotFoundError(
-                f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
-                        labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
-                        spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
-                        separated with spaces. Each line of the files should follow the format:  \
-                           [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
-                           [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+                f"Dataset not found at {self.data_dir}. For NER, CoNLL-2003 dataset can be obtained at "
+                "https://github.com/kyzhouhzau/BERT-NER/tree/master/data."
+            )
+
+        text_file = os.path.join(self.data_dir, cfg.text_file)
+        labels_file = os.path.join(self.data_dir, cfg.labels_file)
+
+        if not (os.path.exists(text_file) and os.path.exists(labels_file)):
+            raise FileNotFoundError(
+                f'{text_file} or {labels_file} not found. The data should be splitted into 2 files: text.txt and \
+                labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
+                spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
+                separated with spaces. Each line of the files should follow the format:  \
+                   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
+                   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
             )
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
-            label_file=label_file,
+            label_file=labels_file,
             max_seq_length=self._cfg.dataset.max_seq_length,
             tokenizer=self.tokenizer,
             num_samples=cfg.num_samples,
@@ -216,7 +201,6 @@ class TokenClassificationModel(ModelPT):
             use_cache=self._cfg.dataset.use_cache,
         )
 
-        self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
         return torch.utils.data.DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,

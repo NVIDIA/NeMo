@@ -16,12 +16,11 @@ import os
 from typing import Dict, Optional
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_labels_to_labels_id_mapping
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
 )
@@ -31,7 +30,6 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
-from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationModel']
 
@@ -77,7 +75,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         self.punct_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=len(self.punct_label_ids),
+            num_classes=len(self._cfg.punct_label_ids),
             activation=cfg.punct_head.activation,
             log_softmax=cfg.punct_head.log_softmax,
             dropout=cfg.punct_head.fc_dropout,
@@ -87,7 +85,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         self.capit_classifier = TokenClassifier(
             hidden_size=self.hidden_size,
-            num_classes=len(self.capit_label_ids),
+            num_classes=len(self._cfg.capit_label_ids),
             activation=cfg.capit_head.activation,
             log_softmax=cfg.capit_head.log_softmax,
             dropout=cfg.capit_head.fc_dropout,
@@ -99,8 +97,12 @@ class PunctuationCapitalizationModel(ModelPT):
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
         # setup to track metrics
-        self.punct_class_report = ClassificationReport(len(self.punct_label_ids), label_ids=self.punct_label_ids)
-        self.capit_class_report = ClassificationReport(len(self.capit_label_ids), label_ids=self.capit_label_ids)
+        self.punct_class_report = ClassificationReport(
+            len(self._cfg.punct_label_ids), label_ids=self._cfg.punct_label_ids
+        )
+        self.capit_class_report = ClassificationReport(
+            len(self._cfg.capit_label_ids), label_ids=self._cfg.capit_label_ids
+        )
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids=None):
@@ -205,6 +207,14 @@ class PunctuationCapitalizationModel(ModelPT):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            self.register_artifact('punct_label_ids.csv', self._train_dl.dataset.punct_label_ids_file)
+            self.register_artifact('capit_label_ids.csv', self._train_dl.dataset.capit_label_ids_file)
+
+            # save label maps to the config
+            self._cfg.punct_label_ids = OmegaConf.create(self._train_dl.dataset.punct_label_ids)
+            self._cfg.capit_label_ids = OmegaConf.create(self._train_dl.dataset.capit_label_ids)
+
     def setup_validation_data(self, val_data_config: Optional[Dict]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
@@ -212,58 +222,28 @@ class PunctuationCapitalizationModel(ModelPT):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
     def _setup_dataloader_from_config(self, cfg: DictConfig):
-        if cfg.prefix == 'train' or 'ds_item' not in cfg or cfg.ds_item is None:
-            text_file = os.path.join(self.data_dir, 'text_' + cfg.prefix + '.txt')
-            label_file = os.path.join(self.data_dir, 'labels_' + cfg.prefix + '.txt')
+        # use data_dir specified in the ds_item to run evaluation on multiple datasets
+        if 'ds_item' in cfg and cfg.ds_item is not None:
+            data_dir = cfg.ds_item
         else:
-            # use data_dir specified in the ds_item to run evaluation on multiple datasets
-            text_file = os.path.join(cfg.ds_item, 'text_' + cfg.prefix + '.txt')
-            label_file = os.path.join(cfg.ds_item, 'labels_' + cfg.prefix + '.txt')
-        if not (os.path.exists(text_file) and os.path.exists(label_file)):
-            raise FileNotFoundError(
-                f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
-                labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
-                spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
-                separated with spaces. Each line of the files should follow the format:  \
-                   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
-                   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
-            )
+            data_dir = self.data_dir
 
-        if cfg.prefix == 'train':
-            punct_label_ids_file = os.path.join(self.data_dir, 'punct_label_ids.csv')
-            capit_label_ids_file = os.path.join(self.data_dir, 'capit_label_ids.csv')
-
-            if (
-                self._cfg.dataset.use_cache
-                and os.path.exists(punct_label_ids_file)
-                and os.path.exists(capit_label_ids_file)
-            ):
-                logging.info(f'Restoring punct_label_ids from {punct_label_ids_file}')
-                self.punct_label_ids = get_labels_to_labels_id_mapping(punct_label_ids_file)
-                logging.info(f'Restoring capit_label_ids from {capit_label_ids_file}')
-                self.capit_label_ids = get_labels_to_labels_id_mapping(capit_label_ids_file)
-            else:
-                self.punct_label_ids = None
-                self.capit_label_ids = None
+        text_file = os.path.join(data_dir, cfg.text_file)
+        label_file = os.path.join(data_dir, cfg.labels_file)
 
         dataset = BertPunctuationCapitalizationDataset(
             tokenizer=self.tokenizer,
             text_file=text_file,
             label_file=label_file,
             pad_label=self._cfg.dataset.pad_label,
-            punct_label_ids=self.punct_label_ids,
-            capit_label_ids=self.capit_label_ids,
+            punct_label_ids=self._cfg.punct_label_ids,
+            capit_label_ids=self._cfg.capit_label_ids,
             max_seq_length=self._cfg.dataset.max_seq_length,
             ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
             ignore_start_end=self._cfg.dataset.ignore_start_end,
             use_cache=self._cfg.dataset.use_cache,
             num_samples=cfg.num_samples,
         )
-        if cfg.prefix == 'train':
-            self.punct_label_ids = dataset.punct_label_ids
-            self.capit_label_ids = dataset.capit_label_ids
-            self.register_artifact('punct_label_ids.csv', punct_label_ids_file)
-            self.register_artifact('capit_label_ids.csv', capit_label_ids_file)
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
