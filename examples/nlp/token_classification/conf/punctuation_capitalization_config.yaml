@@ -1,6 +1,4 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +39,8 @@ exp_manager:
 
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  punct_label_ids: null # will be filled during training
+  capit_label_ids: null # will be filled during training
   dataset:
     data_dir: ??? # /path/to/training/data
     # parameters for dataset preprocessing
@@ -55,14 +55,16 @@ model:
     drop_last: false
 
   train_ds:
-    prefix: train
+    text_file: text_train.txt
+    labels_file: labels_train.txt
     shuffle: true
     num_samples: -1
     batch_size: 64
 
   validation_ds:
     ds_item: null # provide a list of data_dirs if evaluation on multiple datasets is needed, by default data_dir is used
-    prefix: dev
+    text_file: text_dev.txt
+    labels_file: labels_dev.txt
     shuffle: false
     num_samples: -1
     batch_size: 64
@@ -91,9 +93,9 @@ model:
     use_transformer_init: true
 
   optim:
-    name: adamw
-    lr: 1e-5
-    weight_decay: 0.01
+    name: adam
+    lr: 1e-4
+    weight_decay: 0.00
 
     sched:
       name: WarmupAnnealing

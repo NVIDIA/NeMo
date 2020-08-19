@@ -208,7 +208,6 @@ class ModelPT(LightningModule, Model):
                 model_weights = path.join(tmpdir, _MODEL_WEIGHTS)
                 conf = OmegaConf.load(config_yaml)
                 OmegaConf.set_struct(conf, True)
-                conf = cls.update_config_with_specific_artifacts(config=conf, artifacts_dir=tmpdir)
                 instance = cls.from_config_dict(config=conf)
                 instance.load_state_dict(torch.load(model_weights))
 
@@ -218,19 +217,6 @@ class ModelPT(LightningModule, Model):
                 os.chdir(cwd)
 
         return instance
-
-    @classmethod
-    def update_config_with_specific_artifacts(cls, config: OmegaConf, artifacts_dir: str) -> OmegaConf:
-        """
-        Updates config with model specific artifacts
-
-        Args:
-            config: model config
-            artifacts_dir: path to directory with artifacts restored from .nemo file
-        Returns:
-            config: model config
-        """
-        return config
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
