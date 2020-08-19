@@ -622,7 +622,7 @@ class ModelPT(LightningModule, Model):
 
                 # Perform `test_loss` resolution first (if provided outside logs)
                 if 'test_loss' in dataloader_logs:
-                    if 'test_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                    if 'test_loss' not in output_dict and dataloader_idx == self._test_loss_idx:
                         output_dict['test_loss'] = dataloader_logs['test_loss']
 
                 # For every item in the result dictionary
@@ -748,6 +748,8 @@ class ModelPT(LightningModule, Model):
                 logging.warning(DDP_WARN)
                 return False
 
+        # Assign trainer to the model
+        self.set_trainer(trainer)
         return True
 
     def set_trainer(self, trainer: 'Trainer'):
