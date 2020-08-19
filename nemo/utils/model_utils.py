@@ -15,10 +15,11 @@
 import copy
 import os
 from pathlib import Path
+from typing import List, Optional
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo import logging
+from nemo.utils import logging
 
 _VAL_TEST_FASTPATH_KEY = 'ds_item'
 
@@ -83,10 +84,10 @@ def resolve_dataset_name_from_cfg(cfg: DictConfig) -> str:
         A str representing the `key` of the config which hosts the filepath(s),
         or None in case path could not be resolved.
     """
-    if hasattr(cfg, _VAL_TEST_FASTPATH_KEY) and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
+    if _VAL_TEST_FASTPATH_KEY in cfg and cfg[_VAL_TEST_FASTPATH_KEY] is not None:
         fastpath_key = cfg[_VAL_TEST_FASTPATH_KEY]
 
-        if isinstance(fastpath_key, str) and hasattr(cfg, fastpath_key):
+        if isinstance(fastpath_key, str) and fastpath_key in cfg:
             return cfg[fastpath_key]
         else:
             return _VAL_TEST_FASTPATH_KEY
@@ -145,6 +146,31 @@ def parse_dataset_as_name(name: str) -> str:
     return name
 
 
+def unique_names_check(name_list: Optional[List[str]]):
+    """
+    Performs a uniqueness check on the name list resolved, so that it can warn users
+    about non-unique keys.
+
+    Args:
+        name_list: List of strings resolved for data loaders.
+    """
+    if name_list is None:
+        return
+
+    # Name uniqueness checks
+    names = set()
+    for name in name_list:
+        if name in names:
+            logging.warning(
+                "Name resolution has found more than one data loader having the same name !\n"
+                "In such cases, logs will nor be properly generated. "
+                "Please rename the item to have unique names.\n"
+                f"Resolved name : {name}"
+            )
+        else:
+            names.add(name)  # we need just hash key check, value is just a placeholder
+
+
 def resolve_validation_dataloaders(model: 'ModelPT'):
     """
     Helper method that operates on the ModelPT class to automatically support
@@ -171,7 +197,7 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     # process val_loss_idx
-    if hasattr(cfg.validation_ds, 'val_loss_idx'):
+    if 'val_loss_idx' in cfg.validation_ds:
         cfg = OmegaConf.to_container(cfg)
         val_loss_idx = cfg['validation_ds'].pop('val_loss_idx')
         cfg = OmegaConf.create(cfg)
@@ -204,8 +230,10 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
         model._validation_dl = dataloaders
         model._validation_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
+        unique_names_check(name_list=model._validation_names)
+
         # In fast-dev-run, only one data loader is used
-        if model._trainer.fast_dev_run:
+        if hasattr(model, '_trainer') and model._trainer.fast_dev_run:
             model._validation_dl = model._validation_dl[:1]
             model._validation_names = model._validation_names[:1]
 
@@ -214,6 +242,8 @@ def resolve_validation_dataloaders(model: 'ModelPT'):
     else:
         model.setup_validation_data(cfg.validation_ds)
         model._validation_names = [parse_dataset_as_name(ds_values)]
+
+        unique_names_check(name_list=model._validation_names)
 
 
 def resolve_test_dataloaders(model: 'ModelPT'):
@@ -242,7 +272,7 @@ def resolve_test_dataloaders(model: 'ModelPT'):
     dataloaders = []
 
     # process test_loss_idx
-    if hasattr(cfg.test_ds, 'test_loss_idx'):
+    if 'test_loss_idx' in cfg.test_ds:
         cfg = OmegaConf.to_container(cfg)
         test_loss_idx = cfg['test_ds'].pop('test_loss_idx')
         cfg = OmegaConf.create(cfg)
@@ -275,11 +305,15 @@ def resolve_test_dataloaders(model: 'ModelPT'):
         model._test_dl = dataloaders
         model._test_names = [parse_dataset_as_name(ds) for ds in ds_values]
 
+        unique_names_check(name_list=model._test_names)
+
         # In fast-dev-run, only one data loader is used
-        if model._trainer.fast_dev_run:
+        if hasattr(model, '_trainer') and model._trainer.fast_dev_run:
             model._test_dl = model._test_dl[:1]
             model._test_names = model._test_names[:1]
 
     else:
         model.setup_test_data(cfg.test_ds)
         model._test_names = [parse_dataset_as_name(ds_values)]
+
+        unique_names_check(name_list=model._test_names)

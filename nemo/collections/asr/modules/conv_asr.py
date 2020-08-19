@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
-from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -45,7 +44,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def _prepare_for_export(self) -> (Optional[torch.Tensor], Optional[torch.Tensor]):
+    def _prepare_for_export(self):
         m_count = 0
         for m in self.modules():
             if type(m).__name__ == "MaskedConv1d":
@@ -53,7 +52,7 @@ class ConvASREncoder(NeuralModule, Exportable):
                 m_count += 1
         logging.warning(f"Turned off {m_count} masked convolutions")
 
-        input_example = torch.randn(16, self.__feat_in, 256)
+        input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
         return input_example, None
 
     @property
@@ -177,7 +176,7 @@ class ConvASREncoder(NeuralModule, Exportable):
 
 
 @experimental
-class ConvASRDecoder(NeuralModule):
+class ConvASRDecoder(NeuralModule, Exportable):
     """Simple ASR Decoder for use with CTC-based models such as JasperNet and QuartzNet
 
      Based on these papers:
@@ -222,6 +221,18 @@ class ConvASRDecoder(NeuralModule):
     @typecheck()
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+
+    def _prepare_for_export(self):
+        """
+        Returns a pair in input, output examples for tracing.
+        Returns:
+            A pair of (input, output) examples.
+        """
+        bs = 8
+        seq = 64
+        input_example = torch.randn(bs, self._feat_in, seq).to(next(self.parameters()).device)
+        output_example = self.forward(encoder_output=input_example)
+        return input_example, output_example
 
     @property
     def vocabulary(self):

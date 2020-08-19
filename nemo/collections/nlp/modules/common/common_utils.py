@@ -1,6 +1,6 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 from typing import List, Optional
 
-from nemo import logging
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
     get_huggingface_lm_model,
     get_huggingface_lm_models_list,
@@ -25,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
     get_megatron_lm_model,
     get_megatron_lm_models_list,
 )
+from nemo.utils import logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
@@ -33,11 +33,14 @@ def get_pretrained_lm_models_list() -> List[str]:
     '''
     Returns the list of support pretrained models
     '''
-    return get_huggingface_lm_models_list() + get_megatron_lm_models_list()
+    return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
 
 
 def get_pretrained_lm_model(
-    pretrained_model_name: str, config_file: Optional[str] = None, checkpoint_file: Optional[str] = None
+    pretrained_model_name: str,
+    config_dict: Optional[dict] = None,
+    config_file: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
 ):
     '''
     Returns pretrained model
@@ -50,19 +53,21 @@ def get_pretrained_lm_model(
         Pretrained model (NM)
     '''
     if pretrained_model_name in get_huggingface_lm_models_list():
-        model = get_huggingface_lm_model(config_file=config_file, pretrained_model_name=pretrained_model_name)
+        model = get_huggingface_lm_model(
+            config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name
+        )
     else:
         if pretrained_model_name in get_megatron_lm_models_list():
             model, default_checkpoint_file = get_megatron_lm_model(
-                config_file=config_file, pretrained_model_name=pretrained_model_name
+                config_dict=config_dict,
+                config_file=config_file,
+                pretrained_model_name=pretrained_model_name,
+                checkpoint_file=checkpoint_file,
             )
-            if not checkpoint_file:
-                checkpoint_file = default_checkpoint_file
         else:
             raise ValueError(f'{pretrained_model_name} is not supported')
 
     if checkpoint_file:
         model.restore_weights(restore_path=checkpoint_file)
-        logging.info(f"{pretrained_model_name} weights restored from {checkpoint_file}")
 
     return model

@@ -28,12 +28,10 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationModel']
 
 
-@experimental
 class TextClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -70,7 +68,7 @@ class TextClassificationModel(ModelPT):
             config_file=cfg.language_model.bert_config,
             checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
         self.classifier = SequenceClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.data_desc.num_classes,
@@ -90,9 +88,6 @@ class TextClassificationModel(ModelPT):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(self.data_desc.num_classes)
-
-        # Optimizer setup needs to happen after all model weights are ready
-        self.setup_optimization(cfg.optim)
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
@@ -200,31 +195,9 @@ class TextClassificationModel(ModelPT):
         )
 
     @classmethod
-    def save_to(cls, save_path: str):
-        """
-        Saves the module to the specified path.
-        Args:
-            :param save_path: Path to where to save the module.
-        """
-        pass
-
-    @classmethod
-    def restore_from(cls, restore_path: str):
-        """
-        Restores the module from the specified path.
-        Args:
-            :param restore_path: Path to restore the module from.
-        """
-        pass
-
-    @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
         pass
 
     @classmethod
     def from_pretrained(cls, name: str):
-        pass
-
-    @classmethod
-    def export(cls, **kwargs):
         pass

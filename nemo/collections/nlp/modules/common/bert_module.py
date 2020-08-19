@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
 from typing import Dict, Optional
 
 import torch
 
 from nemo.core.classes import NeuralModule
+from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.utils.decorators import experimental
+from nemo.utils import logging
 
 __all__ = ['BertModule']
 
 
-@experimental
-class BertModule(NeuralModule):
+class BertModule(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -49,5 +51,51 @@ class BertModule(NeuralModule):
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
-        state_dict = torch.load(restore_path)
-        self.load_state_dict(state_dict)
+        logging.info(f"Restoring weights from {restore_path}")
+
+        if not os.path.exists(restore_path):
+            logging.warning(f'Path {restore_path} not found')
+            return
+
+        pretrained_dict = torch.load(restore_path)
+
+        # backward compatibility with NeMo0.11
+        if "state_dict" in pretrained_dict.keys():
+            pretrained_dict = pretrained_dict["state_dict"]
+
+        # remove prefix from pretrained dict
+        m = re.match("^bert.*?\.", list(pretrained_dict.keys())[0])
+        if m:
+            prefix = m.group(0)
+            pretrained_dict = {k[len(prefix) :]: v for k, v in pretrained_dict.items()}
+        model_dict = self.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        assert len(pretrained_dict) == len(model_dict)
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict)
+        logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
+
+    @property
+    def hidden_size(self):
+        """
+            Property returning hidden size.
+
+            Returns:
+                Hidden size
+            Default implementation relay to BERT config property..
+        """
+        return self.config.hidden_size
+
+    def _prepare_for_export(self):
+        """
+        Returns a pair in input, output examples for tracing.
+        Returns:
+            A pair of (input, output) examples.
+        """
+        input_ids = torch.randint(low=0, high=16, size=(2, 16))
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16))
+        ins = tuple([input_ids, attention_mask, attention_mask])
+        output_example = self.forward(
+            input_ids=input_ids, attention_mask=attention_mask, token_type_ids=attention_mask
+        )
+        return ins, output_example

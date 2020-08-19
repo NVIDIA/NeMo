@@ -1,5 +1,17 @@
-# Copyright (c) 2019 NVIDIA Corporation
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # USAGE: python process_asr_text_tokenizer.py --manifest=<path to train manifest files, seperated by commas> \
 #         --data_root="<output directory>" \
 #         --vocab_size=<number of tokens in vocabulary> \
@@ -13,7 +25,6 @@ import json
 import logging
 import os
 
-import sentencepiece
 import tokenizers
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
@@ -75,7 +86,7 @@ def __process_data(text_path: str, dst_folder: str, vocab_size: int, tokenizer_t
         tokenizer_type: type of tokenization to perform - bpe or wpe
     Returns:
     """
-    tokenizer_dir = os.path.join(dst_folder, 'librispeech_tokenizer_{}_v{}').format(tokenizer_type, vocab_size)
+    tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_v{}').format(tokenizer_type, vocab_size)
 
     if not os.path.exists(tokenizer_dir):
         os.makedirs(tokenizer_dir)
@@ -98,7 +109,7 @@ def __process_data(text_path: str, dst_folder: str, vocab_size: int, tokenizer_t
         tokenizer = tokenizers.BertWordPieceTokenizer(lowercase=True)
 
         tokenizer.train(text_path, vocab_size=vocab_size)
-        tokenizer.save(tokenizer_dir)
+        tokenizer.save_model(tokenizer_dir)
 
     return tokenizer_dir
 
@@ -108,8 +119,6 @@ def main():
     manifests = args.manifest
     vocab_size = args.vocab_size
     tokenizer = args.tokenizer
-
-    data_root = os.path.join(data_root, 'LibriSpeechTokenizer')
 
     if not os.path.exists(data_root):
         os.makedirs(data_root)

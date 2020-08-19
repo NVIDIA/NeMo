@@ -18,12 +18,10 @@ import torch
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LogitsType, LossType, MaskType, NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['SmoothedCrossEntropyLoss']
 
 
-@experimental
 class SmoothedCrossEntropyLoss(Loss):
     """
     Calculates Cross-entropy loss with label smoothing for a batch of sequences, and it

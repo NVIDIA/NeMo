@@ -12,6 +12,8 @@ model:
     trim_silence: True
     max_duration: 16.7
     shuffle: True
+    is_tarred: False
+    tarred_audio_filepaths: null
 
   validation_ds:
     manifest_filepath: ???
@@ -168,12 +170,14 @@ trainer:
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
 
 exp_manager:
-  root_dir: null
+  exp_dir: null
   name: *name
   create_tensorboard_logger: True
   create_checkpoint_callback: True
-  wandb_exp: null
-  wandb_project: null
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    name: null
+    project: null
 
 hydra:
   run:

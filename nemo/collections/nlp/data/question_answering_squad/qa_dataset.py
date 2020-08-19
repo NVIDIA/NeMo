@@ -1,6 +1,6 @@
-# Copyright 2020 NVIDIA. All Rights Reserved.
 # Copyright 2018 The Google AI Language Team Authors and
 # The HuggingFace Inc. team.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,9 +24,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import torch
 
-from nemo import logging
 from nemo.collections.common.parts.utils import _compute_softmax
-from nemo.collections.nlp.data.data_utils import normalize_answer
 from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (
     SquadProcessor,
     apply_no_ans_threshold,
@@ -41,12 +39,11 @@ from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing impo
     normalize_answer,
 )
 from nemo.core.classes import Dataset
-from nemo.utils.decorators import experimental
+from nemo.utils import logging
 
 __all__ = ['SquadDataset']
 
 
-@experimental
 class SquadDataset(Dataset):
     """
     Creates SQuAD dataset for Question Answering.

@@ -42,6 +42,7 @@ class AxisKind(AxisKindAbstract):
     Height = 4
     Any = 5
     Sequence = 6
+    FlowGroup = 7
 
     def __repr__(self):
         return self.__str__()
@@ -63,6 +64,8 @@ class AxisKind(AxisKindAbstract):
             return AxisKind.Width
         elif _label == "h" or _label == "height":
             return AxisKind.Height
+        elif _label == "flowgroup":
+            return AxisKind.FlowGroup
         elif _label == "any":
             return AxisKind.Any
         else:
