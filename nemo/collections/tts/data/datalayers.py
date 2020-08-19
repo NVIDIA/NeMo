@@ -120,11 +120,10 @@ class AudioDataset(Dataset):
         features = torch.tensor(features.samples)
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
-        trunc = audio_length % self.truncate_to
-        if trunc > 0:
-            audio_length -= trunc.long()
-            audio_start = random.randint(0, trunc)
-            audio = audio[audio_start:audio_start+audio_length]
+        truncate = audio_length % self.truncate_to
+        if truncate != :
+            audio_length -= truncate.long()
+            audio = audio[:audio_length]
 
         return audio, audio_length
 

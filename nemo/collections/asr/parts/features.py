@@ -161,7 +161,7 @@ class STFTExactPad(STFT):
             padding=0)
 
         if self.window is not None:
-            window_sum = window_sumsquare(
+            window_sum = librosa.filters.window_sumsquare(
                 self.window, magnitude.size(-1), hop_length=self.hop_length,
                 win_length=self.win_length, n_fft=self.filter_length,
                 dtype=np.float32)

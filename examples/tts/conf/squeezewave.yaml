@@ -18,9 +18,10 @@ model:
         n_segments: 16384
         trim: false
     dataloader_params:
-      drop_last: false
+      drop_last: true
+      pin_memory: true
       shuffle: true
-      batch_size: 256
+      batch_size: 96
       num_workers: 4
 
   validation_ds:
@@ -81,9 +82,8 @@ model:
       wn_kernel_size: 3
 
   optim:
-    name: novograd
+    name: adam
     lr: 4e-4
-    weight_decay: 1e-5
 
 trainer:
   gpus: 1 # number of gpus

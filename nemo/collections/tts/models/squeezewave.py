@@ -79,8 +79,6 @@ class SqueezeWaveModel(ModelPT):
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()  # Same loss as WaveGlow
 
-        self.setup_optimization()
-
     @property
     def input_types(self):
         return {
