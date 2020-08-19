@@ -63,8 +63,8 @@ model:
 
   validation_ds:
     ds_item: null # provide a list of data_dirs if evaluation on multiple datasets is needed, by default data_dir is used
-    text_file: text_train.txt
-    labels_file: labels_train.txt
+    text_file: text_dev.txt
+    labels_file: labels_dev.txt
     shuffle: false
     num_samples: -1
     batch_size: 64

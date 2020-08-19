@@ -172,7 +172,7 @@ class TokenClassificationModel(ModelPT):
     def _setup_dataloader_from_config(self, cfg: DictConfig):
         if not os.path.exists(self.data_dir):
             raise FileNotFoundError(
-                "Dataset not found at {self.data_dir}. For NER, CoNLL-2003 dataset can be obtained at "
+                f"Dataset not found at {self.data_dir}. For NER, CoNLL-2003 dataset can be obtained at "
                 "https://github.com/kyzhouhzau/BERT-NER/tree/master/data."
             )
 

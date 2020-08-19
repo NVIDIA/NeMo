@@ -383,11 +383,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
         """ Saves label ids map to a file """
-        out = open(filename, 'w')
-        labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-        out.write('\n'.join(labels))
-        logging.info(f'Labels: {label_ids}')
-        logging.info(f'Labels mapping saved to : {out.name}')
+        with open(filename, 'w') as out:
+            labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
+            out.write('\n'.join(labels))
+            logging.info(f'Labels: {label_ids}')
+            logging.info(f'Labels mapping saved to : {out.name}')
 
     def __len__(self):
         return len(self.all_input_ids)
