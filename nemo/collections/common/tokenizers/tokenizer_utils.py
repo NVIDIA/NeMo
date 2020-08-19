@@ -107,10 +107,20 @@ def get_tokenizer(
     if pretrained_model_name:
         model_type = pretrained_model_name.split('-')[0]
 
-    if tokenizer_name == 'wordlevel':
-        tokenizer = nemo.collections.common.tokenizers.word_tokenizer.WordTokenizer(vocab_file)
-    elif tokenizer_name == 'charlevel':
-        tokenizer = nemo.collections.common.tokenizers.char_tokenizer.CharTokenizer(vocab_file)
+    if 'megatron' in pretrained_model_name:
+        do_lower_case = nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(
+            pretrained_model_name
+        )
+        vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
+            pretrained_model_name
+        )
+        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
+            bert_derivative='bert', vocab_file=vocab_file, do_lower_case=do_lower_case
+        )
+    elif tokenizer_name == 'nemobert':
+        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
+            pretrained_model=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
+        )
     elif tokenizer_name == 'sentencepiece':
         if not tokenizer_model and not data_file:
             raise ValueError(f'either tokenizer model or data_file must passed')
@@ -128,20 +138,6 @@ def get_tokenizer(
             )
         tokenizer = nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
             model_path=tokenizer_model, special_tokens=special_tokens
-        )
-    elif 'megatron' in pretrained_model_name:
-        do_lower_case = nemo.collections.nlp.modules.common.megatron.megatron_utils.is_lower_cased_megatron(
-            pretrained_model_name
-        )
-        vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
-            pretrained_model_name
-        )
-        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
-            bert_derivative='bert', vocab_file=vocab_file, do_lower_case=do_lower_case
-        )
-    elif tokenizer_name == 'nemobert':
-        tokenizer = nemo.collections.common.tokenizers.bert_tokenizer.NemoBertTokenizer(
-            pretrained_model=pretrained_model_name, vocab_file=vocab_file, do_lower_case=do_lower_case
         )
     else:
         raise ValueError(f'{tokenizer_name} is not supported')

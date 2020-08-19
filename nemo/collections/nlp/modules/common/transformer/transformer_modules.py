@@ -21,8 +21,6 @@ import torch
 from torch import nn
 from torch.nn.functional import gelu
 
-from nemo import logging
-
 __all__ = ["TransformerEmbedding"]
 
 

@@ -14,20 +14,17 @@
 # limitations under the License.
 # =============================================================================
 
-"""Pytorch Dataset for training Neural Machine Translation."""
+"""Pytorch Dataset for training left-to-right language models."""
 import os
 import re
-
 import numpy as np
 from torch.utils.data import Dataset
+from nemo.collections.nlp.data.data_utils import dataset_to_ids
 
-from nemo import logging
-from nemo.collections.nlp.data.data_utils import dataset_to_ids, if_exist
-
-__all__ = ['LanguageModelingDataset']
+__all__ = ['L2RLanguageModelingDataset']
 
 
-class LanguageModelingDataset(Dataset):
+class L2RLanguageModelingDataset(Dataset):
     def __init__(self, tokenizer, dataset, max_seq_length=512, batch_step=None):
         self.tokenizer = tokenizer
         self.max_seq_length = max_seq_length

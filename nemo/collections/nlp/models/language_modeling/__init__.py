@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.language_modeling.lm_model import BERTLMModel
+from nemo.collections.nlp.models.language_modeling.bert_lm_model import BERTLMModel
 from nemo.collections.nlp.models.language_modeling.transformer_lm_model import TransformerLMModel
