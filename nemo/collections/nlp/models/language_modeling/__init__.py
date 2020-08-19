@@ -12,11 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.data_utils import *
-from nemo.collections.nlp.data.lm_bert_dataset import *
-from nemo.collections.nlp.data.lm_transformer_dataset import *
-from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadDataset
-from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
-    BertTokenClassificationDataset,
-    BertTokenClassificationInferDataset,
-)
+from nemo.collections.nlp.models.language_modeling.transformer_lm_model import TransformerLMModel

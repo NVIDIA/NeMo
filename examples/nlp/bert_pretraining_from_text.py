@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 
 import pytorch_lightning as pl
 
-from nemo.collections.nlp.models.lm_model import BERTLMModel
+from nemo.collections.nlp.models import BERTLMModel
 from nemo.core.optim.lr_scheduler import CosineAnnealing, SquareRootAnnealing
 from nemo.utils.arguments import add_nlp_args, add_optimizer_args, add_scheduler_args
 
