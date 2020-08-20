@@ -231,6 +231,7 @@ class ModelPT(LightningModule, Model):
         Loads ModelPT from checkpoint, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
         """
+        # TODO (@titu1994): When PTL 0.9+ is supported, add `strict=False` flag to constructor
         checkpoint = None
         try:
             cls.__set_model_restore_state(is_being_restored=True)
