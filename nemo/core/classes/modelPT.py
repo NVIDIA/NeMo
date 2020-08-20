@@ -20,7 +20,7 @@ import tarfile
 import tempfile
 from abc import abstractmethod
 from os import path
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import hydra
 import torch
@@ -218,6 +218,32 @@ class ModelPT(LightningModule, Model):
 
         return instance
 
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        *args,
+        map_location: Optional[Union[Dict[str, str], str, torch.device, int, Callable]] = None,
+        hparams_file: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        """
+        checkpoint = None
+        try:
+            cls.__set_model_restore_state(is_being_restored=True)
+
+            checkpoint = super().load_from_checkpoint(
+                checkpoint_path=checkpoint_path, *args, map_location=map_location, hparams_file=hparams_file, **kwargs
+            )
+
+        finally:
+            cls.__set_model_restore_state(is_being_restored=False)
+
+        return checkpoint
+
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
         """
@@ -325,6 +351,15 @@ class ModelPT(LightningModule, Model):
         if optim_config is None:
             logging.info('No optimizer config provided, therefore no optimizer was created')
             return
+
+        else:
+            # Preserve the configuration
+            if not isinstance(optim_config, DictConfig):
+                optim_config = OmegaConf.create(optim_config)
+
+            # See if internal config has `optim` namespace before preservation
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                self._cfg.optim = optim_config
 
         # Setup optimizer and scheduler
         if optim_config is not None and isinstance(optim_config, DictConfig):
