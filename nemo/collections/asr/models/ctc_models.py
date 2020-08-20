@@ -152,6 +152,9 @@ class EncDecCTCModel(ASRModel):
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
+            # Update config
+            self._cfg.decoder.params = new_decoder_config
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -314,6 +317,15 @@ class EncDecCTCModel(ASRModel):
         )
         wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        test_logs = {
+            'test_loss': logs['val_loss'],
+            'test_wer_num': logs['val_wer_num'],
+            'test_wer_denom': logs['val_wer_denom'],
+        }
+        return test_logs
 
     def test_dataloader(self):
         if self._test_dl is not None:

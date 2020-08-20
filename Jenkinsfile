@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-            image 'nvcr.io/nvidia/pytorch:20.06-py3'
+            image 'nvcr.io/nvidia/pytorch:20.07-py3'
             args '--device=/dev/nvidia0 --gpus all --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache/torch:/root/.cache/torch --shm-size=8g'
         }
   }
@@ -146,7 +146,7 @@ pipeline {
             trainer.gpus=[1] \
             +trainer.fast_dev_run=True \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params=null \
+            model.preprocessor.params={} \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
@@ -219,7 +219,7 @@ pipeline {
             +trainer.max_steps=1 \
             +trainer.num_sanity_val_steps=1 \
             model.preprocessor.cls=nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor \
-            model.preprocessor.params=null \
+            model.preprocessor.params={} \
             exp_manager.exp_dir=examples/asr/speech_to_label_results'
             sh 'rm -rf examples/asr/speech_to_label_results'
           }
@@ -499,7 +499,7 @@ pipeline {
         }
       }
     }
-    
+
     stage('L2: Parallel Pretraining BERT pretraining from Text/Preprocessed') {
       when {
         anyOf{

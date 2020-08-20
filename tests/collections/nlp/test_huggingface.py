@@ -26,6 +26,7 @@ def do_export(model, name: str):
         # Generate filename in the temporary directory.
         tmp_file_name = os.path.join(tmpdir, name + '.onnx')
         # Test export.
+        model = model.cuda()
         model.export(tmp_file_name)
 
 
