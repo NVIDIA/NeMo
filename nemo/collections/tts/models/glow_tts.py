@@ -26,7 +26,7 @@ from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
-from nemo.core.classes import ModelPT
+from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
@@ -53,8 +53,8 @@ class GlowTTSConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental
-class GlowTTSModel(ModelPT):
+@experimental  # TODO: Add typecheck
+class GlowTTSModel(SpectrogramGenerator):
     """
     GlowTTS model used to generate spectrograms from text
     Consists of a text encoder and an invertible spectrogram decoder

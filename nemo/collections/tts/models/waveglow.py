@@ -22,7 +22,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.modules.waveglow import OperationMode
-from nemo.core.classes import ModelPT, typecheck
+from nemo.core.classes import typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
     LengthsType,
@@ -33,6 +33,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.collections.tts.models.base import Vocoder
 
 
 @dataclass
@@ -56,7 +57,7 @@ class WaveglowConfig:
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
-class WaveGlowModel(ModelPT):
+class WaveGlowModel(Vocoder):
     """ Waveglow model used to convert betweeen spectrograms and audio
     """
 
@@ -120,6 +121,20 @@ class WaveGlowModel(ModelPT):
             z, log_s_list, log_det_W_list, audio_pred = tensors
             return z, log_s_list, log_det_W_list, audio_pred, spec, spec_len
         return tensors  # audio_pred
+
+    @typecheck(
+        input_types={"spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType())},
+        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+    )
+    def convert_spectrogram_to_audio(self, spect: torch.Tensor) -> torch.Tensor:
+        self.eval()
+        self.mode = OperationMode.infer
+        self.waveglow.mode = OperationMode.infer
+
+        with torch.no_grad():
+            audio = self.waveglow(spect=spect, run_inverse=True, audio=None)
+
+        return audio
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
@@ -189,16 +204,6 @@ class WaveGlowModel(ModelPT):
 
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
-
-    def convert_spectrogram_to_audio(self, spect: torch.Tensor) -> torch.Tensor:
-        self.eval()
-        self.mode = OperationMode.infer
-        self.waveglow.mode = OperationMode.infer
-
-        with torch.no_grad():
-            audio = self.waveglow(spect=spect.unsqueeze(0), run_inverse=True, audio=None)
-
-        return audio.squeeze(0)
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
