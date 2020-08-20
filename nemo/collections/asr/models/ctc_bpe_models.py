@@ -265,6 +265,7 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
+        logging.info(f"DECODER CONFIG : {decoder_config}")
         # Update config
         self._cfg.decoder = decoder_config
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
