@@ -8,5 +8,5 @@ wrapt
 ruamel.yaml
 scikit-learn
 omegaconf==2.0.1rc12
-hydra-core==1.0.0rc3
+hydra-core==1.0.0rc4
 transformers>=2.11.0
