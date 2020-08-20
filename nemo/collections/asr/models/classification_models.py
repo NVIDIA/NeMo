@@ -246,6 +246,7 @@ class EncDecClassificationModel(ASRModel):
 
             # Update config
             self._cfg.labels = new_labels
+            self._cfg.decoder.params = new_decoder_config
 
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self._cfg.train_ds.labels = new_labels
@@ -256,7 +257,7 @@ class EncDecClassificationModel(ASRModel):
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self._cfg.test_ds.labels = new_labels
 
-            logging.info(f"Changed decoder to output to {self.decoder.num_classes} labels.")
+            logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
 
 @experimental
