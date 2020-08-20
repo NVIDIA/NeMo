@@ -40,6 +40,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch_stft import STFT
+import numpy as np
+from scipy.signal import get_window
+from librosa.util import pad_center, tiny
 
 from nemo.collections.asr.parts.perturb import AudioAugmentor
 from nemo.collections.asr.parts.segment import AudioSegment
@@ -347,7 +350,8 @@ class FilterbankFeatures(nn.Module):
         if self.preemph is not None:
             x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1,)
 
-        x = self.stft(x)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.stft(x)
 
         # get power spectrum
         if self.mag_power != 1.0:
@@ -356,7 +360,8 @@ class FilterbankFeatures(nn.Module):
             x = x.sum(-1)
 
         # dot with filterbank energies
-        x = torch.matmul(self.fb.to(x.dtype), x)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = torch.matmul(self.fb.to(x.dtype), x)
 
         # log features if required
         if self.log:

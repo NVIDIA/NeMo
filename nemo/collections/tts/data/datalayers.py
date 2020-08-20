@@ -121,7 +121,7 @@ class AudioDataset(Dataset):
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         truncate = audio_length % self.truncate_to
-        if truncate != :
+        if truncate != 0:
             audio_length -= truncate.long()
             audio = audio[:audio_length]
 

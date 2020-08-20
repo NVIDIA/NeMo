@@ -87,7 +87,7 @@ model:
 
 trainer:
   gpus: 1 # number of gpus
-  max_epochs: ???
+  max_epochs: 1000
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1
@@ -97,6 +97,7 @@ trainer:
   row_log_interval: 200
   check_val_every_n_epoch: 25
   precision: 16
+  amp_level: O1
 
 exp_manager:
   root_dir: null

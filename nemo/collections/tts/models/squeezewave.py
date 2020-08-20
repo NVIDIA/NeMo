@@ -188,6 +188,10 @@ class SqueezeWaveModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.squeezewave.parameters(), lr=4e-4)
+        return optimizer
+
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         """TODO: Implement me!"""
