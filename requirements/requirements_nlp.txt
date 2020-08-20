@@ -3,7 +3,6 @@ h5py
 matplotlib
 sentencepiece
 torchtext
-transformers>=2.11.0
 unidecode
 youtokentome
 numpy
