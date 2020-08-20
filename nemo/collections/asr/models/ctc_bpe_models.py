@@ -256,17 +256,20 @@ class EncDecCTCModelBPE(EncDecCTCModel):
         # Override number of classes if placeholder provided
         logging.info(
             "\nReplacing old number of classes ({}) with new number of classes - {}".format(
-                decoder_config.params['num_classes'], len(vocabulary)
+                decoder_config['params']['num_classes'], len(vocabulary)
             )
         )
-        decoder_config.params['num_classes'] = len(vocabulary)
+        decoder_config['params']['num_classes'] = len(vocabulary)
 
         del self.decoder
         self.decoder = EncDecCTCModelBPE.from_config_dict(decoder_config)
         self._wer = WERBPE(tokenizer=self.tokenizer, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
         # Update config
-        self._cfg.decoder.params = decoder_config
+        OmegaConf.set_struct(self._cfg.decoder, False)
+        self._cfg.decoder = decoder_config
+        OmegaConf.set_struct(self._cfg.decoder, True)
+
         logging.info(f"Changed tokenizer to {self.decoder.vocabulary} vocabulary.")
 
 
