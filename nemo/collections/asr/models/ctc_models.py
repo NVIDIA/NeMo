@@ -19,7 +19,7 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
@@ -154,7 +154,10 @@ class EncDecCTCModel(ASRModel):
             self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
 
             # Update config
-            self._cfg.decoder.params = new_decoder_config
+            OmegaConf.set_struct(self._cfg.decoder, False)
+            self._cfg.decoder = new_decoder_config
+            OmegaConf.set_struct(self._cfg.decoder, True)
+
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
