@@ -16,7 +16,7 @@
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models import TransformerLMModel
+from nemo.collections.nlp.models.language_modeling import TransformerLMModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
