@@ -78,7 +78,7 @@ class ModelPT(LightningModule, Model):
 
         self._cfg = config
 
-        self.save_hyperparameters(self._cfg)
+        self.save_hyperparameters(OmegaConf.to_container(self._cfg, resolve=True))
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -231,6 +231,7 @@ class ModelPT(LightningModule, Model):
         Loads ModelPT from checkpoint, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
         """
+        # TODO (@titu1994): When PTL 0.9+ is supported, add `strict=False` flag to constructor
         checkpoint = None
         try:
             cls.__set_model_restore_state(is_being_restored=True)
