@@ -271,7 +271,7 @@ class GlowTTSModel(SpectrogramGenerator):
         token_len = torch.tensor([tokens.shape[1]]).to(self.device)
         spect, _ = self(x=tokens, x_lengths=token_len, gen=True, noise_scale=noise_scale, length_scale=length_scale)
 
-        return spect[0]
+        return spect
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
