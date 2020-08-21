@@ -266,6 +266,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             and os.path.exists(self.punct_label_ids_file)
             and os.path.exists(self.capit_label_ids_file)
         )
+        features = None
         if master_device and not (cache_files_exist and use_cache):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
@@ -357,8 +358,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         # wait until the master process writes to the processed data files
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        features = pickle.load(open(features_pkl, 'rb'))
-        logging.info(f'Features restored from {features_pkl}')
+
+        if features is None:
+            features = pickle.load(open(features_pkl, 'rb'))
+            logging.info(f'Features restored from {features_pkl}')
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
