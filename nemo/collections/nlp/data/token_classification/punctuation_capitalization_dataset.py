@@ -64,10 +64,12 @@ def get_features(
         all_input_ids: input ids for all tokens
         all_segment_ids: token type ids
         all_input_mask: attention mask to use for BERT model
-        all_subtokens_mask: masks out all subwords besides the first one,
-        all_loss_mask: loss mask to mask out tokens during training,
-        punct_all_labels: all labels for punctuation task (ints),
+        all_subtokens_mask: masks out all subwords besides the first one
+        all_loss_mask: loss mask to mask out tokens during training
+        punct_all_labels: all labels for punctuation task (ints)
         capit_all_labels: all labels for capitalization task (ints)
+        punct_label_ids: label (str) to id (int) map for punctuation task
+        capit_label_ids: label (str) to id (int) map for capitalization task
     """
     all_subtokens = []
     all_loss_mask = []
@@ -181,6 +183,8 @@ def get_features(
         all_loss_mask,
         punct_all_labels,
         capit_all_labels,
+        punct_label_ids,
+        capit_label_ids,
     )
 
 
