@@ -21,6 +21,7 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
+from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.waveglow import OperationMode
 from nemo.core.classes import typecheck
 from nemo.core.neural_types.elements import (
@@ -33,7 +34,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.models.base import Vocoder
 
 
 @dataclass

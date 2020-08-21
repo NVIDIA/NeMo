@@ -24,6 +24,7 @@ from torch import nn
 from nemo.collections.asr.parts import parsers
 from nemo.collections.tts.helpers.helpers import tacotron2_log_to_tb_func
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
+from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes import typecheck
 from nemo.core.neural_types.elements import (
     AudioSignal,
@@ -36,7 +37,6 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.tts.models.base import SpectrogramGenerator
 
 
 @dataclass
