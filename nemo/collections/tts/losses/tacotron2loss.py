@@ -27,10 +27,10 @@ class Tacotron2Loss(Loss):
     @property
     def input_types(self):
         return {
-            "spec_pred_dec": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "spec_pred_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "gate_pred": NeuralType(('B', 'T'), LogitsType()),
-            "spec_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "spec_target_len": NeuralType(('B'), LengthsType()),
             "pad_value": NeuralType(),
         }
