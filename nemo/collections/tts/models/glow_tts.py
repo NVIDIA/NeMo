@@ -100,8 +100,8 @@ class GlowTTSModel(SpectrogramGenerator):
         input_types={
             "x": NeuralType(('B', 'T'), TokenIndex()),
             "x_lengths": NeuralType(('B'), LengthsType()),
-            "y": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "y_lengths": NeuralType(('B'), LengthsType()),
+            "y": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+            "y_lengths": NeuralType(('B'), LengthsType(), optional=True),
             "gen": NeuralType(optional=True),
             "noise_scale": NeuralType(optional=True),
             "length_scale": NeuralType(optional=True),
