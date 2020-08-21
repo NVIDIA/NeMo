@@ -58,12 +58,15 @@ class Exportable(ABC):
 
             format = _EXT_DICT[file_extension]
 
-            _in_example, _out_example = self._prepare_for_export()
+            self._prepare_for_export()
 
             if input_example is not None:
                 _in_example = input_example
-            if output_example is not None:
-                _out_example = output_example
+            else:
+                _in_example = self.input_example()
+
+            if output_example is None:
+                _out_example = self.forward(*_in_example)
 
             if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
                 raise NotImplementedError('For export to work you must define input and output types')
@@ -180,9 +183,8 @@ class Exportable(ABC):
 
     def _prepare_for_export(self):
         """
-        Implement this method to prepare module for export. Do all necessary changes on module pre-export here.
-        Also, return a pair in input, output examples for tracing.
-        Returns:
-            A pair of (input, output) examples.
+        Implement this method to prepare module for export. This is in-place operation. 
+        Do all necessary changes on module pre-export here.
+
+        TODO: generic implementation should do a set of standard replacements in the graph (Apex etc).
         """
-        pass
