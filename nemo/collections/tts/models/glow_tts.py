@@ -28,13 +28,9 @@ from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
 from nemo.core.classes import typecheck
-from nemo.utils import logging
+from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, TokenIndex
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.neural_types.elements import (
-    TokenIndex,
-    MelSpectrogramType,
-    LengthsType,
-)
+from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 
