@@ -60,9 +60,8 @@ class Typing(ABC):
     def _validate_input_types(self, input_types=None, **kwargs):
         """
         This function does a few things.
-        1) It ensures that len(kwargs) == len(self.input_types).
-        2) If above fails, it checks len(kwargs) == len(self.input_types <non-optional>).
-        3) For each (keyword name, keyword value) passed as input to the wrapped function:
+        1) It ensures that len(self.input_types <non-optional>) <= len(kwargs) <= len(self.input_types).
+        2) For each (keyword name, keyword value) passed as input to the wrapped function:
             - Check if the keyword name exists in the list of valid self.input_types names.
             - Check if keyword value has the `neural_type` property.
                 - If it does, then perform a comparative check and assert that neural types
@@ -84,13 +83,11 @@ class Typing(ABC):
                 [type_val for type_key, type_val in input_types.items() if not type_val.optional]
             )
 
-            if len(kwargs) != total_input_types:
-                if len(kwargs) != mandatory_input_types:
-                    raise TypeError(
-                        "Number of input arguments provided ({}) is not as expected ({})".format(
-                            len(kwargs), len(input_types)
-                        )
-                    )
+            if len(kwargs) < mandatory_input_types or len(kwargs) > total_input_types:
+                raise TypeError(
+                    f"Number of input arguments provided ({len(kwargs)}) is not as expected. Function has "
+                    f"{total_input_types} total inputs with {mandatory_input_types} mandatory inputs."
+                )
 
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
