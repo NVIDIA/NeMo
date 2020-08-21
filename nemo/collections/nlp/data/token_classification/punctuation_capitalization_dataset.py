@@ -55,10 +55,19 @@ def get_features(
         capit_label_ids: dict to map labels to label ids. Starts
             with pad_label->0 and then increases in alphabetical order.
             Required for training and evaluation, not needed for inference.
-        punct_labels: list of labels for every word in a sequence
-        capit_labels: list of labels for every word in a sequence
+        punct_labels: list of labels for every word in a sequence (str)
+        capit_labels: list of labels for every word in a sequence (str)
         ignore_extra_tokens: whether to ignore extra tokens in the loss_mask
         ignore_start_end: whether to ignore bos and eos tokens in the loss_mask
+
+    Returns:
+        all_input_ids: input ids for all tokens
+        all_segment_ids: token type ids
+        all_input_mask: attention mask to use for BERT model
+        all_subtokens_mask: masks out all subwords besides the first one,
+        all_loss_mask: loss mask to mask out tokens during training,
+        punct_all_labels: all labels for punctuation task (ints),
+        capit_all_labels: all labels for capitalization task (ints)
     """
     all_subtokens = []
     all_loss_mask = []
@@ -168,12 +177,10 @@ def get_features(
         all_input_ids,
         all_segment_ids,
         all_input_mask,
-        all_loss_mask,
         all_subtokens_mask,
+        all_loss_mask,
         punct_all_labels,
         capit_all_labels,
-        punct_label_ids,
-        capit_label_ids,
     )
 
 
@@ -210,8 +217,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'punct_labels': NeuralType(('B', 'T'), LabelsType()),
             'capit_labels': NeuralType(('B', 'T'), LabelsType()),
         }
@@ -400,8 +407,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
             np.array(self.all_input_mask[idx], dtype=np.long),
-            np.array(self.all_loss_mask[idx]),
             np.array(self.all_subtokens_mask[idx]),
+            np.array(self.all_loss_mask[idx]),
             np.array(self.punct_all_labels[idx]),
             np.array(self.capit_all_labels[idx]),
         )
@@ -426,19 +433,30 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
             'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
         }
 
-    def __init__(self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec):
+    def __init__(
+        self,
+        queries: List[str],
+        max_seq_length: int,
+        tokenizer: TokenizerSpec,
+        ignore_extra_tokens=False,
+        ignore_start_end: Optional[bool] = False,
+    ):
         """ Initializes BertPunctuationCapitalizationInferDataset. """
-        features = get_features(queries, max_seq_length, tokenizer)
+        features = get_features(
+            queries=queries,
+            max_seq_length=max_seq_length,
+            tokenizer=tokenizer,
+            ignore_extra_tokens=ignore_extra_tokens,
+            ignore_start_end=ignore_start_end,
+        )
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
-        self.all_loss_mask = features[3]
-        self.all_subtokens_mask = features[4]
+        self.all_subtokens_mask = features[3]
 
     def __len__(self):
         return len(self.all_input_ids)
@@ -448,6 +466,5 @@ class BertPunctuationCapitalizationInferDataset(Dataset):
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
             np.array(self.all_input_mask[idx], dtype=np.float32),
-            np.array(self.all_loss_mask[idx]),
             np.array(self.all_subtokens_mask[idx]),
         )

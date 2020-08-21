@@ -26,10 +26,25 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
-    model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
-    trainer.fit(model)
-    if cfg.model.nemo_path:
-        model.save_to(cfg.model.nemo_path)
+    # model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
+    # trainer.fit(model)
+    # if cfg.model.nemo_path:
+    #     model.save_to(cfg.model.nemo_path)
+    model = PunctuationCapitalizationModel.restore_from(
+        '/home/ebakhturina/nemo_ckpts/punctuation/ptl/bert_on_tatoeba_v3/1383000/PunctuationCapitalization.nemo'
+    )
+
+    queries = [
+        'we bought four shirts and one mug from the nvidia gear store in santa clara',
+        'what can i do for you today',
+        'how are you',
+        'how is the weather in',
+    ]
+    inference_results = model.add_punctuation_capitalization(queries)
+
+    for query, result in zip(queries, inference_results):
+        logging.info(f'Query   : {query}')
+        logging.info(f'Combined: {result.strip()}\n')
 
 
 if __name__ == '__main__':
