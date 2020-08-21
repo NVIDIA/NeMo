@@ -32,6 +32,7 @@ trainer:
 
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
+  use_datetime_version: true # If set to true, time will be added to experiment directory path to distinguish experiments between multiple runs
   name: token_classification_model  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback

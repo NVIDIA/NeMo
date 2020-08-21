@@ -32,6 +32,7 @@ trainer:
 
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
+  use_datetime_version: true # If set to true, time will be added to experiment directory path to distinguish experiments between multiple runs
   name: Punctuation_and_Capitalization  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a modelcheckpoint callback
@@ -61,7 +62,9 @@ model:
     batch_size: 64
 
   validation_ds:
-    ds_item: null # provide a list of data_dirs if evaluation on multiple datasets is needed, by default data_dir is used
+    # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
+    # evaluationis needed, specify ds_item, otherwise by default data_dir is used
+    ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
     shuffle: false
