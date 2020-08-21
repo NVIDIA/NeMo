@@ -1,6 +1,4 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +38,7 @@ exp_manager:
 
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
-  data_desc_pickle: data_desc.p # data descriptor pickle file inside .nemo file
+  label_ids: null # will be filled during training
   dataset:
     data_dir: ??? # /path/to/data
     class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
@@ -51,6 +49,8 @@ model:
     use_cache: true
 
   train_ds:
+    text_file: text_train.txt
+    labels_file: labels_train.txt
     shuffle: true
     num_samples: -1
     batch_size: 64
@@ -59,6 +59,8 @@ model:
     drop_last: false
 
   validation_ds:
+    text_file: text_dev.txt
+    labels_file: labels_dev.txt
     shuffle: false
     num_samples: -1
     batch_size: 64

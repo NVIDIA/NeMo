@@ -34,15 +34,7 @@ class TokenClassificationDataDesc:
             modes: list of the modes to read, it can be from ["train", "test", "dev"] by default.
             It is going to look for the data files at {data_dir}/{mode}.txt
         """
-        if not os.path.exists(data_dir):
-            raise FileNotFoundError(
-                "Dataset not found. For NER, CoNLL-2003 dataset can be obtained at "
-                "https://github.com/kyzhouhzau/BERT-NER/tree/master/data."
-            )
-
         self.data_dir = data_dir
-        # when the model is restored from .nemo file, data might be missing, and data_desc values should be skipped
-        self.data_found = False
         unique_labels = set()
 
         for mode in modes:
@@ -52,7 +44,6 @@ class TokenClassificationDataDesc:
                 logging.info(f'Stats calculation for {mode} mode is skipped as {label_file} was not found.')
                 continue
 
-            self.data_found = True
             with open(label_file, 'r') as f:
                 for line in f:
                     line = line.strip().split()

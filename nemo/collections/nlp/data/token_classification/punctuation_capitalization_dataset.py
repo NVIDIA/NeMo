@@ -232,6 +232,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
         get_label_frequencies: bool = False,
     ):
         """ Initializes BertPunctuationCapitalizationDataset. """
+
+        if not (os.path.exists(text_file) and os.path.exists(label_file)):
+            raise FileNotFoundError(
+                f'{text_file} or {label_file} not found. The data should be splitted into 2 files: text.txt and \
+                labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
+                spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
+                separated with spaces. Each line of the files should follow the format:  \
+                   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
+                   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+            )
+
         # Cache features
         data_dir = os.path.dirname(text_file)
         filename = os.path.basename(text_file)
@@ -246,9 +257,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
             data_dir, "cached_{}_{}_{}_{}".format(filename, tokenizer_type, str(max_seq_length), str(vocab_size)),
         )
 
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        self.punct_label_ids_file = os.path.join(data_dir, 'punct_label_ids.csv')
+        self.capit_label_ids_file = os.path.join(data_dir, 'capit_label_ids.csv')
 
-        if master_device and (not os.path.exists(features_pkl) or not use_cache):
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        cache_files_exist = (
+            os.path.exists(features_pkl)
+            and os.path.exists(self.punct_label_ids_file)
+            and os.path.exists(self.capit_label_ids_file)
+        )
+        if master_device and not (cache_files_exist and use_cache):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
             logging.info(f'Processing {text_file}')
@@ -317,6 +335,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 punct_label_ids = create_label_ids(punct_unique_labels)
                 capit_label_ids = create_label_ids(capit_unique_labels)
 
+                self._save_label_ids(punct_label_ids, self.punct_label_ids_file)
+                self._save_label_ids(capit_label_ids, self.capit_label_ids_file)
+
             features = get_features(
                 text_lines,
                 max_seq_length,
@@ -349,29 +370,24 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.punct_label_ids = features[7]
         self.capit_label_ids = features[8]
 
-        # save label_ids
-        def calculate_label_frequencies(all_labels, name):
-            infold = text_file[: text_file.rfind('/')]
-            merged_labels = itertools.chain.from_iterable(all_labels)
-            logging.info('Three most popular labels')
-            _, label_frequencies, _ = get_label_stats(merged_labels, infold + '/label_count_' + name + '.tsv')
-            return label_frequencies
+        if get_label_frequencies:
+            self.punct_label_frequencies = self._calculate_label_frequencies(self.punct_all_labels, data_dir, 'punct')
+            self.capit_label_frequencies = self._calculate_label_frequencies(self.capit_all_labels, data_dir, 'capit')
 
-        def save_label_ids(text_file, label_ids, name):
-            infold = text_file[: text_file.rfind('/')]
-            out = open(os.path.join(infold, name + '_label_ids.csv'), 'w')
+    def _calculate_label_frequencies(self, all_labels: List[int], data_dir: str, name: str) -> Dict[str, float]:
+        """ Calculates labels frequencies """
+        merged_labels = itertools.chain.from_iterable(all_labels)
+        logging.info('Three most popular labels')
+        _, label_frequencies, _ = get_label_stats(merged_labels, data_dir + '/label_count_' + name + '.tsv')
+        return label_frequencies
+
+    def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
+        """ Saves label ids map to a file """
+        with open(filename, 'w') as out:
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
             out.write('\n'.join(labels))
             logging.info(f'Labels: {label_ids}')
             logging.info(f'Labels mapping saved to : {out.name}')
-
-        if get_label_frequencies:
-            self.punct_label_frequencies = calculate_label_frequencies(self.punct_all_labels, 'punct')
-            self.capit_label_frequencies = calculate_label_frequencies(self.capit_all_labels, 'capit')
-
-        if master_device:
-            save_label_ids(text_file, self.punct_label_ids, 'punct')
-            save_label_ids(text_file, self.capit_label_ids, 'capit')
 
     def __len__(self):
         return len(self.all_input_ids)

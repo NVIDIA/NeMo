@@ -16,7 +16,7 @@ import copy
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioLabelDataset
@@ -247,6 +247,10 @@ class EncDecClassificationModel(ASRModel):
             # Update config
             self._cfg.labels = new_labels
 
+            OmegaConf.set_struct(self._cfg.decoder, False)
+            self._cfg.decoder = new_decoder_config
+            OmegaConf.set_struct(self._cfg.decoder, True)
+
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self._cfg.train_ds.labels = new_labels
 
@@ -256,7 +260,7 @@ class EncDecClassificationModel(ASRModel):
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
                 self._cfg.test_ds.labels = new_labels
 
-            logging.info(f"Changed decoder to output to {self.decoder.num_classes} labels.")
+            logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
 
 
 @experimental
