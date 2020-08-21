@@ -119,7 +119,7 @@ class Tacotron2Model(SpectrogramGenerator):
         )
         return self._parser
 
-    def parse(self, str_input):
+    def parse(self, str_input: str) -> torch.tensor:
         tokens = self.parser(str_input)
         # Parser doesn't add bos and eos ids, so maunally add it
         tokens = [len(self._cfg.labels)] + tokens + [len(self._cfg.labels) + 1]

@@ -27,7 +27,14 @@ from nemo.collections.tts.helpers.helpers import log_audio_to_tb, plot_alignment
 from nemo.collections.tts.losses.glow_tts_loss import GlowTTSLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.glow_tts import GlowTTSModule
+from nemo.core.classes import typecheck
 from nemo.utils import logging
+from nemo.core.neural_types.neural_type import NeuralType
+from nemo.core.neural_types.elements import (
+    TokenIndex,
+    MelSpectrogramType,
+    LengthsType,
+)
 from nemo.utils.decorators import experimental
 
 
@@ -53,7 +60,7 @@ class GlowTTSConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-@experimental  # TODO: Add typecheck
+@experimental  # TODO: Need to implement abstract methods: list_available_models
 class GlowTTSModel(SpectrogramGenerator):
     """
     GlowTTS model used to generate spectrograms from text
@@ -82,25 +89,29 @@ class GlowTTSModel(SpectrogramGenerator):
         decoder = instantiate(self._cfg.decoder)
 
         self.glow_tts = GlowTTSModule(encoder, decoder, n_speakers=cfg.n_speakers, gin_channels=cfg.gin_channels)
-
-        self.setup_optimization()
-
         self.loss = GlowTTSLoss()
 
-    def train_dataloader(self):
-        return self._train_dl
+    def parse(self, str_input: str) -> torch.tensor:
+        if str_input[-1] not in [".", "!", "?"]:
+            str_input = str_input + "."
 
-    def val_dataloader(self):
-        return self._val_dl
+        tokens = self.parser(str_input)
 
-    def test_dataloader(self):
-        return self._test_dl
+        x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
+        return x
 
-    def get_parser(self):
-        return self.parser
-
-    def forward(self, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
-
+    @typecheck(
+        input_types={
+            "x": NeuralType(('B', 'T'), TokenIndex()),
+            "x_lengths": NeuralType(('B'), LengthsType()),
+            "y": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "y_lengths": NeuralType(('B'), LengthsType()),
+            "gen": NeuralType(optional=True),
+            "noise_scale": NeuralType(optional=True),
+            "length_scale": NeuralType(optional=True),
+        }
+    )
+    def forward(self, *, x, x_lengths, y=None, y_lengths=None, gen=False, noise_scale=0.3, length_scale=1.0):
         if gen:
             return self.glow_tts.generate_spect(
                 text=x, text_lengths=x_lengths, noise_scale=noise_scale, length_scale=length_scale
@@ -109,8 +120,9 @@ class GlowTTSModel(SpectrogramGenerator):
             return self.glow_tts(text=x, text_lengths=x_lengths, spect=y, spect_lengths=y_lengths)
 
     def step(self, y, y_lengths, x, x_lengths):
-
-        z, y_m, y_logs, logdet, logw, logw_, y_lengths, attn = self(x, x_lengths, y, y_lengths, gen=False)
+        z, y_m, y_logs, logdet, logw, logw_, y_lengths, attn = self(
+            x=x, x_lengths=x_lengths, y=y, y_lengths=y_lengths, gen=False
+        )
 
         l_mle, l_length, logdet = self.loss(
             z=z,
@@ -128,7 +140,6 @@ class GlowTTSModel(SpectrogramGenerator):
         return l_mle, l_length, logdet, loss, attn
 
     def training_step(self, batch, batch_idx):
-
         y, y_lengths, x, x_lengths = batch
 
         y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
@@ -144,14 +155,13 @@ class GlowTTSModel(SpectrogramGenerator):
         return output
 
     def validation_step(self, batch, batch_idx):
-
         y, y_lengths, x, x_lengths = batch
 
         y, y_lengths = self.preprocessor(input_signal=y, length=y_lengths)
 
         l_mle, l_length, logdet, loss, attn = self.step(y, y_lengths, x, x_lengths)
 
-        y_gen, attn_gen = self(x, x_lengths, gen=True)
+        y_gen, attn_gen = self(x=x, x_lengths=x_lengths, gen=True)
 
         return {
             "loss": loss,
@@ -247,27 +257,19 @@ class GlowTTSModel(SpectrogramGenerator):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        self._val_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def generate_spectrogram(self, text: str, noise_scale: float = 0.0, length_scale: float = 1.0) -> torch.Tensor:
+    def generate_spectrogram(
+        self, tokens: 'torch.tensor', noise_scale: float = 0.0, length_scale: float = 1.0
+    ) -> torch.tensor:
 
         self.eval()
 
-        text_parser = self.get_parser()
-
-        if text[-1] != ".":
-            text = text + "."
-
-        text_seq = text_parser(text)
-
-        x = torch.Tensor(text_seq).unsqueeze(0).cuda().long()
-        x_lengths = torch.tensor([x.shape[1]]).cuda()
-
-        with torch.no_grad():
-            spect, _ = self(x, x_lengths, gen=True, noise_scale=noise_scale, length_scale=length_scale)
+        token_len = torch.tensor([tokens.shape[1]]).to(self.device)
+        spect, _ = self(x=tokens, x_lengths=token_len, gen=True, noise_scale=noise_scale, length_scale=length_scale)
 
         return spect[0]
 

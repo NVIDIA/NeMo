@@ -20,6 +20,14 @@ class SpectrogramGenerator(ModelPT, ABC):
     """ Base class for all TTS models that turn text into a spectrogram """
 
     @abstractmethod
+    def parse(self, str_input: str, **kwargs) -> 'torch.tensor':
+        """
+        A helper function that accepts raw pythong strings and turns it into a tensor. The tensor should have 2
+        dimensions. The first is the batch, which should be of size 1. The second should represent time. The tensor
+        should represented either tokenized or embedded text, depending on the model.
+        """
+
+    @abstractmethod
     def generate_spectrogram(self, tokens: 'torch.tensor', **kwargs) -> 'torch.tensor':
         """
         Accepts a batch of text or text_tokens and returns a batch of spectrograms
