@@ -114,7 +114,7 @@ class WaveGlowModel(Vocoder):
                 f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.waveglow.mode}"
             )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.waveglow(spect=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma)
+        tensors = self.waveglow(spec=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma)
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
@@ -123,16 +123,16 @@ class WaveGlowModel(Vocoder):
         return tensors  # audio_pred
 
     @typecheck(
-        input_types={"spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType())},
+        input_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()), "sigma": NeuralType(optional=True)},
         output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
     )
-    def convert_spectrogram_to_audio(self, spect: torch.Tensor) -> torch.Tensor:
+    def convert_spectrogram_to_audio(self, spec: torch.Tensor, sigma: float = 1.0) -> torch.Tensor:
         self.eval()
         self.mode = OperationMode.infer
         self.waveglow.mode = OperationMode.infer
 
         with torch.no_grad():
-            audio = self.waveglow(spect=spect, run_inverse=True, audio=None)
+            audio = self.waveglow(spec=spec, run_inverse=True, audio=None, sigma=sigma)
 
         return audio
 

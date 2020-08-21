@@ -19,7 +19,7 @@ class SpectrogramGenerator(ModelPT, ABC):
     """ Base class for all TTS models that turn text into a spectrogram """
 
     @abstractmethod
-    def generate_spectrogram(self, tokens: 'torch.tensor') -> 'torch.tensor':
+    def generate_spectrogram(self, tokens: 'torch.tensor', **kwargs) -> 'torch.tensor':
         """
         Accepts a batch of text or text_tokens and returns a batch of spectrograms
 
@@ -35,7 +35,7 @@ class Vocoder(ModelPT, ABC):
     """ Base class for all TTS models that generate audio conditioned a on spectrogram """
 
     @abstractmethod
-    def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
+    def convert_spectrogram_to_audio(self, spec: 'torch.tensor', **kwargs) -> 'torch.tensor':
         """
         Accepts a batch of spectrograms and returns a batch of audio
 

@@ -96,7 +96,7 @@ class WaveGlowModule(NeuralModule):
         self.n_remaining_channels = n_remaining_channels
 
     @typecheck()
-    def forward(self, *, spect, audio=None, run_inverse=True, sigma=1.0):
+    def forward(self, *, spec, audio=None, run_inverse=True, sigma=1.0):
         """ TODO
         """
         if self.training and self.mode != OperationMode.training:
@@ -107,11 +107,11 @@ class WaveGlowModule(NeuralModule):
         audio_pred = torch.zeros((1, 1))
         if audio is not None and self.mode != OperationMode.infer:
             # audio_to_normal_dist is used to calculate loss so only run this in train or val model
-            z, log_s_list, log_det_W_list = self.audio_to_normal_dist(spect=spect, audio=audio)
+            z, log_s_list, log_det_W_list = self.audio_to_normal_dist(spec=spec, audio=audio)
         if run_inverse:
             # norm_dist_to_audio is used to predict audio from spectrogram so only used in val or infer mode
             # Could also log train audio but currently not done
-            audio_pred = self.norm_dist_to_audio(spect=spect, sigma=sigma)
+            audio_pred = self.norm_dist_to_audio(spec=spec, sigma=sigma)
 
         # Return the necessary tensors
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
@@ -121,7 +121,7 @@ class WaveGlowModule(NeuralModule):
     @property
     def input_types(self):
         return {
-            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
             "run_inverse": NeuralType(elements_type=IntType(), optional=True),
             "sigma": NeuralType(optional=True),
@@ -141,16 +141,16 @@ class WaveGlowModule(NeuralModule):
                 "audio": NeuralType(('B', 'T'), AudioSignal()),
             }
 
-    def audio_to_normal_dist(self, *, spect: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
+    def audio_to_normal_dist(self, *, spec: torch.Tensor, audio: torch.Tensor) -> (torch.Tensor, list, list):
         #  Upsample spectrogram to size of audio
-        spect = self.upsample(spect)
-        assert spect.size(2) >= audio.size(1)
-        if spect.size(2) > audio.size(1):
-            spect = spect[:, :, : audio.size(1)]
+        spec = self.upsample(spec)
+        assert spec.size(2) >= audio.size(1)
+        if spec.size(2) > audio.size(1):
+            spec = spec[:, :, : audio.size(1)]
 
-        spect = spect.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
-        spect = spect.contiguous().view(spect.size(0), spect.size(1), -1)
-        spect = spect.permute(0, 2, 1)
+        spec = spec.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
+        spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
+        spec = spec.permute(0, 2, 1)
 
         audio = audio.unfold(1, self.n_group, self.n_group).permute(0, 2, 1)
         output_audio = []
@@ -169,7 +169,7 @@ class WaveGlowModule(NeuralModule):
             audio_0 = audio[:, :n_half, :]
             audio_1 = audio[:, n_half:, :]
 
-            output = self.wavenet[k]((audio_0, spect))
+            output = self.wavenet[k]((audio_0, spec))
             log_s = output[:, n_half:, :]
             b = output[:, :n_half, :]
             audio_1 = torch.exp(log_s) * audio_1 + b
@@ -180,18 +180,18 @@ class WaveGlowModule(NeuralModule):
         output_audio.append(audio)
         return torch.cat(output_audio, 1), log_s_list, log_det_W_list
 
-    def norm_dist_to_audio(self, *, spect, sigma: float = 1.0):
-        spect = self.upsample(spect)
+    def norm_dist_to_audio(self, *, spec, sigma: float = 1.0):
+        spec = self.upsample(spec)
         # trim conv artifacts. maybe pad spec to kernel multiple
         time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
-        spect = spect[:, :, :-time_cutoff]
+        spec = spec[:, :, :-time_cutoff]
 
-        spect = spect.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
-        spect = spect.contiguous().view(spect.size(0), spect.size(1), -1)
-        spect = spect.permute(0, 2, 1)
+        spec = spec.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
+        spec = spec.contiguous().view(spec.size(0), spec.size(1), -1)
+        spec = spec.permute(0, 2, 1)
 
-        audio = sigma * torch.randn(spect.size(0), self.n_remaining_channels, spect.size(2), device=spect.device).to(
-            spect.dtype
+        audio = sigma * torch.randn(spec.size(0), self.n_remaining_channels, spec.size(2), device=spec.device).to(
+            spec.dtype
         )
 
         for k in reversed(range(self.n_flows)):
@@ -199,7 +199,7 @@ class WaveGlowModule(NeuralModule):
             audio_0 = audio[:, :n_half, :]
             audio_1 = audio[:, n_half:, :]
 
-            output = self.wavenet[k]((audio_0, spect))
+            output = self.wavenet[k]((audio_0, spec))
             s = output[:, n_half:, :]
             b = output[:, :n_half, :]
             audio_1 = (audio_1 - b) / torch.exp(s)
@@ -207,8 +207,8 @@ class WaveGlowModule(NeuralModule):
 
             audio = self.convinv[k](audio, reverse=True)
             if k % self.n_early_every == 0 and k > 0:
-                z = sigma * torch.randn(spect.size(0), self.n_early_size, spect.size(2), device=spect.device).to(
-                    spect.dtype
+                z = sigma * torch.randn(spec.size(0), self.n_early_size, spec.size(2), device=spec.device).to(
+                    spec.dtype
                 )
                 audio = torch.cat((z, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)

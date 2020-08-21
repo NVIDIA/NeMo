@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 import torch
 from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
+from omegaconf.errors import ConfigAttributeError
 from torch import nn
 
 from nemo.collections.asr.parts import parsers
@@ -94,33 +95,37 @@ class Tacotron2Model(SpectrogramGenerator):
     def parser(self):
         if self._parser is not None:
             return self._parser
-        elif self._train_dl is not None:
+        if self._train_dl is not None:
             return self._train_dl.dataset.parser
-        else:
-            name = (
-                self._cfg.model.validation_ds.dataset.params.parser
-                or self._cfg.model.train_ds.dataset.params.parser
-                or 'en'
-            )
-            unk_id = (
-                self._cfg.model.validation_ds.dataset.params.unk_index
-                or self._cfg.model.train_ds.dataset.params.unk_index
-                or -1
-            )
-            blank_id = (
-                self._cfg.model.validation_ds.dataset.params.blank_index
-                or self._cfg.model.train_ds.dataset.params.blank_index
-                or -1
-            )
-            do_normalize = (
-                self._cfg.model.validation_ds.dataset.params.normalize
-                or self._cfg.model.train_ds.dataset.params.normalize
-                or False
-            )
-            self._parser = parsers.make_parser(
-                labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
-            )
-            return self._parser
+
+        # Else construct a parser
+        # Try to get validation params
+        try:
+            params = self._cfg.validation_ds.dataset.params
+        except ConfigAttributeError:
+            try:
+                params = self._cfg.train_ds.dataset.params
+            except ConfigAttributeError:
+                pass
+        finally:
+            params = {}
+
+        name = params.get('parser', None) or params.get('parser', None) or 'en'
+        unk_id = params.get('unk_index', None) or params.get('unk_index', None) or -1
+        blank_id = params.get('blank_index', None) or params.get('blank_index', None) or -1
+        do_normalize = params.get('normalize', None) or params.get('normalize', None) or False
+        self._parser = parsers.make_parser(
+            labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
+        )
+        return self._parser
+
+    def parse(self, str_input):
+        tokens = self.parser(str_input)
+        # Parser doesn't add bos and eos ids, so maunally add it
+        tokens = [len(self._cfg.labels)] + tokens + [len(self._cfg.labels) + 1]
+        tokens_tensor = torch.tensor(tokens).unsqueeze_(0).to(self.device)
+
+        return tokens_tensor
 
     @property
     def input_types(self):
@@ -143,16 +148,16 @@ class Tacotron2Model(SpectrogramGenerator):
     def output_types(self):
         if not self.calculate_loss and not self.training:
             return {
-                "spec_pred_dec": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-                "spec_pred_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+                "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
                 "gate_pred": NeuralType(('B', 'T'), LogitsType()),
                 "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
             }
         return {
-            "spec_pred_dec": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
-            "spec_pred_postnet": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "gate_pred": NeuralType(('B', 'T'), LogitsType()),
-            "spec_target": NeuralType(('B', 'T', 'D'), MelSpectrogramType()),
+            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "spec_target_len": NeuralType(('B'), LengthsType()),
             "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
         }
@@ -177,13 +182,13 @@ class Tacotron2Model(SpectrogramGenerator):
 
     @typecheck(
         input_types={"tokens": NeuralType(('B', 'T'), EmbeddedTextType())},
-        output_types={"spec": NeuralType(('B', 'T', 'D'), MelSpectrogramType())},
+        output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())},
     )
     def generate_spectrogram(self, *, tokens):
         self.eval()
         self.calculate_loss = False
-        tokens_lens = torch.stack([len(i) for i in tokens])
-        tensors = self(tokens=tokens, tokens_lens=tokens_lens)
+        token_len = torch.tensor([len(i) for i in tokens]).to(self.device)
+        tensors = self(tokens=tokens, token_len=token_len)
         spectrogram_pred = tensors[1]
         return spectrogram_pred
 
