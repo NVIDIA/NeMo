@@ -60,7 +60,7 @@ class Typing(ABC):
     def _validate_input_types(self, input_types=None, **kwargs):
         """
         This function does a few things.
-        1) It ensures that len(mandatory_inputs) <= len(kwargs) <= len(self.input_types).
+        1) It ensures that len(self.input_types <non-optional>) <= len(kwargs) <= len(self.input_types).
         2) For each (keyword name, keyword value) passed as input to the wrapped function:
             - Check if the keyword name exists in the list of valid self.input_types names.
             - Check if keyword value has the `neural_type` property.
