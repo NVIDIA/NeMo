@@ -310,7 +310,7 @@ class PunctuationCapitalizationModel(ModelPT):
 
         # Model's mode and device
         mode = self.training
-        device = next(self.parameters()).device
+        device = self._device
         try:
             # Switch model to evaluation mode
             self.eval()
