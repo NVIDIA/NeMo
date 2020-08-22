@@ -30,7 +30,6 @@ trainer:
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
-
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: Punctuation_and_Capitalization  # The name of your model
@@ -62,7 +61,9 @@ model:
     batch_size: 64
 
   validation_ds:
-    ds_item: null # provide a list of data_dirs if evaluation on multiple datasets is needed, by default data_dir is used
+    # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
+    # evaluationis needed, specify ds_item, otherwise by default data_dir is used
+    ds_item: null # expected format: [PATH_TO_DEV1,PATH_TO_DEV2] (Note no space between the paths and square brackets)
     text_file: text_dev.txt
     labels_file: labels_dev.txt
     shuffle: false

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -23,13 +23,16 @@ from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
+    BertPunctuationCapitalizationInferDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationModel']
 
@@ -117,12 +120,8 @@ class PunctuationCapitalizationModel(ModelPT):
         capit_logits = self.capit_classifier(hidden_states=hidden_states)
         return punct_logits, capit_logits
 
-    def training_step(self, batch, batch_idx):
-        """
-        Lightning calls this inside the training loop with the data from the training dataloader
-        passed in as `batch`.
-        """
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels = batch
+    def _make_step(self, batch):
+        input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, punct_labels, capit_labels = batch
         punct_logits, capit_logits = self(
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
         )
@@ -130,6 +129,14 @@ class PunctuationCapitalizationModel(ModelPT):
         punct_loss = self.loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
         capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
         loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
+        return loss, punct_logits, capit_logits
+
+    def training_step(self, batch, batch_idx):
+        """
+        Lightning calls this inside the training loop with the data from the training dataloader
+        passed in as `batch`.
+        """
+        loss, _, _ = self._make_step(batch)
         tensorboard_logs = {'train_loss': loss, 'lr': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}
 
@@ -138,17 +145,10 @@ class PunctuationCapitalizationModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, punct_labels, capit_labels = batch
-        punct_logits, capit_logits = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask
-        )
-
-        punct_loss = self.loss(logits=punct_logits, labels=punct_labels, loss_mask=loss_mask)
-        capit_loss = self.loss(logits=capit_logits, labels=capit_labels, loss_mask=loss_mask)
-        val_loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
+        _, _, _, subtokens_mask, _, punct_labels, capit_labels = batch
+        val_loss, punct_logits, capit_logits = self._make_step(batch)
 
         subtokens_mask = subtokens_mask > 0.5
-
         punct_preds = torch.argmax(punct_logits, axis=-1)[subtokens_mask]
         punct_labels = punct_labels[subtokens_mask]
         punct_tp, punct_fp, punct_fn = self.punct_class_report(punct_preds, punct_labels)
@@ -254,6 +254,123 @@ class PunctuationCapitalizationModel(ModelPT):
             pin_memory=self._cfg.dataset.pin_memory,
             drop_last=self._cfg.dataset.drop_last,
         )
+
+    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                stored.
+
+        Returns:
+            A pytorch DataLoader.
+        """
+
+        dataset = BertPunctuationCapitalizationInferDataset(
+            tokenizer=self.tokenizer,
+            queries=queries,
+            max_seq_length=self._cfg.dataset.max_seq_length,
+            ignore_extra_tokens=self._cfg.dataset.ignore_extra_tokens,
+            ignore_start_end=self._cfg.dataset.ignore_start_end,
+        )
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=False,
+        )
+
+    def add_punctuation_capitalization(self, queries: List[str], batch_size: int = None) -> List[str]:
+        """
+        Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
+        Args:
+            queries: lower cased text without punctuation
+            batch_size: batch size to use during inference.
+        Returns:
+            result: text with added capitalization and punctuation
+        """
+        if queries is None or len(queries) == 0:
+            return []
+        if batch_size is None:
+            batch_size = len(queries)
+            logging.info(f'Using batch size {batch_size} for inference')
+
+        # We will store transcriptions here
+        result = []
+
+        # Model's mode and device
+        mode = self.training
+        device = self._device
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
+
+            # store predictions for all queries in a single list
+            all_punct_preds = []
+            all_capit_preds = []
+
+            for i, batch in enumerate(infer_datalayer):
+                input_ids, input_type_ids, input_mask, subtokens_mask = batch
+
+                punct_logits, capit_logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
+                )
+
+                subtokens_mask = subtokens_mask > 0.5
+                punct_preds = tensor2list(torch.argmax(punct_logits, axis=-1)[subtokens_mask])
+                capit_preds = tensor2list(torch.argmax(capit_logits, axis=-1)[subtokens_mask])
+                all_punct_preds.extend(punct_preds)
+                all_capit_preds.extend(capit_preds)
+
+            queries = [q.strip().split() for q in queries]
+            queries_len = [len(q) for q in queries]
+
+            if sum(queries_len) != len(all_punct_preds) or sum(queries_len) != len(all_capit_preds):
+                raise ValueError('Pred and words must have the same length')
+
+            punct_ids_to_labels = {v: k for k, v in self._cfg.punct_label_ids.items()}
+            capit_ids_to_labels = {v: k for k, v in self._cfg.capit_label_ids.items()}
+
+            start_idx = 0
+            end_idx = 0
+            for query in queries:
+                end_idx += len(query)
+
+                # extract predictions for the current query from the list of all predictions
+                punct_preds = all_punct_preds[start_idx:end_idx]
+                capit_preds = all_capit_preds[start_idx:end_idx]
+                start_idx = end_idx
+
+                query_with_punct_and_capit = ''
+                for j, word in enumerate(query):
+                    punct_label = punct_ids_to_labels[punct_preds[j]]
+                    capit_label = capit_ids_to_labels[capit_preds[j]]
+
+                    if capit_label != self._cfg.dataset.pad_label:
+                        word = word.capitalize()
+                    query_with_punct_and_capit += word
+                    if punct_label != self._cfg.dataset.pad_label:
+                        query_with_punct_and_capit += punct_label
+                    query_with_punct_and_capit += ' '
+
+                result.append(query_with_punct_and_capit.strip())
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return result
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
