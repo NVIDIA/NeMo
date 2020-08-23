@@ -86,17 +86,13 @@ class BertModule(NeuralModule, Exportable):
         """
         return self.config.hidden_size
 
-    def _prepare_for_export(self):
+    def input_example(self):
         """
-        Returns a pair in input, output examples for tracing.
+        Generates input examples for tracing etc.
         Returns:
-            A pair of (input, output) examples.
+            A tuple of input examples.
         """
         sample = next(self.parameters())
         input_ids = torch.randint(low=0, high=16, size=(2, 16)).to(sample.device)
         attention_mask = torch.randint(low=0, high=1, size=(2, 16)).to(sample.device)
-        ins = tuple([input_ids, attention_mask, attention_mask])
-        output_example = self.forward(
-            input_ids=input_ids, attention_mask=attention_mask, token_type_ids=attention_mask
-        )
-        return ins, output_example
+        return tuple([input_ids, attention_mask, attention_mask])
