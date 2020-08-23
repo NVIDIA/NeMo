@@ -57,18 +57,17 @@ class Classifier(NeuralModule, Exportable):
         if use_transformer_init:
             self.apply(lambda module: transformer_weights_init(module, xavier=False))
 
-    def _prepare_for_export(self):
+    def input_example(self):
         """
-        Returns a pair in input, output examples for tracing.
+        Generates input examples for tracing etc.
         Returns:
-            A pair of (input, output) examples.
+            A tuple of input examples.
         """
         bs = 8
         seq = 64
         sample = next(self.parameters())
         input_example = torch.randn(bs, seq, self._hidden_size).to(sample.device).to(sample.dtype)
-        output_example = self.forward(hidden_states=input_example)
-        return input_example, output_example
+        return tuple([input_example])
 
     def save_to(self, save_path: str):
         """
