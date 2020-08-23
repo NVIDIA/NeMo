@@ -20,7 +20,7 @@ import tarfile
 import tempfile
 from abc import abstractmethod
 from os import path
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import hydra
 import torch
@@ -36,6 +36,7 @@ __all__ = ['ModelPT']
 
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _MODEL_WEIGHTS = "model_weights.ckpt"
+_MODEL_IS_RESTORED = False
 
 
 class ModelPT(LightningModule, Model):
@@ -70,8 +71,14 @@ class ModelPT(LightningModule, Model):
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
-        self._cfg = cfg
-        self.save_hyperparameters(self._cfg)
+
+        config = OmegaConf.to_container(cfg, resolve=True)
+        config = OmegaConf.create(config)
+        OmegaConf.set_struct(config, True)
+
+        self._cfg = config
+
+        self.save_hyperparameters(OmegaConf.to_container(self._cfg, resolve=True))
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
@@ -79,33 +86,37 @@ class ModelPT(LightningModule, Model):
         self._scheduler = None
         self._trainer = trainer
 
-        if self._cfg is not None:  # TODO: This check is redundant since we know cfg is an instance of DictConfig
+        if self._cfg is not None and not self.__is_model_being_restored():
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
                 self.setup_training_data(self._cfg.train_ds)
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                # Set some placeholder overriden by helper method
-                self._validation_loss_idx = 0
-                self._validation_names = None
-                self._validation_dl = None  # type: torch.utils.data.DataLoader
-
-                model_utils.resolve_validation_dataloaders(model=self)
-
-                if self._validation_names is None:
-                    if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
-                        self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+                self.setup_multiple_validation_data(val_data_config=None)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                # Set some placeholder overriden by helper method
-                self._test_loss_idx = 0
-                self._test_names = None
-                self._test_dl = None  # type: torch.utils.data.DataLoader
+                self.setup_multiple_test_data(test_data_config=None)
 
-                model_utils.resolve_test_dataloaders(model=self)
+        else:
+            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+                logging.warning(
+                    f"Please call the ModelPT.setup_training_data() method "
+                    f"and provide a valid configuration file to setup the train data loader.\n"
+                    f"Train config : \n{self._cfg.train_ds}"
+                )
 
-                if self._test_names is None:
-                    if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
-                        self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
+            if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+                logging.warning(
+                    f"Please call the ModelPT.setup_validation_data() or ModelPT.setup_multiple_validation_data() method "
+                    f"and provide a valid configuration file to setup the validation data loader(s). \n"
+                    f"Validation config : \n{self._cfg.validation_ds}"
+                )
+
+            if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+                logging.warning(
+                    f"Please call the ModelPT.setup_test_data() or ModelPT.setup_multiple_test_data() method "
+                    f"and provide a valid configuration file to setup the test data loader(s).\n"
+                    f"Test config : \n{self._cfg.test_ds}"
+                )
 
     def register_artifact(self, config_path: str, src: str):
         """
@@ -190,6 +201,7 @@ class ModelPT(LightningModule, Model):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
+                cls.__set_model_restore_state(is_being_restored=True)
                 cls.__unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
                 os.chdir(tmpdir)
                 config_yaml = path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -199,10 +211,39 @@ class ModelPT(LightningModule, Model):
                 instance = cls.from_config_dict(config=conf)
                 instance.load_state_dict(torch.load(model_weights))
 
+                logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
+                cls.__set_model_restore_state(is_being_restored=False)
                 os.chdir(cwd)
 
         return instance
+
+    @classmethod
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        *args,
+        map_location: Optional[Union[Dict[str, str], str, torch.device, int, Callable]] = None,
+        hparams_file: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Loads ModelPT from checkpoint, with some maintenance of restoration.
+        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        """
+        # TODO (@titu1994): When PTL 0.9+ is supported, add `strict=False` flag to constructor
+        checkpoint = None
+        try:
+            cls.__set_model_restore_state(is_being_restored=True)
+
+            checkpoint = super().load_from_checkpoint(
+                checkpoint_path=checkpoint_path, *args, map_location=map_location, hparams_file=hparams_file, **kwargs
+            )
+
+        finally:
+            cls.__set_model_restore_state(is_being_restored=False)
+
+        return checkpoint
 
     @abstractmethod
     def setup_training_data(self, train_data_config: Union[DictConfig, Dict]):
@@ -239,6 +280,54 @@ class ModelPT(LightningModule, Model):
         """
         raise NotImplementedError()
 
+    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
+        """
+        (Optionally) Setups data loader to be used in validation, with support for multiple data loaders.
+
+        Args:
+            val_data_layer_config: validation data layer parameters.
+        """
+        # Set some placeholder overriden by helper method
+        self._validation_loss_idx = 0
+        self._validation_names = None
+        self._validation_dl = None  # type: torch.utils.data.DataLoader
+
+        if val_data_config is not None:
+            if isinstance(val_data_config, dict):
+                val_data_config = DictConfig(val_data_config)
+
+            self._cfg.validation_ds = val_data_config
+
+        model_utils.resolve_validation_dataloaders(model=self)
+
+        if self._validation_names is None:
+            if self._validation_dl is not None and type(self._validation_dl) in [list, tuple]:
+                self._validation_names = ['val_{}_'.format(idx) for idx in range(len(self._validation_dl))]
+
+    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
+        """
+        (Optionally) Setups data loader to be used in test, with support for multiple data loaders.
+
+        Args:
+            test_data_layer_config: test data layer parameters.
+        """
+        # Set some placeholder overriden by helper method
+        self._test_loss_idx = 0
+        self._test_names = None
+        self._test_dl = None  # type: torch.utils.data.DataLoader
+
+        if test_data_config is not None:
+            if isinstance(test_data_config, dict):
+                test_data_config = DictConfig(test_data_config)
+
+            self._cfg.test_ds = test_data_config
+
+        model_utils.resolve_test_dataloaders(model=self)
+
+        if self._test_names is None:
+            if self._test_dl is not None and type(self._test_dl) in [list, tuple]:
+                self._test_names = ['test_{}_'.format(idx) for idx in range(len(self._test_dl))]
+
     def setup_optimization(self, optim_config: Optional[Union[DictConfig, Dict]] = None):
         """
         Prepares an optimizer from a string name and its optional config parameters.
@@ -263,6 +352,15 @@ class ModelPT(LightningModule, Model):
         if optim_config is None:
             logging.info('No optimizer config provided, therefore no optimizer was created')
             return
+
+        else:
+            # Preserve the configuration
+            if not isinstance(optim_config, DictConfig):
+                optim_config = OmegaConf.create(optim_config)
+
+            # See if internal config has `optim` namespace before preservation
+            if self._cfg is not None and hasattr(self._cfg, 'optim'):
+                self._cfg.optim = optim_config
 
         # Setup optimizer and scheduler
         if optim_config is not None and isinstance(optim_config, DictConfig):
@@ -546,7 +644,7 @@ class ModelPT(LightningModule, Model):
 
                 # Perform `test_loss` resolution first (if provided outside logs)
                 if 'test_loss' in dataloader_logs:
-                    if 'test_loss' not in output_dict and dataloader_idx == self._validation_loss_idx:
+                    if 'test_loss' not in output_dict and dataloader_idx == self._test_loss_idx:
                         output_dict['test_loss'] = dataloader_logs['test_loss']
 
                 # For every item in the result dictionary
@@ -616,10 +714,28 @@ class ModelPT(LightningModule, Model):
             "`test_epoch_end(outputs)."
         )
 
-    def get_validation_dataloader_prefix(self, dataloader_idx=0):
+    def get_validation_dataloader_prefix(self, dataloader_idx: int = 0) -> str:
+        """
+        Get the name of one or more data loaders, which will be prepended to all logs.
+
+        Args:
+            dataloader_idx: Index of the data loader.
+
+        Returns:
+            str name of the data loader at index provided.
+        """
         return self._validation_names[dataloader_idx]
 
-    def get_test_dataloader_prefix(self, dataloader_idx=0):
+    def get_test_dataloader_prefix(self, dataloader_idx: int = 0) -> str:
+        """
+        Get the name of one or more data loaders, which will be prepended to all logs.
+
+        Args:
+            dataloader_idx: Index of the data loader.
+
+        Returns:
+            str name of the data loader at index provided.
+        """
         return self._test_names[dataloader_idx]
 
     def prepare_test(self, trainer: 'Trainer') -> bool:
@@ -644,7 +760,8 @@ class ModelPT(LightningModule, Model):
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
                     "with single GPU and no DDP.\n"
                     "Following pattern should be used: \n"
-                    "trainer = Trainer()\n"
+                    "gpu = 1 if cfg.trainer.gpus != 0 else 0\n"
+                    "trainer = Trainer(gpus=gpu)\n"
                     "if model.prepare_test(trainer):\n"
                     "  trainer.test(model)\n\n"""
 
@@ -653,7 +770,18 @@ class ModelPT(LightningModule, Model):
                 logging.warning(DDP_WARN)
                 return False
 
+        # Assign trainer to the model
+        self.set_trainer(trainer)
         return True
+
+    def set_trainer(self, trainer: 'Trainer'):
+        """
+        Set an instance of Trainer object.
+
+        Args:
+            trainer: PyTorch Lightning Trainer object.
+        """
+        self._trainer = trainer
 
     @property
     def num_weights(self):
@@ -673,3 +801,13 @@ class ModelPT(LightningModule, Model):
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder
+
+    @staticmethod
+    def __is_model_being_restored() -> bool:
+        global _MODEL_IS_RESTORED
+        return _MODEL_IS_RESTORED
+
+    @staticmethod
+    def __set_model_restore_state(is_being_restored: bool):
+        global _MODEL_IS_RESTORED
+        _MODEL_IS_RESTORED = is_being_restored

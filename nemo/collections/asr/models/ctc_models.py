@@ -19,7 +19,7 @@ from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_text import AudioToCharDataset, TarredAudioToCharDataset
@@ -152,6 +152,12 @@ class EncDecCTCModel(ASRModel):
             del self.decoder
             self.decoder = EncDecCTCModel.from_config_dict(new_decoder_config)
             self._wer = WER(vocabulary=self.decoder.vocabulary, batch_dim_index=0, use_cer=False, ctc_decode=True)
+
+            # Update config
+            OmegaConf.set_struct(self._cfg.decoder, False)
+            self._cfg.decoder = new_decoder_config
+            OmegaConf.set_struct(self._cfg.decoder, True)
+
             logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
@@ -164,6 +170,15 @@ class EncDecCTCModel(ASRModel):
 
         # Instantiate tarred dataset loader or normal dataset loader
         if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` was None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size'])
             dataset = TarredAudioToCharDataset(
                 audio_tar_filepaths=config['tarred_audio_filepaths'],
@@ -187,6 +202,10 @@ class EncDecCTCModel(ASRModel):
             )
             shuffle = False
         else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+                return None
+
             dataset = AudioToCharDataset(
                 manifest_filepath=config['manifest_filepath'],
                 labels=config['labels'],
@@ -301,6 +320,15 @@ class EncDecCTCModel(ASRModel):
         )
         wer_num, wer_denom = self._wer(predictions, transcript, transcript_len)
         return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        test_logs = {
+            'test_loss': logs['val_loss'],
+            'test_wer_num': logs['val_wer_num'],
+            'test_wer_denom': logs['val_wer_denom'],
+        }
+        return test_logs
 
     def test_dataloader(self):
         if self._test_dl is not None:

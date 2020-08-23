@@ -496,14 +496,22 @@ def prepare_lr_scheduler(
     elif 'iters_per_batch' in scheduler_config:
         # Compute effective max_steps if iters_per_batch is provided
         if train_dataloader is None:
-            raise ValueError(
-                'As `iters_per_batch` is provided, it is required to pass the train dataloader in order '
-                'to compute effective maximum number of steps'
+            logging.warning(
+                'As `iters_per_batch` is provided/computed, it is required to pass the train dataloader in order\n'
+                'to compute effective maximum number of steps.\n'
+                'Scheduler will not be instantiated !'
             )
+            return None
 
         # Raise exception if neither `max_steps` nor `iters_per_batch` is provided
         if scheduler_config.get('iters_per_batch', None) is None:
-            raise ValueError("`iters_per_batch` cannot be None when `max_steps` is not not provided.")
+            logging.warning(
+                "`iters_per_batch` cannot be None when `max_steps` is not not provided.\n"
+                "This can occur when `train dataloader` is not available to correctly "
+                "prepare the scheduler.\n"
+                "Scheduler will not be instantiated !"
+            )
+            return None
 
         # Get iters_per_batch
         iters_per_batch = scheduler_config.get('iters_per_batch')

@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
+from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from torch import nn
 
@@ -49,12 +50,12 @@ class Preprocessor:
 @dataclass
 class Tacotron2Config:
     preprocessor: Preprocessor = Preprocessor()
-    encoder: Dict = MISSING
-    decoder: Dict = MISSING
-    postnet: Dict = MISSING
+    encoder: Dict[Any, Any] = MISSING
+    decoder: Dict[Any, Any] = MISSING
+    postnet: Dict[Any, Any] = MISSING
     labels: List = MISSING
-    train_ds: Optional[Dict] = None
-    validation_ds: Optional[Dict] = None
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
@@ -78,11 +79,11 @@ class Tacotron2Model(ModelPT):
         OmegaConf.merge(cfg, schema)
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
-        self.audio_to_melspec_precessor = Tacotron2Model.from_config_dict(self._cfg.preprocessor)
+        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
         self.text_embedding = nn.Embedding(len(cfg.labels) + 3, 512)
-        self.encoder = Tacotron2Model.from_config_dict(self._cfg.encoder)
-        self.decoder = Tacotron2Model.from_config_dict(self._cfg.decoder)
-        self.postnet = Tacotron2Model.from_config_dict(self._cfg.postnet)
+        self.encoder = instantiate(self._cfg.encoder)
+        self.decoder = instantiate(self._cfg.decoder)
+        self.postnet = instantiate(self._cfg.postnet)
         self.loss = Tacotron2Loss()
 
     @property
@@ -175,9 +176,15 @@ class Tacotron2Model(ModelPT):
         }
 
     def validation_epoch_end(self, outputs):
-        tacotron2_log_to_tb_func(
-            self.logger.experiment, outputs[0].values(), self.global_step, tag="val", log_images=True, add_audio=False
-        )
+        if self.logger is not None and self.logger.experiment is not None:
+            tacotron2_log_to_tb_func(
+                self.logger.experiment,
+                outputs[0].values(),
+                self.global_step,
+                tag="val",
+                log_images=True,
+                add_audio=False,
+            )
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
@@ -201,9 +208,8 @@ class Tacotron2Model(ModelPT):
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         labels = cfg.dataset.params.labels
-        dataset = Tacotron2Model.from_config_dict(
-            cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2,
-        )
+
+        dataset = instantiate(cfg.dataset, bos_id=len(labels), eos_id=len(labels) + 1, pad_id=len(labels) + 2)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):

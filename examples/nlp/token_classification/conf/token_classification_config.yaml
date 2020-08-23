@@ -1,6 +1,4 @@
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2018 The Google AI Language Team Authors and
-# The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,13 +31,14 @@ trainer:
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 exp_manager:
-  root_dir: null  # root_dir for your experiment, if None, defaults to "./NeMo_experiments"
+  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: token_classification_model  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
 
 model:
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
+  label_ids: null # will be filled during training
   dataset:
     data_dir: ??? # /path/to/data
     class_balancing: null # choose from [null, weighted_loss]. Weighted_loss enables the weighted class balancing of the loss, may be used for handling unbalanced classes
@@ -50,7 +49,8 @@ model:
     use_cache: true
 
   train_ds:
-    prefix: train
+    text_file: text_train.txt
+    labels_file: labels_train.txt
     shuffle: true
     num_samples: -1
     batch_size: 64
@@ -59,7 +59,8 @@ model:
     drop_last: false
 
   validation_ds:
-    prefix: dev
+    text_file: text_dev.txt
+    labels_file: labels_dev.txt
     shuffle: false
     num_samples: -1
     batch_size: 64
@@ -94,6 +95,10 @@ model:
       warmup_steps: null
       warmup_ratio: 0.1
       last_epoch: -1
+
+      # pytorch lightning args
+      monitor: val_loss
+      reduce_on_plateau: false
 
 hydra:
   run:

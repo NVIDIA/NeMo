@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 from typing import Dict, Optional
 
@@ -21,12 +22,10 @@ from nemo.core.classes import NeuralModule
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['BertModule']
 
 
-@experimental
 class BertModule(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -52,7 +51,12 @@ class BertModule(NeuralModule, Exportable):
 
     def restore_weights(self, restore_path: str):
         """Restores module/model's weights"""
-        logging.info(f"restore from {restore_path}")
+        logging.info(f"Restoring weights from {restore_path}")
+
+        if not os.path.exists(restore_path):
+            logging.warning(f'Path {restore_path} not found')
+            return
+
         pretrained_dict = torch.load(restore_path)
 
         # backward compatibility with NeMo0.11
@@ -69,6 +73,18 @@ class BertModule(NeuralModule, Exportable):
         assert len(pretrained_dict) == len(model_dict)
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
+        logging.info(f"Weights for {type(self).__name__} restored from {restore_path}")
+
+    @property
+    def hidden_size(self):
+        """
+            Property returning hidden size.
+
+            Returns:
+                Hidden size
+            Default implementation relay to BERT config property..
+        """
+        return self.config.hidden_size
 
     def _prepare_for_export(self):
         """
@@ -76,8 +92,9 @@ class BertModule(NeuralModule, Exportable):
         Returns:
             A pair of (input, output) examples.
         """
-        input_ids = torch.randint(low=0, high=16, size=(2, 16))
-        attention_mask = torch.randint(low=0, high=1, size=(2, 16))
+        sample = next(self.parameters())
+        input_ids = torch.randint(low=0, high=16, size=(2, 16)).to(sample.device)
+        attention_mask = torch.randint(low=0, high=1, size=(2, 16)).to(sample.device)
         ins = tuple([input_ids, attention_mask, attention_mask])
         output_example = self.forward(
             input_ids=input_ids, attention_mask=attention_mask, token_type_ids=attention_mask

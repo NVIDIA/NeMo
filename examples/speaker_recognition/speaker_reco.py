@@ -15,13 +15,12 @@
 import os
 
 import pytorch_lightning as pl
+from pytorch_lightning import seed_everything
 
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 """
 Basic run (on CPU for 50 epochs):
@@ -43,15 +42,19 @@ PTL logs will be found in "$(./outputs/$(date +"%y-%m-%d")/$(date +"%H-%M-%S")/l
 
 """
 
+seed_everything(42)
+
 
 @hydra_runner(config_path="conf", config_name="config")
 def main(cfg):
 
     logging.info(f'Hydra config: {cfg.pretty()}')
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     trainer.fit(speaker_model)
+    model_path = os.path.join(log_dir, '..', 'spkr.nemo')
+    speaker_model.save_to(model_path)
 
 
 if __name__ == '__main__':

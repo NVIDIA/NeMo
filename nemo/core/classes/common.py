@@ -60,9 +60,8 @@ class Typing(ABC):
     def _validate_input_types(self, input_types=None, **kwargs):
         """
         This function does a few things.
-        1) It ensures that len(kwargs) == len(self.input_types).
-        2) If above fails, it checks len(kwargs) == len(self.input_types <non-optional>).
-        3) For each (keyword name, keyword value) passed as input to the wrapped function:
+        1) It ensures that len(self.input_types <non-optional>) <= len(kwargs) <= len(self.input_types).
+        2) For each (keyword name, keyword value) passed as input to the wrapped function:
             - Check if the keyword name exists in the list of valid self.input_types names.
             - Check if keyword value has the `neural_type` property.
                 - If it does, then perform a comparative check and assert that neural types
@@ -84,13 +83,11 @@ class Typing(ABC):
                 [type_val for type_key, type_val in input_types.items() if not type_val.optional]
             )
 
-            if len(kwargs) != total_input_types:
-                if len(kwargs) != mandatory_input_types:
-                    raise TypeError(
-                        "Number of input arguments provided ({}) is not as expected ({})".format(
-                            len(kwargs), len(input_types)
-                        )
-                    )
+            if len(kwargs) < mandatory_input_types or len(kwargs) > total_input_types:
+                raise TypeError(
+                    f"Number of input arguments provided ({len(kwargs)}) is not as expected. Function has "
+                    f"{total_input_types} total inputs with {mandatory_input_types} mandatory inputs."
+                )
 
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
@@ -240,14 +237,19 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: DictConfig, *args: Any, **kwargs: Any):
+    def from_config_dict(cls, config: DictConfig):
         """Instantiates object using DictConfig-based configuration"""
+        # Resolve the config dict
+        if isinstance(config, DictConfig):
+            config = OmegaConf.to_container(config, resolve=True)
+            config = OmegaConf.create(config)
+            OmegaConf.set_struct(config, True)
+
         if ('cls' in config or 'target' in config) and 'params' in config:
             # regular hydra-based instantiation
-            instance = hydra.utils.instantiate(config=config, *args, **kwargs)
+            instance = hydra.utils.instantiate(config=config)
         else:
             # models are handled differently for now
-            # TODO: allow passthrough for args, and kwargs too?
             instance = cls(cfg=config)
 
         if not hasattr(instance, '_cfg'):
@@ -257,6 +259,13 @@ class Serialization(ABC):
     def to_config_dict(self) -> DictConfig:
         """Returns object's configuration to config dictionary"""
         if hasattr(self, '_cfg') and self._cfg is not None and isinstance(self._cfg, DictConfig):
+            # Resolve the config dict
+            config = OmegaConf.to_container(self._cfg, resolve=True)
+            config = OmegaConf.create(config)
+            OmegaConf.set_struct(config, True)
+
+            self._cfg = config
+
             return self._cfg
         else:
             raise NotImplementedError(

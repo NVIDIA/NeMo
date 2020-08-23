@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
 from typing import Dict, Optional, Union
 import random
 
@@ -21,7 +23,8 @@ import numpy as np
 from nemo.collections.asr.parts import collections, parsers
 from nemo.collections.asr.parts.segment import AudioSegment
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType
+from nemo.core.neural_types.elements import *
+from nemo.core.neural_types.neural_type import NeuralType
 
 
 class AudioDataset(Dataset):
@@ -30,13 +33,13 @@ class AudioDataset(Dataset):
         """Returns definitions of module output ports.
                """
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     def __init__(
         self,
-        manifest_filepath: Union[str, 'pathlib.Path'],
+        manifest_filepath: Union[str, "pathlib.Path"],
         n_segments: int,
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
@@ -70,7 +73,7 @@ class AudioDataset(Dataset):
         """
 
         self.collection = collections.ASRAudioText(
-            manifests_files=manifest_filepath.split(','),
+            manifests_files=manifest_filepath.split(","),
             parser=parsers.make_parser(),
             min_duration=min_duration,
             max_duration=max_duration,

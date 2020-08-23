@@ -35,8 +35,8 @@ class TokenClassificationDataDesc:
             It is going to look for the data files at {data_dir}/{mode}.txt
         """
         self.data_dir = data_dir
-
         unique_labels = set()
+
         for mode in modes:
             all_labels = []
             label_file = os.path.join(data_dir, 'labels_' + mode + '.txt')

@@ -28,12 +28,10 @@ from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_m
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
-from nemo.utils.decorators import experimental
 
 __all__ = ['TextClassificationModel']
 
 
-@experimental
 class TextClassificationModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -70,7 +68,7 @@ class TextClassificationModel(ModelPT):
             config_file=cfg.language_model.bert_config,
             checkpoint_file=cfg.language_model.bert_checkpoint_file,
         )
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
         self.classifier = SequenceClassifier(
             hidden_size=self.hidden_size,
             num_classes=self.data_desc.num_classes,

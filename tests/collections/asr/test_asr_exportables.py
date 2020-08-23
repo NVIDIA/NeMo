@@ -18,10 +18,10 @@ import pytest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
-from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, TokenClassifier
 
 
 class TestExportable:
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_ConvASREncoder_export_to_onnx(self):
         encoder_dict = {
@@ -47,29 +47,14 @@ class TestExportable:
             },
         }
         with tempfile.TemporaryDirectory() as tmpdir:
-            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
+            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict)).cuda()
             assert isinstance(encoder_instance, ConvASREncoder)
             filename = os.path.join(tmpdir, 'qn_encoder.onnx')
             encoder_instance.export(output=filename)
 
     @pytest.mark.unit
-    def test_token_classifier_export_to_onnx(self):
-        for num_layers in [1, 2, 4]:
-            tclassifier = TokenClassifier(hidden_size=256, num_classes=16, num_layers=num_layers)
-            with tempfile.TemporaryDirectory() as tmpdir:
-                filename = os.path.join(tmpdir, 'tclassifier.onnx')
-                tclassifier.export(output=filename)
-
-    @pytest.mark.unit
-    def test_bert_pretraining_export_to_onnx(self):
-        for num_layers in [1, 2, 4]:
-            bptclassifier = BertPretrainingTokenClassifier(hidden_size=256, num_classes=16, num_layers=num_layers)
-            with tempfile.TemporaryDirectory() as tmpdir:
-                filename = os.path.join(tmpdir, 'bptclassifier.onnx')
-                bptclassifier.export(output=filename)
-
-    @pytest.mark.unit
-    def test_convasr_decoder_export_to_onnx(self):
+    @pytest.mark.run_only_on('GPU')
+    def test_ConvASRDecoder_export_to_onnx(self):
         decoder_params = {
             'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
             'params': {
@@ -107,7 +92,7 @@ class TestExportable:
                 ],
             },
         }
-        decoder = ConvASRDecoder.from_config_dict(config=DictConfig(decoder_params))
+        decoder = ConvASRDecoder.from_config_dict(config=DictConfig(decoder_params)).cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'qn_decoder.onnx')
             decoder.export(output=filename)

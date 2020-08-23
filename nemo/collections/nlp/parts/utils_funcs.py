@@ -12,8 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['list2str']
+__all__ = ['list2str', 'tensor2list']
+
+from typing import List, Union
+
+from torch import Tensor
 
 
-def list2str(l):
+def list2str(l: List[int]) -> str:
+    """ Converts list to a string"""
     return ' '.join([str(x) for x in l])
+
+
+def tensor2list(tensor: Tensor) -> List[Union[int, float]]:
+    """ Converts tensor to a list """
+    return tensor.detach().cpu().tolist()

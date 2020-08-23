@@ -23,7 +23,10 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.lm_bert_dataset import BertPretrainingDataset, BertPretrainingPreprocessedDataloader
+from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
+    BertPretrainingDataset,
+    BertPretrainingPreprocessedDataloader,
+)
 from nemo.collections.nlp.metrics.perplexity import Perplexity
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
@@ -31,12 +34,10 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
-from nemo.utils.decorators import experimental
 
 __all__ = ['BERTLMModel']
 
 
-@experimental
 class BERTLMModel(ModelPT):
     """
     BERT language model pretraining.
@@ -75,20 +76,14 @@ class BERTLMModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if cfg.language_model.bert_config_file is not None:
-            self.bert_model = get_pretrained_lm_model(
-                pretrained_model_name=cfg.language_model.pretrained_model_name,
-                config_file=cfg.language_model.bert_config_file,
-                checkpoint_file=cfg.language_model.bert_checkpoint,
-            )
-        else:
-            self.bert_model = get_pretrained_lm_model(
-                pretrained_model_name=cfg.language_model.pretrained_model_name,
-                config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
-                checkpoint_file=cfg.language_model.bert_checkpoint,
-            )
+        self.bert_model = get_pretrained_lm_model(
+            pretrained_model_name=cfg.language_model.pretrained_model_name,
+            config_file=cfg.language_model.bert_config_file,
+            config_dict=OmegaConf.to_container(cfg.language_model.bert_config),
+            checkpoint_file=cfg.language_model.bert_checkpoint,
+        )
 
-        self.hidden_size = self.bert_model.config.hidden_size
+        self.hidden_size = self.bert_model.hidden_size
         self.vocab_size = self.bert_model.config.vocab_size
         self.only_mlm_loss = cfg.only_mlm_loss
 
