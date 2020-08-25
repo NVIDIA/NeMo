@@ -758,7 +758,7 @@ class ModelPT(LightningModule, Model):
 
         # Replace ddp multi-gpu until PTL has a fix
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
-                    "with single GPU and no DDP.\n"
+                    "with single GPU and no DDP to obtain accurate results.\n"
                     "Following pattern should be used: \n"
                     "gpu = 1 if cfg.trainer.gpus != 0 else 0\n"
                     "trainer = Trainer(gpus=gpu)\n"
@@ -768,7 +768,7 @@ class ModelPT(LightningModule, Model):
         if trainer is not None:
             if trainer.num_gpus > 1:
                 logging.warning(DDP_WARN)
-                return False
+                return True
 
         # Assign trainer to the model
         self.set_trainer(trainer)
