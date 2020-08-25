@@ -26,8 +26,7 @@ from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.logging import WandbLogger
+from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
 from nemo.constants import NEMO_ENV_VARNAME_VERSION
