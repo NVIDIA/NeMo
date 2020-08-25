@@ -15,6 +15,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from omegaconf import ListConfig, OmegaConf
 
 from nemo.collections.asr.parts.jasper import (
@@ -356,9 +357,20 @@ class SpeakerDecoder(NeuralModule):
         )
 
     def __init__(
-        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
+        self,
+        feat_in,
+        num_classes,
+        emb_sizes=[1024, 1024],
+        pool_mode='xvector',
+        angular=False,
+        init_mode="xavier_uniform",
     ):
         super().__init__()
+        self.angular = angular
+        if self.angular:
+            bias = False
+        else:
+            bias = True
 
         if type(emb_sizes) is str:
             emb_sizes = emb_sizes.split(',')
@@ -380,7 +392,7 @@ class SpeakerDecoder(NeuralModule):
 
         self.emb_layers = nn.ModuleList(emb_layers)
 
-        self.final = nn.Linear(shapes[-1], self._num_classes)
+        self.final = nn.Linear(shapes[-1], self._num_classes, bias=bias)
 
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
@@ -402,6 +414,13 @@ class SpeakerDecoder(NeuralModule):
             pool, emb = layer(pool), layer[:2](pool)
             embs.append(emb)
 
-        out = self.final(pool)
+        if self.angular:
+            for W in self.final.parameters():
+                W = F.normalize(W, p=2, dim=1)
+            out = F.normalize(pool, p=2, dim=1)
+            out = self.final(out)
+
+        else:
+            out = self.final(pool)
 
         return out, embs[-1]

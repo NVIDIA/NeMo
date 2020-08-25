@@ -23,6 +23,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data.audio_to_label import AudioToSpeechLabelDataSet
+from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.parts.features import WaveformFeaturizer
 from nemo.collections.asr.parts.perturb import process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss as CELoss
@@ -50,7 +51,14 @@ class EncDecSpeakerLabelModel(ModelPT):
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(cfg.preprocessor)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
-        self.loss = CELoss()
+        if 'angular' in cfg.decoder.params and cfg.decoder.params['angular']:
+            logging.info("Training with Angular Softmax Loss")
+            s = cfg.loss.s
+            m = cfg.loss.m
+            self.loss = AngularSoftmaxLoss(s=s, m=m)
+        else:
+            logging.info("Training with Softmax-CrossEntropy loss")
+            self.loss = CELoss()
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:

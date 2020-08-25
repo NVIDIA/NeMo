@@ -120,9 +120,9 @@ target_label_n, "offset": offset_in_sec_n}
         _, audio_lengths, _, tokens_lengths = zip(*batch)
 
         has_audio = audio_lengths[0] is not None
-        fixed_length = min(fixed_length, max(audio_lengths))
+        fixed_length = int(min(fixed_length, max(audio_lengths)))
 
-        audio_signal, tokens = [], []
+        audio_signal, tokens, new_audio_lengths = [], [], []
         for sig, sig_len, tokens_i, _ in batch:
             if has_audio:
                 sig_len = sig_len.item()
@@ -134,17 +134,19 @@ target_label_n, "offset": offset_in_sec_n}
                     sub = sig[-rem:] if rem > 0 else torch.tensor([])
                     rep_sig = torch.cat(repeat * [sig])
                     signal = torch.cat((rep_sig, sub))
+                    new_audio_lengths.append(torch.tensor(fixed_length))
                 else:
                     start_idx = torch.randint(0, chunck_len, (1,)) if chunck_len else torch.tensor(0)
                     end_idx = start_idx + fixed_length
                     signal = sig[start_idx:end_idx]
+                    new_audio_lengths.append(torch.tensor(fixed_length))
 
                 audio_signal.append(signal)
             tokens.append(tokens_i)
 
         if has_audio:
             audio_signal = torch.stack(audio_signal)
-            audio_lengths = torch.stack(audio_lengths)
+            audio_lengths = torch.stack(new_audio_lengths)
         else:
             audio_signal, audio_lengths = None, None
         tokens = torch.stack(tokens)
