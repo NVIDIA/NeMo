@@ -47,10 +47,10 @@ def plot_confusion_matrix(
     '''
     Plot confusion matrix.
     Args:
-      label_ids: str label to id map, for example: {'O': 0, 'LOC': 1}
       labels: ground truth labels
       preds: model predictions
       graph_fold: path to a folder to store confusion matrix plot
+      label_ids: str label to id map, for example: {'O': 0, 'LOC': 1}
       normalize: whether to normalize confusion matrix
       prefix: prefix for the plot name
     '''
@@ -88,7 +88,9 @@ def plot_confusion_matrix(
         fig.colorbar(cax)
 
         title = (prefix + title).strip()
-        plt.savefig(os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S')))
+        fig_name = os.path.join(graph_fold, title + '_' + time.strftime('%Y%m%d-%H%M%S'))
+        plt.savefig(fig_name)
+        logging.info(f'Confusion matrix saved to {fig_name}')
 
 
 def _plot_confusion_matrix(labels: List[int], preds: List[int], graph_fold: str):

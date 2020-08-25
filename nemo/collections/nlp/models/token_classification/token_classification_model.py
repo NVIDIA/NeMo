@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -239,35 +239,24 @@ class TokenClassificationModel(ModelPT):
             drop_last=False,
         )
 
-    def add_entities(self, queries: List[str], batch_size: int = None) -> List[str]:
+    def _infer(self, queries: List[str], batch_size: int = None) -> List[int]:
         """
-        Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
+        Get prediction for the queries
         Args:
-            queries: text
+            queries: text sequences
             batch_size: batch size to use during inference.
         Returns:
-            result: text with added capitalization and punctuation
+            all_preds: model predictions
         """
-        if queries is None or len(queries) == 0:
-            return []
-        if batch_size is None:
-            batch_size = len(queries)
-            logging.info(f'Using batch size {batch_size} for inference')
-
-        # We will store the output here
-        result = []
-
-        # Model's mode and device
+        # store predictions for all queries in a single list
+        all_preds = []
         mode = self.training
-        device = 1 if torch.cuda.is_available() else 0
-
         try:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
             # Switch model to evaluation mode
             self.eval()
+            self.to(device)
             infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
-
-            # store predictions for all queries in a single list
-            all_preds = []
 
             for i, batch in enumerate(infer_datalayer):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
@@ -281,128 +270,121 @@ class TokenClassificationModel(ModelPT):
                 subtokens_mask = subtokens_mask > 0.5
                 preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
                 all_preds.extend(preds)
-
-            queries = [q.strip().split() for q in queries]
-            num_words = [len(q) for q in queries]
-
-            if sum(num_words) != len(all_preds):
-                raise ValueError('Pred and words must have the same length')
-
-            ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-
-            start_idx = 0
-            end_idx = 0
-            for query in queries:
-                end_idx += len(query)
-
-                # extract predictions for the current query from the list of all predictions
-                preds = all_preds[start_idx:end_idx]
-                start_idx = end_idx
-
-                query_with_entities = ''
-                for j, word in enumerate(query):
-                    # strip out the punctuation to attach the entity tag to the word not to a punctuation mark
-                    # that follows the word
-                    if word[-1].isalpha():
-                        punct = ''
-                    else:
-                        punct = word[-1]
-                        word = word[:-1]
-
-                    query_with_entities += word
-                    label = ids_to_labels[preds[j]]
-
-                    if label != self._cfg.dataset.pad_label:
-                        query_with_entities += '[' + label + ']'
-                    query_with_entities += punct + ' '
-                result.append(query_with_entities.strip())
         finally:
             # set mode back to its original value
             self.train(mode=mode)
+        return all_preds
+
+    def add_enties(self, queries: Union[List[str], str], batch_size: int = 32) -> List[str]:
+        """
+        Add entities to the queries. Use this method for debugging and prototyping.
+        Args:
+            queries: text
+            batch_size: batch size to use during inference.
+        Returns:
+            result: text with added entities
+        """
+        if queries is None or len(queries) == 0:
+            return []
+
+        result = []
+        all_preds = self._infer(queries, batch_size)
+
+        queries = [q.strip().split() for q in queries]
+        num_words = [len(q) for q in queries]
+        if sum(num_words) != len(all_preds):
+            raise ValueError('Pred and words must have the same length')
+
+        ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+        start_idx = 0
+        end_idx = 0
+        for query in queries:
+            end_idx += len(query)
+
+            # extract predictions for the current query from the list of all predictions
+            preds = all_preds[start_idx:end_idx]
+            start_idx = end_idx
+
+            query_with_entities = ''
+            for j, word in enumerate(query):
+                # strip out the punctuation to attach the entity tag to the word not to a punctuation mark
+                # that follows the word
+                if word[-1].isalpha():
+                    punct = ''
+                else:
+                    punct = word[-1]
+                    word = word[:-1]
+
+                query_with_entities += word
+                label = ids_to_labels[preds[j]]
+
+                if label != self._cfg.dataset.pad_label:
+                    query_with_entities += '[' + label + ']'
+                query_with_entities += punct + ' '
+            result.append(query_with_entities.strip())
         return result
 
     def evaluate_from_file(
         self,
-        text_file: str,
         output_dir: str,
+        text_file: str,
         labels_file: Optional[str] = None,
         add_confusion_matrix: Optional[bool] = False,
         normalize_confusion_matrix: Optional[bool] = True,
         batch_size: int = 32,
     ) -> List[str]:
         """
-        Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
+        Run inference on data from a file, plot confusion matrix and calculate classification report.
+        Use this method for final evaluation.
         Args:
-            queries: text
+            output_dir: path to output directory to store model predictions, confusion matrix plot (if set to True)
+            text_file: path to file with text. Each line of the text.txt file contains text sequences, where words
+                are separated with spaces: [WORD] [SPACE] [WORD] [SPACE] [WORD]
+            labels_file (Optional): path to file with labels. Each line of the labels_file should contain
+                labels corresponding to each word in the text_file, the labels are separated with spaces:
+                [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+            add_confusion_matrix: whether to generate confusion matrix
+            normalize_confusion_matrix: whether to normalize confusion matrix
             batch_size: batch size to use during inference.
         Returns:
             result: text with added capitalization and punctuation
         """
-        # We will store the output here
-        result = []
         output_dir = os.path.abspath(output_dir)
 
-        # Model's mode and device
-        mode = self.training
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        try:
-            # Switch model to evaluation mode
-            self.eval()
-            self = self.to(device)
-            infer_datalayer = self._setup_infer_dataloader(text_file, batch_size)
+        with open(text_file, 'r') as f:
+            queries = f.readlines()
 
-            # store predictions for all queries in a single list
-            all_preds = []
+        all_preds = self._infer(queries, batch_size)
+        with_labels = labels_file is not None
+        if with_labels:
+            with open(labels_file, 'r') as f:
+                all_labels_str = f.readlines()
+                all_labels_str = ' '.join([labels.strip() for labels in all_labels_str])
 
-            for i, batch in enumerate(infer_datalayer):
-                input_ids, input_type_ids, input_mask, subtokens_mask = batch
-
-                logits = self.forward(
-                    input_ids=input_ids.to(device),
-                    token_type_ids=input_type_ids.to(device),
-                    attention_mask=input_mask.to(device),
-                )
-
-                subtokens_mask = subtokens_mask > 0.5
-                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
-                all_preds.extend(preds)
-
-            with_labels = labels_file is not None
+        # writing labels and predictions to a file in output_dir is specified in the config
+        os.makedirs(output_dir, exist_ok=True)
+        filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
+        with open(filename, 'w') as f:
             if with_labels:
-                with open(labels_file, 'r') as f:
-                    all_labels_str = f.readlines()
-                    all_labels_str = ' '.join([labels.strip() for labels in all_labels_str])
+                f.write('labels\t' + all_labels_str + '\n')
+                logging.info(f'Labels save to {filename}')
 
-            # writing labels and predictions to a file in output_dir is specified in the config
-            os.makedirs(output_dir, exist_ok=True)
-            filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
-            with open(filename, 'w') as f:
-                if with_labels:
-                    f.write('labels\t' + all_labels_str + '\n')
-                    logging.info(f'Labels save to {filename}')
+            # convert labels from string label to ids
+            ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+            all_preds_str = [ids_to_labels[pred] for pred in all_preds]
+            f.write('preds\t' + ' '.join(all_preds_str) + '\n')
+            logging.info(f'Predictions saved to {filename}')
 
-                # convert labels from string label to ids
-                ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
-                all_preds_str = [ids_to_labels[pred] for pred in all_preds]
-                f.write('preds\t' + ' '.join(all_preds_str) + '\n')
-                logging.info(f'Predictions saved to {filename}')
-
-            # if with_labels:
-            # TODO add conf matrix + class report
-            if with_labels and add_confusion_matrix:
-                all_labels = all_labels_str.split()
-                # convert labels from string label to ids
-                label_ids = self._cfg.label_ids
-                all_labels = [label_ids[label] for label in all_labels]
-                print(len(all_labels), len(all_preds))
-                plot_confusion_matrix(
-                    all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
-                )
-                logging.info(get_classification_report(all_labels, all_preds, label_ids))
-        finally:
-            # set mode back to its original value
-            self.train(mode=mode)
-        return result
+        if with_labels and add_confusion_matrix:
+            all_labels = all_labels_str.split()
+            # convert labels from string label to ids
+            label_ids = self._cfg.label_ids
+            all_labels = [label_ids[label] for label in all_labels]
+            print(len(all_labels), len(all_preds))
+            plot_confusion_matrix(
+                all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+            )
+            logging.info(get_classification_report(all_labels, all_preds, label_ids))
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

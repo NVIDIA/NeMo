@@ -22,7 +22,7 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import pickle
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -144,7 +144,7 @@ def get_features(
 
     logging.warning(f'{too_long_count} are longer than {max_seq_length}')
 
-    for i in range(min(len(all_input_ids), 5)):
+    for i in range(min(len(all_input_ids), 1)):
         logging.info("*** Example ***")
         logging.info("i: %s", i)
         logging.info("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
@@ -308,19 +308,15 @@ class BertTokenClassificationInferDataset(Dataset):
         }
 
     def __init__(
-        self, queries: Union[List[str], str], max_seq_length: int, tokenizer: TokenizerSpec,
+        self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec,
     ):
         """
         Initializes BertTokenClassificationInferDataset
         Args:
-            queries: list of queries to run inference on or a file name with text to use for inference
+            queries: text sequences
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             tokenizer: such as NemoBertTokenizer
         """
-        if isinstance(queries, str):
-            with open(queries, 'r') as f:
-                queries = f.readlines()
-
         features = get_features(queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer)
 
         self.all_input_ids = features[0]
