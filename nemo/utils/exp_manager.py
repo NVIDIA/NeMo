@@ -30,7 +30,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.logging import WandbLogger
 from pytorch_lightning.utilities import rank_zero_only
 
-from nemo.constants import NEMO_ENV_VARNAME_DATETIME
+from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -84,8 +84,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     of exp_dir/model_or_experiment_name/version. If the lightning trainer has a logger, exp_manager will get exp_dir,
     name, and version from the logger. Otherwise it will use the exp_dir and name arguments to create the logging
     directory. exp_manager also allows for explicit folder creation via explicit_log_dir.
-    The version will be a datetime string if running single node, and version will be an integer if running
-    on slurm multi-node. Datestime version can be disabled if use_datetime_version is set to False.
+    The version will be a datetime string or an integer. Note, exp_manager does not handle versioning on slurm
+    multi-node runs. Datestime version can be disabled if use_datetime_version is set to False.
     It optionally creates TensorBoardLogger, WandBLogger, ModelCheckpoint objects from pytorch lightning. It copies
     sys.argv, and git information if available to the logging directory. It creates a log file for each process to log
     their output into.
@@ -408,20 +408,20 @@ def get_log_dir(
         version = f"version_{trainer.logger.version}"
     # Use user-defined exp_dir, project_name, exp_name, and versioning options
     else:
-        if version is None and use_datetime_version:
-            version = os.environ.get(NEMO_ENV_VARNAME_DATETIME, None)
-            if trainer.is_slurm_managing_tasks:
-                logging.warning("Running on a slurm cluster. Versioning by datetime will not work.")
-            elif is_global_rank_zero():
-                version = time.strftime('%Y-%m-%d_%H-%M-%S')
-                os.environ[NEMO_ENV_VARNAME_DATETIME] = version
-
         name = name or "default"
+        version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
-        # Always create TensorBoardLogger, so we can retrieve version if running on slurm
-        tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
         if version is None:
-            version = f"version_{tensorboard_logger.version}"
+            if trainer.is_slurm_managing_tasks:
+                logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
+                version = ""
+            elif is_global_rank_zero():
+                if use_datetime_version:
+                    version = time.strftime('%Y-%m-%d_%H-%M-%S')
+                else:
+                    tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
+                    version = f"version_{tensorboard_logger.version}"
+                os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
     log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
     return log_dir, str(_exp_dir), name, version
