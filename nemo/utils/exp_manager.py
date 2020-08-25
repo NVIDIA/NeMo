@@ -411,17 +411,17 @@ def get_log_dir(
         name = name or "default"
         version = os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
-        if trainer.is_slurm_managing_tasks:
-            logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
-            version = ""
-
-        if version is None and is_global_rank_zero():
-            if use_datetime_version:
-                version = time.strftime('%Y-%m-%d_%H-%M-%S')
-            else:
-                tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
-                version = f"version_{tensorboard_logger.version}"
-            os.environ[NEMO_ENV_VARNAME_VERSION] = version
+        if version is None:
+            if trainer.is_slurm_managing_tasks:
+                logging.warning("Running on a slurm cluster. exp_manager will not add a version number.")
+                version = ""
+            elif is_global_rank_zero():
+                if use_datetime_version:
+                    version = time.strftime('%Y-%m-%d_%H-%M-%S')
+                else:
+                    tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
+                    version = f"version_{tensorboard_logger.version}"
+                os.environ[NEMO_ENV_VARNAME_VERSION] = version
 
     log_dir = Path(_exp_dir) / Path(str(name)) / Path(str(version))
     return log_dir, str(_exp_dir), name, version
