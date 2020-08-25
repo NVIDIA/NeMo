@@ -79,8 +79,6 @@ class Exportable(ABC):
             if output_example is None:
                 _out_example = self.forward(*_in_example)
 
-            # Verify _prepare_for_export() did not change net semantics
-
             if not (hasattr(self, 'input_types') and hasattr(self, 'output_types')):
                 raise NotImplementedError('For export to work you must define input and output types')
             input_names = list(self.input_types.keys())
