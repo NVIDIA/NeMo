@@ -119,7 +119,7 @@ class EncDecClassificationModel(ASRModel):
             pretrained_model_name="MatchboxNet-3x1x64-v1",
             location="",
             description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
-                        "which obtains 97.32% accuracy on test set.",
+            "which obtains 97.32% accuracy on test set.",
         )
         result.append(model)
 
@@ -127,7 +127,7 @@ class EncDecClassificationModel(ASRModel):
             pretrained_model_name="MatchboxNet-3x2x64-v1",
             location="",
             description="MatchboxNet model trained on Google Speech Commands dataset (v1, 30 classes) "
-                        "which obtains 97.68% accuracy on test set.",
+            "which obtains 97.68% accuracy on test set.",
         )
         result.append(model)
 
@@ -135,7 +135,7 @@ class EncDecClassificationModel(ASRModel):
             pretrained_model_name="MatchboxNet-3x1x64-v2",
             location="",
             description="MatchboxNet model trained on Google Speech Commands dataset (v2, 35 classes) "
-                        "which obtains 97.12% accuracy on test set.",
+            "which obtains 97.12% accuracy on test set.",
         )
         result.append(model)
 
@@ -143,7 +143,7 @@ class EncDecClassificationModel(ASRModel):
             pretrained_model_name="MatchboxNet-3x1x64-v2",
             location="",
             description="MatchboxNet model trained on Google Speech Commands dataset (v2, 30 classes) "
-                        "which obtains 97.29% accuracy on test set.",
+            "which obtains 97.29% accuracy on test set.",
         )
         result.append(model)
 
