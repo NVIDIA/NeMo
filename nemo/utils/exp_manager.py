@@ -409,7 +409,7 @@ def get_log_dir(
     # Use user-defined exp_dir, project_name, exp_name, and versioning options
     else:
         name = name or "default"
-        version = os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
+        version = version or os.environ.get(NEMO_ENV_VARNAME_VERSION, None)
 
         if version is None:
             if trainer.is_slurm_managing_tasks:
