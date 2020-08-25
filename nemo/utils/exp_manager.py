@@ -167,7 +167,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     # Create the logging directory if it does not exist
     os.makedirs(log_dir, exist_ok=True)  # Cannot limit creation to global zero as all ranks write to own log file
     logging.info(f'Experiments will be logged at {log_dir}')
-    trainer.default_root_dir = log_dir
+    trainer._default_root_dir = log_dir
 
     # Handle Loggers by creating file and handle DEBUG statements
     # Note: trainer.global_rank and trainer.is_global_zero are not set until trainer.fit, so have to hack around it
