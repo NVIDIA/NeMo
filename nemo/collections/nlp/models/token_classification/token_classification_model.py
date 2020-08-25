@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -22,14 +22,19 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
-from nemo.collections.nlp.data.token_classification.token_classification_dataset import BertTokenClassificationDataset
+from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
+    BertTokenClassificationDataset,
+    BertTokenClassificationInferDataset,
+)
 from nemo.collections.nlp.data.token_classification.token_classification_descriptor import TokenClassificationDataDesc
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
+from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
+from nemo.utils import logging
 
 __all__ = ['TokenClassificationModel']
 
@@ -108,8 +113,7 @@ class TokenClassificationModel(ModelPT):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
-        # forward pass
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
+        input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
 
         loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
@@ -121,7 +125,7 @@ class TokenClassificationModel(ModelPT):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, labels = batch
+        input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
         logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
@@ -206,10 +210,199 @@ class TokenClassificationModel(ModelPT):
             collate_fn=dataset.collate_fn,
             batch_size=cfg.batch_size,
             shuffle=cfg.shuffle,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=self._cfg.dataset.drop_last,
         )
+
+    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a infer data loader.
+
+        Args:
+            queries: text
+            batch_size: batch size to use during inference
+
+        Returns:
+            A pytorch DataLoader.
+        """
+
+        dataset = BertTokenClassificationInferDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=-1)
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            collate_fn=dataset.collate_fn,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=self._cfg.dataset.num_workers,
+            pin_memory=self._cfg.dataset.pin_memory,
+            drop_last=False,
+        )
+
+    def add_entities(self, queries: List[str], batch_size: int = None) -> List[str]:
+        """
+        Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
+        Args:
+            queries: text
+            batch_size: batch size to use during inference.
+        Returns:
+            result: text with added capitalization and punctuation
+        """
+        if queries is None or len(queries) == 0:
+            return []
+        if batch_size is None:
+            batch_size = len(queries)
+            logging.info(f'Using batch size {batch_size} for inference')
+
+        # We will store the output here
+        result = []
+
+        # Model's mode and device
+        mode = self.training
+        device = 1 if torch.cuda.is_available() else 0
+
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            infer_datalayer = self._setup_infer_dataloader(queries, batch_size)
+
+            # store predictions for all queries in a single list
+            all_preds = []
+
+            for i, batch in enumerate(infer_datalayer):
+                input_ids, input_type_ids, input_mask, subtokens_mask = batch
+
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
+                )
+
+                subtokens_mask = subtokens_mask > 0.5
+                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
+                all_preds.extend(preds)
+
+            queries = [q.strip().split() for q in queries]
+            num_words = [len(q) for q in queries]
+
+            if sum(num_words) != len(all_preds):
+                raise ValueError('Pred and words must have the same length')
+
+            ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+
+            start_idx = 0
+            end_idx = 0
+            for query in queries:
+                end_idx += len(query)
+
+                # extract predictions for the current query from the list of all predictions
+                preds = all_preds[start_idx:end_idx]
+                start_idx = end_idx
+
+                query_with_entities = ''
+                for j, word in enumerate(query):
+                    # strip out the punctuation to attach the entity tag to the word not to a punctuation mark
+                    # that follows the word
+                    if word[-1].isalpha():
+                        punct = ''
+                    else:
+                        punct = word[-1]
+                        word = word[:-1]
+
+                    query_with_entities += word
+                    label = ids_to_labels[preds[j]]
+
+                    if label != self._cfg.dataset.pad_label:
+                        query_with_entities += '[' + label + ']'
+                    query_with_entities += punct + ' '
+                result.append(query_with_entities.strip())
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return result
+
+    def evaluate_from_file(
+        self,
+        text_file: str,
+        output_dir: str,
+        labels_file: Optional[str] = None,
+        add_confusion_matrix: Optional[bool] = False,
+        normalize_confusion_matrix: Optional[bool] = True,
+        batch_size: int = 32,
+    ) -> List[str]:
+        """
+        Adds punctuation and capitalization to the queries. Use this method for debugging and prototyping.
+        Args:
+            queries: text
+            batch_size: batch size to use during inference.
+        Returns:
+            result: text with added capitalization and punctuation
+        """
+        # We will store the output here
+        result = []
+        output_dir = os.path.abspath(output_dir)
+
+        # Model's mode and device
+        mode = self.training
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        try:
+            # Switch model to evaluation mode
+            self.eval()
+            self = self.to(device)
+            infer_datalayer = self._setup_infer_dataloader(text_file, batch_size)
+
+            # store predictions for all queries in a single list
+            all_preds = []
+
+            for i, batch in enumerate(infer_datalayer):
+                input_ids, input_type_ids, input_mask, subtokens_mask = batch
+
+                logits = self.forward(
+                    input_ids=input_ids.to(device),
+                    token_type_ids=input_type_ids.to(device),
+                    attention_mask=input_mask.to(device),
+                )
+
+                subtokens_mask = subtokens_mask > 0.5
+                preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask])
+                all_preds.extend(preds)
+
+            with_labels = labels_file is not None
+            if with_labels:
+                with open(labels_file, 'r') as f:
+                    all_labels_str = f.readlines()
+                    all_labels_str = ' '.join([labels.strip() for labels in all_labels_str])
+
+            # writing labels and predictions to a file in output_dir is specified in the config
+            os.makedirs(output_dir, exist_ok=True)
+            filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
+            with open(filename, 'w') as f:
+                if with_labels:
+                    f.write('labels\t' + all_labels_str + '\n')
+                    logging.info(f'Labels save to {filename}')
+
+                # convert labels from string label to ids
+                ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
+                all_preds_str = [ids_to_labels[pred] for pred in all_preds]
+                f.write('preds\t' + ' '.join(all_preds_str) + '\n')
+                logging.info(f'Predictions saved to {filename}')
+
+            # if with_labels:
+            # TODO add conf matrix + class report
+            if with_labels and add_confusion_matrix:
+                all_labels = all_labels_str.split()
+                # convert labels from string label to ids
+                label_ids = self._cfg.label_ids
+                all_labels = [label_ids[label] for label in all_labels]
+                print(len(all_labels), len(all_preds))
+                plot_confusion_matrix(
+                    all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+                )
+                logging.info(get_classification_report(all_labels, all_preds, label_ids))
+        finally:
+            # set mode back to its original value
+            self.train(mode=mode)
+        return result
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

@@ -31,6 +31,32 @@ def main(cfg: DictConfig) -> None:
     if cfg.model.nemo_path:
         model.save_to(cfg.model.nemo_path)
 
+    model = TokenClassificationModel.restore_from(
+        '/home/ebakhturina/nemo_ckpts/ner_gmb_clean/ptl_ner_with_nemo_bert_ckpt/1351452/ner.nemo'
+    )
+    # trainer.fit(model)
+    text_file = '/home/ebakhturina/data/ner/gmb_clean/text_dev.txt'
+    labels_file = '/home/ebakhturina/data/ner/gmb_clean/labels_dev.txt'
+    model.evaluate_from_file(
+        text_file=text_file,
+        labels_file=labels_file,
+        output_dir='output',
+        add_confusion_matrix=True,
+        normalize_confusion_matrix=True,
+    )
+    # run an inference on a few examples
+    queries = [
+        'we bought four shirts from the nvidia gear store in santa clara.',
+        'Nvidia is a company.',
+        'The Adventures of Tom Sawyer by Mark Twain is an 1876 novel about a young boy growing '
+        + 'up along the Mississippi River.',
+    ]
+    # inference_results = model.infer(queries)
+    #
+    # for query, result in zip(queries, inference_results):
+    #     logging.info(f'Query : {query}')
+    #     logging.info(f'Result: {result.strip()}\n')
+
 
 if __name__ == '__main__':
     main()
