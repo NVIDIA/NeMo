@@ -150,10 +150,6 @@ class EncDecClassificationModel(ASRModel):
         result.append(model)
         return result
 
-    @classmethod
-    def from_pretrained(cls, name: str):
-        pass
-
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):
