@@ -184,8 +184,7 @@ class GlowTTSModel(SpectrogramGenerator):
             'val_logdet': avg_logdet,
         }
         if self.logger is not None and self.logger.experiment is not None:
-            parser = self.get_parser()
-            separated_phonemes = "|".join([parser.symbols[c] for c in outputs[0]['x'][0]])
+            separated_phonemes = "|".join([self.parser.symbols[c] for c in outputs[0]['x'][0]])
             self.logger.experiment.add_text("separated phonemes", separated_phonemes, self.global_step)
             self.logger.experiment.add_image(
                 "real_spectrogram",
