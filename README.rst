@@ -91,16 +91,16 @@ To run tutorials:
      - GitHub URL
    * - ASR
      - ASR with NeMo
-     - `01_ASR_with_NeMo.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `01_ASR_with_NeMo.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `02_Speech_Commands.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `02_Speech_Commands.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/asr/02_Speech_Commands.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
      - Punctuation and Capitialization
-     - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+     - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
 
 Contributing
 ------------
