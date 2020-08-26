@@ -16,9 +16,13 @@
 from nemo.collections.nlp.modules.common import (
     AlbertEncoder,
     BertEncoder,
+    BertModule,
     DistilBertEncoder,
     MegatronBertEncoder,
     RobertaEncoder,
+    SequenceClassifier,
+    SequenceRegression,
+    SequenceTokenClassifier,
     get_pretrained_lm_model,
     get_pretrained_lm_models_list,
 )
