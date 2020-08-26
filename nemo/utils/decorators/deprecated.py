@@ -28,7 +28,7 @@ _PRINTED_WARNING = {}
 
 
 def deprecated(wrapped=None, version=None, explanation=None):
-    """ Decorator class used for indicating that a function is deprecated and going to be removed.
+    """Decorator class used for indicating that a function is deprecated and going to be removed.
     Tracks down which functions printed the warning and will print it only once per function.
     """
 

@@ -28,8 +28,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "logits": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), LogitsType()),
             "labels": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), LabelsType()),

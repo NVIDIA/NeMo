@@ -42,8 +42,7 @@ class TextClassificationModel(ModelPT):
         return self.classifier.output_types
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """Initializes the BERTTextClassifier model.
-        """
+        """Initializes the BERTTextClassifier model."""
 
         # shared params for dataset and data loaders
         self.dataset_cfg = cfg.dataset

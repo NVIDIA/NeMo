@@ -214,7 +214,12 @@ class SquareRootAnnealing(WarmupPolicy):
 
     def _get_lr(self, step):
         new_lrs = [
-            _squareroot_annealing(initial_lr=initial_lr, step=step, max_steps=self.max_steps, min_lr=self.min_lr,)
+            _squareroot_annealing(
+                initial_lr=initial_lr,
+                step=step,
+                max_steps=self.max_steps,
+                min_lr=self.min_lr,
+            )
             for initial_lr in self.base_lrs
         ]
         return new_lrs

@@ -168,7 +168,8 @@ class EncDecClassificationModel(ASRModel):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal, length=input_signal_length,
+            input_signal=input_signal,
+            length=input_signal_length,
         )
         # Crop or pad is always applied
         if self.crop_or_pad is not None:

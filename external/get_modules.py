@@ -26,8 +26,8 @@ from nemo.utils import logging
 
 
 def process_member(name, obj, module_list):
-    """ Helper function processing the passed object and, if ok, adding a record to the module list.
-    
+    """Helper function processing the passed object and, if ok, adding a record to the module list.
+
     Args:
         name: name of the member
         obj: member (class/function etc.)

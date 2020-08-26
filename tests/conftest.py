@@ -29,7 +29,7 @@ __TEST_DATA_SUBDIR = ".data"
 def pytest_addoption(parser):
     """
     Additional command-line arguments passed to pytest.
-    For now: 
+    For now:
         --cpu: use CPU during testing (DEFAULT: GPU)
         --use_local_test_data: use local test data/skip downloading from URL/GitHub (DEFAULT: False)
     """
@@ -61,7 +61,8 @@ def run_only_on_device_fixture(request, device):
 
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
+        "markers",
+        "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
 
 

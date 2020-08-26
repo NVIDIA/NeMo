@@ -331,7 +331,7 @@ def check_resume(
 def check_explicit_log_dir(
     trainer: 'pytorch_lightning.Trainer', explicit_log_dir: [Path, str], exp_dir: str, name: str, version: str
 ) -> (Path, str, str, str):
-    """ Checks that the passed arguments are compatible with explicit_log_dir.
+    """Checks that the passed arguments are compatible with explicit_log_dir.
 
     Returns:
         log_dir (Path): the log_dir
@@ -459,8 +459,7 @@ def get_git_diff():
 
 
 class LoggerList(_LoggerCollection):
-    """ A thin wrapper on Lightning's LoggerCollection such that name and version are better aligned with exp_manager
-    """
+    """A thin wrapper on Lightning's LoggerCollection such that name and version are better aligned with exp_manager"""
 
     def __init__(self, _logger_iterable, nemo_name=None, nemo_version=""):
         super().__init__(_logger_iterable)
@@ -486,7 +485,7 @@ def configure_loggers(
     create_wandb_logger: bool,
     wandb_kwargs: dict,
 ):
-    """ Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
+    """Creates TensorboardLogger and/or WandBLogger and attach them to trainer. Raises ValueError if
     summary_writer_kwargs or wandb_kwargs are misconfigured.
     """
     # Potentially create tensorboard logger and/or WandBLogger
@@ -520,7 +519,7 @@ def configure_loggers(
 
 
 def configure_checkpointing(trainer: 'pytorch_lightning.Trainer', log_dir: Path, name: str):
-    """ Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
+    """Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer already has a ModelCheckpoint
     callback or if trainer.weights_save_path was passed to Trainer.
     """
     for callback in trainer.callbacks:

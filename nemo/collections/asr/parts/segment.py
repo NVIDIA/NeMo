@@ -108,7 +108,13 @@ class AudioSegment(object):
 
     @classmethod
     def from_file(
-        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False,
+        cls,
+        audio_file,
+        target_sr=None,
+        int_values=False,
+        offset=0,
+        duration=0,
+        trim=False,
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
@@ -183,7 +189,11 @@ class AudioSegment(object):
         `pad_size`
         zeros will be added only to the end.
         """
-        self._samples = np.pad(self._samples, (pad_size if symmetric else 0, pad_size), mode='constant',)
+        self._samples = np.pad(
+            self._samples,
+            (pad_size if symmetric else 0, pad_size),
+            mode='constant',
+        )
 
     def subsegment(self, start_time=None, end_time=None):
         """Cut the AudioSegment between given boundaries.

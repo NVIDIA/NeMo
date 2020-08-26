@@ -107,7 +107,7 @@ class LeNet5(NeuralModule):
 
     @classmethod
     def restore_from(cls, restore_path: str):
-        """ Not implemented yet.
+        """Not implemented yet.
             Restore module from serialization.
 
         Args:

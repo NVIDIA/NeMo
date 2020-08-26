@@ -97,8 +97,7 @@ class WaveGlowModule(NeuralModule):
 
     @typecheck()
     def forward(self, *, spect, audio=None, run_inverse=True):
-        """ TODO
-        """
+        """TODO"""
         if self.training and self.mode != OperationMode.training:
             raise ValueError(f"{self} has self.training set to True but self.OperationMode was not set to training")
         if not self.training and self.mode == OperationMode.training:

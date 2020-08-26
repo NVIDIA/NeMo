@@ -27,8 +27,7 @@ class MSELoss(nn.MSELoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "preds": NeuralType(tuple('B'), RegressionValuesType()),
             "labels": NeuralType(tuple('B'), LabelsType()),

@@ -54,8 +54,7 @@ class TextClassificationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -166,8 +165,7 @@ class TextClassificationDataset(Dataset):
             )
 
     def convert_sequences_to_features(self, all_sent_subtokens, labels, tokenizer, max_seq_length):
-        """Loads a data file into a list of `InputBatch`s.
-        """
+        """Loads a data file into a list of `InputBatch`s."""
 
         self.features = []
         for sent_id in range(len(all_sent_subtokens)):
@@ -199,7 +197,11 @@ class TextClassificationDataset(Dataset):
 
             self.features.append(
                 InputFeatures(
-                    sent_id=sent_id, label=label, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
+                    sent_id=sent_id,
+                    label=label,
+                    input_ids=input_ids,
+                    input_mask=input_mask,
+                    segment_ids=segment_ids,
                 )
             )
 

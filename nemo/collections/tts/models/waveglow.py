@@ -56,8 +56,7 @@ class WaveglowConfig:
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models
 class WaveGlowModel(ModelPT):
-    """ Waveglow model used to convert betweeen spectrograms and audio
-    """
+    """Waveglow model used to convert betweeen spectrograms and audio"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         if isinstance(cfg, dict):

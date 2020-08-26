@@ -266,16 +266,16 @@ class GlowTTSParser:
     def text_to_sequence(self, text, cleaner_names, dictionary=None):
         """Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
 
-          The text can optionally have ARPAbet sequences enclosed in curly braces embedded
-          in it. For example, "Turn left on {HH AW1 S S T AH0 N} Street."
+        The text can optionally have ARPAbet sequences enclosed in curly braces embedded
+        in it. For example, "Turn left on {HH AW1 S S T AH0 N} Street."
 
-          Args:
-            text: string to convert to a sequence
-            cleaner_names: names of the cleaner functions to run the text through
-            dictionary: arpabet class with arpabet dictionary
+        Args:
+          text: string to convert to a sequence
+          cleaner_names: names of the cleaner functions to run the text through
+          dictionary: arpabet class with arpabet dictionary
 
-          Returns:
-            List of integers corresponding to the symbols in the text
+        Returns:
+          List of integers corresponding to the symbols in the text
         """
 
         sequence = []

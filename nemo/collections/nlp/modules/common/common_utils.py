@@ -30,9 +30,9 @@ __all__ = ['get_pretrained_lm_models_list', 'get_pretrained_lm_model']
 
 
 def get_pretrained_lm_models_list() -> List[str]:
-    '''
+    """
     Returns the list of support pretrained models
-    '''
+    """
     return get_megatron_lm_models_list() + get_huggingface_lm_models_list()
 
 
@@ -42,7 +42,7 @@ def get_pretrained_lm_model(
     config_file: Optional[str] = None,
     checkpoint_file: Optional[str] = None,
 ):
-    '''
+    """
     Returns pretrained model
     Args:
         pretrained_model_name (str): pretrained model name, for example, bert-base-uncased.
@@ -51,7 +51,7 @@ def get_pretrained_lm_model(
         checkpoint_file (str): path to the pretrained model checkpoint
     Returns:
         Pretrained model (NM)
-    '''
+    """
     if pretrained_model_name in get_huggingface_lm_models_list():
         model = get_huggingface_lm_model(
             config_dict=config_dict, config_file=config_file, pretrained_model_name=pretrained_model_name

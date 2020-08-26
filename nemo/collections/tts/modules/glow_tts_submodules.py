@@ -152,7 +152,13 @@ class LayerNorm(nn.Module):
 
 class ConvReluNorm(nn.Module):
     def __init__(
-        self, in_channels, hidden_channels, out_channels, kernel_size, n_layers, p_dropout,
+        self,
+        in_channels,
+        hidden_channels,
+        out_channels,
+        kernel_size,
+        n_layers,
+        p_dropout,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -170,7 +176,12 @@ class ConvReluNorm(nn.Module):
         self.relu_drop = nn.Sequential(nn.ReLU(), nn.Dropout(p_dropout))
         for _ in range(n_layers - 1):
             self.conv_layers.append(
-                nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size // 2,)
+                nn.Conv1d(
+                    hidden_channels,
+                    hidden_channels,
+                    kernel_size,
+                    padding=kernel_size // 2,
+                )
             )
             self.norm_layers.append(LayerNorm(hidden_channels))
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
@@ -208,7 +219,11 @@ class WN(torch.nn.Module):
             dilation = dilation_rate ** i
             padding = int((kernel_size * dilation - dilation) / 2)
             in_layer = torch.nn.Conv1d(
-                hidden_channels, 2 * hidden_channels, kernel_size, dilation=dilation, padding=padding,
+                hidden_channels,
+                2 * hidden_channels,
+                kernel_size,
+                dilation=dilation,
+                padding=padding,
             )
             in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             self.in_layers.append(in_layer)
@@ -528,7 +543,8 @@ class AttentionBlock(nn.Module):
         slice_end_position = slice_start_position + 2 * length - 1
         if pad_length > 0:
             padded_relative_embeddings = F.pad(
-                relative_embeddings, convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
+                relative_embeddings,
+                convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
             )
         else:
             padded_relative_embeddings = relative_embeddings
@@ -580,7 +596,13 @@ class AttentionBlock(nn.Module):
 
 class FeedForwardNetwork(nn.Module):
     def __init__(
-        self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0, activation=None,
+        self,
+        in_channels,
+        out_channels,
+        filter_channels,
+        kernel_size,
+        p_dropout=0.0,
+        activation=None,
     ):
         super().__init__()
         self.in_channels = in_channels

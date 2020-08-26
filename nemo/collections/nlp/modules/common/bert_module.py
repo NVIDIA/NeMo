@@ -78,11 +78,11 @@ class BertModule(NeuralModule, Exportable):
     @property
     def hidden_size(self):
         """
-            Property returning hidden size.
+        Property returning hidden size.
 
-            Returns:
-                Hidden size
-            Default implementation relay to BERT config property..
+        Returns:
+            Hidden size
+        Default implementation relay to BERT config property..
         """
         return self.config.hidden_size
 

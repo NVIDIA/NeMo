@@ -27,9 +27,9 @@ __all__ = ['SentencePieceTokenizer', 'create_spt_model']
 
 
 class SentencePieceTokenizer(TokenizerSpec):
-    '''
+    """
     Sentencepiecetokenizer https://github.com/google/sentencepiece.
-    '''
+    """
 
     def __init__(self, model_path: str, special_tokens: Optional[Union[Dict[str, str], List[str]]] = None):
         """

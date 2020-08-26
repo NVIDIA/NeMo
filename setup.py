@@ -64,7 +64,9 @@ if os.path.exists('nemo/README.md'):
 elif os.path.exists('README.rst'):
     # codec is used for consistent encoding
     long_description = codecs.open(
-        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'), 'r', 'utf-8',
+        os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.rst'),
+        'r',
+        'utf-8',
     ).read()
     long_description_content_type = "text/x-rst"
 
@@ -136,7 +138,8 @@ class StyleCommand(distutils_cmd.Command):
             command.extend(['--check', '--diff'])
 
         self.announce(
-            msg='Running command: %s' % str(' '.join(command)), level=distutils_log.INFO,
+            msg='Running command: %s' % str(' '.join(command)),
+            level=distutils_log.INFO,
         )
 
         return_code = subprocess.call(command)

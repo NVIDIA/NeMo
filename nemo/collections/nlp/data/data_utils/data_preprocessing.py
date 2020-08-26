@@ -108,7 +108,7 @@ def normalize_answer(s):
 
 
 def get_label_stats(labels, outfile='stats.tsv'):
-    '''
+    """
 
     Args:
         labels: list of all labels
@@ -118,7 +118,7 @@ def get_label_stats(labels, outfile='stats.tsv'):
         total (int): total number of labels
         label_frequencies (list of tuples): each tuple represent (label, label frequency)
         max id of the labels
-    '''
+    """
     labels = Counter(labels)
     total = sum(labels.values())
     out = open(outfile, 'w')
@@ -321,13 +321,13 @@ def write_vocab(items, outfile):
 
 
 def get_labels_to_labels_id_mapping(file):
-    '''
+    """
     Reads labels from the file and returns labels to id mapping dictionary
     Args:
         file: path to file
     Returns:
         labels to id mapping dictionary
-    '''
+    """
     lines = open(file, 'r').readlines()
     lines = [line.strip() for line in lines if line.strip()]
     labels = {lines[i]: i for i in range(len(lines))}

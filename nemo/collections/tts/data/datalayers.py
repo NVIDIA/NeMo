@@ -28,8 +28,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 class AudioDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
             "audio_signal": NeuralType(("B", "T"), AudioSignal()),
             "a_sig_length": NeuralType(tuple("B"), LengthsType()),

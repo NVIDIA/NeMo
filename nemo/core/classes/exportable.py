@@ -46,7 +46,12 @@ class Exportable(ABC):
     """
 
     def export(
-        self, output: str, input_example=None, output_example=None, onnx_opset_version=12, try_script=False,
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        onnx_opset_version=12,
+        try_script=False,
     ):
         try:
             # Disable typechecks
@@ -183,7 +188,7 @@ class Exportable(ABC):
 
     def _prepare_for_export(self):
         """
-        Implement this method to prepare module for export. This is in-place operation. 
+        Implement this method to prepare module for export. This is in-place operation.
         Do all necessary changes on module pre-export here.
 
         TODO: generic implementation should do a set of standard replacements in the graph (Apex etc).

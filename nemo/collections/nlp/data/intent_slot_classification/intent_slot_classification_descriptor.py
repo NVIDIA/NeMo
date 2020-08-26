@@ -25,7 +25,7 @@ from nemo.utils import logging
 
 
 class IntentSlotDataDesc:
-    """ Convert the raw data to the standard format supported by
+    """Convert the raw data to the standard format supported by
     IntentSlotDataDesc.
 
     By default, the None label for slots is 'O'.
