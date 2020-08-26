@@ -120,7 +120,7 @@ class StyleCommand(distutils_cmd.Command):
         '--multi-line=3 --trailing-comma --force-grid-wrap=0 '
         f'--use-parentheses --line-width={__LINE_WIDTH} -rc -ws'
     )
-    __BLACK_BASE = f'black --skip-string-normalization --line-length={__LINE_WIDTH}'
+    __BLACK_BASE = f'black --fast --skip-string-normalization --line-length={__LINE_WIDTH}'
     description = 'Checks overall project code style.'
     user_options = [
         ('scope=', None, 'Folder of file to operate within.'),
@@ -147,6 +147,9 @@ class StyleCommand(distutils_cmd.Command):
         return self.__call_checker(base_command=self.__ISORT_BASE.split(), scope=scope, check=check,)
 
     def _black(self, scope, check):
+        self.__call_checker(
+            base_command=self.__BLACK_BASE.split(), scope=scope, check=check,
+        )
         return self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check,)
 
     def _pass(self):
