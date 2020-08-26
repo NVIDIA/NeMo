@@ -388,8 +388,6 @@ class FilterbankFeatures(nn.Module):
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value,)
         del mask
         pad_to = self.pad_to
-        if not self.training:
-            pad_to = 16
         if pad_to == "max":
             x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
         elif pad_to > 0:

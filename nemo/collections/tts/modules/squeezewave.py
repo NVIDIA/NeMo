@@ -1,26 +1,3 @@
-# MIT License
-
-# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue,
-# Daniel Rothchild, Bichen Wu, Joseph E. Gonzalez, Kurt Keutzer
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +11,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# MIT License
+#
+# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue,
+# Daniel Rothchild, Bichen Wu, Joseph E. Gonzalez, Kurt Keutzer
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 from enum import Enum
 
 import torch
@@ -115,7 +116,7 @@ class SqueezeWaveModule(NeuralModule):
         self.n_remaining_channels = n_remaining_channels
 
     @typecheck()
-    def forward(self, *, spect, audio=None, run_inverse=True):
+    def forward(self, *, spect, audio=None, run_inverse=True, sigma=1.0):
         """ TODO
         """
         if self.training and self.mode != OperationMode.training:
@@ -130,7 +131,7 @@ class SqueezeWaveModule(NeuralModule):
         if run_inverse:
             # norm_dist_to_audio is used to predict audio from spectrogram so only used in val or infer mode
             # Could also log train audio but currently not done
-            audio_pred = self.norm_dist_to_audio(spect=spect)
+            audio_pred = self.norm_dist_to_audio(spect=spect, sigma=sigma)
 
         # Return the necessary tensors
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
@@ -143,7 +144,7 @@ class SqueezeWaveModule(NeuralModule):
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
             "run_inverse": NeuralType(elements_type=IntType(), optional=True),
-            # "sigma": NeuralType(elements_type=BoolType(), optional=True),  # TODO: Add to forward
+            "sigma": NeuralType(optional=True),
         }
 
     @property

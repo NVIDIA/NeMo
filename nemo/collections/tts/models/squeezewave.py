@@ -13,9 +13,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import torch
+from hydra.utils import instantiate
 from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.helpers.helpers import waveglow_log_to_tb_func
@@ -47,10 +48,10 @@ class Preprocessor:
 
 @dataclass
 class SqueezeWaveConfig:
-    squeezewave: Dict = MISSING
+    squeezewave: Dict[Any, Any] = MISSING
     preprocessor: Preprocessor = Preprocessor()
-    train_ds: Optional[Dict] = None
-    validation_ds: Optional[Dict] = None
+    train_ds: Optional[Dict[Any, Any]] = None
+    validation_ds: Optional[Dict[Any, Any]] = None
 
 
 @experimental  # TODO: Need to implement abstract methods: list_available_models, export()
@@ -74,8 +75,8 @@ class SqueezeWaveModel(ModelPT):
 
         self.pad_value = self._cfg.preprocessor.params.pad_value
         self.sigma = 1.0
-        self.audio_to_melspec_precessor = SqueezeWaveModel.from_config_dict(self._cfg.preprocessor)
-        self.squeezewave = SqueezeWaveModel.from_config_dict(self._cfg.squeezewave)
+        self.audio_to_melspec_precessor = instantiate(self._cfg.preprocessor)
+        self.squeezewave = instantiate(self._cfg.squeezewave)
         self.mode = OperationMode.infer
         self.loss = WaveGlowLoss()  # Same loss as WaveGlow
 
@@ -97,8 +98,8 @@ class SqueezeWaveModel(ModelPT):
             }
             if self.mode == OperationMode.validation:
                 output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
-                output_dict["spec"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
-                output_dict["spec_len"] = NeuralType(('B'), LengthsType())
+                output_dict["spect"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
+                output_dict["spect_len"] = NeuralType(('B'), LengthsType())
             return output_dict
         return {
             "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
@@ -110,53 +111,52 @@ class SqueezeWaveModel(ModelPT):
             raise ValueError(
                 f"SqueezeWaveModel's mode {self.mode} does not match SqueezeWaveModule's mode {self.squeezewave.mode}"
             )
-        spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.squeezewave(spect=spec, audio=audio, run_inverse=run_inverse)
+        spect, spect_len = self.audio_to_melspec_precessor(audio, audio_len)
+        tensors = self.squeezewave(spect=spect, audio=audio, run_inverse=run_inverse)
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
             z, log_s_list, log_det_W_list, audio_pred = tensors
-            return z, log_s_list, log_det_W_list, audio_pred, spec, spec_len
+            return z, log_s_list, log_det_W_list, audio_pred, spect, spect_len
         return tensors  # audio_pred
 
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
         self.squeezewave.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list = self.forward(audio=audio, audio_len=audio_len)
+        z, log_s_list, log_det_W_list = self.forward(audio=audio, audio_len=audio_len, run_inverse=False)
 
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
-        output = {
+        return {
             'loss': loss,
             'progress_bar': {'training_loss': loss},
             'log': {'loss': loss},
         }
-        return output
 
     def validation_step(self, batch, batch_idx):
         self.mode = OperationMode.validation
         self.squeezewave.mode = OperationMode.validation
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self.forward(
+        z, log_s_list, log_det_W_list, audio_pred, spect, spect_len = self.forward(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
         return {
             "val_loss": loss,
             "audio_pred": audio_pred,
-            "mel_target": spec,
-            "mel_len": spec_len,
+            "mel_target": spect,
+            "mel_len": spect_len,
         }
 
     def validation_epoch_end(self, outputs):
-        # Same as WaveGlow log_to_tb
-        waveglow_log_to_tb_func(
-            self.logger.experiment,
-            outputs[0].values(),
-            self.global_step,
-            tag="eval",
-            mel_fb=self.audio_to_melspec_precessor.fb,
-        )
+        if self.logger is not None and self.logger.experiment is not None:
+            waveglow_log_to_tb_func(
+                self.logger.experiment,
+                outputs[0].values(),
+                self.global_step,
+                tag="eval",
+                mel_fb=self.audio_to_melspec_precessor.fb,
+            )
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss}
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
@@ -179,7 +179,7 @@ class SqueezeWaveModel(ModelPT):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        dataset = SqueezeWaveModel.from_config_dict(cfg.dataset)
+        dataset = instantiate(cfg.dataset)
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
 
     def setup_training_data(self, cfg):
@@ -188,9 +188,15 @@ class SqueezeWaveModel(ModelPT):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.squeezewave.parameters(), lr=4e-4)
-        return optimizer
+    def convert_spectrogram_to_audio(self, spect: torch.Tensor, sigma: bool=1.0) -> torch.Tensor:
+        self.eval()
+        self.mode = OperationMode.infer
+        self.squeezewave.mode = OperationMode.infer
+
+        with torch.no_grad():
+            audio = self.squeezewave(spect=spect.unsqueeze(0), run_inverse=True, audio=None, sigma=sigma)
+
+        return audio.squeeze(0)
 
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':

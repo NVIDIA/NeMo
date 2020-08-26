@@ -34,7 +34,7 @@ model:
         n_segments: -1
         trim: false
         # This value is hard-coded to reflect n_window_stride * pad_to
-        truncate_to: 4096
+        truncate_to: 256
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -61,7 +61,7 @@ model:
       n_window_stride: 256
 
       normalize: null
-      pad_to: 16
+      pad_to: 1
       pad_value: *pad_value
       preemph: null
       sample_rate: *sr
@@ -87,20 +87,22 @@ model:
 
 trainer:
   gpus: 1 # number of gpus
-  max_epochs: 1000
+  max_epochs: 10000
+  max_steps: 200000
   num_nodes: 1
   distributed_backend: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
   log_save_interval: 1000
   row_log_interval: 200
-  check_val_every_n_epoch: 25
+  check_val_every_n_epoch: 5
   precision: 16
   amp_level: O1
+  deterministic: true
 
 exp_manager:
-  root_dir: null
+  exp_dir: null
   name: *name
-  create_tensorboard_logger: True
-  create_checkpoint_callback: True
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true

@@ -1,26 +1,3 @@
-# MIT License
-
-# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue,
-# Daniel Rothchild, Bichen Wu, Joseph E. Gonzalez, Kurt Keutzer
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,21 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# MIT License
+#
+# Copyright (c) 2020 Tianren Gao, Bohan Zhai, Flora Xue,
+# Daniel Rothchild, Bichen Wu, Joseph E. Gonzalez, Kurt Keutzer
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import torch
-from torch.nn import functional as F
 
 from nemo.collections.tts.modules.submodules import fused_add_tanh_sigmoid_multiply
-
-
-class Upsample1d(torch.nn.Module):
-    def __init__(self, scale=2):
-        super(Upsample1d, self).__init__()
-        self.scale = scale
-
-    def forward(self, x):
-        y = F.interpolate(
-            x, scale_factor=self.scale, mode='nearest')
-        return y
 
 
 class SqueezeWaveNet(torch.nn.Module):
@@ -67,7 +55,7 @@ class SqueezeWaveNet(torch.nn.Module):
         self.n_channels = n_channels
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
-        self.upsample = Upsample1d(2)
+        self.upsample = torch.nn.Upsample(scale_factor=2, mode='nearest')
 
         start = torch.nn.Conv1d(n_in_channels, n_channels, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
@@ -106,7 +94,9 @@ class SqueezeWaveNet(torch.nn.Module):
 
         for i in range(self.n_layers):
             spect_offset = i * 2 * self.n_channels
-            cond = self.upsample(spect[:, spect_offset : spect_offset + 2 * self.n_channels, :])
+            cond = spect[:, spect_offset : spect_offset + 2 * self.n_channels, :]
+            if cond.size(2) < audio.size(2):
+                cond = self.upsample(cond)
 
             acts = fused_add_tanh_sigmoid_multiply(self.in_layers[i](audio), cond, n_channels_tensor)
 
