@@ -75,12 +75,11 @@ Tutorials
 ---------
 The best way to get started with NeMo is to checkout one of our tutorials.
 
-Most NeMo tutorials can be run on `Google's Collab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
+Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
 
-Steps to run tutorial:
+To run tutorials:
 
-1. Go to `Google's Collab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
-2. Import tutorial notebook from GitHub (File -> Upload Notebook -> "GITHUB" tab -> copy/paste GitHub URL)
+1. Click on Colab link (see table below)
 3. Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
 
 .. list-table:: NeMo tutorials
@@ -92,16 +91,16 @@ Steps to run tutorial:
      - GitHub URL
    * - ASR
      - ASR with NeMo
-     - `https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/01_ASR_with_NeMo.ipynb <https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+     - `01_ASR_with_NeMo.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
    * - ASR
      - Speech Commands
-     - `https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/02_Speech_Commands.ipynb <https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/02_Speech_Commands.ipynb>`_
+     - `02_Speech_Commands.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/02_Speech_Commands.ipynb>`_
    * - ASR
      - Online Noise Augmentation
-     - `https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/05_Online_Noise_Augmentation.ipynb <https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+     - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
    * - NLP
      - Punctuation and Capitialization
-     - `https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/nlp/Punctuation_and_Capitalization.ipynb <https://github.com/NVIDIA/NeMo/blob/candidate/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+     - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github.com/NVIDIA/NeMo/blob/candidate/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
 
 Contributing
 ------------
