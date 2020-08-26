@@ -54,6 +54,8 @@ class Exportable(ABC):
         onnx_opset_version: int = 12,
         try_script: bool = False,
         set_eval: bool = True,
+        check_trace: bool = True,
+        use_dynamic_axes = True
     ):
         try:
             # Disable typechecks
@@ -70,6 +72,8 @@ class Exportable(ABC):
             format = _EXT_DICT[file_extension]
 
             self._prepare_for_export()
+
+            self.requires_grad_(False)
 
             if input_example is not None:
                 _in_example = input_example
@@ -92,13 +96,15 @@ class Exportable(ABC):
                 if _name in self.disabled_deployment_input_names:
                     input_names.remove(_name)
                     continue
-                dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
+                if use_dynamic_axes:
+                    dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
             # for output_ports
             for _name, ntype in self.output_types.items():
                 if _name in self.disabled_deployment_output_names:
                     output_names.remove(_name)
                     continue
-                dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
+                if use_dynamic_axes:
+                    dynamic_axes = {**dynamic_axes, **self._extract_dynamic_axes(_name, ntype)}
 
             if len(dynamic_axes) == 0:
                 dynamic_axes = None
@@ -117,7 +123,7 @@ class Exportable(ABC):
                     _in_example = tuple(_in_example.values())
 
                 if jitted_model is None:
-                    jitted_model = torch.jit.trace(self, _in_example)
+                    jitted_model = torch.jit.trace(self, _in_example, check_trace=check_trace)
 
                 if format == ExportFormat.TORCHSCRIPT:
                     jitted_model.save(output)
