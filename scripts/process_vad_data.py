@@ -312,7 +312,6 @@ def generate_variety_noise(data_dir, filename, prefix):
             magnitude = rng.uniform(0.0, 1.0)
             y_slice *= magnitude
             out_file_path = os.path.join(silence_path, file_name)
-#             librosa.output.write_wav(out_file_path, y_slice, sr)
             sf.write(out_file_path, y_slice, sr)
 
             silence_files.append(out_file_path)
