@@ -74,7 +74,7 @@ To use multi-gpu training on this task, run:
             --work_dir /path_to_output_folder \
             --num_gpus=$NUM_GPUS 
 
-More details about multi-gpu training could be found in the `Fast Training <https://nvidia.github.io/NeMo/training.html>`_ section.
+More details about multi-gpu training could be found in the `Fast Training <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/stable/training.html>`_ section.
 
 For additional model training parameters, please see ``examples/nlp/text_classification_with_bert.py``.
 
