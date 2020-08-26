@@ -24,10 +24,9 @@
 
 **NVIDIA NeMo**
 ===============
-Train State of the Art AI Models
---------------------------------
 
-**Introduction**
+Introduction
+------------
 
 NeMo is a toolkit for creating `Conversational AI <https://developer.nvidia.com/conversational-ai#started>`_ applications.
 
@@ -39,10 +38,6 @@ The toolkit comes with extendable collections of pre-built modules and ready-to-
 Built for speed, NeMo can utilize NVIDIA's Tensor Cores and scale out training to multiple GPUs and multiple nodes.
 
 
-`Documentation <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/candidate/>`_
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 Requirements
 ------------
 
@@ -51,11 +46,9 @@ NeMo's works with:
 1) Python 3.6 or 3.7
 2) Pytorch 1.6 or above
 
-Installation
-~~~~~~~~~~~~
-``pip install nemo_toolkit[all]==version``
-
-We recommend using NVIDIA's PyTorch container
+Docker container:
+~~~~~~~~~~~~~~~~~
+We recommend using NVIDIA's PyTorch container version 20.06-py3 with NeMo's main branch.
 
 .. code-block:: bash
 
@@ -63,3 +56,57 @@ We recommend using NVIDIA's PyTorch container
     -p 8888:8888 -p 6006:6006 --ulimit memlock=-1 --ulimit \
     stack=67108864 nvcr.io/nvidia/pytorch:20.06-py3
 
+Installation
+~~~~~~~~~~~~
+Once requirements are satisfied (or you are inside NVIDIA docker container), simply install using pip:
+
+``pip install nemo_toolkit[all]==version``
+
+* ``pip install nemo_toolkit[all]`` - latest released version (currently 0.11.0)
+* ``python -m pip install git+https://github.com/NVIDIA/NeMo.git@{BRANCH}#egg=nemo_toolkit[nlp]`` - where {BRANCH} should be replaced with the branch you want. This is recommended route if you are testing out the latest WIP version of NeMo.
+
+
+Documentation
+-------------
+* `Main <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/candidate/>`_
+* `Latest released (0.11.0) <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.11.0/>`_
+
+Tutorials
+---------
+The best way to get started with NeMo is to checkout one of our tutorials.
+
+Most NeMo tutorials can be run on `Google's Colab <https://colab.research.google.com/notebooks/intro.ipynb>`_.
+
+To run tutorials:
+
+1. Click on Colab link (see table below)
+3. Connect to an instance with a GPU (Runtime -> Change runtime type -> select "GPU" for hardware accelerator)
+
+.. list-table:: NeMo tutorials
+   :widths: 15 25 25
+   :header-rows: 1
+
+   * - Domain
+     - Title
+     - GitHub URL
+   * - ASR
+     - ASR with NeMo
+     - `01_ASR_with_NeMo.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/asr/01_ASR_with_NeMo.ipynb>`_
+   * - ASR
+     - Speech Commands
+     - `02_Speech_Commands.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/asr/02_Speech_Commands.ipynb>`_
+   * - ASR
+     - Online Noise Augmentation
+     - `05_Online_Noise_Augmentation.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/asr/05_Online_Noise_Augmentation.ipynb>`_
+   * - NLP
+     - Punctuation and Capitialization
+     - `Punctuation_and_Capitalization.ipynb <https://colab.research.google.com/github/NVIDIA/NeMo/blob/candidate/tutorials/nlp/Punctuation_and_Capitalization.ipynb>`_
+
+Contributing
+------------
+
+We welcome community contributions! Please refer to the CONTRIBUTING.md for the process.
+
+License
+-------
+NeMo is under Apache 2.0 license.
