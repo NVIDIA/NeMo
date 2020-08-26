@@ -147,10 +147,8 @@ class StyleCommand(distutils_cmd.Command):
         return self.__call_checker(base_command=self.__ISORT_BASE.split(), scope=scope, check=check,)
 
     def _black(self, scope, check):
-        self.__call_checker(
-            base_command=self.__BLACK_BASE.split(), scope=scope, check=check,
-        )
-        return self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check,)
+        self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check)
+        return self.__call_checker(base_command=self.__BLACK_BASE.split(), scope=scope, check=check)
 
     def _pass(self):
         self.announce(msg='\033[32mPASS\x1b[0m', level=distutils_log.INFO)
