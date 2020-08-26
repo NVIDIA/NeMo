@@ -160,10 +160,7 @@ class _AudioTextDataset(Dataset):
                 offset = 0
 
             features = self.featurizer.process(
-                sample.audio_file,
-                offset=offset,
-                duration=sample.duration,
-                trim=self.trim,
+                sample.audio_file, offset=offset, duration=sample.duration, trim=self.trim,
             )
             f, fl = features, torch.tensor(features.shape[0]).long()
         else:
@@ -267,11 +264,7 @@ class AudioToCharDataset(_AudioTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels,
-            name=parser,
-            unk_id=unk_index,
-            blank_id=blank_index,
-            do_normalize=normalize,
+            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize,
         )
 
         super().__init__(
@@ -401,9 +394,7 @@ class AudioLabelDataset(Dataset):
         load_audio=True,
     ):
         self.collection = collections.ASRSpeechLabel(
-            manifests_files=manifest_filepath.split(','),
-            min_duration=min_duration,
-            max_duration=max_duration,
+            manifests_files=manifest_filepath.split(','), min_duration=min_duration, max_duration=max_duration,
         )
 
         self.featurizer = featurizer
@@ -630,10 +621,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         # Convert audio bytes to IO stream for processing (for SoundFile to read)
         audio_filestream = io.BytesIO(audio_bytes)
         features = self.featurizer.process(
-            audio_filestream,
-            offset=offset,
-            duration=manifest_entry.duration,
-            trim=self.trim,
+            audio_filestream, offset=offset, duration=manifest_entry.duration, trim=self.trim,
         )
         audio_filestream.close()
 

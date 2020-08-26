@@ -283,8 +283,7 @@ class EncDecCTCModel(ASRModel):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal,
-            length=input_signal_length,
+            input_signal=input_signal, length=input_signal_length,
         )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:

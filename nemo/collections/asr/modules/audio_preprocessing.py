@@ -443,23 +443,14 @@ class SpectrogramAugmentation(NeuralModule):
         super().__init__()
 
         if rect_masks > 0:
-            self.spec_cutout = SpecCutout(
-                rect_masks=rect_masks,
-                rect_time=rect_time,
-                rect_freq=rect_freq,
-                rng=rng,
-            )
+            self.spec_cutout = SpecCutout(rect_masks=rect_masks, rect_time=rect_time, rect_freq=rect_freq, rng=rng,)
             # self.spec_cutout.to(self._device)
         else:
             self.spec_cutout = lambda x: x
 
         if freq_masks + time_masks > 0:
             self.spec_augment = SpecAugment(
-                freq_masks=freq_masks,
-                time_masks=time_masks,
-                freq_width=freq_width,
-                time_width=time_width,
-                rng=rng,
+                freq_masks=freq_masks, time_masks=time_masks, freq_width=freq_width, time_width=time_width, rng=rng,
             )
         else:
             self.spec_augment = lambda x: x

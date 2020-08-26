@@ -110,12 +110,7 @@ class TextEncoder(NeuralModule):
 
         if prenet:
             self.pre = glow_tts_submodules.ConvReluNorm(
-                hidden_channels,
-                hidden_channels,
-                hidden_channels,
-                kernel_size=5,
-                n_layers=3,
-                p_dropout=0.1,
+                hidden_channels, hidden_channels, hidden_channels, kernel_size=5, n_layers=3, p_dropout=0.1,
             )
 
         self.drop = nn.Dropout(p_dropout)
@@ -127,11 +122,7 @@ class TextEncoder(NeuralModule):
         for i in range(self.n_layers):
             self.attn_layers.append(
                 glow_tts_submodules.AttentionBlock(
-                    hidden_channels,
-                    hidden_channels,
-                    n_heads,
-                    window_size=window_size,
-                    p_dropout=p_dropout,
+                    hidden_channels, hidden_channels, n_heads, window_size=window_size, p_dropout=p_dropout,
                 )
             )
             self.norm_layers_1.append(glow_tts_submodules.LayerNorm(hidden_channels))

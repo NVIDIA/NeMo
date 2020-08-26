@@ -94,12 +94,7 @@ class GLUEDataset(Dataset):
         }
 
     def __init__(
-        self,
-        file_name: str,
-        task_name: str,
-        tokenizer: TokenizerSpec,
-        max_seq_length: str,
-        use_cache: bool = True,
+        self, file_name: str, task_name: str, tokenizer: TokenizerSpec, max_seq_length: str, use_cache: bool = True,
     ):
         """
         Processes GLUE datasets

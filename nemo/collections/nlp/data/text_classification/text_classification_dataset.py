@@ -197,11 +197,7 @@ class TextClassificationDataset(Dataset):
 
             self.features.append(
                 InputFeatures(
-                    sent_id=sent_id,
-                    label=label,
-                    input_ids=input_ids,
-                    input_mask=input_mask,
-                    segment_ids=segment_ids,
+                    sent_id=sent_id, label=label, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
                 )
             )
 

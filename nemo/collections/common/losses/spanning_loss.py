@@ -43,9 +43,7 @@ class SpanningLoss(Loss):
             "end_logits": NeuralType(('B', 'T'), LogitsType()),
         }
 
-    def __init__(
-        self,
-    ):
+    def __init__(self,):
         super().__init__()
 
     @typecheck()

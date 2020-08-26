@@ -76,11 +76,7 @@ class ClassificationReport(TensorMetric):
         return torch.tensor([TP, FP, FN]).to(predictions.device)
 
     def get_precision_recall_f1(
-        self,
-        tp: torch.Tensor,
-        fn: torch.Tensor,
-        fp: torch.Tensor,
-        mode='macro',
+        self, tp: torch.Tensor, fn: torch.Tensor, fp: torch.Tensor, mode='macro',
     ):
         """
         Calculates and logs classification report similar to sklearn.metrics.classification_report

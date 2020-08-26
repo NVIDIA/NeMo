@@ -357,12 +357,7 @@ class SpeakerDecoder(NeuralModule):
         )
 
     def __init__(
-        self,
-        feat_in,
-        num_classes,
-        emb_sizes=[1024, 1024],
-        pool_mode='xvector',
-        init_mode="xavier_uniform",
+        self, feat_in, num_classes, emb_sizes=[1024, 1024], pool_mode='xvector', init_mode="xavier_uniform",
     ):
         super().__init__()
 

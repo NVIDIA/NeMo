@@ -132,8 +132,7 @@ class EncDecSpeakerLabelModel(ModelPT):
     @typecheck()
     def forward(self, input_signal, input_signal_length):
         processed_signal, processed_signal_len = self.preprocessor(
-            input_signal=input_signal,
-            length=input_signal_length,
+            input_signal=input_signal, length=input_signal_length,
         )
 
         encoded, _ = self.encoder(audio_signal=processed_signal, length=processed_signal_len)

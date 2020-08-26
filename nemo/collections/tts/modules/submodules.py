@@ -100,9 +100,7 @@ class Attention(torch.nn.Module):
         self.memory_layer = LinearNorm(embedding_dim, attention_dim, bias=False, w_init_gain='tanh')
         self.v = LinearNorm(attention_dim, 1, bias=False)
         self.location_layer = LocationLayer(
-            attention_location_n_filters,
-            attention_location_kernel_size,
-            attention_dim,
+            attention_location_n_filters, attention_location_kernel_size, attention_dim,
         )
         self.score_mask_value = -float("inf")
 
@@ -126,12 +124,7 @@ class Attention(torch.nn.Module):
         return energies
 
     def forward(
-        self,
-        attention_hidden_state,
-        memory,
-        processed_memory,
-        attention_weights_cat,
-        mask,
+        self, attention_hidden_state, memory, processed_memory, attention_weights_cat, mask,
     ):
         """
         PARAMS
@@ -266,13 +259,7 @@ class WaveNet(torch.nn.Module):
         for i in range(n_layers):
             dilation = 2 ** i
             padding = int((kernel_size * dilation - dilation) / 2)
-            in_layer = torch.nn.Conv1d(
-                n_channels,
-                2 * n_channels,
-                kernel_size,
-                dilation=dilation,
-                padding=padding,
-            )
+            in_layer = torch.nn.Conv1d(n_channels, 2 * n_channels, kernel_size, dilation=dilation, padding=padding,)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
 

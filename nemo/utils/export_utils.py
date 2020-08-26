@@ -35,11 +35,7 @@ try:
         if not apex_available or not isinstance(n, FusedLayerNorm):
             return None
         # FusedLayerNorm could have only resided on CUDA
-        mod = nn.LayerNorm(
-            n.normalized_shape,
-            eps=n.eps,
-            elementwise_affine=n.elementwise_affine,
-        ).cuda()
+        mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).cuda()
         n_state = n.state_dict()
         mod.load_state_dict(n_state)
         return mod

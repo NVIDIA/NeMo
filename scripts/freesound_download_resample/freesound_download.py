@@ -248,12 +248,7 @@ def get_text_query_with_resource_limit_checks(client, query: str, filters: list,
 
     while pages is None:
         try:
-            pages = client.text_search(
-                query=query,
-                filter=" ".join(filters),
-                fields=fields,
-                page_size=str(page_size),
-            )
+            pages = client.text_search(query=query, filter=" ".join(filters), fields=fields, page_size=str(page_size),)
 
         except freesound.FreesoundException as e:
             # Most probably a rate limit or a request limit

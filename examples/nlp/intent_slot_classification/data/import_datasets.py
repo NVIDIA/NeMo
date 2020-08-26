@@ -224,10 +224,7 @@ if __name__ == "__main__":
     # Parse the command-line arguments.
     parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo\'s format.")
     parser.add_argument(
-        "--dataset_name",
-        required=True,
-        type=str,
-        choices=['atis', 'snips', 'jarvis', 'assistant'],
+        "--dataset_name", required=True, type=str, choices=['atis', 'snips', 'jarvis', 'assistant'],
     )
     parser.add_argument(
         "--source_data_dir", required=True, type=str, help='path to the folder containing the dataset files'

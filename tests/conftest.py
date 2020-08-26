@@ -61,8 +61,7 @@ def run_only_on_device_fixture(request, device):
 
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers",
-        "run_only_on(device): runs the test only on a given device [CPU | GPU]",
+        "markers", "run_only_on(device): runs the test only on a given device [CPU | GPU]",
     )
 
 

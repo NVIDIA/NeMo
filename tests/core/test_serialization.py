@@ -28,11 +28,7 @@ class SerializationTest:
         config = DictConfig(
             {
                 'cls': 'nemo.collections.asr.modules.SpectrogramAugmentation',
-                'params': {
-                    'rect_freq': 50,
-                    'rect_masks': 5,
-                    'rect_time': 120,
-                },
+                'params': {'rect_freq': 50, 'rect_masks': 5, 'rect_time': 120,},
             }
         )
         obj = Serialization.from_config_dict(config=config)
