@@ -32,8 +32,8 @@ import urllib.request
 
 import librosa
 import numpy as np
-from sklearn.model_selection import train_test_split
 import soundfile as sf
+from sklearn.model_selection import train_test_split
 
 sr = 16000
 
