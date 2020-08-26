@@ -319,7 +319,7 @@ pipeline {
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
             model.dataset.do_lower_case=true \
-            model.train_ds.batch_size=4 \
+            model.train_ds.batch_size=3 \
             model.validation_ds.batch_size=4 \
 	    trainer.distributed_backend=ddp \
             trainer.max_epochs=1 \
