@@ -16,9 +16,9 @@ import os
 from typing import Dict, List, Optional, Union
 
 import torch
-from torch.utils.data import DataLoader
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.common.tokenizers.tokenizer_utils import get_tokenizer
@@ -31,7 +31,7 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.common_utils import get_pretrained_lm_model
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
-from nemo.core.classes.common import typecheck, PretrainedModelInfo
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.modelPT import ModelPT
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
@@ -117,7 +117,6 @@ class TokenClassificationModel(ModelPT):
         else:
             self.loss = CrossEntropyLoss(logits_ndim=3)
 
-
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         hidden_states = self.bert_model(
@@ -177,10 +176,10 @@ class TokenClassificationModel(ModelPT):
         }
         return {'val_loss': avg_loss, 'log': tensorboard_logs}
 
-    def setup_training_data(self, train_data_config: Optional[DictConfig]=None, model_config: Optional[DictConfig]=None):
+    def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
-        self._train_dl = self._setup_dataloader_from_config(ds_cfg=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             self.register_artifact('label_ids.csv', self.data_desc.label_ids_filename)
@@ -190,42 +189,29 @@ class TokenClassificationModel(ModelPT):
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
-        self._validation_dl = self._setup_dataloader_from_config(ds_cfg=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
-        self._test_dl = self.__setup_dataloader_from_config(ds_cfg=test_data_config)
+        self._test_dl = self.__setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, ds_cfg: DictConfig, model_cfg: Optional[DictConfig]=None)-> DataLoader:
+    def _setup_dataloader_from_config(self, cfg: DictConfig) -> DataLoader:
         """
         Setup dataloader from config
-        When dataloaders are created during model __init__ call, data_descriptor is processing the data and generates
-        label_ids - map from str label to its id, for example, for NER task: {'O': 0, 'B-GPE': 1, 'B-LOC': 2..}
-
         Args:
-            ds_cfg: config for the dataloader
-            model_cfg (optional): model config
+            cfg: config for the dataloader
         Return:
-            dataloader
+            Pytorch Dataloader
         """
-        # when dataloaders are created after the model initialization
-        if model_cfg:
-            dataset_cfg = model_cfg.dataset
-        # when dataloaders are created during the model initialization
-        else:
-            dataset_cfg = self._cfg.dataset
-
-        label_ids = self.data_desc.label_ids if self._cfg.label_ids is None else self._cfg.label_ids
+        dataset_cfg = self._cfg.dataset
         data_dir = dataset_cfg.data_dir
 
         if not os.path.exists(data_dir):
-            raise FileNotFoundError(
-                f"Data directory is not found at: {data_dir}."
-            )
-        import pdb; pdb.set_trace()
-        text_file = os.path.join(data_dir, ds_cfg.text_file)
-        labels_file = os.path.join(data_dir, ds_cfg.labels_file)
+            raise FileNotFoundError(f"Data directory is not found at: {data_dir}.")
+
+        text_file = os.path.join(data_dir, cfg.text_file)
+        labels_file = os.path.join(data_dir, cfg.labels_file)
 
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
@@ -239,11 +225,11 @@ class TokenClassificationModel(ModelPT):
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
             label_file=labels_file,
-            max_seq_length=model_cfg.dataset.max_seq_length,
+            max_seq_length=dataset_cfg.max_seq_length,
             tokenizer=self.tokenizer,
-            num_samples=ds_cfg.num_samples,
+            num_samples=cfg.num_samples,
             pad_label=dataset_cfg.pad_label,
-            label_ids=label_ids,
+            label_ids=self.data_desc.label_ids,
             ignore_extra_tokens=dataset_cfg.ignore_extra_tokens,
             ignore_start_end=dataset_cfg.ignore_start_end,
             use_cache=dataset_cfg.use_cache,
@@ -252,8 +238,8 @@ class TokenClassificationModel(ModelPT):
         return DataLoader(
             dataset=dataset,
             collate_fn=dataset.collate_fn,
-            batch_size=ds_cfg.batch_size,
-            shuffle=ds_cfg.shuffle,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
             num_workers=dataset_cfg.num_workers,
             pin_memory=dataset_cfg.pin_memory,
             drop_last=dataset_cfg.drop_last,
@@ -442,8 +428,8 @@ class TokenClassificationModel(ModelPT):
         model = PretrainedModelInfo(
             pretrained_model_name="NERModel",
             location="https://nemo-public.s3.us-east-2.amazonaws.com/nemo-1.0.0alpha-tests/ner.nemo",
-            description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and " +
-            "achieves 74.61 F1 Macro score.",
+            description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and "
+            + "achieves 74.61 F1 Macro score.",
         )
         result.append(model)
         return result
