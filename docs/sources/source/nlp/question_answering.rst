@@ -38,7 +38,8 @@ BioMegatron-LM BERT 345M uncased model (~345M parameters) finetuned on SQuADv1.1
 
 .. tip::
 
-    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining <https://nvidia.github.io/NeMo/nlp/bert_pretraining.html>`__.
+    For pretraining BERT in NeMo and pretrained model checkpoints go to `BERT pretraining
+    <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/stable/nlp/bert_pretraining.html>`__.
 
 Model results:
 
