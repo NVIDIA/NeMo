@@ -192,7 +192,7 @@ class Exportable(ABC):
 
     def _prepare_for_export(self):
         """
-        Implement this method to prepare module for export. This is in-place operation. 
-        Do all necessary changes on module pre-export here.
+        Override this method to prepare module for export. This is in-place operation. 
+        Base version does common necessary module replacements (Apex etc) 
         """
         replace_for_export(self)
