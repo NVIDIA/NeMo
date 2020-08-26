@@ -123,6 +123,7 @@ class QAModel(ModelPT):
         all_end_logits = []
         if torch.distributed.is_initialized():
             world_size = torch.distributed.get_world_size()
+            logging.info(f"WORLD SIZE : {world_size}")
             for ind in range(world_size):
                 all_unique_ids.append(torch.empty_like(unique_ids))
                 all_start_logits.append(torch.empty_like(start_logits))

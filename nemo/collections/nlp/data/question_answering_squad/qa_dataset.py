@@ -151,8 +151,6 @@ class SquadDataset(Dataset):
     ):
         example_index_to_features = collections.defaultdict(list)
 
-        logging.info(f"UNIQUE IDS: {unique_ids}")
-
         unique_id_to_pos = {}
         for index, unique_id in enumerate(unique_ids):
             unique_id_to_pos[unique_id] = index
